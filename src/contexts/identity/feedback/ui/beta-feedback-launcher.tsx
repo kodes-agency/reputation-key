@@ -74,8 +74,8 @@ export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
           code-split marker can append "— 1 report updated" without the
           launcher carrying that state.
 
-          36 px tall below md, from the top bar's compact density. Where the label
-          is hidden (below sm) the button is a 36 px square: a fixed width, not
+          44 px tall below md, from the touch token. Where the label
+          is hidden (below sm) the button is a 44 px square: a fixed width, not
           zero side padding, because the size's `has-[>svg]:px-2.5` outranks a
           breakpoint padding utility.
         */}

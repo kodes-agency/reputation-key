@@ -4,7 +4,12 @@ import { Loader2Icon } from 'lucide-react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 import { useResolvedTheme } from '#/components/hooks/use-theme-mode'
 import { TONE_ICON } from './tone'
+import { PHONE_TOUCH_PAD_POSITIONED } from './touch-pad'
 import type { CSSProperties } from 'react'
+
+// A toast's action is a 24 px pill; below `md` a 44 px pad drawn around it is what a thumb hits.
+const ACTION_BUTTON_TOUCH_PAD =
+  "max-md:relative max-md:after:absolute max-md:after:top-1/2 max-md:after:left-1/2 max-md:after:size-11 max-md:after:-translate-1/2 max-md:after:content-['']"
 
 /**
  * The app's one Toaster. It follows the document's theme and paints typed toasts
@@ -28,6 +33,15 @@ const Toaster = ({ ...props }: ToasterProps) => {
         loading: <Loader2Icon className="size-4 animate-spin" />,
       }}
       style={TOASTER_STYLE}
+      // The close button is a 20 px disc on the toast's corner; below `md` a 44 px
+      // pad drawn around it is what a thumb hits.
+      toastOptions={{
+        classNames: {
+          closeButton: PHONE_TOUCH_PAD_POSITIONED,
+          actionButton: ACTION_BUTTON_TOUCH_PAD,
+          cancelButton: ACTION_BUTTON_TOUCH_PAD,
+        },
+      }}
       {...props}
     />
   )

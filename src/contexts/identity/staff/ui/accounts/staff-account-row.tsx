@@ -37,7 +37,6 @@ export function StaffAccountRow({
       {selectable ? (
         <DataTableCell className="col-start-2 row-start-1 self-center @4xl:table-cell @4xl:p-3">
           <Checkbox
-            touch
             aria-label={`Select ${member.displayName}`}
             checked={selected}
             onCheckedChange={onSelect}

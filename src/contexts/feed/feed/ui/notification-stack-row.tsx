@@ -74,7 +74,7 @@ export function NotificationStackRow({
           const rest = unreadIds.filter((id) => id !== newest.id)
           if (rest.length > 0) actions.onMarkManyRead(rest)
         }}
-        className="flex min-w-0 flex-1 gap-3 rounded-lg py-2.5 pl-3 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex min-w-0 flex-1 gap-3 rounded-lg py-2.5 pl-3 outline-none max-md:min-h-(--control-touch) focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
         <span aria-hidden="true" className="relative mt-0.5 flex size-4 shrink-0">
           {view.isUnread && (

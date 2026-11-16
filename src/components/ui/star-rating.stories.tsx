@@ -164,7 +164,7 @@ export const EveryValue: Story = {
   render: () => (
     <div className="flex flex-col gap-3 text-sm">
       {SCALE.map((value) => (
-        <div key={value} className="flex items-center gap-6">
+        <div key={value} className="flex flex-wrap items-center gap-x-6 gap-y-1">
           <StarRating value={value} />
           <StarRating value={value} size="sm" tone="rating" />
           <StarRating value={value} showValue />

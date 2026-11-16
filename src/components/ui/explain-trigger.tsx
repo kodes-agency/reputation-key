@@ -2,6 +2,7 @@ import * as React from 'react'
 
 import { cn } from '#/lib/utils'
 import { PopoverTrigger } from '#/components/ui/popover'
+import { PHONE_TOUCH_PAD } from './touch-pad'
 
 /**
  * The cue that text explains itself when asked: a dotted underline in the text's own
@@ -28,7 +29,11 @@ function ExplainTrigger({
       className={cn(
         'cursor-help rounded focus-ring',
         EXPLAIN_UNDERLINE,
-        touch && 'max-md:min-h-(--control-touch) max-md:min-w-(--control-touch)',
+        // Set in a sentence it keeps the line's own box and wears a 44 px pad on a
+        // phone; `touch` is for one that stands on its own.
+        touch
+          ? 'max-md:min-h-(--control-touch) max-md:min-w-(--control-touch)'
+          : PHONE_TOUCH_PAD,
         className,
       )}
       {...props}

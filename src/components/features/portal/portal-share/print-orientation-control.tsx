@@ -56,7 +56,6 @@ export function PrintOrientationControl({
         value={orientation}
         onValueChange={(value) => onChange(value as PrintOrientation)}
         options={OPTIONS}
-        touch
       />
       {showNote && (
         <span

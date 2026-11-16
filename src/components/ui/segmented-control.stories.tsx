@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { Button } from './button'
 import { SegmentedControl, type SegmentedControlOption } from './segmented-control'
 
 const meta: Meta<typeof SegmentedControl> = {
@@ -115,10 +116,14 @@ export const ArrowKeys: Story = {
 /** Tab enters the group once, on the chosen segment, and leaves it. */
 export const OneTabStop: Story = {
   render: () => (
-    <div className="flex items-center gap-3">
-      <button type="button">Before</button>
+    <div className="flex flex-wrap items-center gap-3">
+      <Button variant="outline" size="sm">
+        Before
+      </Button>
       <Controlled initial="bg" options={LANGUAGES} label="Preview language" />
-      <button type="button">After</button>
+      <Button variant="outline" size="sm">
+        After
+      </Button>
     </div>
   ),
   play: async ({ canvasElement }) => {

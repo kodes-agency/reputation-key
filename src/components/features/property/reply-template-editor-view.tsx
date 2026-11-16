@@ -109,7 +109,6 @@ export function ReplyTemplateEditorView(props: Props) {
                 onValueChange={(value) =>
                   field.handleChange(value as 'text' | 'rating_only')
                 }
-                touch
               />
             </FormFieldFrame>
           )}
@@ -183,7 +182,6 @@ export function ReplyTemplateEditorView(props: Props) {
             { value: 'es-Latn', label: 'Español' },
           ]}
           onValueChange={(value) => props.setLanguage(value as EditorLanguage)}
-          touch
         />
         <form.Field name={bodyName}>
           {(field) => {

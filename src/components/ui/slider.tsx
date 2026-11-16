@@ -11,6 +11,7 @@
 // slider says `limit` is its highest value.
 import { Slider as SliderPrimitive } from 'radix-ui'
 import { cn } from '#/lib/utils'
+import { PHONE_TOUCH_PAD } from './touch-pad'
 
 /**
  * Names the slider. Required, one way or the other: a bare thumb says nothing.
@@ -101,7 +102,11 @@ export function Slider({
         aria-describedby={aria['aria-describedby']}
         aria-valuemax={highest}
         aria-valuetext={valueText(held)}
-        className="focus-ring block size-5 rounded-full border-2 border-primary bg-background shadow-sm outline-none disabled:pointer-events-none"
+        // Below `md` a 44 px pad drawn around the 20 px thumb is what a thumb hits.
+        className={cn(
+          'focus-ring relative block size-5 rounded-full border-2 border-primary bg-background shadow-sm outline-none disabled:pointer-events-none',
+          PHONE_TOUCH_PAD,
+        )}
       />
     </SliderPrimitive.Root>
   )

@@ -173,8 +173,8 @@ export const SECTION_NAV_ROW =
   'group focus-ring flex items-center gap-3 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted aria-[current=page]:bg-accent aria-[current=page]:font-medium aria-[current=page]:hover:bg-accent'
 
 export const SECTION_NAV_ROW_HEIGHT: Readonly<Record<SectionNavFrame, string>> = {
-  rail: 'min-h-(--control-touch)',
-  inline: 'min-h-9 max-md:min-h-(--control-touch)',
+  rail: 'min-h-(--control-touch) min-w-(--control-touch)',
+  inline: 'min-h-9 max-md:min-h-(--control-touch) max-md:min-w-(--control-touch)',
 }
 
 export const SECTION_NAV_ICON =

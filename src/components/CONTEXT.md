@@ -51,17 +51,15 @@ and actions supply server state.
   `hasFailed(query)` and pass `retrying` (`isRetrying(query)`) from
   `hooks/is-retrying`, because a query with no data drops its error and goes
   `pending` the moment it refetches. The top bar passes
-  `data-density="compact"` on its container (36px on a phone, not the 44px target);
-  the Inbox does not, so its controls are the 44px target on a phone.
+  no density attribute: its controls are the 44px target on a phone, as everywhere.
   The bell's could-not-load body is plain markup on purpose: it sits in the
   first-paint closure.
   A control's height is not spelled by the caller. `Button`, `Input`,
   `SelectTrigger` and the menu items are 44px below `md` (the `--control-touch`
-  token) and keep their desktop height from `md`; a dense bar (the
-  top bar) sets `data-density="compact"` on its container and the same controls
-  are 36px there. A menu, sheet or dialog that portals out of the container says
-  `data-density="compact"` itself. A small button that must stay a tap target on a
-  phone is `touch` (`size="xs"`, `icon-xs`), and one whose label hides below a width
+  token) and keep their desktop height from `md`; there is no
+  compact density below `md`. `size="xs"` and `icon-xs` are 44px
+  on a phone too; a `size="inline"` link standing alone is `touch`, one set in a
+  sentence is `display: inline` and exempt. A button whose label hides below a width
   is `iconBelow="md"` (or `"sm"`): no caller spells `--control-touch`. A button whose
   label must wrap uses `wrap`, which keeps the desktop and touch minimum heights.
   A bar in a pane the window does not size (the Inbox's detail pane is 472 px wide in a 1280 px window) asks the
@@ -460,7 +458,7 @@ An ordinary action in the same file still uses `Button` or `IconButton`.
 | Section navigation | `SectionNav` from `#/components/ui/section-nav`<br>`SectionNavLayout` from `#/components/ui/section-nav-layout` | The sections of one place (Property settings, the Portal editor's parts) | Items with icon, summary, count and group; `presentation` `list`, `strip`, `auto` (by container width) | The Inbox queue rail and the phone's queue sheet keep their own composition, with the same fill, ring and `NavCount` | `ui/section-nav-styles.test.ts`, `ui/nav-contrast.test.ts` |
 | Navigation link | `NavLink` from `#/components/ui/nav-link` | Any link that says where you are: it sets `aria-current` once, from the `current` the nav passes | | | Review |
 | Page views | `LinkTabs`, `LinkTab` from `#/components/ui/link-tabs`<br>`Tabs`, `TabCount` from `#/components/ui/tabs` | Sibling views of one page (a route or a search value): underline tabs | `Tabs variant="line"` for views that swap a panel; the pill `Tabs` only for a mode inside a component | `LinkTabs` is a navigation landmark of links, an in-page `Tabs` is a tablist | Review |
-| Value choice and range | `SegmentedControl` from `#/components/ui/segmented-control`<br>`RangeControl` from `#/components/ui/range-control` | A short, always-answered choice (a radio group); a time range, worded from `RANGE_PRESET_LABELS` in `#/shared/dashboard-range` | `touch` | The Portal Results window keeps its own preset list and is remembered per reader | Review |
+| Value choice and range | `SegmentedControl` from `#/components/ui/segmented-control`<br>`RangeControl` from `#/components/ui/range-control` | A short, always-answered choice (a radio group); a time range, worded from `RANGE_PRESET_LABELS` in `#/shared/dashboard-range` | | The Portal Results window keeps its own preset list and is remembered per reader | Review |
 
 ### Collections
 
@@ -490,7 +488,7 @@ An ordinary action in the same file still uses `Button` or `IconButton`.
 <!-- prettier-ignore -->
 | Family | Import | Use it for | Variants | Differs on purpose | Guard |
 | --- | --- | --- | --- | --- | --- |
-| Button | `Button` from `#/components/ui/button`<br>`SubmitButton` from `#/components/forms/submit-button` | Every action. `pending` and `pendingLabel` own the spinner; the density (44px below `md`) is the primitive's | `variant` (including `scope-label` with `size="inline"` for a compact scope picker), `size`, `touch`, `wrap`, `iconBelow`; lazy `RowButton` / `SummaryButton` from `ui/button-layouts` for multiline evidence rows and a stable copy pill; `data-density="compact"` on a container (the top bar) | The top bar is compact (36px on a phone); the Inbox is not | Review |
+| Button | `Button` from `#/components/ui/button`<br>`SubmitButton` from `#/components/forms/submit-button` | Every action. `pending` and `pendingLabel` own the spinner; the density (44px below `md`) is the primitive's | `variant` (including `scope-label` with `size="inline"` for a compact scope picker), `size`, `touch`, `wrap`, `iconBelow`; lazy `RowButton` / `SummaryButton` from `ui/button-layouts` for multiline evidence rows and a stable copy pill | | Review |
 | Add action | `AddAction`, `AddActionLink` from `#/components/ui/add-action` | The control that adds a thing to a list: the Plus, then a sentence-case label, in the default Button. It sits in the header's `actions`; a card or a tab that owns a list may carry its own | `AddAction` opens a dialog or a menu or runs a command, `AddActionLink` goes to a page; `size` `default`, `sm` (in a card header) | Portals repeats "New portal" in a fixed bar at the foot of a phone (`PortalPhoneNewPortalBar`); Add staff sits above its table | Review |
 | Icon-only control and link in text | `IconButton` from `#/components/ui/icon-button`<br>`InlineLink` from `#/components/ui/inline-link` | A control with no visible label (a required `label`, which is its name and its tooltip); a link set in a sentence | `tooltip`; `TouchInlineLink` from `ui/inline-touch-link` for a standalone touch target; `focus-ring` for a control that is not a Button | A control that opens a menu or popover shows no tooltip | Review |
 | Confirmation | `ConfirmationDialog`, `ConfirmationTrigger` from `#/components/ui/confirmation-dialog` | Every confirmation. It stays open and pending until `onConfirm` settles, then says a refusal once | `tone`: `destructive` (cannot be undone, or loses data), `neutral` (reversible) | Inbox Reject is inline (it needs a reason); a draft language, an unsent reply draft and one notification skip it | Review |

@@ -7,7 +7,7 @@ import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
-import { ROW_NAME_LINK } from '#/components/ui/row-link'
+import { PHONE_LINK_TOUCH, ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { PortalGoalResultsList } from './portal-goal-results-list'
 import {
@@ -73,7 +73,7 @@ function EndedPortalGoals({ propertyId, ended }: Pick<Props, 'propertyId' | 'end
           {ended.map((goal) => (
             <li key={goal.programId} className="flex flex-col gap-1">
               <Link
-                className={cn('self-start font-medium', ROW_NAME_LINK)}
+                className={cn('self-start font-medium', ROW_NAME_LINK, PHONE_LINK_TOUCH)}
                 to="/properties/$propertyId/goals/$goalId"
                 params={{ propertyId, goalId: goal.programId }}
               >

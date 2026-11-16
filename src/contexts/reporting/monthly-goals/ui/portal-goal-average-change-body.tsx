@@ -45,7 +45,6 @@ export function PortalGoalAverageChangeBody({
     >
       {model.months.length < 2 ? null : (
         <SegmentedControl
-          touch
           aria-label="Month"
           value={model.month}
           onValueChange={(month) => onChange({ kind: 'month', month })}

@@ -7,7 +7,7 @@ import type {
   GoalSubject,
 } from '#/contexts/reporting/application/public-api'
 import type { listGoalPrograms } from '#/contexts/reporting/server/goal-programs'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { SectionTitle } from '#/components/ui/section-title'
 import { GoalLiveLine, GoalLiveLinePending } from '#/components/goals/goal-live-line'
@@ -108,13 +108,13 @@ export function PortalGoalExtras({
         ))}
       </ul>
       {more ? (
-        <InlineLink
+        <TouchInlineLink
           to="/properties/$propertyId/goals/portals"
           params={{ propertyId }}
           className="self-start text-sm"
         >
           See all on the goal page
-        </InlineLink>
+        </TouchInlineLink>
       ) : null}
     </div>
   )

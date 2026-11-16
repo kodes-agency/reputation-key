@@ -67,7 +67,7 @@ export function BetaFeedbackScreenshotField({
         id={inputId}
         type="file"
         accept="image/*"
-        className="sr-only"
+        className="hidden"
         tabIndex={-1}
         aria-label="Choose a screenshot"
         disabled={disabled}
