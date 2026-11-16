@@ -11,6 +11,7 @@ import {
   flushScopeObservations,
   observeClient,
 } from './scope-observation.server'
+import { scopeClientStatements } from './statement-scope.server'
 
 // BQC-7.1: the production build bundles this module TWICE (the nitro app
 // chunk and the lazy SSR service chunk each inline their own copy), so a
@@ -233,9 +234,14 @@ export function getPool(): Pool {
     pool.on('error', (err) => {
       getLogger().warn({ error: err.message }, '[db] idle pool connection error')
     })
-    // Row-security observe mode: counts what a policy would refuse and times
-    // each request's statements. It never changes a statement or its result.
-    pool.on('connect', (client) => observeClient(client))
+    // Every statement runs under its unit of work's database scope, and
+    // row-security observe mode counts what a policy would refuse and times
+    // each request's statements. Observation never changes a statement or its
+    // result.
+    pool.on('connect', (client) => {
+      scopeClientStatements(client)
+      observeClient(client)
+    })
     bindPoolCheckouts(pool)
     // Retry only acquisition failures. Never replay pool.query(): a write may
     // have committed before a connection failure made its outcome ambiguous.

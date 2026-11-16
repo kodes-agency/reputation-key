@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { runServerRoute } from '#/shared/observability/request-context'
 import { ZodError } from 'zod/v4'
 import { resolvePublicPortalLink } from '#/contexts/guest/server/guest-scans'
 import { isValidLinkDestination } from '#/contexts/portal/application/portal-management-contracts'
@@ -87,7 +88,10 @@ export async function handlePublicPortalClick(
 export const Route = createFileRoute('/api/public/p/$token/click/$linkId')({
   server: {
     handlers: {
-      GET: async ({ params }) => handlePublicPortalClick(params),
+      GET: ({ params }) =>
+        runServerRoute('/api/public/p/$token/click/$linkId', async () =>
+          handlePublicPortalClick(params),
+        ),
     },
   },
 })

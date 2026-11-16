@@ -18,6 +18,7 @@
 // container, but never import context infrastructure directly.
 
 import { createFileRoute } from '@tanstack/react-router'
+import { runServerRoute } from '#/shared/observability/request-context'
 import { z, ZodError } from 'zod/v4'
 import { getContainer } from '#/composition'
 import {
@@ -260,7 +261,10 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
 export const Route = createFileRoute('/api/webhooks/resend/events')({
   server: {
     handlers: {
-      POST: ({ request }) => handleResendWebhookPost(request),
+      POST: ({ request }) =>
+        runServerRoute('/api/webhooks/resend/events', () =>
+          handleResendWebhookPost(request),
+        ),
     },
   },
 })

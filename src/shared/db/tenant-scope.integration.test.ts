@@ -83,6 +83,44 @@ describe.sequential('database scope on a pooled connection (PostgreSQL)', () => 
     expect(after.organization || null).toBeNull()
   })
 
+  it('runs each autocommit statement under its own request scope when two tenants interleave on one client', async () => {
+    const tenantA = {
+      organizationId: ORG_A,
+      entry: 'session',
+      name: 'scope-test',
+    } as const
+    const tenantB = {
+      organizationId: ORG_B,
+      entry: 'session',
+      name: 'scope-test',
+    } as const
+
+    // Sent together, so the one client takes them in turn: A, B, unscoped,
+    // system, A, B, each needing a different scope from the statement before.
+    const seen = await Promise.all([
+      withTenantScope(tenantA, settings),
+      withTenantScope(tenantB, settings),
+      runWithContext('unscoped-request', settings),
+      runInScope({ kind: 'system', name: 'job:scope-test' }, settings),
+      withTenantScope(tenantA, settings),
+      withTenantScope(tenantB, settingsInTransaction),
+    ])
+    const after = await settings()
+
+    expect(new Set(seen.map((row) => row.backend)).size).toBe(1)
+    expect(
+      seen.map(({ scope, organization }) => [scope || null, organization || null]),
+    ).toEqual([
+      ['tenant', ORG_A],
+      ['tenant', ORG_B],
+      [null, null],
+      ['system', null],
+      ['tenant', ORG_A],
+      ['tenant', ORG_B],
+    ])
+    expect([after.scope || null, after.organization || null]).toEqual([null, null])
+  })
+
   it('names the tables a policy would refuse without changing any result', async () => {
     flushScopeObservations()
 

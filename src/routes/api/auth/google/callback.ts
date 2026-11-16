@@ -2,6 +2,7 @@
 // handle; tenant, user, session, PKCE verifier, and OIDC nonce stay server-side.
 
 import { createFileRoute } from '@tanstack/react-router'
+import { runServerRoute } from '#/shared/observability/request-context'
 import { getEnv, type Env } from '#/shared/config/env'
 import { getContainer } from '#/composition'
 import { getSessionFromHeaders, resolveTenantContext } from '#/shared/auth/middleware'
@@ -174,7 +175,10 @@ export async function handleGoogleOAuthCallback(request: Request): Promise<Respo
 export const Route = createFileRoute('/api/auth/google/callback')({
   server: {
     handlers: {
-      GET: async ({ request }) => handleGoogleOAuthCallback(request),
+      GET: ({ request }) =>
+        runServerRoute('/api/auth/google/callback', () =>
+          handleGoogleOAuthCallback(request),
+        ),
     },
   },
 })
