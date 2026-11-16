@@ -8,7 +8,7 @@ import type { PortalGoalOfCard } from '#/contexts/reporting/monthly-goals/contra
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import { SectionTitle } from '#/components/ui/section-title'
 import { StatusBadge } from '#/components/ui/status-badge'
 import {
@@ -72,13 +72,13 @@ function AllResultsLink({ page, propertyId, canSeeResults }: HistoryProps) {
   if (foot === null) return null
   return (
     // Every month's result, on its own page.
-    <InlineLink
+    <TouchInlineLink
       to="/properties/$propertyId/goals/portal-results"
       params={{ propertyId }}
       className="self-start text-sm"
     >
       {foot}
-    </InlineLink>
+    </TouchInlineLink>
   )
 }
 

@@ -146,7 +146,8 @@ const meta: Meta<typeof Timeline> = {
       <div
         className="bg-background text-foreground"
         style={{
-          width:
+          width: '100%',
+          maxWidth:
             typeof parameters.paneWidth === 'number'
               ? parameters.paneWidth
               : PANE_WIDTH_PX,

@@ -134,6 +134,7 @@ export function NotificationPopoverContent(props: Props) {
             <Button
               variant="ghost"
               size="xs"
+              touch
               onClick={markAllRead}
               className="text-xs text-muted-foreground"
             >

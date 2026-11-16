@@ -26,7 +26,10 @@ type Story = StoryObj<typeof TileCaption>
 function widthFrame(widthPx: number): NonNullable<Story['decorators']> {
   return [
     (Story) => (
-      <div style={{ width: widthPx }} className="text-sm text-muted-foreground">
+      <div
+        style={{ width: widthPx, maxWidth: '100%' }}
+        className="text-sm text-muted-foreground"
+      >
         <Story />
       </div>
     ),

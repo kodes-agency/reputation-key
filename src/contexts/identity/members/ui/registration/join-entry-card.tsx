@@ -6,7 +6,7 @@
 import { Button } from '#/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { AuthCard } from '#/components/layout/auth-layout'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 
 type Props = Readonly<{
   staff?: boolean
@@ -35,9 +35,9 @@ export function JoinEntryCard({ status, onRetry, staff = false }: Props) {
             Signing you in…
           </p>
         )}
-        <InlineLink to={staff ? '/my' : '/properties'} className="block text-sm">
+        <TouchInlineLink to={staff ? '/my' : '/properties'} className="flex text-sm">
           {staff ? 'Continue to your code' : 'Continue to your workspace'}
-        </InlineLink>
+        </TouchInlineLink>
       </div>
     </AuthCard>
   )

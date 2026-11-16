@@ -4,7 +4,7 @@
 import { Link } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { StatusBadge } from '#/components/ui/status-badge'
-import { ROW_NAME_LINK } from '#/components/ui/row-link'
+import { PHONE_LINK_TOUCH, ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import {
   DataTable,
@@ -45,7 +45,7 @@ function RestoreCell({ property }: Readonly<{ property: PropertyListProperty }>)
           to="/properties/$propertyId/settings/danger"
           params={{ propertyId: property.id }}
           aria-label={`Restore ${property.name}`}
-          className={ROW_NAME_LINK}
+          className={cn(PHONE_LINK_TOUCH, ROW_NAME_LINK)}
         >
           Restore…
         </Link>
@@ -77,7 +77,7 @@ export function PropertyListRemoved({
                 <Link
                   to="/properties/$propertyId"
                   params={{ propertyId: property.id }}
-                  className={cn('truncate font-medium', ROW_NAME_LINK)}
+                  className={cn('truncate font-medium', PHONE_LINK_TOUCH, ROW_NAME_LINK)}
                 >
                   {property.name}
                 </Link>

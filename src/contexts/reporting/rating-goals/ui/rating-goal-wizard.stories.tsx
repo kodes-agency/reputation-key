@@ -8,6 +8,7 @@
 // in rating-goal-wizard-setup.stories.tsx, a change and the frames in
 // rating-goal-wizard-change.stories.tsx.
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import {
   aimsFor,
@@ -245,7 +246,7 @@ export const GoogleCatchingUp: Story = {
 /** On a phone the same screen fills it as a sheet (E4). */
 export const PhoneFullScreen: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const dialog = await openWizard(canvasElement)
     await expect(document.body.querySelector('[data-wizard-frame]')).toHaveAttribute(
       'data-wizard-frame',
@@ -257,19 +258,12 @@ export const PhoneFullScreen: Story = {
     await expect(
       dialog.getByRole('button', { name: 'How we worked this out' }),
     ).toBeVisible()
-  },
-}
-
-export const PhoneLight: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileStaff' }, theme: 'light' },
-  play: async ({ canvasElement }) => {
-    await openWizard(canvasElement)
-  },
+  }),
 }
 
 export const DesktopDialog: Story = {
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const dialog = await openWizard(canvasElement)
     await expect(document.body.querySelector('[data-wizard-frame]')).toHaveAttribute(
       'data-wizard-frame',
@@ -278,14 +272,7 @@ export const DesktopDialog: Story = {
     await expect(
       dialog.getByText('We count new Google reviews every week, Monday to Sunday.'),
     ).toBeVisible()
-  },
-}
-
-export const DesktopLight: Story = {
-  parameters: { viewport: { defaultViewport: 'desktopManager' }, theme: 'light' },
-  play: async ({ canvasElement }) => {
-    await openWizard(canvasElement)
-  },
+  }),
 }
 
 /** The wizard on the Goals page, above the Portal goals the done screen leads to. */

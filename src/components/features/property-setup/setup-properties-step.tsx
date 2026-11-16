@@ -34,7 +34,7 @@ import { SetupQuestionnaire, setupQuestionCount } from './setup-questionnaire'
 import { SetupResults } from './setup-results'
 import { SetupReview } from './setup-review'
 import { useSetupFacts, type SetupFactsState } from './use-setup-facts'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 
 type Props = Readonly<{
   properties: readonly SetupImportedProperty[]
@@ -245,9 +245,9 @@ function NothingLeftToAsk() {
       <AlertDescription>
         These properties already have a public display name, a reply language, a
         responsible manager and an AI decision.{' '}
-        <InlineLink to="/properties" underline="always">
+        <TouchInlineLink to="/properties" underline="always">
           View properties
-        </InlineLink>
+        </TouchInlineLink>
       </AlertDescription>
     </Alert>
   )

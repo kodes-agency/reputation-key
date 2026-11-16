@@ -6,6 +6,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { Button } from '#/components/ui/button'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
@@ -368,21 +369,25 @@ function RefreshedUnderAnEdit() {
         }
       />
       <p>Read at revision {data.revision}</p>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        className="h-auto max-w-full py-2 whitespace-normal"
         onClick={() => {
           managersServer.saveFromElsewhere(['user-1', 'user-3'])
           void queryClient.invalidateQueries({ queryKey: MANAGERS_KEY })
         }}
       >
         {ANOTHER_ADMIN_SAVES}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="outline"
+        className="h-auto max-w-full py-2 whitespace-normal"
         onClick={() => managersServer.saveFromElsewhere(['user-1', 'user-3'])}
       >
         {ANOTHER_ADMIN_SAVES_UNTOLD}
-      </button>
+      </Button>
     </>
   )
 }

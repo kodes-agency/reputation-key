@@ -12,7 +12,7 @@ import { Field, FieldGroup, FieldLabel } from '#/components/ui/field'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { MerchantAiDataHandling } from './merchant-ai-data-handling'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 
 export type MerchantAiPropertyOption = Readonly<{
   id: string
@@ -38,14 +38,14 @@ function MerchantAiGoogleSourceUnavailable() {
         {canManageGoogleConnection || canConfirmGoogleProperty ? (
           <div className="flex flex-wrap items-center gap-1">
             {canManageGoogleConnection ? (
-              <InlineLink to="/settings/integrations" className="text-xs">
+              <TouchInlineLink to="/settings/integrations" className="text-xs">
                 Open Google integrations
-              </InlineLink>
+              </TouchInlineLink>
             ) : null}
             {canConfirmGoogleProperty ? (
-              <InlineLink to="/properties/import-google" className="text-xs">
+              <TouchInlineLink to="/properties/import-google" className="text-xs">
                 Review property import
-              </InlineLink>
+              </TouchInlineLink>
             ) : null}
           </div>
         ) : null}

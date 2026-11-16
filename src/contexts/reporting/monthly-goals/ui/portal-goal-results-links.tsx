@@ -1,7 +1,7 @@
 // Results links require goal.update, matching the results page's gate.
 
 import type { ReactNode } from 'react'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import {
   ENDED_PORTAL_GOALS_HASH,
   allResultsLink,
@@ -25,7 +25,7 @@ function ResultsLink({
   children,
 }: Readonly<{ propertyId: string; toEnded?: boolean; children: ReactNode }>) {
   return (
-    <InlineLink
+    <TouchInlineLink
       to="/properties/$propertyId/goals/portal-results"
       params={{ propertyId }}
       hash={toEnded ? ENDED_PORTAL_GOALS_HASH : undefined}
@@ -33,7 +33,7 @@ function ResultsLink({
       className="self-start text-sm"
     >
       {children}
-    </InlineLink>
+    </TouchInlineLink>
   )
 }
 

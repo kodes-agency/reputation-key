@@ -84,7 +84,7 @@ export function BetaFeedbackChoiceGroup<TValue extends string>({
               onClick={() => onChange(option.value)}
               onKeyDown={(event) => onKeyDown(event, index)}
               className={cn(
-                'group relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+                'group relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors max-md:min-h-(--control-touch)',
                 'focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
                 'disabled:cursor-not-allowed disabled:opacity-50',
                 selected

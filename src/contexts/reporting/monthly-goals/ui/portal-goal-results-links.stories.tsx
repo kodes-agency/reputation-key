@@ -16,6 +16,7 @@ import {
 } from './portal-goal-results.stories.fixtures'
 import { CARD_RUNNING } from './portal-goal-running.stories.fixtures'
 import { PortalGoalSection } from './portal-goal-section'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const meta: Meta<typeof PortalGoalResultsLinks> = {
   title: 'Goals/PortalGoalResultsLinks',
@@ -28,7 +29,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const MonthClosedAndGoalsEnded: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Found, not got: in a compiled Storybook the story's router draws it after
     // the play starts.
@@ -38,7 +39,7 @@ export const MonthClosedAndGoalsEnded: Story = {
     await expect(
       canvas.getByRole('link', { name: 'Ended portal goals (3)' }),
     ).toHaveAttribute('href', '/properties/property-seaview/goals/portal-results#ended')
-  },
+  }),
 }
 
 /** December set and still counting, nothing ended: no way there yet. */
@@ -69,11 +70,6 @@ export const Phone320: Story = {
 export const OnADesktop: Story = {
   ...MonthClosedAndGoalsEnded,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const Light: Story = {
-  ...MonthClosedAndGoalsEnded,
-  parameters: { theme: 'light' },
 }
 
 /**
