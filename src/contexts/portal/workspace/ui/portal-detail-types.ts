@@ -18,6 +18,7 @@ export type PortalDetailPortal = Readonly<{
   theme: PortalThemeDraft
   privateFeedbackThreshold: number
   skipPrivateRating: boolean
+  contactRequestsEnabled: boolean
   propertyId: string
   organizationId: string
   publicationState: PortalPublicationState

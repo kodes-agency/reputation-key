@@ -91,6 +91,7 @@ function source(patch: Partial<PortalCopySource> = {}): PortalCopySource {
       description: 'Welcome to the pool',
       privateFeedbackThreshold: 4,
       skipPrivateRating: true,
+      contactRequestsEnabled: true,
       linktreeEnabled: false,
       theme: { primaryColor: '#112233' },
     }),
@@ -122,6 +123,7 @@ describe('planPortalContentCopy', () => {
       description: 'Welcome to the pool',
       privateFeedbackThreshold: 4,
       skipPrivateRating: true,
+      contactRequestsEnabled: true,
       linktreeEnabled: false,
       theme: { primaryColor: '#112233' },
     })
@@ -329,6 +331,7 @@ describe('planPortalContentCopy', () => {
       'sourcePortalId',
     ])
     expect(Object.keys(settings).sort()).toEqual([
+      'contactRequestsEnabled',
       'description',
       'linktreeEnabled',
       'privateFeedbackThreshold',

@@ -24,6 +24,16 @@ const localizedContentSchema = z
   })
   .readonly()
 
+/** The notice a Portal's contact requests were published under. */
+export const contactRequestEvidenceSchema = z
+  .object({
+    noticeId: z.string().min(1).max(100),
+    noticeVersion: z.string().min(1).max(100),
+    noticeDigest: z.string().regex(/^[0-9a-f]{64}$/u),
+    noticeLocale: guestLocaleSchema,
+  })
+  .readonly()
+
 const linkTextSchema = z
   .object({
     label: z.string(),

@@ -125,6 +125,7 @@ const portal = {
   theme: { primaryColor: '#6366f1', backgroundColor: '#ffffff', textColor: '#111827' },
   privateFeedbackThreshold: 3,
   skipPrivateRating: false,
+  contactRequestsEnabled: false,
   propertyId: 'prop-1',
   organizationId: 'org-1',
   publicationState: 'published' as const,

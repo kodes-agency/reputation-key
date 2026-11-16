@@ -37,6 +37,7 @@ export async function assertPersonalPropertySource(
       portal: { id: '', name: profile.displayName, slug: '' },
       privateFeedbackThreshold: 3,
       skipPrivateRating: false,
+      contactRequests: false,
       primaryGuestLocale: locales.primary,
       localeSet: [locales.primary, ...locales.additional],
       linktreeEnabled: true,

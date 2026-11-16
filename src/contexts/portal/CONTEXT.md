@@ -953,6 +953,20 @@ public resolution, lifecycle contributors, and the POR-01 read-only reconciliati
 The build and architecture tests pin public surfaces, worker reachability, and the
 read-only repository boundary.
 
+## Contact requests setting
+
+A Portal's `contactRequestsEnabled` setting (`portals.contact_requests_enabled`, default false) is the
+business's per-Portal choice. It is copied with the Portal's content, exported with the Portal rows,
+recorded in the settings ledger as `settings:contact_requests`, and saved under `portal.update`.
+It never enables contact requests by itself: a publication writes
+`reviewGateway.contactRequest` (the notice's id, version, digest and locale) only when the setting is
+on and `CONTACT_REQUEST_NOTICES_IN_FORCE` (`src/shared/domain/contact-request-notice.ts`) names a
+Privacy Notice version covering them. The snapshot row's `contact_request_enabled` and notice columns
+mirror that key, so the evidence CHECK is never what refuses a publication. The list is empty until
+the launch adds the published notice. The settings screen draws the switch only while
+`getContactRequestsLaunch` says contact requests are launched (deployment switch on and the
+`portal.guest_contact` block lifted), and says they are not available yet while no notice is in force.
+
 ## Skip the private rating (2026-11-02)
 
 A Portal's skipPrivateRating setting defaults to false, is copied with its

@@ -60,6 +60,7 @@ export type CopiedPortalSettings = Pick<
   | 'description'
   | 'privateFeedbackThreshold'
   | 'skipPrivateRating'
+  | 'contactRequestsEnabled'
   | 'linktreeEnabled'
   | 'theme'
 >
@@ -223,6 +224,7 @@ export function planPortalContentCopy(input: PlanInput): PortalContentCopyPlan {
     description,
     privateFeedbackThreshold,
     skipPrivateRating,
+    contactRequestsEnabled,
     linktreeEnabled,
     theme,
   } = source.portal
@@ -232,6 +234,7 @@ export function planPortalContentCopy(input: PlanInput): PortalContentCopyPlan {
       description,
       privateFeedbackThreshold,
       skipPrivateRating,
+      contactRequestsEnabled,
       linktreeEnabled,
       theme,
     },

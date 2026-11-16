@@ -15,6 +15,7 @@ import {
   type VerifiedPublicationDestination,
 } from '../domain/portal-publication-snapshot'
 import {
+  contactRequestEvidenceOf,
   resolvePortalPublication,
   type PortalPublicationSource,
   type PublicationBlocker,
@@ -151,6 +152,7 @@ function buildPublicationConfiguration(
 ): ImmersivePortalPublicationConfiguration {
   const { blockers, content } = resolvePortalPublication(source)
   const [first] = blockers
+  const contactRequest = contactRequestEvidenceOf(source)
   if (first) {
     throw portalError('publication_snapshot_unavailable', describeBlocker(first))
   }
@@ -160,6 +162,7 @@ function buildPublicationConfiguration(
     reviewGateway: {
       privateFeedbackThreshold: source.privateFeedbackThreshold,
       ...(source.skipPrivateRating === true ? { skipPrivateRating: true } : {}),
+      ...(contactRequest === null ? {} : { contactRequest }),
       googleReview: { status: 'available', uri: destination.uri },
     },
     googleReviewBinding: {

@@ -154,6 +154,8 @@ export function resolveSettingsFields(
         ? unwrap(validatePrivateFeedbackThreshold(input.privateFeedbackThreshold))
         : existing.privateFeedbackThreshold,
     skipPrivateRating: input.skipPrivateRating ?? existing.skipPrivateRating,
+    contactRequestsEnabled:
+      input.contactRequestsEnabled ?? existing.contactRequestsEnabled,
   }
 }
 

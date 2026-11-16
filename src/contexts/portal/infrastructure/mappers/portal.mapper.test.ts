@@ -23,6 +23,7 @@ const sampleRow: PortalRow = {
   theme: { primaryColor: '#6366F1' },
   privateFeedbackThreshold: 3,
   skipPrivateRating: false,
+  contactRequestsEnabled: false,
   publicationState: 'published',
   createdBy: 'creator-1',
   responsibleManagerRevision: 1,

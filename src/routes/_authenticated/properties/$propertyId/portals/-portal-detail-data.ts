@@ -11,6 +11,7 @@ import {
 } from '#/contexts/portal/server/portals'
 import { getPortalLinktree, listPortalLinks } from '#/contexts/portal/server/portal-links'
 import { getPortalReview } from '#/contexts/portal/server/portal-review'
+import { getContactRequestsLaunch } from '#/contexts/portal/server/portal-contact-requests-launch'
 import { getPortalLanguageCoverage } from '#/contexts/portal/server/portal-language-coverage'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
@@ -96,6 +97,13 @@ export const portalReviewQuery = (portalId: string) =>
     staleTime: 30_000,
   })
 
+const contactRequestsLaunchQuery = () =>
+  queryOptions({
+    queryKey: portalKeys.contactRequestsLaunch(),
+    queryFn: () => getContactRequestsLaunch(),
+    staleTime: 60_000,
+  })
+
 const portalExperienceQuery = (propertyId: string, portalId: string) =>
   queryOptions({
     queryKey: portalKeys.experience(propertyId, portalId),
@@ -162,6 +170,7 @@ const portalPageQueries = (scope: TenantScope, propertyId: string, portalId: str
     ...portalHistoryQueries(portalId),
     portalExperienceQuery(propertyId, portalId),
     portalApprovedDestinationsQuery(portalId),
+    contactRequestsLaunchQuery(),
   ] as const
 
 /**
@@ -180,6 +189,7 @@ export function usePortalPageReads(propertyId: string, portalId: string) {
     history,
     experience,
     destinations,
+    contactLaunch,
   ] = useQueries({ queries: portalPageQueries(useTenantScope(), propertyId, portalId) })
   return {
     links: links.data?.links,
@@ -191,6 +201,8 @@ export function usePortalPageReads(propertyId: string, portalId: string) {
     publicationHistory: history.data,
     portalExperience: experience.data,
     approvedDestinations: destinations.data,
+    // Not in `reads`: no section waits for it, and the control stays absent until it answers.
+    contactRequestsLaunch: contactLaunch.data,
     reads: {
       languageCoverage: languages,
       linktree: tree,

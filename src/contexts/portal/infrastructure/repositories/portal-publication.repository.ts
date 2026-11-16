@@ -42,8 +42,14 @@ import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { isLocalizedConfiguration } from '../../domain/portal-publication-snapshot'
-import { immersiveConfigurationFields } from '../mappers/portal-immersive-configuration.schema'
-import { snapshotMirrorColumns } from '../mappers/portal-publication-snapshot.mapper'
+import {
+  contactRequestEvidenceSchema,
+  immersiveConfigurationFields,
+} from '../mappers/portal-immersive-configuration.schema'
+import {
+  snapshotContactColumns,
+  snapshotMirrorColumns,
+} from '../mappers/portal-publication-snapshot.mapper'
 import {
   readPortalWorkingCopy,
   readPortalWorkingCopyWithLook,
@@ -163,7 +169,10 @@ const publicationConfigurationSchema = z.discriminatedUnion('schemaVersion', [
     .extend({
       reviewGateway: publicationConfigurationBaseSchema.shape.reviewGateway
         .unwrap()
-        .extend({ skipPrivateRating: z.boolean().optional() })
+        .extend({
+          skipPrivateRating: z.boolean().optional(),
+          contactRequest: contactRequestEvidenceSchema.optional(),
+        })
         .readonly(),
     })
     .readonly(),
@@ -216,6 +225,16 @@ function mirrorColumnsMatchRow(
   configuration: PortalPublicationConfiguration,
   row: SnapshotRow,
 ): boolean {
+  const contact = snapshotContactColumns(configuration)
+  if (
+    contact.contactRequestEnabled !== row.contactRequestEnabled ||
+    contact.contactNoticeId !== row.contactNoticeId ||
+    contact.contactNoticeVersion !== row.contactNoticeVersion ||
+    contact.contactNoticeDigest !== row.contactNoticeDigest ||
+    contact.contactNoticeLocale !== row.contactNoticeLocale
+  ) {
+    return false
+  }
   if (!isLocalizedConfiguration(configuration)) return true
   const mirror = snapshotMirrorColumns(configuration)
   return (

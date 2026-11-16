@@ -9,7 +9,7 @@ import type {
   ChangePortalLanguagesVariables,
   UpdatePortalVariables,
 } from '#/components/features/portal/shared/types'
-import type { PortalLinkTapsRead } from '../contracts'
+import type { ContactRequestsLaunch, PortalLinkTapsRead } from '../contracts'
 import type { PortalPreviewReader } from '#/components/features/portal/portal-preview/portal-preview-pane'
 import type {
   PortalLanguageCoverage,
@@ -91,6 +91,8 @@ export type PortalEditorResources = Readonly<{
   portalGroups?: readonly PortalGroupView[]
   portalExperience?: PortalExperienceSettings
   approvedDestinations?: PortalApprovedDestinationList
+  /** Whether contact requests are launched; the switch is absent until it says so. */
+  contactRequestsLaunch?: ContactRequestsLaunch
   portalExperienceActions?: PortalExperienceActions
   /** The writes of a portal's own look (Look section). Absent: the section never offers them. */
   portalLookActions?: PortalLookActions

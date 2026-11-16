@@ -44,6 +44,7 @@ const PORTAL_SETTING_FIELDS = [
   'theme',
   'feedback_threshold',
   'skip_private_rating',
+  'contact_requests',
   'primary_language',
   'additional_languages',
 ] as const
@@ -58,6 +59,7 @@ const SETTING_BY_PATCH_KEY: Readonly<Record<string, PortalSettingField>> = {
   theme: 'theme',
   privateFeedbackThreshold: 'feedback_threshold',
   skipPrivateRating: 'skip_private_rating',
+  contactRequestsEnabled: 'contact_requests',
   primaryGuestLocale: 'primary_language',
   additionalGuestLocales: 'additional_languages',
 }

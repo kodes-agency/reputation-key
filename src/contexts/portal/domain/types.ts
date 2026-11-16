@@ -48,6 +48,8 @@ export type Portal = Readonly<{
   /** Inclusive threshold: ratings at or below this value may add private feedback. */
   privateFeedbackThreshold: number
   skipPrivateRating: boolean
+  /** Whether the Portal offers contact requests; only a publication under a covering notice carries it. */
+  contactRequestsEnabled: boolean
   publicationState: PortalPublicationState
   readonly createdBy: UserId | null
   readonly responsibleManagerRevision: number

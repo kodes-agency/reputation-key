@@ -6803,6 +6803,7 @@ CREATE TABLE "public"."portals" (
     "skip_private_rating" boolean DEFAULT false NOT NULL,
     "kind" character varying(16) DEFAULT 'place'::character varying NOT NULL,
     "public_name" character varying(100),
+    "contact_requests_enabled" boolean DEFAULT false NOT NULL,
     CONSTRAINT "portals_additional_guest_locales_array" CHECK ((("jsonb_typeof"("additional_guest_locales") = 'array'::"text") AND ("additional_guest_locales" <@ '["en", "es", "it", "fr", "de", "bg"]'::"jsonb"))),
     CONSTRAINT "portals_kind_valid" CHECK ((("kind")::"text" = ANY ((ARRAY['place'::character varying, 'personal'::character varying])::"text"[]))),
     CONSTRAINT "portals_personal_public_name_required" CHECK (((("kind")::"text" = 'place'::"text") OR ("public_name" IS NOT NULL))),

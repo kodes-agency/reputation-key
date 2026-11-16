@@ -24,6 +24,7 @@ export function publicationSource(
     portal: { id: SOURCE_FIXTURE_SCOPE.portalId, name: 'Harbor lobby', slug: 'harbor' },
     privateFeedbackThreshold: 3,
     skipPrivateRating: false,
+    contactRequests: false,
     primaryGuestLocale: 'en',
     localeSet: ['en', 'bg'],
     linktreeEnabled: true,

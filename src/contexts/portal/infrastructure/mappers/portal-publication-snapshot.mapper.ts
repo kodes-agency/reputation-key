@@ -37,3 +37,22 @@ export function snapshotMirrorColumns(configuration: PortalPublicationConfigurat
         : configuration.brandProfile.version,
   }
 }
+
+/**
+ * The row's contact columns: on exactly when the configuration was published
+ * under a notice, with that notice's evidence beside it. The row's evidence
+ * CHECK refuses "on" without the evidence, so both come from one place.
+ */
+export function snapshotContactColumns(configuration: PortalPublicationConfiguration) {
+  const contactRequest =
+    configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION
+      ? configuration.reviewGateway.contactRequest
+      : undefined
+  return {
+    contactRequestEnabled: contactRequest !== undefined,
+    contactNoticeId: contactRequest?.noticeId ?? null,
+    contactNoticeVersion: contactRequest?.noticeVersion ?? null,
+    contactNoticeDigest: contactRequest?.noticeDigest ?? null,
+    contactNoticeLocale: contactRequest?.noticeLocale ?? null,
+  }
+}

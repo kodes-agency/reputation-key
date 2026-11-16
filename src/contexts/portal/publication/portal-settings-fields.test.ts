@@ -20,6 +20,7 @@ describe('resolveSettingsFields', () => {
       theme: { primaryColor: '#112233' },
       privateFeedbackThreshold: 3,
       skipPrivateRating: false,
+      contactRequestsEnabled: false,
     })
   })
 
@@ -48,6 +49,23 @@ describe('resolveSettingsFields', () => {
         existing,
       ),
     ).toThrow(expect.objectContaining({ code: 'invalid_threshold' }))
+  })
+
+  it('switches contact requests on and off, and keeps them when the key is absent', () => {
+    expect(
+      resolveSettingsFields(
+        { portalId: existing.id, contactRequestsEnabled: true },
+        existing,
+      ).contactRequestsEnabled,
+    ).toBe(true)
+    const on = { ...existing, contactRequestsEnabled: true }
+    expect(resolveSettingsFields({ portalId: on.id }, on).contactRequestsEnabled).toBe(
+      true,
+    )
+    expect(
+      resolveSettingsFields({ portalId: on.id, contactRequestsEnabled: false }, on)
+        .contactRequestsEnabled,
+    ).toBe(false)
   })
 
   it('validates values that are present', () => {

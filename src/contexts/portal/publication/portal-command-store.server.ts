@@ -73,6 +73,7 @@ type PortalSetValues = {
   theme?: Record<string, unknown>
   privateFeedbackThreshold?: number
   skipPrivateRating?: boolean
+  contactRequestsEnabled?: boolean
   publicationState?: Portal['publicationState']
   primaryGuestLocale?: Portal['primaryGuestLocale']
   additionalGuestLocales?: Portal['additionalGuestLocales']
@@ -89,6 +90,8 @@ function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues
     set.theme = patch.theme as PortalTheme as Record<string, unknown>
   if (patch.skipPrivateRating !== undefined)
     set.skipPrivateRating = patch.skipPrivateRating
+  if (patch.contactRequestsEnabled !== undefined)
+    set.contactRequestsEnabled = patch.contactRequestsEnabled
   if (patch.privateFeedbackThreshold !== undefined)
     set.privateFeedbackThreshold = patch.privateFeedbackThreshold
   if (patch.publicationState !== undefined) set.publicationState = patch.publicationState

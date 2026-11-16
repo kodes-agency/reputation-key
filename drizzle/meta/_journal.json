@@ -1108,6 +1108,13 @@
       "when": 1802189408000,
       "tag": "0157_drop_legacy_ratings_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1802275808000,
+      "tag": "0158_portal_contact_requests_setting",
+      "breakpoints": true
     }
   ]
 }
