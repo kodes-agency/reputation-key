@@ -26,8 +26,8 @@ import { staffHomeSearch } from '#/shared/staff-home-search'
 
 const { staffSelfKeys } = createKeys({ userId: 'polly', organizationId: null })
 
-vi.mock('#/components/ui/inline-link', () => ({
-  InlineLink: ({ to, children }: { to: string; children: unknown }) =>
+vi.mock('#/components/ui/inline-touch-link', () => ({
+  TouchInlineLink: ({ to, children }: { to: string; children: unknown }) =>
     createElement('a', { href: to }, children as never),
 }))
 

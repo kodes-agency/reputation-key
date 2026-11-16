@@ -249,7 +249,7 @@ export function DataTableSortHead({
         type="button"
         onClick={onSort}
         className={cn(
-          '-mx-1 inline-flex h-8 items-center gap-1 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-ring',
+          '-mx-1 inline-flex h-8 items-center gap-1 rounded-md px-1 text-xs max-md:min-h-(--control-touch) max-md:min-w-(--control-touch) font-medium text-muted-foreground transition-colors hover:text-foreground focus-ring',
           direction !== null && 'text-foreground',
           align === 'end' && 'flex-row-reverse',
         )}
