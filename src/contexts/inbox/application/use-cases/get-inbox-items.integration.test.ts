@@ -30,6 +30,7 @@ import type { Cursor } from '../ports/inbox.repository'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import {
   buildFixtureItem,
+  dropInboxOrganization,
   fixtureUuid,
   seedInboxScope,
 } from '../../infrastructure/inbox-database-fixtures'
@@ -47,11 +48,7 @@ const itemId = (label: string) => inboxItemId(fixtureUuid(SCOPE, label))
 
 const pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
 
-const clearScope = async (orgId: string): Promise<void> => {
-  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [orgId])
-  await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [orgId])
-  await pool.query('DELETE FROM reviews WHERE organization_id = $1', [orgId])
-}
+const clearScope = (orgId: string): Promise<void> => dropInboxOrganization(pool, orgId)
 
 // Mock: AccountAdmin gets null (all access)
 const adminStaffApi: StaffPublicApi = {

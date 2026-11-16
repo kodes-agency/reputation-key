@@ -10,7 +10,7 @@ import {
   clearInboxOrganization,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
-  dropInboxUseCaseTenant,
+  dropInboxOrganization,
   openFixturePool,
   runScopedId,
   seedInboxItem,
@@ -152,8 +152,8 @@ describe.sequential('getReviewInboxItemIds', () => {
 
   afterAll(async () => {
     clearEventSchemas()
-    await dropInboxUseCaseTenant(pool, ORG_ID, [PROPERTY, OTHER_PROPERTY])
-    await dropInboxUseCaseTenant(pool, OTHER_ORG_ID, [FOREIGN_ORG_PROPERTY])
+    await dropInboxOrganization(pool, ORG_ID)
+    await dropInboxOrganization(pool, OTHER_ORG_ID)
     await pool.end()
   })
 

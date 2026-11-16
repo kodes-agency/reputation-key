@@ -5,6 +5,7 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
+  dropInboxOrganization,
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
@@ -124,8 +125,7 @@ describe.sequential('getLastVisitCount', () => {
   beforeEach(clearItems)
 
   afterAll(async () => {
-    await clearItems()
-    await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG_ID])
+    await dropInboxOrganization(pool, ORG_ID)
     await pool.end()
   })
 
