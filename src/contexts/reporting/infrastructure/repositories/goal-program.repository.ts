@@ -7,9 +7,9 @@ import {
 import { assertPersonalGoalAssignments } from './personal-goal-assignment-guard'
 import { assertPropertyCountGoalAvailable } from './property-count-goal-guard'
 import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { writeGoalAudit } from './goal-audit'
 import type { Database } from '#/shared/db'
 import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
-import { auditLogs } from '#/shared/db/schema/audit'
 import {
   goalMonthlyResults,
   goalPrograms,
@@ -210,19 +210,14 @@ async function reviseInTx(
   }
   await tx.insert(goalProgramVersions).values(versionValues(input.version))
   await tx.insert(goalSubjectAssignments).values(input.assignments.map(assignmentValues))
-  await tx.insert(auditLogs).values({
+  await writeGoalAudit(tx, {
     organizationId: input.version.organizationId,
-    userId: input.actorId,
+    propertyId: input.version.propertyId,
+    actorId: input.actorId,
     action: 'goal.program.revised',
-    resourceType: 'goal_program',
     resourceId: input.version.programId,
-    details: {
-      propertyId: input.version.propertyId,
-      previousProgramVersionId: input.expectedVersion.id,
-      programVersionId: input.version.id,
-      metric: input.version.metric,
-      assignmentCount: input.assignments.length,
-    },
+    sourceId: input.version.id,
+    at: input.at,
   })
   return true
 }
@@ -316,18 +311,14 @@ export const createGoalProgramRepository = (
           if (bundle.results.length > 0) {
             await tx.insert(goalMonthlyResults).values(bundle.results.map(resultValues))
           }
-          await tx.insert(auditLogs).values({
+          await writeGoalAudit(tx, {
             organizationId: bundle.program.organizationId,
-            userId: bundle.program.createdBy,
+            propertyId: bundle.program.propertyId,
+            actorId: bundle.program.createdBy,
             action: input.auditAction,
-            resourceType: 'goal_program',
             resourceId: bundle.program.id,
-            details: {
-              propertyId: bundle.program.propertyId,
-              programVersionId: bundle.version.id,
-              metric: bundle.version.metric,
-              assignmentCount: bundle.assignments.length,
-            },
+            sourceId: bundle.version.id,
+            at: bundle.program.createdAt,
           })
         })
       try {
@@ -470,19 +461,14 @@ export const createGoalProgramRepository = (
             .returning({ id: goalProgramVersions.id })
           if (closedVersions.length !== 1) throw new GoalProgramRevisionConflict()
         }
-        await tx.insert(auditLogs).values({
+        await writeGoalAudit(tx, {
           organizationId: input.organizationId,
-          userId: input.actorId,
+          propertyId: input.propertyId,
+          actorId: input.actorId,
           action: 'goal.program.status_changed',
-          resourceType: 'goal_program',
           resourceId: input.programId,
-          details: {
-            propertyId: input.propertyId,
-            previousStatus: input.expectedStatus,
-            status: input.status,
-            // A note is recorded only when the manager wrote one.
-            ...(input.reason === null ? {} : { reason: input.reason }),
-          },
+          sourceId: id(),
+          at: input.at,
         })
         return mapProgram(row)
       })
@@ -620,17 +606,14 @@ export const createGoalProgramRepository = (
             .values(input.results.map(resultValues))
             .onConflictDoNothing()
         }
-        await tx.insert(auditLogs).values({
+        await writeGoalAudit(tx, {
           organizationId: row.organizationId,
-          userId: 'system',
+          propertyId: row.propertyId,
+          actorId: 'system',
           action: 'goal.program.activated',
-          resourceType: 'goal_program',
           resourceId: row.id,
-          details: {
-            propertyId: row.propertyId,
-            programVersionId: input.bundle.version.id,
-            resultCount: input.results.length,
-          },
+          sourceId: id(),
+          at: input.at,
         })
         return mapProgram(row)
       })

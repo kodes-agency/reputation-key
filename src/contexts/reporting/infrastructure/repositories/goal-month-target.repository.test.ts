@@ -250,10 +250,11 @@ describe.sequential('Goal month target repository (integration)', () => {
       scope,
     )
     const audited = await client.query<{
-      details: Record<string, unknown>
-      user_id: string
+      property_id: string | null
+      actor_id: string | null
+      source_id: string
     }>(
-      `SELECT details, user_id FROM audit_logs
+      `SELECT property_id, actor_id, source_id FROM audit_events
        WHERE organization_id = $1 AND resource_id = $2
          AND action = 'goal.month_target.changed'`,
       [goal.program.organizationId, goal.program.id],
@@ -321,17 +322,9 @@ describe.sequential('Goal month target repository (integration)', () => {
     expect(state.updatedAt).toEqual(now)
     expect(state.audits).toEqual([
       {
-        user_id: 'manager-1',
-        details: {
-          propertyId: goal.program.propertyId,
-          changeId: input.changeId,
-          programVersionId: goal.version.id,
-          monthCount: 2,
-          previousTargetValue: 400,
-          targetValue: 300,
-          followingOutcome: 'applied',
-          followingVersionId: revision.version.id,
-        },
+        actor_id: 'manager-1',
+        property_id: goal.program.propertyId,
+        source_id: input.changeId,
       },
     ])
 
@@ -477,20 +470,9 @@ describe.sequential('Goal month target repository (integration)', () => {
     const state = await stateOf(goal)
     expect(state.targets).toEqual([null, null])
     expect(state).toMatchObject({ currentVersion: 1, versionCount: 1, logCount: 4 })
-    // One audit row per command. They share the held transaction's timestamp,
-    // so their order is not asserted.
+    // One audit event per command, each named by its change.
     expect(state.audits).toHaveLength(2)
-    expect(state.audits.map((audit) => audit.details)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ previousTargetValue: 400, targetValue: 300 }),
-        expect.objectContaining({
-          previousTargetValue: 300,
-          targetValue: 400,
-          followingOutcome: 'not_applied',
-          followingReason: 'subject_unavailable',
-        }),
-      ]),
-    )
+    expect(new Set(state.audits.map((audit) => audit.source_id)).size).toBe(2)
   })
 
   describe('transaction atomicity', () => {
