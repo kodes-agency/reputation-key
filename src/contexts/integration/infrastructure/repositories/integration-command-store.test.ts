@@ -406,6 +406,58 @@ describe.sequential('integrationCommandStore (integration)', () => {
     expect(facts.rows[0].n).toBe(2)
   })
 
+  it('reconnectGoogleAccount after a revocation clears the reason and stamps the status change', async () => {
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
+    await store.connectGoogleAccount({
+      connection: makeConnection({
+        lifecycleVersion: 4,
+        accessVersion: 9,
+        credentialGeneration: 6,
+      }),
+      event: connectedEvent(),
+    })
+    await store.requireReauthorization({
+      organizationId: ORG_ID,
+      connectionId: CONN_ID,
+      expected: { lifecycleVersion: 4, credentialGeneration: 6 },
+      event: integrationGoogleAccountReauthorizationRequired({
+        connectionId: CONN_ID,
+        organizationId: ORG_ID,
+        cause: 'provider_revoked',
+        occurredAt: NOW,
+      }),
+    })
+    const reauthorizedAt = new Date('2026-06-02T09:30:00.000Z')
+
+    await store.reconnectGoogleAccount({
+      ...reconnectCommand({
+        lifecycleVersion: 5,
+        accessVersion: 10,
+        credentialGeneration: 6,
+      }),
+      event: integrationGoogleAccountConnected({
+        connectionId: CONN_ID,
+        organizationId: ORG_ID,
+        userId: INITIATOR_ID,
+        occurredAt: reauthorizedAt,
+      }),
+    })
+
+    const rows = await pool.query(
+      `SELECT status, status_reason, status_changed_at, credential_authorized_at
+         FROM google_connections WHERE id = $1`,
+      [CONN_ID],
+    )
+    expect(rows.rows).toEqual([
+      {
+        status: 'active',
+        status_reason: null,
+        status_changed_at: reauthorizedAt,
+        credential_authorized_at: reauthorizedAt,
+      },
+    ])
+  })
+
   it('reconnectGoogleAccount refuses versions a disconnect moved and leaves the row disconnected — no fact', async () => {
     const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
