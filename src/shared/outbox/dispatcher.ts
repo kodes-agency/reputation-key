@@ -28,9 +28,14 @@
 
 import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
+import { PrerequisiteNotReadyError } from './prerequisite-not-ready'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
 import { buildConsumerEvent, parseConsumerEvent, type ConsumerEvent } from './envelope'
-import { OUTBOX_DELIVERY_KIND, OUTBOX_DELIVERY_LEASE_MS } from './dispatch-job-options'
+import {
+  OUTBOX_DELIVERY_KIND,
+  OUTBOX_DELIVERY_LEASE_MS,
+  escalateStalePrerequisiteWait,
+} from './dispatch-job-options'
 import type { ConsumerRegistration, ConsumerRegistry } from './consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
@@ -58,6 +63,7 @@ class PolicyUnavailableError extends Error {
 /** Per-consumer outcome — the loop aggregates failures after invoking all. */
 type ConsumerOutcome =
   | Readonly<{ kind: 'ok' }>
+  | Readonly<{ kind: 'waiting'; consumerName: string }>
   | Readonly<{ kind: 'failed'; consumerName: string; err: unknown }>
 
 /**
@@ -141,6 +147,14 @@ async function invokeConsumer(
     return { kind: 'ok' }
   } catch (err) {
     if (err instanceof PolicyUnavailableError) throw err
+    if (err instanceof PrerequisiteNotReadyError) {
+      // An expected ordering wait: the job still retries, but it is not an error.
+      logger.info(
+        { correlationId, consumerName: consumer.consumerName, reason: err.code },
+        'Consumer prerequisite not ready — retrying shortly',
+      )
+      return { kind: 'waiting', consumerName: consumer.consumerName }
+    }
     // Isolate the failure: other consumers still receive the event in this
     // attempt. The caller rethrows an aggregate so the BullMQ job fails and
     // configured attempts apply — receipts protect consumers that already
@@ -267,10 +281,13 @@ function createEnvelopeDispatcher(
       // others in this attempt — then fail the job if any consumer threw so
       // configured attempts apply (BQC-3.6).
       const failures: Array<{ consumerName: string; err: unknown }> = []
+      const waiting: string[] = []
       for (const consumer of consumers) {
         const outcome = await invokeConsumer({ repo, logger, eventId, event, consumer })
         if (outcome.kind === 'failed') {
           failures.push({ consumerName: outcome.consumerName, err: outcome.err })
+        } else if (outcome.kind === 'waiting') {
+          waiting.push(outcome.consumerName)
         }
       }
       if (failures.length > 0) {
@@ -279,6 +296,12 @@ function createEnvelopeDispatcher(
           `${failures.length} consumer(s) failed: ${failures
             .map((f) => f.consumerName)
             .join(', ')}`,
+        )
+      }
+      // Only waits remain: retry the job promptly, without a failure.
+      if (waiting.length > 0) {
+        throw new PrerequisiteNotReadyError(
+          `${waiting.length} consumer(s) waiting for a prerequisite: ${waiting.join(', ')}`,
         )
       }
     })
@@ -344,7 +367,8 @@ export function createDispatcherHandler(
           work.leaseToken,
           async () => {},
         )
-      } catch (error) {
+      } catch (caught) {
+        const error = escalateStalePrerequisiteWait(caught, work.attempts)
         await workItems.renew(
           work.organizationId,
           work.id,
@@ -356,7 +380,10 @@ export function createDispatcherHandler(
           work.id,
           work.leaseToken,
           {
-            retryAt: repo.delivery.retryAt(work.attempts),
+            retryAt:
+              error instanceof PrerequisiteNotReadyError
+                ? repo.delivery.prerequisiteRetryAt(work.attempts)
+                : repo.delivery.retryAt(work.attempts),
             terminal: error instanceof UnrecoverableError,
           },
         )

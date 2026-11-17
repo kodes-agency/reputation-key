@@ -21,6 +21,7 @@ import { UnrecoverableError } from 'bullmq'
 import { z } from 'zod/v4'
 import { registerEventSchema, clearEventSchemas } from '#/shared/events/schema-registry'
 import { createDispatcherHandler } from './dispatcher'
+import { PrerequisiteNotReadyError } from './prerequisite-not-ready'
 import {
   createConsumerRegistry,
   type ConsumerRegistry,
@@ -464,5 +465,74 @@ describe('dispatcher corrections (BQC-3.6)', () => {
       expect.objectContaining({ eventType: TEST_EVENT_TYPE }),
       expect.stringMatching(/schema validation/i),
     )
+  })
+})
+
+describe('a consumer waiting for its prerequisite', () => {
+  function register(name: string, handler: () => Promise<{ status: 'applied' }>) {
+    consumerRegistry.registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: name,
+      module: TEST_MODULE,
+      handler,
+    })
+  }
+
+  it('retries the job as a wait, logging info and no error', async () => {
+    decideMock.mockResolvedValue(ALLOW)
+    register('c-waits', async () => {
+      throw new PrerequisiteNotReadyError('waiting for the item')
+    })
+
+    await expect(
+      createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
+        fakeJob(makeEnvelope()),
+      ),
+    ).rejects.toBeInstanceOf(PrerequisiteNotReadyError)
+
+    expect(loggerMocks.error).not.toHaveBeenCalled()
+    expect(loggerMocks.info).toHaveBeenCalledWith(
+      expect.objectContaining({ consumerName: 'c-waits' }),
+      expect.stringMatching(/prerequisite not ready/),
+    )
+  })
+
+  it('still invokes the other consumers while one waits', async () => {
+    decideMock.mockResolvedValue(ALLOW)
+    const other = vi.fn(async () => ({ status: 'applied' as const }))
+    register('c-waits', async () => {
+      throw new PrerequisiteNotReadyError('waiting')
+    })
+    register('c-other', other)
+
+    await expect(
+      createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
+        fakeJob(makeEnvelope()),
+      ),
+    ).rejects.toBeInstanceOf(PrerequisiteNotReadyError)
+
+    expect(other).toHaveBeenCalledOnce()
+  })
+
+  it('still logs a real failure as an error, and fails the job as one', async () => {
+    decideMock.mockResolvedValue(ALLOW)
+    register('c-waits', async () => {
+      throw new PrerequisiteNotReadyError('waiting')
+    })
+    register('c-breaks', async () => {
+      throw new Error('projection boom')
+    })
+
+    const failure = await createDispatcherHandler(makeRepo(), {
+      consumers: consumerRegistry,
+    })(fakeJob(makeEnvelope())).catch((err: unknown) => err)
+
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect(failure).not.toBeInstanceOf(PrerequisiteNotReadyError)
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ consumerName: 'c-breaks' }),
+      expect.stringMatching(/Consumer handler failed/),
+    )
+    expect(loggerMocks.error).toHaveBeenCalledTimes(1)
   })
 })
