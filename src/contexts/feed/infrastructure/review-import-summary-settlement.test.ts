@@ -5,6 +5,7 @@
 // horizon drops the number rather than state a wrong one.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
+import { PrerequisiteNotReadyError } from '#/shared/outbox'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { propertyId, unbrand } from '#/shared/domain/ids'
@@ -83,9 +84,15 @@ describe('import summary waits for its Inbox projections', () => {
   it('retries instead of counting while the import is still reaching the Inbox', async () => {
     const deps = makeDeps(new Date(RECORDED_AT.getTime() + 5_000))
 
-    await expect(
-      handleNotificationReviewHistoryImportFinished(deps, event()),
-    ).rejects.toThrow(/still reaching the Inbox/)
+    const failure = await handleNotificationReviewHistoryImportFinished(
+      deps,
+      event(),
+    ).catch((e: unknown) => e)
+    expect(failure).toBeInstanceOf(PrerequisiteNotReadyError)
+    expect(failure).toHaveProperty(
+      'message',
+      expect.stringMatching(/still reaching the Inbox/),
+    )
 
     expect(deps.hasPendingReviewProjections).toHaveBeenCalledWith(
       unbrand(PROPERTY),

@@ -37,6 +37,7 @@ import {
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { validateEventPayload } from '#/shared/events/schema-registry'
+import { PrerequisiteNotReadyError } from '#/shared/outbox'
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import type { NotificationAudience } from '../application/notification-audience'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
@@ -214,7 +215,7 @@ async function countUnanswered(
     return null
   }
   if (decision === 'wait') {
-    throw new Error(
+    throw new PrerequisiteNotReadyError(
       'Review history import summary is waiting: the import is still reaching the Inbox',
     )
   }
