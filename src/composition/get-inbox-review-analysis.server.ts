@@ -66,7 +66,7 @@ export function createInboxReviewAnalysisReader(
       current.status === 'not_found' ||
       current.source.propertyId !== request.propertyId
     ) {
-      return { status: 'none' } as const
+      return { status: 'unavailable', reason: 'review_unreadable' } as const
     }
     const analysis = await sources.readReviewAnalysis({
       ...request,
