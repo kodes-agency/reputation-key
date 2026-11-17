@@ -131,7 +131,7 @@ export function TopicChips({
   if (analysis.status === 'none' || analysis.status === 'unavailable') {
     return (
       <p className="text-xs text-muted-foreground">
-        {analysis.status === 'none'
+        {analysis.status === 'none' || analysis.reason === 'review_unreadable'
           ? 'No review signals for this review.'
           : 'Review signals are unavailable for this language.'}
       </p>
