@@ -9,6 +9,7 @@ import {
   OUTBOX_DELIVERY_KIND,
   OUTBOX_DELIVERY_MAX_ATTEMPTS,
   deliveryRetryDelayMs,
+  prerequisiteRetryDelayMs,
 } from '../dispatch-job-options'
 import type { Tx } from '../commit'
 import type { DurableConsumerExpectation } from './outbox-repository'
@@ -195,6 +196,8 @@ export function createOutboxDelivery(db: Database, clock: Clock) {
     readQuarantineMetrics: () => workItems.readQuarantineMetrics(OUTBOX_DELIVERY_KIND),
     retryAt: (attempt: number) =>
       new Date(clock().getTime() + deliveryRetryDelayMs(attempt)),
+    prerequisiteRetryAt: (attempt: number) =>
+      new Date(clock().getTime() + prerequisiteRetryDelayMs(attempt)),
     async schedulePending(limit: number): Promise<readonly DeliveryWork[]> {
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000)
         throw new Error('Invalid outbox delivery batch size')

@@ -37,3 +37,8 @@ export type {
   UnpublishedEvent,
   ReceiptStatus,
 } from './infrastructure/outbox-repository'
+
+export {
+  PrerequisiteNotReadyError,
+  isPrerequisiteNotReady,
+} from './prerequisite-not-ready'

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { PrerequisiteNotReadyError } from '#/shared/outbox/prerequisite-not-ready'
 
 const logger = vi.hoisted(() => ({
   info: vi.fn(),
@@ -267,6 +268,48 @@ describe('worker observability', () => {
       },
       'job failed',
     )
+  })
+
+  it('logs a job waiting for a prerequisite at info, and a real failure at error', () => {
+    createJobWorker(
+      'domain-events',
+      vi.fn(async () => undefined),
+    )
+    const failed = fakeWorkers().at(-1)!.listeners.get('failed')!
+    const delivery = {
+      id: 'work-1-dispatch-1',
+      name: 'review.reply.observed',
+      data: { workId: 'work-1' },
+      attemptsMade: 1,
+      opts: { attempts: 1 },
+    }
+    logger.error.mockClear()
+    captureObservabilityException.mockClear()
+
+    failed(delivery, new PrerequisiteNotReadyError('waiting for the item'))
+    expect(logger.error).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ jobName: 'review.reply.observed' }),
+      'job waiting for a prerequisite — retrying',
+    )
+    expect(captureObservabilityException).not.toHaveBeenCalled()
+
+    const real = new Error('real failure')
+    failed(delivery, real)
+    expect(logger.error).toHaveBeenCalledWith(expect.anything(), 'job failed')
+
+    // A terminal failure (an escalated wait is quarantined this way) is
+    // logged as an error and reported.
+    const quarantined = Object.assign(new Error('Outbox delivery quarantined'), {
+      name: 'UnrecoverableError',
+    })
+    failed(delivery, quarantined)
+    expect(logger.error).toHaveBeenCalledTimes(2)
+    expect(captureObservabilityException).toHaveBeenCalledWith(quarantined, {
+      source: 'bullmq-job',
+      queue: 'domain-events',
+      jobName: 'review.reply.observed',
+    })
   })
 
   it('keeps a final attempt active until a delayed quarantine write settles', async () => {
