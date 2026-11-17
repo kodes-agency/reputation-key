@@ -1,6 +1,7 @@
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
 import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
+import { PrerequisiteNotReadyError } from '#/shared/outbox'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, propertyId } from '#/shared/domain/ids'
@@ -122,25 +123,31 @@ export function createGoogleBindingFollowUpHandlers(deps: FollowUpDeps) {
       // Redis acceptance is not durable acceptance. Until a Review worker has
       // committed progress, outbox recovery must still see this obligation.
       if (!(await deps.receipts.hasReceipt(event.eventId, consumer)))
-        throw new Error('Google import sync awaiting durable acceptance')
+        throw new PrerequisiteNotReadyError(
+          'Google import sync awaiting durable acceptance',
+        )
       return { status: 'applied' as const }
     }
     return receipt('applied')
   }
   const deliver = async (event: ConsumerEvent, consumer: string) => {
+    let waiting: PrerequisiteNotReadyError | undefined
     try {
       return await handle(event, consumer)
-    } catch {
-      // Dispatcher errors are code-only; storage/provider errors may carry
-      // customer content or SQL parameters in their messages.
-      const reason =
-        consumer === IMPORT_DISPLAY_NAME_CONSUMER
-          ? 'Google import display name unavailable'
-          : consumer === IMPORT_SUBSCRIPTION_CONSUMER
-            ? 'Google import subscription incomplete'
-            : 'Google import sync awaiting durable acceptance'
-      throw new Error(reason)
+    } catch (err) {
+      if (err instanceof PrerequisiteNotReadyError) waiting = err
     }
+    // An ordering wait passes through; any other failure is reduced to a code.
+    if (waiting) throw waiting
+    // Dispatcher errors are code-only; storage/provider errors may carry
+    // customer content or SQL parameters in their messages.
+    const reason =
+      consumer === IMPORT_DISPLAY_NAME_CONSUMER
+        ? 'Google import display name unavailable'
+        : consumer === IMPORT_SUBSCRIPTION_CONSUMER
+          ? 'Google import subscription incomplete'
+          : 'Google import sync awaiting durable acceptance'
+    throw new Error(reason)
   }
   return {
     displayName: (event: ConsumerEvent) => deliver(event, IMPORT_DISPLAY_NAME_CONSUMER),
