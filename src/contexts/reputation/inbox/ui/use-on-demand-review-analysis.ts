@@ -12,6 +12,11 @@ export const ON_DEMAND_ANALYSIS_DWELL_MILLIS = 1_500
 const POLL_INTERVAL_MILLIS = 5_000
 const POLL_LIMIT_MILLIS = 90_000
 
+/** Only `none` is a review waiting in the backlog; an unreadable review has nothing to analyse. */
+export function wantsOnDemandAnalysis(analysisStatus: string | null): boolean {
+  return analysisStatus === 'none'
+}
+
 type Input = Readonly<{
   /** The item open in the pane. Only a review item has an analysis to hurry. */
   item: Pick<InboxItem, 'id' | 'sourceType' | 'sourceId'>
@@ -35,7 +40,7 @@ export function useOnDemandReviewAnalysis(input: Input): void {
   const analysisStatus = detail?.analysis?.status ?? null
 
   useEffect(() => {
-    if (!request || reviewId === null || analysisStatus !== 'none') return
+    if (!request || reviewId === null || !wantsOnDemandAnalysis(analysisStatus)) return
     if (requested.current.has(reviewId)) return
     let cancelled = false
     let poll: number | undefined

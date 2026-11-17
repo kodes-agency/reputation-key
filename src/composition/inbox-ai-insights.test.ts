@@ -144,7 +144,10 @@ describe('current Inbox review analysis', () => {
     },
   ])('withholds analysis for an absent or foreign-property source', async (source) => {
     const { read, readReviewAnalysis } = setup(source)
-    await expect(read(request)).resolves.toEqual({ status: 'none' })
+    await expect(read(request)).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'review_unreadable',
+    })
     expect(readReviewAnalysis).not.toHaveBeenCalled()
   })
 

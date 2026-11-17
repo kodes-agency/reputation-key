@@ -48,7 +48,11 @@ export type InboxMentionV3 = Readonly<{
 export type InboxReviewAnalysis =
   | Readonly<{ status: 'disabled' }>
   | Readonly<{ status: 'none' }>
-  | Readonly<{ status: 'unavailable'; reason: 'language_not_supported' }>
+  | Readonly<{
+      status: 'unavailable'
+      /** `review_unreadable`: the Review is gone or its content expired, so there is nothing to analyse. */
+      reason: 'language_not_supported' | 'review_unreadable'
+    }>
   | Readonly<{
       status: 'ready'
       sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
