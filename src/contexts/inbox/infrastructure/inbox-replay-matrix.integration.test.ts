@@ -21,7 +21,11 @@ import { releaseDueSlots } from '#/contexts/reputation/inbox/response-targets/re
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
-import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import {
+  PrerequisiteNotReadyError,
+  type ConsumerEvent,
+  type ConsumerRegistry,
+} from '#/shared/outbox'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -771,9 +775,9 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
   it('leaves no receipt for an observation that overtakes its projection and converges once the item exists', async () => {
     await cleanProjection()
 
-    await expect(deliverReview('reply.observed.currentLiveReply')).rejects.toMatchObject({
-      _tag: 'InboxError',
-    })
+    await expect(deliverReview('reply.observed.currentLiveReply')).rejects.toBeInstanceOf(
+      PrerequisiteNotReadyError,
+    )
     expect(await receiptFor(EVENT_IDS['reply.observed.currentLiveReply'])).toBeNull()
 
     await deliverReview('review.created')
