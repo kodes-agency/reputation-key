@@ -186,3 +186,23 @@ ignore:
   - vulnerability: CVE-2026-78410 # util-linux, no trixie fix
   - vulnerability: CVE-2026-85091 # zlib1g, unfixed upstream
   - vulnerability: CVE-2026-76844 # zlib1g, no trixie fix
+
+  # ── Debian trixie base packages, libssl3t64 / openssl-provider-legacy
+  #    3.5.7-1~deb13u3: no fix yet (4 CVEs) ───────────────────────────────
+  # owner: platform — reason: CVE-2026-107496, CVE-2026-88823, CVE-2026-95691
+  # and CVE-2026-95692 (all High) appeared in grype's database on 2026-11-17
+  # against libssl3t64 and openssl-provider-legacy 3.5.7-1~deb13u3 (grype:
+  # `libssl3t64 3.5.7-1~deb13u3 deb CVE-2026-107496 High`, likewise for the
+  # other three and for openssl-provider-legacy) with no fixed version, and apt
+  # in the pinned base offers nothing newer than the 3.5.7-1~deb13u3 every base
+  # stage already pins (checked 2026-11-17). The application cannot reach the
+  # system library: the runtime CMD is node, whose OpenSSL is its own bundled
+  # 3.5.9 (`node_shared_openssl: false`; the node binary links no libssl or
+  # libcrypto); on trixie the system library serves apt, libapt-pkg and the
+  # coreutils hash tools, none of which a runtime process runs. Bump the pin
+  # and drop this entry at the first trixie OpenSSL update that fixes them.
+  # expiresAt: 2026-12-01
+  - vulnerability: CVE-2026-107496 # libssl3t64 / openssl-provider-legacy, no trixie fix
+  - vulnerability: CVE-2026-88823 # libssl3t64 / openssl-provider-legacy, no trixie fix
+  - vulnerability: CVE-2026-95691 # libssl3t64 / openssl-provider-legacy, no trixie fix
+  - vulnerability: CVE-2026-95692 # libssl3t64 / openssl-provider-legacy, no trixie fix
