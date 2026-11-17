@@ -64,3 +64,23 @@ describe('TopicChips matched topic', () => {
     expect(markup).toContain('Service · Complaint')
   })
 })
+
+describe('TopicChips without a reading', () => {
+  const markupOf = (analysis: InboxReviewAnalysis) =>
+    renderToStaticMarkup(createElement(TopicChips, { analysis }))
+
+  it('renders an unreadable review as none, with no analysing hint', () => {
+    const unreadable = markupOf({ status: 'unavailable', reason: 'review_unreadable' })
+
+    expect(unreadable).toBe(markupOf({ status: 'none' }))
+    expect(unreadable).toContain('No review signals for this review.')
+    expect(unreadable).not.toMatch(/analy[sz]/i)
+    expect(unreadable).not.toContain('this language')
+  })
+
+  it('still says the language is unsupported for that reason', () => {
+    expect(
+      markupOf({ status: 'unavailable', reason: 'language_not_supported' }),
+    ).toContain('Review signals are unavailable for this language.')
+  })
+})
