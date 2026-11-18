@@ -4,7 +4,9 @@
 
 ## Responsibility
 
-Ten bounded contexts own product meaning and state:
+Eleven areas own product meaning and state. Review, Inbox and Reputation are one
+bounded context: Reputation holds its feature folders and screens, while Review
+and Inbox still hold the layer code and server functions that have not moved.
 
 - **Identity** — users, Organizations, membership, access, and People facts.
 - **Property** — Property identity, lifecycle, Google binding, and responsibility.
@@ -14,6 +16,7 @@ Ten bounded contexts own product meaning and state:
 - **Review** — stable external Reviews, source lifecycle, and manager Replies.
 - **AI** — governed Review Analysis, Reply Drafting, and Property Trends.
 - **Inbox** — triage Items, Handling Cycles, notes, and Response Targets.
+- **Reputation** — the Inbox, Reply, Review and Response Target features and screens.
 - **Reporting** — Metric, Goal, and Dashboard read/reporting models.
 - **Feed** — Operational Action History, retained Recent Activity records, and notifications.
 
@@ -22,13 +25,45 @@ path, invariants, residual gaps, and verification authority.
 
 ## Package shape
 
-- `domain/` owns pure types, rules, constructors, events, and tagged errors.
-- `application/` owns use cases, DTOs, public interfaces, and effect ports.
-- `infrastructure/` implements persistence, provider, consumer, and job effects.
-- `server/` adapts authenticated TanStack Start calls to the built application API.
-- `build.ts` is the context composition seam; thin contexts may omit empty folders.
+An area holds its features, and three things every feature shares:
 
-Layer and runtime import boundaries are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
+- `<feature>/` is one capability, named in domain words (`members`,
+  `publication`, `monthly-goals`):
+  - `contracts.ts` holds the types and schemas the browser may import.
+  - `*.server.ts` files hold commands, reads, stores, adapters, jobs and
+    consumers. In a feature, only these may import Drizzle.
+  - `ui/` holds screens, components, hooks and their stories. It has no index
+    file and no `*.server.ts`.
+  - Tests sit beside what they test; `*.test-fixtures.ts` holds shared test data.
+- `domain/` owns the area's pure types, rules, constructors, events, and tagged
+  errors. It imports no I/O, no framework and no clock.
+- `server/` adapts authenticated TanStack Start calls to the built application
+  API. Server-function paths are stable RPC entry points.
+- `build.ts` and `build-*.ts` are the composition seam.
+
+`application/`, `infrastructure/` and `ports/` are the earlier layer folders.
+They only shrink: add no production file to them (a test beside old code is
+fine), and move a file out in a change that does nothing else.
+
+### Adding a feature
+
+1. Find the area in the list above. Use an existing feature folder when the
+   capability already has one.
+2. For a new one, create `src/contexts/<area>/<feature>/` and add its name to
+   `LAYOUT.areas` in `scripts/ci/check-layout.ts` in the same change.
+3. Put pure rules in the area's `domain/`, effects in `<feature>/<name>.server.ts`,
+   browser-safe types in `<feature>/contracts.ts` and screens in `<feature>/ui/`.
+   A feature's server files do not import another feature's server files: pass
+   what they need through `build.ts`. A feature that outgrows one folder becomes
+   two features, not a folder with sub-folders.
+4. Expose a call to the browser as a server function in the area's `server/`.
+   Expose a read or command to another area through `application/public-api.ts`.
+5. Wire new dependencies in `build.ts`.
+6. Run `pnpm check:layout` and `pnpm lint`.
+
+Places are enforced by `scripts/ci/check-layout.ts` (`pnpm check:layout`), whose
+`LAYOUT` is the map of areas and features. Layer and runtime import boundaries
+are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 
 ## Dependency rules
 

@@ -62,12 +62,19 @@ implementation details and naming conventions used by existing tools.
 
 ## Code and ownership
 
-12. Prefer plain functions and files with clear jobs. Use feature folders inside
-    `src/contexts/<area>/` and screens in `ui/` after assessing the Portal results
-    pilot. Move a file only when also simplifying it. Adopt `*.server.ts` before
-    dissolving protected layer folders. Keep schema in `src/shared/db/schema`,
-    shared infrastructure in `src/shared/`, and server functions at current paths.
-    If the pilot fails, simplify today's layers. A newcomer should be able to
+12. Prefer plain functions and files with clear jobs. Business code lives in
+    `src/contexts/<area>/<feature>/`: `contracts.ts` holds the types and schemas
+    the browser may import, `*.server.ts` the commands, reads, stores, adapters
+    and jobs, and `ui/` the screens. An area keeps its pure rules in `domain/`
+    and its server functions in `server/`, at current paths. New code goes in a
+    feature folder. An area's `application/`, `infrastructure/` and `ports/`
+    folders, feature screens under `src/components` and loose files in
+    `src/shared` only shrink. A move is an authorized prerequisite under rule 2:
+    it changes no behaviour and is its own change. Name a file `*.server.ts`
+    before it leaves a protected layer folder. Keep
+    schema in `src/shared/db/schema` and shared infrastructure in `src/shared/`.
+    `LAYOUT` in `scripts/ci/check-layout.ts` is the map of areas and features,
+    and `pnpm check:layout` holds every file to it. A newcomer should be able to
     follow a route to SQL without tracing forwarding layers.
 13. Keep interfaces for real providers, real alternative implementations or fakes
     that exercise real decisions.

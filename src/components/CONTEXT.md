@@ -439,6 +439,11 @@ no single context owns it:
 The rest of `features/property/` (list, overview, Google, reply voice and
 templates, ratings) and `features/settings/` also still live here.
 
+`pnpm check:layout` counts the files still under `features/`, `inbox/`, `goals/`
+and `property/`. Those folders only shrink: a new screen goes in its feature's
+`ui/`. The Organization settings and Property setup folders are the cross-area
+screens its `LAYOUT` names.
+
 Use named exports. Export page-level feature components from the feature barrel;
 keep concept-specific children internal.
 
