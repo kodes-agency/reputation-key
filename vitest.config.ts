@@ -157,7 +157,6 @@ export default defineConfig({
             '.storybook/**/*.test.ts',
           ],
           exclude: [
-            'src/**/infrastructure/repositories/*.test.ts',
             'src/**/*.integration.test.ts',
             'src/shared/db/migration-verification.test.ts',
           ],
@@ -181,7 +180,6 @@ export default defineConfig({
           name: 'integration',
           environment: 'node',
           include: [
-            'src/**/infrastructure/repositories/*.test.ts',
             'src/**/*.integration.test.ts',
             'src/shared/db/migration-verification.test.ts',
           ],

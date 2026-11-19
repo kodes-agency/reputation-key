@@ -9,7 +9,7 @@
 //
 // Deps are injected — these tests never touch a database; the real wiring
 // proof lives in the integration test
-// (src/shared/jobs/infrastructure/repositories/restore-verify.test.ts).
+// (src/shared/jobs/infrastructure/repositories/restore-verify.integration.test.ts).
 
 import { describe, it, expect, vi } from 'vitest'
 import { createReviewLifecycleRecoveryAuthorityFactory } from '#/contexts/review/application/recovery-maintenance'
