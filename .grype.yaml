@@ -3,7 +3,7 @@
 # severity-cutoff: high; policy: docs/operations/security-ci-policy.md).
 #
 # Zero exceptions is the target. Before any entry below is written, every
-# finding WITH a fix is fixed: the base is node:22.23.4-trixie-slim (Debian 13,
+# finding WITH a fix is fixed: the base is node:22.23.5-trixie-slim (Debian 13,
 # plan revision R2, 2026-09-07; bookworm was EOL), the npm CLI is stripped from
 # every runtime stage, and OpenSSL is pinned to the patched 3.5.7-1~deb13u3 in
 # every Dockerfile base stage (nine CVEs incl. CVE-2026-63073 / CVE-2026-75803
@@ -188,7 +188,7 @@ ignore:
   - vulnerability: CVE-2026-76844 # zlib1g, no trixie fix
 
   # ── Debian trixie base packages, libssl3t64 / openssl-provider-legacy
-  #    3.5.7-1~deb13u3: no fix yet (4 CVEs) ───────────────────────────────
+  #    3.5.7-1~deb13u3: no fix yet (6 CVEs) ───────────────────────────────
   # owner: platform — reason: CVE-2026-107496, CVE-2026-88823, CVE-2026-95691
   # and CVE-2026-95692 (all High) appeared in grype's database on 2026-11-17
   # against libssl3t64 and openssl-provider-legacy 3.5.7-1~deb13u3 (grype:
@@ -201,8 +201,16 @@ ignore:
   # libcrypto); on trixie the system library serves apt, libapt-pkg and the
   # coreutils hash tools, none of which a runtime process runs. Bump the pin
   # and drop this entry at the first trixie OpenSSL update that fixes them.
+  # CVE-2026-107493 and CVE-2026-124709 (both High) were added by grype's
+  # database of 2026-11-19 (grype: `libssl3t64 3.5.7-1~deb13u3 deb
+  # CVE-2026-107493 High`, likewise CVE-2026-124709 and for
+  # openssl-provider-legacy), also with no fixed version; apt in the new pinned
+  # base (node:22.23.5-trixie-slim) still offers only 3.5.7-1~deb13u3 (checked
+  # 2026-11-19). Same reachability argument as above.
   # expiresAt: 2026-12-01
   - vulnerability: CVE-2026-107496 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-88823 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-95691 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-95692 # libssl3t64 / openssl-provider-legacy, no trixie fix
+  - vulnerability: CVE-2026-107493 # libssl3t64 / openssl-provider-legacy, no trixie fix
+  - vulnerability: CVE-2026-124709 # libssl3t64 / openssl-provider-legacy, no trixie fix

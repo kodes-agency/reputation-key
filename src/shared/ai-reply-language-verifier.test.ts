@@ -269,7 +269,7 @@ afterEach(() => {
  */
 describe('bg-Cyrl reply language wiring', () => {
   function simulatePinnedLanguageRuntime(): void {
-    vi.spyOn(process.versions, 'node', 'get').mockReturnValue('22.23.4')
+    vi.spyOn(process.versions, 'node', 'get').mockReturnValue('22.23.5')
     vi.spyOn(process.versions, 'unicode', 'get').mockReturnValue('17.0')
     vi.spyOn(process.versions, 'icu', 'get').mockReturnValue('78.3')
   }
