@@ -49,7 +49,9 @@ implementation details and naming conventions used by existing tools.
 9. Delete replaced code only after cutover proof. Prove no callers through the
    import graph, including barrels, rather than by searching a filename. Remove
    obsolete generation labels while retaining meaningful stored-format,
-   provenance and issued-address versions. Keep server-function paths fixed.
+   provenance and issued-address versions. Keep server-function paths fixed;
+   the one exception is the single move of Review's and Inbox's server
+   functions into Reputation, deployed alone.
 10. Allow one unfinished replacement per area, with an owner, cutover check,
     date and contraction step before widening it.
 11. Merge code that can run within 30 days unless explicitly authorized to remain
