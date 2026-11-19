@@ -3,7 +3,7 @@
 // looks healthy. (The triage read feeds no alert while
 // beta-feedback.triage-backlog is off for the closed beta; it keeps the same
 // contract, so the alert can return unchanged.) The real SQL is proven against
-// PostgreSQL in src/shared/jobs/infrastructure/repositories/alert-injection.test.ts.
+// PostgreSQL in src/shared/jobs/infrastructure/repositories/alert-injection.integration.test.ts.
 
 import type pino from 'pino'
 import { describe, expect, it, vi } from 'vitest'
