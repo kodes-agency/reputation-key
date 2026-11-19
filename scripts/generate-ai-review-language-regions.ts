@@ -11,7 +11,7 @@ const OUTPUT = resolve(
   ROOT,
   'src/shared/generated/ai-review-language-canonical-regions-v1.ts',
 )
-const EXPECTED_NODE_VERSION = '22.23.4'
+const EXPECTED_NODE_VERSION = '22.23.5'
 const EXPECTED_ICU_VERSION = '78.3'
 const EXPECTED_UNICODE_VERSION = '17.0'
 const ASCII_UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'

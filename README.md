@@ -12,7 +12,7 @@ for changes, [triage](docs/triage.md) for the work queue, and
 
 ## Quick Start
 
-Needs Node 22.23.4 (`.nvmrc`; `engines` rejects other versions), pnpm (the
+Needs Node 22.23.5 (`.nvmrc`; `engines` rejects other versions), pnpm (the
 version in `package.json` through `corepack enable`), Docker with Compose,
 `openssl` and `jq`. Any Node version manager that reads `.nvmrc` works. Clone
 with full history (no `--depth`): a test reads earlier revisions, and a shallow
