@@ -1,12 +1,12 @@
 {
-  "attestationDigest": "ff7799e6086f02886a8cd6c1765de3f4eac19d32ee0d46f5fed8719c9a4ec33e",
+  "attestationDigest": "275130ff45344d92b559cb75a0259bc6ec83b3704253378be36f6345055976c3",
   "constants": {
     "minimumLetters": 24,
     "minimumProbability": 0.85,
     "reliableRequired": true
   },
   "dependencies": {
-    "languageCatalogueDigest": "0541685d1f0b039bd9ceb20b3a5724c7a038da718c9117e9db584b60f287e4cc",
+    "languageCatalogueDigest": "f6a807b7552838549ae22b86bdfa0bef10b976b768065a31269164e926dbb955",
     "languageScriptConsistencyDigest": "081f6d749cc88529032855279e60a9eea058cd82df15534667ac0af0a0f461e7",
     "zhOrthographyDigest": "55ed80bd828c6edd21b328b2399660b24742f55008163e945f58581465178009"
   },
