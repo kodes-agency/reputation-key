@@ -7,7 +7,7 @@
 // (webhooks/gbp/-notifications.test.ts, public/p/$token/click/-$linkId.test.ts).
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createOneClickUnsubscribeToken } from '#/contexts/feed/application/one-click-unsubscribe-token'
+import { createOneClickUnsubscribeToken } from '#/contexts/feed/email/one-click-unsubscribe-token.server'
 import { signSvixPayload } from '#/shared/auth/svix-signature.verifier'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 

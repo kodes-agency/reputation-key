@@ -3,7 +3,7 @@ import {
   registerBulkAssignmentNotificationConsumer,
   registerEscalationResolutionNotificationConsumer,
   registerResponseTargetNotificationConsumer,
-} from '#/contexts/feed/infrastructure/inbox-notice-routes'
+} from '#/contexts/feed/notify/inbox-notice-routes.server'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import type { Database } from '#/shared/db'
@@ -18,14 +18,14 @@ import { buildConsumerEvent, type ConsumerEvent } from '#/shared/outbox/envelope
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import type { Job } from 'bullmq'
 import { expect, vi } from 'vitest'
-import type { BetaNotificationTriggerMatrixRow } from '#/contexts/feed/application/beta-notification-trigger-matrix'
-import type { EscalationResolutionLookupPort } from '#/contexts/feed/application/ports/escalation-resolution-lookup.port'
-import { registerAiGuestVoiceSummaryNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
-import { registerAiUrgentReviewNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
-import { registerGoalNotificationConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
-import { registerIdentityAccountNotificationConsumers } from '#/contexts/feed/infrastructure/identity-account-outbox-consumers'
-import type { GoogleConnectionPropertyLookup } from '#/contexts/feed/infrastructure/integration-outbox-consumers'
-import { registerIntegrationNotificationConsumers } from '#/contexts/feed/infrastructure/integration-outbox-consumers'
+import type { BetaNotificationTriggerMatrixRow } from '#/contexts/feed/notify/beta-notification-trigger-matrix.server'
+import type { EscalationResolutionLookupPort } from '#/contexts/feed/notify/escalation-resolution-lookup.port.server'
+import { registerAiGuestVoiceSummaryNoticeConsumer } from '#/contexts/feed/notify/goal-notice-routes.server'
+import { registerAiUrgentReviewNoticeConsumer } from '#/contexts/feed/notify/goal-notice-routes.server'
+import { registerGoalNotificationConsumer } from '#/contexts/feed/notify/goal-notice-routes.server'
+import { registerIdentityAccountNotificationConsumers } from '#/contexts/feed/notify/identity-account-outbox-consumers.server'
+import type { GoogleConnectionPropertyLookup } from '#/contexts/feed/notify/integration-outbox-consumers.server'
+import { registerIntegrationNotificationConsumers } from '#/contexts/feed/notify/integration-outbox-consumers.server'
 import {
   noGroupedReopens,
   waitingWorkState,
@@ -35,21 +35,21 @@ import {
   noticeWriterOver,
   type FakeNotificationConsumerDeps,
 } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
-import { registerNotificationConsumers } from '#/contexts/feed/infrastructure/notification-outbox-consumers'
-import { registerNotificationSettlementConsumers } from '#/contexts/feed/infrastructure/notification-settlement-outbox-consumers'
-import { registerPortalDestinationNotificationConsumer } from '#/contexts/feed/infrastructure/portal-destination-outbox-consumers'
-import { registerPortalHealthNotificationConsumer } from '#/contexts/feed/infrastructure/portal-health-outbox-consumers'
-import { registerPortalNotificationConsumers } from '#/contexts/feed/infrastructure/portal-outbox-consumers'
-import { registerPropertyNotificationConsumers } from '#/contexts/feed/infrastructure/property-outbox-consumers'
-import { registerRatingGoalNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
+import { registerNotificationConsumers } from '#/contexts/feed/notify/notification-outbox-consumers.server'
+import { registerNotificationSettlementConsumers } from '#/contexts/feed/notify/notification-settlement-outbox-consumers.server'
+import { registerPortalDestinationNotificationConsumer } from '#/contexts/feed/notify/portal-destination-outbox-consumers.server'
+import { registerPortalHealthNotificationConsumer } from '#/contexts/feed/notify/portal-health-outbox-consumers.server'
+import { registerPortalNotificationConsumers } from '#/contexts/feed/notify/portal-outbox-consumers.server'
+import { registerPropertyNotificationConsumers } from '#/contexts/feed/notify/property-outbox-consumers.server'
+import { registerRatingGoalNoticeConsumer } from '#/contexts/feed/notify/goal-notice-routes.server'
 import {
   registerReviewImportNotificationConsumers,
   type PropertyImportInitiatorLookup,
-} from '#/contexts/feed/infrastructure/review-import-outbox-consumers'
+} from '#/contexts/feed/notify/review-import-outbox-consumers.server'
 import {
   registerHandlingCycleNotificationConsumers,
   registerWorkflowNotificationConsumers,
-} from '#/contexts/feed/infrastructure/inbox-notice-routes'
+} from '#/contexts/feed/notify/inbox-notice-routes.server'
 
 import {
   ACTOR,

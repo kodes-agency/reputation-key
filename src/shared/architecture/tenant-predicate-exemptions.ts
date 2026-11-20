@@ -222,14 +222,14 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/account-access-removal.repository.ts',
+    file: 'src/contexts/feed/feed/account-access-removal-repository.server.ts',
     symbol: 'findLatestForUser',
     reason:
       "A removed member is asked why their workspace is gone while they are outside every tenant: the notice that answers lives in the Organization they can no longer open. The read is scoped to the session's own user id, admits one notification type, and returns an instant only — no Organization identity, name, actor or row id.",
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/one-click-unsubscribe.repository.ts',
+    file: 'src/contexts/feed/email/one-click-unsubscribe-repository.server.ts',
     symbol: 'targetScopes',
     reason:
       'A signed one-click unsubscribe token identifies the queue target before tenant scope is known, and this lookup derives every affected tenant scope.',
@@ -390,14 +390,14 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/operational-action-history-store.ts',
+    file: 'src/contexts/feed/audit/operational-action-history-store.server.ts',
     symbol: 'placeLegalHold',
     reason:
       'A legal hold is read by its id to settle a retry, and a row whose Organization differs from the hold being placed is refused as a conflict.',
     category: 'TENANT-CHECKED',
   },
   {
-    file: 'src/contexts/feed/infrastructure/operational-action-history-store.ts',
+    file: 'src/contexts/feed/audit/operational-action-history-store.server.ts',
     symbol: 'releaseLegalHold',
     reason:
       'A legal hold is locked by its id, and a hold of another Organization is reported as not found before it can be released.',
@@ -425,7 +425,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/notification-due-recipients.query.ts',
+    file: 'src/contexts/feed/email/notification-due-recipients-query.server.ts',
     symbol: 'dueRecipientsInVisitOrder',
     reason:
       'The due-recipient sweep orders recipients across tenants by local send hour from the due predicate its caller supplies, and returns only Organization and user identifiers.',
@@ -460,7 +460,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/one-click-unsubscribe.repository.ts',
+    file: 'src/contexts/feed/email/one-click-unsubscribe-repository.server.ts',
     symbol: 'apply',
     reason:
       'A signed one-click unsubscribe token identifies the delivered email or digest before tenant scope is known; the preferences written take their Organization from the scopes that token represents.',
@@ -723,55 +723,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'withdrawAiDrafts',
     reason:
       'The existing AI control transition may withdraw stale AI drafts across tenants; Property, authorization and Review callers supply tenant predicates. Every affected Reply is correlated to its own Review tenant, and effects stay in the caller transaction.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/feed/infrastructure/jobs/delivery-seed.ts',
-    symbol: 'readEmail',
-    reason:
-      "Test support reads one queue row by the id the fixture minted, inside the suite's own rolled-back transaction.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/feed/infrastructure/jobs/digest-job-test-deps.ts',
-    symbol: 'setEmail',
-    reason:
-      "Test support edits one queue row by the id the fixture minted, inside the suite's own rolled-back transaction.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/feed/infrastructure/jobs/digest-retry-seed.ts',
-    symbol: 'loseWorkerMidCall',
-    reason:
-      "Test support rewinds one digest batch by the id the fixture minted, inside the suite's own rolled-back transaction.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/feed/infrastructure/jobs/digest-retry-seed.ts',
-    symbol: 'neverStarted',
-    reason:
-      "Test support rewinds one digest batch by the id the fixture minted, inside the suite's own rolled-back transaction.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/feed/infrastructure/jobs/send-emails-test-deps.ts',
-    symbol: 'setEmail',
-    reason:
-      "Test support edits one queue row by the id the fixture minted, inside the suite's own rolled-back transaction.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/feed/infrastructure/jobs/send-emails-test-deps.ts',
-    symbol: 'setNotice',
-    reason:
-      "Test support edits one notice by the id the fixture minted, inside the suite's own rolled-back transaction.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/feed/infrastructure/notification-settlement-test-db.ts',
-    symbol: 'settledAt',
-    reason:
-      "Test support reads one notice by the id the fixture minted, inside the suite's own rolled-back transaction.",
     category: 'LEGITIMATE-GLOBAL',
   },
 ] as const

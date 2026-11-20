@@ -21,9 +21,9 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 import { assertNever } from '#/shared/domain/assert'
-import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
-import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
+import type { UserLookupPort } from './notification-db-user-lookup.port.server'
+import type { InboxItemLookupPort } from './inbox-item-lookup.port.server'
+import type { ResponsibleManagerLookupPort } from './responsible-manager-lookup.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   InboxItemAssigned,
@@ -44,27 +44,27 @@ import {
   type DurableReplyRejected,
 } from './inbox.server'
 import { deliverNotices, type Notice, type NoticeDeliveryDeps } from './consumers.server'
-import { buildInboxItemPayload } from '../infrastructure/notification-payload-facts'
+import { buildInboxItemPayload } from './notification-payload-facts.server'
 import {
   inboxNotificationAudience,
   resolveInboxResponsibleRecipients,
-} from '../application/responsible-recipients'
-import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
-import { resolveEscalationRecipients } from '../application/escalation-recipients'
+} from './responsible-recipients.server'
+import { resolveReplyApprovalRecipients } from './reply-approval-recipients.server'
+import { resolveEscalationRecipients } from './escalation-recipients.server'
 import type {
   ReplyApprovalAuthorityPort,
   ActivePropertyLookup,
-} from '../application/ports/cross-context-lookups.port'
-import type { NotificationAudience } from '../application/notification-audience'
+} from './cross-context-lookups.port.server'
+import type { NotificationAudience } from './notification-audience.server'
 import {
   publicationCancelledNotices,
   type DurableReplyPublicationCancelled,
-} from '../infrastructure/publication-cancelled-notifications'
+} from './publication-cancelled-notifications.server'
 import {
   isRecordPayload,
   nullableString as nullablePayloadString,
   requiredString as requiredPayloadString,
-} from '../infrastructure/outbox-payload-fields'
+} from './outbox-payload-fields.server'
 import { type RetireMovedAssignment } from './settle.server'
 
 export const WORKFLOW_NOTIFICATION_CONSUMERS = [

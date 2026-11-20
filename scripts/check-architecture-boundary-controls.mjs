@@ -46,7 +46,8 @@ const controls = [
   {
     name: 'ordinary test helpers cannot import Feed infrastructure',
     file: 'src/shared/testing/boundary-negative-control.ts',
-    source: "import '#/contexts/feed/infrastructure/notification-outbox-consumers'\n",
+    source:
+      "import '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'\n",
   },
   {
     name: 'notification route harness cannot import another context infrastructure',
@@ -307,7 +308,8 @@ const allowedControls = [
   {
     name: 'notification route harness may register Feed consumers',
     file: 'src/shared/testing/notification-route-test-harness.ts',
-    source: "import '#/contexts/feed/infrastructure/notification-outbox-consumers'\n",
+    source:
+      "import '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'\n",
   },
   {
     name: 'domain may import shared domain',

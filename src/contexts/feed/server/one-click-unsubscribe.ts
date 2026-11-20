@@ -6,7 +6,7 @@ import {
   oneClickUnsubscribeKeyringProblem,
   verifyOneClickUnsubscribeToken,
   type OneClickUnsubscribeTarget,
-} from '../application/one-click-unsubscribe-token'
+} from '../email/one-click-unsubscribe-token.server'
 import {
   isLandingPageConfirmation,
   unsubscribeLandingPage,

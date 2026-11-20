@@ -14,52 +14,52 @@ import {
   findCategoryDefaults,
   findPropertyDeliveryWindows,
 } from './preferences/notification-preferences.server'
-import { createOneClickUnsubscribeRepository } from './infrastructure/repositories/one-click-unsubscribe.repository'
-import { createNotificationDbUserLookupAdapter } from './infrastructure/adapters/notification-db-user-lookup.adapter'
-import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
+import { createOneClickUnsubscribeRepository } from './email/one-click-unsubscribe-repository.server'
+import { createNotificationDbUserLookupAdapter } from './notify/notification-db-user-lookup.adapter.server'
+import type { ResponsibleManagerLookupPort } from './notify/responsible-manager-lookup.port.server'
 import type {
   ReplyApprovalAuthorityPort,
   ReplyWorkStateLookupPort,
   FeedbackPortalLookupPort,
   ReviewRatingLookupPort,
-} from './application/ports/cross-context-lookups.port'
-import { createNotificationAudienceAuthorizer } from './application/notification-audience'
-import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
+} from './notify/cross-context-lookups.port.server'
+import { createNotificationAudienceAuthorizer } from './notify/notification-audience.server'
+import { createNotificationRecipientStanding } from './email/notification-recipient-standing.server'
 import {
   createNotificationWorkState,
   type NotificationWorkStateDeps,
 } from './notify/settle.server'
-import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
-import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
-import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
-import type { PropertyImportInitiatorLookup } from './infrastructure/review-import-outbox-consumers'
-import type { GoogleConnectionPropertyLookup } from './infrastructure/integration-outbox-consumers'
-import { createAccountAccessRemovalReader } from './infrastructure/repositories/account-access-removal.repository'
-import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
-import { createReviewRatingForRouting } from './infrastructure/adapters/review-rating-routing.adapter'
+import { createInboxItemLookupAdapter } from './notify/inbox-item-lookup.adapter.server'
+import { createDisplayNameLookupAdapter } from './notify/display-name-lookup.adapter.server'
+import { createEscalationResolutionLookupAdapter } from './notify/escalation-resolution-lookup.adapter.server'
+import type { PropertyImportInitiatorLookup } from './notify/review-import-outbox-consumers.server'
+import type { GoogleConnectionPropertyLookup } from './notify/integration-outbox-consumers.server'
+import { createAccountAccessRemovalReader } from './feed/account-access-removal-repository.server'
+import { createResendEventHandler } from './email/resend-event-handler.server'
+import { createReviewRatingForRouting } from './notify/review-rating-routing.adapter.server'
 import { createOwnedNotificationActions } from './notify/owned-notification-actions.server'
 import { createPreferenceCommands } from './preferences/preference-commands.server'
-import { createImmediateEmailEnqueue } from './infrastructure/jobs/send-emails.job'
+import { createImmediateEmailEnqueue } from './email/send-emails-job.server'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import type { PropertyAccessLookup } from '#/shared/domain/property-access'
-import { createNotificationFeedReads } from './application/notification-feed-reads'
-import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
-import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
+import { createNotificationFeedReads } from './feed/notification-feed-reads.server'
+import type { OneClickUnsubscribeTarget } from './email/one-click-unsubscribe-token.server'
+import { assertBetaNotificationTriggerMatrix } from './notify/beta-notification-trigger-matrix.server'
 import {
   createNotificationDeliveryProcessors,
   type NotificationDeliveryWorkerInput,
-} from './infrastructure/jobs/notification-delivery-processors'
+} from './email/notification-delivery-processors.server'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import { createNoticeWriter } from './notify/consumers.server'
 import { registerNotificationRoutes } from './notify/register-routes.server'
-import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './infrastructure/repositories/health-read-timeout'
+import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './notify/health-read-timeout.server'
 import {
   MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT,
   readNotificationDeliveryLag,
 } from './notify/delivery-lag.server'
 import type { IsEmailDeliveryAllowed } from '#/shared/observability/health-metrics'
-import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
-import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
+import { createOrganizationAccountNotificationAuthority } from './notify/organization-account-notification-authority.adapter.server'
+import { createNotificationOrganizationScopeResolver } from './email/notification-organization-scope-repository.server'
 import { createNotificationUserSettings } from './preferences/user-settings.server'
 import type {
   NotificationQuietHoursInput,

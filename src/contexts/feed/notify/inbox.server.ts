@@ -29,25 +29,25 @@ import type {
   ReviewReplyPublishFailed,
   ReviewReplyRejected,
 } from '#/contexts/review/application/public-api'
-import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
-import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
-import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
+import type { UserLookupPort } from './notification-db-user-lookup.port.server'
+import type { InboxItemLookupPort } from './inbox-item-lookup.port.server'
+import type { ResponsibleManagerLookupPort } from './responsible-manager-lookup.port.server'
+import type { EscalationResolutionLookupPort } from './escalation-resolution-lookup.port.server'
 import type { Database } from '#/shared/db'
-import type { NotificationAudience } from '../application/notification-audience'
-import { resolveEscalationResolutionRecipients } from '../application/escalation-resolution-recipients'
-import { resolveResponseTargetReminderRecipients } from '../application/response-target-reminder-recipients'
+import type { NotificationAudience } from './notification-audience.server'
+import { resolveEscalationResolutionRecipients } from './escalation-resolution-recipients.server'
+import { resolveResponseTargetReminderRecipients } from './response-target-reminder-recipients.server'
 import {
   inboxNotificationAudience,
   resolveInboxResponsibleRecipients,
   resolveResponsibleRecipients,
-} from '../application/responsible-recipients'
+} from './responsible-recipients.server'
 import type { NotificationType } from '../domain/notification-types'
 import {
   buildInboxItemPayload,
   buildPropertyPayload,
   type PropertyPayloadDeps,
-} from '../infrastructure/notification-payload-facts'
+} from './notification-payload-facts.server'
 import { deliverNotices, type Notice, type NoticeDeliveryDeps } from './consumers.server'
 
 // ---- fanout ----
@@ -236,7 +236,7 @@ export const inboxItemCreatedNotices = async (
 // failed to publish. Each reaches the reply's author, whoever put it up for
 // approval; a failure the author cannot retry reaches whoever can act on the
 // reply next. A cancellation after approval has its own module
-// (publication-cancelled-notifications.ts): its audience also depends on the
+// (publication-cancelled-notifications.server.ts): its audience also depends on the
 // Property's lifecycle.
 //
 // Split from inbox-workflow.server.ts, which parses the facts and routes

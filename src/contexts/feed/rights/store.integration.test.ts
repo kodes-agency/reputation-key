@@ -20,11 +20,11 @@ import {
   type FinalWarningWriter,
   type ManualFinalWarning,
 } from './executor.server'
-import { createNotificationAudienceAuthorizer } from '../application/notification-audience'
+import { createNotificationAudienceAuthorizer } from '../notify/notification-audience.server'
 import { createNoticeWriter } from '../notify/consumers.server'
 import { waitingWorkState } from '../infrastructure/jobs/test-fixtures'
 import { currentRouteDeps } from '#/shared/testing/notification-route-test-harness'
-import { createOrganizationAccountNotificationAuthority } from '../infrastructure/adapters/organization-account-notification-authority.adapter'
+import { createOrganizationAccountNotificationAuthority } from '../notify/organization-account-notification-authority.adapter.server'
 import {
   notificationEmailId,
   notificationId,

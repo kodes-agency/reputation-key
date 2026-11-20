@@ -67,15 +67,18 @@ export {
   NOTIFICATION_SETTINGS_CATEGORIES,
 } from '../domain/notification-delivery-policy'
 
-export type { UserLookupPort } from './ports/notification-user-lookup.port'
-export type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
-export type { NotificationListFilter } from './notification-list-filter'
-export { isStillWaiting, type NotificationView } from './notification-view'
+export type { UserLookupPort } from '../notify/notification-db-user-lookup.port.server'
+export type { InboxItemLookupPort } from '../notify/inbox-item-lookup.port.server'
+export type { NotificationListFilter } from '../feed/notification-list-filter.contracts'
+export {
+  isStillWaiting,
+  type NotificationView,
+} from '../feed/notification-view.contracts'
 /** Types that stand for work still waiting on their reader, until settled. */
 export { isActionableNotificationType } from '../domain/notification-actionable'
 export type {
   NotificationFeedCursor,
   NotificationFeedHead,
   NotificationPage,
-} from './notification-page'
-export { isNewerFeedPosition } from './notification-page'
+} from '../feed/notification-page.contracts'
+export { isNewerFeedPosition } from '../feed/notification-page.contracts'

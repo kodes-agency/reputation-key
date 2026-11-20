@@ -46,7 +46,7 @@ describe('canonical Recent Activity identifiers', () => {
   })
 
   it('never enqueues the legacy job name from an active Activity producer', () => {
-    const producers = filesBelow(resolve(ACTIVITY_ROOT, 'infrastructure')).filter(
+    const producers = filesBelow(ACTIVITY_ROOT).filter(
       (path) => path.endsWith('.ts') && !path.endsWith('.test.ts'),
     )
     for (const path of producers) {

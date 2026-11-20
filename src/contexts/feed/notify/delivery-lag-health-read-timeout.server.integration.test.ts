@@ -20,7 +20,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import {
   NotificationHealthReadTimeoutError,
   withHealthReadTimeout,
-} from '../infrastructure/repositories/health-read-timeout'
+} from './health-read-timeout.server'
 import { readNotificationDeliveryLag } from './delivery-lag.server'
 
 const WINDOW_END = new Date('2026-08-30T08:00:00.000Z')

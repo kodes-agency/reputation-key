@@ -101,11 +101,11 @@
       ]
     },
     {
-      "file": "src/contexts/feed/application/portal-health-notification.ts",
+      "file": "src/contexts/feed/notify/portal-health-notification.server.ts",
       "exports": ["isPortalHealthReason", "isPortalHealthStatus"]
     },
     {
-      "file": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts",
+      "file": "src/contexts/feed/audit/activity-outbox-consumers.server.ts",
       "exports": ["DURABLE_OPERATIONAL_ACTION_HISTORY_EVENT_TYPES"]
     },
     {
@@ -311,7 +311,7 @@
         "reason": "This is the exhaustive-switch-over-a-closed-union archetype: eight sibling arms, each a guard plus an object literal, maximum nesting depth 2. I measured where the 38 cognitive points come from \u2014 33 of them are the +2/+3 nesting penalty applied to the single `if` inside each arm, not genuine interle"
       },
       {
-        "files": ["src/contexts/feed/infrastructure/activity-outbox-consumers.ts"],
+        "files": ["src/contexts/feed/audit/activity-outbox-consumers.server.ts"],
         "functions": ["mapRecentActivityFact"],
         "maxCyclomatic": 45,
         "reason": "cyclomatic=41 comes entirely from 40 sibling `case` arms of an exhaustive switch over the closed set of durable source-event types; cognitive=5 proves it is flat, not nested \u2014 each arm is an independent, trivially readable object literal, and the `default` arm throws on anything unregistered. Extrac"

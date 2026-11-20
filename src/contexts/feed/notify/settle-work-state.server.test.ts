@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { HandlingCycleNotificationFacts } from '../application/ports/notification-inbox-item-lookup.port'
-import type { ReplyWorkStatus } from '../application/ports/cross-context-lookups.port'
+import type { HandlingCycleNotificationFacts } from './inbox-item-lookup.port.server'
+import type { ReplyWorkStatus } from './cross-context-lookups.port.server'
 import { createNotificationWorkState } from './settle.server'
 import type { NotificationType } from '../domain/notification-types'
 

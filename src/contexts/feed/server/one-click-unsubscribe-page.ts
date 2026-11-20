@@ -11,7 +11,7 @@
 // token, so it cannot tell anyone whether a link is valid or its rows retained.
 
 import { EMAIL_PALETTE } from '#/shared/email'
-import { ONE_CLICK_UNSUBSCRIBE_PATH } from '../application/one-click-unsubscribe-token'
+import { ONE_CLICK_UNSUBSCRIBE_PATH } from '../email/one-click-unsubscribe-token.server'
 
 /** What an unsubscribe POST came to, whichever way it was sent. */
 export type OneClickOutcome = 'accepted' | 'invalid_request' | 'disabled' | 'failed'
