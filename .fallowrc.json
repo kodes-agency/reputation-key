@@ -258,6 +258,15 @@
       }
     },
     {
+      "files": [
+        "src/components/ui/{chart-frame,check-in-section,glossary-term,rating-distribution-chart}.tsx",
+        "src/components/ui/{list-search-limit,property-search}.ts"
+      ],
+      "rules": {
+        "unused-exports": "warn"
+      }
+    },
+    {
       "files": ["**/*.dto.ts", "**/domain/{events,*-events}.ts"],
       "rules": {
         "unused-types": "off"

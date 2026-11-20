@@ -16,6 +16,13 @@ configuration. Do not commit a programme plan, journal or agent notes. Report
 behaviour, test evidence and unresolved dependencies. Line figures are estimates
 or progress information.
 
+Before adding a file, find its place in "Package shape" and "Adding a feature"
+in [src/contexts/CONTEXT.md](src/contexts/CONTEXT.md). New business code goes in
+a feature folder; `application/`, `infrastructure/`, feature screens under
+`src/components` and loose files in `src/shared` only shrink.
+`pnpm check:layout` fails on a file in the wrong place; never raise its baseline
+to admit new code.
+
 Before adding UI, find the family in the Pattern index of
 [src/components/CONTEXT.md](src/components/CONTEXT.md) and use its canonical
 component. When it lacks something needed, extend the primitive with a variant

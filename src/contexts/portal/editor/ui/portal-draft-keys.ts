@@ -7,7 +7,7 @@
 // would remount under their hands each time a save landed.
 
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
-import type { PortalExperienceSettings } from '#/components/features/portal/portal-settings/portal-experience-settings-types'
+import type { PortalExperienceSettings } from '#/contexts/portal/editor/ui/portal-settings/portal-experience-settings-types'
 
 export function portalPropertyContentDraftKey(
   experience: PortalExperienceSettings,

@@ -31,7 +31,7 @@ import {
 import {
   describeReviewCheck,
   reviewCheckContext,
-} from '#/components/features/portal/portal-review/portal-review-checks'
+} from '#/contexts/portal/publication/ui/portal-review/portal-review-checks'
 import {
   changeMixOf,
   describeMix,

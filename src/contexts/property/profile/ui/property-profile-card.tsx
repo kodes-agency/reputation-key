@@ -17,7 +17,7 @@ import {
 } from '#/components/ui/card'
 import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { FieldGroup } from '#/components/ui/field'
-import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
+import { updatePropertyInputSchema } from '#/contexts/property/profile/contracts'
 import { PROPERTY_COUNTRY_OPTIONS } from './property-profile-options'
 
 const profileFormSchema = updatePropertyInputSchema

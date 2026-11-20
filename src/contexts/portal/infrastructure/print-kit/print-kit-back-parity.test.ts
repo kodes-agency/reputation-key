@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { previewBackLayout } from '#/components/features/portal/portal-share/print-face-layout'
+import { previewBackLayout } from '#/contexts/portal/printing/ui/portal-share/print-face-layout'
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import { PRINT_ORIENTATIONS, type PrintFace } from '#/shared/domain/portal-print'
 import { layoutPrintBack } from '#/shared/domain/portal-print-back'

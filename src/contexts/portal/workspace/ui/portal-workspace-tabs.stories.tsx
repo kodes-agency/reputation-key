@@ -9,7 +9,7 @@ import { expect, userEvent, within } from 'storybook/test'
 import { previewReader } from '#/components/features/portal/portal-preview/__fixtures__/portal-preview-fixtures'
 import { PortalEditor } from '#/contexts/portal/editor/ui/portal-editor'
 import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
-import { usePortalLinkIssuance } from '#/components/features/portal/portal-workspace/portal-link-issuance'
+import { usePortalLinkIssuance } from '#/contexts/portal/workspace/ui/portal-workspace/portal-link-issuance'
 import type { PortalHistoryReads } from './portal-history-context'
 import { PortalHistorySection } from './portal-history-section'
 import { PortalShareSection } from './portal-share-section'
@@ -21,7 +21,7 @@ import type {
   CompleteReviewResult,
   CompleteReviewVariables,
   UpdatePortalVariables,
-} from '#/components/features/portal/shared/types'
+} from '#/contexts/portal/workspace/ui/shared/types'
 import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import type {
   getPortalHistory,

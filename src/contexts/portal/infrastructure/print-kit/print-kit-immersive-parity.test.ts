@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { previewImmersiveFace } from '#/components/features/portal/portal-share/print-face-layout'
+import { previewImmersiveFace } from '#/contexts/portal/printing/ui/portal-share/print-face-layout'
 import type { PreviewPhoto } from '#/components/features/portal/portal-share/use-print-pictures'
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'

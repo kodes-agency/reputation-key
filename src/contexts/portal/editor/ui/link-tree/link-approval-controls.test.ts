@@ -3,7 +3,7 @@ import type { Action } from '#/components/hooks/use-action'
 import type {
   PortalApprovedDestinationList,
   PortalExperienceActions,
-} from '#/components/features/portal/portal-settings/portal-experience-settings-types'
+} from '#/contexts/portal/editor/ui/portal-settings/portal-experience-settings-types'
 import { linkApprovalControls, siteControlsFor } from './link-approval-controls'
 
 const action = (isPending = false) =>

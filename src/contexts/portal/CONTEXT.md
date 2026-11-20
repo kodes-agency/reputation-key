@@ -17,16 +17,18 @@ assignment, and governed access artifacts.
 - RPC calls stay in `server/`. None of the screens imports the context build at runtime.
 - Where a feature lives:
 
-  | Feature                                                | Code                                                                      |
-  | ------------------------------------------------------ | ------------------------------------------------------------------------- |
-  | Editor, Linktree, save coordinator, field writers      | `editor/ui/`, `editor/contracts.ts`                                       |
-  | Property look and a Portal's own look                  | `look/ui/`, `application/portal-look-command.ts`, `domain/portal-look.ts` |
-  | Workspace (detail, history, ledger)                    | `workspace/`                                                              |
-  | Publication, groups, links, address commands and facts | `publication/*.server.ts`                                                 |
-  | Print kit and print downloads                          | `printing/`, `build-print-kit.ts`, `src/shared/domain/portal-print-*.ts`  |
-  | Media ingest, serving, takedown, sweep                 | `server/portal-media-*.ts`, `build-public-media.ts`                       |
-  | Other management screens                               | `src/components/features/portal/`                                         |
-  | Guest page and response                                | `src/contexts/guest/` and `src/components/features/guest/public-portal/`  |
+  | Feature                                                               | Code                                                                      |
+  | --------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+  | Editor, Linktree, save coordinator, field writers                     | `editor/ui/`, `editor/contracts.ts`                                       |
+  | Property look and a Portal's own look                                 | `look/ui/`, `application/portal-look-command.ts`, `domain/portal-look.ts` |
+  | Workspace (detail, history, ledger)                                   | `workspace/`                                                              |
+  | Publication, groups, links, address commands and facts                | `publication/*.server.ts`                                                 |
+  | Print kit and print downloads                                         | `printing/`, `build-print-kit.ts`, `src/shared/domain/portal-print-*.ts`  |
+  | Media ingest, serving, takedown, sweep                                | `server/portal-media-*.ts`, `build-public-media.ts`                       |
+  | Share and print screens                                               | `printing/ui/portal-share/`                                               |
+  | New Portal, review and versions screens                               | `publication/ui/`                                                         |
+  | Overview, groups, list and preview (they import other areas' screens) | `src/components/features/portal/`                                         |
+  | Guest page and response                                               | `src/contexts/guest/` (`page/ui/public-portal/`)                          |
 
 - `build.ts` composes request management separately from worker jobs. Portal and
   Guest retain separate builds.
@@ -581,7 +583,7 @@ the PDF and preview use the same measures and planners, checked with real fonts.
 - The PDF renderer loads lazily so processes that never print need not load fonts.
   Fonts, image readers, QR helpers and shared layout helpers remain shared with
   the preview. The Immersive office and print-shop instructions are served by
-  `src/shared/domain/portal-print-kit-pieces.ts` and drawn by `src/components/features/portal/portal-share/portal-print-kit-how-to.tsx`.
+  `src/shared/domain/portal-print-kit-pieces.ts` and drawn by `src/contexts/portal/printing/ui/portal-share/portal-print-kit-how-to.tsx`.
 
 **Retired rollout switches.** The print kit, print code display and own-look rollout
 switches (`PRINT_KIT_FINAL_ENABLED`, `PORTAL_PRINT_CODES_ENABLED` and

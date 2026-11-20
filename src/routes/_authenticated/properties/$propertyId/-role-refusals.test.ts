@@ -11,7 +11,7 @@ vi.mock('#/shared/shell-context/remembered-route-gate', async (importOriginal) =
 
 import { runRouteHook } from '#/routes/route-harness'
 import type { Role } from '#/shared/domain/roles'
-import { visiblePropertySettingsSections } from '#/components/features/property/settings/property-settings-sections'
+import { visiblePropertySettingsSections } from '#/contexts/property/profile/ui/settings/property-settings-sections'
 import { can } from '#/shared/domain/permissions'
 import { Route as AiRoute } from './settings/ai'
 import { Route as TargetsRoute } from './settings/targets'

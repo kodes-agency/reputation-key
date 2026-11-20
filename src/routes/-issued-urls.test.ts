@@ -67,9 +67,12 @@ vi.mock('#/contexts/guest/server/public', () => ({
   withdrawPrivateFeedbackFn: vi.fn(),
   withdrawGuestResponseFn: vi.fn(),
 }))
-vi.mock('#/components/features/guest', () => ({
-  ImmersivePublicPortal: () => null,
-}))
+vi.mock(
+  '#/contexts/guest/page/ui/public-portal/immersive/immersive-public-portal',
+  () => ({
+    ImmersivePublicPortal: () => null,
+  }),
+)
 vi.mock('#/shared/observability/trace', () => ({
   trace: (_name: string, fn: () => Promise<unknown>) => fn(),
 }))

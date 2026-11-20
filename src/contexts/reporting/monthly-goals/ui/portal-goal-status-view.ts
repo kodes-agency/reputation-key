@@ -3,7 +3,7 @@
 
 import type { StatusPresentation } from '#/components/ui/status-badge'
 import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
-import { GOAL_PACE_STATUS } from '../../../../components/goals/goal-pace-status'
+import { GOAL_PACE_STATUS } from '../../goals/ui/goal-pace-status'
 
 /**
  * The pill for a running month, the first rule that fits:

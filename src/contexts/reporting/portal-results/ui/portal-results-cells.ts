@@ -23,7 +23,7 @@ import {
   metricAvailabilityDetail,
   metricEvidenceLine,
   type MetricEvidenceSubject,
-} from '#/components/features/dashboard/metric-availability-presentation'
+} from '#/contexts/reporting/portal-results/ui/metric-availability-presentation'
 import { dayCount } from './portal-results-window'
 import { formatNumber } from '#/lib/format'
 

@@ -7,7 +7,7 @@
 // beside the picture. Put together here so the page only places them.
 import type { PropertyLookMedia } from '#/contexts/portal/application/portal-management-contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
-import type { PortalImageUploader } from '#/components/features/portal/portal-media/upload-portal-image'
+import type { PortalImageUploader } from '#/contexts/portal/look/ui/portal-media/upload-portal-image'
 import { PropertyLookPhone } from './property-look-phone'
 import type { PropertyLookLogoControls } from './property-look-logo-field'
 import type { PropertyLookPhotoControls } from './property-look-photo-section'

@@ -7,8 +7,8 @@ import { preferredGuestLocale } from '#/contexts/guest/application/preferred-gue
 import {
   unavailableCopyOf,
   type PortalUnavailableCopy,
-} from '#/components/features/guest/portal-unavailable-copy'
-import { loadGuestPortalCopy } from '#/components/features/guest/public-portal/language-packs/load-guest-copy'
+} from '#/contexts/guest/page/ui/portal-unavailable-copy'
+import { loadGuestPortalCopy } from '#/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy'
 import { readBrowserLanguages } from './-browser-languages'
 
 /**

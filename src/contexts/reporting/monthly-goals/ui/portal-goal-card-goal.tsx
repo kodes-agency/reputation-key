@@ -10,11 +10,8 @@ import type {
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { CardContent } from '#/components/ui/card'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import {
-  GoalCardColumns,
-  GoalCardFrame,
-} from '../../../../components/goals/goal-card-frame'
-import { GoalWithCheckIn } from '../../../../components/goals/goal-check-in'
+import { GoalCardColumns, GoalCardFrame } from '../../goals/ui/goal-card-frame'
+import { GoalWithCheckIn } from '../../goals/ui/goal-check-in'
 import { PortalGoalCheckIn, type PortalGoalCheckInCommands } from './portal-goal-check-in'
 import {
   Details,

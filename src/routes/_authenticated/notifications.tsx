@@ -12,7 +12,7 @@ import { NotificationPage } from '#/contexts/feed/feed/ui/notification-page'
 import { parseNotificationFilter } from '#/contexts/feed/feed/ui/notification-filters'
 import { notificationFns } from '#/routes/-notification-fns'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
-import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
+import { partitionWorkspaceProperties } from '#/contexts/property/lifecycle/ui/property-workspace'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const authRoute = getRouteApi('/_authenticated')

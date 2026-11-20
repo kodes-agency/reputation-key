@@ -3,7 +3,7 @@
 
 import type { RatingGoalDetailView } from '#/contexts/reporting/rating-goals/contracts'
 import { InlineLink } from '#/components/ui/inline-link'
-import { GoalHistoryList } from '#/components/goals/goal-history-list'
+import { GoalHistoryList } from '#/contexts/reporting/goals/ui/goal-history-list'
 import { movedRows, type MovedContext, type MovedRow } from './rating-goal-moved-view'
 
 type Props = MovedContext &

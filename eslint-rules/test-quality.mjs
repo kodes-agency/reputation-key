@@ -30,7 +30,7 @@ const SKIP_REGISTER = [
     file: 'src/shared/ai-review-language-catalogue.test.ts',
     owner: 'engineering',
     reason:
-      'describe.runIf pair fencing the 24-group review-language catalogue on the pinned runtime (node 22.23.4 / ICU 78.3 / Unicode 17.0) — the group mapping is generated from that exact ICU, so a different runtime must fail closed rather than assert a foreign table; the negative fence asserts that fail-closed path',
+      'describe.runIf pair fencing the 24-group review-language catalogue on the pinned runtime (node 22.23.5 / ICU 78.3 / Unicode 17.0) — the group mapping is generated from that exact ICU, so a different runtime must fail closed rather than assert a foreign table; the negative fence asserts that fail-closed path',
     maxHits: 2,
     runtimeFence: true,
     skippedTests: 79,

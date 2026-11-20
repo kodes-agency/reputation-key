@@ -12,7 +12,7 @@ for changes, [triage](docs/triage.md) for the work queue, and
 
 ## Quick Start
 
-Needs Node 22.23.4 (`.nvmrc`; `engines` rejects other versions), pnpm (the
+Needs Node 22.23.5 (`.nvmrc`; `engines` rejects other versions), pnpm (the
 version in `package.json` through `corepack enable`), Docker with Compose,
 `openssl` and `jq`. Any Node version manager that reads `.nvmrc` works. Clone
 with full history (no `--depth`): a test reads earlier revisions, and a shallow
@@ -109,7 +109,8 @@ Observations are merged across story files and sorted by story id, state and wid
 Record mode permits repaired checks to pass; interaction, accessibility,
 console-error and other checks still fail normally. Review and commit the generated
 list only after the full run finishes successfully. Run the command without story
-filters so that the inventory covers every state.
+filters or `--shard` (CI runs the Storybook lane in two shards; record mode refuses a
+sharded run) so that the inventory covers every state.
 
 ### Local stacks
 

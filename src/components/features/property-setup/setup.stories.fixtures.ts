@@ -4,7 +4,7 @@
 import { fn } from 'storybook/test'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { PropertySetupFns, SetupMember } from './property-setup-contract'
-import { replyLibraryFixture } from '../property/reply-library.stories.fixtures'
+import { replyLibraryFixture } from '../../../contexts/reputation/library/ui/reply-library.stories.fixtures'
 
 export const STORY_ADMIN: SetupMember = {
   userId: 'user-admin',

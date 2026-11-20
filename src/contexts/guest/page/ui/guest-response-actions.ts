@@ -10,16 +10,16 @@
 // where it was and names the card the failure belongs to.
 
 import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
-import type { GuestResponseFormProps } from '#/components/features/guest/public-portal/guest-response-form-types'
+import type { GuestResponseFormProps } from '#/contexts/guest/page/ui/public-portal/guest-response-form-types'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
-import { isHttpsUrl } from '#/components/features/guest/public-portal/immersive/linktree-follow'
-import type { NoteSubmission } from '#/components/features/guest/public-portal/immersive/immersive-note-card'
-import type { RatingSubmission } from '#/components/features/guest/public-portal/immersive/immersive-rating-card'
+import { isHttpsUrl } from '#/contexts/guest/page/ui/public-portal/immersive/linktree-follow'
+import type { NoteSubmission } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-note-card'
+import type { RatingSubmission } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-rating-card'
 import type {
   ImmersiveResponseFailure,
   ImmersiveResponseNotice,
-} from '#/components/features/guest/public-portal/immersive/immersive-response-types'
+} from '#/contexts/guest/page/ui/public-portal/immersive/immersive-response-types'
 
 /** The seven server actions a live page binds, as the route hands them in. */
 export type GuestResponseActions = Pick<

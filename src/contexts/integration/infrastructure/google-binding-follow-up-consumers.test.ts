@@ -1,6 +1,10 @@
 import type { ManageNotificationsApi } from '../application/use-cases/manage-notifications'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
+import {
+  PrerequisiteNotReadyError,
+  createConsumerRegistry,
+  type ConsumerEvent,
+} from '#/shared/outbox'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import {
@@ -194,6 +198,8 @@ describe('durable Google binding follow-ups', () => {
       'awaiting durable acceptance',
     )
     expect(acknowledgements.size).toBe(0)
+    const waiting = await handlers.reviewSync(event).catch((e: unknown) => e)
+    expect(waiting).toBeInstanceOf(PrerequisiteNotReadyError)
     expect(deps.enqueueReviewSync).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceEpoch: 1,
@@ -205,10 +211,23 @@ describe('durable Google binding follow-ups', () => {
     await expect(handlers.reviewSync(event)).rejects.toThrow(
       'awaiting durable acceptance',
     )
-    expect(deps.enqueueReviewSync).toHaveBeenCalledTimes(2)
+    expect(deps.enqueueReviewSync).toHaveBeenCalledTimes(3)
     acknowledgements.add(IMPORT_REVIEW_SYNC_CONSUMER)
     await expect(handlers.reviewSync(event)).resolves.toEqual({ status: 'duplicate' })
-    expect(deps.enqueueReviewSync).toHaveBeenCalledTimes(2)
+    expect(deps.enqueueReviewSync).toHaveBeenCalledTimes(3)
+  })
+  it('reduces a failure of the enqueue itself to a code-only error, not a wait', async () => {
+    const { deps, handlers } = setup()
+    deps.enqueueReviewSync.mockRejectedValueOnce(new Error('redis://secret@host down'))
+
+    const failure = await handlers.reviewSync(event).catch((e: unknown) => e)
+
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).not.toBeInstanceOf(PrerequisiteNotReadyError)
+    expect(failure).toHaveProperty(
+      'message',
+      'Google import sync awaiting durable acceptance',
+    )
   })
   it.each(['sourceEpoch', 'state', 'lifecycleState', 'connectionId'] as const)(
     'settles stale %s work without effects',

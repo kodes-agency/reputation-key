@@ -1,6 +1,6 @@
 import type { PortalGoalSeveralOfPage, PortalGoalSingleSubject } from '../contracts'
-import { goalListSubjectText } from '#/components/goals/goal-assignment-subject-label'
-import { goalLiveView } from '#/components/goals/goal-live-view'
+import { goalListSubjectText } from '#/contexts/reporting/monthly-goals/ui/goal-assignment-subject-label'
+import { goalLiveView } from '#/contexts/reporting/monthly-goals/ui/goal-live-view'
 import { pageBodyLine } from './portal-goal-page-view'
 import { dayWords } from './portal-goal-words'
 

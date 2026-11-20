@@ -2,8 +2,8 @@
 // belongs to the card pill or page header.
 
 import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
-import { GoalHeadline } from '../../../../components/goals/goal-headline'
-import { GoalRuler } from '../../../../components/goals/goal-ruler'
+import { GoalHeadline } from '../../goals/ui/goal-headline'
+import { GoalRuler } from '../../goals/ui/goal-ruler'
 import { portalGoalRuler } from './portal-goal-ruler-view'
 import { runningWords } from './portal-goal-running-view'
 

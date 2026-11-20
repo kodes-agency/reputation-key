@@ -9,8 +9,8 @@ import {
 } from '#/contexts/reporting/application/public-api'
 import { formatDate, formatMonthYear, formatNumber, formatShortDate } from '#/lib/format'
 import type { GoalColumn } from '../../../../components/goals/goal-columns-view'
-import { goalMetricLabel } from '../../../../components/goals/goal-metric-label'
-import { goalTargetMarkerLine } from '../../../../components/goals/goal-target-marker'
+import { goalMetricLabel } from './goal-metric-label'
+import { goalTargetMarkerLine } from './goal-target-marker'
 
 export type ResultVerdict = Readonly<{
   kind: 'met' | 'missed' | 'open'

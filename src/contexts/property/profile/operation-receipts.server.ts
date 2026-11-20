@@ -21,7 +21,7 @@ import {
   type PropertyOperationOutcome,
   type PropertyOperationReceipt,
   type PropertyGoogleBindingStore,
-} from '../application/ports/property-google-binding.port'
+} from './google-binding-store.port.server'
 
 /** The caller holds the import item lock and commits its terminal checkpoint
  * in this transaction. A fresh fact survives receipts on an unmarked event. */

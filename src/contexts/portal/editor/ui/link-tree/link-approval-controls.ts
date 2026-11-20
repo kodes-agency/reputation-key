@@ -3,11 +3,11 @@
 // from the property's allowed sites and the portal's actions; the tile gets only
 // the ones for the site it opens, so the link tree never touches the actions.
 
-import { TURN_OFF_REASON } from '#/components/features/portal/portal-settings/destination-turn-off'
+import { TURN_OFF_REASON } from '#/contexts/portal/editor/ui/portal-settings/destination-turn-off'
 import type {
   PortalApprovedDestinationList,
   PortalExperienceActions,
-} from '#/components/features/portal/portal-settings/portal-experience-settings-types'
+} from '#/contexts/portal/editor/ui/portal-settings/portal-experience-settings-types'
 import { siteForLink, type LinkSite } from './linktree-approval-rules'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 

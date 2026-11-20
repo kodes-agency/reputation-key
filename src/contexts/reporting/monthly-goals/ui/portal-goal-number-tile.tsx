@@ -8,7 +8,7 @@ import {
   GoalHeroStepper,
   HERO_STEPPER_GAP,
   HERO_STEPPER_TOUCH,
-} from '../../../../components/goals/goal-setup-parts'
+} from '../../goals/ui/goal-setup-parts'
 import type { PortalGoalSheetModel } from './portal-goal-sheet-view'
 
 type Props = Readonly<{

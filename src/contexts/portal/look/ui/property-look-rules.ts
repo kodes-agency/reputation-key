@@ -18,7 +18,7 @@ import {
   type LookReadout,
 } from '#/shared/domain/portal-look-readout'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { PortalLanguageSet } from '#/components/features/portal/portal-languages/portal-languages-rules'
+import type { PortalLanguageSet } from '#/contexts/portal/editor/ui/portal-languages/portal-languages-rules'
 import { describeOwnLooks, followsAnyPart, sourcesOf } from './property-look-reach'
 
 export const WORDMARK_MAX = 24

@@ -9,7 +9,9 @@ const read = (file: string): string => readFileSync(join(GUEST_ROOT, file), 'utf
 const productionFiles = (directory = ''): string[] =>
   readdirSync(join(GUEST_ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
     const relativePath = join(directory, entry.name)
-    if (entry.isDirectory()) return productionFiles(relativePath)
+    // Screens run in the browser and read its clock; these rules hold server code.
+    if (entry.isDirectory())
+      return entry.name === 'ui' ? [] : productionFiles(relativePath)
     return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')
       ? [relativePath]
       : []

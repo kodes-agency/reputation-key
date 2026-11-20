@@ -4,7 +4,7 @@
 // than refusing the page (the same rule as the Properties list).
 import { z } from 'zod/v4'
 import type { SortDirection } from '#/components/ui/list-sort'
-import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/ui/list-search-limit'
 
 export const PORTAL_OVERVIEW_SORTS = ['name', 'attention', 'scans'] as const
 export type PortalOverviewSort = (typeof PORTAL_OVERVIEW_SORTS)[number]

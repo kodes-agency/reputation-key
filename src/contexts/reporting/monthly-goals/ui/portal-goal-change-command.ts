@@ -13,10 +13,7 @@ import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import {
-  goalRefusalCode,
-  withGoalRefusals,
-} from '../../../../components/goals/goal-refusal'
+import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
 import type { PortalGoalChangeSend as Sent } from './portal-goal-change-draft'
 import {
   changeRefusals,

@@ -25,8 +25,11 @@ is not completion.
 
 ## Ownership and boundaries
 
-Business code lives in `src/contexts/`. Feature folders may replace layer folders
-when a change also simplifies the responsibility. Read another context through
+Business code lives in `src/contexts/<area>/<feature>/`: server code in
+`*.server.ts`, browser-safe types in `contracts.ts`, screens in `ui/`. An area
+keeps its pure rules in `domain/` and its server functions in `server/`. The
+earlier `application/` and `infrastructure/` folders only shrink;
+`pnpm check:layout` holds every file to its place. Read another context through
 its public API or an explicit browser-safe contract. Keep schema centrally owned
 in `src/shared/db/schema/`; the [database map](src/shared/db/CONTEXT.md) describes
 journaled migrations and transaction rules.

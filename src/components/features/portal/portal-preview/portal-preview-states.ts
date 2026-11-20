@@ -11,7 +11,7 @@ import type {
   PortalPreviewOrigin,
   PortalPreviewSource,
 } from '#/contexts/portal/application/portal-management-contracts'
-import type { GuestPagePreviewState } from '#/components/features/guest'
+import type { GuestPagePreviewState } from '#/contexts/guest/page/ui/public-portal/guest-page-preview-state'
 
 /**
  * Where a guest's private note stands after a rating. Opening and writing it

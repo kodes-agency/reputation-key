@@ -8,7 +8,9 @@ import { act, startHookHarness, type HookHarness } from './hook-harness'
 import type { usePropertyLookPreview as UsePropertyLookPreview } from './use-property-look-preview'
 
 const loadGuestPortalCopy = vi.hoisted(() => vi.fn())
-vi.mock('#/components/features/guest', () => ({ loadGuestPortalCopy }))
+vi.mock('#/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy', () => ({
+  loadGuestPortalCopy,
+}))
 
 const readyPreview = (name: string) => ({
   status: 'ready',

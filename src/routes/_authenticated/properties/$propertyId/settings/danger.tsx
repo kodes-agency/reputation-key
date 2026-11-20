@@ -7,7 +7,7 @@ import { propertyRestoredMessage } from '#/contexts/property/lifecycle/ui/proper
 import {
   removePropertyFromWorkspace,
   type RemovePropertyInput,
-} from '#/components/features/property/remove-property-from-workspace'
+} from '#/contexts/property/lifecycle/ui/remove-property-from-workspace'
 import {
   archiveProperty,
   disconnectPropertyGoogleBinding,

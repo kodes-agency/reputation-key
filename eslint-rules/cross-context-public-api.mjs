@@ -26,7 +26,7 @@ const MERGED_CONTEXTS = new Set(['reputation', 'review', 'inbox'])
 
 const LAYER_FOLDERS = 'domain|application|infrastructure|server|ports|queries|ui'
 const BROWSER_IMPORTER_RE = new RegExp(
-  `/src/contexts/[^/]+/(?!(?:${LAYER_FOLDERS})/)[^/]+/(?:ui/|contracts\\.ts$)`,
+  `/src/contexts/[^/]+/(?!(?:${LAYER_FOLDERS})/)[^/]+/(?:ui/|(?:[\\w-]+\\.)?contracts\\.ts$)`,
 )
 const TYPE_ONLY_TARGET_RE = /^src\/contexts\/[^/]+\/server\//
 

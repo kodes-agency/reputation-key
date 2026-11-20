@@ -8,7 +8,10 @@ import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { Alert, AlertDescription } from '#/components/ui/alert'
-import { GoalDetailLayout, GoalTiles } from '#/components/goals/goal-detail-layout'
+import {
+  GoalDetailLayout,
+  GoalTiles,
+} from '#/contexts/reporting/goals/ui/goal-detail-layout'
 import type { PortalGoalAverageChangeCommands } from './portal-goal-average-change-sheet'
 import { PortalGoalChanges } from './portal-goal-changes'
 import { PortalGoalMonthStrip } from './portal-goal-month-strip'

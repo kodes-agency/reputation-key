@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { portalPropertyContentDraftKey } from './portal-draft-keys'
-import type { PortalExperienceSettings } from '#/components/features/portal/portal-settings/portal-experience-settings-types'
+import type { PortalExperienceSettings } from '#/contexts/portal/editor/ui/portal-settings/portal-experience-settings-types'
 
 const experience: PortalExperienceSettings = {
   profile: {

@@ -12,7 +12,7 @@ import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import type { PortalGoalSinglePageView } from '#/contexts/reporting/monthly-goals/contracts'
-import { goalPersonNames } from '#/components/goals/goal-target-marker'
+import { goalPersonNames } from '#/contexts/reporting/monthly-goals/ui/goal-target-marker'
 import type { PortalGoalCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-card-ready'
 import { PortalGoalAveragePage } from '#/contexts/reporting/monthly-goals/ui/portal-goal-average-page'
 import {

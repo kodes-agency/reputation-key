@@ -8,7 +8,7 @@ import type {
 } from '#/contexts/reporting/monthly-goals/contracts'
 import { ownNumberNote } from '#/contexts/reporting/application/goal-number-steps'
 import { formatNumber } from '#/lib/format'
-import type { GoalStatusPart } from '../../../../components/goals/goal-setup-parts'
+import type { GoalStatusPart } from '../../goals/ui/goal-setup-parts'
 import { dayWords, portalGoalUnit, RECOMMENDED_TAG } from './portal-goal-words'
 
 /** One part of the status line; a link's action is the number it goes back to. */

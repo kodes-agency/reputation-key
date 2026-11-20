@@ -137,6 +137,30 @@ const controls = [
     source: "import '../../portal-results/get-portal-analytics.server'\n",
   },
   {
+    name: 'feature server cannot import the outbox relay',
+    file: 'src/contexts/reporting/portal-results/portal-analytics.repository.server.ts',
+    source: "import '#/shared/outbox/relay'\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: 'feature server cannot import outbox infrastructure',
+    file: 'src/contexts/reporting/portal-results/portal-analytics.repository.server.ts',
+    source: "import '#/shared/outbox/infrastructure/outbox-repository'\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: 'feature server cannot import another area’s feature server',
+    file: 'src/contexts/portal/boundary-control/read.server.ts',
+    source:
+      "import '#/contexts/reporting/portal-results/portal-analytics.repository.server'\n",
+  },
+  {
+    name: 'a route cannot import a feature server implementation',
+    file: 'src/routes/boundary-negative-control.ts',
+    source:
+      "import '#/contexts/reporting/portal-results/portal-analytics.repository.server'\n",
+  },
+  {
     name: 'new feature server cannot import React',
     file: 'src/contexts/portal/boundary-control/read.server.ts',
     source: "import React from 'react'\n",
@@ -307,6 +331,28 @@ const allowedControls = [
     name: 'Reporting repositories may share Portal results SQL helpers',
     file: 'src/contexts/reporting/infrastructure/repositories/portal-last-scans.ts',
     source: "import '../../portal-results/portal-analytics-shared.server'\n",
+  },
+  {
+    name: 'a feature server may use another feature’s server code in its area',
+    file: 'src/contexts/reporting/rating-goals/boundary-positive-control.server.ts',
+    source: "import '../portal-results/portal-analytics.repository.server'\n",
+  },
+  {
+    name: 'the worker may import a feature server implementation',
+    file: 'src/worker/boundary-positive-control.ts',
+    source:
+      "import '#/contexts/reporting/portal-results/portal-analytics.repository.server'\n",
+  },
+  {
+    name: 'composition may import a feature server implementation',
+    file: 'src/composition/boundary-positive-control.ts',
+    source:
+      "import '#/contexts/reporting/portal-results/portal-analytics.repository.server'\n",
+  },
+  {
+    name: 'a named contract file is a feature contract',
+    file: 'src/contexts/reporting/portal-results/analytics.contracts.ts',
+    source: "import '#/shared/domain/ids'\n",
   },
   {
     name: 'Portal results storage may use Drizzle',

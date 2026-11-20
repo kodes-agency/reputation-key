@@ -18,7 +18,61 @@ import {
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { Review } from '#/contexts/review/application/public-api'
 
-type ReviewSourceContentWriter = Pick<Database, 'insert'>
+type ReviewSourceContentWriter = Pick<Database, 'insert' | 'select'>
+
+type ReviewSourceContentValues = Omit<
+  typeof reviewSourceContents.$inferInsert,
+  'createdAt' | 'updatedAt'
+>
+
+const sameInstant = (a: Date | null | undefined, b: Date | null | undefined): boolean =>
+  (a ?? null) === (b ?? null) || (a != null && b != null && a.getTime() === b.getTime())
+
+// Every column the upsert below sets except updated_at, grouped by how a stored
+// value is compared. A column added to the upsert belongs in one of these lists.
+const REQUIRED_COLUMNS = [
+  'organizationId',
+  'propertyId',
+  'platform',
+  'externalId',
+  'externalLocationId',
+  'rating',
+  'sourceEpoch',
+  'sourceRevision',
+  'aiSourceByteLength',
+  'aiSourceDigest',
+] as const
+const NULLABLE_COLUMNS = [
+  'googleConnectionId',
+  'reviewerName',
+  'reviewerProfilePhotoUrl',
+  'googleReviewUrl',
+  'text',
+  'translatedText',
+  'languageCode',
+  'contentHash',
+] as const
+const INSTANT_COLUMNS = [
+  'reviewedAt',
+  'sourceCreatedAt',
+  'sourceUpdatedAt',
+  'firstFetchedAt',
+  'lastFetchedAt',
+  'contentExpiresAt',
+] as const
+
+/** Whether the stored row already holds every value the upsert below sets, so a
+ * re-read of unchanged content writes no new row version. */
+function contentRowIsCurrent(
+  stored: typeof reviewSourceContents.$inferSelect,
+  values: ReviewSourceContentValues,
+): boolean {
+  return (
+    REQUIRED_COLUMNS.every((column) => stored[column] === values[column]) &&
+    NULLABLE_COLUMNS.every((column) => stored[column] === (values[column] ?? null)) &&
+    INSTANT_COLUMNS.every((column) => sameInstant(stored[column], values[column]))
+  )
+}
 
 /** Write provider content in the caller's observation transaction. */
 export async function upsertReviewSourceContent(
@@ -59,6 +113,19 @@ export async function upsertReviewSourceContent(
     aiSourceByteLength: review.aiSourceByteLength,
     aiSourceDigest: review.aiSourceDigest,
   }
+
+  // Compared in code, not with a guard on the statement: a guarded upsert
+  // returns no row, and callers treat that as a failed write.
+  const [stored] = await writer
+    .select()
+    .from(reviewSourceContents)
+    .where(
+      and(
+        eq(reviewSourceContents.reviewId, values.reviewId),
+        eq(reviewSourceContents.organizationId, values.organizationId),
+      ),
+    )
+  if (stored != null && contentRowIsCurrent(stored, values)) return true
 
   await writer
     .insert(reviewSourceContents)

@@ -170,6 +170,14 @@ describe('BQC-5.1: cross-context public-api rule', () => {
       expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
     })
 
+    it('allows a named contract file → type-only foreign server imports', async () => {
+      const messages = await lintSnippet(
+        `import type { listPortals } from '#/contexts/portal/server/portals'\nexport type Shape = typeof listPortals\n`,
+        'src/contexts/property/setup/setup-plan.contracts.ts',
+      )
+      expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
+    })
+
     it('flags a ui screen taking a foreign server value', async () => {
       const messages = await lintSnippet(
         `import { listPortals } from '#/contexts/portal/server/portals'\nexport const read = listPortals\n`,

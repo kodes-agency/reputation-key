@@ -425,6 +425,27 @@ describe('where a module uses the server function factory', () => {
   })
 })
 
+describe('which modules ship', () => {
+  it.each([
+    'src/contexts/portal/server/portal.ts',
+    'src/shared/commands/command.server.ts',
+    'src/components/PortalCard.tsx',
+  ])('reads %s as production', (file) => {
+    expect(isProductionSource(file)).toBe(true)
+  })
+
+  it.each([
+    'src/contexts/portal/server/portal.test.ts',
+    'src/components/PortalCard.stories.tsx',
+    'src/types/env.d.ts',
+    'src/shared/testing/compiled-server-fns.ts',
+    'src/shared/db/testing/transaction.ts',
+    'src/shared/testing.md',
+  ])('does not read %s as production', (file) => {
+    expect(isProductionSource(file)).toBe(false)
+  })
+})
+
 describe('server functions and the execution policy', () => {
   const read = repositoryReader()
   const reaches = serverFunctionReaches(productionSourcesUnder(SOURCE_ROOT), read)

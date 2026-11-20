@@ -1,5 +1,5 @@
 import type { RatingGoalCardView } from '#/contexts/reporting/rating-goals/contracts'
-import { GoalHeadline } from '#/components/goals/goal-headline'
+import { GoalHeadline } from '#/contexts/reporting/goals/ui/goal-headline'
 import { headlineOf } from './rating-goal-tracking-words'
 
 export function RatingGoalClimbHeadline({

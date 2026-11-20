@@ -5,7 +5,7 @@
 import { Link } from '@tanstack/react-router'
 import { Palette } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import type { PortalExperienceSettings } from '#/components/features/portal/portal-settings/portal-experience-settings-types'
+import type { PortalExperienceSettings } from '#/contexts/portal/editor/ui/portal-settings/portal-experience-settings-types'
 
 type Props = Readonly<{
   propertyId: string

@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@10.6.5",
   "engines": {
-    "node": ">=22.23.4 <23"
+    "node": ">=22.23.5 <23"
   },
   "imports": {
     "#/*": "./src/*"
@@ -22,7 +22,7 @@
     "local:down": "pnpm e2e:stack:down",
     "verify": "pnpm lint:ci && pnpm typecheck && pnpm format:check && pnpm test:unit",
     "lint": "eslint . --max-warnings 23 && node scripts/check-architecture-boundary-controls.mjs && node scripts/check-lint-suppressions.mjs",
-    "lint:static": "pnpm lint && node scripts/check-google-provider-identifiers.mjs && pnpm check:runtime-environment-contract && pnpm check:migration-journal",
+    "lint:static": "pnpm lint && node scripts/check-google-provider-identifiers.mjs && pnpm check:runtime-environment-contract && pnpm check:migration-journal && pnpm check:layout && pnpm check:test-text-reads",
     "lint:ci": "pnpm lint:static && pnpm check:unchecked-indexed-access",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -60,6 +60,8 @@
     "check:action-pins": "node scripts/check-action-pins.mjs",
     "check:container-images": "tsx scripts/ci/check-container-image-policy.ts",
     "check:typescript-project-coverage": "tsx scripts/ci/check-typescript-project-coverage.ts",
+    "check:layout": "tsx scripts/ci/check-layout.ts",
+    "check:test-text-reads": "tsx scripts/ci/check-test-text-reads.ts",
     "check:runtime-environment-contract": "tsx scripts/ci/check-runtime-environment-contract.ts",
     "file-length:tighten": "tsx scripts/ci/tighten-file-length-baseline.ts",
     "check:unchecked-indexed-access": "NODE_OPTIONS=--max-old-space-size=6144 tsx scripts/ci/check-unchecked-indexed-access.ts",

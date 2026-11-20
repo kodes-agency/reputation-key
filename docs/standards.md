@@ -337,13 +337,10 @@ Test files should mirror the source file name with `.test.ts` / `.test.tsx` appe
 | `get-dashboard-data.ts` | `get-dashboard-data.test.ts` |
 | `review.repository.ts`  | `review.repository.test.ts`  |
 
-Placement also selects the Vitest project (`vitest.config.ts`). Tests that need
-PostgreSQL run in the serial `integration` project, which selects
-`src/**/infrastructure/repositories/*.test.ts` and `src/**/*.integration.test.ts`
-and excludes both from `unit`. A DB-backed test for a source outside
-`repositories/` is named `<source>.integration.test.ts`, beside the source; older
-command-store suites sit under `infrastructure/repositories/<source>.test.ts`
-instead. A unit test for a `repositories/` source sits one level up
+The name selects the Vitest project (`vitest.config.ts`). Tests that need
+PostgreSQL are named `<source>.integration.test.ts`, beside the source, and run
+in the serial `integration` project; `unit` excludes them. The folder a test sits
+in selects nothing, so a test keeps its project when it moves. A unit test for a `repositories/` source sits one level up
 (`infrastructure/<source>.test.ts`) so it stays in `unit`.
 
 ## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)

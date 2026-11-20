@@ -11,7 +11,7 @@ import {
   createStaffRightsExecutor,
 } from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
 import { STAFF_LIFECYCLE_TABLES } from '#/contexts/identity/infrastructure/adapters/staff-organization-erasure'
-import { createPropertyRightsExecutor } from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
+import { createPropertyRightsExecutor } from '#/contexts/property/lifecycle/property-rights.adapter.server'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'

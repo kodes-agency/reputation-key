@@ -6,7 +6,7 @@ import type {
   PortalNewData,
   PortalNewGroup,
   PortalNewSource,
-} from '#/components/features/portal/portal-new/portal-new-types'
+} from '#/contexts/portal/publication/ui/portal-new/portal-new-types'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 

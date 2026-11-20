@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { previewMeasurer } from '#/components/features/portal/portal-share/print-face-layout'
+import { previewMeasurer } from '#/contexts/portal/printing/ui/portal-share/print-face-layout'
 import type { PrintFace } from '#/shared/domain/portal-print'
 import { choosePrintTile } from '#/shared/domain/portal-print-code'
 import { layoutPrintFace } from '#/shared/domain/portal-print-face'

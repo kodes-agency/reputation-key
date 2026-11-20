@@ -45,7 +45,7 @@ describe('digests that stored operations and provenance carry', () => {
     [
       'provider deployment profile',
       AI_PROVIDER_DEPLOYMENT_PROFILE_V2.profileDigest,
-      '07a1b133ea2c519ed61fc18ca376cc7e4494b48bbf738d5705739293722962b3',
+      'c1167cebad528f5aaf42257901f839a1ff389654137b8b7ee0b25c5057d04da6',
     ],
     [
       'runtime capabilities',
@@ -131,9 +131,9 @@ describe('digests that stored operations and provenance carry', () => {
       ),
     ).toEqual({
       'review-analysis-v3':
-        'd25c3e071e309060f7d7fafa7b65d95c54d1e0cf98841b8dc9449f5e3414b943',
+        'bffc63828d74c3bbe18d7ebae8ec74cb7750a3be1902b14128fa370cadc98e49',
       'reply-suggestion-v2':
-        '96cc3926f0e9d0110b15e05be0233ff50270699ccee833caac0b4480c9b27642',
+        '73c5cf6cef43b9a5ef202053c9ca9249c2e69a2802f8e286d51559f6f71045b5',
       'synthetic-canary-v1':
         '6f986a1fe771b2d92d7e16acc09e39cc63aaba4a4f6a9203ad61a0412189f9f5',
     })

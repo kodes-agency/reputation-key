@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   REVIEW_ANALYSIS_STATUS,
   reviewAnalysisShare,
-} from '#/components/features/property/settings/review-analysis-progress-card'
+} from '#/contexts/ai/replay/ui/review-analysis-progress-card'
 import { StatusBadge, type StatusPresentation } from '#/components/ui/status-badge'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { reviewAnalysisProgressRefetchInterval } from '#/shared/queries/review-analysis-progress-polling'

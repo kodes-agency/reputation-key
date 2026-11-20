@@ -91,7 +91,19 @@ const NOT_A_UI_SOURCE = [
   '**/*-fixtures.{ts,tsx}',
 ]
 // The guest renderer is the owner's reference experience and keeps its own CSS and colours.
-const GUEST_RENDERER = 'src/components/features/guest/**'
+// The Guest page's other files keep the shared rules.
+const GUEST_RENDERER = [
+  'src/contexts/guest/page/ui/**',
+  '!src/contexts/guest/page/ui/{contact-request.tsx,guest-page-data.ts,guest-response-actions.ts,use-guest-response.ts}',
+  'src/components/features/guest/**',
+]
+// Design-system primitives own raw buttons, control sizes and fills. The shared
+// composites kept beside them are held to the rules screens follow.
+const DESIGN_SYSTEM_PRIMITIVES = [
+  'src/components/ui/**',
+  '!src/components/ui/{chart-frame,check-in-section,glossary-term,rating-distribution-chart}.tsx',
+  '!src/components/ui/{list-search-limit,property-search}.ts',
+]
 const ROUTE_SOURCES = ['src/routes/**/*.{ts,tsx}']
 
 // Selectable tiles, evidence rows and the focal-point handle keep their own
@@ -110,7 +122,7 @@ const SELECTABLE_BUTTONS = [
   ['src/contexts/portal/workspace/ui/portal-versions-rail.tsx', 'picker-tile'],
   // The language choices keep their selected border and inline fallback marker.
   [
-    'src/components/features/portal/portal-new/portal-new-languages-field.tsx',
+    'src/contexts/portal/publication/ui/portal-new/portal-new-languages-field.tsx',
     'picker-tile',
   ],
   // The selector overlays an inert thumbnail whose page contains its own buttons.
@@ -125,7 +137,7 @@ const SELECTABLE_BUTTONS = [
   // The selectable portal rows keep their multiline identity and separate edit link.
   ['src/contexts/portal/look/ui/property-look-portals.tsx', 'picker-tile'],
   // The selectable metrics keep the figure and detail layout of the surrounding summary.
-  ['src/components/features/property/property-list-summary.tsx', 'picker-tile'],
+  ['src/contexts/property/lifecycle/ui/list/property-list-summary.tsx', 'picker-tile'],
   // The radio pills keep their wrapping layout and roving keyboard selection.
   ['src/components/inbox/inbox-choice-chips.tsx', 'picker-tile'],
   // The selectable Inbox row keeps its evidence layout beside the separate bulk checkbox.
@@ -199,6 +211,28 @@ const SERVER_IMPLEMENTATION_IMPORTS = {
   group: ['**/*.server', '**/*.server.*'],
   message:
     'Feature UI reads through context server functions, never server implementations.',
+}
+// The outbox relay, dispatcher and adapter are worker-only; code reaches the
+// outbox through #/shared/outbox.
+const OUTBOX_INTERNAL_PATHS = [
+  {
+    name: '#/shared/outbox/infrastructure/outbox-repository',
+    message:
+      'Import OutboxRepository from #/shared/outbox (public barrel), not infrastructure.',
+  },
+  { name: '#/shared/outbox/relay', message: 'The outbox relay is worker-only.' },
+  {
+    name: '#/shared/outbox/dispatcher',
+    message: 'The outbox dispatcher is worker-only.',
+  },
+  {
+    name: '#/shared/outbox/event-adapter',
+    message: 'event-adapter is internal. Use emitAndRecord from #/shared/outbox.',
+  },
+]
+const OUTBOX_INFRASTRUCTURE_IMPORTS = {
+  group: ['**/shared/outbox/infrastructure/**'],
+  message: 'Outbox infrastructure is internal. Use #/shared/outbox.',
 }
 // Server code imports nothing from React, types included.
 const FRAMEWORK_IMPORTS = {
@@ -376,7 +410,7 @@ export default tseslint.config(
         },
         {
           category: 'feature-contract',
-          pattern: FEATURE_ROOT + '/contracts.ts',
+          pattern: [FEATURE_ROOT + '/contracts.ts', FEATURE_ROOT + '/*.contracts.ts'],
           capture: ['context', 'feature'],
         },
         {
@@ -804,6 +838,34 @@ export default tseslint.config(
                 },
               },
             },
+            // Features of one area are one module: their server files may use each
+            // other's. Another area still goes through its public API.
+            {
+              from: fileCategory(['feature-server', 'feature-test-fixtures']),
+              allow: {
+                to: {
+                  file: {
+                    categories: 'feature-server',
+                    path: 'src/contexts/{{from.file.captured.context}}/**',
+                  },
+                },
+              },
+            },
+            // Process entry points, composition and tooling reach feature server code as
+            // they reach infrastructure/. Operator scripts go through public APIs.
+            {
+              from: elementTypes(
+                'top-level',
+                'test-helpers',
+                'runtime-plugin',
+                'script-tooling',
+              ),
+              allow: { to: fileCategory('feature-server') },
+            },
+            {
+              from: fileCategory('composition-root'),
+              allow: { to: fileCategory('feature-server') },
+            },
             {
               from: {
                 file: {
@@ -934,7 +996,8 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [FRAMEWORK_IMPORTS],
+          paths: OUTBOX_INTERNAL_PATHS,
+          patterns: [OUTBOX_INFRASTRUCTURE_IMPORTS, FRAMEWORK_IMPORTS],
         },
       ],
     },
@@ -1324,7 +1387,7 @@ export default tseslint.config(
   // the editor-time form.
   {
     files: UI_SOURCES,
-    ignores: [...NOT_A_UI_SOURCE, GUEST_RENDERER],
+    ignores: [...NOT_A_UI_SOURCE, ...GUEST_RENDERER],
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/palette-colour': [
@@ -1344,7 +1407,7 @@ export default tseslint.config(
   // error line, which is why it is typed so often). Also tone-sources.test.ts.
   {
     files: UI_SOURCES,
-    ignores: [...NOT_A_UI_SOURCE, GUEST_RENDERER],
+    ignores: [...NOT_A_UI_SOURCE, ...GUEST_RENDERER],
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/fill-grade-red-text': [
@@ -1361,7 +1424,7 @@ export default tseslint.config(
   // primitive (on-fill ink included), not a colour typed on a button.
   {
     files: UI_SOURCES,
-    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**'],
+    ignores: [...NOT_A_UI_SOURCE, ...DESIGN_SYSTEM_PRIMITIVES],
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/destructive-class': [
@@ -1382,7 +1445,7 @@ export default tseslint.config(
   // src/components/ui/button-sources.test.ts covers Button only.
   {
     files: UI_SOURCES,
-    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**'],
+    ignores: [...NOT_A_UI_SOURCE, ...DESIGN_SYSTEM_PRIMITIVES],
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/control-size': [
@@ -1403,7 +1466,7 @@ export default tseslint.config(
   // through a documented data-slot exception, never an inline rule disable.
   {
     files: UI_SOURCES,
-    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**', GUEST_RENDERER],
+    ignores: [...NOT_A_UI_SOURCE, ...DESIGN_SYSTEM_PRIMITIVES, ...GUEST_RENDERER],
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/raw-button': [
@@ -1483,7 +1546,7 @@ export default tseslint.config(
           selector:
             "CallExpression[callee.property.name='includes'][callee.object.callee.property.name=/^to(?:Locale)?LowerCase$/]",
           message:
-            'A case-folded includes() is not a search match. Use searchMatcher from #/components/property/property-search, which folds case and accents.',
+            'A case-folded includes() is not a search match. Use searchMatcher from #/components/ui/property-search, which folds case and accents.',
         },
       ],
     },
@@ -1589,7 +1652,7 @@ export default tseslint.config(
     files: UI_SOURCES,
     ignores: [
       ...NOT_A_UI_SOURCE,
-      'src/components/ui/**',
+      ...DESIGN_SYSTEM_PRIMITIVES,
       'src/components/inbox/inbox-queue-strip.tsx',
       'src/components/inbox/inbox-active-filters.tsx',
     ],

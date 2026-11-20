@@ -13,6 +13,7 @@
 // review.reply.published is receipt-only, while review.reply.observed is the
 // durable exact-head authority for automatic Review close/reopen effects.
 
+import { PrerequisiteNotReadyError } from '#/shared/outbox'
 import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
 import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
 import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
@@ -424,21 +425,22 @@ export async function handleInboxReplyObserved(
       const lent = borrowReviewTransaction(reviewTx)
       // The observed fact may overtake review.created because durable
       // consumers run concurrently. Only an obsolete Review head is a final
-      // no-op: a current head with no Inbox projection must remain retryable.
+      // no-op: a current head with no Inbox projection waits for it, as a
+      // quiet retry.
       // Resolve the item while Review holds its observation fence so a later
       // head cannot replace this permit before the Inbox transaction commits.
       const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId, lent)
       if (!item) {
-        throw inboxError(
-          'not_found',
+        throw new PrerequisiteNotReadyError(
           'Current reply observation is waiting for its Review Inbox item',
+          'not_found',
         )
       }
       const cycleHead = await deps.handlingCycleStore.findHead(item.id, orgId, lent)
       if (cycleHead === null) {
-        throw inboxError(
-          'not_found',
+        throw new PrerequisiteNotReadyError(
           'Current reply observation is waiting for its Inbox Handling Cycle',
+          'not_found',
         )
       }
       if (

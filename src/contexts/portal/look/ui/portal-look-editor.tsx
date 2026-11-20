@@ -10,7 +10,7 @@
 // a portal follows.
 import type { PortalLookView } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalEditorResources } from '#/contexts/portal/editor/ui/portal-editor-types'
-import type { PortalExperienceSettings } from '#/components/features/portal/portal-settings/portal-experience-settings-types'
+import type { PortalExperienceSettings } from '#/contexts/portal/editor/ui/portal-settings/portal-experience-settings-types'
 import { PortalLookColoursBlock } from './portal-look-colours-block'
 import { PortalLookIdentityBlock } from './portal-look-identity-block'
 import { PortalLookPhotoBlock } from './portal-look-photo-block'

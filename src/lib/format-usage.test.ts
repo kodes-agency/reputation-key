@@ -23,7 +23,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'the notification bell’s day grouping; it is in the first-paint closure, where the format module is not',
   'src/contexts/feed/preferences/ui/notification-formatting-form.tsx':
     'previews the person’s own locale and zone choice',
-  'src/components/features/guest/public-portal/guest-deadline-format.ts':
+  'src/contexts/guest/page/ui/public-portal/guest-deadline-format.ts':
     'the guest renderer, in the guest’s language',
   'src/contexts/identity/feedback/ui/beta-feedback-reports.tsx':
     'reads the runtime’s zone name, not a format',

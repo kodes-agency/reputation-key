@@ -18,7 +18,7 @@ import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import { PortalEditor } from '#/contexts/portal/editor/ui/portal-editor'
 import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from '#/contexts/portal/editor/ui/portal-draft-save-status'
-import type { PortalImageUploader } from '#/components/features/portal/portal-media/upload-portal-image'
+import type { PortalImageUploader } from '#/contexts/portal/look/ui/portal-media/upload-portal-image'
 import { makeImageFile, uploadingTo } from './property-look-page-fixtures'
 import {
   FOLLOWS_EVERYTHING,

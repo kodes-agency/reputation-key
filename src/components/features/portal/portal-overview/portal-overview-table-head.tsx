@@ -4,7 +4,7 @@
 // where each row is a card (42 rem in a group's page).
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { DataTableHead, DataTableHeader } from '#/components/ui/data-table'
-import { GlossaryTerm } from '#/components/features/shared/glossary-term'
+import { GlossaryTerm } from '#/components/ui/glossary-term'
 import { useOverviewClasses } from './portal-overview-density'
 import { MEASURE_COLUMNS } from './portal-overview-measure-cells'
 import type { GlossaryTermKey } from '#/shared/dashboard-glossary'

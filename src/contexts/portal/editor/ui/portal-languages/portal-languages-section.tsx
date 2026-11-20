@@ -1,0 +1,139 @@
+// Languages: which languages guests can read this portal in, how much of the
+// wording each has, and what guests see where a text is missing. Changes are
+// written at once through the portal's autosave coordinator; the wording itself
+// is written by hand in the Welcome and Linktree sections (no AI translation).
+
+import type { Action } from '#/components/hooks/use-action'
+import type { PortalLanguageCoverage } from '#/contexts/portal/application/portal-management-contracts'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
+import type { ChangePortalLanguagesVariables } from '../../../workspace/ui/shared/types'
+import { PortalLanguageAddMenu } from './portal-language-add-menu'
+import { PortalLanguageRow } from './portal-language-row'
+import {
+  addableLanguages,
+  describeFallbackEffect,
+  hasLaterLanguages,
+  languageDisplayName,
+} from './portal-languages-rules'
+import { usePortalLanguageChange } from './use-portal-language-change'
+import { InlineLink } from '#/components/ui/inline-link'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+
+type Props = Readonly<{
+  portal: Readonly<{
+    id: string
+    primaryGuestLocale?: GuestLocale
+    additionalGuestLocales?: readonly GuestLocale[]
+  }>
+  propertyId: string
+  coverage: PortalLanguageCoverage | undefined
+  update: Action<ChangePortalLanguagesVariables>
+  canEdit: boolean
+}>
+
+export function PortalLanguagesSection({
+  portal,
+  propertyId,
+  coverage,
+  update,
+  canEdit,
+}: Props) {
+  const primary = portal.primaryGuestLocale ?? 'en'
+  const additional = portal.additionalGuestLocales ?? []
+  const onChange = usePortalLanguageChange(portal, update)
+  const { can } = usePermissions()
+  // The property's wording behind a welcome line or link preview is written by
+  // an account admin (`portal.admin`), in Welcome.
+  const canWritePropertyWording = canEdit && can('portal.admin')
+  const coverageOf = (locale: GuestLocale) =>
+    coverage?.languages.find((row) => row.locale === locale) ?? null
+  return (
+    <div className="space-y-6">
+      <ul aria-label="Languages" className="border-t">
+        {[primary, ...additional].map((locale) => (
+          <PortalLanguageRow
+            key={locale}
+            propertyId={propertyId}
+            portalId={portal.id}
+            locale={locale}
+            isFallback={locale === primary}
+            coverage={coverageOf(locale)}
+            canEdit={canEdit}
+            canWritePropertyWording={canWritePropertyWording}
+            onChange={onChange}
+          />
+        ))}
+      </ul>
+      {canEdit ? (
+        <PortalLanguageAddMenu
+          addable={addableLanguages({ primary, additional })}
+          hasLater={hasLaterLanguages()}
+          onChange={onChange}
+        />
+      ) : null}
+      <MissingTextNote
+        primary={primary}
+        coverage={coverage}
+        propertyId={propertyId}
+        portalId={portal.id}
+      />
+    </div>
+  )
+}
+
+function MissingTextNote({
+  primary,
+  coverage,
+  propertyId,
+  portalId,
+}: Readonly<{
+  primary: GuestLocale
+  coverage: PortalLanguageCoverage | undefined
+  propertyId: string
+  portalId: string
+}>) {
+  const effects =
+    coverage?.languages.flatMap((row) => describeFallbackEffect(row, primary) ?? []) ?? []
+  const fallback = languageDisplayName(primary).english
+  return (
+    <section
+      aria-labelledby="portal-languages-missing-heading"
+      className="space-y-2 border-t pt-6"
+    >
+      <h3 id="portal-languages-missing-heading" className="font-medium">
+        When a text is missing
+      </h3>
+      <p className="text-sm">
+        Guests whose language is missing a text read it in {fallback}, the fallback
+        language. {fallback} needs every text before the portal can be published.
+      </p>
+      {coverage !== undefined ? (
+        <p className="text-sm text-muted-foreground">
+          {effects.length === 0
+            ? 'Now: every language has all its text.'
+            : `Now: ${effects.join(' · ')}.`}
+        </p>
+      ) : null}
+      <p className="text-sm text-muted-foreground">
+        Write each language&rsquo;s text in{' '}
+        <InlineLink
+          to="/properties/$propertyId/portals/$portalId"
+          params={{ propertyId, portalId }}
+          search={{ tab: 'page', section: 'welcome' }}
+        >
+          Welcome
+        </InlineLink>{' '}
+        and{' '}
+        <InlineLink
+          to="/properties/$propertyId/portals/$portalId"
+          params={{ propertyId, portalId }}
+          search={{ tab: 'page', section: 'linktree' }}
+        >
+          Linktree
+        </InlineLink>
+        . A welcome line and a link preview start from the property&rsquo;s wording, which
+        an account admin writes.
+      </p>
+    </section>
+  )
+}

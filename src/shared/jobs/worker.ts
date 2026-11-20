@@ -19,6 +19,7 @@ import {
   isTerminalFailedEvent,
   quarantineFinalAttemptJob,
 } from './failure-quarantine'
+import { PrerequisiteNotReadyError } from '#/shared/outbox/prerequisite-not-ready'
 import { isGateDeniedResult } from './gate-denial'
 import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
@@ -280,6 +281,18 @@ export function createJobWorker<T>(
   })
 
   worker.on('failed', (job: Job<T> | undefined, err: Error) => {
+    // An expected ordering wait retries on its own; it is not a failure unless
+    // BullMQ has spent the job's last attempt on it.
+    const terminal = job
+      ? reportsTerminalFailure(job, err) && isTerminalFailedEvent(job, err)
+      : false
+    if (err instanceof PrerequisiteNotReadyError && !terminal) {
+      logger.info(
+        { queue: name, jobName: job?.name, attemptsMade: job?.attemptsMade },
+        'job waiting for a prerequisite — retrying',
+      )
+      return
+    }
     logger.error(
       {
         queue: name,
@@ -289,9 +302,6 @@ export function createJobWorker<T>(
       },
       'job failed',
     )
-    const terminal = job
-      ? reportsTerminalFailure(job, err) && isTerminalFailedEvent(job, err)
-      : false
     if (job && terminal) {
       captureObservabilityException(err, {
         source: 'bullmq-job',

@@ -26,19 +26,22 @@ Property lookups.
   internal.
 - Export and irreversible lifecycle contributors remain outside `publicApi`.
 - A Property server function answers with `BrowserProperty`
-  (`application/dto/browser-property.dto.ts`), never with the aggregate its use
+  (`profile/browser-property.contracts.ts`), never with the aggregate its use
   case returns. The Google account and location suffixes, the Organization
   connection reference and the review URI stay on the server; the manager app is
   given the binding state and the destination's state and read time (ADR 0050).
 
 ## Screens
 
-Archive and restore screens sit in `lifecycle/ui/`, Responsible Manager
-selection in `responsibility/ui/` and the profile card in `profile/ui/`; routes
-import them from there. The Property list, overview, Google, reply voice and
-template screens and the setup wizard still live in
-`src/components/features/{property,property-setup}/`. Screens take other contexts' server-function signatures
-as types only.
+The Property list and archive and restore screens sit in `lifecycle/ui/`,
+Responsible Manager selection in `responsibility/ui/`, and the profile card,
+settings and reply language in `profile/ui/`; routes import them from there.
+The Google page is Integration's (`performance/ui/`), reply voice and templates
+are Reputation's (`library/ui/`), and the ratings page is Reporting's
+(`property-overview/ui/`). The setup wizard and strip are cross-area screens in
+`src/components/features/property-setup/`; a few overview files still sit in
+`src/components/features/property/`. Screens take other contexts'
+server-function signatures as types only.
 
 ## Model
 
@@ -60,10 +63,13 @@ store commits state, `sourceEpoch`, revision, responsibility, destination state,
 and identifier-only facts atomically. `isPropertyActive` is the request-time gate
 used before provider and public Portal effects.
 
-The writers live beside the feature they serve: `profile/` (the profile update
-store and the Google binding store with its receipts), `lifecycle/` (the
-transition store) and `responsibility/` (the Responsible Manager repository).
-A Property's fields are listed once, in `infrastructure/mappers/property.mapper.ts`:
+The code lives beside the feature it serves: `profile/` (the Property record:
+its repository, mapper, reads and browser shape, the profile update and the
+Google binding store with its receipts), `lifecycle/` (archive, restore, the
+transition store, erasure and rights contributors) and `responsibility/`
+(Responsible Managers, eligibility and member offboarding). Each port sits
+beside its implementation as `<store>.port.server.ts`.
+A Property's fields are listed once, in `profile/property-mapper.server.ts`:
 reading a row, writing one and the columns a patch may set all derive from that
 list, and a field added to `Property` does not compile until it is listed there.
 

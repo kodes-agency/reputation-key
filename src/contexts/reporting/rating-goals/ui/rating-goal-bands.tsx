@@ -14,7 +14,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import type { RatingGoalDetailView } from '#/contexts/reporting/rating-goals/contracts'
-import { CheckInSection } from '#/components/features/shared/check-in-section'
+import { CheckInSection } from '#/components/ui/check-in-section'
 import { InlineLink } from '#/components/ui/inline-link'
 import { formatLocalDate } from '#/lib/format'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -23,7 +23,7 @@ import {
   GoalActionButton,
   GoalActionRows,
   GoalActionWords,
-} from '#/components/goals/goal-action-row'
+} from '#/contexts/reporting/goals/ui/goal-action-row'
 import { GoalColumns } from '#/components/goals/goal-columns'
 import {
   keepBand,

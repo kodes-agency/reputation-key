@@ -23,13 +23,13 @@ import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import { openPageErrorMessage } from '#/components/features/portal/portal-workspace/portal-open-page'
+import { openPageErrorMessage } from '#/contexts/portal/workspace/ui/portal-workspace/portal-open-page'
 import type { PortalLookActions } from '#/contexts/portal/look/ui/portal-look-types'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type {
   ChangePortalLanguagesVariables,
   UpdatePortalVariables,
-} from '#/components/features/portal/shared/types'
+} from '#/contexts/portal/workspace/ui/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
 import {
   downloadPortalPrintFinal,

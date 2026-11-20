@@ -1,7 +1,7 @@
 import { useRef, useState, type KeyboardEventHandler } from 'react'
 import { Search, X } from 'lucide-react'
 
-import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/ui/list-search-limit'
 import { IconButton } from '#/components/ui/icon-button'
 import { Input } from '#/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#/components/ui/input-group'
@@ -34,7 +34,7 @@ type Props = Readonly<{
  * glyph, the shared length limit (URL schemas drop a longer search), and a clear
  * button that refocuses the field and is a tap target on a phone though the glyph is
  * 12px. It owns no matching: lists match with `searchMatcher`
- * (`#/components/property/property-search`). The Inbox composes the `bare` variant.
+ * (`#/components/ui/property-search`). The Inbox composes the `bare` variant.
  *
  * Lists keep the search in the URL and a keystroke is a navigation, committed only
  * once the route has loaded. The field keeps what was typed as a draft and shows it

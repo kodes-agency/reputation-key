@@ -49,7 +49,9 @@ implementation details and naming conventions used by existing tools.
 9. Delete replaced code only after cutover proof. Prove no callers through the
    import graph, including barrels, rather than by searching a filename. Remove
    obsolete generation labels while retaining meaningful stored-format,
-   provenance and issued-address versions. Keep server-function paths fixed.
+   provenance and issued-address versions. Keep server-function paths fixed;
+   the one exception is the single move of Review's and Inbox's server
+   functions into Reputation, deployed alone.
 10. Allow one unfinished replacement per area, with an owner, cutover check,
     date and contraction step before widening it.
 11. Merge code that can run within 30 days unless explicitly authorized to remain
@@ -62,12 +64,19 @@ implementation details and naming conventions used by existing tools.
 
 ## Code and ownership
 
-12. Prefer plain functions and files with clear jobs. Use feature folders inside
-    `src/contexts/<area>/` and screens in `ui/` after assessing the Portal results
-    pilot. Move a file only when also simplifying it. Adopt `*.server.ts` before
-    dissolving protected layer folders. Keep schema in `src/shared/db/schema`,
-    shared infrastructure in `src/shared/`, and server functions at current paths.
-    If the pilot fails, simplify today's layers. A newcomer should be able to
+12. Prefer plain functions and files with clear jobs. Business code lives in
+    `src/contexts/<area>/<feature>/`: `contracts.ts` holds the types and schemas
+    the browser may import, `*.server.ts` the commands, reads, stores, adapters
+    and jobs, and `ui/` the screens. An area keeps its pure rules in `domain/`
+    and its server functions in `server/`, at current paths. New code goes in a
+    feature folder. An area's `application/`, `infrastructure/` and `ports/`
+    folders, feature screens under `src/components` and loose files in
+    `src/shared` only shrink. A move is an authorized prerequisite under rule 2:
+    it changes no behaviour and is its own change. Name a file `*.server.ts`
+    before it leaves a protected layer folder. Keep
+    schema in `src/shared/db/schema` and shared infrastructure in `src/shared/`.
+    `LAYOUT` in `scripts/ci/check-layout.ts` is the map of areas and features,
+    and `pnpm check:layout` holds every file to it. A newcomer should be able to
     follow a route to SQL without tracing forwarding layers.
 13. Keep interfaces for real providers, real alternative implementations or fakes
     that exercise real decisions.

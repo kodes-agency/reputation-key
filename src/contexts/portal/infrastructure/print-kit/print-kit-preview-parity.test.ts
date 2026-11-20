@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { estimatedReachEm } from '#/components/features/portal/portal-share/print-ink-estimates'
+import { estimatedReachEm } from '#/contexts/portal/printing/ui/portal-share/print-ink-estimates'
 import {
   previewMeasurer,
   previewFaceLayout,
-} from '#/components/features/portal/portal-share/print-face-layout'
+} from '#/contexts/portal/printing/ui/portal-share/print-face-layout'
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'

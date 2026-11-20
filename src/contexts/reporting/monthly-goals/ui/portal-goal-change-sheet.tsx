@@ -8,8 +8,8 @@ import type {
   PortalGoalOfCard,
 } from '#/contexts/reporting/monthly-goals/contracts'
 import { useState } from 'react'
-import { GoalSheetFrame } from '../../../../components/goals/goal-sheet-frame'
-import { goalSheetNow } from '../../../../components/goals/goal-sheet-clock'
+import { GoalSheetFrame } from '../../goals/ui/goal-sheet-frame'
+import { goalSheetNow } from './goal-sheet-clock'
 import { usePortalGoalChangeCommand } from './portal-goal-change-command'
 import {
   portalGoalChangeSend,

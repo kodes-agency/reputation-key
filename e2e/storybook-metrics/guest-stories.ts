@@ -1,8 +1,8 @@
 // The guest page's stories the quality gate measures (round 4, slice 18), and
 // the ones it leaves out, each with the reason. `guest-immersive.metrics.ts`
 // checks this file against Storybook's index, so a story added under
-// `src/components/features/guest` is either measured or excluded here, or the
-// gate goes red.
+// `src/contexts/guest/page/ui` or `src/components/features/guest` is either
+// measured or excluded here, or the gate goes red.
 //
 // "G01 to G12" are the boards of the round 4 guest design. They are built as
 // the stories below: G01 and G09 (shell), G01, G02, G10 and G11 (header and
@@ -12,6 +12,7 @@
 
 /** A story is "in the area" when its file is under one of these. */
 export const GUEST_STORY_IMPORT_PREFIXES: ReadonlyArray<string> = [
+  './src/contexts/guest/page/ui/',
   './src/components/features/guest/',
 ]
 

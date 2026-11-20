@@ -1,4 +1,4 @@
-import { OrganizationReadRegion } from '#/components/features/organization/organization-read-region'
+import { OrganizationReadRegion } from '#/contexts/identity/members/ui/organization/organization-read-region'
 import { ResponseTargetSettingsCard } from '#/contexts/reputation/response-targets/ui/settings-card'
 import {
   GoogleReviewTargetSummary,
@@ -31,8 +31,8 @@ import {
   getResponseTargetPolicySettingsFn,
   setResponseTargetPolicyFn,
 } from '#/contexts/inbox/server/inbox'
-import { OrganizationSettingsPage } from '#/components/features/organization'
-import { organizationCachePolicy } from '#/components/features/organization/organization-cache-policy'
+import { OrganizationSettingsPage } from '#/contexts/identity/members/ui/organization/organization-settings-page'
+import { organizationCachePolicy } from '#/contexts/identity/members/ui/organization/organization-cache-policy'
 import { inboxKeys, createKeys } from '#/shared/queries/query-keys'
 
 const activeOrgQuery = (scope: TenantScope) =>

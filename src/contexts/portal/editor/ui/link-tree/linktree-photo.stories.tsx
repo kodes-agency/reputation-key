@@ -11,7 +11,7 @@ import type {
   PortalLinktreeView,
 } from '#/contexts/portal/application/portal-management-contracts'
 import { PortalDraftAutosaveProvider } from '../portal-draft-autosave-context'
-import type { PortalImageUploader } from '#/components/features/portal/portal-media/upload-portal-image'
+import type { PortalImageUploader } from '#/contexts/portal/look/ui/portal-media/upload-portal-image'
 import { LinkTree } from './link-tree'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
