@@ -6,10 +6,10 @@ import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import type {
   NotificationAudienceAuthorizer,
   NotificationAudience,
-} from '../application/notification-audience'
-import { type NotificationWorkState } from '../application/ports/notification-work-state.port'
-import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { InsertNotificationInput } from '../application/use-cases/insert-notification'
+} from './notification-audience.server'
+import { type NotificationWorkState } from './settle.port.server'
+import type { UserLookupPort } from './notification-db-user-lookup.port.server'
+import type { InsertNotificationInput } from './insert-notification.server'
 import {
   enqueueImmediateAfterCommit,
   writeNoticeInTransaction,

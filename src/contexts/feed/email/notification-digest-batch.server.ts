@@ -25,17 +25,17 @@ import {
   digestBatchIdempotencyKey,
   digestMemberSet,
   digestProviderRequest,
-} from '../infrastructure/digest-batch-identity'
+} from './digest-batch-identity.server'
 import {
   frozenDigestRequest,
   readFrozenDigestRequest,
-} from '../infrastructure/digest-frozen-request'
+} from './digest-frozen-request.server'
 import { digestUnsubscribeScopesInsert } from './notification-unsubscribe-scope.server'
 import {
   emailFromRow,
   firstAttemptAt,
   SENDABLE,
-} from '../infrastructure/repositories/notification-email-queue-rows'
+} from './notification-email-queue-rows.server'
 import { notificationError } from '../domain/notification-errors'
 
 type DigestBatchRow = typeof notificationDigestBatches.$inferSelect

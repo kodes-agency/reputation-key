@@ -21,7 +21,7 @@ import {
   bindProcessPolicies,
   registerProcessPolicyColdBoot,
 } from '#/shared/auth/process-policy-binding'
-import { notificationEmailWebConfigProblems } from '#/contexts/feed/application/notification-email-web-config'
+import { notificationEmailWebConfigProblems } from '#/contexts/feed/email/notification-email-web-config.server'
 import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import { createCompositionRuntime } from './composition/runtime'
 import { buildIdentityPorts, wireIdentity } from './composition/identity-wiring'

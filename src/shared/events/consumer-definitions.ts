@@ -78,14 +78,14 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ],
     ],
   ),
-  ...consumersIn('src/contexts/feed/infrastructure/review-import-outbox-consumers.ts', [
+  ...consumersIn('src/contexts/feed/notify/review-import-outbox-consumers.server.ts', [
     [
       'notification.on-review-history-import-finished',
       'notification.review-import-outbox-consumers',
       ['review.property_history_import.finished'],
     ],
   ]),
-  ...consumersIn('src/contexts/feed/infrastructure/goal-notice-routes.ts', [
+  ...consumersIn('src/contexts/feed/notify/goal-notice-routes.server.ts', [
     [
       'notification.on-ai-review-urgent-detected',
       'notification.ai-urgent-review-notice-consumers',
@@ -160,7 +160,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ]),
   ...consumersIn(
-    'src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts',
+    'src/contexts/feed/notify/notification-settlement-outbox-consumers.server.ts',
     [
       [
         'notification.settle-on-review-reply-approved',
@@ -242,7 +242,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ['integration.google_account.disconnected'],
     ],
   ]),
-  ...consumersIn('src/contexts/feed/infrastructure/activity-outbox-consumers.ts', [
+  ...consumersIn('src/contexts/feed/audit/activity-outbox-consumers.server.ts', [
     [
       'activity.operational-action-history',
       'activity.outbox-consumers',
@@ -261,14 +261,14 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ],
     ],
   ]),
-  ...consumersIn('src/contexts/feed/infrastructure/notification-outbox-consumers.ts', [
+  ...consumersIn('src/contexts/feed/notify/notification-outbox-consumers.server.ts', [
     [
       'notification.on-inbox-item-created',
       'notification.outbox-consumers',
       ['inbox.inbox_item.created'],
     ],
   ]),
-  ...consumersIn('src/contexts/feed/infrastructure/inbox-notice-routes.ts', [
+  ...consumersIn('src/contexts/feed/notify/inbox-notice-routes.server.ts', [
     [
       'notification.on-inbox-escalation-resolved',
       'notification.escalation-resolution-outbox-consumers',
@@ -307,41 +307,38 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ['inbox.inbox_items.bulk_reopen_completed'],
     ],
   ]),
-  ...consumersIn(
-    'src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts',
+  ...consumersIn('src/contexts/feed/notify/identity-account-outbox-consumers.server.ts', [
     [
-      [
-        'notification.on-identity-invitation-accepted',
-        'notification.identity-account-outbox-consumers',
-        ['identity.invitation.accepted'],
-      ],
-      [
-        'notification.on-identity-invitation-accepted-inviter',
-        'notification.identity-account-outbox-consumers',
-        ['identity.invitation.accepted'],
-      ],
-      [
-        'notification.on-identity-beta-feedback-outcome',
-        'notification.identity-account-outbox-consumers',
-        ['identity.beta_feedback.outcome_reached'],
-      ],
-      [
-        'notification.on-identity-member-removed',
-        'notification.identity-account-outbox-consumers',
-        ['identity.member.removed'],
-      ],
-      [
-        'notification.on-identity-member-role-changed',
-        'notification.identity-account-outbox-consumers',
-        ['identity.member.role_changed'],
-      ],
-      [
-        'notification.on-identity-member-property-access-changed',
-        'notification.identity-account-outbox-consumers',
-        ['identity.member.property_access_changed'],
-      ],
+      'notification.on-identity-invitation-accepted',
+      'notification.identity-account-outbox-consumers',
+      ['identity.invitation.accepted'],
     ],
-  ),
+    [
+      'notification.on-identity-invitation-accepted-inviter',
+      'notification.identity-account-outbox-consumers',
+      ['identity.invitation.accepted'],
+    ],
+    [
+      'notification.on-identity-beta-feedback-outcome',
+      'notification.identity-account-outbox-consumers',
+      ['identity.beta_feedback.outcome_reached'],
+    ],
+    [
+      'notification.on-identity-member-removed',
+      'notification.identity-account-outbox-consumers',
+      ['identity.member.removed'],
+    ],
+    [
+      'notification.on-identity-member-role-changed',
+      'notification.identity-account-outbox-consumers',
+      ['identity.member.role_changed'],
+    ],
+    [
+      'notification.on-identity-member-property-access-changed',
+      'notification.identity-account-outbox-consumers',
+      ['identity.member.property_access_changed'],
+    ],
+  ]),
   ...consumersIn(
     'src/contexts/property/responsibility/member-offboarding-outbox-consumers.server.ts',
     [
@@ -452,21 +449,21 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ['integration.property_import.requested'],
     ],
   ]),
-  ...consumersIn('src/contexts/feed/infrastructure/property-outbox-consumers.ts', [
+  ...consumersIn('src/contexts/feed/notify/property-outbox-consumers.server.ts', [
     [
       'notification.on-property-responsibility-needed',
       'notification.property-outbox-consumers',
       ['property.responsibility_became_needed'],
     ],
   ]),
-  ...consumersIn('src/contexts/feed/infrastructure/portal-outbox-consumers.ts', [
+  ...consumersIn('src/contexts/feed/notify/portal-outbox-consumers.server.ts', [
     [
       'notification.on-portal-responsibility-needed',
       'notification.portal-outbox-consumers',
       ['portal.responsibility_became_needed'],
     ],
   ]),
-  ...consumersIn('src/contexts/feed/infrastructure/portal-health-outbox-consumers.ts', [
+  ...consumersIn('src/contexts/feed/notify/portal-health-outbox-consumers.server.ts', [
     [
       'notification.on-portal-health-changed',
       'notification.portal-health-outbox-consumers',
@@ -474,7 +471,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ]),
   ...consumersIn(
-    'src/contexts/feed/infrastructure/portal-destination-outbox-consumers.ts',
+    'src/contexts/feed/notify/portal-destination-outbox-consumers.server.ts',
     [
       [
         'notification.on-portal-destination-pending',
@@ -521,7 +518,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ],
     ],
   ),
-  ...consumersIn('src/contexts/feed/infrastructure/integration-outbox-consumers.ts', [
+  ...consumersIn('src/contexts/feed/notify/integration-outbox-consumers.server.ts', [
     [
       'notification.on-google-account-disconnected',
       'notification.on-google-account-disconnected',

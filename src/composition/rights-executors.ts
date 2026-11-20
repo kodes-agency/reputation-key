@@ -13,7 +13,7 @@ import {
   activityReplayRefusal,
   createActivityErasureReplayers,
   createActivityRightsExecutor,
-} from '#/contexts/feed/infrastructure/adapters/activity-rights.adapter'
+} from '#/contexts/feed/rights/activity-rights.adapter.server'
 import type {
   BackupErasureLedgerEntry,
   BackupErasureReplayer,

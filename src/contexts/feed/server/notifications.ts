@@ -17,8 +17,8 @@ import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
 import { propertyId as toPropertyId, userId } from '#/shared/domain/ids'
 import { z } from 'zod/v4'
 import { isNotificationError } from '../domain/notification-errors'
-import { NOTIFICATION_LIST_FILTERS } from '../application/notification-list-filter'
-import { createNotificationPage } from '../application/notification-page'
+import { NOTIFICATION_LIST_FILTERS } from '../feed/notification-list-filter.contracts'
+import { createNotificationPage } from '../feed/notification-page.contracts'
 import {
   notificationPreferenceCategory,
   notificationQuietHoursDto,
@@ -28,7 +28,7 @@ import {
 import {
   dismissAllNotificationsDto,
   markAllNotificationsReadDto,
-} from '../application/dto/notification-mark-all-read.dto'
+} from '../feed/contracts'
 import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 

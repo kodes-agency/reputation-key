@@ -1,0 +1,199 @@
+// The digest run's immediate orphan sweep against real PostgreSQL: a mandatory
+// Organization notice whose post-commit enqueue failed, or whose job spent its
+// attempts, must be found and re-enqueued by the next sweep.
+
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Job } from 'bullmq'
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { getEnv } from '#/shared/config/env'
+import type { Database } from '#/shared/db'
+import {
+  eventConsumerReceipts,
+  notificationEmailQueue,
+  notifications,
+  outboxEvents,
+} from '#/shared/db/schema'
+import {
+  notificationEmailId,
+  notificationId,
+  organizationId,
+  userId,
+} from '#/shared/domain/ids'
+import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { createNoticeWriter, type Notice } from '../notify/consumers.server'
+import { createDigestNotificationJobHandler } from './digest-notification-job.server'
+import {
+  createFakeJobLogger,
+  waitingWorkState,
+} from '../infrastructure/jobs/test-fixtures'
+
+const ORG = organizationId('digest-orphan-sweep-org')
+const USER = userId('digest-orphan-sweep-user')
+const EVENT = '83000000-0000-4000-8000-000000000001'
+const NOTIFICATION = notificationId('83000000-0000-4000-8000-000000000002')
+const EMAIL = notificationEmailId('83000000-0000-4000-9000-000000000003')
+const NOW = new Date('2026-08-27T08:00:00.000Z')
+const LATER = new Date('2026-08-27T09:00:00.000Z')
+
+describe.sequential(
+  'digest orphan sweep — Organization-scoped mail (real PostgreSQL)',
+  () => {
+    let lease: TestLease
+    let db: Database
+
+    const cleanUp = async () => {
+      await db
+        .delete(notificationEmailQueue)
+        .where(eq(notificationEmailQueue.organizationId, ORG))
+      await db.delete(notifications).where(eq(notifications.organizationId, ORG))
+      await db
+        .delete(eventConsumerReceipts)
+        .where(eq(eventConsumerReceipts.eventId, EVENT))
+      await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG))
+    }
+
+    beforeAll(async () => {
+      lease = await acquireTestLease(getEnv().DATABASE_URL)
+      db = drizzle(lease.pool) as Database
+    })
+
+    beforeEach(async () => {
+      await cleanUp()
+      await db.insert(outboxEvents).values({
+        id: EVENT,
+        eventType: 'identity.member.removed',
+        eventVersion: 1,
+        payload: { memberUserId: USER },
+        organizationId: ORG,
+        propertyId: null,
+        sourceContext: 'identity',
+        sourceAggregateId: USER,
+        createdAt: NOW,
+        publishedAt: NOW,
+      })
+    })
+
+    afterAll(async () => {
+      if (db) await cleanUp()
+      await lease?.release()
+    })
+
+    /** Settle the access-removed notice while Redis refuses the urgent job. */
+    const settleWhileRedisIsDown = async () => {
+      const notice: Notice = {
+        userId: USER,
+        organizationId: ORG,
+        propertyId: null,
+        type: 'account.organization_access_removed',
+        resourceType: 'organization',
+        resourceId: ORG,
+        payload: {},
+        audience: {
+          kind: 'affected_organization_user',
+          eventId: EVENT,
+          eventType: 'identity.member.removed',
+        },
+      }
+      const logger = createFakeJobLogger()
+      const writer = createNoticeWriter({
+        ratingForRouting: async () => null,
+        db,
+        clock: () => NOW,
+        idGen: () => NOTIFICATION,
+        emailIdGen: () => EMAIL,
+        logger,
+        enqueueImmediateEmail: vi.fn(async () => {
+          throw new Error('READONLY You can not write against a read only replica.')
+        }),
+        authorizeAudience: async () => true,
+        workState: waitingWorkState(),
+      })
+      await writer.write({
+        eventId: EVENT,
+        consumerName: 'notification.on-identity-member-removed',
+        status: 'applied',
+        notices: [notice],
+      })
+      return logger
+    }
+
+    const runDigestSweep = async (now: Date) => {
+      const enqueueImmediate = vi.fn(async () => {})
+      const authorizeScope = vi.fn(async (org: string) => org === ORG)
+      // Mandatory mail is authorized under its own action (ADR 0046).
+      const authorizeMandatoryScope = vi.fn(async (org: string) => org === ORG)
+      await createDigestNotificationJobHandler({
+        pool: lease.pool,
+        db,
+        authorizeScope,
+        authorizeMandatoryScope,
+        enqueueImmediate,
+        logger: createFakeJobLogger(),
+        clock: () => now,
+      } as unknown as Parameters<typeof createDigestNotificationJobHandler>[0])(
+        {} as Job<void>,
+      )
+      return { enqueueImmediate, authorizeScope, authorizeMandatoryScope }
+    }
+
+    it('names the stranded row when the enqueue fails, and the next sweep re-enqueues it', async () => {
+      const logger = await settleWhileRedisIsDown()
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ correlationId: `notification-email:${EMAIL}` }),
+        'Immediate notification email enqueue failed after delivery settlement',
+      )
+      const { enqueueImmediate, authorizeMandatoryScope } = await runDigestSweep(LATER)
+
+      expect(authorizeMandatoryScope).toHaveBeenCalledWith(ORG)
+      expect(enqueueImmediate).toHaveBeenCalledWith({
+        notificationEmailId: EMAIL,
+        organizationId: ORG,
+      })
+    })
+
+    it('re-enqueues a mandatory row whose job spent its attempts on transient failures', async () => {
+      await settleWhileRedisIsDown()
+      await db
+        .update(notificationEmailQueue)
+        .set({
+          status: 'failed',
+          lastErrorClass: 'transient',
+          retryCount: 3,
+          nextAttemptAt: new Date(LATER.getTime() - 60_000),
+        })
+        .where(eq(notificationEmailQueue.id, EMAIL))
+
+      const { enqueueImmediate } = await runDigestSweep(LATER)
+
+      expect(enqueueImmediate).toHaveBeenCalledWith({
+        notificationEmailId: EMAIL,
+        organizationId: ORG,
+      })
+    })
+
+    it('leaves a row alone until its retry is due, then retries it however often it has failed', async () => {
+      await settleWhileRedisIsDown()
+      await db
+        .update(notificationEmailQueue)
+        .set({
+          status: 'failed',
+          lastErrorClass: 'transient',
+          retryCount: 3,
+          nextAttemptAt: new Date(LATER.getTime() + 60_000),
+        })
+        .where(eq(notificationEmailQueue.id, EMAIL))
+      const notYetDue = await runDigestSweep(LATER)
+      await db
+        .update(notificationEmailQueue)
+        .set({ retryCount: 5, nextAttemptAt: null })
+        .where(eq(notificationEmailQueue.id, EMAIL))
+      const afterManyFailures = await runDigestSweep(LATER)
+
+      expect(notYetDue.enqueueImmediate).not.toHaveBeenCalled()
+      // Only the retry horizon retires an immediate row, not a count.
+      expect(afterManyFailures.enqueueImmediate).toHaveBeenCalledTimes(1)
+    })
+  },
+)

@@ -8,25 +8,25 @@ import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/
 import type {
   ReplyApprovalAuthorityPort,
   DisplayNameLookupPort,
-} from '../application/ports/cross-context-lookups.port'
-import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
-import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
-import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
-import { createGroupedReopenStore } from '../infrastructure/repositories/notification-grouped-reopen.repository'
-import { createActivePropertyLookup } from '../infrastructure/repositories/active-property'
-import { registerNotificationConsumers } from '../infrastructure/notification-outbox-consumers'
-import { registerPortalNotificationConsumers } from '../infrastructure/portal-outbox-consumers'
-import { registerPortalDestinationNotificationConsumer } from '../infrastructure/portal-destination-outbox-consumers'
-import { registerPropertyNotificationConsumers } from '../infrastructure/property-outbox-consumers'
+} from './cross-context-lookups.port.server'
+import type { ResponsibleManagerLookupPort } from './responsible-manager-lookup.port.server'
+import type { UserLookupPort } from './notification-db-user-lookup.port.server'
+import type { InboxItemLookupPort } from './inbox-item-lookup.port.server'
+import type { EscalationResolutionLookupPort } from './escalation-resolution-lookup.port.server'
+import { createGroupedReopenStore } from './notification-grouped-reopen-repository.server'
+import { createActivePropertyLookup } from './active-property.server'
+import { registerNotificationConsumers } from './notification-outbox-consumers.server'
+import { registerPortalNotificationConsumers } from './portal-outbox-consumers.server'
+import { registerPortalDestinationNotificationConsumer } from './portal-destination-outbox-consumers.server'
+import { registerPropertyNotificationConsumers } from './property-outbox-consumers.server'
 import {
   registerReviewImportNotificationConsumers,
   type PropertyImportInitiatorLookup,
-} from '../infrastructure/review-import-outbox-consumers'
+} from './review-import-outbox-consumers.server'
 import {
   registerIntegrationNotificationConsumers,
   type GoogleConnectionPropertyLookup,
-} from '../infrastructure/integration-outbox-consumers'
+} from './integration-outbox-consumers.server'
 import {
   registerAssignmentReleaseNotificationConsumer,
   registerBulkAssignmentNotificationConsumer,
@@ -34,16 +34,16 @@ import {
   registerResponseTargetNotificationConsumer,
   registerWorkflowNotificationConsumers,
   registerHandlingCycleNotificationConsumers,
-} from '../infrastructure/inbox-notice-routes'
+} from './inbox-notice-routes.server'
 import {
   registerAiGuestVoiceSummaryNoticeConsumer,
   registerAiUrgentReviewNoticeConsumer,
   registerGoalNotificationConsumer,
   registerRatingGoalNoticeConsumer,
-} from '../infrastructure/goal-notice-routes'
-import { registerNotificationSettlementConsumers } from '../infrastructure/notification-settlement-outbox-consumers'
-import { registerPortalHealthNotificationConsumer } from '../infrastructure/portal-health-outbox-consumers'
-import { registerIdentityAccountNotificationConsumers } from '../infrastructure/identity-account-outbox-consumers'
+} from './goal-notice-routes.server'
+import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers.server'
+import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers.server'
+import { registerIdentityAccountNotificationConsumers } from './identity-account-outbox-consumers.server'
 import { createNotificationWorkState, createRetireMovedAssignment } from './settle.server'
 import type { NoticeWriter } from './consumers.server'
 

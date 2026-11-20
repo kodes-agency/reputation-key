@@ -4,15 +4,15 @@
 import { and, eq, desc, inArray, isNull, ne, not, or, sql, type SQL } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
-import { notificationFromRow } from '../infrastructure/repositories/notification-row.mapper'
+import { notificationFromRow } from './notification-row-mapper.server'
 import { ACTIONABLE_NOTIFICATION_TYPES } from '../domain/notification-actionable'
 import { NOTIFICATION_CATEGORIES } from '../domain/notification-delivery-policy'
 import { getDefaultEnabled } from '../domain/notification-policy'
-import type { NotificationListFilter } from '../application/notification-list-filter'
+import type { NotificationListFilter } from '../feed/notification-list-filter.contracts'
 import {
   type NotificationFeedCursor,
   type NotificationFeedRow,
-} from '../application/notification-page'
+} from '../feed/notification-page.contracts'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 
 // The versioned default's in-app answer for the row's category, as SQL: on for

@@ -6,8 +6,8 @@ import { and, eq, ne, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import { notificationError } from '../domain/notification-errors'
-import type { NotificationListFilter } from '../application/notification-list-filter'
-import { createNotificationPage } from '../application/notification-page'
+import type { NotificationListFilter } from '../feed/notification-list-filter.contracts'
+import { createNotificationPage } from '../feed/notification-page.contracts'
 import {
   countVisibleUnread,
   feedFilterCondition,

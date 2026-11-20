@@ -26,14 +26,14 @@ import type {
   NotificationType,
 } from '../../domain/notification-types'
 import type { NotificationPayload } from '../../domain/notification-payload'
-import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import type { EmailSenderPort } from '../../email/email-sender.port.server'
 import {
   createResendEmailAdapter,
   type ResendSendResult,
-} from '../adapters/resend-email.adapter'
-import type { DigestItem } from './digest-assembly'
+} from '../../email/resend-email.adapter.server'
+import type { DigestItem } from '../../email/digest-assembly.server'
 import { type NotificationWorkDecision } from '../../domain/notification-actionable'
-import { type NotificationWorkState } from '../../application/ports/notification-work-state.port'
+import { type NotificationWorkState } from '../../notify/settle.port.server'
 
 const NOW = new Date('2026-08-21T08:00:00.000Z')
 const ORG = 'org-1'
