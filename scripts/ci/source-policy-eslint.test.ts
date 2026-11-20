@@ -221,7 +221,10 @@ describe('common ESLint file-length limit', () => {
     feature,
     'src/components/ui/policy-fixture.tsx',
     'src/shared/example.ts',
+    'src/shared/example.test.ts',
+    'src/components/example.stories.tsx',
     'scripts/example.ts',
+    'scripts/example.test.ts',
     'server/example.ts',
   ])('rejects 801 code lines in %s', (filename) => {
     expect(lengthMessages(filename, codeLines(801))).toEqual(['max-lines'])
@@ -249,12 +252,20 @@ describe('common ESLint file-length limit', () => {
     expect(lengthMessages(filename, codeLines(1524))).toEqual(['max-lines'])
   })
 
-  it.each([
-    'src/shared/example.test.ts',
-    'src/components/example.stories.tsx',
-    'src/shared/generated/example.ts',
-    'src/routeTree.gen.ts',
-  ])('excludes fixtures/generated source %s', (filename) => {
-    expect(lengthMessages(filename, codeLines(801))).toEqual([])
+  it('keeps a no-growth ceiling for a test already over the limit', () => {
+    const [filename, ceiling] =
+      Object.entries(baseline).find(([name]) => /\.(?:test|stories)\./u.test(name)) ?? []
+    expect(filename).toBeDefined()
+    expect(lengthMessages(filename ?? '', codeLines(ceiling ?? 0))).toEqual([])
+    expect(lengthMessages(filename ?? '', codeLines((ceiling ?? 0) + 1))).toEqual([
+      'max-lines',
+    ])
   })
+
+  it.each(['src/shared/generated/example.ts', 'src/routeTree.gen.ts'])(
+    'excludes generated source %s',
+    (filename) => {
+      expect(lengthMessages(filename, codeLines(801))).toEqual([])
+    },
+  )
 })
