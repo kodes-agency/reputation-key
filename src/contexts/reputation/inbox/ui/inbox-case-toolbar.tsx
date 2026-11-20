@@ -33,12 +33,12 @@ import { InboxDetailManagerActions } from './inbox-detail-manager-actions'
 import {
   INBOX_SOURCE_HANDLE_PERMISSION,
   InboxOwnerControl,
-} from '#/components/inbox/inbox-owner-control'
-import { InboxPriorityControl } from '#/components/inbox/inbox-priority-control'
+} from '#/contexts/reputation/inbox/ui/page/inbox-owner-control'
+import { InboxPriorityControl } from '#/contexts/reputation/inbox/ui/page/inbox-priority-control'
 import {
   presentResponseTargetChip,
   type ResponseTargetChipTone,
-} from '#/components/inbox/response-target-chip'
+} from '#/contexts/reputation/response-targets/ui/response-target-chip'
 
 /**
  * The reply-due fact's text colour. Direction colour comes from the text-grade

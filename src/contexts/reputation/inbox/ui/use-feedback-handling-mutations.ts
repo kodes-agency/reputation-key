@@ -6,8 +6,8 @@ import {
   type InboxRevisionConflictResult,
 } from '#/contexts/inbox/application/public-api'
 import { HTTP_STATUS } from '#/shared/http/status'
-import type { InboxServerFns } from '#/components/inbox/types'
-import { inboxCachePolicy } from '#/components/inbox/inbox-cache-policy'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
+import { inboxCachePolicy } from '#/contexts/reputation/inbox/ui/page/inbox-cache-policy'
 import type { InboxItemStatusObserver } from './inbox-item-status-observer'
 
 type MarkFeedbackHandledInput = Parameters<InboxServerFns['markFeedbackHandled']>[0]

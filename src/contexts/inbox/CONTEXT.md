@@ -37,8 +37,10 @@ cross-context SQL, and the handling stores stay content-free.
 Server functions live in `server/`; use cases in `application/use-cases/`;
 stores and read models in `infrastructure/`. The command, consumer and rebuild
 implementations that need Review truth live in `../reputation/inbox/`. The
-screens are in `src/components/inbox`, `../reputation/inbox/ui` and
-`src/routes/_authenticated/inbox/`.
+screens are in `../reputation/inbox/ui` (the page, queue, filter and row
+primitives in `page/`), `../reputation/replies/ui` and
+`src/routes/_authenticated/inbox/`; `src/components/inbox` keeps only the reply
+actions hook.
 
 | Feature                              | Server function (file in `server/`)                                                                                                                                       | Use case or store                                                                                                                                                |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |

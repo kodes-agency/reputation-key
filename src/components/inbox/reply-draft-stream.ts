@@ -1,6 +1,6 @@
 import type { ReplyDraftingStreamEvent } from '#/contexts/ai/server/reply-progress-stream.server'
-import type { ReplyLanguageTarget } from './reply-language-options'
-import type { ReplyTone } from './reply-suggestion-contract'
+import type { ReplyLanguageTarget } from '../../contexts/reputation/replies/ui/composer/reply-language-options'
+import type { ReplyTone } from '../../contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 
 export type { ReplyDraftingStreamEvent }
 

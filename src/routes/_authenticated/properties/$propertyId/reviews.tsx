@@ -7,12 +7,12 @@ import { useQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { InboxPageV2 } from '#/components/inbox/inbox-page-v2'
+import { InboxPageV2 } from '#/contexts/reputation/inbox/ui/page/inbox-page-v2'
 import {
   inboxSearchObjectSchema,
   inboxSearchSchema,
   normalizeInboxRatingPreset,
-} from '#/components/inbox/inbox-search-schema'
+} from '#/contexts/reputation/inbox/ui/page/inbox-search-schema'
 import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
 import { membersQuery } from '#/routes/-queries/route-queries'
 import { toInboxAssignmentOptions } from '#/routes/_authenticated/inbox/-assignment-candidates'

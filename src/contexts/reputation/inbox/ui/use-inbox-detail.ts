@@ -11,7 +11,7 @@ import { inboxKeys } from '#/shared/queries/query-keys'
 import {
   inboxCachePolicy,
   type InboxReplyCacheChange,
-} from '#/components/inbox/inbox-cache-policy'
+} from '#/contexts/reputation/inbox/ui/page/inbox-cache-policy'
 import { useReplyPublicationChangeDetection } from '#/contexts/reputation/replies/ui/use-reply-publication-change'
 import { useInboxDetailQueries } from '#/contexts/reputation/inbox/ui/use-inbox-detail-queries'
 import {
@@ -23,7 +23,7 @@ import {
   useGoogleReviewCheck,
   type GoogleReviewCheck,
 } from '#/contexts/reputation/inbox/ui/use-google-review-check'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { InboxPriorityMenuBox } from '#/contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 import {
   isInboxRevisionConflictResult,

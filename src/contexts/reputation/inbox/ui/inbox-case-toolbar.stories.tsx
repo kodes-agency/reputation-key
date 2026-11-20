@@ -44,7 +44,7 @@ import type {
   InboxItem,
   ResponseTargetView,
 } from '#/contexts/inbox/application/public-api'
-import type { InboxAssignmentOption } from '#/components/inbox/inbox-owner-view'
+import type { InboxAssignmentOption } from '#/contexts/reputation/inbox/ui/page/inbox-owner-view'
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 
 const MINUTE_MS = 60_000

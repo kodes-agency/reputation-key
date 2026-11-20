@@ -32,7 +32,10 @@ import {
   withPermissions,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import type { InboxHistoryEntry } from '#/contexts/reputation/inbox/ui/inbox-thread-model'
-import type { InboxDetailFns, InboxServerFns } from '#/components/inbox/types'
+import type {
+  InboxDetailFns,
+  InboxServerFns,
+} from '#/contexts/reputation/inbox/ui/page/types'
 import type { InboxDetailState } from './use-inbox-detail'
 import type {
   FeedbackHandlingState,

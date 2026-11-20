@@ -4,17 +4,17 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { InboxCaseToolbar } from './inbox-case-toolbar'
 import { buildInboxCaseToolbarProps, itemCommandFence } from './inbox-case-toolbar-props'
 import { InboxReopenDialog } from './inbox-reopen-dialog'
-import { offeredModes } from '#/components/inbox/composer-policy'
-import { resolveReplyView } from '#/components/inbox/reply-status-view'
+import { offeredModes } from '#/contexts/reputation/replies/ui/composer/composer-policy'
+import { resolveReplyView } from '#/contexts/reputation/replies/ui/composer/reply-status-view'
 import { useReplyActions } from '#/components/inbox/use-reply-actions'
 import {
   ReplyConfirmationHold,
   useHeldReplyDetail,
 } from '#/contexts/reputation/replies/ui/use-reply-confirmation-hold'
 import { useOnDemandReviewAnalysis } from './use-on-demand-review-analysis'
-import { useInboxComposerController } from '#/components/inbox/use-inbox-composer-controller'
+import { useInboxComposerController } from '#/contexts/reputation/replies/ui/composer/use-inbox-composer-controller'
 import type { InboxDetailState } from './use-inbox-detail'
-import type { NoteDraft } from '#/components/inbox/composer-policy'
+import type { NoteDraft } from '#/contexts/reputation/replies/ui/composer/composer-policy'
 import { DetailComposerRegion, DetailThreadRegion } from './inbox-detail-regions'
 import { inboxDetailFeedbackPresentation } from './inbox-detail-feedback'
 import { useInboxDetailPane } from './inbox-detail-pane-context'
@@ -24,11 +24,11 @@ type InboxItem = NonNullable<InboxDetailState['currentItem']>
 // consumers from here, but both are DECLARED beside the control that reads them
 // (`reply-status-view.tsx`, `composer-mode-row.tsx`) so the module graph keeps
 // pointing downward rather than back up at the pane.
-export type { ReplyEditTarget } from '#/components/inbox/reply-status-view'
-export type { ComposerMode } from '#/components/inbox/reply-composer'
+export type { ReplyEditTarget } from '#/contexts/reputation/replies/ui/composer/reply-status-view'
+export type { ComposerMode } from '#/contexts/reputation/replies/ui/composer/reply-composer'
 
 /** How the page's `r` / `n` shortcuts reach this pane's composer. */
-export type { ComposerFocusBox } from '#/components/inbox/use-inbox-composer-controller'
+export type { ComposerFocusBox } from '#/contexts/reputation/replies/ui/composer/use-inbox-composer-controller'
 
 export type DetailContentProps = Readonly<{
   currentItem: InboxItem

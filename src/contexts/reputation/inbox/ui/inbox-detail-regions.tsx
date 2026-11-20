@@ -4,20 +4,23 @@ import type {
   InboxItemDetailResult,
   InboxNoteView,
 } from '#/contexts/inbox/application/public-api'
-import { hasPendingComposerWork } from '#/components/inbox/composer-policy'
-import type { NoteDraft, ReopenState } from '#/components/inbox/composer-policy'
+import { hasPendingComposerWork } from '#/contexts/reputation/replies/ui/composer/composer-policy'
+import type {
+  NoteDraft,
+  ReopenState,
+} from '#/contexts/reputation/replies/ui/composer/composer-policy'
 import { InboxNotesThread } from './inbox-notes-thread'
 import { InboxThread } from './inbox-thread'
 import type { ThreadReplyActions } from './inbox-thread'
-import { reviewLanguageReadiness } from '#/components/inbox/reply-language-options'
-import { ReplyComposer } from '#/components/inbox/reply-composer'
-import type { ComposerMode } from '#/components/inbox/reply-composer'
-import { ReplyEditor } from '#/components/inbox/reply-form'
-import { resolveReplyView } from '#/components/inbox/reply-status-view'
-import type { ReplyEditTarget } from '#/components/inbox/reply-status-view'
-import type { InboxDetailFns } from '#/components/inbox/types'
+import { reviewLanguageReadiness } from '#/contexts/reputation/replies/ui/composer/reply-language-options'
+import { ReplyComposer } from '#/contexts/reputation/replies/ui/composer/reply-composer'
+import type { ComposerMode } from '#/contexts/reputation/replies/ui/composer/reply-composer'
+import { ReplyEditor } from '#/contexts/reputation/replies/ui/composer/reply-form'
+import { resolveReplyView } from '#/contexts/reputation/replies/ui/composer/reply-status-view'
+import type { ReplyEditTarget } from '#/contexts/reputation/replies/ui/composer/reply-status-view'
+import type { InboxDetailFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { ReplyActions } from '#/components/inbox/use-reply-actions'
-import { INBOX_SCROLL_REGION } from '#/components/inbox/use-inbox-keyboard-shortcuts'
+import { INBOX_SCROLL_REGION } from '#/contexts/reputation/inbox/ui/page/use-inbox-keyboard-shortcuts'
 
 export function DetailThreadRegion({
   currentItem,

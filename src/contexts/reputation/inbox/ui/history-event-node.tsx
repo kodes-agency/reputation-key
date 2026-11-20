@@ -20,8 +20,11 @@ import {
 import { cn } from '#/lib/utils'
 import { MESSAGE_PROSE_CLASS } from './guest-message'
 import { historyEventLine } from './history-event-line'
-import { InboxPriorityGlyph } from '#/components/inbox/inbox-priority-glyph'
-import { formatExactTime, formatRelativeTime } from '#/components/inbox/utils'
+import { InboxPriorityGlyph } from '#/contexts/reputation/inbox/ui/page/inbox-priority-glyph'
+import {
+  formatExactTime,
+  formatRelativeTime,
+} from '#/contexts/reputation/inbox/ui/page/utils'
 import type { InboxHistoryEntry } from './inbox-thread-model'
 import type { ReactNode } from 'react'
 

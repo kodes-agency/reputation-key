@@ -34,7 +34,7 @@ import { InboxThread, entryKey } from './inbox-thread'
 import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 type GetInboxItemHistoryFn = InboxServerFns['getInboxItemHistory']
 import type {

@@ -20,8 +20,8 @@ import {
   type ReturnWatcher,
   type ReturnWatcherEnv,
 } from './google-return-watcher'
-import { rereadAfterGoogleReplyFound } from '#/components/inbox/inbox-google-check-cache'
-import type { InboxServerFns } from '#/components/inbox/types'
+import { rereadAfterGoogleReplyFound } from '#/contexts/reputation/inbox/ui/page/inbox-google-check-cache'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 /** What the Inbox detail pane needs to offer "Check on Google". */
 export type GoogleReviewCheck = Readonly<{

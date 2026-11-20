@@ -16,7 +16,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Action } from '#/components/hooks/use-action'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 // Type-only: the server fn arrives as a prop per src/components/CONTEXT.md "Server-function boundary".
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 type AddInboxNoteFn = InboxServerFns['addInboxNote']
 import {
@@ -24,7 +24,7 @@ import {
   type InboxNote,
   type InboxRevisionConflictResult,
 } from '#/contexts/inbox/application/public-api'
-import { inboxCachePolicy } from '#/components/inbox/inbox-cache-policy'
+import { inboxCachePolicy } from '#/contexts/reputation/inbox/ui/page/inbox-cache-policy'
 import { withFreshCommandRevision } from './use-inbox-detail'
 
 export type AddInboxNoteInput = Parameters<AddInboxNoteFn>[0]

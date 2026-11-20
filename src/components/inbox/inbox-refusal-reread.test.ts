@@ -28,9 +28,9 @@ import type {
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { submitFeedbackHandlingDecision } from '../../contexts/reputation/inbox/ui/feedback-handling-submit'
-import { installInboxCacheHarness } from './inbox-cache-test-harness'
+import { installInboxCacheHarness } from '../../contexts/reputation/inbox/ui/page/inbox-cache-test-harness'
 import { createInboxItemStatusObserver } from '../../contexts/reputation/inbox/ui/inbox-item-status-observer'
-import type { InboxServerFns } from './types'
+import type { InboxServerFns } from '../../contexts/reputation/inbox/ui/page/types'
 import { useFeedbackHandlingMutations } from '../../contexts/reputation/inbox/ui/use-feedback-handling-mutations'
 import { useReplyActions, type ReplyActions } from './use-reply-actions'
 

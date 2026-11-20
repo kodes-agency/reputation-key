@@ -1,6 +1,6 @@
 // The mark for whoever holds a thing: a 20 px disc with a person's initials, or a
 // person glyph when there is nothing to draw. Initials come from `personInitials`
-// (`inbox/person-initials.ts`), which returns `null`, never a placeholder letter,
+// (`person-initials.ts`), which returns `null`, never a placeholder letter,
 // when a name has none.
 import { UserRound, UserRoundCheck } from 'lucide-react'
 import { cn } from '#/lib/utils'

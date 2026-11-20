@@ -352,11 +352,11 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   that is not one. Notifications and the guest renderer keep their own
   formatters because they honour a person's or a guest's own locale. A clock
   time printed on its own says whose clock it is (`formatZonedTimestamp`). The
-  Inbox prints every stamp of its own on the reader's clock (`inbox/utils.ts`:
+  Inbox prints every stamp of its own on the reader's clock (`reputation/inbox/ui/page/utils.ts`:
   the relative stamps, the day past a week, the review's date and each hover
   title, which names the zone); it can, because its list and detail are read
   after mount and never rendered on the server. Its Response Target is due on
-  the Property's clock and names that zone. `inbox/inbox-instants.test.ts`
+  the Property's clock and names that zone. `reputation/inbox/ui/page/inbox-instants.test.ts`
   fails on an Inbox instant printed on the UTC default.
 - `layout/` contains app-shell and navigation pieces. `PageState` is the one
   page-level state (`loading`, `error`, `notFound`, `unavailable`): the router's
@@ -394,7 +394,8 @@ tier, under } }`, see `page-identity.ts`): that gives its fallbacks their frame
   the refusal takes the frame of the page it replaces (`refusal-frame`).
 - `hooks/` contains cross-feature React behavior and action wrappers.
 - `features/property-setup/` holds the cross-area setup screens; other folders
-  under `features/`, `goals/` and `inbox/` hold screens that have not moved yet.
+  under `features/` and `goals/` hold screens that have not moved yet; `inbox/` keeps
+  only `use-reply-actions.ts` and `reply-draft-stream.ts`.
 
 ### Where screens live
 
@@ -419,8 +420,10 @@ signatures as types only, and read other areas only through their public API.
 - Reporting: `goals/ui/` (goal design parts both goals share), `monthly-goals/ui/`,
   `rating-goals/ui/`, `portal-results/ui/`, `property-overview/ui/` (ratings and
   the Property overview charts).
-- Reputation: `library/ui/` (reply voice and templates), `inbox/ui/`,
-  `replies/ui/`, `response-targets/ui/`.
+- Reputation: `library/ui/` (reply voice and templates), `inbox/ui/` (the detail,
+  and the page, queue, filter and row primitives in `page/`), `replies/ui/` (the
+  composer in `composer/`, the reply as shown in the thread in `message/`),
+  `response-targets/ui/`.
 - Integration: `connections/ui/`, `imports/ui/`, `performance/ui/` (the Google
   page). AI: `guest-voice/ui/`, `replay/ui/`. Feed: `preferences/ui/`.
 
@@ -429,12 +432,15 @@ its questionnaire and results, and the setup strip on a Property's settings page
 One run reads Identity, AI, Portal, Property, Review and Reporting and writes them
 through one plan (`run-setup-plan.ts`).
 
-Some screens still sit under `features/`, `goals/` and `inbox/` because they
+Some screens still sit under `features/` and `goals/` because they
 import another area's screen: the Portal overview, groups and list (Reporting's
 Portal results, Identity's staff accounts), the Portal preview (Guest's page),
 the goal columns and meter (Identity's staff home), the dashboard range control
 and a few Property overview files. `pnpm check:layout` counts them; those folders
-only shrink, and a new screen goes in its feature's `ui/`.
+only shrink, and a new screen goes in its feature's `ui/`. `inbox/` keeps two
+non-screen files for the same kind of reason: `use-reply-actions.ts` imports Review and
+AI server functions as values, and `reply-draft-stream.ts` a type from an AI `*.server`
+module, which feature `ui/` lint refuses.
 
 Use named exports. Export page-level feature components from the feature barrel;
 keep concept-specific children internal.
@@ -551,7 +557,7 @@ An ordinary action in the same file still uses `Button` or `IconButton`.
 | --- | --- | --- | --- | --- | --- |
 | Colour | The tokens in `src/styles.css` | Every colour: no palette class, no `oklch()` or hex in a component. Red text is `text-negative` | | The guest renderer keeps its own colours | `ui/token-contrast.test.ts` |
 | Links | `InlineLink` from `#/components/ui/inline-link`<br>`NavLink` from `#/components/ui/nav-link` | A plain `<a>` or `Link` is a content link in the accent ink; a link with its own ink opts out by `data-slot` | | | `ui/link-ink.test.ts` |
-| Dates and numbers | `formatDate`, `formatNumber`, `formatZonedTimestamp` from `#/lib/format` | The one place a date or a number becomes text. A clock time printed on its own names its zone | | Notifications and the guest renderer honour a person's or a guest's own locale; the Inbox prints its own stamps on the reader's clock | `src/lib/format-usage.test.ts`, `inbox/inbox-instants.test.ts` |
+| Dates and numbers | `formatDate`, `formatNumber`, `formatZonedTimestamp` from `#/lib/format` | The one place a date or a number becomes text. A clock time printed on its own names its zone | | Notifications and the guest renderer honour a person's or a guest's own locale; the Inbox prints its own stamps on the reader's clock | `src/lib/format-usage.test.ts`, `reputation/inbox/ui/page/inbox-instants.test.ts` |
 | Goal measure names | `goalMetricLabel` from `#/contexts/reporting/monthly-goals/ui/goal-metric-label` | What a goal's measure is called, everywhere: "Scans", "Private ratings", "Average private rating" on the Goals page, in its results matrix, on a group's goal card, on a goal's own page and in its forms, and in a goal's name | | | Review |
 | Check-in section | `CheckInSection` from `#/components/ui/check-in-section` | Answer/evidence card; ReactNode icon, string answer, hint, tone, aside and footer. GuestVoiceSection maps its existing icons onto this primitive. | | One question and answer on the left, evidence on the right; stacks in narrow containers | Review |
 | Guest voice check-in | `GuestVoiceSection`, `GuestVoiceDisclosure` and `GuestVoiceIssueTitle` under `#/contexts/ai/guest-voice/ui` | Four answer/evidence bands: urgent, rating trend, fix (other concerns nested), praise; `answer`, `aside`, `tone` and `footer` slots on the section, stacked in narrow page containers. Whole rows open lazy URL-backed issue, concern or topic details. `RangeControl` stays in `PageHeader.actions`. The manual summary uses only fixed topic labels and unique counts | | No quotes in page rows; sentence evidence only in detail. Topics start collapsed; small pages retain concerns and three live previews | `src/contexts/ai/guest-voice/ui/guest-voice-check-in-sources.test.ts` |
@@ -634,7 +640,7 @@ Four rules keep a cached page in step with the server it sends commands to.
   copy, not only the one the command was issued from. An Inbox item's command
   revision is in its detail and in its row in each cached list, and the bulk
   commands read the row: a note that advanced only the detail made the next bulk
-  assign fail (`inbox/inbox-cache-policy.ts`, `advanceListRowFence`).
+  assign fail (`reputation/inbox/ui/page/inbox-cache-policy.ts`, `advanceListRowFence`).
 - **A write into a cached read leaves it as stale as it was.** `setQueryData`
   dates the read "just now" and clears a pending invalidation, and a read that is
   cached but not on screen is re-read only when it is shown again and only if it

@@ -8,7 +8,7 @@ import { Button } from '#/components/ui/button'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 type SetupTarget = Readonly<{ propertyId: string | null }>
 

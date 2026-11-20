@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { OwnerDisc } from '#/components/ui/owner-disc'
-import { personInitials } from '#/components/inbox/person-initials'
+import { personInitials } from '#/components/ui/person-initials'
 import { staffSectionCount, overviewSectionName } from './portal-staff-sections'
 import { Folder } from 'lucide-react'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'

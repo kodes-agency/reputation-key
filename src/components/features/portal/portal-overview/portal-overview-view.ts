@@ -5,7 +5,7 @@ import { visiblePortals } from './visible-portals'
 // which order and on which page, and the words each row carries. Pure, so every
 // rule (search, the attention filter, group order, paging across groups) is
 // tested without a table, and the table only draws what this decides.
-import { personInitials } from '#/components/inbox/person-initials'
+import { personInitials } from '#/components/ui/person-initials'
 import { searchMatcher } from '#/components/ui/property-search'
 import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import {

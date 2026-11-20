@@ -27,7 +27,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'the guest renderer, in the guest’s language',
   'src/contexts/identity/feedback/ui/beta-feedback-reports.tsx':
     'reads the runtime’s zone name, not a format',
-  'src/components/inbox/reply-check-feedback.ts':
+  'src/contexts/reputation/replies/ui/message/reply-check-feedback.ts':
     'a clock time in the viewer’s own locale preference (12 or 24 hour)',
 }
 

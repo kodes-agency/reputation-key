@@ -9,16 +9,19 @@ import {
 } from '#/components/ui/timeline'
 import { cn } from '#/lib/utils'
 import { presentGuestReviewBody } from './guest-message-view'
-import { personInitials } from '#/components/inbox/person-initials'
-import { languageDisplayName } from '#/components/inbox/reply-language-options'
+import { personInitials } from '#/components/ui/person-initials'
+import { languageDisplayName } from '#/contexts/reputation/replies/ui/composer/reply-language-options'
 import { ReviewCorrectionControl } from './review-correction-control'
 import { reviewEvidenceOf, type ReviewEvidence } from './review-evidence-view'
 import { ReviewProse } from './review-prose'
 import { TopicChips } from './topic-chips'
 import { useMatchedIssue } from './use-matched-issue'
 import { useMatchedTopic } from './use-matched-topic'
-import { formatExactTime, formatInboxDay } from '#/components/inbox/utils'
-import type { InboxServerFns } from '#/components/inbox/types'
+import {
+  formatExactTime,
+  formatInboxDay,
+} from '#/contexts/reputation/inbox/ui/page/utils'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { GuestReviewBodyView, GuestReviewDisclosure } from './guest-message-view'
 import type { ReactNode } from 'react'
 import type {

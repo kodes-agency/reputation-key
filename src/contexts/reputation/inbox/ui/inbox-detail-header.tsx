@@ -4,7 +4,10 @@ import type { InboxDetailState } from './use-inbox-detail'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
 import { BackIconButton } from '#/components/ui/back-icon-button'
 import { IconButton } from '#/components/ui/icon-button'
-import { KindGlyph, kindMarkerWords } from '#/components/inbox/inbox-kind-marker'
+import {
+  KindGlyph,
+  kindMarkerWords,
+} from '#/contexts/reputation/inbox/ui/page/inbox-kind-marker'
 
 /**
  * How this pane is left, and therefore where the control sits and what it says.

@@ -48,7 +48,7 @@ import {
 } from './feedback-handling-presentation'
 import type { InboxHistoryEntry } from './inbox-thread-model'
 import type { ManualReopenReason } from '#/contexts/inbox/application/public-api'
-import { PRIORITY_WORD } from '#/components/inbox/inbox-priority-view'
+import { PRIORITY_WORD } from '#/contexts/reputation/inbox/ui/page/inbox-priority-view'
 
 type InboxHistoryDetail = InboxHistoryEntry['detail']
 type DetailOf<K extends InboxHistoryDetail['kind']> = Extract<

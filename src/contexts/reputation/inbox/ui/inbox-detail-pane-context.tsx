@@ -1,7 +1,7 @@
 import { createContext, useContext, type ReactNode } from 'react'
-import type { InboxAssignmentOption } from '#/components/inbox/inbox-owner-view'
-import type { InboxDetailFns } from '#/components/inbox/types'
-import type { ComposerFocusBox } from '#/components/inbox/use-inbox-composer-controller'
+import type { InboxAssignmentOption } from '#/contexts/reputation/inbox/ui/page/inbox-owner-view'
+import type { InboxDetailFns } from '#/contexts/reputation/inbox/ui/page/types'
+import type { ComposerFocusBox } from '#/contexts/reputation/replies/ui/composer/use-inbox-composer-controller'
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 
 /**

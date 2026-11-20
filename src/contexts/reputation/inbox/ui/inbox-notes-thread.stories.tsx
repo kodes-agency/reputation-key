@@ -11,7 +11,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { InboxNotesThread } from './inbox-notes-thread'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 type AddInboxNoteFn = InboxServerFns['addInboxNote']
 import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
