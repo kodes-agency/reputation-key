@@ -118,17 +118,18 @@ describe('injected runtime in Inbox, Integration, Portal, Reporting and Review',
     expect(REVIEW_BANS.some((pattern) => pattern.test('new Date(now)'))).toBe(false)
   })
 
+  // Browser screens run in the page and read its clock; these rules hold server code.
   it('keeps Portal production code on injected logging, time and identifiers', () => {
-    const files = productionFiles('src/contexts/portal', ['testing']).filter((file) =>
-      file.endsWith('.ts'),
+    const files = productionFiles('src/contexts/portal', ['testing', 'ui']).filter(
+      (file) => file.endsWith('.ts'),
     )
     expect(offences(files, PORTAL_BANS)).toEqual([])
   })
 
   it('keeps Reporting production code independent from ambient runtime state', () => {
-    expect(offences(productionFiles('src/contexts/reporting'), REPORTING_BANS)).toEqual(
-      [],
-    )
+    expect(
+      offences(productionFiles('src/contexts/reporting', ['ui']), REPORTING_BANS),
+    ).toEqual([])
   })
 
   it('keeps Review production code on injected time and identifiers', () => {

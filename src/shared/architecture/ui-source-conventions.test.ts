@@ -49,7 +49,11 @@ describe('the app sidebars', () => {
 describe('the Inbox on a phone', () => {
   it('keeps the 44px tap target: no screen or dialog drops to the compact density', () => {
     const compact = sources(
-      ['src/components/inbox', 'src/contexts/reputation/inbox/ui'],
+      [
+        'src/contexts/reputation/inbox/ui',
+        'src/contexts/reputation/replies/ui/composer',
+        'src/contexts/reputation/replies/ui/message',
+      ],
       /\.tsx$/u,
       /\.stories\.tsx$/u,
     )

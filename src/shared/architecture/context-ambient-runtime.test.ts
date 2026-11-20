@@ -39,20 +39,17 @@ const IDENTITY_BANS = [
 
 /** Single modules that must stay on their injected dependencies. */
 const MODULE_BANS: ReadonlyArray<readonly [string, readonly RegExp[]]> = [
-  ['src/contexts/feed/infrastructure/recent-activity-repository.drizzle.ts', [LOGGER]],
-  ['src/contexts/feed/infrastructure/notification-outbox-consumers.ts', [LOGGER]],
+  ['src/contexts/feed/rights/recent-activity-repository.server.ts', [LOGGER]],
+  ['src/contexts/feed/notify/notification-outbox-consumers.server.ts', [LOGGER]],
   ['src/contexts/feed/build.ts', [/(?:crypto\.)?randomUUID/u]],
   ['src/contexts/feed/build-activity.ts', [/(?:crypto\.)?randomUUID/u]],
-  [
-    'src/contexts/feed/infrastructure/jobs/digest-notification.job.ts',
-    [/\brandomUUID\b/u],
-  ],
+  ['src/contexts/feed/email/digest-notification-job.server.ts', [/\brandomUUID\b/u]],
   [
     'src/contexts/feed/server/one-click-unsubscribe.ts',
     [/\bget(?:Container|Env|Logger)\s*\(/u],
   ],
   [
-    'src/contexts/feed/infrastructure/adapters/resend-email.adapter.ts',
+    'src/contexts/feed/email/resend-email.adapter.server.ts',
     [/\bget(?:Env|Logger)\s*\(/u, /\bnew Date\s*\(/u],
   ],
   ['src/composition/google-provider-authority.ts', [PROCESS_ENV, /\bgetEnv\s*\(/u]],
@@ -96,8 +93,11 @@ describe('context runtime dependency injection', () => {
     expect(GUEST_BANS.some((pattern) => pattern.test('clock()'))).toBe(false)
   })
 
+  // Browser screens run in the page and read its clock; these rules hold server code.
   it('keeps Guest production code independent from ambient runtime state', () => {
-    expect(offences(productionFiles('src/contexts/guest'), GUEST_BANS)).toEqual([])
+    expect(offences(productionFiles('src/contexts/guest', ['ui']), GUEST_BANS)).toEqual(
+      [],
+    )
   })
 
   // Browser screens run in the page, not in the server runtime.
