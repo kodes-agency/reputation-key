@@ -1,6 +1,6 @@
 import { useSearch } from '@tanstack/react-router'
 import type { ReviewAspectPolarity } from '#/contexts/inbox/application/public-api'
-import { inboxSearchObjectSchema } from '#/components/inbox/inbox-search-schema'
+import { inboxSearchObjectSchema } from '#/contexts/reputation/inbox/ui/page/inbox-search-schema'
 
 /** The Property issue (and, when the link named one, the polarity) the Inbox was opened on. */
 export type MatchedIssue = Readonly<{

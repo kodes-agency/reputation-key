@@ -13,11 +13,11 @@ import {
   sentenceAroundGoogle,
   type GoogleReviewLink,
 } from './google-review-link'
-import { REPLY_CHECK_COPY } from '#/components/inbox/reply-check-feedback'
+import { REPLY_CHECK_COPY } from '#/contexts/reputation/replies/ui/message/reply-check-feedback'
 import {
   REPLY_STATE_COPY,
   replyStateDescription,
-} from '#/components/inbox/reply-state-copy'
+} from '#/contexts/reputation/replies/ui/message/reply-state-copy'
 
 // Synthetic only (test-fixtures/google-provider-identifiers-v1.json).
 const REVIEW_PAGE = `https://business.google.com/n/${GOOGLE_REVIEW_PRIMARY_SEGMENTS.locationId}/reviews/repkey-synthetic-do-not-use-reply-token-0001`

@@ -4,7 +4,7 @@
   "src/components/features/portal": 95,
   "src/components/features/property": 5,
   "src/components/goals": 3,
-  "src/components/inbox": 101,
+  "src/components/inbox": 2,
   "src/contexts/ai/application": 61,
   "src/contexts/ai/infrastructure": 57,
   "src/contexts/ai/replay/snapshot.ts": 1,

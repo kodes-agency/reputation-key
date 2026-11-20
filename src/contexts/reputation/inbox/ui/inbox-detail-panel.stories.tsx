@@ -15,7 +15,7 @@ import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import type { InboxDetailState } from './use-inbox-detail'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
 // Mirrors the server fns' { data } payloads (same as the detail-content

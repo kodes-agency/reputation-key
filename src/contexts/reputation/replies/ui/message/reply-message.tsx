@@ -1,0 +1,371 @@
+import { Building2 } from 'lucide-react'
+import { Badge, type BadgeVariant } from '#/components/ui/badge'
+import {
+  TimelineConnector,
+  TimelineContent,
+  TimelineIndicator,
+  TimelineItem,
+} from '#/components/ui/timeline'
+import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
+import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
+import { cn } from '#/lib/utils'
+import { GoogleLinkedText } from '../../../inbox/ui/google-review-anchor'
+import type { GoogleReviewLink } from '../../../inbox/ui/google-review-link'
+import { MESSAGE_PROSE_CLASS } from '../../../inbox/ui/guest-message'
+import { INBOX_CHIP_STATIC_CLASS } from '../../../inbox/ui/page/inbox-chip'
+import { personInitials } from '../../../../../components/ui/person-initials'
+import { ReplyCheckStatus } from './reply-check-status'
+import { ReplyMessageActions, type ReplyOnScreen } from './reply-message-actions'
+import {
+  presentReplyMessage,
+  type ReplyMessageTone,
+  type ReplyMessageView,
+} from './reply-message-view'
+import { useReplyDraftChecks } from '#/contexts/reputation/replies/ui/use-reply-draft-checks'
+import { resolveReplyView, type ReplyData } from '../composer/reply-status-view'
+import {
+  useReplyCheckRun,
+  useReplyFocusReturn,
+} from '#/contexts/reputation/replies/ui/use-reply-check-run'
+import { formatExactTime, formatRelativeTime } from '../../../inbox/ui/page/utils'
+import { useRef, type ReactNode, type RefObject } from 'react'
+
+/**
+ * Chip tone. `accent` is NOT the purple `--accent` token: purple is
+ * interactive-only in this pane (plan row 12) and must never fill a chip that
+ * carries data.
+ *
+ * Nor is it amber any more. v1 borrowed the warning amber for "waiting on a
+ * person here", and PR 3 first moved it onto the warn pair — the very pixels
+ * the internal note now wears to say PRIVATE (row 12) and the composer's Note
+ * mode will wear to say the same (row 19). PR 3's review measured the result:
+ * an `Awaiting approval` reply and a note rendered `#a45f00` on `#fff6dd`
+ * (light) / `#f5af20` on `#231806` (dark) on both chip and disc, the two discs
+ * differing only by the note's 1.47:1 ring — so a teammate named `Hristo` and
+ * `Hotel Elegance` drew two identical amber `H`s, one private and one about to
+ * go to the guest. The one entry in the thread that WILL be public cannot wear
+ * the colour that means it will not.
+ *
+ * So `accent` is the strongest neutral instead: the chip inverts to
+ * `bg-foreground text-background`, the same ink as the open-status dot (row 3's
+ * amendment: a fact that needs a person is `foreground`, not a hue). It stays
+ * distinct in grayscale from `neutral` (an outline) and from the note (a
+ * dashed amber box), and inverted text is the pane's own text contrast, so it
+ * needs no measured exception. Every tinted chip prints its own words, so
+ * colour never carries the meaning alone.
+ */
+const CHIP_VARIANT = {
+  neutral: 'outline',
+  positive: 'positive',
+  negative: 'negative',
+  accent: 'secondary',
+} as const satisfies Record<ReplyMessageTone, BadgeVariant>
+
+/** The one chip that is not a Badge look: `secondary`, inverted (see above). */
+const INVERTED_CHIP_CLASS = 'bg-foreground text-background'
+
+/**
+ * The reply's disc on the rail, toned by the SAME `ReplyMessageTone` that tones
+ * the chip (plan v2.1 PR 3: "a 32 px `H` indicator toned by the chip") — so the
+ * rail and the box can never disagree about the state. Concretely:
+ *
+ * | state (chip)                               | tone     | disc                   |
+ * | ------------------------------------------ | -------- | ---------------------- |
+ * | `Awaiting approval`, `Needs a check`       | accent   | foreground fill, inked |
+ * | `Waiting for Google`, `Status unavailable` | neutral  | the rail's own disc    |
+ * | `Live on Google` (sent or mirrored)        | positive | positive fill          |
+ * | `Not published`, `Rejected`                | negative | negative fill          |
+ *
+ * `Waiting for Google` stays neutral because its chip is neutral
+ * (`reply-message-view.ts`: an approved reply is in the machine's hands, not
+ * waiting on a person here). The canvas drew that disc in the accent colour
+ * beside a neutral chip; toning the disc by the chip instead is what keeps one
+ * state from reading two ways.
+ *
+ * No reply disc is amber, for the reason `CHIP_VARIANT` gives: amber on the rail
+ * is the note's alone, so an initial in an amber disc is always a teammate's
+ * private note and never the property's public reply. The toned rings are
+ * transparent, like the canvas's toned discs. Neither disc carries its meaning
+ * alone: the chip beside this one prints the state, and the note's box speaks
+ * and prints `Internal note`.
+ */
+const INDICATOR_TONE_CLASS: Readonly<Record<ReplyMessageTone, string>> = {
+  neutral: '',
+  positive: `border-transparent ${TONE_FILL.positive} ${TONE_INK.positive}`,
+  negative: `border-transparent ${TONE_FILL.negative} ${TONE_INK.negative}`,
+  accent: 'border-transparent bg-foreground text-background',
+}
+
+/**
+ * The property's initial — ONE letter, the plan's `H` for Hotel Elegance — taken
+ * from the name's first word through `personInitials`, the one Unicode-safe
+ * helper (PR 2 fact), rather than a second `charAt(0)` that splits a surrogate
+ * pair. A property is a brand, not a person: `HE` would read as a teammate's
+ * initials on a rail where a note's author draws exactly that shape.
+ *
+ * No property name at all draws the building glyph v1 used, rather than the `P`
+ * of the `Property` placeholder the box prints — a letter the property does
+ * not have.
+ */
+function propertyInitial(propertyName: string | null): string | null {
+  const firstWord = propertyName?.trim().split(/\s+/u)[0]
+  return personInitials(firstWord)
+}
+
+/**
+ * The action row's React key, which is also the state a reject's focus return
+ * waits for: a reject that lands remounts the row under exactly this key.
+ */
+function actionRowKey(replyId: string, status: string): string {
+  return `${replyId}:${status}`
+}
+
+/**
+ * The reply as a confirmation names it: which reply, at which state revision.
+ * A reply Google shows has no revision and offers no confirmation.
+ */
+function shownReply(reply: NonNullable<ReplyData>): ReplyOnScreen | null {
+  return 'stateRevision' in reply
+    ? { id: reply.id, stateRevision: reply.stateRevision }
+    : null
+}
+
+function ReplyHeader({
+  author,
+  view,
+}: Readonly<{ author: string; view: ReplyMessageView }>): ReactNode {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="min-w-0 truncate text-sm font-medium text-foreground">
+        {author}
+      </span>
+      <Badge
+        variant={CHIP_VARIANT[view.tone]}
+        className={cn(
+          INBOX_CHIP_STATIC_CLASS,
+          'font-normal',
+          view.tone === 'accent' && INVERTED_CHIP_CLASS,
+        )}
+      >
+        {view.chip}
+      </Badge>
+    </div>
+  )
+}
+
+function ReplyMeta({ meta }: Readonly<{ meta: ReplyMessageView['meta'] }>): ReactNode {
+  if (!meta) return null
+  return (
+    <p className="mt-0.5 text-xs text-muted-foreground">
+      {meta.label} ·{' '}
+      <time dateTime={meta.at.toISOString()} title={formatExactTime(meta.at)}>
+        {formatRelativeTime(meta.at)}
+      </time>
+    </p>
+  )
+}
+
+function ReplyDetail({
+  detail,
+  googleLink,
+}: Readonly<{
+  detail: ReplyMessageView['detail']
+  googleLink: GoogleReviewLink | null
+}>): ReactNode {
+  if (!detail) return null
+  return (
+    <p className={cn(MESSAGE_PROSE_CLASS, 'mt-2 text-xs text-muted-foreground')}>
+      <GoogleLinkedText text={detail} link={googleLink} />
+    </p>
+  )
+}
+
+function ReplyReason({
+  reason,
+}: Readonly<{ reason: ReplyMessageView['reason'] }>): ReactNode {
+  if (!reason) return null
+  return (
+    <p className={cn(MESSAGE_PROSE_CLASS, 'mt-2 text-xs text-muted-foreground')}>
+      <span className="font-medium text-foreground">Reason:</span> {reason}
+    </p>
+  )
+}
+
+type Props = Readonly<{
+  reply: ReplyData
+  propertyName: string | null
+  /**
+   * Where "look at the review on Google" in the detail and check lines goes
+   * (`googleReviewLink`); null or absent leaves those words plain text.
+   */
+  googleLink?: GoogleReviewLink | null
+  isSaving: boolean
+  /** Whether the pane's published-reply editor is open — see `ReplyMessageActions`. */
+  isEditing: boolean
+  /** Confirms the reply this message shows, at the state revision it shows. */
+  onApprove: (expectedReply: ReplyOnScreen) => Promise<unknown>
+  onCheckDraft?: (
+    text: string,
+  ) => Promise<
+    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
+  >
+  onReject: (reason?: string) => Promise<unknown>
+  /** Resolves what the check found; see `useReplyCheckRun`. */
+  onCheck: () => Promise<ReplyPublicationCheckResult>
+  onRetry: () => Promise<unknown>
+  onDeleteReply: () => Promise<unknown>
+  onEditPublished: () => void
+  onEditRejected: () => void
+}>
+
+/** A successful rejection remounts the actions; return focus to its new control. */
+function useReplyRejection(
+  reply: ReplyData,
+  isSaving: boolean,
+  onReject: Props['onReject'],
+  articleRef: RefObject<HTMLElement | null>,
+): Props['onReject'] {
+  const target = reply?.id ?? null
+  const focus = useReplyFocusReturn(
+    articleRef,
+    target,
+    reply ? actionRowKey(reply.id, reply.status) : null,
+    isSaving,
+  )
+  return (reason) => {
+    focus.cancel()
+    return onReject(reason).then((result) => {
+      if (target) focus.request(target, actionRowKey(target, 'rejected'))
+      return result
+    })
+  }
+}
+
+/**
+ * The property's reply as ONE message in the thread (plan row 6), in the same
+ * grammar as the guest's message and an internal note: avatar slot, author,
+ * one prose measure. It replaced seven components across eight branches, each
+ * of which had invented its own heading, badge placement and action row.
+ *
+ * A node on the rail since plan v2.1 row 9, in the 32 px weight a message
+ * takes. The 44 px `Building2` avatar that sat inside the article is now the
+ * `TimelineIndicator` beside it, and the ARTICLE is the box: its border, fill,
+ * padding, header row, state chip, meta line, detail, reason attribution and
+ * `ReplyMessageActions` are v1's, class for class. Only where the avatar lives
+ * changed. The article therefore no longer contains the disc, which is right —
+ * the disc is `aria-hidden` and repeats the author the box prints.
+ *
+ * It renders its own `TimelineItem`, like `HistoryEventNode`, because a draft
+ * renders NOTHING here and the rail forbids an item around nothing
+ * (`ui/timeline.tsx`: an empty item still draws a disc and a connector). So the
+ * null check stays inside, where `presentReplyMessage` already decides it, and
+ * `inbox-thread.tsx` never has to ask first. Rendered outside a `Timeline`
+ * (`reply-message.stories.tsx`) the item is a plain flex row whose connector
+ * hides itself as the last child.
+ *
+ * The meta line is a TIMESTAMP ONLY. `ReplyView` carries `createdBy`,
+ * `approvedBy` and `rejectedBy` as bare `UserId` and no name exists anywhere
+ * in the payload, so "Submitted by <name>" has no data source without a server
+ * change. A raw id is never rendered and a name is never invented.
+ *
+ * The author is a `span`, exactly as in `NoteMessage`: as an `h2` the property
+ * name is identical on every item in a single-property inbox, so it added a
+ * level to the outline that could not tell one entry from another. The
+ * article's `aria-label` already names this region.
+ *
+ * `ReplyMessageActions` is keyed by reply identity because this message sits at
+ * a fixed position under a thread row keyed by the constant `'reply'`: without
+ * the key React carries its local state — a half-typed rejection reason —
+ * across a reply-state change and across a change of item. The check's pending
+ * state and status line, and the focus repair after a check or a reject, live
+ * HERE, above that key, for the same reason in reverse: they must survive the
+ * remount the action's own result causes, and put focus back when that remount
+ * takes the focused button.
+ */
+export function ReplyMessage({
+  reply,
+  propertyName,
+  googleLink = null,
+  isSaving,
+  isEditing,
+  onApprove,
+  onCheckDraft,
+  onReject,
+  onCheck,
+  onRetry,
+  onDeleteReply,
+  onEditPublished,
+  onEditRejected,
+}: Props): ReactNode {
+  const view = presentReplyMessage(resolveReplyView(reply))
+  const approvable = view?.actions.includes('approve') === true
+  const draftChecks = useReplyDraftChecks(
+    reply?.text ?? '',
+    approvable ? onCheckDraft : undefined,
+  )
+  const articleRef = useRef<HTMLElement>(null)
+  const checkRun = useReplyCheckRun(reply, onCheck, articleRef)
+  const reject = useReplyRejection(reply, isSaving, onReject, articleRef)
+  // A draft lives in the composer, so it is not a thread message at all.
+  if (!view || !reply) return null
+
+  // The item carries the property's name or nothing; the pane header settles
+  // on the same neutral noun rather than leaving the author blank.
+  const author = propertyName ?? 'Property'
+
+  return (
+    <TimelineItem className="pb-4">
+      <TimelineIndicator className={INDICATOR_TONE_CLASS[view.tone]}>
+        {propertyInitial(propertyName) ?? <Building2 />}
+      </TimelineIndicator>
+      <TimelineConnector />
+      <TimelineContent>
+        <article
+          ref={articleRef}
+          aria-label={`Reply from ${author}`}
+          className="min-w-0 rounded-lg border bg-muted/30 px-4 py-3"
+        >
+          <ReplyHeader author={author} view={view} />
+          <ReplyMeta meta={view.meta} />
+
+          {/* `text-sm` carries its own line-height, so the caller that sets the
+            type scale restates the leading the shared measure asks for. */}
+          <p
+            className={cn(
+              MESSAGE_PROSE_CLASS,
+              'mt-1.5 text-sm leading-relaxed text-foreground',
+            )}
+          >
+            {reply.text}
+          </p>
+
+          <ReplyDetail detail={view.detail} googleLink={googleLink} />
+
+          {/* A colleague's words, labelled as such. Unprefixed, an authored
+            reason sits in the same muted slot and the same type as RepKey's own
+            failure sentences, and a reader cannot tell person from product. */}
+          <ReplyReason reason={view.reason} />
+
+          <ReplyMessageActions
+            key={actionRowKey(reply.id, reply.status)}
+            actions={view.actions}
+            text={reply.text}
+            shown={shownReply(reply)}
+            isSaving={isSaving}
+            isChecking={checkRun.isChecking}
+            isEditing={isEditing}
+            onApprove={onApprove}
+            draftChecks={draftChecks}
+            onReject={reject}
+            onCheck={checkRun.check}
+            onRetry={onRetry}
+            onDeleteReply={onDeleteReply}
+            onEditPublished={onEditPublished}
+            onEditRejected={onEditRejected}
+          />
+          <ReplyCheckStatus message={checkRun.statusMessage} googleLink={googleLink} />
+        </article>
+      </TimelineContent>
+    </TimelineItem>
+  )
+}

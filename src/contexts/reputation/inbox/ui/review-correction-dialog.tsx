@@ -13,7 +13,7 @@ import {
 import { ReviewCorrectionRows } from './review-correction-rows'
 import { useReviewCorrection, type ReviewCorrectionTarget } from './use-review-correction'
 import type { ReadyAnalysisV3 } from './review-cause-view'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 /**
  * "Not right?": a manager says what the AI got wrong about a review. Every line takes

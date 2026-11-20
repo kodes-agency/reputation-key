@@ -3,7 +3,7 @@
 // (`inbox-thread.tsx`): one set of options, so both observers are the one query.
 import { queryOptions } from '@tanstack/react-query'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 // The thread mounts a moment after the pane started the read. At 0 it would
 // read again on mount, one more request for what the pane just fetched. A

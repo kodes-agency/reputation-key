@@ -15,7 +15,7 @@ import {
 } from '#/components/ui/sidebar'
 import { NavLink } from '#/components/ui/nav-link'
 import { usePropertyId } from '#/components/hooks/use-property-id'
-import { useInboxScopeNavigation } from '#/components/inbox/use-inbox-scope-navigation'
+import { useInboxScopeNavigation } from '#/contexts/reputation/inbox/ui/page/use-inbox-scope-navigation'
 import { useRenderedPathname } from './rendered-location'
 import { ManagerNavItems } from './manager-nav-items'
 import { ManagerPropertySwitcher } from './manager-property-switcher'

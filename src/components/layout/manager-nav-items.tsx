@@ -7,7 +7,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import { SidebarMenu, SidebarMenuBadge } from '#/components/ui/sidebar'
-import { InboxVisitBadge } from '#/components/inbox/inbox-visit-badge'
+import { InboxVisitBadge } from '#/contexts/reputation/inbox/ui/page/inbox-visit-badge'
 import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import type { Capabilities } from '#/shared/hooks/useCapabilities'

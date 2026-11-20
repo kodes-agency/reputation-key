@@ -21,7 +21,7 @@ import {
 import {
   presentReplyMessage,
   type ResolvedReplyView,
-} from '#/components/inbox/reply-message-view'
+} from '#/contexts/reputation/replies/ui/message/reply-message-view'
 
 /** Fixed clock: the repo forbids tests that read the wall clock. */
 const SOURCE_DATE = new Date('2026-08-26T09:00:00.000Z')

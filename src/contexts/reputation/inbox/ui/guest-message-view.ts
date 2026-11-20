@@ -1,5 +1,5 @@
 import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
-import { languageDisplayName } from '#/components/inbox/reply-language-options'
+import { languageDisplayName } from '#/contexts/reputation/replies/ui/composer/reply-language-options'
 // Type-only, like `reply-message-view.ts`: this file must stay free of any
 // runtime import from a `.tsx` module so its unit test never loads the editor
 // tree. Both value imports are pure — `reply-language-options.ts` itself reaches

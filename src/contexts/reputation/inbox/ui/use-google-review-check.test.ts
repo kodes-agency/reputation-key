@@ -13,7 +13,7 @@ import type {
 } from '#/contexts/inbox/application/public-api'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import { IDLE, installHookHarness, stubServer } from './use-google-review-check-harness'
 
 vi.mock('@tanstack/react-router', () => ({

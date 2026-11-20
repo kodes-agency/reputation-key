@@ -29,7 +29,7 @@ import {
   replyQueueStage,
   type ReplyQueueStage,
 } from '#/shared/domain/reply-queue-stage'
-import { itemMatchesQueue } from '#/components/inbox/inbox-queues'
+import { itemMatchesQueue } from '#/contexts/reputation/inbox/ui/page/inbox-queues'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
 import { getInboxQueueCounts } from '#/contexts/inbox/application/use-cases/get-inbox-queue-counts'

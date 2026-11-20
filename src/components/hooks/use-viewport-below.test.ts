@@ -6,7 +6,7 @@
 import { createElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { useInboxCompactLayout } from '#/components/inbox/use-inbox-compact-layout'
+import { useInboxCompactLayout } from '#/contexts/reputation/inbox/ui/page/use-inbox-compact-layout'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { useIsMobile } from './use-mobile'
 import { ViewportHintContext } from './use-viewport-below'

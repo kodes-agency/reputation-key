@@ -26,8 +26,10 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'a chart bar marking a partial week, never an empty-state panel',
   'src/contexts/reputation/inbox/ui/note-message.tsx':
     'the dashed edge that marks a private note',
-  'src/components/inbox/composer-mode-row.tsx': 'the private-note dock cue',
-  'src/components/inbox/reply-composer.tsx': 'the private-note dock cue',
+  'src/contexts/reputation/replies/ui/composer/composer-mode-row.tsx':
+    'the private-note dock cue',
+  'src/contexts/reputation/replies/ui/composer/reply-composer.tsx':
+    'the private-note dock cue',
   'src/contexts/portal/editor/ui/link-tree/linktree-icon-picker.tsx':
     'an upload tile, not a message',
   'src/contexts/portal/editor/ui/link-tree/link-add-form.tsx':

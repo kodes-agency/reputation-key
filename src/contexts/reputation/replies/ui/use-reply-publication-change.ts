@@ -6,7 +6,7 @@ import {
   observeReplyPublication,
   polledReplyPublicationChanged,
   type ReplyPublicationObservation,
-} from '#/components/inbox/inbox-cache-policy'
+} from '#/contexts/reputation/inbox/ui/page/inbox-cache-policy'
 
 type DetailReply = InboxItemDetailResult['reply']
 

@@ -16,7 +16,7 @@ import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import type { InboxGoogleCheckOutcome } from '#/contexts/inbox/application/public-api'
 import { GOOGLE_CHECK_COPY } from './google-check-copy'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import { useGoogleReviewCheck } from './use-google-review-check'
 import type { InboxDetailState } from './use-inbox-detail'
 

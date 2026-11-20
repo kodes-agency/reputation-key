@@ -5,7 +5,7 @@ import type {
   InboxItem,
   InboxReviewAnalysis,
 } from '#/contexts/inbox/application/public-api'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 /**
  * The way into "Not right?" for the review on screen, where it is offered: a review whose

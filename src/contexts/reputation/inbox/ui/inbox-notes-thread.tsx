@@ -11,7 +11,7 @@ import {
   DOCK_SURFACE_CLASS,
   DOCK_TEXT_ROW_CLASS,
   DOCK_TEXTAREA_CLASS,
-} from '#/components/inbox/composer-dock-rows'
+} from '#/contexts/reputation/replies/ui/composer/composer-dock-rows'
 import { useAddInboxNote, type AddInboxNote } from './use-add-inbox-note'
 
 type Props = Readonly<{

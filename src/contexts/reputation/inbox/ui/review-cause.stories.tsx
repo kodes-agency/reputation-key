@@ -19,7 +19,7 @@ import type {
   InboxMentionV3,
   InboxReviewAnalysis,
 } from '#/contexts/inbox/application/public-api'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 type GetInboxItemHistoryFn = InboxServerFns['getInboxItemHistory']
 

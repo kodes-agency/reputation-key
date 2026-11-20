@@ -8,17 +8,25 @@ it in `inbox-list.stories.tsx`; their titles and state names remain stable.
 
 `replies/ui/` owns the browser reply composer: its controller, the autosave
 coordinator, the draft session and its context, edit measurement, composer
-transitions and the `use-reply-*` hooks, with their tests. `use-reply-actions.ts`
-stays in `src/components/inbox`, where the feature-UI import rules and the
-Storybook stubs expect it; the composer components also stay there.
+transitions and the `use-reply-*` hooks, with their tests. The composer
+components (the form, editor, dock, footer, suggestion and template menus, the
+draft-waiting state and their stories) are in `replies/ui/composer/`, and the
+reply as shown in the thread, with its commands and check, is in
+`replies/ui/message/`. `use-reply-actions.ts` and its helper
+`reply-draft-stream.ts` stay in `src/components/inbox`: the first imports Review
+and AI server functions as values and the second a type from an AI `*.server`
+module, which the feature-UI import rules refuse, and the Storybook stubs and
+the draft session import them from there.
 
 `inbox/ui/` also owns the Inbox detail: the panel and sheet, case toolbar,
 conversation thread, notes, history lines, feedback handling, review cause and
 correction, the Google check, and the `use-inbox-detail*` hooks, with their
 tests and stories.
 
-The Inbox page, queue, filter and row primitives remain in `src/components/inbox`. The panel
-receives commands as props and reads browser-safe Inbox types through
+The Inbox page, queue, filter, row, selection, shortcut and cache primitives are
+in `inbox/ui/page/`, with their tests and stories. The Response Target chip and
+the deadline refresh that reloads the detail are in `response-targets/ui/`. The
+panel receives commands as props and reads browser-safe Inbox types through
 `src/contexts/inbox/application/public-api.ts`. Review and Inbox still own their
 server implementations, wiring and contracts in their existing contexts; see
 their area maps. Server functions remain at their existing `server/` paths.

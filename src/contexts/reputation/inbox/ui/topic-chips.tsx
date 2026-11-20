@@ -2,11 +2,11 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Badge, type BadgeVariant } from '#/components/ui/badge'
 import { cn } from '#/lib/utils'
 import { ASPECT_LABELS } from '#/shared/aspect-labels'
-import { INBOX_CHIP_STATIC_CLASS } from '#/components/inbox/inbox-chip'
+import { INBOX_CHIP_STATIC_CLASS } from '#/contexts/reputation/inbox/ui/page/inbox-chip'
 import {
   prioritySuggestion,
   prioritySuggestionHint,
-} from '#/components/inbox/inbox-priority-view'
+} from '#/contexts/reputation/inbox/ui/page/inbox-priority-view'
 import { ReviewCauseChips } from './review-cause-chips'
 import type { ReactNode } from 'react'
 import type {

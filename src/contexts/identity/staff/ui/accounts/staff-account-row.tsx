@@ -1,7 +1,7 @@
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
 import { OwnerDisc } from '#/components/ui/owner-disc'
-import { personInitials } from '#/components/inbox/person-initials'
+import { personInitials } from '#/components/ui/person-initials'
 import { DataTableRow, DataTableCell } from '#/components/ui/data-table'
 import type { PortalResultsPortalRow } from '#/contexts/reporting/application/public-api'
 import { staffAccessLine, type StaffMember } from './staff-account-view'
