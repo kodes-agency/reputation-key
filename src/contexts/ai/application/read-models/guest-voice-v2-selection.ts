@@ -1,5 +1,8 @@
 import { REVIEW_STRENGTH_RANK_V3 } from '#/shared/review-analysis-v3'
-import type { GuestVoiceMention, GuestVoiceReview } from './guest-voice-v2-facts'
+import type {
+  GuestVoiceMention,
+  GuestVoiceReview,
+} from '../../guest-voice/guest-voice-v2-facts.contracts'
 
 /** Safety first, then the strongest, then the first the guest named. */
 function morePrimary(

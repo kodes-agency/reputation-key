@@ -1,4 +1,4 @@
-import { addDays } from '../local-date'
+import { addDays } from '../../guest-voice/local-date.contracts'
 
 export function lastMentionedLocalDate(
   reviews: readonly Readonly<{ localDate: string }>[],

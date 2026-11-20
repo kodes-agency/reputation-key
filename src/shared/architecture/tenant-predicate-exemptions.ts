@@ -61,28 +61,28 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-profile-rebuild.ts',
+    file: 'src/contexts/ai/analysis/ai-profile-rebuild.server.ts',
     symbol: 'listPendingProfileRebuilds',
     reason:
       'The bounded worker sweep enumerates rolled profile identifiers across tenants. Each rebuild locks its Property and rechecks the tenant, source, active profile and merchant authorization before mutation.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
+    file: 'src/contexts/ai/execution/ai-operation-store.adapter.server.ts',
     symbol: 'claim',
     reason:
       'The unique idempotency-scope digest includes organization and property identity for tenant operations while supporting explicitly tenant-free release canaries.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter.ts',
+    file: 'src/contexts/ai/execution/ai-execution-admission.adapter.server.ts',
     symbol: 'settle',
     reason:
       'The in-process gateway settles the operation its own admission granted: the settlement permit names the operation id, and the locked row must still carry the same execution permit, attempt, admission nonce and grant key before anything is charged.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
+    file: 'src/contexts/ai/execution/ai-operation-store.adapter.server.ts',
     symbol: 'listExpiredExecutions',
     reason:
       'The bounded abandoned-execution sweep intentionally scans all tenants and every candidate is rechecked by an exact operation-attempt CAS before mutation.',
@@ -159,49 +159,49 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'consumeCandidateClaims',
     reason:
       'Candidate claims are addressed by keyed opaque reference digests before tenant scope is disclosed, and ownership is verified before deletion.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'lockedRows',
     reason:
       'The keyed opaque discovery-reference digests are capability identifiers that must be locked before their owning tenant scope can be recovered.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'releaseCandidateClaims',
     reason:
       'Candidate claims are addressed by keyed opaque reference digests before tenant scope is disclosed, and ownership is verified before release.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-persistence.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-persistence.server.ts',
     symbol: 'durableImportReferenceExists',
     reason:
       'The keyed opaque import-reference digest is checked for global replay uniqueness before the referenced row can disclose its tenant scope.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-persistence.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-persistence.server.ts',
     symbol: 'loadDurableImportRecord',
     reason:
       'The keyed opaque import-reference digest is the capability presented before tenant scope is known, so the lookup derives scope from its row.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
+    file: 'src/contexts/integration/connections/google-connection-repository.server.ts',
     symbol: 'listOrganizationIdsWithActiveConnections',
     reason:
       'The daily GBP push reconciliation enumerates the organizations holding an active Google connection, identifiers only, and re-authorizes each organization before any tenant work.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
+    file: 'src/contexts/integration/connections/google-connection-repository.server.ts',
     symbol: 'findByGoogleIdentityGlobal',
     reason:
       'Google subject identity is a global uniqueness authority; this explicitly global lookup prevents one provider identity from binding across tenants.',
@@ -516,7 +516,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'claimCandidates',
     reason:
       'Candidate claims are addressed by keyed opaque reference digests before tenant scope is disclosed; the claim is refused unless every locked record belongs to the requesting Organization and user.',
@@ -551,7 +551,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository.ts',
+    file: 'src/contexts/integration/connections/google-disconnect-revoke-repository.server.ts',
     symbol: 'reconcileElapsed',
     reason:
       'The bounded disconnect-revoke reconciliation walks elapsed attempts across tenants and reads the cleanup permit of each by the permit id that attempt recorded.',
@@ -628,7 +628,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-guest-voice-summary-schedule.adapter.ts',
+    file: 'src/contexts/ai/guest-voice/ai-guest-voice-summary-schedule.adapter.server.ts',
     symbol: 'listDue',
     reason:
       "The hourly Monday-email sweep intentionally lists every Property with Review Analysis enabled across tenants, in Property id order, and keeps those whose own clock reads Monday morning; it returns only each Property's id and Organization, and every one is authorized under its own Organization and Property before anything of it is read.",

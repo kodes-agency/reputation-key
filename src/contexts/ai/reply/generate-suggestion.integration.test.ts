@@ -8,7 +8,7 @@ import {
   REVIEW_ID,
   SHA,
   createHarness,
-} from '#/contexts/ai/infrastructure/testing/reply-handler.test-fixtures'
+} from '#/contexts/ai/reply/reply-handler.test-fixtures'
 import { parseCanonicalReplyLanguageTag } from '#/shared/ai-review-language-catalogue'
 import { describe, expect, it, vi } from 'vitest'
 

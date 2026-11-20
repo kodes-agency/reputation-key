@@ -12,11 +12,11 @@ import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
 import { REVIEW_URGENT_REASONS_V3 } from '#/shared/review-analysis-v3'
 import type { GuestVoiceDetailRead } from '../guest-voice/contracts'
 import { withDetailLiveEvidence } from '../application/read-models/guest-voice-v2-details'
-import { resolveDraftReviews } from '../application/read-models/guest-voice-v2-resolve'
+import { resolveDraftReviews } from '../guest-voice/guest-voice-v2-resolve.server'
 import { isAiError } from '../domain/errors'
 import { guestVoiceEvidenceReaders } from './guest-voice-evidence.server'
 
-import { GUEST_VOICE_RANGES } from '../application/read-models/guest-voice-v2-population'
+import { GUEST_VOICE_RANGES } from '../guest-voice/guest-voice-v2-population.server'
 
 const detailDto = z.strictObject({
   propertyId: z.uuid(),

@@ -32,7 +32,7 @@ import {
   type GbpSubscribeOutcome,
   type ManageNotificationsApi,
   type GbpSubscribeScope,
-} from './manage-notifications'
+} from '../../connections/manage-notifications.server'
 
 /**
  * `skipped_inactive` is ours, not the use case's: a pending/reauth_required/

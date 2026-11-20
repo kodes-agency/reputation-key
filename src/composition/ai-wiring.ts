@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { buildAiContext } from '#/contexts/ai/build'
-import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
+import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/replay/ai-job-enqueue.server'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { getLogger } from '#/shared/observability/logger'
 import { reputationReplyScopeEffects } from './reply-scope-effects'

@@ -4,7 +4,7 @@ import { googleImportItems, googleImports } from '#/shared/db/schema/google-impo
 import type {
   GoogleImportLifecycleScope,
   GoogleImportStore,
-} from '../application/ports/google-import-store.port'
+} from './import-store.port.server'
 import { assertLifecycleSweepLimit } from './import-store-helpers.server'
 
 function lifecycleScopePredicate(scope: GoogleImportLifecycleScope) {

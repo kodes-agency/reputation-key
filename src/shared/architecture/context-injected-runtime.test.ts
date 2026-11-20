@@ -57,8 +57,8 @@ const MODULE_BANS: ReadonlyArray<readonly [string, readonly RegExp[]]> = [
     'src/contexts/integration/imports/import-progress-store.server.ts',
     'src/contexts/integration/imports/import-retention.server.ts',
     'src/contexts/integration/imports/import-retry.server.ts',
-    'src/contexts/integration/infrastructure/integration-command-store.ts',
-    'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
+    'src/contexts/integration/connections/integration-command-store.server.ts',
+    'src/contexts/integration/connections/google-connection-repository.server.ts',
   ].map((file) => [file, [WALL_CLOCK, EPOCH_NOW]] as const),
   [
     'src/contexts/integration/build.ts',
@@ -68,18 +68,12 @@ const MODULE_BANS: ReadonlyArray<readonly [string, readonly RegExp[]]> = [
       /from '#\/shared\/config\/env'/u,
     ],
   ],
+  ['src/contexts/integration/connections/google-oauth.adapter.server.ts', [WALL_CLOCK]],
   [
-    'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
-    [WALL_CLOCK],
-  ],
-  [
-    'src/contexts/integration/infrastructure/jobs/reconcile-gbp-notification-subscriptions.job.ts',
+    'src/contexts/integration/connections/reconcile-gbp-notification-subscriptions-job.server.ts',
     [LOGGER, EPOCH_NOW],
   ],
-  [
-    'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
-    [LOGGER],
-  ],
+  ['src/contexts/integration/imports/google-import-claim-reaper-job.server.ts', [LOGGER]],
   // Token entropy comes from composition; a namespace import cannot stand in.
   [
     'src/contexts/portal/infrastructure/adapters/portal-token-codec.ts',

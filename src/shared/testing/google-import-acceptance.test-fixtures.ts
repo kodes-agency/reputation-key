@@ -13,7 +13,7 @@ import {
 import { createInMemoryProviderEphemeralStore } from '#/shared/provider-ephemeral/in-memory-store'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/application/ports/google-authorized-provider-executor.port'
+import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/provider/google-client.port.server'
 import { startPropertyImportInputSchema } from '#/contexts/integration/application/dto/google-import.dto'
 
 export const IMPORT_TEST_NOW = new Date('2026-11-07T10:00:00.000Z')

@@ -1,11 +1,11 @@
 import { createGoogleConnectionsRuntime } from './connections/connections-runtime.server'
 import { createGoogleNotificationsRuntime } from './connections/notifications-runtime.server'
-import { createGoogleImportClaimReaper } from './application/google-import-claim-reaper'
+import { createGoogleImportClaimReaper } from './imports/google-import-claim-reaper.server'
 import {
   completeImportsForRestore,
   type GoogleImportCompletionDeps,
 } from './imports/import-completion.server'
-import { registerGoogleBindingFollowUpConsumers } from './infrastructure/google-binding-follow-up-consumers'
+import { registerGoogleBindingFollowUpConsumers } from './imports/google-binding-follow-up-consumers.server'
 // Integration context — build function.
 // Wires integration repos, adapters, use cases, and the import queue.
 // Per ADR-0001: the composition root calls this and passes useCases to the container.
@@ -24,11 +24,11 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   GoogleOAuthPort,
   GoogleOAuthProviderCallAuthorizer,
-} from './application/ports/google-oauth.port'
+} from './connections/google-oauth.port.server'
 import type { OAuthStateHandleService } from './application/oauth-state-handle'
-import type { OAuthCallbackAbuseGate } from './application/oauth-callback-abuse-gate'
-import type { GoogleAuthorizedProviderExecutor } from './application/ports/google-authorized-provider-executor.port'
-import type { GoogleImportReferenceStore } from './application/ports/google-import-reference-store.port'
+import type { OAuthCallbackAbuseGate } from './connections/oauth-callback-abuse-gate.server'
+import type { GoogleAuthorizedProviderExecutor } from './provider/google-client.port.server'
+import type { GoogleImportReferenceStore } from './imports/durable-import-reference-store.port.server'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
@@ -40,68 +40,68 @@ import {
   type ReviewQueuePort,
   type TargetedGoogleReviewQueuePort,
 } from '#/contexts/review/application/public-api'
+import { connectGoogleAccount } from './connections/connect-google-account.server'
+import { disconnectGoogleAccount } from './connections/disconnect-google-account.server'
+import { listGoogleConnections } from './connections/list-google-connections.server'
+import { refreshGoogleToken } from './connections/refresh-google-token.server'
+import { getGoogleAuthUrl } from './connections/get-google-auth-url.server'
 import {
-  connectGoogleAccount,
-  disconnectGoogleAccount,
-  listGoogleConnections,
-  refreshGoogleToken,
-  getGoogleAuthUrl,
   handleGbpNotification,
   type HandleGbpNotification,
-  createGbpSubscribeBackfill,
-  type ReconcileGbpNotificationSubscriptions,
-  prepareGoogleConnectorDeparture,
-} from './application/use-cases'
-import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
+} from './review-sync/handle-gbp-notification.server'
+import { createGbpSubscribeBackfill } from './application/use-cases/gbp-subscribe-backfill'
+import { type ReconcileGbpNotificationSubscriptions } from './connections/reconcile-gbp-notification-subscriptions.server'
+import { prepareGoogleConnectorDeparture } from './connections/prepare-google-connector-departure.server'
+import { createGoogleConnectionRepository } from './connections/google-connection-repository.server'
 import { createImportStore } from './imports/import-store.server'
-import { createGoogleImportQueue } from './infrastructure/google-import-queue'
-import type { GoogleImportStore } from './application/ports/google-import-store.port'
+import { createGoogleImportQueue } from './imports/google-import-queue.server'
+import type { GoogleImportStore } from './imports/import-store.port.server'
 import {
   registerGoogleImportDispatchConsumer,
   registerProviderAuthorizationInvalidationConsumer,
-} from './infrastructure/outbox-consumers'
-import { registerGoogleReviewPushDispatchConsumer } from './infrastructure/google-review-push-outbox-consumers'
+} from './imports/google-import-outbox-consumers.server'
+import { registerGoogleReviewPushDispatchConsumer } from './review-sync/google-review-push-outbox-consumers.server'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
-import { createGoogleOAuthExchangeRecoveryRepository } from './infrastructure/repositories/google-oauth-exchange-recovery.repository'
-import type { GoogleDisconnectRevokeStore } from './application/google-disconnect-revoke'
-import { createGoogleOAuthAdapter } from './infrastructure/adapters/google-oauth.adapter'
-import { createTokenEncryptionAdapter } from './infrastructure/adapters/token-encryption.adapter'
+import { createGoogleOAuthExchangeRecoveryRepository } from './connections/google-oauth-exchange-recovery-repository.server'
+import type { GoogleDisconnectRevokeStore } from './connections/google-disconnect-revoke.server'
+import { createGoogleOAuthAdapter } from './connections/google-oauth.adapter.server'
+import { createTokenEncryptionAdapter } from './connections/token-encryption.adapter.server'
 import { createSingle401RefreshExecutor } from './provider/google-client.server'
-import type { GoogleRefreshCoordination } from './application/ports/google-refresh-coordination.port'
-import type { GoogleImportContentAuthorizer } from './application/google-import-command-authorizer'
-import { createGoogleImportDiscovery } from './application/google-import-discovery'
-import { createGoogleImportTransaction } from './application/google-import-transaction'
-import type { GoogleImportProcessor } from './application/google-import-processor'
-import { createGoogleImportLifecycle } from './application/google-import-lifecycle'
+import type { GoogleRefreshCoordination } from './connections/google-refresh-coordination.port.server'
+import type { GoogleImportContentAuthorizer } from './imports/google-import-command-authorizer.server'
+import { createGoogleImportDiscovery } from './imports/google-import-discovery.server'
+import { createGoogleImportTransaction } from './imports/google-import-transaction.server'
+import type { GoogleImportProcessor } from './imports/google-import-processor.server'
+import { createGoogleImportLifecycle } from './imports/google-import-lifecycle.server'
 import { createGoogleImportRuntime } from './imports/import-runtime.server'
 import { createGoogleReviewSyncRuntime } from './review-sync/google-review-sync-runtime.server'
 import {
   createGooglePerformanceRuntime,
   type GooglePerformanceRuntime,
 } from './performance/google-performance-runtime.server'
-import type { PerformanceContentAuthorizer } from './application/google-performance-authorizer'
-import type { GoogleReviewSyncContentAuthorizer } from './application/google-review-sync-authorizer'
-import type { GoogleReplyPublicationContentAuthorizer } from './application/google-reply-publication-authorizer'
-import { createActiveMemberAuthResolver } from './infrastructure/active-member-auth.adapter'
+import type { PerformanceContentAuthorizer } from './performance/google-performance-authorizer.server'
+import type { GoogleReviewSyncContentAuthorizer } from './review-sync/google-review-sync-authorizer.server'
+import type { GoogleReplyPublicationContentAuthorizer } from './review-sync/google-reply-publication-authorizer.server'
+import { createActiveMemberAuthResolver } from './provider/active-member-auth.adapter.server'
 import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
 import {
   reconcileGoogleProviderRecovery,
   type ReconcileGoogleProviderRecovery,
-} from './application/use-cases/reconcile-google-provider-recovery'
+} from './connections/reconcile-google-provider-recovery.server'
 import { createProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
 
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
-import type { GoogleReviewCursorStore } from './infrastructure/google-review-cursor-store'
+import type { GoogleReviewCursorStore } from './review-sync/google-review-cursor-store.server'
 import {
   createUnavailableGoogleReviewPushReferenceStore,
   type GoogleReviewPushReferenceStore,
-} from './application/ports/google-review-push-reference.port'
-import { createGoogleReviewPushReferenceStore } from './infrastructure/google-review-push-reference-store'
-import { createGbpReviewPushReceiptStore } from './infrastructure/gbp-review-push-receipt.store'
-import { registerMemberDepartureConsumers } from './infrastructure/member-departure-outbox-consumers'
-import { registerGoogleCategoryRefreshConsumer } from './infrastructure/google-category-refresh-outbox-consumers'
+} from './review-sync/google-review-push-reference-store.port.server'
+import { createGoogleReviewPushReferenceStore } from './review-sync/google-review-push-reference-store.server'
+import { createGbpReviewPushReceiptStore } from './review-sync/gbp-review-push-receipt-store.server'
+import { registerMemberDepartureConsumers } from './connections/member-departure-outbox-consumers.server'
+import { registerGoogleCategoryRefreshConsumer } from './imports/google-category-refresh-outbox-consumers.server'
 
 export {
   createGoogleAuthorizedProviderExecutor,

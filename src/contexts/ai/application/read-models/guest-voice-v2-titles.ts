@@ -1,5 +1,8 @@
 import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
-import type { GuestVoiceIssueGroup, GuestVoiceMention } from './guest-voice-v2-facts'
+import type {
+  GuestVoiceIssueGroup,
+  GuestVoiceMention,
+} from '../../guest-voice/guest-voice-v2-facts.contracts'
 import type { IssueTally } from './guest-voice-v2-tally'
 import { causeCounts } from './guest-voice-v2-causes'
 

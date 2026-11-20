@@ -9,7 +9,7 @@ import { getSessionFromHeaders, resolveTenantContext } from '#/shared/auth/middl
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import type { OAuthStateHandleRejection } from '#/contexts/integration/application/oauth-state-handle'
-import type { ConnectGoogleInput } from '#/contexts/integration/application/dto/connect-google.dto'
+import type { ConnectGoogleInput } from '#/contexts/integration/connections/connect-google.contracts'
 import { buildOpaqueOAuthConnectInput } from '#/contexts/integration/application/oauth-callback-input'
 import { isOAuthStateInvalidError } from '#/contexts/integration/server/error-helpers'
 

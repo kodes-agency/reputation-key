@@ -2,8 +2,8 @@
 // seal and open tokens exactly as production does. Ciphertext carries a random
 // nonce: assert on the opened token, never on the sealed string.
 
-import type { TokenEncryptionPort } from '#/contexts/integration/application/ports/token-encryption.port'
-import { createTokenEncryptionAdapter } from '#/contexts/integration/infrastructure/adapters/token-encryption.adapter'
+import type { TokenEncryptionPort } from '#/contexts/integration/connections/token-encryption.port.server'
+import { createTokenEncryptionAdapter } from '#/contexts/integration/connections/token-encryption.adapter.server'
 
 const TEST_KEY_HEX = '11'.repeat(32)
 

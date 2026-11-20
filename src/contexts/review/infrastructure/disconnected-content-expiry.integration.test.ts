@@ -12,11 +12,11 @@ import {
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createTestTokenEncryption } from '#/contexts/integration/connections/token-encryption.test-fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { disconnectGoogleAccount } from '#/contexts/integration/application/use-cases/disconnect-google-account'
-import { refreshGoogleToken } from '#/contexts/integration/application/use-cases/refresh-google-token'
+import { disconnectGoogleAccount } from '#/contexts/integration/connections/disconnect-google-account.server'
+import { refreshGoogleToken } from '#/contexts/integration/connections/refresh-google-token.server'
 import { integrationError } from '#/contexts/integration/domain/errors'
-import { createAtomicIntegrationCommandStore } from '#/contexts/integration/infrastructure/integration-command-store'
-import { createGoogleConnectionRepository } from '#/contexts/integration/infrastructure/repositories/google-connection.repository'
+import { createAtomicIntegrationCommandStore } from '#/contexts/integration/connections/integration-command-store.server'
+import { createGoogleConnectionRepository } from '#/contexts/integration/connections/google-connection-repository.server'
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   createRunReviewSourceContentLifecycle,

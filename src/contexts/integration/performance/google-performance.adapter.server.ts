@@ -1,0 +1,56 @@
+import {
+  GOOGLE_PERFORMANCE_DAILY_METRICS,
+  type GooglePerformanceSourcePort,
+} from '../provider/contracts'
+import type { GoogleAuthorizedProviderExecutor } from '../provider/google-client.port.server'
+import type { GoogleProviderCallAuthorization } from '../provider/contracts'
+import { createGoogleCallError } from '../domain/google-call-error'
+import { executeGoogleProviderRaw } from '../provider/google-client.server'
+import { parseGooglePerformanceResponse } from './google-performance-parser.server'
+import { validateGoogleProviderSuffix } from '../provider/google-resource-suffix.server'
+
+type FetchPerformanceInput = Parameters<GooglePerformanceSourcePort['fetchReport']>[0]
+
+export const createGooglePerformanceAdapter = (
+  deps: Readonly<{
+    executor: GoogleAuthorizedProviderExecutor
+    nowMs?: () => number
+  }>,
+): Readonly<{
+  fetchReport(
+    input: FetchPerformanceInput,
+    accessToken: string,
+    authorization: GoogleProviderCallAuthorization,
+  ): ReturnType<GooglePerformanceSourcePort['fetchReport']>
+}> => {
+  const nowMs = deps.nowMs ?? Date.now
+
+  return Object.freeze({
+    fetchReport: async (input, accessToken, authorization) => {
+      if (!validateGoogleProviderSuffix(input.locationId)) {
+        throw createGoogleCallError('fetchPerformanceReport', 'parse_error')
+      }
+      const response = await executeGoogleProviderRaw({
+        operation: 'fetchPerformanceReport',
+        descriptor: Object.freeze({
+          routeKey: 'performance.fetch',
+          accessToken,
+          locationId: input.locationId,
+          startLocalDate: input.startLocalDate,
+          endLocalDate: input.endLocalDate,
+        }),
+        authorization,
+        executor: deps.executor,
+        nowMs,
+        ...(input.signal ? { signal: input.signal } : {}),
+      })
+      return parseGooglePerformanceResponse({
+        body: response.body,
+        requestedMetrics: GOOGLE_PERFORMANCE_DAILY_METRICS,
+        startLocalDate: input.startLocalDate,
+        endLocalDate: input.endLocalDate,
+        ...(input.signal ? { signal: input.signal } : {}),
+      })
+    },
+  })
+}

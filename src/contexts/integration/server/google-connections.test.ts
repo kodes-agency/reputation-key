@@ -10,9 +10,9 @@ import { integrationErrorStatus } from './error-helpers'
 import { integrationError } from '../domain/errors'
 import type { IntegrationErrorCode } from '../domain/errors'
 import { throwContextError } from '#/shared/auth/server-errors'
-import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
-import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
-import { googleAuthUrlInputSchema } from '../application/dto/google-auth-url.dto'
+import { connectGoogleInputSchema } from '../connections/connect-google.contracts'
+import { disconnectGoogleInputSchema } from '../connections/disconnect-google.contracts'
+import { googleAuthUrlInputSchema } from '../connections/google-auth-url.contracts'
 
 // ── throwContextError with IntegrationError ───────────────────────
 

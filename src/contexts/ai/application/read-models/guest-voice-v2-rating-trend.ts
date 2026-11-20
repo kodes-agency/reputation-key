@@ -4,13 +4,13 @@ import {
   ratingTrendVerdict,
 } from '../../domain/guest-voice-rating-trend'
 import { ratingCountsOf } from '../aspect-review-evidence'
-import { addDays } from '../local-date'
+import { addDays } from '../../guest-voice/local-date.contracts'
 import type {
   GuestVoiceRatingTrend,
   GuestVoiceRatingMonth,
   RatingTrendPeriod,
 } from '../../guest-voice/contracts'
-import type { Period } from './guest-voice-v2-join'
+import type { Period } from '../../guest-voice/guest-voice-v2-join.server'
 import { calendarMonths } from './guest-voice-v2-recency'
 
 export function ratingComparisonPeriods(

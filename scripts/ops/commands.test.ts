@@ -253,7 +253,7 @@ describe('what the report-only commands point to, under the runbook stops', () =
   /** Check Google again is a reply command before it reads. */
   const CHECK_GOOGLE_AGAIN = capabilityForPermission('reply.manage')
   /** Both reconciliation reads are review-sync provider calls
-   * (google-review-sync-authorizer.ts returns this capability). */
+   * (google-review-sync-authorizer.server.ts returns this capability). */
   const GOOGLE_READ: Capability = 'property.connect_gbp'
 
   const decisionsFor = (capability: Capability) =>

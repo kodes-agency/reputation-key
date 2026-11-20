@@ -1,4 +1,4 @@
-import type { ConnectGoogleInput } from './dto/connect-google.dto'
+import type { ConnectGoogleInput } from '../connections/connect-google.contracts'
 import type { OAuthStateHandleService } from './oauth-state-handle'
 
 export type RedeemedOAuthState = Extract<

@@ -35,7 +35,7 @@ vi.mock('./inbox-shared', async (importOriginal) => ({
     validator: () => ({ handler: (handler: (input: unknown) => unknown) => handler }),
   }),
 }))
-import { createReadReplyDraftingConsent } from '#/contexts/ai/application/read-reply-drafting-consent'
+import { createReadReplyDraftingConsent } from '#/contexts/ai/reply/read-reply-drafting-consent.server'
 import { createExecutionPolicy } from '#/shared/auth/execution-policy'
 import {
   createEnvCapabilityPolicyStore,

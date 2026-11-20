@@ -11,7 +11,10 @@ import {
   createGbpSubscribeBackfill,
   createGbpSubscribeOperatorAction,
 } from './gbp-subscribe-backfill'
-import type { GbpSubscribeOutcome, GbpSubscribeResult } from './manage-notifications'
+import type {
+  GbpSubscribeOutcome,
+  GbpSubscribeResult,
+} from '../../connections/manage-notifications.server'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleConnectionStatus } from '../../domain/types'

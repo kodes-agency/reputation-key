@@ -13,7 +13,7 @@ import {
   pickUrgentEvidenceCandidates,
   type EvidenceSlot,
 } from './guest-voice-v2-evidence'
-import type { GuestVoiceReview } from './guest-voice-v2-facts'
+import type { GuestVoiceReview } from '../../guest-voice/guest-voice-v2-facts.contracts'
 import {
   MAX_CAUSES,
   mostSevereUrgentReason,

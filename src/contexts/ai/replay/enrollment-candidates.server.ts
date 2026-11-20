@@ -5,7 +5,7 @@ import { insertOutboxRow } from '#/shared/outbox/commit'
 import { aiReviewAnalysisBackfillRequested } from '../domain/events'
 import type { ReviewAnalysisEnrollmentFence } from './contracts'
 import { ANALYSABLE_REVIEW_SQL } from './reopen-store.server'
-import { lockReviewAnalysisPropertyFence } from '../infrastructure/adapters/review-analysis-property-fence'
+import { lockReviewAnalysisPropertyFence } from '../analysis/review-analysis-property-fence.server'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>

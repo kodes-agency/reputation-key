@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type { AiControlPort } from '../application/ports/ai-control.port'
 import type {
   ReviewAnalysisEnrollmentEvidence,

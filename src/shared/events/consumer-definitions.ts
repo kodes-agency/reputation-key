@@ -41,7 +41,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ['inbox.on-reply-published', 'inbox.outbox-consumers', ['review.reply.published']],
     ['inbox.on-reply-observed', 'inbox.outbox-consumers', ['review.reply.observed']],
   ]),
-  ...consumersIn('src/contexts/ai/infrastructure/outbox-consumers.ts', [
+  ...consumersIn('src/contexts/ai/analysis/outbox-consumers.server.ts', [
     [
       'ai.analyze-review-event',
       'ai.review-analysis-consumers',
@@ -370,7 +370,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ),
   ...consumersIn(
-    'src/contexts/integration/infrastructure/member-departure-outbox-consumers.ts',
+    'src/contexts/integration/connections/member-departure-outbox-consumers.server.ts',
     [
       [
         'integration.on-member-removed',
@@ -418,7 +418,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     [['portal.on-property-restored', 'portal.property-lifecycle', ['property.restored']]],
   ),
   ...consumersIn(
-    'src/contexts/integration/infrastructure/google-binding-follow-up-consumers.ts',
+    'src/contexts/integration/imports/google-binding-follow-up-consumers.server.ts',
     [
       [
         'integration.import-display-name',
@@ -437,18 +437,21 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ],
     ],
   ),
-  ...consumersIn('src/contexts/integration/infrastructure/outbox-consumers.ts', [
+  ...consumersIn(
+    'src/contexts/integration/imports/google-import-outbox-consumers.server.ts',
     [
-      'integration.provider-authorization-invalidation',
-      'integration.property-import-dispatch',
-      ['property.google_binding.changed'],
+      [
+        'integration.provider-authorization-invalidation',
+        'integration.property-import-dispatch',
+        ['property.google_binding.changed'],
+      ],
+      [
+        'integration.property-import-dispatch',
+        'integration.property-import-dispatch',
+        ['integration.property_import.requested'],
+      ],
     ],
-    [
-      'integration.property-import-dispatch',
-      'integration.property-import-dispatch',
-      ['integration.property_import.requested'],
-    ],
-  ]),
+  ),
   ...consumersIn('src/contexts/feed/notify/property-outbox-consumers.server.ts', [
     [
       'notification.on-property-responsibility-needed',
@@ -509,7 +512,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ]),
   ...consumersIn(
-    'src/contexts/integration/infrastructure/google-category-refresh-outbox-consumers.ts',
+    'src/contexts/integration/imports/google-category-refresh-outbox-consumers.server.ts',
     [
       [
         'integration.google-category-refresh',
@@ -531,7 +534,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ]),
   ...consumersIn(
-    'src/contexts/integration/infrastructure/google-review-push-outbox-consumers.ts',
+    'src/contexts/integration/review-sync/google-review-push-outbox-consumers.server.ts',
     [
       [
         'integration.google-review-push-dispatch',

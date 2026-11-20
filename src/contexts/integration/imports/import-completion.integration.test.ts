@@ -2,8 +2,8 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
-import { createGoogleImportProcessor } from '../application/google-import-processor'
-import { createGoogleImportClaimReaper } from '../application/google-import-claim-reaper'
+import { createGoogleImportProcessor } from './google-import-processor.server'
+import { createGoogleImportClaimReaper } from './google-import-claim-reaper.server'
 import type { Job } from 'bullmq'
 import { properties } from '#/shared/db/schema/property.schema'
 import { portalPageEdits } from '#/shared/db/schema/portal-publication.schema'
@@ -38,7 +38,7 @@ import {
   IMPORT_DISPLAY_NAME_CONSUMER,
   IMPORT_SUBSCRIPTION_CONSUMER,
   IMPORT_REVIEW_SYNC_CONSUMER,
-} from '../infrastructure/google-binding-follow-up-consumers'
+} from './google-binding-follow-up-consumers.server'
 import { completeImportsForRestore } from './import-completion.server'
 import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
 import { organizationId, propertyId } from '#/shared/domain/ids'
@@ -56,8 +56,8 @@ import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.sch
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import type { GoogleImportIntent } from '../application/ports/google-import-store.port'
-import { createGoogleImportLifecycle } from '../application/google-import-lifecycle'
+import type { GoogleImportIntent } from './import-store.port.server'
+import { createGoogleImportLifecycle } from './google-import-lifecycle.server'
 import { createImportStore } from './import-store.server'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')

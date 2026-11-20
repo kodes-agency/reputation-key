@@ -7,7 +7,7 @@ import type {
   GuestVoiceMention,
   GuestVoiceReview,
   StarValue,
-} from './guest-voice-v2-facts'
+} from '../../guest-voice/guest-voice-v2-facts.contracts'
 
 // Issues of an invented hotel. The ids are the shape of a real one and nothing else.
 const AC = 'a0000000-0000-4000-8000-000000000001'

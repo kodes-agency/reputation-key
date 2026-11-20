@@ -12,7 +12,7 @@ import type {
 import {
   AI_BACKFILL_OPERATION_HORIZON_MILLIS,
   type AnalyzeReviewEventResult,
-} from '../application/use-cases/analyze-review-event'
+} from '../analysis/analyze-review-event.server'
 import {
   AI_BACKLOG_CLAIM_LEASE_MILLIS,
   AI_BACKLOG_DRAIN_CONCURRENCY,

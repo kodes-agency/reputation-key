@@ -32,7 +32,7 @@ import {
   GOOGLE_NOTIFICATION_SYSTEM_PRINCIPAL,
   GOOGLE_REVIEW_SYNC_SYSTEM_PERMISSION_DIGEST,
   GOOGLE_REVIEW_SYNC_SYSTEM_PRINCIPAL,
-} from '#/contexts/integration/application/google-review-sync-authorizer'
+} from '#/contexts/integration/review-sync/google-review-sync-authorizer.server'
 import {
   compileGoogleProviderRequest,
   type GoogleProviderRouteDescriptor,

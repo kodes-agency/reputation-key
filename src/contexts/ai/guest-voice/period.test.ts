@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { guestVoicePeriod, buildGuestVoicePeriod } from './period.server'
-import {
-  input,
-  review,
-  population,
-  groups,
-} from '../application/read-models/guest-voice-v2.test-fixtures'
-import type { PopulationChoice } from '../application/read-models/guest-voice-v2-population'
-import type { GuestVoiceFactsRead } from '../application/ports/ai-guest-voice-facts.port'
+import { input, review, population, groups } from './guest-voice-v2.test-fixtures'
+import type { PopulationChoice } from './guest-voice-v2-population.server'
+import type { GuestVoiceFactsRead } from './ai-guest-voice-facts.port.server'
 
 const current = review(1, { localDate: '2026-10-15' })
 const earlier = review(2, { localDate: '2026-07-31' })

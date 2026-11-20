@@ -103,7 +103,7 @@ function defineJob(
 export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   defineJob(
     'import-gbp-property-item',
-    'src/contexts/integration/infrastructure/jobs/import-gbp-property-item.job.ts',
+    'src/contexts/integration/imports/import-gbp-property-item-job.server.ts',
     {
       queue: 'default',
       capability: 'property.import_gbp_v2',
@@ -118,7 +118,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'import-gbp-property-item-v2',
-    'src/contexts/integration/infrastructure/jobs/retired-import-item.job.ts',
+    'src/contexts/integration/imports/retired-import-item-job.server.ts',
     {
       queue: 'default',
       capability: 'none',
@@ -144,7 +144,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'ai-review-analysis-backlog-drain',
-    'src/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job.ts',
+    'src/contexts/ai/replay/drain-review-analysis-backlog-job.server.ts',
     {
       queue: 'background',
       capability: 'ai.analyze',
@@ -160,7 +160,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // past the hour, so it does not meet the hour's other recurring work.
   defineJob(
     'ai-guest-voice-summary-sweep',
-    'src/contexts/ai/infrastructure/jobs/guest-voice-summary-sweep.job.ts',
+    'src/contexts/ai/guest-voice/guest-voice-summary-sweep-job.server.ts',
     {
       queue: 'background',
       capability: 'ai.analyze',
@@ -173,7 +173,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'ai-review-analysis-on-demand',
-    'src/contexts/ai/infrastructure/jobs/analyze-review-now.job.ts',
+    'src/contexts/ai/replay/analyze-review-now-job.server.ts',
     {
       queue: 'default',
       capability: 'ai.analyze',
@@ -502,7 +502,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'google-import-claim-reaper',
-    'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
+    'src/contexts/integration/imports/google-import-claim-reaper-job.server.ts',
     {
       queue: 'background',
       capability: 'property.import_gbp_v2',
@@ -515,7 +515,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'reconcile-gbp-notification-subscriptions',
-    'src/contexts/integration/infrastructure/jobs/reconcile-gbp-notification-subscriptions.job.ts',
+    'src/contexts/integration/connections/reconcile-gbp-notification-subscriptions-job.server.ts',
     {
       queue: 'background',
       capability: 'property.connect_gbp',

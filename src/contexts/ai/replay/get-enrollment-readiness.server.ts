@@ -1,6 +1,6 @@
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
-import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type { AiControlPort } from '../application/ports/ai-control.port'
 import type {
   ReviewAnalysisEnrollmentEvidence,

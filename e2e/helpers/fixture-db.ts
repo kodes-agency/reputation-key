@@ -1,7 +1,7 @@
 import { Pool } from 'pg'
 import { randomBytes } from 'node:crypto'
 import { testEnvironment } from '../../src/shared/testing/test-environment'
-import { createTokenEncryptionAdapter } from '../../src/contexts/integration/infrastructure/adapters/token-encryption.adapter'
+import { createTokenEncryptionAdapter } from '../../src/contexts/integration/connections/token-encryption.adapter.server'
 
 /**
  * Unique-per-run marker for every fixture-created external identifier.

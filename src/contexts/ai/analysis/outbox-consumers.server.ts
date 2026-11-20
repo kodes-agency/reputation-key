@@ -1,0 +1,390 @@
+import { z } from 'zod/v4'
+import type {
+  ConsumerEvent,
+  ConsumerRegistry,
+  ConsumerResult,
+  OutboxRepository,
+} from '#/shared/outbox'
+import {
+  organizationId,
+  propertyId,
+  reviewId,
+  type OrganizationId,
+  type PropertyId,
+} from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import {
+  AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+  AI_BACKFILL_OPERATION_HORIZON_MILLIS,
+  type AnalyzeReviewEventInput,
+  type AnalyzeReviewEventResult,
+} from './analyze-review-event.server'
+import type {
+  AiAuthorizationLifecycleApplyResult,
+  AiAuthorizationLifecycleTrigger,
+} from '../replay/contracts'
+import type {
+  AiReviewAnalysisBacklogOrigin,
+  AiReviewAnalysisBacklogPort,
+} from '../replay/contracts'
+import type { AuthorizeReviewAnalysisScope } from '../replay/drain-backlog.server'
+
+export const AI_REVIEW_ANALYSIS_CONSUMER = 'ai.analyze-review-event'
+export const AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER = 'ai.enroll-review-analysis'
+
+// Not `.strict()`: every emitted payload also carries envelope fields
+// (`correlationId`, `occurredAt`, and `platform` for review events — see the
+// canonical registry in shared/events/schema-registrations.ts). BQR-2.5
+// allowlist-validates at insert, so only registered fields are ever persisted;
+// a consumer re-asserting "no other keys" adds no safety and turns any envelope
+// addition into a total outage. It did: every `review.created` for a freshly
+// imported property failed with `unrecognized_keys`, so no review was ever
+// analyzed. Unknown keys are dropped; the fields consumed stay fully validated.
+const reviewEventPayloadSchema = z.object({
+  organizationId: z.string().min(1),
+  propertyId: z.uuid(),
+  reviewId: z.uuid(),
+  sourceEpoch: z.number().int().nonnegative(),
+  sourceRevision: z.number().int().positive(),
+  analysisSequence: z.number().int().positive(),
+  change: z.enum(['source_expired', 'provider_deleted']).optional(),
+  observationOrigin: z
+    .enum(['ongoing', 'historical_onboarding', 'legacy_unknown'])
+    .optional(),
+})
+const merchantAiChangedPayloadSchema = z.object({
+  organizationId: z.string().min(1),
+  propertyId: z.uuid(),
+  authorizationLineageId: z.uuid(),
+  state: z.enum(['disabled', 'enabled', 'revoked']),
+  reviewAnalysisEpoch: z.number().int().positive(),
+  replyDraftingEpoch: z.number().int().positive(),
+  propertyTrendsEpoch: z.number().int().positive(),
+  authorizedSourceEpoch: z.number().int().nonnegative(),
+  analysisStartSequence: z.number().int().nonnegative(),
+  stateVersion: z.number().int().positive(),
+  occurredAt: z.string().min(1),
+  correlationId: z.string().nullable().optional(),
+})
+
+export type RegisterAiConsumersInput = Readonly<{
+  analyzeReviewEvent: (
+    input: AnalyzeReviewEventInput,
+  ) => Promise<AnalyzeReviewEventResult>
+  receipts: OutboxRepository
+  /**
+   * Where analysis that waits is queued (ADR 0058): for the background lane,
+   * or for a stop to be lifted.
+   */
+  backlog: Pick<AiReviewAnalysisBacklogPort, 'enqueue'>
+  /**
+   * Current platform policy for one Organization and Property (ADR 0032): the
+   * question the backlog drain asks of each entry. This consumer's catalogue
+   * row is ungated, so that a review arriving during a stop is queued rather
+   * than lost, and this is what keeps it from analysing such a review on
+   * delivery. Without it nothing is analysed on delivery: every review is
+   * queued for the drain, which decides.
+   */
+  authorizeScope?: AuthorizeReviewAnalysisScope
+  nowEpochMillis: () => number
+  /**
+   * Apply the Identity authorization trigger through the AI command store.
+   * That store commits the enrollment intent (or exact obsolete/no-op
+   * decision) and this consumer's receipt atomically.
+   */
+  applyAiAuthorizationLifecycle?: (
+    input: AiAuthorizationLifecycleTrigger,
+  ) => Promise<AiAuthorizationLifecycleApplyResult>
+  /**
+   * Opens a freshly queued enrollment's replay on delivery, so an import's
+   * history starts analysing when AI is switched on rather than at the next
+   * enrollment sweep. Optional; the sweep opens it too.
+   */
+  advanceEnrollment?: (
+    input: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
+  ) => Promise<unknown>
+  /** Records an enrollment that could not be advanced on delivery. */
+  logger?: Pick<LoggerPort, 'warn'>
+}>
+
+function dispositionFor(
+  event: ConsumerEvent,
+  change: 'source_expired' | 'provider_deleted' | undefined,
+): AnalyzeReviewEventInput['disposition'] {
+  if (event.eventType === 'review.source_transitioned') {
+    return change ?? 'source_expired'
+  }
+  // A backfill is an explicit request to analyse retained content. It reuses
+  // this path so the analysis logic is not duplicated, and it may only ever be
+  // `pending`: a terminal disposition would consume the freshly allocated
+  // sequence without producing the analysis the operator asked for.
+  return 'pending'
+}
+
+/**
+ * BQC-3.7 envelope timestamps as epoch milliseconds. `recordedAt` (outbox row
+ * insert time) is stable across every redelivery of one event, so it anchors the
+ * bounded AI operation horizon; `occurredAt` is the pre-3.7 fallback and null
+ * means the use case anchors on the claimed operation instead.
+ */
+function envelopeRecordedAtEpochMillis(event: ConsumerEvent): number | null {
+  for (const candidate of [event.recordedAt, event.occurredAt]) {
+    if (candidate === undefined) continue
+    const parsed = Date.parse(candidate)
+    if (Number.isSafeInteger(parsed)) return parsed
+  }
+  return null
+}
+
+/**
+ * History is paced, not fanned out. A first-enablement backfill and a review
+ * observed while a property's history is imported both queue their provider
+ * work for the background lane; only ongoing reviews try the lane on delivery.
+ */
+function backlogOriginFor(
+  event: ConsumerEvent,
+  payload: z.infer<typeof reviewEventPayloadSchema>,
+): AiReviewAnalysisBacklogOrigin | null {
+  if (event.eventType === 'ai.review_analysis.backfill_requested') return 'backfill'
+  if (
+    (event.eventType === 'review.created' || event.eventType === 'review.updated') &&
+    payload.observationOrigin === 'historical_onboarding'
+  ) {
+    return 'historical_onboarding'
+  }
+  return null
+}
+
+/**
+ * Whether this delivery may make the provider call itself. History never does:
+ * it is paced through the backlog. An ongoing review does only while current
+ * platform policy allows Review Analysis for its Organization and Property. A
+ * review the drain would refuse is queued for it instead, and analysed once the
+ * stop is lifted. A source transition is settled without a provider call, so
+ * nothing is asked about it and it is given no authority for one.
+ */
+async function analysesOnDelivery(
+  dependencies: Pick<RegisterAiConsumersInput, 'authorizeScope'>,
+  delivery: Readonly<{
+    origin: AiReviewAnalysisBacklogOrigin | null
+    disposition: AnalyzeReviewEventInput['disposition']
+    organizationId: OrganizationId
+    propertyId: PropertyId
+  }>,
+): Promise<boolean> {
+  if (delivery.origin !== null || delivery.disposition !== 'pending') return false
+  const allowed = await dependencies.authorizeScope?.(
+    delivery.organizationId,
+    delivery.propertyId,
+  )
+  return allowed ?? false
+}
+
+/**
+ * Provider work that must wait: queued history, a live review whose lane was
+ * busy, a review current policy refuses, or one that met a stopped AI
+ * execution control. The drain returns the last two untried until the stop is
+ * lifted.
+ */
+function waitsInBacklog(result: AnalyzeReviewEventResult): boolean {
+  return (
+    result.status === 'deferred' ||
+    result.status === 'stopped' ||
+    (result.status === 'retry' && result.code === 'admission_busy')
+  )
+}
+
+export async function handleAiReviewEvent(
+  dependencies: RegisterAiConsumersInput,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const payload = reviewEventPayloadSchema.parse(event.payload)
+  const origin = backlogOriginFor(event, payload)
+  const scope = {
+    organizationId: organizationId(payload.organizationId),
+    propertyId: propertyId(payload.propertyId),
+  }
+  const disposition = dispositionFor(event, payload.change)
+  const executes = await analysesOnDelivery(dependencies, {
+    origin,
+    disposition,
+    ...scope,
+  })
+  const result = await dependencies.analyzeReviewEvent({
+    ...scope,
+    reviewId: reviewId(payload.reviewId),
+    sourceEpoch: payload.sourceEpoch,
+    sourceRevision: payload.sourceRevision,
+    analysisSequence: payload.analysisSequence,
+    eventEnvelopeId: event.eventId,
+    disposition,
+    eventRecordedAtEpochMillis: envelopeRecordedAtEpochMillis(event),
+    operationHorizonMillis:
+      event.eventType === 'ai.review_analysis.backfill_requested'
+        ? AI_BACKFILL_OPERATION_HORIZON_MILLIS
+        : AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+    execution: executes ? 'execute' : 'defer',
+    lane: 'background',
+  })
+
+  // The backlog row becomes the durable authority for work that must wait, so
+  // the event is receipted now instead of redelivered on BullMQ backoff.
+  if (waitsInBacklog(result)) {
+    await dependencies.backlog.enqueue({
+      eventEnvelopeId: event.eventId,
+      ...scope,
+      reviewId: reviewId(payload.reviewId),
+      sourceEpoch: payload.sourceEpoch,
+      sourceRevision: payload.sourceRevision,
+      analysisSequence: payload.analysisSequence,
+      origin: origin ?? 'deferred_live',
+      nowEpochMillis: dependencies.nowEpochMillis(),
+    })
+    await dependencies.receipts.insertReceipt(
+      event.eventId,
+      AI_REVIEW_ANALYSIS_CONSUMER,
+      'applied',
+    )
+    return { status: 'applied' }
+  }
+
+  if (result.status === 'retry') {
+    // BullMQ owns the finite dispatch retry budget (exponential 30s backoff,
+    // 8 attempts; see shared/outbox/dispatch-job-options.ts). It can
+    // exhaust before the 15-minute domain horizon, so this throw deliberately
+    // leaves the event unreceipted. The unconditional operation reaper owns an
+    // analysis operation still pending past that horizon: it fences and settles
+    // the operation, then writes the receipt. The error remains content-free.
+    throw new Error(`AI review analysis retry required: ${result.code}`)
+  }
+
+  const receiptStatus =
+    result.status === 'generation_changed' ? ('obsolete' as const) : ('applied' as const)
+  await dependencies.receipts.insertReceipt(
+    event.eventId,
+    AI_REVIEW_ANALYSIS_CONSUMER,
+    receiptStatus,
+  )
+
+  return { status: receiptStatus }
+}
+
+/**
+ * The enrollment intent and this consumer's receipt are already committed, so
+ * a failure here loses nothing: the enrollment sweep opens the replay instead.
+ * Identifiers only.
+ */
+async function advanceEnrollmentOnDelivery(
+  dependencies: RegisterAiConsumersInput,
+  scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
+): Promise<void> {
+  if (!dependencies.advanceEnrollment) return
+  try {
+    await dependencies.advanceEnrollment(scope)
+  } catch (error) {
+    dependencies.logger?.warn(
+      {
+        ...(error instanceof Error ? { err: error } : {}),
+        organizationId: scope.organizationId,
+        propertyId: scope.propertyId,
+      },
+      'AI review analysis enrollment advance failed',
+    )
+  }
+}
+
+export async function handleAiAuthorizationLifecycleChanged(
+  dependencies: RegisterAiConsumersInput,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const payload = merchantAiChangedPayloadSchema.parse(event.payload)
+  if (
+    event.organizationId !== payload.organizationId ||
+    event.propertyId !== payload.propertyId
+  ) {
+    throw new Error('AI authorization lifecycle trigger routing mismatch')
+  }
+  const occurredAt = new Date(payload.occurredAt)
+  if (!Number.isFinite(occurredAt.getTime())) {
+    throw new Error('AI authorization lifecycle trigger timestamp is invalid')
+  }
+  if (!dependencies.applyAiAuthorizationLifecycle) {
+    throw new Error('AI authorization lifecycle command store is unavailable')
+  }
+  const result = await dependencies.applyAiAuthorizationLifecycle({
+    eventEnvelopeId: event.eventId,
+    organizationId: organizationId(payload.organizationId),
+    propertyId: propertyId(payload.propertyId),
+    authorizationState: payload.state,
+    fence: {
+      authorizationLineageId: payload.authorizationLineageId,
+      authorizationStateVersion: payload.stateVersion,
+      sourceEpoch: payload.authorizedSourceEpoch,
+      reviewAnalysisEpoch: payload.reviewAnalysisEpoch,
+      replyDraftingEpoch: payload.replyDraftingEpoch,
+      propertyTrendsEpoch: payload.propertyTrendsEpoch,
+      analysisStartSequence: payload.analysisStartSequence,
+    },
+    correlationId: payload.correlationId ?? event.correlationId ?? null,
+    occurredAt,
+  })
+  if (result.status === 'applied' && result.enrollment.status === 'queued') {
+    await advanceEnrollmentOnDelivery(dependencies, {
+      organizationId: organizationId(payload.organizationId),
+      propertyId: propertyId(payload.propertyId),
+    })
+  }
+  return {
+    status:
+      result.status === 'obsolete'
+        ? 'obsolete'
+        : result.status === 'duplicate'
+          ? 'duplicate'
+          : 'applied',
+  }
+}
+
+export function registerAiConsumers(
+  registry: ConsumerRegistry,
+  dependencies: RegisterAiConsumersInput,
+): void {
+  const { registerConsumer } = registry
+  if (dependencies.applyAiAuthorizationLifecycle) {
+    registerConsumer({
+      eventType: 'identity.merchant_ai.changed',
+      consumerName: 'ai.enroll-review-analysis',
+      module: 'ai.review-analysis-enrollment',
+      handler: (event) => handleAiAuthorizationLifecycleChanged(dependencies, event),
+    })
+  }
+  registerConsumer({
+    eventType: 'review.created',
+    consumerName: 'ai.analyze-review-event',
+    module: 'ai.review-analysis-consumers',
+    handler: (event) => handleAiReviewEvent(dependencies, event),
+  })
+  registerConsumer({
+    eventType: 'review.updated',
+    consumerName: 'ai.analyze-review-event',
+    module: 'ai.review-analysis-consumers',
+    handler: (event) => handleAiReviewEvent(dependencies, event),
+  })
+  registerConsumer({
+    eventType: 'review.source_transitioned',
+    consumerName: 'ai.analyze-review-event',
+    module: 'ai.review-analysis-consumers',
+    handler: (event) => handleAiReviewEvent(dependencies, event),
+  })
+  // The first-enablement Review Analysis enrollment replay. Registered ONLY here:
+  // the inbox also consumes `review.created`/`review.updated`, so replaying
+  // either to reach review analysis would churn inbox items for reviews that
+  // never changed. Same handler — the analysis logic is not duplicated.
+  // The event type is spelled out here, not taken from the constant above: the
+  // BQC-2.1/3.1 catalogue guards discover consumer wiring by parsing this call.
+  registerConsumer({
+    eventType: 'ai.review_analysis.backfill_requested',
+    consumerName: 'ai.analyze-review-event',
+    module: 'ai.review-analysis-consumers',
+    handler: (event) => handleAiReviewEvent(dependencies, event),
+  })
+}

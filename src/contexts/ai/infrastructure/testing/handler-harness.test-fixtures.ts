@@ -1,9 +1,9 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-import type { AiMerchantAuthorizationSnapshot } from '#/contexts/ai/application/ports/ai-authorization.port'
+import type { AiMerchantAuthorizationSnapshot } from '#/contexts/ai/consent/ai-authorization.port.server'
 import type { AiControlHead } from '#/contexts/ai/application/ports/ai-control.port'
-import { createAiAuthorizationAdapter } from '#/contexts/ai/infrastructure/adapters/ai-authorization.adapter'
+import { createAiAuthorizationAdapter } from '#/contexts/ai/consent/ai-authorization.adapter.server'
 import { createAiControlAdapter } from '#/contexts/ai/infrastructure/adapters/ai-control.adapter'
-import { createAiOperationStoreAdapter } from '#/contexts/ai/infrastructure/adapters/ai-operation-store.adapter'
+import { createAiOperationStoreAdapter } from '#/contexts/ai/execution/ai-operation-store.adapter.server'
 import { getDb, type Database } from '#/shared/db'
 import { createAiBudgetControl } from '#/shared/db/ai/ai-budget'
 import {

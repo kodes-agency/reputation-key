@@ -1,0 +1,118 @@
+import type { GoogleProviderDispatch } from '#/shared/google-provider-control/egress-gateway'
+import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
+import type { GoogleProviderCallAuthorization } from './contracts'
+
+/**
+ * Content-free denial reasons the internal egress gateway can report for
+ * `admission_denied`. Only `quota_exhausted` / `in_flight_exhausted` mean
+ * provider quota pressure; the rest are permit or policy fences.
+ */
+export type GoogleProviderGatewayAdmissionCode =
+  | 'malformed_request'
+  | 'deadline_exceeded'
+  | 'permit_unknown'
+  | 'permit_expired'
+  | 'gateway_mismatch'
+  | 'route_mismatch'
+  | 'request_mismatch'
+  | 'coordination_unavailable'
+  | 'quota_exhausted'
+  | 'in_flight_exhausted'
+  | 'authorization_changed'
+  | 'grant_unavailable'
+
+/**
+ * The app-side permit issuer's denial reasons that this seam forwards. Declared
+ * here rather than imported: `shared/auth` is outside the application layer's
+ * dependency zone. The adapter maps the issuer's own closed union onto this
+ * set exhaustively, so adding an issuer code without deciding how it surfaces
+ * is a type error rather than a silent `upstream_error`.
+ */
+export type GoogleProviderPermitAdmissionCode =
+  'capability_killed' | 'authorization_denied' | 'authorization_changed'
+
+/**
+ * Every content-free admission denial reason, from either admission side: the
+ * gateway's own permit checks above or the app-side permit issuer. Codes only
+ * — never a provider identifier or payload.
+ */
+export type GoogleProviderAdmissionCode =
+  | GoogleProviderGatewayAdmissionCode
+  | GoogleProviderPermitAdmissionCode
+  | 'credential_unavailable'
+  | 'runtime_unavailable'
+
+export type GoogleProviderExecutionResult =
+  | Readonly<{
+      ok: true
+      status: number
+      headers: Readonly<{
+        contentType: string | null
+        cacheControl: string | null
+        retryAfter: string | null
+        /** Provider request identifier when the gateway exposes one. */
+        providerCorrelationId?: string | null
+      }>
+      body: Uint8Array
+    }>
+  | Readonly<{
+      ok: false
+      code:
+        | 'malformed_request'
+        | 'admission_denied'
+        | 'admission_mismatch'
+        | 'deadline_exceeded'
+        | 'transport_error'
+        | 'response_too_large'
+      /** Content-free execution-admission denial reason for `admission_denied`. */
+      admissionCode?: GoogleProviderAdmissionCode
+      /**
+       * Whether the request could have reached Google. Only `not_sent` is
+       * evidence a write did not happen; the code cannot say this on its own
+       * (see `GoogleProviderDispatch`).
+       */
+      dispatch: GoogleProviderDispatch
+      /** The provider's HTTP status; present only when `dispatch` is `answered`. */
+      providerStatus?: number
+      retryAfterMs: number
+    }>
+
+/**
+ * Operation-scoped provider execution seam. Its implementation admits an exact
+ * one-use permit and sends the descriptor only through the internal mTLS
+ * gateway. Adapters never construct provider URLs or choose quota policy.
+ */
+export type GoogleAuthorizedProviderExecutor = Readonly<{
+  execute(
+    descriptor: GoogleProviderRouteDescriptor,
+    options: Readonly<{
+      authorization: GoogleProviderCallAuthorization
+      deadlineMs: number
+      signal?: AbortSignal
+    }>,
+  ): Promise<GoogleProviderExecutionResult>
+}>
+
+/** Wraps an executor so one 401 refreshes the access token and retries once. */
+export type GoogleRefreshingProviderExecutorFactory = (
+  deps: Readonly<{
+    executor: GoogleAuthorizedProviderExecutor
+    refreshAccessToken: (
+      input: Readonly<{ authorization: GoogleProviderCallAuthorization }>,
+    ) => Promise<unknown>
+    getAccessToken: (
+      input: Readonly<{ authorization: GoogleProviderCallAuthorization }>,
+    ) => Promise<string>
+    reauthorize: (
+      input: Readonly<{ authorization: GoogleProviderCallAuthorization }>,
+    ) => Promise<GoogleProviderCallAuthorization>
+  }>,
+) => GoogleAuthorizedProviderExecutor
+
+export type GoogleProviderTokenAccess = Pick<
+  Parameters<GoogleRefreshingProviderExecutorFactory>[0],
+  'refreshAccessToken' | 'getAccessToken'
+>
+
+export type GoogleProviderReauthorize =
+  Parameters<GoogleRefreshingProviderExecutorFactory>[0]['reauthorize']

@@ -44,7 +44,7 @@ describe('operator commands that need a call to Google', () => {
   })
 
   // Both reads go to Google under the review-sync capability
-  // (google-review-sync-authorizer.ts), and the manager's button is a reply
+  // (google-review-sync-authorizer.server.ts), and the manager's button is a reply
   // command first. A stop of either leaves the reply where it is.
   it('refuses --apply with the reason, what does the work instead, and what stops that', () => {
     expect(googleProviderApplyRefusal('ops:reconcile-publication')).toBe(

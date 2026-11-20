@@ -9,7 +9,7 @@ import { getSessionFromHeaders, resolveTenantContext } from '#/shared/auth/middl
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { googleAuthUrlInputSchema } from '../application/dto/google-auth-url.dto'
+import { googleAuthUrlInputSchema } from '../connections/google-auth-url.contracts'
 
 // ── getGoogleAuthUrl ────────────────────────────────────────────────
 

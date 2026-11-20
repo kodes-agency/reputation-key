@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { assembleGuestVoiceV2 } from './guest-voice-v2-build'
-import { OTHER, group, input, mention, review } from './guest-voice-v2.test-fixtures'
+import {
+  OTHER,
+  group,
+  input,
+  mention,
+  review,
+} from '../../guest-voice/guest-voice-v2.test-fixtures'
 
 describe('section totals and summary populations', () => {
   it('preserves list caps and exposes exact eligible totals while topics deduplicate overlapping issues', () => {

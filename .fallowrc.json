@@ -81,7 +81,7 @@
       "exports": ["INBOX_ESCALATION_HISTORY_KINDS"]
     },
     {
-      "file": "src/contexts/integration/application/google-provider-contract.ts",
+      "file": "src/contexts/integration/provider/contracts.ts",
       "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION"]
     },
     {
@@ -192,7 +192,7 @@
       "exports": ["createInboxItem", "CreateInboxItemInput"]
     },
     {
-      "file": "src/contexts/integration/application/use-cases/handle-gbp-notification.ts",
+      "file": "src/contexts/integration/review-sync/handle-gbp-notification.server.ts",
       "exports": ["handleGbpNotification"]
     },
     {

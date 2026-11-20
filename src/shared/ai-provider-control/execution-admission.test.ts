@@ -170,7 +170,7 @@ describe('the dispatch gate', () => {
 describe('who may mint an admission', () => {
   const MINTERS = new Set([
     'src/shared/ai-provider-control/execution-admission.ts',
-    'src/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter.ts',
+    'src/contexts/ai/execution/ai-execution-admission.adapter.server.ts',
   ])
   const PRODUCTION_ROOTS = ['src', 'server', 'scripts'].map((root) =>
     join(process.cwd(), root),

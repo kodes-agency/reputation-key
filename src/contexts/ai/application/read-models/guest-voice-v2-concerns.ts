@@ -4,7 +4,10 @@ import type {
   GuestVoiceSeriousConcerns,
   UrgentConcernItem,
 } from '../../guest-voice/contracts'
-import type { GuestVoiceIssueGroup, GuestVoiceReview } from './guest-voice-v2-facts'
+import type {
+  GuestVoiceIssueGroup,
+  GuestVoiceReview,
+} from '../../guest-voice/guest-voice-v2-facts.contracts'
 import { primaryComplaint } from './guest-voice-v2-selection'
 import { lastMentionedLocalDate } from './guest-voice-v2-recency'
 import { issueTitles } from './guest-voice-v2-titles'
