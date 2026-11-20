@@ -12,7 +12,7 @@ import {
   starsOfMentioned,
   type RatingCounts,
 } from './aspect-review-evidence'
-import type { AiPropertyAnalyzedReview } from './ports/ai-property-aggregate-store.port'
+import type { AiPropertyAnalyzedReview } from '../analysis/ai-property-aggregate-store.port.server'
 
 type Mention = readonly [AspectTaxonomyV1Id, AspectPolarityV1, number?]
 

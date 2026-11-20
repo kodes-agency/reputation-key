@@ -3,14 +3,14 @@ import {
   INPUT,
   NOW,
   ORGANIZATION_ID,
-} from '#/contexts/ai/infrastructure/testing/reply-handler.test-fixtures'
+} from '#/contexts/ai/reply/reply-handler.test-fixtures'
 import { aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { eq } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 
 import type { AiOperationId } from '../domain/types'
-import { createAiOrganizationSpendAdapter } from '../infrastructure/adapters/ai-organization-spend.adapter'
+import { createAiOrganizationSpendAdapter } from '../execution/ai-organization-spend.adapter.server'
 
 it('admits and settles drafts against each tenant budget independently in the same month', async () => {
   const first = await createHarness()

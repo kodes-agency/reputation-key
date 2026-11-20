@@ -6,7 +6,7 @@ import {
   input,
 } from '#/contexts/ai/guest-voice/read.test-fixtures'
 import { loadGuestVoiceReadContext } from './get-read-context.server'
-import * as joins from '../application/read-models/guest-voice-v2-join'
+import * as joins from './guest-voice-v2-join.server'
 
 afterEach(() => vi.restoreAllMocks())
 

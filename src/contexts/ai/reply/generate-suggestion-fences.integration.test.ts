@@ -9,7 +9,7 @@ import {
   REVIEW_ID,
   SHA,
   createHarness,
-} from '#/contexts/ai/infrastructure/testing/reply-handler.test-fixtures'
+} from '#/contexts/ai/reply/reply-handler.test-fixtures'
 import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
 import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
 import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation-profiles'
@@ -39,8 +39,8 @@ import {
   aiRequestFingerprint,
   aiReviewSourceProvenance,
 } from '../application/ai-workflow-support'
-import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
-import type { AiOperationState } from '../application/ports/ai-operation-store.port'
+import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
+import type { AiOperationState } from '../execution/ai-operation-store.port.server'
 function expectNoAiExecution(...mocks: readonly unknown[]): void {
   for (const mock of mocks) expect(mock).not.toHaveBeenCalled()
 }

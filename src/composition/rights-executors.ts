@@ -8,7 +8,7 @@ import { NOTIFICATION_RIGHTS_TABLES } from '#/contexts/feed/application/public-a
 import {
   createAiErasureReplayers,
   createAiRightsExecutor,
-} from '#/contexts/ai/infrastructure/adapters/ai-rights.adapter'
+} from '#/contexts/ai/rights/ai-rights.adapter.server'
 import {
   activityReplayRefusal,
   createActivityErasureReplayers,

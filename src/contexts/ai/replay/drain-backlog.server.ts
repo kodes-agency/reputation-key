@@ -18,7 +18,7 @@ import {
   AI_BACKFILL_OPERATION_HORIZON_MILLIS,
   type AnalyzeReviewEventInput,
   type AnalyzeReviewEventResult,
-} from '../application/use-cases/analyze-review-event'
+} from '../analysis/analyze-review-event.server'
 
 /** Entries claimed per round: a property's in-flight share, for up to three properties. */
 const AI_BACKLOG_DRAIN_ROUND_LIMIT = 3 * AI_ADMISSION_IN_FLIGHT.property.background

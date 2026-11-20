@@ -1,0 +1,579 @@
+import { describe, expect, it, vi } from 'vitest'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import type {
+  AiOperationRecoveryCandidate,
+  AiOperationStorePort,
+  AiOperationUnreadableRow,
+} from '../execution/ai-operation-store.port.server'
+import type { AiOperationId } from '../domain/types'
+import {
+  AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+  createAiOperationExecutionReaper,
+} from './ai-operation-execution-reaper.server'
+
+const NOW = Date.parse('2026-09-08T18:30:00.000Z')
+const ORGANIZATION_ID = organizationId('ai-operation-reaper-test')
+const PROPERTY_ID = propertyId('79000000-0000-4000-8000-000000000001')
+const EVENT_ID = '79000000-0000-4000-8000-000000000002'
+const REVIEW_ID = reviewId('79000000-0000-4000-8000-000000000005')
+const OVERDUE_OPERATION_ID = '79000000-0000-4000-8000-000000000003' as AiOperationId
+const FRESH_OPERATION_ID = '79000000-0000-4000-8000-000000000004' as AiOperationId
+const STALE_OPERATION_ID = '79000000-0000-4000-8000-000000000007' as AiOperationId
+const STALE_EVENT_ID = '79000000-0000-4000-8000-000000000008'
+
+/** What the store's listing returns: candidates, and the rows it could not read. */
+function scanOf(
+  ...candidates: AiOperationRecoveryCandidate[]
+): Awaited<ReturnType<AiOperationStorePort['listExpiredExecutions']>> {
+  return { candidates, unreadable: [] }
+}
+
+function pendingCandidate(operationId: AiOperationId, createdAtEpochMillis: number) {
+  return {
+    operationId,
+    organizationId: ORGANIZATION_ID,
+    attempt: 1,
+    state: 'pending' as const,
+    failureCode: 'provider_rate_limited' as const,
+    createdAtEpochMillis,
+    updatedAtEpochMillis: createdAtEpochMillis,
+    analysis: {
+      eventEnvelopeId: EVENT_ID,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: 2,
+      analysisSequence: 18,
+      reviewId: REVIEW_ID,
+      sourceRevision: 1,
+      reviewAnalysisEpoch: 3,
+      propertyProfileVersion: 4,
+    },
+  }
+}
+
+function deliveryCandidate(
+  operationId: AiOperationId,
+  eventEnvelopeId: string,
+  createdAtEpochMillis: number,
+  resultStatus: 'ready' | 'unavailable' | 'missing',
+) {
+  return {
+    operationId,
+    organizationId: ORGANIZATION_ID,
+    attempt: 1,
+    state: 'succeeded_pending_delivery' as const,
+    failureCode: null,
+    createdAtEpochMillis,
+    updatedAtEpochMillis: createdAtEpochMillis,
+    analysis: {
+      eventEnvelopeId,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      sourceEpoch: 2,
+      sourceRevision: 1,
+      analysisSequence: 18,
+      reviewAnalysisEpoch: 3,
+      propertyProfileVersion: 4,
+      resultStatus,
+    },
+  }
+}
+
+describe('AI operation execution reaper', () => {
+  it('terminal-settles an abandoned pending analysis but leaves an in-horizon retry alone', async () => {
+    const overdue = pendingCandidate(
+      OVERDUE_OPERATION_ID,
+      NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+    )
+    const fresh = pendingCandidate(
+      FRESH_OPERATION_ID,
+      NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS + 1,
+    )
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => scanOf(overdue, fresh),
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
+    const advanceWithoutAnalysis = vi.fn(async () => ({
+      status: 'applied' as const,
+      aggregateRevision: 18,
+    }))
+    const applyReviewAnalysis = vi.fn()
+    const recordAnalysisReceipt = vi.fn(async () => undefined)
+    const dependencies = {
+      store: { listExpiredExecutions, recordFailure, markDelivered },
+      aggregates: { advanceWithoutAnalysis, applyReviewAnalysis },
+      recordAnalysisReceipt,
+      nowEpochMillis: () => NOW,
+    }
+
+    await createAiOperationExecutionReaper(dependencies)()
+
+    expect(recordFailure).toHaveBeenCalledOnce()
+    expect(recordFailure).toHaveBeenCalledWith({
+      operationId: OVERDUE_OPERATION_ID,
+      organizationId: ORGANIZATION_ID,
+      expectedAttempt: 1,
+      expectedState: 'pending',
+      expectedFailureCode: 'provider_rate_limited',
+      failureCode: 'operation_abandoned',
+      retryAtEpochMillis: null,
+      failedAtEpochMillis: NOW,
+    })
+    expect(advanceWithoutAnalysis).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 3,
+      analysisSequence: 18,
+      propertyProfileVersion: 4,
+      dispositionCode: 'operation_abandoned',
+    })
+    expect(recordAnalysisReceipt).toHaveBeenCalledWith(EVENT_ID, 'applied')
+    expect(recordFailure).not.toHaveBeenCalledWith(
+      expect.objectContaining({ operationId: FRESH_OPERATION_ID }),
+    )
+    expect(markDelivered).not.toHaveBeenCalled()
+    expect(applyReviewAnalysis).not.toHaveBeenCalled()
+  })
+
+  it('abandons an expired pending reply draft without settling any analysis', async () => {
+    const replyDraft = {
+      ...pendingCandidate(
+        OVERDUE_OPERATION_ID,
+        NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      ),
+      failureCode: 'provider_unavailable' as const,
+      analysis: null,
+    }
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => scanOf(replyDraft),
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const advanceWithoutAnalysis = vi.fn()
+    const recordAnalysisReceipt = vi.fn(async () => undefined)
+
+    const result = await createAiOperationExecutionReaper({
+      store: { listExpiredExecutions, recordFailure, markDelivered: vi.fn() },
+      aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
+      recordAnalysisReceipt,
+      nowEpochMillis: () => NOW,
+    })()
+
+    expect(recordFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationId: OVERDUE_OPERATION_ID,
+        expectedState: 'pending',
+        failureCode: 'operation_abandoned',
+      }),
+    )
+    expect(advanceWithoutAnalysis).not.toHaveBeenCalled()
+    expect(recordAnalysisReceipt).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ operationsFenced: 1, operationsSettled: 0 })
+  })
+
+  it('delivers a current persisted analysis, advances past a stale result, and leaves an in-horizon delivery alone', async () => {
+    const overdue = deliveryCandidate(
+      OVERDUE_OPERATION_ID,
+      EVENT_ID,
+      NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      'ready',
+    )
+    const fresh = deliveryCandidate(
+      FRESH_OPERATION_ID,
+      '79000000-0000-4000-8000-000000000006',
+      NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS + 1,
+      'ready',
+    )
+    const stale = deliveryCandidate(
+      STALE_OPERATION_ID,
+      STALE_EVENT_ID,
+      NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      'ready',
+    )
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => scanOf(overdue, stale, fresh),
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
+    const applyReviewAnalysis = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 'applied' as const,
+        aggregateRevision: 18,
+      })
+      .mockResolvedValueOnce({ status: 'stale' as const })
+    const advanceWithoutAnalysis = vi.fn(async () => ({
+      status: 'applied' as const,
+      aggregateRevision: 19,
+    }))
+    const recordAnalysisReceipt = vi.fn(async () => undefined)
+
+    const outcome = await createAiOperationExecutionReaper({
+      store: { listExpiredExecutions, recordFailure, markDelivered },
+      aggregates: { applyReviewAnalysis, advanceWithoutAnalysis },
+      recordAnalysisReceipt,
+      nowEpochMillis: () => NOW,
+    })()
+    expect(applyReviewAnalysis).toHaveBeenCalledTimes(2)
+    expect(applyReviewAnalysis).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      sourceEpoch: 2,
+      sourceRevision: 1,
+      analysisSequence: 18,
+      reviewAnalysisEpoch: 3,
+      propertyProfileVersion: 4,
+      calendarProfileVersion: 'property-calendar-v1',
+    })
+    expect(advanceWithoutAnalysis).toHaveBeenCalledOnce()
+    expect(recordAnalysisReceipt).toHaveBeenCalledTimes(2)
+    expect(recordAnalysisReceipt).toHaveBeenCalledWith(EVENT_ID, 'applied')
+    expect(recordAnalysisReceipt).toHaveBeenCalledWith(STALE_EVENT_ID, 'applied')
+    expect(markDelivered).toHaveBeenCalledOnce()
+    expect(markDelivered).toHaveBeenCalledWith({
+      operationId: OVERDUE_OPERATION_ID,
+      organizationId: ORGANIZATION_ID,
+      expectedAttempt: 1,
+      deliveredAtEpochMillis: NOW,
+    })
+    expect(recordFailure).toHaveBeenCalledOnce()
+    expect(recordFailure).toHaveBeenCalledWith({
+      operationId: STALE_OPERATION_ID,
+      organizationId: ORGANIZATION_ID,
+      expectedAttempt: 1,
+      expectedState: 'succeeded_pending_delivery',
+      expectedFailureCode: null,
+      failureCode: 'completed_without_delivery',
+      retryAtEpochMillis: null,
+      failedAtEpochMillis: NOW,
+    })
+    expect(markDelivered).not.toHaveBeenCalledWith(
+      expect.objectContaining({ operationId: FRESH_OPERATION_ID }),
+    )
+    expect(outcome).toEqual({
+      recoveryCandidatesVisited: 3,
+      operationsFenced: 1,
+      operationsDelivered: 1,
+      operationsSettled: 1,
+      operationsRaced: 0,
+      candidatesFailed: 0,
+      batchFull: false,
+    })
+  })
+
+  it('terminal-settles an analysis whose completed operation has no persisted result', async () => {
+    const missing = deliveryCandidate(
+      OVERDUE_OPERATION_ID,
+      EVENT_ID,
+      NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      'missing',
+    )
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => scanOf(missing),
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
+    const applyReviewAnalysis = vi.fn()
+    const advanceWithoutAnalysis = vi.fn(async () => ({
+      status: 'applied' as const,
+      aggregateRevision: 18,
+    }))
+    const recordAnalysisReceipt = vi.fn(async () => undefined)
+
+    const outcome = await createAiOperationExecutionReaper({
+      store: { listExpiredExecutions, recordFailure, markDelivered },
+      aggregates: { applyReviewAnalysis, advanceWithoutAnalysis },
+      recordAnalysisReceipt,
+      nowEpochMillis: () => NOW,
+    })()
+
+    expect(recordFailure).toHaveBeenCalledWith({
+      operationId: OVERDUE_OPERATION_ID,
+      organizationId: ORGANIZATION_ID,
+      expectedAttempt: 1,
+      expectedState: 'succeeded_pending_delivery',
+      expectedFailureCode: null,
+      failureCode: 'operation_ambiguous',
+      retryAtEpochMillis: null,
+      failedAtEpochMillis: NOW,
+    })
+    expect(advanceWithoutAnalysis).toHaveBeenCalledOnce()
+    expect(applyReviewAnalysis).not.toHaveBeenCalled()
+    expect(markDelivered).not.toHaveBeenCalled()
+    expect(recordAnalysisReceipt).toHaveBeenCalledWith(EVENT_ID, 'applied')
+    expect(outcome).toEqual({
+      recoveryCandidatesVisited: 1,
+      operationsFenced: 1,
+      operationsDelivered: 0,
+      operationsSettled: 1,
+      operationsRaced: 0,
+      candidatesFailed: 0,
+      batchFull: false,
+    })
+  })
+  it.each([
+    'output_invalid',
+    'output_truncated',
+    'provider_refused',
+    'provider_rate_limited',
+    'provider_unavailable',
+  ] as const)(
+    'terminal-settles an unreceipted %s analysis failure',
+    async (failureCode) => {
+      const failed = {
+        ...pendingCandidate(
+          OVERDUE_OPERATION_ID,
+          NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+        ),
+        state: 'failed' as const,
+        failureCode,
+      }
+      const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+        async () => scanOf(failed),
+      )
+      const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+      const advanceWithoutAnalysis = vi.fn(async () => ({
+        status: 'applied' as const,
+        aggregateRevision: 18,
+      }))
+      const recordAnalysisReceipt = vi.fn(async () => undefined)
+
+      await expect(
+        createAiOperationExecutionReaper({
+          store: {
+            listExpiredExecutions,
+            recordFailure,
+            markDelivered: vi.fn(async () => true),
+          },
+          aggregates: {
+            applyReviewAnalysis: vi.fn(),
+            advanceWithoutAnalysis,
+          },
+          recordAnalysisReceipt,
+          nowEpochMillis: () => NOW,
+        })(),
+      ).resolves.toMatchObject({
+        recoveryCandidatesVisited: 1,
+        operationsSettled: 1,
+      })
+      expect(recordFailure).not.toHaveBeenCalled()
+      expect(advanceWithoutAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({ dispositionCode: 'operation_ambiguous' }),
+      )
+      expect(recordAnalysisReceipt).toHaveBeenCalledWith(EVENT_ID, 'applied')
+    },
+  )
+
+  it('advances an already-terminal outcome before receipting its fenced operation', async () => {
+    const fenced = {
+      ...pendingCandidate(
+        OVERDUE_OPERATION_ID,
+        NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      ),
+      state: 'failed' as const,
+      failureCode: 'completed_without_delivery' as const,
+    }
+    const order: string[] = []
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => scanOf(fenced),
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
+    const advanceWithoutAnalysis = vi.fn(async () => {
+      order.push('aggregate')
+      return { status: 'applied' as const, aggregateRevision: 18 }
+    })
+    const applyReviewAnalysis = vi.fn()
+    const recordAnalysisReceipt = vi.fn(
+      async (_eventId: string, status: 'applied' | 'obsolete') => {
+        order.push(`receipt:${status}`)
+      },
+    )
+
+    const outcome = await createAiOperationExecutionReaper({
+      store: { listExpiredExecutions, recordFailure, markDelivered },
+      aggregates: { applyReviewAnalysis, advanceWithoutAnalysis },
+      recordAnalysisReceipt,
+      nowEpochMillis: () => NOW,
+    })()
+
+    expect(order).toEqual(['aggregate', 'receipt:applied'])
+    expect(advanceWithoutAnalysis).toHaveBeenCalledWith(
+      expect.objectContaining({
+        analysisSequence: 18,
+        dispositionCode: 'operation_ambiguous',
+      }),
+    )
+    expect(recordFailure).not.toHaveBeenCalled()
+    expect(markDelivered).not.toHaveBeenCalled()
+    expect(outcome).toEqual({
+      recoveryCandidatesVisited: 1,
+      operationsFenced: 0,
+      operationsDelivered: 0,
+      operationsSettled: 1,
+      operationsRaced: 0,
+      candidatesFailed: 0,
+      batchFull: false,
+    })
+  })
+
+  it('goes on to the next tenant when one candidate cannot be recovered, and says which one failed', async () => {
+    const OTHER_ORGANIZATION_ID = organizationId('ai-operation-reaper-other-tenant')
+    const abandonedAt = NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS
+    const poisoned = pendingCandidate(OVERDUE_OPERATION_ID, abandonedAt)
+    const healthyBase = pendingCandidate(STALE_OPERATION_ID, abandonedAt)
+    const healthy = {
+      ...healthyBase,
+      organizationId: OTHER_ORGANIZATION_ID,
+      analysis: {
+        ...healthyBase.analysis,
+        eventEnvelopeId: STALE_EVENT_ID,
+        organizationId: OTHER_ORGANIZATION_ID,
+      },
+    }
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => scanOf(poisoned, healthy),
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const advanceWithoutAnalysis = vi.fn(async () => ({
+      status: 'applied' as const,
+      aggregateRevision: 18,
+    }))
+    const receiptFailure = new Error('insert violates foreign key constraint')
+    const recordAnalysisReceipt = vi.fn(async (eventId: string) => {
+      if (eventId === EVENT_ID) throw receiptFailure
+    })
+    const warn = vi.fn()
+
+    const outcome = await createAiOperationExecutionReaper({
+      store: { listExpiredExecutions, recordFailure, markDelivered: vi.fn() },
+      aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
+      recordAnalysisReceipt,
+      logger: { warn },
+      nowEpochMillis: () => NOW,
+    })()
+
+    expect(recordAnalysisReceipt).toHaveBeenCalledWith(STALE_EVENT_ID, 'applied')
+    expect(outcome).toEqual({
+      recoveryCandidatesVisited: 2,
+      operationsFenced: 1,
+      operationsDelivered: 0,
+      operationsSettled: 1,
+      operationsRaced: 0,
+      candidatesFailed: 1,
+      batchFull: false,
+    })
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith(
+      {
+        err: receiptFailure,
+        operationId: OVERDUE_OPERATION_ID,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        state: 'pending',
+      },
+      'AI operation recovery candidate failed',
+    )
+  })
+
+  it('retries aggregate settlement before writing a receipt after a failed pass', async () => {
+    const candidate = {
+      ...pendingCandidate(
+        OVERDUE_OPERATION_ID,
+        NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      ),
+      state: 'failed' as const,
+      failureCode: 'operation_ambiguous' as const,
+    }
+    const advanceWithoutAnalysis = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('aggregate unavailable'))
+      .mockResolvedValueOnce({ status: 'replayed', aggregateRevision: 18 })
+    const recordAnalysisReceipt = vi.fn(async () => undefined)
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const reap = createAiOperationExecutionReaper({
+      store: {
+        listExpiredExecutions: vi.fn(async () => scanOf(candidate)),
+        recordFailure,
+        markDelivered: vi.fn(),
+      },
+      aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
+      recordAnalysisReceipt,
+      nowEpochMillis: () => NOW,
+    })
+
+    await expect(reap()).resolves.toMatchObject({
+      candidatesFailed: 1,
+      operationsSettled: 0,
+    })
+    expect(recordAnalysisReceipt).not.toHaveBeenCalled()
+
+    await expect(reap()).resolves.toMatchObject({
+      candidatesFailed: 0,
+      operationsSettled: 1,
+    })
+    expect(advanceWithoutAnalysis).toHaveBeenCalledTimes(2)
+    expect(recordFailure).not.toHaveBeenCalled()
+    expect(recordAnalysisReceipt).toHaveBeenCalledExactlyOnceWith(EVENT_ID, 'applied')
+  })
+
+  it('counts and reports a row the listing could not read, and recovers the tenants behind it', async () => {
+    const OTHER_ORGANIZATION_ID = organizationId('ai-operation-reaper-other-tenant')
+    const healthyBase = pendingCandidate(
+      STALE_OPERATION_ID,
+      NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+    )
+    const healthy = {
+      ...healthyBase,
+      organizationId: OTHER_ORGANIZATION_ID,
+      analysis: {
+        ...healthyBase.analysis,
+        eventEnvelopeId: STALE_EVENT_ID,
+        organizationId: OTHER_ORGANIZATION_ID,
+      },
+    }
+    const unreadable: AiOperationUnreadableRow = {
+      operationId: OVERDUE_OPERATION_ID,
+      organizationId: ORGANIZATION_ID,
+    }
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => ({ candidates: [healthy], unreadable: [unreadable] }),
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const advanceWithoutAnalysis = vi.fn(async () => ({
+      status: 'applied' as const,
+      aggregateRevision: 18,
+    }))
+    const recordAnalysisReceipt = vi.fn(async () => undefined)
+    const warn = vi.fn()
+
+    const outcome = await createAiOperationExecutionReaper({
+      store: { listExpiredExecutions, recordFailure, markDelivered: vi.fn() },
+      aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
+      recordAnalysisReceipt,
+      logger: { warn },
+      nowEpochMillis: () => NOW,
+      limit: 2,
+    })()
+
+    expect(recordAnalysisReceipt).toHaveBeenCalledWith(STALE_EVENT_ID, 'applied')
+    expect(outcome).toEqual({
+      recoveryCandidatesVisited: 2,
+      operationsFenced: 1,
+      operationsDelivered: 0,
+      operationsSettled: 1,
+      operationsRaced: 0,
+      candidatesFailed: 1,
+      batchFull: true,
+    })
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith(
+      { operationId: OVERDUE_OPERATION_ID, organizationId: ORGANIZATION_ID },
+      'AI operation recovery row unreadable',
+    )
+  })
+})

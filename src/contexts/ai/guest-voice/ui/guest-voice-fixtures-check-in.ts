@@ -10,9 +10,9 @@ import type {
   GuestVoiceIssueGroup,
   GuestVoiceReview,
   GuestVoiceMention,
-} from '#/contexts/ai/application/read-models/guest-voice-v2-facts'
+} from '#/contexts/ai/guest-voice/guest-voice-v2-facts.contracts'
 import { ratingCountsOf } from '#/contexts/ai/application/aspect-review-evidence'
-import { addDays } from '#/contexts/ai/application/local-date'
+import { addDays } from '#/contexts/ai/guest-voice/local-date.contracts'
 import { reviewId } from '#/shared/domain/ids'
 import { PROPERTY_ID, fixtureId, quoteOf } from './guest-voice-fixtures-build'
 

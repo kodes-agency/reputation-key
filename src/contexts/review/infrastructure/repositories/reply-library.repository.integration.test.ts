@@ -7,7 +7,7 @@ import { getEnv } from '#/shared/config/env'
 import { getDb, type Database } from '#/shared/db'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { seedReviewContent } from '#/contexts/ai/infrastructure/testing/review-content-fixture'
+import { seedReviewContent } from '#/contexts/ai/analysis/review-content.test-fixtures'
 import { createReplyLibraryRepository } from './reply-library.repository'
 
 const ORG = organizationId('org-reply-library-repository-0001')

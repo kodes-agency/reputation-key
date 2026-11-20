@@ -1,0 +1,874 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createEnvCapabilityPolicyStore,
+  initCapabilityPolicyStore,
+  resetCapabilityPolicyStore,
+} from '#/shared/auth/beta-capabilities'
+import {
+  createDelayedExecutionPolicy,
+  initDelayedExecutionPolicy,
+  resetDelayedExecutionPolicy,
+} from '#/shared/auth/system-execution-policy'
+import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
+import {
+  createScheduledScopeAuthorizer,
+  gateDispatcherConsumer,
+} from '#/shared/jobs/delayed-execution-gate'
+import { GateDenyRetryError } from '#/shared/jobs/errors'
+import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
+import { createConsumerRegistry, type OutboxRepository } from '#/shared/outbox'
+import {
+  deliveryRetryDelayMs,
+  OUTBOX_DELIVERY_MAX_ATTEMPTS,
+} from '#/shared/outbox/dispatch-job-options'
+import { organizationId, propertyId } from '#/shared/domain/ids'
+import {
+  AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+  AI_BACKFILL_OPERATION_HORIZON_MILLIS,
+  type AnalyzeReviewEventResult,
+} from './analyze-review-event.server'
+import {
+  AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
+  AI_REVIEW_ANALYSIS_CONSUMER,
+  handleAiAuthorizationLifecycleChanged,
+  handleAiReviewEvent,
+  registerAiConsumers,
+  type RegisterAiConsumersInput,
+} from './outbox-consumers.server'
+
+const EVENT_ID = '71000000-0000-4000-8000-000000000201'
+const PROPERTY_ID = '71000000-0000-4000-8000-000000000202'
+const REVIEW_ID = '71000000-0000-4000-8000-000000000203'
+const ORGANIZATION_ID = 'ai-review-consumer-test'
+const RECORDED_AT = '2026-08-16T12:00:00.000Z'
+
+function event(
+  eventType:
+    | 'review.created'
+    | 'review.updated'
+    | 'review.source_transitioned'
+    | 'ai.review_analysis.backfill_requested',
+  change?: 'source_expired' | 'provider_deleted',
+  observationOrigin?: 'ongoing' | 'historical_onboarding',
+): ConsumerEvent {
+  return {
+    eventId: EVENT_ID,
+    eventType,
+    eventVersion: 1,
+    payload: {
+      organizationId: organizationId(ORGANIZATION_ID),
+      propertyId: propertyId(PROPERTY_ID),
+      reviewId: REVIEW_ID,
+      sourceEpoch: 2,
+      sourceRevision: 5,
+      analysisSequence: 7,
+      ...(change ? { change } : {}),
+      ...(observationOrigin ? { observationOrigin } : {}),
+    },
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    sourceContext: 'review',
+    sourceAggregateId: REVIEW_ID,
+    recordedAt: RECORDED_AT,
+  }
+}
+
+function harness(result: AnalyzeReviewEventResult) {
+  const analyzeReviewEvent = vi.fn(async () => result)
+  const insertReceipt = vi.fn(async () => {})
+  const enqueue = vi.fn(async () => {})
+  const applyAiAuthorizationLifecycle = vi.fn<
+    NonNullable<RegisterAiConsumersInput['applyAiAuthorizationLifecycle']>
+  >(async () => ({
+    status: 'applied' as const,
+    lifecycle: {
+      id: '71000000-0000-4000-8000-000000000207',
+      eventEnvelopeId: EVENT_ID,
+      organizationId: organizationId(ORGANIZATION_ID),
+      propertyId: propertyId(PROPERTY_ID),
+      authorizationState: 'enabled' as const,
+      transitionKind: 'change' as const,
+      fence: {
+        authorizationLineageId: '71000000-0000-4000-8000-000000000206',
+        authorizationStateVersion: 4,
+        sourceEpoch: 2,
+        reviewAnalysisEpoch: 3,
+        replyDraftingEpoch: 2,
+        propertyTrendsEpoch: 2,
+        analysisStartSequence: 19,
+      },
+      authorizedCapabilities: ['review_analysis'] as const,
+      visibleDataClasses: ['review_analysis', 'property_aggregate'] as const,
+      retiredDataClasses: [] as const,
+      erasureStatus: 'not_required' as const,
+      erasureDeadlineEpochMillis: null,
+      appliedAtEpochMillis: Date.parse(RECORDED_AT),
+    },
+    enrollment: {
+      status: 'queued' as const,
+      enrollmentId: '71000000-0000-4000-8000-000000000205',
+    },
+  }))
+  const advanceEnrollment = vi.fn<
+    NonNullable<RegisterAiConsumersInput['advanceEnrollment']>
+  >(async () => ({ status: 'replay_started' }))
+  const logger = { warn: vi.fn() }
+  // Current platform policy for the review's Organization and Property. It
+  // allows unless a test says otherwise.
+  const authorizeScope = vi.fn<NonNullable<RegisterAiConsumersInput['authorizeScope']>>(
+    async () => true,
+  )
+  const dependencies = {
+    analyzeReviewEvent,
+    authorizeScope,
+    applyAiAuthorizationLifecycle,
+    advanceEnrollment,
+    receipts: { insertReceipt } as unknown as OutboxRepository,
+    backlog: { enqueue },
+    nowEpochMillis: () => Date.parse(RECORDED_AT) + 1_000,
+    logger,
+  } satisfies RegisterAiConsumersInput
+  return {
+    dependencies,
+    analyzeReviewEvent,
+    authorizeScope,
+    applyAiAuthorizationLifecycle,
+    advanceEnrollment,
+    insertReceipt,
+    enqueue,
+    logger,
+  }
+}
+
+function merchantAiChangedEvent(): ConsumerEvent {
+  return {
+    eventId: EVENT_ID,
+    eventType: 'identity.merchant_ai.changed',
+    eventVersion: 1,
+    payload: {
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      authorizationLineageId: '71000000-0000-4000-8000-000000000206',
+      state: 'enabled',
+      reviewAnalysisEpoch: 3,
+      replyDraftingEpoch: 2,
+      propertyTrendsEpoch: 2,
+      authorizedSourceEpoch: 2,
+      analysisStartSequence: 19,
+      stateVersion: 4,
+      occurredAt: RECORDED_AT,
+      correlationId: null,
+    },
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    sourceContext: 'identity',
+    sourceAggregateId: PROPERTY_ID,
+    recordedAt: RECORDED_AT,
+  }
+}
+
+describe('AI review outbox consumer', () => {
+  it('analyzes an event and records its receipt', async () => {
+    const test = harness({ status: 'completed' })
+
+    await expect(
+      handleAiReviewEvent(test.dependencies, event('review.updated')),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(test.analyzeReviewEvent).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      sourceEpoch: 2,
+      sourceRevision: 5,
+      analysisSequence: 7,
+      eventEnvelopeId: EVENT_ID,
+      disposition: 'pending',
+      eventRecordedAtEpochMillis: Date.parse(RECORDED_AT),
+      operationHorizonMillis: AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+      execution: 'execute',
+      lane: 'background',
+    })
+    expect(test.enqueue).not.toHaveBeenCalled()
+    expect(test.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      AI_REVIEW_ANALYSIS_CONSUMER,
+      'applied',
+    )
+  })
+
+  it('gives a backfill event the backfill horizon', async () => {
+    const test = harness({ status: 'completed' })
+
+    await expect(
+      handleAiReviewEvent(
+        test.dependencies,
+        event('ai.review_analysis.backfill_requested'),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(test.analyzeReviewEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        disposition: 'pending',
+        operationHorizonMillis: AI_BACKFILL_OPERATION_HORIZON_MILLIS,
+        execution: 'defer',
+      }),
+    )
+  })
+
+  it.each([
+    ['ai.review_analysis.backfill_requested', undefined, 'backfill'],
+    ['review.created', 'historical_onboarding', 'historical_onboarding'],
+    ['review.updated', 'historical_onboarding', 'historical_onboarding'],
+  ] as const)(
+    'queues %s history for the background lane and receipts the event',
+    async (eventType, observationOrigin, origin) => {
+      const test = harness({ status: 'deferred' })
+
+      await expect(
+        handleAiReviewEvent(
+          test.dependencies,
+          event(eventType, undefined, observationOrigin),
+        ),
+      ).resolves.toEqual({ status: 'applied' })
+      expect(test.analyzeReviewEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ execution: 'defer', lane: 'background' }),
+      )
+      expect(test.enqueue).toHaveBeenCalledWith({
+        eventEnvelopeId: EVENT_ID,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_ID,
+        sourceEpoch: 2,
+        sourceRevision: 5,
+        analysisSequence: 7,
+        origin,
+        nowEpochMillis: Date.parse(RECORDED_AT) + 1_000,
+      })
+      expect(test.insertReceipt).toHaveBeenCalledWith(
+        EVENT_ID,
+        AI_REVIEW_ANALYSIS_CONSUMER,
+        'applied',
+      )
+    },
+  )
+
+  it('analyses an ongoing review on delivery', async () => {
+    const test = harness({ status: 'completed' })
+
+    await handleAiReviewEvent(
+      test.dependencies,
+      event('review.created', undefined, 'ongoing'),
+    )
+
+    expect(test.analyzeReviewEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ execution: 'execute' }),
+    )
+    expect(test.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('queues a live review whose background lane was busy instead of redelivering it', async () => {
+    const test = harness({
+      status: 'retry',
+      retryAtEpochMillis: Date.parse(RECORDED_AT) + 30_000,
+      code: 'admission_busy',
+    })
+
+    await expect(
+      handleAiReviewEvent(test.dependencies, event('review.created')),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(test.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ eventEnvelopeId: EVENT_ID, origin: 'deferred_live' }),
+    )
+    expect(test.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      AI_REVIEW_ANALYSIS_CONSUMER,
+      'applied',
+    )
+  })
+
+  // ── A review that arrives during a stop ──────────────────────────────────
+  //
+  // The backlog is where a stopped review waits (the drain returns it untried
+  // until the stop lifts), so its event must end there and be receipted, not
+  // be settled or lost.
+
+  it.each([
+    ['a new review', 'review.created', 'ongoing', 'deferred_live'],
+    ['an edited review', 'review.updated', undefined, 'deferred_live'],
+    [
+      'an imported review',
+      'review.created',
+      'historical_onboarding',
+      'historical_onboarding',
+    ],
+    ['a backfill', 'ai.review_analysis.backfill_requested', undefined, 'backfill'],
+  ] as const)(
+    'queues %s when an AI execution control is stopped',
+    async (_case, eventType, observationOrigin, origin) => {
+      const test = harness({ status: 'stopped' })
+
+      await expect(
+        handleAiReviewEvent(
+          test.dependencies,
+          event(eventType, undefined, observationOrigin),
+        ),
+      ).resolves.toEqual({ status: 'applied' })
+      expect(test.enqueue).toHaveBeenCalledExactlyOnceWith({
+        eventEnvelopeId: EVENT_ID,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_ID,
+        sourceEpoch: 2,
+        sourceRevision: 5,
+        analysisSequence: 7,
+        origin,
+        nowEpochMillis: Date.parse(RECORDED_AT) + 1_000,
+      })
+      expect(test.insertReceipt).toHaveBeenCalledExactlyOnceWith(
+        EVENT_ID,
+        AI_REVIEW_ANALYSIS_CONSUMER,
+        'applied',
+      )
+    },
+  )
+
+  it('asks policy about the review before analysing it on delivery', async () => {
+    const test = harness({ status: 'completed' })
+
+    await handleAiReviewEvent(
+      test.dependencies,
+      event('review.created', undefined, 'ongoing'),
+    )
+
+    expect(test.authorizeScope).toHaveBeenCalledExactlyOnceWith(
+      ORGANIZATION_ID,
+      PROPERTY_ID,
+    )
+    expect(test.authorizeScope.mock.invocationCallOrder[0]).toBeLessThan(
+      test.analyzeReviewEvent.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('queues a live review policy refuses, after only the checks that need no provider call', async () => {
+    const test = harness({ status: 'deferred' })
+    test.authorizeScope.mockResolvedValue(false)
+
+    await expect(
+      handleAiReviewEvent(
+        test.dependencies,
+        event('review.created', undefined, 'ongoing'),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(test.analyzeReviewEvent).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ execution: 'defer' }),
+    )
+    expect(test.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ eventEnvelopeId: EVENT_ID, origin: 'deferred_live' }),
+    )
+    expect(test.insertReceipt).toHaveBeenCalledExactlyOnceWith(
+      EVENT_ID,
+      AI_REVIEW_ANALYSIS_CONSUMER,
+      'applied',
+    )
+  })
+
+  it('queues nothing for a refused review that needs no analysis', async () => {
+    // No enablement, a merchant who switched AI off, a review without text:
+    // the analysis settles or acknowledges those itself, refused or not.
+    const test = harness({ status: 'replayed' })
+    test.authorizeScope.mockResolvedValue(false)
+
+    await expect(
+      handleAiReviewEvent(
+        test.dependencies,
+        event('review.created', undefined, 'ongoing'),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(test.enqueue).not.toHaveBeenCalled()
+  })
+
+  // The catalogue row is ungated, so the policy question is all that stands
+  // between a stopped Organization and a provider call on delivery. A consumer
+  // that was not given one must not make that call.
+  it('never analyses on delivery when it was given no policy question to ask', async () => {
+    const test = harness({ status: 'deferred' })
+    const { authorizeScope: _notWired, ...unwired } = test.dependencies
+
+    await handleAiReviewEvent(unwired, event('review.created', undefined, 'ongoing'))
+
+    expect(test.analyzeReviewEvent).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ execution: 'defer' }),
+    )
+    expect(test.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ origin: 'deferred_live' }),
+    )
+  })
+
+  it('leaves the event unreceipted for a retry when policy cannot be read', async () => {
+    const test = harness({ status: 'completed' })
+    const unavailable = new GateDenyRetryError(
+      'system:ai.review_analysis_backlog_drain',
+      'policy_unavailable',
+    )
+    test.authorizeScope.mockRejectedValue(unavailable)
+
+    await expect(
+      handleAiReviewEvent(
+        test.dependencies,
+        event('review.created', undefined, 'ongoing'),
+      ),
+    ).rejects.toBe(unavailable)
+    expect(test.analyzeReviewEvent).not.toHaveBeenCalled()
+    expect(test.enqueue).not.toHaveBeenCalled()
+    expect(test.insertReceipt).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'history, which is queued',
+      event('review.created', undefined, 'historical_onboarding'),
+    ],
+    ['a backfill, which is queued', event('ai.review_analysis.backfill_requested')],
+    [
+      'a source transition, which is only settled',
+      event('review.source_transitioned', 'provider_deleted'),
+    ],
+  ])('does not ask policy about %s', async (_case, delivered) => {
+    const test = harness({ status: 'terminal' })
+    test.authorizeScope.mockResolvedValue(false)
+
+    await expect(handleAiReviewEvent(test.dependencies, delivered)).resolves.toEqual({
+      status: 'applied',
+    })
+    expect(test.authorizeScope).not.toHaveBeenCalled()
+  })
+
+  it('receipts an already-handled replay as applied', async () => {
+    const test = harness({ status: 'replayed' })
+
+    await expect(
+      handleAiReviewEvent(test.dependencies, event('review.updated')),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(test.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      AI_REVIEW_ANALYSIS_CONSUMER,
+      'applied',
+    )
+  })
+
+  it('analyzes events carrying the envelope fields the producer actually emits', async () => {
+    // Real google-closed-beta payload: the registry adds `platform` and
+    // `occurredAt`, and every emitted event carries `correlationId`. A strict
+    // consumer schema rejected all three, so no review was ever analyzed.
+    const test = harness({ status: 'completed' })
+    const emitted = {
+      ...event('review.created'),
+      payload: {
+        platform: 'google',
+        reviewId: REVIEW_ID,
+        occurredAt: '2026-08-19T10:07:34.800Z',
+        propertyId: PROPERTY_ID,
+        sourceEpoch: 0,
+        correlationId: null,
+        organizationId: ORGANIZATION_ID,
+        sourceRevision: 1,
+        analysisSequence: 256,
+      },
+    }
+
+    await expect(handleAiReviewEvent(test.dependencies, emitted)).resolves.toEqual({
+      status: 'applied',
+    })
+    expect(test.analyzeReviewEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceEpoch: 0,
+        sourceRevision: 1,
+        analysisSequence: 256,
+      }),
+    )
+  })
+
+  // A transition is only ever settled, and policy is not asked about it. So it
+  // is handed over as `defer`: the settlement is the same, and the delivery
+  // holds no authority for a provider call it was never cleared for.
+  it('maps source transitions to terminal dispositions, without authority for a provider call', async () => {
+    const test = harness({ status: 'terminal' })
+
+    await handleAiReviewEvent(
+      test.dependencies,
+      event('review.source_transitioned', 'provider_deleted'),
+    )
+
+    expect(test.analyzeReviewEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ disposition: 'provider_deleted', execution: 'defer' }),
+    )
+  })
+
+  it('records generation changes as obsolete without scheduling trends', async () => {
+    const test = harness({ status: 'generation_changed' })
+
+    await expect(
+      handleAiReviewEvent(test.dependencies, event('review.created')),
+    ).resolves.toEqual({ status: 'obsolete' })
+    expect(test.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      AI_REVIEW_ANALYSIS_CONSUMER,
+      'obsolete',
+    )
+  })
+
+  it('leaves retryable events unreceipted', async () => {
+    const test = harness({
+      status: 'retry',
+      retryAtEpochMillis: 1,
+      code: 'provider_unavailable',
+    })
+
+    await expect(
+      handleAiReviewEvent(test.dependencies, event('review.updated')),
+    ).rejects.toThrow('AI review analysis retry required: provider_unavailable')
+    expect(test.insertReceipt).not.toHaveBeenCalled()
+  })
+
+  it('anchors the operation horizon on recordedAt, falling back to occurredAt', async () => {
+    const test = harness({ status: 'completed' })
+    const occurredOnly = { ...event('review.created'), recordedAt: undefined }
+    const neither = { ...occurredOnly, occurredAt: undefined }
+
+    await handleAiReviewEvent(test.dependencies, {
+      ...event('review.created'),
+      occurredAt: '2020-01-01T00:00:00.000Z',
+    })
+    expect(test.analyzeReviewEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ eventRecordedAtEpochMillis: Date.parse(RECORDED_AT) }),
+    )
+
+    await handleAiReviewEvent(test.dependencies, {
+      ...occurredOnly,
+      occurredAt: '2020-01-01T00:00:00.000Z',
+    })
+    expect(test.analyzeReviewEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        eventRecordedAtEpochMillis: Date.parse('2020-01-01T00:00:00.000Z'),
+      }),
+    )
+
+    await handleAiReviewEvent(test.dependencies, neither)
+    expect(test.analyzeReviewEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ eventRecordedAtEpochMillis: null }),
+    )
+  })
+
+  it('gives the analysis consumer a dispatch budget that outlasts its operation horizon', () => {
+    // The first eight claims must outlast an operation's terminal horizon;
+    // later windows remain available after a temporary configuration outage.
+    const attempts = OUTBOX_DELIVERY_MAX_ATTEMPTS
+    let minimumElapsedBeforePenultimateAttempt = 0
+    for (let attempt = 1; attempt < 7; attempt++)
+      minimumElapsedBeforePenultimateAttempt += deliveryRetryDelayMs(attempt)
+    expect(deliveryRetryDelayMs(8)).toBeGreaterThanOrEqual(2 * 60 * 60_000)
+    expect(deliveryRetryDelayMs(16)).toBeGreaterThanOrEqual(4 * 60 * 60_000)
+    expect(deliveryRetryDelayMs(24)).toBeGreaterThanOrEqual(8 * 60 * 60_000)
+
+    expect(attempts).toBeGreaterThan(4)
+    expect(minimumElapsedBeforePenultimateAttempt).toBeGreaterThan(
+      AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+    )
+  })
+})
+
+describe('AI authorization lifecycle consumer', () => {
+  it('applies the complete authorization generation before enrollment', async () => {
+    const test = harness({ status: 'completed' })
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(test.applyAiAuthorizationLifecycle).toHaveBeenCalledWith({
+      eventEnvelopeId: EVENT_ID,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      authorizationState: 'enabled',
+      fence: {
+        authorizationLineageId: '71000000-0000-4000-8000-000000000206',
+        authorizationStateVersion: 4,
+        sourceEpoch: 2,
+        reviewAnalysisEpoch: 3,
+        replyDraftingEpoch: 2,
+        propertyTrendsEpoch: 2,
+        analysisStartSequence: 19,
+      },
+      correlationId: null,
+      occurredAt: new Date(RECORDED_AT),
+    })
+    // The enrollment command store owns state + receipt atomically. A second
+    // standalone receipt here would recreate the crash window this trigger is
+    // meant to close.
+    expect(test.insertReceipt).not.toHaveBeenCalledWith(
+      EVENT_ID,
+      AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
+      expect.anything(),
+    )
+  })
+
+  it('receipts a delayed authorization generation as obsolete', async () => {
+    const test = harness({ status: 'completed' })
+    test.applyAiAuthorizationLifecycle.mockResolvedValueOnce({
+      status: 'obsolete',
+      reason: 'authorization_state_version_changed',
+    })
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'obsolete' })
+  })
+
+  it.each(['enabled', 'disabled', 'revoked'] as const)(
+    'accepts the identifier-only %s lifecycle state',
+    async (authorizationState) => {
+      const test = harness({ status: 'completed' })
+      const changed = merchantAiChangedEvent()
+
+      await expect(
+        handleAiAuthorizationLifecycleChanged(test.dependencies, {
+          ...changed,
+          payload: {
+            ...(changed.payload as Readonly<Record<string, unknown>>),
+            state: authorizationState,
+          },
+        }),
+      ).resolves.toEqual({ status: 'applied' })
+
+      expect(test.applyAiAuthorizationLifecycle).toHaveBeenCalledWith(
+        expect.objectContaining({ authorizationState }),
+      )
+    },
+  )
+
+  it('maps a replayed lifecycle command to a duplicate consumer result', async () => {
+    const test = harness({ status: 'completed' })
+    test.applyAiAuthorizationLifecycle.mockResolvedValueOnce({
+      status: 'duplicate',
+      enrollmentId: '71000000-0000-4000-8000-000000000205',
+    })
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'duplicate' })
+  })
+
+  it('opens a freshly queued enrollment on delivery, not at the next sweep', async () => {
+    const test = harness({ status: 'completed' })
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(test.advanceEnrollment).toHaveBeenCalledOnce()
+    expect(test.advanceEnrollment).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+    })
+  })
+
+  it.each([
+    [
+      'a replayed trigger',
+      { status: 'duplicate', enrollmentId: '71000000-0000-4000-8000-000000000205' },
+    ],
+    [
+      'an obsolete generation',
+      { status: 'obsolete', reason: 'authorization_state_version_changed' },
+    ],
+    [
+      'a trigger that enrols nothing',
+      {
+        status: 'applied',
+        enrollment: { status: 'not_applicable', reason: 'authorization_not_enabled' },
+      },
+    ],
+    [
+      'an enrollment awaiting assisted approval',
+      {
+        status: 'applied',
+        enrollment: {
+          status: 'awaiting_assisted_approval',
+          enrollmentId: '71000000-0000-4000-8000-000000000205',
+          eligibleRevisionCount: 10_001,
+          safetyCeiling: 10_000,
+        },
+      },
+    ],
+  ] as const)('leaves %s to the enrollment sweep', async (_case, applied) => {
+    const test = harness({ status: 'completed' })
+    test.applyAiAuthorizationLifecycle.mockResolvedValueOnce(applied)
+
+    await handleAiAuthorizationLifecycleChanged(
+      test.dependencies,
+      merchantAiChangedEvent(),
+    )
+
+    expect(test.advanceEnrollment).not.toHaveBeenCalled()
+  })
+
+  it('keeps the applied result when opening the enrollment fails, and records it', async () => {
+    const test = harness({ status: 'completed' })
+    const failure = new Error('enrollment store unavailable')
+    test.advanceEnrollment.mockRejectedValueOnce(failure)
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(test.logger.warn).toHaveBeenCalledOnce()
+    expect(test.logger.warn).toHaveBeenCalledWith(
+      { err: failure, organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID },
+      'AI review analysis enrollment advance failed',
+    )
+  })
+})
+
+// The dispatcher authorizes each consumer under its own catalogue row, and a
+// terminal denial records an obsolete receipt that is never retried. Every AI
+// consumer used to share the trends row, so stopping trends (ai.detect_trends)
+// lost Review Analysis and enrollment deliveries for good, while stopping
+// analysis (ai.analyze) left the analysis consumer running.
+//
+// Review Analysis then got its own row, gated on ai.analyze. That stopped the
+// provider work and also lost every review that arrived during the stop: the
+// obsolete receipt is final, so nothing analysed it once the stop was lifted.
+// The row is ungated now. The stop applies where provider work is decided: the
+// consumer asks current policy before analysing on delivery and queues what is
+// refused, and the backlog drain and the on-demand job are gated on ai.analyze
+// (review-analysis-backlog-jobs-policy.integration.test.ts runs all of them).
+describe('AI consumer authorization', () => {
+  const registrations = () => {
+    const registry = createConsumerRegistry()
+    registerAiConsumers(registry, harness({ status: 'completed' }).dependencies)
+    return [...new Set(registry.list().map(({ eventType }) => eventType))].flatMap(
+      (eventType) => registry.listFor(eventType),
+    )
+  }
+
+  /** The reason the real delayed policy gives one consumer under `env`. */
+  const gateUnder = async (
+    env: Readonly<Record<string, string>>,
+    consumerName: string,
+    envelope: ConsumerEvent,
+  ): Promise<string> => {
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
+    const registration = registrations().find(
+      (candidate) =>
+        candidate.eventType === envelope.eventType &&
+        candidate.consumerName === consumerName,
+    )
+    const outcome = await gateDispatcherConsumer(
+      consumerName,
+      registration!.module,
+      envelope,
+    )
+    return outcome.decision.reason
+  }
+
+  /** The same, under one switch turned off. */
+  const gateUnderStop = (
+    stopped: string,
+    consumerName: string,
+    envelope: ConsumerEvent,
+  ) => gateUnder({ BETA_CAPABILITIES_OFF: stopped }, consumerName, envelope)
+
+  beforeEach(() => {
+    initDelayedExecutionPolicy(
+      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
+    )
+  })
+
+  afterEach(() => {
+    resetDelayedExecutionPolicy()
+    resetCapabilityPolicyStore()
+  })
+
+  it('leaves the two recording consumers ungated', () => {
+    // Enrollment records the merchant's enable, disable or revoke, and the
+    // analysis consumer records that a review is owed an analysis: no stop may
+    // lose either. The provider work both lead to is gated on ai.analyze
+    // further on.
+    const served: Readonly<Record<string, string | undefined>> = {
+      [AI_REVIEW_ANALYSIS_CONSUMER]: 'none',
+      [AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER]: 'none',
+    }
+    const routes = registrations().map(({ eventType, consumerName, module }) => ({
+      route: `${eventType} → ${consumerName}`,
+      consumerName,
+      gate: ENTRY_POINT_CATALOGUE.find(
+        (row) => row.kind === 'consumer' && row.name === module,
+      )?.capability,
+    }))
+
+    expect(new Set(routes.map(({ consumerName }) => consumerName))).toEqual(
+      new Set(Object.keys(served)),
+    )
+    expect(
+      routes
+        .filter(({ consumerName, gate }) => gate !== served[consumerName])
+        .map(({ route, gate }) => `${route}: ${gate}`),
+    ).toEqual([])
+  })
+
+  it('keeps recording reviews owed an analysis and enrollment while AI is switched off', async () => {
+    const stopped = 'ai'
+
+    expect({
+      analysis: await gateUnderStop(
+        stopped,
+        AI_REVIEW_ANALYSIS_CONSUMER,
+        event('review.created'),
+      ),
+      enrollment: await gateUnderStop(
+        stopped,
+        AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
+        merchantAiChangedEvent(),
+      ),
+    }).toEqual({
+      analysis: 'allowed',
+      enrollment: 'allowed',
+    })
+  })
+
+  it.each([
+    ['AI is switched off', { BETA_CAPABILITIES_OFF: 'ai' }],
+    ['everything is switched off', { BETA_CAPABILITIES_OFF: 'all' }],
+    ['the Organization is suspended', { BETA_SUSPENDED_ORGS: ORGANIZATION_ID }],
+  ])(
+    'still delivers every review event to the analysis consumer while %s, and refuses it the provider call',
+    async (_stop, env) => {
+      const delivered = [
+        event('review.created', undefined, 'ongoing'),
+        event('review.updated'),
+        event('review.source_transitioned', 'provider_deleted'),
+        event('ai.review_analysis.backfill_requested'),
+      ]
+      const reasons: string[] = []
+      for (const envelope of delivered) {
+        reasons.push(await gateUnder(env, AI_REVIEW_ANALYSIS_CONSUMER, envelope))
+      }
+      // The question composition hands the consumer (the drain's own).
+      const mayAnalyse = await createScheduledScopeAuthorizer(
+        'system:ai.review_analysis_backlog_drain',
+      )(ORGANIZATION_ID, PROPERTY_ID)
+
+      expect({ reasons, mayAnalyse }).toEqual({
+        reasons: ['allowed', 'allowed', 'allowed', 'allowed'],
+        mayAnalyse: false,
+      })
+    },
+  )
+
+  it('still requires the Property a review event names', async () => {
+    const unscoped = { ...event('review.created'), propertyId: null }
+
+    await expect(gateUnder({}, AI_REVIEW_ANALYSIS_CONSUMER, unscoped)).resolves.toBe(
+      'missing_scope',
+    )
+  })
+})

@@ -1,7 +1,13 @@
 import { expect, it } from 'vitest'
 import { assembleGuestVoiceV2 } from './guest-voice-v2-build'
 import { buildGuestVoiceDetail } from './guest-voice-v2-details'
-import { ISSUE, OTHER, input, mention, review } from './guest-voice-v2.test-fixtures'
+import {
+  ISSUE,
+  OTHER,
+  input,
+  mention,
+  review,
+} from '../../guest-voice/guest-voice-v2.test-fixtures'
 
 it('shares collision-safe complaint titles across urgent rows, ranked rows and issue detail', () => {
   const current = [ISSUE, OTHER].flatMap((id, i) =>

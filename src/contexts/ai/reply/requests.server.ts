@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 import { measureReplyDraftingAttempt } from './measurement.server'
-import type { AiOperationState } from '../application/ports/ai-operation-store.port'
+import type { AiOperationState } from '../execution/ai-operation-store.port.server'
 import { aiRequestFingerprint } from '../application/ai-workflow-support'
 import type {
   GenerateReplySuggestionDependencies,
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
-} from '../application/reply-suggestion-contract'
+} from './reply-suggestion-contract.server'
 import { admitInteractiveDraft, type ReplyDraftingV2Attempt } from './workflow.server'
 import {
   reportReplyProgress,

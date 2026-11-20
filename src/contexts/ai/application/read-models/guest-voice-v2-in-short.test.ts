@@ -1,6 +1,11 @@
 import { expect, it } from 'vitest'
 import { assembleGuestVoiceV2 } from './guest-voice-v2-build'
-import { groups, input, mention, review } from './guest-voice-v2.test-fixtures'
+import {
+  groups,
+  input,
+  mention,
+  review,
+} from '../../guest-voice/guest-voice-v2.test-fixtures'
 
 it('uses the thing-only name in the page and Overview summary without repeating the cause', () => {
   const current = [review(1), review(2), review(3)]

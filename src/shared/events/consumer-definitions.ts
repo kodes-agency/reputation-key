@@ -41,7 +41,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ['inbox.on-reply-published', 'inbox.outbox-consumers', ['review.reply.published']],
     ['inbox.on-reply-observed', 'inbox.outbox-consumers', ['review.reply.observed']],
   ]),
-  ...consumersIn('src/contexts/ai/infrastructure/outbox-consumers.ts', [
+  ...consumersIn('src/contexts/ai/analysis/outbox-consumers.server.ts', [
     [
       'ai.analyze-review-event',
       'ai.review-analysis-consumers',
