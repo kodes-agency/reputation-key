@@ -11,7 +11,7 @@ import {
   createRouter,
   RouterContextProvider,
 } from '@tanstack/react-router'
-import type { PublicImmersiveLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
+import type { PublicImmersiveLoaderData } from '#/contexts/guest/page/public-portal.contracts'
 import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import type { GuestResponseActions } from '#/contexts/guest/page/ui/guest-response-actions'
 import {

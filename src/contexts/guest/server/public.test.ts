@@ -5,7 +5,7 @@
 
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { resolveLinkAndTrack } from '../application/use-cases/resolve-link-and-track'
+import { resolveLinkAndTrack } from '../page/resolve-link-and-track.server'
 
 import {
   selectGoogleReviewFn,
@@ -29,7 +29,7 @@ describe('guest response server-fn gates', () => {
     readFileSync(new URL('./public.ts', import.meta.url), 'utf8'),
   ].join('\n')
   const responseDtoSource = readFileSync(
-    new URL('../application/dto/guest-response-form.dto.ts', import.meta.url),
+    new URL('../responses/guest-response-form.contracts.ts', import.meta.url),
     'utf8',
   )
   const publicMutationServerFns = [

@@ -1,4 +1,4 @@
-import { createPortalScanPatternsReader } from './infrastructure/repositories/portal-scan-patterns.reader'
+import { createPortalScanPatternsReader } from './page/portal-scan-patterns-reader.server'
 import type { Database } from '#/shared/db'
 import type {
   PortalContactRequestManagerAuthorityPublicApi,
@@ -12,20 +12,20 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Clock } from '#/shared/domain/clock'
 import { createGuestResponseRepository } from './responses/guest-response.repository.server'
-import type { GuestResponseContentFilter } from './application/ports/guest-response.repository'
+import type { GuestResponseContentFilter } from './responses/guest-response.repository.port.server'
 import { createAtomicGuestResponseCommandStore } from './responses/guest-response-command-store.server'
 import {
   createGuestWithdrawalJournal,
   type GuestWithdrawalJournalConfig,
-} from './infrastructure/guest-withdrawal-journal.server'
-import { createAtomicGuestObservationStore } from './infrastructure/guest-observation-store'
-import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
-import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'
-import { recordScan } from './application/use-cases/record-scan'
-import { trackReviewLinkClick } from './application/use-cases/track-review-link-click'
-import { resolveLinkAndTrack } from './application/use-cases/resolve-link-and-track'
-import { resolvePortalContext } from './application/use-cases/resolve-portal-context'
-import { getPublicPortal } from './application/use-cases/get-public-portal'
+} from './responses/guest-withdrawal-journal.server'
+import { createAtomicGuestObservationStore } from './page/guest-observation-store.server'
+import { createPortalContextResolver } from './page/portal-context-resolver.server'
+import { createPublicPortalLookup } from './page/public-portal-lookup.server'
+import { recordScan } from './page/record-scan.server'
+import { trackReviewLinkClick } from './page/track-review-link-click.server'
+import { resolveLinkAndTrack } from './page/resolve-link-and-track.server'
+import { resolvePortalContext } from './page/resolve-portal-context.server'
+import { getPublicPortal } from './page/get-public-portal.server'
 import {
   guestResponseLifecycle,
   type OperatorErasureAuthority,
@@ -39,19 +39,19 @@ import {
   scanEventId,
   unbrand,
 } from '#/shared/domain/ids'
-import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback-portal-attribution'
-import { getPortalResponseIntegritySummary } from './application/use-cases/get-portal-response-integrity-summary'
-import { getPortalRatingLanguages } from './application/use-cases/get-portal-rating-languages'
-import { createGuestNetworkPressureStore } from './infrastructure/guest-network-pressure.store'
-import { createResponseCeilingStore } from './infrastructure/response-ceiling-store.server'
-import { createResponseCeiling } from './application/use-cases/response-ceiling.server'
-import { consumeGuestNetworkPressure } from './application/use-cases/consume-guest-network-pressure'
+import { createFeedbackPortalAttributionLookup } from './responses/feedback-portal-attribution.server'
+import { getPortalResponseIntegritySummary } from './responses/get-portal-response-integrity-summary.server'
+import { getPortalRatingLanguages } from './responses/get-portal-rating-languages.server'
+import { createGuestNetworkPressureStore } from './page/guest-network-pressure-store.server'
+import { createResponseCeilingStore } from './responses/response-ceiling-store.server'
+import { createResponseCeiling } from './responses/response-ceiling.server'
+import { consumeGuestNetworkPressure } from './page/consume-guest-network-pressure.server'
 import {
   createGuestObservationLossMonitor,
   type GuestObservationLossRedisPort,
-} from './infrastructure/guest-observation-loss-monitor'
-import { reportGuestObservationLoss } from './application/use-cases/report-observation-loss'
-import { reportGuestNetworkBudgetExhausted } from './application/use-cases/report-network-budget-exhausted'
+} from './page/guest-observation-loss-monitor.server'
+import { reportGuestObservationLoss } from './page/report-observation-loss.server'
+import { reportGuestNetworkBudgetExhausted } from './page/report-network-budget-exhausted.server'
 import { createGuestNetworkPseudonymHasher } from './server/hash-ip.server'
 import type { ExecutionPolicy } from '#/shared/auth/execution-policy'
 import {

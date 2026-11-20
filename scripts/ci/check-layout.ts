@@ -87,7 +87,7 @@ export const LAYOUT: Layout = {
   areas: {
     ai: ['guest-voice', 'replay', 'reply'],
     feed: ['audit', 'email', 'feed', 'notify', 'preferences', 'rights'],
-    guest: ['contact-requests', 'page', 'responses'],
+    guest: ['contact-requests', 'page', 'responses', 'rights'],
     identity: [
       'consent',
       'feedback',

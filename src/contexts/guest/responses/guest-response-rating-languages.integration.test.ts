@@ -10,8 +10,8 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
-import { getPortalRatingLanguages } from '../application/use-cases/get-portal-rating-languages'
-import { getPortalResponseIntegritySummary } from '../application/use-cases/get-portal-response-integrity-summary'
+import { getPortalRatingLanguages } from './get-portal-rating-languages.server'
+import { getPortalResponseIntegritySummary } from './get-portal-response-integrity-summary.server'
 import { createGuestResponseRepository } from './guest-response.repository.server'
 
 const db = getDb()

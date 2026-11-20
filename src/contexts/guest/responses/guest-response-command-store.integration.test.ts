@@ -25,7 +25,7 @@ import {
   initialGuestResponseIntegrityDecision,
   type GuestResponseInitialIntegrityAssessment,
 } from '../domain/guest-response-integrity'
-import type { GuestSubmissionFact } from '../application/ports/guest-response-command-store.port'
+import type { GuestSubmissionFact } from './guest-response-command-store.port.server'
 import { createAtomicGuestResponseCommandStore as createAtomicGuestResponseCommandStoreFactory } from './guest-response-command-store.server'
 import { createGuestResponseRepository as createGuestResponseRepositoryFactory } from './guest-response.repository.server'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'

@@ -33,7 +33,7 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/feed/email/notification-digest-batch.server.ts#settleRejected': 1,
   'src/contexts/feed/email/notification-digest-batch.server.ts#settleSuperseded': 1,
   'src/contexts/feed/email/notification-digest-batch.server.ts#suppressAndClose': 1,
-  'src/contexts/guest/infrastructure/guest-observation-store.ts#retractQualifiedScan': 1,
+  'src/contexts/guest/page/guest-observation-store.server.ts#retractQualifiedScan': 1,
   'src/contexts/reputation/inbox/feedback-handling-store.server.ts#correctOutcome': 1,
   'src/contexts/inbox/infrastructure/inbox-escalation-history.ts#readInboxEscalationHistory': 1,
   'src/contexts/reputation/inbox/response-targets/store.server.ts#cancelResponseTargetForCycle': 1,

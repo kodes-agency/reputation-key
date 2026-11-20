@@ -12,7 +12,7 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { createGuestBackupErasureReplayer } from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
+import { createGuestBackupErasureReplayer } from '#/contexts/guest/rights/guest-backup-erasure-replayer.adapter.server'
 import { getDb, type Database } from '#/shared/db'
 import {
   applyRestoreResurrectionFence,
