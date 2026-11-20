@@ -502,6 +502,15 @@ export default tseslint.config(
               from: fileCategory('feature-contract'),
               allow: { to: elementTypes('domain', ...SHARED_BROWSER) },
             },
+            // A contract may name another area's public types, as an application/
+            // DTO may; it takes types only.
+            {
+              from: fileCategory('feature-contract'),
+              allow: {
+                dependency: { kind: 'type' },
+                to: { file: { path: 'src/contexts/*/application/public-api.ts' } },
+              },
+            },
             {
               from: elementTypes('routes', 'components', 'feature-ui'),
               allow: { to: fileCategory('feature-contract') },
@@ -526,6 +535,17 @@ export default tseslint.config(
                   },
                 },
               },
+            },
+            // A feature adapter implements a port another area owns, as
+            // infrastructure/adapters/ may.
+            {
+              from: {
+                file: {
+                  categories: 'feature-server',
+                  path: 'src/contexts/*/*/*.adapter.server.ts',
+                },
+              },
+              allow: { to: { file: { path: 'src/contexts/*/application/ports/**' } } },
             },
             // Review, Inbox and Reputation form one bounded context: Reputation's
             // feature servers may use Review and Inbox internals.
@@ -938,7 +958,8 @@ export default tseslint.config(
   // ─── BQC-5.1: cross-context public-api rule ────────────────────────
   // CONTEXT.md "Dependency rules": cross-context imports go through the
   // target context's application/public-api.ts only; infrastructure/adapters/**
-  // may import the foreign application/ports/** contract they implement.
+  // and feature *.adapter.server.ts files may import the foreign
+  // application/ports/** contract they implement.
   {
     files: ['src/contexts/**/*.{ts,tsx}'],
     plugins: { local },
