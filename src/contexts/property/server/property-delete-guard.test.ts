@@ -28,7 +28,7 @@ const ACTOR = {
   role: 'AccountAdmin',
 } as const
 
-describe('LIF-01 Property deletion server boundary', () => {
+describe('Property deletion server boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(ACTOR)
