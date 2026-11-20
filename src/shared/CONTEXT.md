@@ -301,6 +301,33 @@ without asserting, so a green local run does not prove they ran. With
 `integration` job sets it, and `testing/redis-test-lease.test.ts` pins that the
 job running the integration project has a Redis service and requires it.
 
+### Server-function harness
+
+Test a server function with `testing/server-function-harness.ts` in a
+`*.integration.test.ts` file beside it, not with `vi.mock` of `#/composition`,
+`#/shared/auth/headers`, `#/shared/auth/middleware` or
+`#/shared/auth/execution-policy`. `setupServerFunctionHarness()` builds the real
+container (in-memory queues, Google OAuth and storage; no Redis or email) and
+makes it the process's container. `seedOrganization`, `seedMember(org, role)`,
+`seedProperty`, `seedPortal` and `grantProperty` write the rows; a member signs
+in through Better Auth and selects the Organization as the app does.
+`callAs(member, () => fn({ data }))` runs the call in a Start request carrying
+that member's session cookie (`null` for no session), so tenant resolution and
+the execution policy decide it: a missing guard or a wrong role fails the test.
+
+The file also declares
+`vi.mock('@tanstack/react-start', async () => (await import('#/shared/testing/compiled-server-fns')).startServerBuild)`.
+It binds each handler as Start's compiler does for the server, so the input
+validator runs and the call answers with the handler's result or throws its
+error; uncompiled, the result is lost. Global request and function middleware
+(Sentry, release skew, request guards) are not run.
+
+Assert on what the member gets back and on the rows left behind: the allowed
+role succeeds, a refused role gets its refusal code, another Organization's
+member is refused or finds nothing. Name in `cleanupTables` the tables the
+calls write whose rows would keep a seeded Property or Portal from being
+deleted. Use a plain unit test only for a rule that needs no request.
+
 ## Verification
 
 Keep unit tests beside each shared contract. Use PostgreSQL/Redis integration tests
