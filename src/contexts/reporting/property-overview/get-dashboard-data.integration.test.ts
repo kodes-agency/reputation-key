@@ -22,9 +22,10 @@ const NOW = new Date('2025-06-15T12:00:00.000Z')
 
 const ORG_A = organizationId('org-dashboard-data-a')
 const ORG_B = organizationId('org-dashboard-data-b')
-const PROP_A = propertyId('a0000000-0000-0000-0000-000000000001')
-const OTHER_PROPERTY = propertyId('a0000000-0000-0000-0000-000000000002')
-const PORTAL_A = portalId('b0000000-0000-0000-0000-000000000001')
+// File-unique ids: the dashboard repository test seeds its own rows under the shared ones.
+const PROP_A = propertyId('da5b0a00-0000-0000-0000-000000000001')
+const OTHER_PROPERTY = propertyId('da5b0a00-0000-0000-0000-000000000002')
+const PORTAL_A = portalId('da5b0b00-0000-0000-0000-000000000001')
 const ADMIN = buildTestAuthContext({ organizationId: ORG_A, role: 'AccountAdmin' })
 const organizationWide = async () => null
 
