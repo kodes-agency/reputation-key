@@ -1,7 +1,7 @@
 // Identity context — public API surface for cross-context consumers.
 // Other contexts consume only what is exported here. Per ADR-0001.
 
-import type { ManagerMembership } from './ports/identity.port'
+import type { ManagerMembership } from '../members/auth-identity.port.server'
 
 export { STAFF_NOTICE_VERSION } from '../domain/staff-account'
 
@@ -11,8 +11,8 @@ export {
   type MerchantAiState,
 } from '../domain/merchant-ai-authorization'
 
-export type { ManagerMembership } from './ports/identity.port'
-export type { StaffPublicApi } from './people-public-api'
+export type { ManagerMembership } from '../members/auth-identity.port.server'
+export type { StaffPublicApi } from '../staff/people-public-api.server'
 export type {
   MerchantAiOverview,
   MerchantAiOverviewEntry,

@@ -1,4 +1,4 @@
-import { JOB_NAME as MERCHANT_AI_RENEWAL_JOB_NAME } from '#/contexts/identity/infrastructure/jobs/merchant-ai-standing-renewal.job'
+import { JOB_NAME as MERCHANT_AI_RENEWAL_JOB_NAME } from '#/contexts/identity/consent/merchant-ai-standing-renewal-job.server'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 // Worker entry point — plain Node script, no Nitro
 // Built separately with tsup, runs as: node dist/worker.js

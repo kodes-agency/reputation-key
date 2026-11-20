@@ -9,7 +9,7 @@ import type { Action } from '#/components/hooks/use-action'
 import {
   setNewPasswordFormSchema,
   type SetNewPasswordFormInput,
-} from '#/contexts/identity/application/dto/password-reset.dto'
+} from '#/contexts/identity/members/password-reset.contracts'
 
 type Props = Readonly<{
   mutation: Action<SetNewPasswordFormInput>

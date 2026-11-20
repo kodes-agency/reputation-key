@@ -2,7 +2,7 @@ import { identityInvitationAccepted } from '../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { AuthorizeInvitationOrganization } from './invitation-admission.server'
 import { reportUngrantedInvitedProperties } from './invited-property-access.server'
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
 import type {
   InvitedRegistrationStore,
   ReconcileInvitedRegistrationResult,

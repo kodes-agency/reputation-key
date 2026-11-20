@@ -387,7 +387,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ],
     ],
   ),
-  ...consumersIn('src/contexts/identity/infrastructure/member-role-outbox-consumers.ts', [
+  ...consumersIn('src/contexts/identity/members/member-role-outbox-consumers.server.ts', [
     [
       'identity.on-member-role-changed',
       'identity.member-role-cleanup',

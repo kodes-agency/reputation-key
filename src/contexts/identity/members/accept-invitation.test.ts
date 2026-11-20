@@ -6,7 +6,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { acceptInvitation } from './accept-invitation.server'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
 import { invitationId, userId, organizationId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
 

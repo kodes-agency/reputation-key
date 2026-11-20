@@ -22,7 +22,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type {
   ProvisionOrganizationInput,
   ProvisionOrganizationResult,
-} from '#/contexts/identity/application/dto/platform-console.dto'
+} from '#/contexts/identity/operator/platform-console.contracts'
 import { CreateOrganizationForm } from './create-organization-form'
 
 export type ProvisionOrganizationAction = Action<

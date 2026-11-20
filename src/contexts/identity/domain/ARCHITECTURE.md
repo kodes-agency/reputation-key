@@ -28,14 +28,14 @@ The core domain entities are defined by better-auth's database schema and API re
 
 **Where the types live:**
 
-- **Port layer** (`application/ports/identity.port.ts`): Defines the adapter types
+- **Port layer** (`members/auth-identity.port.server.ts`): Defines the adapter types
   - `MemberRecord` - wraps better-auth member data
   - `InvitationRecord` - wraps better-auth invitation data
   - `OrganizationRecord` - wraps better-auth organization data
 
-- **Infrastructure layer** (`infrastructure/adapters/`): Maps better-auth responses to port types
-  - `auth-identity.adapter.ts` - Implements `IdentityPort` using better-auth API
-  - `better-auth-schemas.ts` - Zod schemas for better-auth responses
+- **Infrastructure layer** (`members/`): Maps better-auth responses to port types
+  - `auth-identity.adapter.server.ts` - Implements `IdentityPort` using better-auth API
+  - `better-auth-schemas.ts` - Zod schemas for better-auth responses (stays in `infrastructure/adapters/`)
 
 ### 3. No Smart Constructors Needed
 
@@ -102,7 +102,7 @@ These provide consistent error handling across the identity context.
 
 - `domain/types.ts` - **Not present** (types come from better-auth)
 - `domain/constructors.ts` - **Not present** (delegates to better-auth)
-- `application/ports/identity.port.ts` - Defines adapter types
+- `members/auth-identity.port.server.ts` - Defines adapter types
 - **Wraps** better-auth entities, doesn't own them
 
 ## When to Add types.ts or constructors.ts

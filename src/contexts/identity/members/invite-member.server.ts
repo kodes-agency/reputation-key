@@ -2,9 +2,9 @@
 // Order: authorize → validate → check invariants → build → persist → return.
 // Use cases throw tagged errors at the application boundary (never return Result).
 
-import type { IdentityPort } from '../application/ports/identity.port'
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
-import type { InvitationEmailSender } from '../application/ports/invitation-email.port'
+import type { IdentityPort } from './auth-identity.port.server'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
+import type { InvitationEmailSender } from './invitation-email.port.server'
 import type { PropertyNameLookup } from './invitation-read-model.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { InvitationId } from '#/shared/domain/ids'
@@ -14,8 +14,8 @@ import { toBetterAuthRole } from '#/shared/domain/roles'
 import { canInviteWithRole } from '../domain/rules'
 import { identityError } from '../domain/errors'
 import { identityMemberInvited } from '../domain/events'
-import type { InviteMemberInput } from '../application/dto/invitation.dto'
-import { deliverInvitationEmail } from '../application/invitation-email-delivery'
+import type { InviteMemberInput } from './invitation.contracts'
+import { deliverInvitationEmail } from './invitation-email-delivery.server'
 
 export type { InviteMemberInput }
 export type { InvitationEmailSender }

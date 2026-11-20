@@ -16,7 +16,7 @@ import {
   grantPropertyAccess,
   hasActiveGrant,
   revokePropertyAccess,
-} from '#/contexts/identity/infrastructure/repositories/property-access-grant.repository'
+} from '#/contexts/identity/members/property-access-grant-repository.server'
 import { createGoogleContentAuthorizationCheck } from './google-content-authorization-check'
 import { createActiveMemberAuthResolver } from './active-member-auth.adapter'
 

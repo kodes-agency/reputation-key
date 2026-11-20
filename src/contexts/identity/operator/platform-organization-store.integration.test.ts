@@ -29,10 +29,10 @@ import {
   identityInvitationCanceled,
   identityMemberInvited,
 } from '../domain/events'
-import type { InvitationEmail } from '../application/ports/invitation-email.port'
+import type { InvitationEmail } from '../members/invitation-email.port.server'
 import type { ProvisionOrganizationCommand } from './platform-organization-store.port.server'
 import { buildPlatformConsole } from '../build'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from '../members/identity-command-store.server'
 import { createPlatformOrganizationStore } from './platform-organization-store.server'
 
 // Far in the future so these Organizations are the newest in a shared database.

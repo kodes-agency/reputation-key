@@ -57,14 +57,14 @@ import { notificationPreferences } from '../src/shared/db/schema/notification.sc
 import {
   grantPropertyAccess,
   hasActiveGrant,
-} from '../src/contexts/identity/infrastructure/repositories/property-access-grant.repository'
+} from '../src/contexts/identity/members/property-access-grant-repository.server'
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
 import {
   LOCAL_E2E_OPERATOR_USER_ID,
   LOCAL_E2E_ORGANIZATION_ID,
 } from '../src/shared/config/local-stack-contract'
 import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/domain/google-content-capability'
-import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/policy/google-content-authority-repository.server'
 import { createDeclaredCapabilityPostureStores } from '../src/composition/declared-capability-posture'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../src/shared/ai-operation-profiles'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '../src/shared/domain/merchant-ai-capability'

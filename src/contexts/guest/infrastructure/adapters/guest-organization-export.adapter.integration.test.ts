@@ -5,7 +5,7 @@ import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { buildOrganizationExportBundle } from '#/contexts/identity/application/organization-export-contract'
+import { buildOrganizationExportBundle } from '#/contexts/identity/rights/organization-export-contract.server'
 import { ORGANIZATION_LIFECYCLE_CONTEXTS } from '#/contexts/identity/domain/organization-lifecycle'
 import { createGuestOrganizationExportContributor } from './guest-organization-export.adapter'
 

@@ -3,7 +3,7 @@ import type {
   CurrentMerchantAiCapability,
   MerchantAiState,
 } from '#/contexts/identity/application/public-api'
-import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import type { MerchantAiNoticeDto } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { CardContent } from '#/components/ui/card'
 import { Checkbox } from '#/components/ui/checkbox'

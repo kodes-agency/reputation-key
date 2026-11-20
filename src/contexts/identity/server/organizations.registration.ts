@@ -14,7 +14,7 @@ import { getContainer } from '#/composition'
 import { invitationId } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
 import { invitationState } from '../domain/invitation-state'
-import { providerRefusalCode } from '../application/provider-refusal'
+import { providerRefusalCode } from '../members/provider-refusal.server'
 import { throwIdentityError } from './organizations.errors.server'
 import { signInAndForwardCookies } from './sign-in-session.server'
 import { enforceVerificationResendRateLimit } from './verification-resend-rate-limit.server'
@@ -25,7 +25,7 @@ import {
   signInInputSchema,
   type RegisterMemberInput,
   type ResendVerificationEmailInput,
-} from '../application/dto/invitation.dto'
+} from '../members/invitation.contracts'
 
 async function maskedEmail(email: string): Promise<string> {
   const { maskEmail } = await import('#/shared/observability/pii')

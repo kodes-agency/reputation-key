@@ -18,7 +18,7 @@ import type {
   MemberPropertyAccessStore,
   SetPropertyAccessCommand,
 } from './member-property-access.port.server'
-import { revokePropertyAccess } from '../infrastructure/repositories/property-access-grant.repository'
+import { revokePropertyAccess } from './property-access-grant-repository.server'
 import {
   lockPropertyGrant,
   lockPropertyInOrganization,

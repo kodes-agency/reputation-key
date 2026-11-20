@@ -10,11 +10,11 @@ import { describe, it, expect, vi } from 'vitest'
 import { updateMemberRole } from './update-member-role.server'
 import { roleChangeCleanup } from './member-role-cleanup.server'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
 import { setupIdentityMembersDb } from '#/shared/testing/identity-members-fixtures'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../domain/errors'
-import type { MemberRecord } from '../application/ports/identity.port'
+import type { MemberRecord } from './auth-identity.port.server'
 import { userId } from '#/shared/domain/ids'
 
 const MEMBER_RECORD: MemberRecord = {

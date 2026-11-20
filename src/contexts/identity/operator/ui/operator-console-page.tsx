@@ -18,7 +18,7 @@ import type {
   InviteOrganizationAdminInput,
   InviteOrganizationAdminResult,
   PlatformOrganizationView,
-} from '#/contexts/identity/application/dto/platform-console.dto'
+} from '#/contexts/identity/operator/platform-console.contracts'
 import {
   CreateOrganizationDialog,
   type ProvisionOrganizationAction,

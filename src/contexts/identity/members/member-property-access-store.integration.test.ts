@@ -14,7 +14,7 @@ import { isIdentityError } from '../domain/errors'
 import { identityMemberPropertyAccessChanged } from '../domain/events'
 import type { SetPropertyAccessCommand } from './member-property-access.port.server'
 import { createMemberPropertyAccessStore } from './member-property-access-store.server'
-import { createPostgresPolicyAdminCommandStore } from '../infrastructure/policy-admin-command-store'
+import { createPostgresPolicyAdminCommandStore } from '../policy/policy-admin-command-store.server'
 
 const db = getDb()
 const store = createMemberPropertyAccessStore(db)

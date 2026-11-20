@@ -2,8 +2,8 @@
 // Order: authorize → validate → check invariants → build → persist → return.
 // Use cases throw tagged errors at the application boundary.
 
-import type { IdentityPort } from '../application/ports/identity.port'
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
+import type { IdentityPort } from './auth-identity.port.server'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { isOwnerToken } from '#/shared/domain/roles'
@@ -11,7 +11,7 @@ import { identityError } from '../domain/errors'
 import { identityMemberRemoved } from '../domain/events'
 import { assertAnotherOwnerRemains } from './last-owner-guard.server'
 import { userId as toUserId } from '#/shared/domain/ids'
-import type { RemoveMemberInput } from '../application/dto/invitation.dto'
+import type { RemoveMemberInput } from './invitation.contracts'
 export type { RemoveMemberInput }
 
 export type RemoveMemberOutput = Readonly<{

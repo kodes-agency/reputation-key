@@ -7,7 +7,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
-import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import { MERCHANT_AI_NOTICE } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import type { PropertySetupPlan } from './setup-plan'
 import { SetupReview } from './setup-review'
 

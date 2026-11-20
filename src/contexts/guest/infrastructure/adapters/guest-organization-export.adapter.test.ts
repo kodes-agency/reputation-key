@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
-import { buildOrganizationExportBundle } from '#/contexts/identity/application/organization-export-contract'
+import { buildOrganizationExportBundle } from '#/contexts/identity/rights/organization-export-contract.server'
 import { ORGANIZATION_LIFECYCLE_CONTEXTS } from '#/contexts/identity/domain/organization-lifecycle'
 import { createGuestOrganizationExportContributor } from './guest-organization-export.adapter'
 

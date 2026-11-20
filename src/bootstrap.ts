@@ -1,11 +1,11 @@
 import {
   createReclaimPendingIdentityUploadsHandler,
   JOB_NAME as IDENTITY_PENDING_UPLOAD_RECLAIM_JOB,
-} from '#/contexts/identity/infrastructure/jobs/reclaim-pending-identity-uploads.job'
+} from '#/contexts/identity/images/reclaim-pending-identity-uploads-job.server'
 import {
   createMerchantAiStandingRenewalHandler,
   JOB_NAME as MERCHANT_AI_RENEWAL_JOB_NAME,
-} from '#/contexts/identity/infrastructure/jobs/merchant-ai-standing-renewal.job'
+} from '#/contexts/identity/consent/merchant-ai-standing-renewal-job.server'
 // Bootstrap — registers event handlers and background jobs at startup.
 // This is separate from composition.ts so that construction and registration
 // are easy to understand independently.
@@ -41,7 +41,7 @@ import {
 import {
   createRecoverInvitedRegistrationsHandler,
   JOB_NAME as RECOVER_INVITED_REGISTRATIONS_JOB,
-} from '#/contexts/identity/infrastructure/jobs/recover-invited-registrations.job'
+} from '#/contexts/identity/members/recover-invited-registrations-job.server'
 import {
   createAiOperationExecutionReaperHandler,
   JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME,
@@ -464,7 +464,7 @@ export async function bootstrap(
   const { createExecutionPermitStartDeadlineSweeper } =
     await import('#/shared/auth/execution-permit-start-deadline-sweep')
   const { createGoogleContentAuthorityRepository } =
-    await import('#/contexts/identity/infrastructure/repositories/google-content-authority.repository')
+    await import('#/contexts/identity/policy/google-content-authority-repository.server')
   const permitStartDeadlineSweep = createPermitStartDeadlineSweepHandler({
     sweep: createExecutionPermitStartDeadlineSweeper({
       store: createGoogleContentAuthorityRepository(container.db),

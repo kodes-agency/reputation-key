@@ -17,7 +17,7 @@ import type {
   StaffAddressFacts,
 } from './staff-account-store.port.server'
 import { linkStaffInvitation } from './staff-invitation-link.server'
-import { createGrantAccessLookup } from '../infrastructure/adapters/grant-access-lookup.adapter'
+import { createGrantAccessLookup } from '../members/grant-access-lookup.adapter.server'
 
 const columns = sql`id, organization_id AS "organizationId", property_id AS "propertyId", email, display_name AS "displayName", source_portal_id AS "sourcePortalId", portal_group_id AS "portalGroupId", requested_by AS "requestedBy", status, step, staff_participant_id AS "staffParticipantId", staff_participation_id AS "staffParticipationId", portal_id AS "portalId", invitation_id AS "invitationId", failure_code AS "failureCode"`
 const operation = (rows: unknown[]): StaffOnboarding => {

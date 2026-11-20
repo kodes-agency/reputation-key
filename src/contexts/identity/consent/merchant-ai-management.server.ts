@@ -1,6 +1,6 @@
 import type { Database } from '#/shared/db/index'
-import { getMemberRole } from '../infrastructure/repositories/manager-membership.repository'
-import { decideMemberPropertyAuthority } from '../infrastructure/repositories/member-property-authority'
+import { getMemberRole } from '../members/manager-membership-repository.server'
+import { decideMemberPropertyAuthority } from '../members/member-property-authority.server'
 
 /**
  * Whether the actor holds ai.manage over one Property. A non-member, a denial

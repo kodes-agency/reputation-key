@@ -15,7 +15,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { identityAssetPath } from './application/identity-assets'
+import { identityAssetPath } from './images/identity-assets.contracts'
 import { buildIdentityContext } from './build'
 
 const db = getDb()

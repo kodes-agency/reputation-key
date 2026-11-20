@@ -8,7 +8,7 @@ import type {
   MemberRecord,
   InvitationRecord,
   OrganizationRecord,
-} from '#/contexts/identity/application/ports/identity.port'
+} from '#/contexts/identity/members/auth-identity.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { isOwnerToken } from '#/shared/domain/roles'
 
