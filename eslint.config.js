@@ -200,6 +200,28 @@ const SERVER_IMPLEMENTATION_IMPORTS = {
   message:
     'Feature UI reads through context server functions, never server implementations.',
 }
+// The outbox relay, dispatcher and adapter are worker-only; code reaches the
+// outbox through #/shared/outbox.
+const OUTBOX_INTERNAL_PATHS = [
+  {
+    name: '#/shared/outbox/infrastructure/outbox-repository',
+    message:
+      'Import OutboxRepository from #/shared/outbox (public barrel), not infrastructure.',
+  },
+  { name: '#/shared/outbox/relay', message: 'The outbox relay is worker-only.' },
+  {
+    name: '#/shared/outbox/dispatcher',
+    message: 'The outbox dispatcher is worker-only.',
+  },
+  {
+    name: '#/shared/outbox/event-adapter',
+    message: 'event-adapter is internal. Use emitAndRecord from #/shared/outbox.',
+  },
+]
+const OUTBOX_INFRASTRUCTURE_IMPORTS = {
+  group: ['**/shared/outbox/infrastructure/**'],
+  message: 'Outbox infrastructure is internal. Use #/shared/outbox.',
+}
 // Server code imports nothing from React, types included.
 const FRAMEWORK_IMPORTS = {
   group: ['react', 'react/**', 'react-dom', 'react-dom/**'],
@@ -376,7 +398,7 @@ export default tseslint.config(
         },
         {
           category: 'feature-contract',
-          pattern: FEATURE_ROOT + '/contracts.ts',
+          pattern: [FEATURE_ROOT + '/contracts.ts', FEATURE_ROOT + '/*.contracts.ts'],
           capture: ['context', 'feature'],
         },
         {
@@ -804,6 +826,34 @@ export default tseslint.config(
                 },
               },
             },
+            // Features of one area are one module: their server files may use each
+            // other's. Another area still goes through its public API.
+            {
+              from: fileCategory(['feature-server', 'feature-test-fixtures']),
+              allow: {
+                to: {
+                  file: {
+                    categories: 'feature-server',
+                    path: 'src/contexts/{{from.file.captured.context}}/**',
+                  },
+                },
+              },
+            },
+            // Process entry points, composition and tooling reach feature server code as
+            // they reach infrastructure/. Operator scripts go through public APIs.
+            {
+              from: elementTypes(
+                'top-level',
+                'test-helpers',
+                'runtime-plugin',
+                'script-tooling',
+              ),
+              allow: { to: fileCategory('feature-server') },
+            },
+            {
+              from: fileCategory('composition-root'),
+              allow: { to: fileCategory('feature-server') },
+            },
             {
               from: {
                 file: {
@@ -934,7 +984,8 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [FRAMEWORK_IMPORTS],
+          paths: OUTBOX_INTERNAL_PATHS,
+          patterns: [OUTBOX_INFRASTRUCTURE_IMPORTS, FRAMEWORK_IMPORTS],
         },
       ],
     },
