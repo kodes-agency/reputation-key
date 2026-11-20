@@ -5,29 +5,29 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
   requireAiPropertyReadAccess,
   type AiPropertyAccess,
-} from '../application/ai-property-read-access'
-import { resolveAiReadGate } from '../application/ai-read-gate'
+} from '../consent/ai-property-read-access.server'
+import { resolveAiReadGate } from '../consent/ai-read-gate.server'
 import {
   getAiRuntimeCapability,
   isAiRuntimeNoticeInForce,
 } from '#/shared/ai-runtime-capability-contract'
-import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type {
   AiGuestVoiceFactsPort,
   GuestVoiceFactsScope,
-} from '../application/ports/ai-guest-voice-facts.port'
-import type { AiPropertyCalendarPort } from '../application/ports/ai-property-calendar.port'
-import type { PropertyProcessingProfilePort } from '../application/ports/property-processing-profile.port'
+} from './ai-guest-voice-facts.port.server'
+import type { AiPropertyCalendarPort } from './ai-property-calendar.port.server'
+import type { PropertyProcessingProfilePort } from '../analysis/property-processing-profile.port.server'
 import { twelveMonthStart } from '../application/read-models/guest-voice-v2-recency'
-import { joinPeriod } from '../application/read-models/guest-voice-v2-join'
+import { joinPeriod } from './guest-voice-v2-join.server'
 import {
   GUEST_VOICE_RANGES,
   choosePopulation,
   type PopulationChoice,
   type PopulationRange,
-} from '../application/read-models/guest-voice-v2-population'
-import { guestVoiceScopes } from '../application/read-models/guest-voice-v2-scopes'
-import type { GuestVoiceReview } from '../application/read-models/guest-voice-v2-facts'
+} from './guest-voice-v2-population.server'
+import { guestVoiceScopes } from './guest-voice-v2-scopes.server'
+import type { GuestVoiceReview } from './guest-voice-v2-facts.contracts'
 import type { GuestVoiceBuildInput } from '../application/read-models/guest-voice-v2-build'
 
 export type GuestVoiceReadDependencies = Readonly<{

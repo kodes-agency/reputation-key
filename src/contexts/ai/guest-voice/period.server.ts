@@ -1,11 +1,8 @@
-import { addDays } from '../application/local-date'
-import type { GuestVoiceFactsRead } from '../application/ports/ai-guest-voice-facts.port'
+import { addDays } from './local-date.contracts'
+import type { GuestVoiceFactsRead } from './ai-guest-voice-facts.port.server'
 import type { GuestVoiceBuildInput } from '../application/read-models/guest-voice-v2-build'
-import { joinWindows, type Period } from '../application/read-models/guest-voice-v2-join'
-import {
-  BASELINE_DAYS,
-  type PopulationChoice,
-} from '../application/read-models/guest-voice-v2-population'
+import { joinWindows, type Period } from './guest-voice-v2-join.server'
+import { BASELINE_DAYS, type PopulationChoice } from './guest-voice-v2-population.server'
 
 /** The page and the Monday comparison use the same window and preceding year. */
 export function guestVoicePeriod(

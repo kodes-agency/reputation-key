@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { addDays } from '../local-date'
+import { addDays } from '../../guest-voice/local-date.contracts'
 import {
   ratingComparisonPeriods,
   ratingMonthSeries,
   buildRatingTrend,
 } from './guest-voice-v2-rating-trend'
-import { population, review } from './guest-voice-v2.test-fixtures'
+import { population, review } from '../../guest-voice/guest-voice-v2.test-fixtures'
 
 describe('fixed rating periods and calendar series', () => {
   it.each([

@@ -1,0 +1,856 @@
+import {
+  invalidReplyRewriteParent,
+  replyV2InsertionValues,
+} from './reply-rewrite-parent.server'
+import { createHash } from 'node:crypto'
+import { and, eq, exists, gt, isNull, lte, ne, or, sql } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
+import {
+  aiOperations,
+  aiReviewAnalyses,
+  eventConsumerReceipts,
+  outboxEvents,
+} from '#/shared/db/schema'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { AI_OPERATION_PROFILES, AI_ROUTING_POLICY } from '#/shared/ai-operation-profiles'
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { AI_PROVIDER_IDS, type AiProviderId } from '#/shared/ai-provider-ids'
+import {
+  REVIEW_VOCABULARY_HINTS_VERSION,
+  type VocabularyHintIdentity,
+} from '#/shared/review-vocabulary-hints'
+import { AI_REVIEW_ANALYSIS_CONSUMER } from '../analysis/outbox-consumers.server'
+import type { AiErrorCode } from '../domain/errors'
+import { createAiOperationIdentity, parseAiExecutionBinding } from '../domain/rules'
+import type {
+  AiOperationBinding,
+  AiOperationId,
+  AiOperationIdentity,
+} from '../domain/types'
+import type {
+  AiOperationNormalizationLineage,
+  AiOperationProviderLineage,
+  AiOperationRecord,
+  AiOperationRecoveryCandidate,
+  AiOperationState,
+  AiOperationStorePort,
+  AiOperationUnreadableRow,
+} from './ai-operation-store.port.server'
+
+type OperationRow = typeof aiOperations.$inferSelect
+
+const AI_ERROR_CODES: ReadonlySet<string> = new Set([
+  'forbidden',
+  'not_found',
+  'source_too_large',
+  'invalid_request',
+  'text_unavailable',
+  'language_not_supported',
+  'idempotency_conflict',
+  'operation_in_progress',
+  'operation_ambiguous',
+  'operation_abandoned',
+  'completed_without_delivery',
+  'merchant_opt_in_required',
+  'capability_not_opted_in',
+  'execution_suspended',
+  'source_expired',
+  'source_epoch_changed',
+  'source_revision_changed',
+  'analysis_sequence_changed',
+  'reply_state_changed',
+  'draft_invalidated',
+  'property_profile_changed',
+  'routing_policy_changed',
+  'provider_profile_changed',
+  'capability_epoch_changed',
+  'redaction_blocked',
+  'quota_exhausted',
+  'provider_rate_limited',
+  'provider_unavailable',
+  'provider_refused',
+  'output_invalid',
+  'output_truncated',
+  'policy_unavailable',
+] satisfies readonly AiErrorCode[])
+
+/**
+ * A stored row of a command the product no longer runs (the database still admits
+ * it). It is known history, not corruption: no claim or recovery adopts it.
+ */
+class RetiredOperationCommandError extends Error {
+  constructor() {
+    super('AI operation command is retired')
+  }
+}
+
+function failCorrupt(message: string): never {
+  throw new Error(`Invalid durable AI operation: ${message}`)
+}
+
+function requireValue<T>(value: T | null, field: string): T {
+  if (value === null) failCorrupt(`${field} is missing`)
+  return value
+}
+
+function operationId(value: string): AiOperationId {
+  return value as AiOperationId
+}
+
+function parseFailureCode(value: string | null): AiErrorCode | null {
+  if (value === null) return null
+  if (!AI_ERROR_CODES.has(value)) failCorrupt('failure code is unknown')
+  return value as AiErrorCode
+}
+
+function parseState(value: string): AiOperationState {
+  if (
+    value !== 'pending' &&
+    value !== 'executing' &&
+    value !== 'succeeded_pending_delivery' &&
+    value !== 'succeeded' &&
+    value !== 'failed' &&
+    value !== 'cancelled'
+  ) {
+    failCorrupt('state is unknown')
+  }
+  return value
+}
+
+function parseIdentity(row: OperationRow): AiOperationIdentity {
+  let source: unknown
+  if (row.command === 'analysis') {
+    source = {
+      command: 'analysis',
+      organizationId: requireValue(row.organizationId, 'organizationId'),
+      propertyId: requireValue(row.propertyId, 'propertyId'),
+      actorId: null,
+      systemPrincipal: row.systemPrincipal,
+      reviewId: requireValue(row.reviewId, 'reviewId'),
+      originEventId: requireValue(row.originEventId, 'originEventId'),
+      subjectHmac: requireValue(row.subjectHmac, 'subjectHmac'),
+      subjectHmacKeyVersion: requireValue(
+        row.subjectHmacKeyVersion,
+        'subjectHmacKeyVersion',
+      ),
+      sourceEpoch: requireValue(row.sourceEpoch, 'sourceEpoch'),
+      sourceRevision: requireValue(row.sourceRevision, 'sourceRevision'),
+      reviewedAtEpochMillis: requireValue(
+        row.reviewedAtEpochMillis,
+        'reviewedAtEpochMillis',
+      ),
+      analysisSequence: requireValue(row.analysisSequence, 'analysisSequence'),
+    }
+  } else if (row.command === 'reply') {
+    source = {
+      command: 'reply',
+      organizationId: requireValue(row.organizationId, 'organizationId'),
+      propertyId: requireValue(row.propertyId, 'propertyId'),
+      actorId: requireValue(row.actorUserId, 'actorUserId'),
+      systemPrincipal: null,
+      reviewId: requireValue(row.reviewId, 'reviewId'),
+      sourceEpoch: requireValue(row.sourceEpoch, 'sourceEpoch'),
+      sourceRevision: requireValue(row.sourceRevision, 'sourceRevision'),
+      reviewedAtEpochMillis: requireValue(
+        row.reviewedAtEpochMillis,
+        'reviewedAtEpochMillis',
+      ),
+      tone: requireValue(row.tone, 'tone'),
+      baseReplyStateRevision: requireValue(
+        row.baseReplyStateRevision,
+        'baseReplyStateRevision',
+      ),
+    }
+  } else if (row.command === 'trend') {
+    throw new RetiredOperationCommandError()
+  } else {
+    failCorrupt('command is unknown')
+  }
+  const parsed = createAiOperationIdentity(source)
+  if (parsed.isErr()) failCorrupt(parsed.error.message)
+  return parsed.value
+}
+
+function parseBinding(
+  row: OperationRow,
+  identity: AiOperationIdentity,
+): AiOperationBinding {
+  const concreteReplyLanguage =
+    row.concreteReplyLanguageTag === null && row.concreteReplyTemplateGroup === null
+      ? null
+      : {
+          tag: requireValue(row.concreteReplyLanguageTag, 'concreteReplyLanguageTag'),
+          templateGroup: requireValue(
+            row.concreteReplyTemplateGroup,
+            'concreteReplyTemplateGroup',
+          ),
+        }
+  const parsed = parseAiExecutionBinding({
+    authorizationLineageId: requireValue(
+      row.authorizationLineageId,
+      'authorizationLineageId',
+    ),
+    noticeVersion: requireValue(row.noticeVersion, 'noticeVersion'),
+    noticeDigest: requireValue(row.noticeDigest, 'noticeDigest'),
+    capabilityFence: row.capabilityFences,
+    ...(row.replyDraftingV2 === null ? {} : { replyDraftingV2: row.replyDraftingV2 }),
+    sourceEpoch: requireValue(row.sourceEpoch, 'sourceEpoch'),
+    evaluatedLanguage: row.evaluatedLanguage,
+    concreteReplyLanguage,
+    languageCatalogueDigest: row.languageCatalogueDigest,
+    replyLanguageVerifierDigest: row.replyLanguageVerifierDigest,
+    languageScriptConsistencyDigest: row.languageScriptConsistencyDigest,
+    zhOrthographyVerifierDigest: row.zhOrthographyVerifierDigest,
+    sourceRevision: row.sourceRevision,
+    reviewedAtEpochMillis: row.reviewedAtEpochMillis,
+    propertyProfileVersion: requireValue(
+      row.propertyProfileVersion,
+      'propertyProfileVersion',
+    ),
+    replyBrandProfileVersion: row.replyBrandProfileVersion,
+    replyBrandDisplayNameDigest: row.replyBrandDisplayNameDigest,
+    routingPolicyVersion: AI_ROUTING_POLICY.version,
+    sourcePolicyId: requireValue(row.sourcePolicyId, 'sourcePolicyId'),
+    sourceCanonicalizerDigest: requireValue(
+      row.sourceCanonicalizerDigest,
+      'sourceCanonicalizerDigest',
+    ),
+    redactionProfileVersion: requireValue(
+      row.redactionProfileVersion,
+      'redactionProfileVersion',
+    ),
+    outputLeakageProfileVersion: row.outputLeakageProfileVersion,
+    outputLeakageProfileDigest: row.outputLeakageProfileDigest,
+    replyTemplateCatalogueVersion: row.replyTemplateCatalogueVersion,
+    replyTemplateCatalogueDigest: row.replyTemplateCatalogueDigest,
+    // What the operation recorded, not what is in force now: an operation
+    // claimed under another profile reads back as the profile it was claimed under.
+    providerDeploymentProfileVersion: row.providerDeploymentProfileVersion,
+    operationProfileVersion: row.operationProfileVersion,
+    capabilityRuntimeProfileVersion:
+      row.capabilityRuntimeProfileVersion ??
+      getAiRuntimeCapability(identity.capability).runtimeProfileVersion,
+    aiSubjectHmacKeyVersion: row.subjectHmacKeyVersion,
+    stopFence: {
+      globalControlId: row.globalControlId,
+      globalGeneration: row.globalControlGeneration,
+      providerControlId: row.providerControlId,
+      providerGeneration: row.providerControlGeneration,
+      capabilityControlId: requireValue(row.capabilityControlId, 'capabilityControlId'),
+      capabilityGeneration: requireValue(
+        row.capabilityControlGeneration,
+        'capabilityControlGeneration',
+      ),
+    },
+  })
+  if (parsed.isErr()) failCorrupt(parsed.error.message)
+  return parsed.value
+}
+
+/** The hint identity an operation row holds: all three columns, or none. */
+function parseVocabularyHints(row: OperationRow): VocabularyHintIdentity | null {
+  const { vocabularyHintSetId: setId, vocabularyHintSetVersion: setVersion } = row
+  const digest = row.vocabularyHintSetDigest
+  if (setId === null && setVersion === null && digest === null) return null
+  if (setId === null || setVersion === null || digest === null) {
+    failCorrupt('vocabulary hint identity is partial')
+  }
+  if (setVersion !== REVIEW_VOCABULARY_HINTS_VERSION) {
+    failCorrupt('vocabulary hint version is unknown')
+  }
+  return { setId, setVersion, digest }
+}
+
+function sameHints(
+  first: VocabularyHintIdentity | null | undefined,
+  second: VocabularyHintIdentity | null | undefined,
+): boolean {
+  return (
+    (first?.setId ?? null) === (second?.setId ?? null) &&
+    (first?.setVersion ?? null) === (second?.setVersion ?? null) &&
+    (first?.digest ?? null) === (second?.digest ?? null)
+  )
+}
+
+/** The provider lineage an operation row holds: all four columns, or none. */
+function parseProviderLineage(row: OperationRow): AiOperationProviderLineage | null {
+  const {
+    providerId,
+    providerModel: model,
+    providerRequestProfileVersion: requestProfileVersion,
+    providerRequestProfileDigest: requestProfileDigest,
+  } = row
+  if (
+    providerId === null &&
+    model === null &&
+    requestProfileVersion === null &&
+    requestProfileDigest === null
+  ) {
+    return null
+  }
+  if (
+    providerId === null ||
+    model === null ||
+    requestProfileVersion === null ||
+    requestProfileDigest === null
+  ) {
+    failCorrupt('provider lineage is partial')
+  }
+  if (!(AI_PROVIDER_IDS as readonly string[]).includes(providerId)) {
+    failCorrupt('provider is unknown')
+  }
+  return {
+    providerId: providerId as AiProviderId,
+    model,
+    requestProfileVersion,
+    requestProfileDigest,
+  }
+}
+
+/** The normalizer an operation row holds: both columns, or none. */
+function parseNormalization(row: OperationRow): AiOperationNormalizationLineage | null {
+  const { normalizationProfileVersion: version, normalizationProfileDigest: digest } = row
+  if (version === null && digest === null) return null
+  if (version === null || digest === null) failCorrupt('normalization lineage is partial')
+  return { version, digest }
+}
+
+function sameLineage(
+  first: AiOperationProviderLineage | null | undefined,
+  second: AiOperationProviderLineage | null | undefined,
+): boolean {
+  return (
+    (first?.providerId ?? null) === (second?.providerId ?? null) &&
+    (first?.model ?? null) === (second?.model ?? null) &&
+    (first?.requestProfileVersion ?? null) === (second?.requestProfileVersion ?? null) &&
+    (first?.requestProfileDigest ?? null) === (second?.requestProfileDigest ?? null)
+  )
+}
+
+function sameNormalization(
+  first: AiOperationNormalizationLineage | null | undefined,
+  second: AiOperationNormalizationLineage | null | undefined,
+): boolean {
+  return (
+    (first?.version ?? null) === (second?.version ?? null) &&
+    (first?.digest ?? null) === (second?.digest ?? null)
+  )
+}
+
+function mapOperation(row: OperationRow): AiOperationRecord {
+  const identity = parseIdentity(row)
+  return {
+    id: operationId(row.id),
+    identity,
+    binding: parseBinding(row, identity),
+    vocabularyHints: parseVocabularyHints(row),
+    providerLineage: parseProviderLineage(row),
+    normalization: parseNormalization(row),
+    idempotencyKey: row.idempotencyKey,
+    requestFingerprint: row.requestFingerprint,
+    sourceProvenance:
+      row.sourceDigest === null && row.sourceByteCount === null
+        ? null
+        : {
+            digest: requireValue(row.sourceDigest, 'sourceDigest'),
+            byteCount: requireValue(row.sourceByteCount, 'sourceByteCount'),
+          },
+    state: parseState(row.state),
+    executionAttempt: row.executionAttempt,
+    executionPermitId: row.executionPermitId,
+    nextAttemptAtEpochMillis: row.nextAttemptAt?.getTime() ?? null,
+    failureCode: parseFailureCode(row.failureCode),
+    createdAtEpochMillis: row.createdAt.getTime(),
+    updatedAtEpochMillis: row.updatedAt.getTime(),
+    expiresAtEpochMillis: row.expiresAt.getTime(),
+  }
+}
+
+function recoveryCandidate(
+  operation: AiOperationRecord,
+  persistedAnalysisStatus: string | null,
+): AiOperationRecoveryCandidate {
+  if (
+    operation.state !== 'pending' &&
+    operation.state !== 'executing' &&
+    operation.state !== 'failed' &&
+    operation.state !== 'succeeded_pending_delivery'
+  ) {
+    failCorrupt('recovery candidate has a settled state')
+  }
+  const analysis =
+    operation.identity.command === 'analysis'
+      ? operation.binding.capabilityFence.capability === 'review_analysis'
+        ? {
+            eventEnvelopeId: operation.identity.originEventId,
+            organizationId: organizationId(operation.identity.organizationId),
+            propertyId: propertyId(operation.identity.propertyId),
+            reviewId: reviewId(operation.identity.reviewId),
+            sourceEpoch: operation.identity.sourceEpoch,
+            sourceRevision: operation.identity.sourceRevision,
+            analysisSequence: operation.identity.analysisSequence,
+            reviewAnalysisEpoch: operation.binding.capabilityFence.reviewAnalysisEpoch,
+            propertyProfileVersion: operation.binding.propertyProfileVersion,
+          }
+        : failCorrupt('analysis recovery candidate has the wrong capability')
+      : null
+  const identity = {
+    operationId: operation.id,
+    attempt: operation.executionAttempt,
+    createdAtEpochMillis: operation.createdAtEpochMillis,
+    updatedAtEpochMillis: operation.updatedAtEpochMillis,
+  }
+  if (operation.state === 'succeeded_pending_delivery') {
+    if (operation.failureCode !== null) {
+      failCorrupt('completed analysis recovery candidate has a failure code')
+    }
+    if (analysis === null) {
+      failCorrupt('completed delivery recovery candidate is not an analysis')
+    }
+    const resultStatus =
+      persistedAnalysisStatus === null
+        ? ('missing' as const)
+        : persistedAnalysisStatus === 'ready' || persistedAnalysisStatus === 'unavailable'
+          ? persistedAnalysisStatus
+          : failCorrupt('completed analysis recovery candidate has an invalid result')
+    return {
+      organizationId: analysis.organizationId,
+      ...identity,
+      state: operation.state,
+      failureCode: null,
+      analysis: { ...analysis, resultStatus },
+    }
+  }
+  return {
+    organizationId: operation.identity.organizationId,
+    ...identity,
+    state: operation.state,
+    failureCode: operation.failureCode,
+    analysis,
+  }
+}
+
+function assertAligned(identity: AiOperationIdentity, binding: AiOperationBinding): void {
+  if (
+    identity.sourceEpoch !== binding.sourceEpoch ||
+    ('sourceRevision' in identity &&
+      identity.sourceRevision !== binding.sourceRevision) ||
+    ('reviewedAtEpochMillis' in identity &&
+      identity.reviewedAtEpochMillis !== binding.reviewedAtEpochMillis) ||
+    identity.capability !== binding.capabilityFence.capability
+  ) {
+    throw new Error('AI property identity and binding currentness differ')
+  }
+  if (
+    identity.command === 'analysis' &&
+    (identity.subjectHmacKeyVersion !== binding.aiSubjectHmacKeyVersion ||
+      identity.analysisSequence < 1)
+  ) {
+    throw new Error('AI analysis identity and binding differ')
+  }
+  if (
+    identity.command === 'reply' &&
+    binding.capabilityFence.capability === 'reply_drafting' &&
+    identity.baseReplyStateRevision !== binding.capabilityFence.baseReplyStateRevision
+  ) {
+    throw new Error('AI reply revision and binding differ')
+  }
+}
+
+function assertSourceProvenance(
+  source: Readonly<{ digest: string; byteCount: number }> | null,
+): asserts source is Readonly<{ digest: string; byteCount: number }> {
+  if (
+    source === null ||
+    !/^[0-9a-f]{64}$/.test(source.digest) ||
+    !Number.isSafeInteger(source.byteCount) ||
+    source.byteCount < 1 ||
+    source.byteCount > 131_072
+  ) {
+    throw new Error('AI operation source provenance is invalid')
+  }
+}
+
+function operationProfile(
+  command: AiOperationIdentity['command'],
+  profileVersion: string,
+) {
+  const profile = AI_OPERATION_PROFILES.find(
+    (candidate) =>
+      candidate.command === command && candidate.profileVersion === profileVersion,
+  )
+  if (!profile || profile.capability === null)
+    failCorrupt('operation profile is unavailable')
+  return profile
+}
+
+function scopeDigest(identity: AiOperationIdentity): string {
+  return createHash('sha256')
+    .update(
+      [identity.organizationId, identity.propertyId, identity.command].join('\0'),
+      'utf8',
+    )
+    .digest('hex')
+}
+
+type ClaimInput = Parameters<AiOperationStorePort['claim']>[0]
+
+/**
+ * What a v3 analysis operation records about the request it makes (the hint set,
+ * the provider and the normalizer, migration 0078). Every other operation records
+ * none of it.
+ */
+function lineageValues(input: ClaimInput) {
+  return {
+    vocabularyHintSetId: input.vocabularyHints?.setId ?? null,
+    vocabularyHintSetVersion: input.vocabularyHints?.setVersion ?? null,
+    vocabularyHintSetDigest: input.vocabularyHints?.digest ?? null,
+    providerId: input.providerLineage?.providerId ?? null,
+    providerModel: input.providerLineage?.model ?? null,
+    providerRequestProfileVersion: input.providerLineage?.requestProfileVersion ?? null,
+    providerRequestProfileDigest: input.providerLineage?.requestProfileDigest ?? null,
+    normalizationProfileVersion: input.normalization?.version ?? null,
+    normalizationProfileDigest: input.normalization?.digest ?? null,
+  } as const
+}
+
+function insertionValues(input: ClaimInput, idGen: () => string) {
+  assertAligned(input.identity, input.binding)
+  assertSourceProvenance(input.sourceProvenance)
+  const identity = input.identity
+  const binding = input.binding
+  const createdAt = new Date(input.nowEpochMillis)
+  const isAnalysis = identity.command === 'analysis'
+  const isReply = identity.command === 'reply'
+  const profile = operationProfile(identity.command, binding.operationProfileVersion)
+  return {
+    id: idGen(),
+    idempotencyScope: replyActorScope(input),
+    idempotencyKey: input.idempotencyKey,
+    requestFingerprint: input.requestFingerprint,
+    sourceDigest: input.sourceProvenance.digest,
+    sourceByteCount: input.sourceProvenance.byteCount,
+    command: identity.command,
+    capability: identity.capability,
+    organizationId: identity.organizationId,
+    propertyId: identity.propertyId,
+    actorUserId: identity.actorId,
+    systemPrincipal: identity.systemPrincipal,
+    reviewId: isAnalysis || isReply ? identity.reviewId : null,
+    originEventId: isAnalysis ? identity.originEventId : null,
+    subjectHmac: isAnalysis ? identity.subjectHmac : null,
+    subjectHmacKeyVersion: isAnalysis ? identity.subjectHmacKeyVersion : null,
+    sourceEpoch: identity.sourceEpoch,
+    sourceRevision: isAnalysis || isReply ? identity.sourceRevision : null,
+    reviewedAtEpochMillis: isAnalysis || isReply ? identity.reviewedAtEpochMillis : null,
+    analysisSequence: isAnalysis ? identity.analysisSequence : null,
+    tone: isReply ? identity.tone : null,
+    baseReplyStateRevision: isReply ? identity.baseReplyStateRevision : null,
+    authorizationLineageId: binding.authorizationLineageId,
+    noticeVersion: binding.noticeVersion,
+    noticeDigest: binding.noticeDigest,
+    evaluatedLanguage: binding.evaluatedLanguage,
+    concreteReplyLanguageTag: binding.concreteReplyLanguage?.tag ?? null,
+    concreteReplyTemplateGroup: binding.concreteReplyLanguage?.templateGroup ?? null,
+    languageCatalogueDigest: binding.languageCatalogueDigest,
+    replyLanguageVerifierDigest: binding.replyLanguageVerifierDigest,
+    languageScriptConsistencyDigest: binding.languageScriptConsistencyDigest,
+    zhOrthographyVerifierDigest: binding.zhOrthographyVerifierDigest,
+    propertyProfileVersion: binding.propertyProfileVersion,
+    replyBrandProfileVersion: binding.replyBrandProfileVersion,
+    replyBrandDisplayNameDigest: binding.replyBrandDisplayNameDigest,
+    routingPolicyVersion: AI_ROUTING_POLICY.version,
+    providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
+    operationProfileVersion: profile.profileVersion,
+    capabilityRuntimeProfileVersion: profile.capabilityRuntimeProfileVersion,
+    sourcePolicyId: binding.sourcePolicyId,
+    sourceCanonicalizerDigest: binding.sourceCanonicalizerDigest,
+    redactionProfileVersion: binding.redactionProfileVersion,
+    outputLeakageProfileVersion: binding.outputLeakageProfileVersion,
+    outputLeakageProfileDigest: binding.outputLeakageProfileDigest,
+    replyTemplateCatalogueVersion: binding.replyTemplateCatalogueVersion,
+    replyTemplateCatalogueDigest: binding.replyTemplateCatalogueDigest,
+    ...lineageValues(input),
+    globalControlId: binding.stopFence.globalControlId,
+    globalControlGeneration: binding.stopFence.globalGeneration,
+    providerControlId: binding.stopFence.providerControlId,
+    providerControlGeneration: binding.stopFence.providerGeneration,
+    capabilityControlId: binding.stopFence.capabilityControlId,
+    capabilityControlGeneration: binding.stopFence.capabilityGeneration,
+    capabilityFences: binding.capabilityFence,
+    ...replyV2InsertionValues(binding),
+    routeKey: profile.sourceRoute,
+    state: 'pending',
+    executionAttempt: 0,
+    nextAttemptAt: createdAt,
+    failureCode: null,
+    createdAt,
+    updatedAt: createdAt,
+    expiresAt: new Date(input.expiresAtEpochMillis),
+    deliveredAt: null,
+  } as const
+}
+
+export const createAiOperationStoreAdapter = (
+  db: Database,
+  idGen: () => string,
+): AiOperationStorePort => {
+  return {
+    async claim(input) {
+      return db.transaction(async (tx) => {
+        const invalidParent = await invalidReplyRewriteParent(tx, input, {
+          parseIdentity,
+          parseBinding,
+        })
+        if (invalidParent)
+          return { status: 'conflict', operation: mapOperation(invalidParent) }
+        const values = insertionValues(input, idGen)
+        const [inserted] = await tx
+          .insert(aiOperations)
+          .values(values)
+          .onConflictDoNothing()
+          .returning()
+        if (inserted) return { status: 'created', operation: mapOperation(inserted) }
+
+        const [existing] = await tx
+          .select()
+          .from(aiOperations)
+          .where(
+            and(
+              eq(aiOperations.idempotencyScope, values.idempotencyScope),
+              eq(aiOperations.idempotencyKey, input.idempotencyKey),
+            ),
+          )
+          .limit(1)
+          .for('update')
+        if (!existing) failCorrupt('idempotency conflict row disappeared')
+        const operation = mapOperation(existing)
+        return existing.requestFingerprint === input.requestFingerprint &&
+          sameHints(operation.vocabularyHints, input.vocabularyHints) &&
+          sameLineage(operation.providerLineage, input.providerLineage) &&
+          sameNormalization(operation.normalization, input.normalization)
+          ? { status: 'replayed', operation }
+          : { status: 'conflict', operation }
+      })
+    },
+
+    async claimExecution(input) {
+      return db.transaction(async (tx) => {
+        const now = new Date(input.nowEpochMillis)
+        const permitId = idGen()
+        const [claimed] = await tx
+          .update(aiOperations)
+          .set({
+            state: 'executing',
+            executionAttempt: input.expectedAttempt,
+            nextAttemptAt: null,
+            failureCode: null,
+            executionPermitId: permitId,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(aiOperations.id, input.operationId),
+              ne(aiOperations.command, 'trend'),
+              input.organizationId === null
+                ? isNull(aiOperations.organizationId)
+                : eq(aiOperations.organizationId, input.organizationId),
+              eq(aiOperations.state, 'pending'),
+              eq(aiOperations.executionAttempt, input.expectedAttempt - 1),
+              or(
+                isNull(aiOperations.nextAttemptAt),
+                lte(aiOperations.nextAttemptAt, now),
+              ),
+              gtExpiry(now),
+            ),
+          )
+          .returning()
+        if (!claimed) return null
+        return mapOperation(claimed)
+      })
+    },
+
+    async recordFailure(input) {
+      return db.transaction(async (tx) => {
+        const expectedState = input.expectedState ?? 'executing'
+        const expectedFailureCode = input.expectedFailureCode ?? null
+        const [operation] = await tx
+          .select({ id: aiOperations.id })
+          .from(aiOperations)
+          .where(
+            and(
+              eq(aiOperations.id, input.operationId),
+              input.organizationId === null
+                ? isNull(aiOperations.organizationId)
+                : eq(aiOperations.organizationId, input.organizationId),
+              eq(aiOperations.state, expectedState),
+              eq(aiOperations.executionAttempt, input.expectedAttempt),
+              expectedFailureCode === null
+                ? isNull(aiOperations.failureCode)
+                : eq(aiOperations.failureCode, expectedFailureCode),
+            ),
+          )
+          .limit(1)
+          .for('update')
+        if (!operation) return false
+        const failedAt = new Date(input.failedAtEpochMillis)
+        await tx
+          .update(aiOperations)
+          .set({
+            state: input.retryAtEpochMillis === null ? 'failed' : 'pending',
+            failureCode: input.failureCode,
+            nextAttemptAt:
+              input.retryAtEpochMillis === null
+                ? null
+                : new Date(input.retryAtEpochMillis),
+            updatedAt: failedAt,
+          })
+          .where(
+            and(
+              eq(aiOperations.id, input.operationId),
+              input.organizationId === null
+                ? isNull(aiOperations.organizationId)
+                : eq(aiOperations.organizationId, input.organizationId),
+            ),
+          )
+        return true
+      })
+    },
+
+    async listExpiredExecutions(input) {
+      // Selection is intentionally lock-free. The reaper terminalizes pending,
+      // executing, and result-less completed rows through `recordFailure`'s
+      // exact CAS. Persisted results use `markDelivered`'s exact CAS. Every
+      // failed analysis row remains selectable while its origin event lacks a
+      // receipt, making every terminal-failure-to-settlement crash window
+      // recoverable without maintaining a failure-code whitelist. "No receipt"
+      // only means "not yet settled" while the event is still in the outbox:
+      // the retention sweep deletes a published event 30 days after
+      // publication and its receipts with it, long after the operation was
+      // settled, and a row whose event is gone has nothing left to receipt.
+      const now = new Date(input.nowEpochMillis)
+      const horizonDeadline = new Date(
+        input.nowEpochMillis - input.executionHorizonMillis,
+      )
+      const rows = await db
+        .select({
+          operation: aiOperations,
+          receiptEventId: eventConsumerReceipts.eventId,
+          persistedAnalysisStatus: aiReviewAnalyses.status,
+        })
+        .from(aiOperations)
+        .leftJoin(
+          eventConsumerReceipts,
+          and(
+            eq(eventConsumerReceipts.eventId, aiOperations.originEventId),
+            eq(eventConsumerReceipts.consumerName, AI_REVIEW_ANALYSIS_CONSUMER),
+          ),
+        )
+        .leftJoin(aiReviewAnalyses, eq(aiReviewAnalyses.operationId, aiOperations.id))
+        .where(
+          or(
+            and(
+              eq(aiOperations.state, 'executing'),
+              or(
+                lte(aiOperations.expiresAt, now),
+                lte(aiOperations.updatedAt, horizonDeadline),
+              ),
+            ),
+            // A pending analysis waits for its next attempt. Its own
+            // `expires_at` carries the event kind's horizon (a day for a
+            // backfill), so a rate-limited tail is not abandoned at the
+            // execution horizon meant for a stuck attempt.
+            and(
+              eq(aiOperations.command, 'analysis'),
+              eq(aiOperations.state, 'pending'),
+              lte(aiOperations.expiresAt, now),
+            ),
+            // A reply draft left `pending` by a busy or failed request has no
+            // origin event to settle; once its own window closes it is
+            // abandoned so rows cannot accumulate behind idle composers.
+            and(
+              eq(aiOperations.command, 'reply'),
+              eq(aiOperations.state, 'pending'),
+              lte(aiOperations.expiresAt, now),
+            ),
+            and(
+              eq(aiOperations.command, 'analysis'),
+              eq(aiOperations.state, 'succeeded_pending_delivery'),
+              isNull(aiOperations.deliveredAt),
+              lte(aiOperations.createdAt, horizonDeadline),
+            ),
+            and(
+              eq(aiOperations.command, 'analysis'),
+              eq(aiOperations.state, 'failed'),
+              isNull(eventConsumerReceipts.eventId),
+              exists(
+                db
+                  .select({ retained: sql`1` })
+                  .from(outboxEvents)
+                  .where(eq(outboxEvents.id, aiOperations.originEventId)),
+              ),
+            ),
+          ),
+        )
+        .orderBy(
+          aiOperations.organizationId,
+          aiOperations.propertyId,
+          aiOperations.sourceEpoch,
+          aiOperations.analysisSequence,
+          aiOperations.updatedAt,
+          aiOperations.id,
+        )
+        .limit(input.limit)
+      const candidates: AiOperationRecoveryCandidate[] = []
+      const unreadable: AiOperationUnreadableRow[] = []
+      for (const row of rows) {
+        try {
+          candidates.push(
+            recoveryCandidate(mapOperation(row.operation), row.persistedAnalysisStatus),
+          )
+        } catch (error) {
+          if (error instanceof RetiredOperationCommandError) continue
+          // The reason stays out of the report: a parse failure can quote the
+          // stored value. The row's own identifiers are enough to find it.
+          unreadable.push({
+            operationId: operationId(row.operation.id),
+            organizationId: row.operation.organizationId,
+          })
+        }
+      }
+      return { candidates, unreadable }
+    },
+
+    async markDelivered(input) {
+      const deliveredAt = new Date(input.deliveredAtEpochMillis)
+      const rows = await db
+        .update(aiOperations)
+        .set({ state: 'succeeded', deliveredAt, updatedAt: deliveredAt })
+        .where(
+          and(
+            eq(aiOperations.id, input.operationId),
+            input.organizationId === null
+              ? isNull(aiOperations.organizationId)
+              : eq(aiOperations.organizationId, input.organizationId),
+            eq(aiOperations.state, 'succeeded_pending_delivery'),
+            eq(aiOperations.executionAttempt, input.expectedAttempt),
+          ),
+        )
+        .returning({ id: aiOperations.id })
+      return rows.length === 1
+    },
+  }
+}
+
+function gtExpiry(now: Date) {
+  return gt(aiOperations.expiresAt, now)
+}
+
+function replyActorScope(input: ClaimInput): string {
+  const base = scopeDigest(input.identity)
+  return input.binding.replyDraftingV2
+    ? createHash('sha256')
+        .update([base, input.identity.actorId].join('\0'), 'utf8')
+        .digest('hex')
+    : base
+}

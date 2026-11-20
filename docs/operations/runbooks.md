@@ -2544,7 +2544,7 @@ they open it or press "Got it" (`merchant_ai_notice_update_receipts`).
 `src/shared/merchant-ai-notice-announcements.ts` (a test fails without it). A
 stored analysis stays visible across a notice that leaves review analysis
 unchanged: delivery applies the per-capability material-change rule that
-settlement uses (`ai-analysis-notice-coverage.ts`). A newly named AI provider
+settlement uses (`ai-analysis-notice-coverage.server.ts`). A newly named AI provider
 still receives no Google review before the 14th day after the email to
 Participants (Privacy Notice section 9).
 

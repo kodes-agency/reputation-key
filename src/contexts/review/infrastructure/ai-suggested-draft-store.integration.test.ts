@@ -40,7 +40,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastructure/adapters/property-processing-profile.adapter'
+import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/analysis/property-processing-profile.adapter.server'
 import { createReviewRepository } from './repositories/review.repository'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createReplyRepository } from './repositories/reply.repository'

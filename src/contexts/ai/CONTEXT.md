@@ -18,7 +18,7 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
 - Server functions are authenticated delivery adapters; they call the built
   `publicApi` and are not domain authority. Every read `publicApi` serves for a
   reader takes that reader's `AuthContext` and authorizes it for the Property
-  itself (`application/ai-property-read-access.ts`: same Organization, the
+  itself (`consent/ai-property-read-access.server.ts`: same Organization, the
   read's permission held, current Property access) before the
   merchant-authorization gate is read; a refusal is a tagged `AiError`
   `forbidden`. The permission is the one the read's surface is gated on:
@@ -35,7 +35,7 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
 - Lifecycle export and purge contributors are never on `publicApi`; composing one
   does not arm its irreversible phase.
 
-## Reply and Guest voice feature paths
+## Feature folders
 
 Reply generation lives in `reply/generate-suggestion.server.ts`. Language and
 local-template decisions are in `reply/language.server.ts`; request joining,
@@ -44,14 +44,47 @@ admission/rewrite helpers and measurements beside them. The Inbox composer stays
 Reputation-owned and reads the named AI public contract. The prompt still treats
 guest accounts as unverified and never states a reported problem as fact.
 
-Guest voice has one browser-safe `guest-voice/contracts.ts` and its screens,
-Storybook states and UI tests in `guest-voice/ui/`. Authenticated page/detail
+- `analysis/`: Review Analysis. It holds:
+  - `analyze-review-event.server.ts` with `review-analysis-contract.server.ts` and
+    `review-analysis-contract-v3.server.ts`
+  - the claim-conflict rule and the operation reaper
+  - the output, Property aggregate, review-event and mention-correction stores
+  - issue groups and the Urgent alert
+  - the Inbox readers (`ai-current-analysis-review-ids`, `ai-current-issue-review-ids`)
+  - the processing profile, vocabulary context, provider choice, subject HMAC and profile rebuild
+  - `outbox-consumers.server.ts`, which also registers Replay's enrollment consumer
+  - its browser-safe file, `review-mention-correction.contracts.ts`
+- `consent/`: merchant AI authorization (`ai-authorization.adapter.server.ts`), the reader's
+  Property access, and the read gate that every AI read passes.
+- `execution/`: the AI operation ledger and operation binding, execution and lane admission,
+  in-process inference, and Organization spend.
+- `rights/`: AI's rights executor, Organization erasure and Organization export.
+- Only these stay in the layer folders:
+  - `application/public-api.ts`
+  - `application/ai-workflow-support.ts`, `application/ports/ai-control.port.ts` and
+    `infrastructure/adapters/ai-control.adapter.ts`, because operator scripts import them
+  - `infrastructure/testing/handler-harness.test-fixtures.ts`, because a test counts a
+    `*.test-fixtures.ts` file in a feature folder as production code, and the harness holds an
+    `as unknown as Database` cast
+  - `application/aspect-review-evidence.ts` and the fifteen `application/read-models/`
+    files (`guest-voice-v2-build`, `-details`, `-causes`, `-concerns`, `-evidence`, `-in-short`,
+    `-limits`, `-rating-trend`, `-recency`, `-sections`, `-selection`, `-tally`, `-titles`,
+    `-urgent` and `issue-statistics`), because the Storybook fixture
+    `guest-voice/ui/guest-voice-fixtures-check-in.ts` runs them in the browser walk, where
+    `*.server.ts` files are forbidden
+
+Guest voice's browser-safe files are `guest-voice/contracts.ts`,
+`guest-voice-v2-facts.contracts.ts` and `local-date.contracts.ts`. Its screens,
+Storybook states and UI tests are in `guest-voice/ui/`. Authenticated page/detail
 reads use `get-guest-voice.server.ts`, `get-detail.server.ts` and the shared
 `get-read-context.server.ts`. The page and Monday summary share period, baseline
-and population assembly in `period.server.ts`; statistics and pure read-model
-helpers remain in their existing domain/application files. Recorded display and
-analysis version strings are unchanged. Server-function entry paths stay under
-`server/`. Language-script and Chinese-orthography verifiers remain reachable
+and population assembly in `period.server.ts`. The read-model steps beside them
+are `guest-voice-v2-join`, `-population`, `-resolve`, `-scopes`, `-sentences` and
+`-summary` (all `*.server.ts`). Build, details and the other steps stay in
+`application/read-models/` (see above), and statistics stay in `domain/`. The facts,
+calendar and Monday-summary schedule adapters, the sweep and its job are here too.
+Recorded display and analysis version strings are unchanged. Server-function entry
+paths stay under `server/`. Language-script and Chinese-orthography verifiers remain reachable
 through reply-language verification and local-template acceptance.
 
 ## Handler tests
@@ -67,7 +100,9 @@ transport and draft measurement tests retain their focused coverage.
 
 ## History replay
 
-`replay/` owns enrollment, backlog draining and reopening abandoned analysis.
+`replay/` owns enrollment, backlog draining, reopening abandoned analysis, the analyse-now
+request and its job, the backlog drain job, the progress read, applying an authorization
+transition, and erasing the derivatives it retires (`ai-review-analysis-erasure.server.ts`).
 Its shared contract keeps the stored enrollment vocabulary; readiness maps it
 to preparing, running, caught up or needing attention without changing the
 public readiness response. Server implementations use `*.server.ts`.
@@ -300,7 +335,7 @@ settled; no new work is claimed on it. Reply drafting uses its independently ser
 
 The provider choice is `OPERATOR_PROVIDER_SELECTION` (`ai-provider-control/operator-provider-selection.ts`),
 a constant and not an environment value, and it names OpenAI alone. `createOperatorProviderChoice`
-(`ai-provider-choice.adapter.ts`) is the port the build wires; the egress runtime registers
+(`analysis/ai-provider-choice.adapter.server.ts`) is the port the build wires; the egress runtime registers
 no Anthropic adapter. Moving to Anthropic needs a registered adapter, a key, a provider
 control head (migration 0083 seeded `provider:private-beta-global-v2` only), a change of the
 constant and the owner's date from the Privacy Notice (docs/obligations.md section 2). It needs no
@@ -313,7 +348,7 @@ replay analyse the history again, and `eraseRetiredDerivatives` deletes the reti
 derivatives. Turning AI off, revoking or erasing also deletes the per-Property issue groups and
 the daily star counts, and clears the stored Google category and its read time in the
 same transaction (`eraseReviewAnalysisV3Remainder`;
-`ai-review-analysis-v3-turn-off.integration.test.ts`). Operating it, killing it and the limits of a
+`replay/enrollment-store-turn-off.integration.test.ts`). Operating it, killing it and the limits of a
 rollback are `docs/operations/runbooks.md` section 32.
 
 What reads analysis data, after the switch-on: Guest voice reads one thing, the v3 read, and
@@ -569,8 +604,8 @@ Nothing can run on Anthropic until it is selected, so nothing is exposed today.
 
 ### Analysing, storing and aggregating v3
 
-`analyze-review-event.ts` is one skeleton (authorize, read the source, claim, call the provider,
-store, settle). A `ReviewAnalysisContract` (`review-analysis-contract.ts`) names the points that
+`analysis/analyze-review-event.server.ts` is one skeleton (authorize, read the source, claim, call the provider,
+store, settle). A `ReviewAnalysisContract` (`analysis/review-analysis-contract.server.ts`) names the points that
 depend on the analysis profile: the profile facts the binding and the authorization gate compare,
 whether the source read also returns the numbered sentences, what is prepared before the claim,
 what the provider request carries beyond the review, whether a Property's authorization was
@@ -580,7 +615,7 @@ runtime catalogue holds `review-analysis-v3` alone for `review_analysis` and its
 anything else. The v2 analysis code is gone; rows and operations it left behind stay readable
 through the profile catalogue and the stored-provenance readers.
 
-What the v3 contract (`review-analysis-contract-v3.ts`) does:
+What the v3 contract (`analysis/review-analysis-contract-v3.server.ts`) does:
 
 - Before the claim it reads the Property's Google primary category through
   `PropertyVocabularyContextPort`, resolves the vocabulary hints, and asks `AiProviderChoicePort`
@@ -604,7 +639,7 @@ What the v3 contract (`review-analysis-contract-v3.ts`) does:
 source epoch and revision, the authorization lineage, the review analysis epoch, the operation's
 attempt), one `ai_review_analyses` row (`ready`, no primary category, its Urgent reason when its
 attention is urgent), the mention rows and the sentence numbers each cites
-(`ai-review-analysis-mentions.ts`), and completes the operation with the closed normalization
+(`analysis/ai-review-analysis-mentions.server.ts`), and completes the operation with the closed normalization
 flags and the count of mentions dropped. `analysis_profile_version` and the shape of the row
 must agree (`analysisProfilePairValid`): a v2 profile with mentions or a v3 profile with a
 primary category is refused before it reaches the database check. The same transaction files the
@@ -736,10 +771,10 @@ Provider calls are admitted once per lane before an execution attempt is
 claimed (ADR 0058): interactive work (reply drafts, on-demand analysis) and
 background work (history) have independent global, organization and property
 buckets. The last authority before a provider call is
-`infrastructure/adapters/ai-execution-admission.adapter.ts`: one transaction
+`execution/ai-execution-admission.adapter.server.ts`: one transaction
 locks the executing operation, re-reads the consent, epochs, processing profile
-and control generations it was claimed under (`ai-authorized-effect.ts`) and
-its review source (`ai-review-source-fence.ts`), in the output write's lock
+and control generations it was claimed under (`execution/ai-authorized-effect.server.ts`) and
+its review source (`execution/ai-review-source-fence.server.ts`), in the output write's lock
 order, and only then reserves the budget. Whether an admission is open,
 charged or released is read from that reservation; an operation admits again
 only after a release at zero cost, and the reservation reaper charges every
@@ -764,7 +799,7 @@ tried before such a stop cannot resume its operation, which is bound to the
 control generations it was claimed under: after the restore its claim answers
 `conflict`, the analysis closes that pending operation as `execution_suspended`
 and settles the review against it, and the reopen pass queues it again
-(`application/analysis-claim-conflict.ts`). The sweep also reopens a text
+(`analysis/analysis-claim-conflict.server.ts`). The sweep also reopens a text
 review whose analysis settled without a result because its operation gave up
 on a transient failure (ADR 0058, 2026-09-29): a fresh analysis sequence and a
 backfill event, at most three times per revision. An enrollment is not caught
@@ -816,10 +851,10 @@ analysis gets the page; any other gets a reason instead (`hasV3Analyses`: a read
 under the Property's current epochs): "being prepared", or "AI analysis is off" when AI is off or
 the consent was recorded under a notice no longer in force. Its types are
 `guest-voice/contracts.ts`, content-free except `LiveEvidence`. The read joins two
-answers (`read-models/guest-voice-v2-join.ts`). Review says which reviews the Property has now
+answers (`guest-voice/guest-voice-v2-join.server.ts`). Review says which reviews the Property has now
 (`readTrendPopulation`: two years in one read, the last year alone and no
 change claimed when that is too full, 90 days when the year is). The analysis side
-(`AiGuestVoiceFactsPort`, `infrastructure/adapters/ai-guest-voice-facts.adapter.ts`) gives each
+(`AiGuestVoiceFactsPort`, `guest-voice/ai-guest-voice-facts.adapter.server.ts`) gives each
 review's latest ready v3 contribution and its effective mentions in one statement under the
 aggregate head's share lock, with the Property's issues. A review is counted only where both agree
 on its revision, analysis sequence and day, so an analysis of a review that has since gone or
@@ -913,7 +948,7 @@ the goal's page and never promises that fixing the problem reaches the goal.
 
 An Urgent analysis raises the one alert an AI finding may start (v3 contract decision 10;
 ADR 0031 and ADR 0046, amended 2026-10-30). `storeAnalysisV3` writes it in the transaction
-that stores the analysis (`infrastructure/adapters/ai-urgent-alert.ts`): one identifier-only
+that stores the analysis (`analysis/ai-urgent-alert.server.ts`): one identifier-only
 fact, `ai.review_analysis.urgent_detected`, naming the Organization, Property, review, source
 epoch, source revision and the analysis, and nothing of why (the reason stays in
 `ai_review_analyses.urgent_reason` and is read in the app; a payload field called `reason`
@@ -952,7 +987,7 @@ A manager corrects what the AI said of a review in the Inbox ("Not right?", `cor
 migration 0080, decision Q11), and the correction takes effect at once. The kept answer is never
 changed: a correction is one row beside a mention (`ai_review_analysis_mention_corrections`, at most
 one per mention) that every read lays over the answer before it counts anything
-(`ai-guest-voice-facts.adapter.ts`, the Inbox's current-analysis read, the Inbox's issue filter).
+(`guest-voice/ai-guest-voice-facts.adapter.server.ts`, the Inbox's current-analysis read, the Inbox's issue filter).
 Three kinds. `remove_topic` sets aside every mention of that topic in the analysis, written and
 given back together. `not_a_problem` is for a complaint and counts as neutral. `change_cause`
 gives the thing and what was wrong as one or two short lowercase phrases (the stored contract's
@@ -973,7 +1008,7 @@ review's current one answers not found, writing nothing, even before the use cas
 asks through a plain function fetched with its first use (`routes/_authenticated/-inbox-fns.ts`),
 so the stub stays out of the first-paint closure.
 
-`ai-property-aggregate-settlement.ts` owns ledger identity, replay and stale-sequence
+`analysis/ai-property-aggregate-settlement.server.ts` owns ledger identity, replay and stale-sequence
 decisions. The aggregate adapter holds the Property advisory lock and supplies its
 transaction, so ledger writes, contribution changes and coverage updates commit together.
 The ledger identity deliberately excludes the processing profile version; coverage
@@ -982,7 +1017,7 @@ remains specific to each profile's head.
 The aggregate head counts every settled sequence, including superseded sequences.
 An epoch's only head reconciles its count with the ledger on each settlement.
 A processing-profile rollover creates a new, incomplete head in the profile
-transaction. `ai-profile-rebuild.ts` resumes bounded batches from the recurring
+transaction. `analysis/ai-profile-rebuild.server.ts` resumes bounded batches from the recurring
 enrollment sweep, using contributions still assigned to older profiles as durable
 pending work. It takes Review's Property fence before the aggregate advisory lock,
 then rechecks the active source, merchant authorization and profile. Each batch
@@ -1082,7 +1117,7 @@ Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current im
 | 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply/schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                                                     |
 | 2 — numbered input/options/binding         | `src/shared/reply/request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                                    |
 | 3 — effort/output/reservation bounds       | `src/shared/reply/profile.ts:25`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                                           |
-| 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/infrastructure/adapters/reply-rewrite-parent.ts:16`                                             |
+| 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/execution/reply-rewrite-parent.server.ts:16`                                                    |
 | 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |
 | 6 — frame choice/usage/adoption            | `src/contexts/review/application/ai-reply-v2-frame.ts:21`, `src/contexts/review/infrastructure/repositories/ai-frame-reservation.ts:156`, `src/contexts/review/infrastructure/ai-suggested-draft-store.ts:481` |
 
@@ -1155,7 +1190,7 @@ Re-verified map items 7–8 against origin/main `cf1e33c66` (B1 merged):
 | 7 — authenticated POST / cancellation                   | `src/contexts/ai/server/reply-suggestion-stream.ts:32`, `src/contexts/ai/server/reply-progress-stream.server.ts:16`                                                                    |
 | 7 — safe incremental metadata / bounded provider stream | `src/shared/ai-provider-control/reply-progress-parser.ts:15`, `src/shared/ai-provider-control/bounded-event-stream.ts:2`, `src/shared/ai-provider-control/openai-stream-response.ts:7` |
 | 7 — v2-only request attestation / deployment            | `src/shared/ai-openai-stream-profile.ts:32`, `src/shared/reply/profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                                            |
-| 8 — lane / active actor ownership / identity            | `src/contexts/ai/reply/requests.server.ts:20`, `src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts:851`                                                             |
+| 8 — lane / active actor ownership / identity            | `src/contexts/ai/reply/requests.server.ts:20`, `src/contexts/ai/execution/ai-operation-store.adapter.server.ts:854`                                                                    |
 | 8 — authoritative local/Google reply eligibility        | `src/contexts/review/infrastructure/repositories/unanswered-review.ts:11`                                                                                                              |
 
 ## Invariants

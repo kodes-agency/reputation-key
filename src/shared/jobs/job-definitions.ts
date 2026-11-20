@@ -144,7 +144,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'ai-review-analysis-backlog-drain',
-    'src/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job.ts',
+    'src/contexts/ai/replay/drain-review-analysis-backlog-job.server.ts',
     {
       queue: 'background',
       capability: 'ai.analyze',
@@ -160,7 +160,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // past the hour, so it does not meet the hour's other recurring work.
   defineJob(
     'ai-guest-voice-summary-sweep',
-    'src/contexts/ai/infrastructure/jobs/guest-voice-summary-sweep.job.ts',
+    'src/contexts/ai/guest-voice/guest-voice-summary-sweep-job.server.ts',
     {
       queue: 'background',
       capability: 'ai.analyze',
@@ -173,7 +173,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'ai-review-analysis-on-demand',
-    'src/contexts/ai/infrastructure/jobs/analyze-review-now.job.ts',
+    'src/contexts/ai/replay/analyze-review-now-job.server.ts',
     {
       queue: 'default',
       capability: 'ai.analyze',

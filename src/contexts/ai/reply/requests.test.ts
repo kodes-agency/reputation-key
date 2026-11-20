@@ -4,7 +4,7 @@ import type {
   GenerateReplySuggestionDependencies,
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
-} from '../application/reply-suggestion-contract'
+} from './reply-suggestion-contract.server'
 import type { ReplyDraftingProgressSink } from '#/shared/reply-drafting-progress'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 

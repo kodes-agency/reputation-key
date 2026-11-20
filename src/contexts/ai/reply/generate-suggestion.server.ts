@@ -16,12 +16,12 @@ import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
   GenerateReplySuggestionDependencies,
-} from '../application/reply-suggestion-contract'
+} from './reply-suggestion-contract.server'
 export type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
   GenerateReplySuggestionDependencies,
-} from '../application/reply-suggestion-contract'
+} from './reply-suggestion-contract.server'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply/profile'
 import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import {
@@ -39,7 +39,7 @@ import {
   type ReplyTemplateLanguageGroup,
 } from '#/shared/ai-review-language-catalogue'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
-import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type {
   AiExecutionStopFence,
   AiOperationId,
@@ -57,7 +57,7 @@ import {
 import {
   replyExecutionBinding,
   replyOperationIdentity,
-} from '../application/ai-operation-binding'
+} from '../execution/ai-operation-binding.server'
 
 /** What admission answers when the claimed source or consent moved before send. */
 const ADMISSION_CURRENTNESS_REFUSALS: ReadonlySet<AiErrorCode> = new Set([

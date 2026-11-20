@@ -18,7 +18,7 @@ import {
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply/profile'
 import { REPLY_DRAFTING_V2_DYNAMIC_PROMPT_BYTES } from '#/shared/reply/request'
-import { aiGatewayRequestMaxBytes } from '#/contexts/ai/infrastructure/adapters/ai-inprocess.adapter'
+import { aiGatewayRequestMaxBytes } from '#/contexts/ai/execution/ai-inprocess.adapter.server'
 
 const KEYS = generateKeyPairSync('ed25519')
 const NOW = 1_780_000_000_000

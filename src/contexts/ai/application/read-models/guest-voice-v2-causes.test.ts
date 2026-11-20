@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { causeCounts } from './guest-voice-v2-causes'
 import { tallyIssues } from './guest-voice-v2-tally'
-import { ISSUE, mention, review } from './guest-voice-v2.test-fixtures'
+import { ISSUE, mention, review } from '../../guest-voice/guest-voice-v2.test-fixtures'
 
 it('counts each normalized cause once per review and sense, including ties', () => {
   const tallies = tallyIssues([

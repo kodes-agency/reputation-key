@@ -1,0 +1,330 @@
+import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import { randomUUID } from 'node:crypto'
+import { and, eq } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { getDb } from '#/shared/db'
+import { getPool } from '#/shared/db/pool'
+import {
+  aiExecutionControlHeads,
+  aiOperations,
+  aiOrganizationCostWindows,
+} from '#/shared/db/schema'
+import {
+  AI_OPERATION_FIXTURE_CONSENT,
+  installAiOperationFixture,
+  type AiOperationFixture,
+} from '#/shared/db/testing/ai-operation-fixture'
+import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import type {
+  AiAdmissionDescriptorV1,
+  AiSettlementRequestV1,
+} from '#/shared/ai-internal-transport-contract'
+import { createAiExecutionAdmissionAdapter } from './ai-execution-admission.adapter.server'
+import { createAiOperationStoreAdapter } from './ai-operation-store.adapter.server'
+import { aiRequestFingerprint } from '../application/ai-workflow-support'
+import type { AiOperationStorePort } from './ai-operation-store.port.server'
+import type { AiExecutionBinding } from '../domain/types'
+
+const ORG = organizationId('reply-v2-accounting-integration')
+const PROPERTY = propertyId('7b500000-0000-4000-8000-000000000001')
+const ACTOR = userId('reply-v2-accounting-actor')
+const REVIEW = reviewId('7b500000-0000-4000-8000-000000000002')
+const NOW = new Date(Date.now() - 1_000)
+const db = getDb()
+const operations = createAiOperationStoreAdapter(db, randomUUID)
+const authority = createAiExecutionAdmissionAdapter({
+  pool: getPool(),
+  now: () => NOW,
+})
+async function settle(request: AiSettlementRequestV1) {
+  const { operationId, permitId, attemptNumber, ...outcome } = request
+  return authority.settle({ operationId, permitId, attemptNumber }, outcome)
+}
+
+let fixture: AiOperationFixture
+let root: Parameters<AiOperationStorePort['claim']>[0]
+
+beforeAll(async () => {
+  fixture = await installAiOperationFixture({
+    db,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    actorUserId: ACTOR,
+    now: NOW,
+  })
+  const heads = await db.select().from(aiExecutionControlHeads)
+  const head = (key: string) => heads.find((h) => h.scopeKey === key)!
+  const base = replyRequest().binding
+  await fixture.seedReview({ id: REVIEW })
+  const consent = AI_OPERATION_FIXTURE_CONSENT
+  const binding = {
+    ...base,
+    authorizationLineageId: fixture.authorizationLineageId,
+    noticeVersion: consent.noticeVersion,
+    noticeDigest: consent.noticeDigest,
+    sourcePolicyId: consent.sourcePolicyId,
+    redactionProfileVersion: consent.redactionProfileVersion,
+    capabilityFence: {
+      capability: 'reply_drafting',
+      replyDraftingEpoch: consent.replyDraftingEpoch,
+      baseReplyStateRevision: 0,
+    },
+    sourceEpoch: consent.sourceEpoch,
+    sourceRevision: 1,
+    reviewedAtEpochMillis: NOW.getTime(),
+    propertyProfileVersion: consent.propertyProfileVersion,
+    stopFence: {
+      globalControlId: head('global').controlId,
+      globalGeneration: head('global').generation,
+      providerControlId: head('provider:private-beta-global-v3').controlId,
+      providerGeneration: head('provider:private-beta-global-v3').generation,
+      capabilityControlId: head('capability:reply_drafting').controlId,
+      capabilityGeneration: head('capability:reply_drafting').generation,
+    },
+  } as AiExecutionBinding
+  const identity = {
+    subjectKind: 'property',
+    command: 'reply',
+    capability: 'reply_drafting',
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    actorId: ACTOR,
+    systemPrincipal: null,
+    reviewId: REVIEW,
+    sourceEpoch: 1,
+    sourceRevision: 1,
+    reviewedAtEpochMillis: NOW.getTime(),
+    baseReplyStateRevision: 0,
+    tone: 'professional',
+  } as const
+  root = {
+    identity,
+    binding,
+    idempotencyKey: 'root',
+    requestFingerprint: aiRequestFingerprint({ identity, binding }),
+    sourceProvenance: { digest: 'e'.repeat(64), byteCount: 20 },
+    nowEpochMillis: NOW.getTime(),
+    expiresAtEpochMillis: NOW.getTime() + 300_000,
+  }
+})
+afterAll(async () => {
+  await fixture?.remove()
+})
+
+function descriptor(
+  operationId: string,
+  permitId: string,
+  binding: AiExecutionBinding,
+): Extract<AiAdmissionDescriptorV1, { subjectKind: 'property' }> {
+  return {
+    version: 'ai-admission-descriptor-v1',
+    subjectKind: 'property',
+    route: 'reply-suggestion',
+    operationId,
+    permitId,
+    attemptNumber: 1,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    internalSubjectId: REVIEW,
+    actorId: ACTOR,
+    binding,
+    canaryBinding: null,
+    releaseSha: null,
+    canaryAuthorizationId: null,
+    sourceDigest: 'e'.repeat(64),
+    sourceByteCount: 20,
+    preparedDigest: 'f'.repeat(64),
+    preparedByteCount: 12000,
+    providerPayloadByteCount: 256,
+    promptCacheShard: 0,
+    limits: {
+      sourceBytes: 16384,
+      providerPayloadBytes: 57344,
+      preparedRequestBytes: 131072,
+      responseBytes: 1_048_576,
+      outputTokens: 2048,
+      costMicros: 1000000,
+    },
+    callerDeadlineEpochMillis: NOW.getTime() + 70000,
+    observedContentExpiresAtEpochMillis: NOW.getTime() + 300000,
+    redactionCountry: 'US',
+    redactionProfileVersion: binding.redactionProfileVersion,
+    outputLeakageProfileVersion: binding.outputLeakageProfileVersion,
+    outputLeakageProfileDigest: binding.outputLeakageProfileDigest,
+    replyTemplateCatalogueVersion: binding.replyTemplateCatalogueVersion,
+    replyTemplateCatalogueDigest: binding.replyTemplateCatalogueDigest,
+  }
+}
+async function charge(operationId: string, binding: AiExecutionBinding) {
+  const execution = await operations.claimExecution({
+    operationId: operationId as never,
+    organizationId: ORG,
+    expectedAttempt: 1,
+    nowEpochMillis: NOW.getTime(),
+  })
+  expect(execution).not.toBeNull()
+  const admitted = await authority.authorize(
+    descriptor(operationId, execution!.executionPermitId!, binding),
+  )
+  if (admitted.status !== 'admitted')
+    throw new Error(`Admission refused: ${admitted.code}`)
+  const settlement: AiSettlementRequestV1 = {
+    operationId,
+    permitId: execution!.executionPermitId!,
+    attemptNumber: 1,
+    disposition: 'output_invalid',
+    reportedDisposition: 'success',
+    usageKnown: true,
+    providerRetryable: false,
+    inputTokens: 100,
+    cachedInputTokens: 0,
+    outputTokens: 20,
+    reasoningTokens: 0,
+    retryAfterSeconds: null,
+  }
+  const first = await settle(settlement)
+  // The admission's reservation closed with the first settlement.
+  await expect(settle(settlement)).resolves.toEqual({
+    status: 'denied',
+    code: 'settlement_conflict',
+  })
+  await operations.recordFailure({
+    operationId: operationId as never,
+    organizationId: ORG,
+    expectedAttempt: 1,
+    failureCode: 'output_invalid',
+    retryAtEpochMillis: null,
+    failedAtEpochMillis: NOW.getTime() + 1,
+  })
+  return first
+}
+
+describe.sequential('v2 rewrite identity and accounting (PostgreSQL)', () => {
+  it('uniquely claims one child, charges both once and refuses a grandchild', async () => {
+    const parent = await operations.claim(root)
+    const parentSettlement = await charge(parent.operation.id, root.binding)
+    const childBinding = {
+      ...root.binding,
+      replyDraftingV2: {
+        ...root.binding.replyDraftingV2!,
+        parentOperationId: parent.operation.id,
+        rewriteOrdinal: 1 as const,
+        rewriteIssues: ['invitation' as const],
+      },
+    }
+    const child = {
+      ...root,
+      binding: childBinding,
+      idempotencyKey: aiRequestFingerprint({
+        parentOperationId: parent.operation.id,
+        rewriteOrdinal: 1,
+      }),
+      requestFingerprint: aiRequestFingerprint(childBinding),
+    }
+    const concurrent = await Promise.all([
+      operations.claim(child),
+      operations.claim(child),
+    ])
+    expect(new Set(concurrent.map((c) => c.operation.id)).size).toBe(1)
+    expect(concurrent.map((c) => c.status).sort()).toEqual(['created', 'replayed'])
+    const childId = concurrent[0]!.operation.id
+    await charge(childId, childBinding)
+    expect(parentSettlement.status).toBe('settled')
+    const [window] = await db
+      .select()
+      .from(aiOrganizationCostWindows)
+      .where(eq(aiOrganizationCostWindows.organizationId, ORG))
+    const rows = await db
+      .select()
+      .from(aiOperations)
+      .where(
+        and(eq(aiOperations.organizationId, ORG), eq(aiOperations.propertyId, PROPERTY)),
+      )
+    expect(rows).toHaveLength(2)
+    const metadata = root.binding.replyDraftingV2!
+    const invalidRoots = [
+      { ...metadata, voiceDigest: null },
+      { ...metadata, generationSeed: null },
+      { ...metadata, options: { ...metadata.options, variation: null } },
+      { ...metadata, options: { ...metadata.options, variation: '1' } },
+      { ...metadata, options: { ...metadata.options, variation: 1.5 } },
+      { ...metadata, options: { ...metadata.options, opening: '2' } },
+      { ...metadata, options: { ...metadata.options, length: null } },
+      { ...metadata, rewriteOrdinal: null },
+      { ...metadata, rewriteIssues: ['invitation'] },
+    ]
+    for (const invalid of invalidRoots) {
+      await expect(
+        db
+          .update(aiOperations)
+          .set({ replyDraftingV2: invalid as never })
+          .where(eq(aiOperations.id, parent.operation.id)),
+      ).rejects.toMatchObject({ cause: { code: '23514' } })
+    }
+    await expect(
+      db
+        .update(aiOperations)
+        .set({ replyDraftingV2: { ...childBinding.replyDraftingV2, rewriteIssues: [] } })
+        .where(eq(aiOperations.id, childId)),
+    ).rejects.toMatchObject({ cause: { code: '23514' } })
+
+    await expect(
+      db
+        .update(aiOperations)
+        .set({
+          replyDraftingV2: {
+            ...root.binding.replyDraftingV2!,
+            avoidTerms: ['private'],
+          } as never,
+        })
+        .where(eq(aiOperations.id, parent.operation.id)),
+    ).rejects.toMatchObject({ cause: { code: '23514' } })
+    expect(rows.every((r) => r.budgetSettledAt !== null && r.actualMicros !== null)).toBe(
+      true,
+    )
+    expect(window!.reservedMicros).toBe(0)
+    expect(window!.settledMicros).toBe(rows.reduce((sum, r) => sum + r.actualMicros!, 0))
+    const thirdBinding = {
+      ...childBinding,
+      replyDraftingV2: { ...childBinding.replyDraftingV2, parentOperationId: childId },
+    }
+    const third = await operations.claim({
+      ...child,
+      binding: thirdBinding,
+      idempotencyKey: aiRequestFingerprint({
+        parentOperationId: childId,
+        rewriteOrdinal: 1,
+      }),
+      requestFingerprint: aiRequestFingerprint(thirdBinding),
+    })
+    expect(third.status).toBe('conflict')
+  })
+})
+
+it('deduplicates the same key per actor and retains only content-free request metadata', async () => {
+  const key = randomUUID()
+  const firstInput = { ...root, idempotencyKey: key }
+  const rootIdentity = root.identity
+  if (rootIdentity.command !== 'reply') throw new Error('Expected reply fixture')
+  const secondIdentity = { ...rootIdentity, actorId: userId('another-reply-manager') }
+  const secondInput = {
+    ...firstInput,
+    identity: secondIdentity,
+    requestFingerprint: aiRequestFingerprint({
+      identity: secondIdentity,
+      binding: root.binding,
+    }),
+  }
+  const [first, duplicate, other] = await Promise.all([
+    operations.claim(firstInput),
+    operations.claim(firstInput),
+    operations.claim(secondInput),
+  ])
+  expect(first.operation.id).toBe(duplicate.operation.id)
+  expect(other.operation.id).not.toBe(first.operation.id)
+  const metadata = await db
+    .select({ binding: aiOperations.replyDraftingV2 })
+    .from(aiOperations)
+    .where(eq(aiOperations.id, other.operation.id))
+  expect(JSON.stringify(metadata)).not.toMatch(/replyText|avoidTerms|A local draft/)
+})

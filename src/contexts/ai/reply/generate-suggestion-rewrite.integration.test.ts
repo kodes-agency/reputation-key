@@ -4,11 +4,11 @@ import {
   ORGANIZATION_ID,
   PROPERTY_ID,
   REVIEW_ID,
-} from '#/contexts/ai/infrastructure/testing/reply-handler.test-fixtures'
+} from '#/contexts/ai/reply/reply-handler.test-fixtures'
 import {
   REJECTED_V2_OUTPUT,
   createV2Harness,
-} from '#/contexts/ai/infrastructure/testing/reply-rewrite-handler.test-fixtures'
+} from '#/contexts/ai/reply/reply-rewrite-handler.test-fixtures'
 import { userId } from '#/shared/domain/ids'
 import { describe, expect, it, vi } from 'vitest'
 

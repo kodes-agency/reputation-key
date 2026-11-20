@@ -7,7 +7,7 @@ import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { reviewId, type OrganizationId, type ReviewId } from '#/shared/domain/ids'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { correctReviewMentionDto } from '../application/dto/review-mention-correction.dto'
+import { correctReviewMentionDto } from '../analysis/review-mention-correction.contracts'
 import { isAiError } from '../domain/errors'
 
 /**

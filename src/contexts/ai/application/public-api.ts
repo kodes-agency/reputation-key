@@ -41,7 +41,7 @@ export type {
 export type {
   CorrectReviewMentionResult,
   MentionCorrectionAction,
-} from './use-cases/correct-review-mention'
+} from '../analysis/correct-review-mention.server'
 
 export type {
   AiEvent,
@@ -50,9 +50,9 @@ export type {
   AiReviewUrgentDetected,
   AiGuestVoiceSummaryReady,
 } from '../domain/events'
-export type { ReviewAnalysisProgress } from './use-cases/read-review-analysis-progress'
-export type { RequestReviewAnalysisNowResult } from './use-cases/request-review-analysis-now'
-export type { AiOrganizationMonthSpend } from './ports/ai-organization-spend.port'
+export type { ReviewAnalysisProgress } from '../replay/read-review-analysis-progress.server'
+export type { RequestReviewAnalysisNowResult } from '../replay/request-review-analysis-now.server'
+export type { AiOrganizationMonthSpend } from '../execution/ai-organization-spend.port.server'
 
 export type {
   GuestVoiceBasis,

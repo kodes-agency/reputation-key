@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mentionRefKey } from '../application/ports/ai-guest-voice-facts.port'
+import { mentionRefKey } from './ai-guest-voice-facts.port.server'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import {
