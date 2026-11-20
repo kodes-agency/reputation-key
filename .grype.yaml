@@ -188,7 +188,7 @@ ignore:
   - vulnerability: CVE-2026-76844 # zlib1g, no trixie fix
 
   # ── Debian trixie base packages, libssl3t64 / openssl-provider-legacy
-  #    3.5.7-1~deb13u3: no fix yet (6 CVEs) ───────────────────────────────
+  #    3.5.7-1~deb13u3: no fix yet (7 CVEs) ───────────────────────────────
   # owner: platform — reason: CVE-2026-107496, CVE-2026-88823, CVE-2026-95691
   # and CVE-2026-95692 (all High) appeared in grype's database on 2026-11-17
   # against libssl3t64 and openssl-provider-legacy 3.5.7-1~deb13u3 (grype:
@@ -206,7 +206,12 @@ ignore:
   # CVE-2026-107493 High`, likewise CVE-2026-124709 and for
   # openssl-provider-legacy), also with no fixed version; apt in the new pinned
   # base (node:22.23.5-trixie-slim) still offers only 3.5.7-1~deb13u3 (checked
-  # 2026-11-19). Same reachability argument as above.
+  # 2026-11-19). Same reachability argument as above. CVE-2026-84786 (High)
+  # was added by grype's database of 2026-11-20 (grype: `libssl3t64
+  # 3.5.7-1~deb13u3 deb CVE-2026-84786 High`, likewise for
+  # openssl-provider-legacy), with no fixed version; apt in the pinned base
+  # still offers only 3.5.7-1~deb13u3 (checked 2026-11-20). Same reachability
+  # argument as above.
   # expiresAt: 2026-12-01
   - vulnerability: CVE-2026-107496 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-88823 # libssl3t64 / openssl-provider-legacy, no trixie fix
@@ -214,3 +219,4 @@ ignore:
   - vulnerability: CVE-2026-95692 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-107493 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-124709 # libssl3t64 / openssl-provider-legacy, no trixie fix
+  - vulnerability: CVE-2026-84786 # libssl3t64 / openssl-provider-legacy, no trixie fix
