@@ -11,13 +11,13 @@ import { portalError } from '#/contexts/portal/domain/errors'
 import type { PortalErrorCode } from '#/contexts/portal/domain/errors'
 import { portalErrorStatus } from '#/contexts/portal/server/portals'
 import { throwContextError } from '#/shared/auth/server-errors'
-import { createPortalInputSchema } from '#/contexts/portal/application/dto/create-portal.dto'
+import { createPortalInputSchema } from '#/contexts/portal/publication/create-portal.contracts'
 import {
   changePortalLanguagesInputSchema,
   changePortalSlugInputSchema,
   portalIdInputSchema,
   updatePortalSettingsInputSchema,
-} from '#/contexts/portal/application/dto/portal-intents.dto'
+} from '#/contexts/portal/publication/portal-intents.contracts'
 
 // ── Error → HTTP status mapping (production code) ─────────────────
 

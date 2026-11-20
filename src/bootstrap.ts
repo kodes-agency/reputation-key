@@ -70,11 +70,11 @@ import { GoalProgramError } from '#/contexts/reporting/application/public-api'
 import {
   createRevalidateApprovedDestinationsHandler,
   JOB_NAME as PORTAL_DESTINATION_REVALIDATION_JOB,
-} from '#/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job'
+} from '#/contexts/portal/destinations/revalidate-approved-destinations-job.server'
 import {
   createSweepPortalMediaHandler,
   JOB_NAME as PORTAL_MEDIA_SWEEP_JOB,
-} from '#/contexts/portal/infrastructure/jobs/sweep-portal-media.job'
+} from '#/contexts/portal/media/sweep-portal-media-job.server'
 
 // BQC-5.5: the ops queue read handles are composition-owned (container.opsQueues)
 // — the per-module getOpsQueues() duplicate is gone. The health-check job

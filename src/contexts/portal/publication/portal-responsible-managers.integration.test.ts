@@ -22,14 +22,14 @@ import { getPortalContactRequestManagerAuthorityFacts } from './contact-request-
 import {
   listPortalResponsibleManagers,
   updatePortalResponsibleManagers,
-} from '../application/use-cases/portal-responsible-managers'
-import { createPortalRepository } from '../infrastructure/repositories/portal.repository'
-import { createPortalResponsibleManagerRepository } from '../infrastructure/repositories/portal-responsible-manager.repository'
+} from '../responsibility/portal-responsible-managers.server'
+import { createPortalRepository } from './portal-repository.server'
+import { createPortalResponsibleManagerRepository } from '../responsibility/portal-responsible-manager-repository.server'
 import {
   seedClusterPortal,
   type SeededClusterPortal,
 } from '../infrastructure/testing/portal-token-cluster-fixtures'
-import type { PortalResponsibleManagerRepository } from '../application/ports/portal-responsible-manager.repository'
+import type { PortalResponsibleManagerRepository } from '../responsibility/portal-responsible-manager-repository.port.server'
 
 const ORG_A = organizationId('org-resp-managers-0000000000001')
 const ORG_B = organizationId('org-resp-managers-0000000000002')

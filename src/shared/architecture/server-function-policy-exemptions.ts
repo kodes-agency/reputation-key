@@ -110,7 +110,7 @@ export const SERVER_FUNCTION_POLICY_EXEMPTIONS: readonly ServerFunctionPolicyExe
       category: 'DECIDED-BELOW',
       guard: null,
       decidedIn: {
-        file: 'src/contexts/portal/application/use-cases/resolve-public-portal-token.ts',
+        file: 'src/contexts/portal/publication/resolve-public-portal-token.server.ts',
         call: 'deps.decidePublic(',
       },
       reason:

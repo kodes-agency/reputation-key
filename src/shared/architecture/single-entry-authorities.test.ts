@@ -31,8 +31,8 @@ describe('Portal page-edit ledger', () => {
     expect(
       callersOf(productionFiles('src'), /\brecordPortalPendingContentChange\b/u),
     ).toEqual([
-      'src/contexts/portal/infrastructure/portal-page-edits.ts',
-      'src/contexts/portal/infrastructure/portal-pending-content-changes.ts',
+      'src/contexts/portal/publication/portal-page-edits.server.ts',
+      'src/contexts/portal/publication/portal-pending-content-changes.server.ts',
     ])
   })
 })

@@ -25,33 +25,33 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
-import { completeContentReview } from '../application/use-cases/complete-content-review'
-import { issuePortalToken } from '../application/use-cases/issue-portal-token'
+import { buildPortalPublicationSnapshot } from './portal-publication-snapshot.server'
+import { completeContentReview } from './complete-content-review.server'
+import { issuePortalToken } from '../addresses/issue-portal-token.server'
 import {
   previewPortalChanges,
   publishPortalChanges,
   publishPortalsChanges,
-} from '../application/use-cases/publish-portal-changes'
-import { rollbackPortalPublication } from '../application/use-cases/rollback-portal-publication'
-import { recordPortalPendingContentChange } from '../infrastructure/portal-pending-content-changes'
-import { createPortalWorkflowFactStore } from '../infrastructure/portal-workflow-fact-store'
-import { createPortalRepository } from '../infrastructure/repositories/portal.repository'
-import { createPortalGroupRepository } from '../infrastructure/repositories/portal-group.repository'
-import { createPortalPublicationRepository } from '../infrastructure/repositories/portal-publication.repository'
-import { createPortalTokenRepository } from '../infrastructure/repositories/portal-token.repository'
-import { seedLegacySnapshot } from '../infrastructure/testing/portal-legacy-live-seed'
-import { testPortalTokenCodec } from '../infrastructure/testing/portal-token-codec-fixture'
+} from './publish-portal-changes.server'
+import { rollbackPortalPublication } from './rollback-portal-publication.server'
+import { recordPortalPendingContentChange } from './portal-pending-content-changes.server'
+import { createPortalWorkflowFactStore } from './portal-workflow-fact-store.server'
+import { createPortalRepository } from './portal-repository.server'
+import { createPortalGroupRepository } from '../groups/portal-group-repository.server'
+import { createPortalPublicationRepository } from './portal-publication-repository.server'
+import { createPortalTokenRepository } from '../addresses/portal-token-repository.server'
+import { seedLegacySnapshot } from './portal-legacy-live-seed.test-fixtures'
+import { testPortalTokenCodec } from '../addresses/portal-token-codec.test-fixtures'
 import {
   publishFromSource,
   republishFromSource,
-} from '../infrastructure/testing/portal-working-copy-publish'
+} from './portal-working-copy-publish.test-fixtures'
 import {
   seedPortalLookOverride,
   seedPortalWorkingCopy,
   seedSiblingPortal,
   type PortalWorkingCopySeed,
-} from '../infrastructure/testing/portal-working-copy-seed'
+} from './portal-working-copy-seed.test-fixtures'
 import type { PortalCommandStore } from './portal-command-store-port.server'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
 

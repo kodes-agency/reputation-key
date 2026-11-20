@@ -2,19 +2,19 @@
 
 import { createHash } from 'node:crypto'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PortalLastPrintRepository } from './application/ports/portal-last-print.repository'
-import type { PortalPrintWordingRepository } from './application/ports/portal-print-wording.repository'
-import type { PortalMediaAssetRepository } from './application/ports/portal-media-asset.repository'
-import type { PortalPublicationRepository } from './application/ports/portal-publication.repository'
-import type { PortalRepository } from './application/ports/portal.repository'
+import type { PortalLastPrintRepository } from './printing/portal-last-print-repository.port.server'
+import type { PortalPrintWordingRepository } from './printing/portal-print-wording-repository.port.server'
+import type { PortalMediaAssetRepository } from './media/portal-media-asset-repository.port.server'
+import type { PortalPublicationRepository } from './publication/portal-publication-repository.port.server'
+import type { PortalRepository } from './publication/portal-repository.port.server'
 import type { StoragePort } from './application/ports/storage.port'
-import { createPortalPrint } from './application/use-cases/create-portal-print'
-import { getPortalPrintKit } from './application/use-cases/get-portal-print-kit'
-import { savePortalPrintWording } from './application/use-cases/save-portal-print-wording'
-import type { RevealPortalAddress } from './application/use-cases/reveal-portal-address'
-import type { PortalPrintRenderer } from './application/ports/portal-print-renderer.port'
+import { createPortalPrint } from './printing/create-portal-print.server'
+import { getPortalPrintKit } from './printing/get-portal-print-kit.server'
+import { savePortalPrintWording } from './printing/save-portal-print-wording.server'
+import type { RevealPortalAddress } from './addresses/reveal-portal-address.server'
+import type { PortalPrintRenderer } from './printing/pdfkit-print-renderer.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { PropertyCountryReader } from './infrastructure/print-kit/print-kit-property-country'
+import type { PropertyCountryReader } from './printing/print-kit-property-country.server'
 
 export type PortalPrintKitDeps = Readonly<{
   portalRepo: PortalRepository
@@ -44,7 +44,7 @@ export type PortalPrintKitDeps = Readonly<{
 const lazyRenderer = (now: () => Date): PortalPrintRenderer => ({
   render: async (input) => {
     const { createPdfKitPrintRenderer } =
-      await import('./infrastructure/print-kit/pdfkit-print-renderer')
+      await import('./printing/pdfkit-print-renderer.server')
     return createPdfKitPrintRenderer({ now }).render(input)
   },
 })

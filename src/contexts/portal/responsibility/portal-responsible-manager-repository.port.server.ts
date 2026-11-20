@@ -1,0 +1,50 @@
+import type { PortalResponsibleManager } from '../domain/portal-responsible-manager'
+
+export type PortalResponsibleManagerRepository = Readonly<{
+  listActive: (
+    organizationId: string,
+    portalId: string,
+  ) => Promise<readonly PortalResponsibleManager[]>
+  /**
+   * `listActive` for a set of Portals in one read, ordered by Portal then
+   * user. A Portal with no active manager is absent.
+   */
+  listActiveForPortals: (
+    organizationId: string,
+    portalIds: readonly string[],
+  ) => Promise<readonly PortalResponsibleManager[]>
+  listActiveForUser: (
+    organizationId: string,
+    userId: string,
+  ) => Promise<readonly PortalResponsibleManager[]>
+  replace: (
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      portalId: string
+      managerUserIds: readonly string[]
+      expectedRevision: number
+      actorId: string
+      at: Date
+    }>,
+  ) => Promise<
+    Readonly<{
+      assignments: readonly PortalResponsibleManager[]
+      revision: number
+      becameResponsibilityNeeded: boolean
+    }>
+  >
+  /** End only the departing user's intervals; preserve all other managers. */
+  releaseForUser: (
+    input: Readonly<{
+      organizationId: string
+      userId: string
+      /** Omit to release every Portal assignment; pass ids for reconciliation. */
+      portalIds?: readonly string[]
+      at: Date
+      endReason: string
+      /** Who released them; never asked to fix the gap they just opened. */
+      actorId?: string | null
+    }>,
+  ) => Promise<Readonly<{ released: number }>>
+}>

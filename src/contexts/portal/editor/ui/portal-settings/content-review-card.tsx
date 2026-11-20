@@ -39,7 +39,7 @@ export function ContentReviewCard({
   // branch so an unpublish/republish round trip does not silently clear it.
   const [attested, setAttested] = useState(false)
   // The use case rejects completion for anything but published content
-  // (complete-content-review.ts: invalid_publication_transition).
+  // (publication/complete-content-review.server.ts: invalid_publication_transition).
   const isPublished = portal.publicationState === 'published'
   const live = liveVersionName(liveVersion)
 

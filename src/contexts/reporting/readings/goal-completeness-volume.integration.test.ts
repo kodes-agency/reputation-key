@@ -5,8 +5,8 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
-import { createPortalGroupPublicApi } from '#/contexts/portal/infrastructure/portal-group-public-api'
-import { createPortalGroupRepository } from '#/contexts/portal/infrastructure/repositories/portal-group.repository'
+import { createPortalGroupPublicApi } from '#/contexts/portal/groups/portal-group-public-api.server'
+import { createPortalGroupRepository } from '#/contexts/portal/groups/portal-group-repository.server'
 import { METRIC_VERSION_IDS } from './contracts'
 import {
   createGoalMetricSourceStatus,

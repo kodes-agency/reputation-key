@@ -10,8 +10,8 @@ import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-f
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Button } from '#/components/ui/button'
 import { FieldGroup } from '#/components/ui/field'
-import { createLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
-import { LINK_TEXT_LABEL_MAX_LENGTH } from '#/contexts/portal/application/dto/portal-linktree.dto'
+import { createLinkInputSchema } from '#/contexts/portal/links/portal-link.contracts'
+import { LINK_TEXT_LABEL_MAX_LENGTH } from '#/contexts/portal/links/portal-linktree.contracts'
 import { LINK_ADDRESS_FIELD } from './link-address-field'
 import type { LinktreeMutations } from './use-linktree-mutations'
 

@@ -14,7 +14,7 @@
 import { getContainer } from '#/composition'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { ServePortalMedia } from '../application/use-cases/serve-portal-media'
+import type { ServePortalMedia } from '../media/serve-portal-media.server'
 
 /** Seconds a cache may keep an image without asking again: the takedown latency. */
 export const PORTAL_MEDIA_MAX_AGE_SECONDS = 300

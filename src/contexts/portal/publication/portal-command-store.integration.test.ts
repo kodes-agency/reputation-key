@@ -47,8 +47,8 @@ import {
 import { publishPortalAccessArtifact } from '../domain/portal-access-artifact'
 import { portalAccessArtifactId } from '#/shared/domain/ids'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
-import { createPortalWorkflowFactStore } from '../infrastructure/portal-workflow-fact-store'
-import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
+import { createPortalWorkflowFactStore } from './portal-workflow-fact-store.server'
+import { buildPortalPublicationSnapshot } from './portal-publication-snapshot.server'
 import { publicationSource } from '../domain/__fixtures__/publication-source'
 import { issueToken, rotateToken } from '../domain/portal-token'
 

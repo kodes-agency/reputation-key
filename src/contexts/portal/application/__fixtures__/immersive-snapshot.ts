@@ -12,7 +12,7 @@ import {
   IMMERSIVE_FIXTURE_SCOPE,
   immersiveConfiguration,
 } from '../../domain/__fixtures__/immersive-configuration'
-import { digestPortalPublicationConfiguration } from '../portal-publication-snapshot'
+import { digestPortalPublicationConfiguration } from '../../publication/portal-publication-snapshot.server'
 
 export * from '../../domain/__fixtures__/immersive-configuration'
 

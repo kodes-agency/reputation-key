@@ -6,7 +6,7 @@
 // has no public name yet shows this name there instead.
 
 import { useForm } from '@tanstack/react-form'
-import { updatePortalSettingsInputSchema } from '#/contexts/portal/application/dto/portal-intents.dto'
+import { updatePortalSettingsInputSchema } from '#/contexts/portal/publication/portal-intents.contracts'
 import type { Action } from '#/components/hooks/use-action'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { usePortalFormAutosave } from './use-portal-form-autosave'

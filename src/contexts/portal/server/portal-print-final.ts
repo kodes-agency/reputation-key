@@ -3,8 +3,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
-import { downloadPortalPrintInputSchema } from '../application/dto/portal-print.dto'
-import { savePortalPrintWordingInputSchema } from '../application/dto/portal-print-wording.dto'
+import { downloadPortalPrintInputSchema } from '../printing/portal-print.contracts'
+import { savePortalPrintWordingInputSchema } from '../printing/portal-print-wording.contracts'
 import {
   downloadPortalPrintFile,
   guardedPortalPrintAction,

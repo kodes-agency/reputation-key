@@ -12,14 +12,14 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { createLink } from '../application/use-cases/create-link'
+import { createLink } from '../links/create-link.server'
 import { isPortalError } from '../domain/errors'
 import { portalCreated } from '../domain/events'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
-import { createPortalApprovedDestinationRepository } from '../infrastructure/repositories/portal-approved-destination.repository'
-import { createPortalLinkRepository } from '../infrastructure/repositories/portal-link.repository'
+import { createPortalApprovedDestinationRepository } from '../destinations/portal-approved-destination-repository.server'
+import { createPortalLinkRepository } from '../links/portal-link-repository.server'
 import type { PortalCommandStore } from './portal-command-store-port.server'
-import { createPortalRepository } from '../infrastructure/repositories/portal.repository'
+import { createPortalRepository } from './portal-repository.server'
 
 const ORG_A = organizationId('org-defcat-0000-0000-000000000001')
 const ORG_B = organizationId('org-defcat-0000-0000-000000000002')

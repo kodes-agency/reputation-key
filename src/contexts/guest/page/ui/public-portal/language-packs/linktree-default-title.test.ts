@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { linktreeDefaultTitle } from '#/contexts/portal/application/dto/portal-linktree.dto'
+import { linktreeDefaultTitle } from '#/contexts/portal/links/portal-linktree.contracts'
 import { bgCopy } from './bg'
 import { deCopy } from './de'
 import { enCopy } from './en'

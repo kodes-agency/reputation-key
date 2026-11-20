@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalResponsibleManagers, portals } from '#/shared/db/schema/portal.schema'
 import type { Portal } from '../../domain/types'
-import { portalToRow } from '../mappers/portal.mapper'
+import { portalToRow } from '../../publication/portal-mapper.server'
 import {
   unbrand,
   type OrganizationId,

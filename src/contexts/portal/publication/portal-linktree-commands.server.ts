@@ -26,17 +26,17 @@ import type {
 } from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { portalPageEditKey } from '../domain/portal-page-edit'
-import { fencePortalContent } from '../infrastructure/portal-aggregate-fence'
+import { fencePortalContent } from './portal-aggregate-fence.server'
 import {
   assertPortalContentCommand,
   contentScope,
-} from '../infrastructure/portal-content-command-guards'
+} from './portal-content-command-guards.server'
 import {
   assertLocalesOffered,
   readPortalLocales,
   upsertLinkTexts,
-} from '../infrastructure/portal-link-texts-store'
-import { recordPortalContentChange } from '../infrastructure/portal-page-edits'
+} from '../links/portal-link-texts-store.server'
+import { recordPortalContentChange } from './portal-page-edits.server'
 
 export type PortalLinktreeCommandStore = Pick<
   PortalCommandStore,

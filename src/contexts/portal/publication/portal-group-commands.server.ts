@@ -24,11 +24,8 @@ import {
   groupMovementEntries,
   portalGroupHistoryEntry,
 } from '../domain/portal-group-history'
-import { portalGroupToRow } from '../infrastructure/mappers/portal-group.mapper'
-import {
-  assertCommittedRevision,
-  sameInstant,
-} from '../infrastructure/portal-command-guards'
+import { portalGroupToRow } from '../groups/portal-group-mapper.server'
+import { assertCommittedRevision, sameInstant } from './portal-command-guards.server'
 import {
   beginMembership,
   endMembership,
@@ -42,7 +39,7 @@ import {
   groupNameTaken,
   PORTAL_GROUP_NAME_UNIQUE,
   refusingWhenTaken,
-} from '../infrastructure/portal-unique-violation'
+} from './portal-unique-violation.server'
 
 export type PortalGroupCommandStore = Pick<
   PortalCommandStore,

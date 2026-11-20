@@ -6,13 +6,13 @@ import {
 } from '#/shared/domain/ids'
 import { isServablePortalMediaAsset } from '../domain/portal-media-asset'
 import { portalError } from '../domain/errors'
-import type { PortalPrintKitContext } from '../application/portal-print-kit-context'
-import type { PortalMediaAssetRepository } from '../application/ports/portal-media-asset.repository'
+import type { PortalPrintKitContext } from './portal-print-kit-context.server'
+import type { PortalMediaAssetRepository } from '../media/portal-media-asset-repository.port.server'
 import {
   StoredObjectTooLargeError,
   type StoragePort,
 } from '../application/ports/storage.port'
-import type { RevealPortalAddress } from '../application/use-cases/reveal-portal-address'
+import type { RevealPortalAddress } from '../addresses/reveal-portal-address.server'
 import type {
   PrintKitPhoto,
   PortalPrintKitFile,

@@ -42,9 +42,9 @@ import {
   portalPublicationActivations,
 } from '../src/shared/db/schema'
 import { propertyResponsibleManagers } from '../src/shared/db/schema/property.schema'
-import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
+import { buildPortalPublicationSnapshot } from '../src/contexts/portal/publication/portal-publication-snapshot.server'
 import { OFFERED_GUEST_LOCALES } from '../src/shared/domain/guest-locale'
-import { snapshotMirrorColumns } from '../src/contexts/portal/infrastructure/mappers/portal-publication-snapshot.mapper'
+import { snapshotMirrorColumns } from '../src/contexts/portal/publication/portal-publication-snapshot-mapper.server'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
 import {
@@ -58,7 +58,7 @@ import {
   grantPropertyAccess,
   hasActiveGrant,
 } from '../src/contexts/identity/members/property-access-grant-repository.server'
-import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
+import { createPortalTokenCodec } from '../src/contexts/portal/addresses/portal-token-codec.server'
 import {
   LOCAL_E2E_OPERATOR_USER_ID,
   LOCAL_E2E_ORGANIZATION_ID,

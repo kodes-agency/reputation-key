@@ -14,7 +14,7 @@
 // state is a documented error rather than a mutable module-order accident.
 
 import type { PropertyResponsibilityRuntime } from '#/contexts/property/responsibility/property-responsibility-runtime.server'
-import type { PortalResponsibilityRuntime } from '#/contexts/portal/application/portal-responsibility-runtime'
+import type { PortalResponsibilityRuntime } from '#/contexts/portal/responsibility/portal-responsibility-runtime.server'
 import type { InboxAssignmentRuntime } from '#/contexts/inbox/application/inbox-assignment-runtime'
 import type { Clock } from '#/shared/domain/clock'
 import { organizationId, userId } from '#/shared/domain/ids'

@@ -4,7 +4,7 @@ import { SubmitButton } from '#/components/forms/submit-button'
 import { FieldError } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
-import { portalApprovedDestinationRequestInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
+import { portalApprovedDestinationRequestInputSchema } from '#/contexts/portal/editor/portal-experience.contracts'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 

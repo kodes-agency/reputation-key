@@ -1,0 +1,199 @@
+// Portal context — update link use case
+
+import type { PortalLinkRepository } from './portal-link-repository.port.server'
+import type { PortalLink } from '../domain/types'
+import {
+  type OrganizationId,
+  type PortalMediaAssetId,
+  type PropertyId,
+} from '#/shared/domain/ids'
+import { portalError } from '../domain/errors'
+import { findReferencableMediaAsset } from '../media/referencable-media-asset.server'
+import type { PortalMediaAssetRepository } from '../media/portal-media-asset-repository.port.server'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { validateLinkIconKey, validateLinkLabel } from '../domain/rules'
+import type { PortalRepository } from '../publication/portal-repository.port.server'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { authorizeLinkCommand } from './authorize-link-command.server'
+import type { PortalCommandStore } from '../publication/portal-command-store-port.server'
+import { nextPortalCommandAt } from '../publication/portal-command-version.server'
+import { portalLinkUpdated } from '../domain/events'
+import type { PortalApprovedDestinationRepository } from '../destinations/portal-approved-destination-repository.port.server'
+import { resolveApprovedPortalDestination } from '../destinations/resolve-approved-portal-destination.server'
+import {
+  defaultLinkIconKey,
+  type PortalApprovedDestination,
+} from '../domain/approved-destination'
+import type { PortalDestinationNetworkValidator } from '../destinations/portal-destination-network-validator.port.server'
+
+export type UpdateLinkInput = Readonly<{
+  linkId: string
+  label?: string
+  url?: string
+  iconKey?: string | null
+  /** An uploaded picture for the tile, or null to take it off; left out, it stays. */
+  imageAssetId?: string | null
+}>
+
+export type UpdateLinkDeps = Readonly<{
+  portalRepo: PortalRepository
+  portalLinkRepo: PortalLinkRepository
+  mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
+  staffPublicApi: StaffPublicApi
+  commandStore: PortalCommandStore
+  destinationRepo: Pick<PortalApprovedDestinationRepository, 'request'>
+  destinationNetworkValidator: PortalDestinationNetworkValidator
+  idGen: () => string
+  clock: () => Date
+}>
+
+/**
+ * The asset a link may point at: a picture uploaded for a link tile, of this
+ * Organization and this Property, that may still be served. Anything else is the
+ * same refusal as a missing image, so a probe learns nothing about other tenants.
+ */
+async function resolveTileImage(
+  deps: Pick<UpdateLinkDeps, 'mediaRepo'>,
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+  assetId: string,
+): Promise<PortalMediaAssetId> {
+  const asset = await findReferencableMediaAsset(
+    deps.mediaRepo,
+    organizationId,
+    propertyId,
+    'link_image',
+    assetId,
+  )
+  if (!asset) throw portalError('media_not_found', 'image not found for this link')
+  return asset.id
+}
+
+/**
+ * The icon the link wears after this update: the one asked for; else, when the
+ * address moves on a tile without a photo whose icon is the automatic one for
+ * its old address (none, or the phone or letter a contact got), the automatic
+ * one for the new address; else the one it has. An automatic icon cannot be
+ * told from a chosen one, so a phone chosen for a phone number goes with it.
+ */
+function nextIconKey(
+  input: UpdateLinkInput,
+  existing: PortalLink,
+  destination: PortalApprovedDestination | null,
+  imageAssetId: PortalLink['imageAssetId'],
+): string | null {
+  if (input.iconKey !== undefined) return input.iconKey
+  if (destination === null || imageAssetId !== null) return existing.iconKey
+  const isAutomatic =
+    existing.iconKey === null || existing.iconKey === defaultLinkIconKey(existing.url)
+  return isAutomatic ? defaultLinkIconKey(destination.normalizedUri) : existing.iconKey
+}
+
+/**
+ * Updates a link. The returned link's `label` is the new name when this call
+ * renamed it; otherwise it is whatever the legacy column holds (`''` for a link
+ * written after round 4's contract), NOT the link's name, which is its
+ * primary-language text. Callers that need the name read the Linktree.
+ */
+export const updateLink =
+  (deps: UpdateLinkDeps) =>
+  async (input: UpdateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
+    // 1. Authorize, including property-assignment scoping (D6-001.)
+    const { target, portal } = await authorizeLinkCommand(deps, ctx, input.linkId)
+    const existing = target.link
+
+    let validatedLabel: string | undefined
+    let needsUpdate = false
+
+    if (input.label !== undefined) {
+      const r = validateLinkLabel(input.label)
+      if (r.isErr()) throw r.error
+      validatedLabel = r.value
+      needsUpdate = true
+    }
+
+    const destination =
+      input.url === undefined
+        ? null
+        : await resolveApprovedPortalDestination(
+            deps,
+            { uri: input.url, propertyId: portal.propertyId },
+            ctx,
+          )
+    if (destination) needsUpdate = true
+
+    if (input.iconKey !== undefined) {
+      const r = validateLinkIconKey(input.iconKey)
+      if (r.isErr()) throw r.error
+      needsUpdate = true
+    }
+
+    let imageAssetId = existing.imageAssetId
+    if (input.imageAssetId !== undefined) {
+      imageAssetId =
+        input.imageAssetId === null
+          ? null
+          : await resolveTileImage(
+              deps,
+              ctx.organizationId,
+              portal.propertyId,
+              input.imageAssetId,
+            )
+      needsUpdate = true
+    }
+
+    if (!needsUpdate) return existing
+
+    const expectedPortalUpdatedAt = target.portalUpdatedAt ?? portal.updatedAt
+    const newUrl = destination?.normalizedUri ?? existing.url
+    const destinationId = destination?.id ?? existing.destinationId
+    const newIconKey = nextIconKey(input, existing, destination, imageAssetId)
+
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, expectedPortalUpdatedAt)
+    await deps.commandStore.updatePortalLink({
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: existing.portalId,
+      expectedPortalUpdatedAt,
+      revision,
+      occurredAt,
+      actorUserId: ctx.userId,
+      linkId: existing.id,
+      categoryId: existing.categoryId,
+      patch: {
+        // Only a rename carries a label: the primary-language text is the link's
+        // name, and the stored legacy label is no longer the source of it.
+        ...(validatedLabel === undefined ? {} : { label: validatedLabel }),
+        url: newUrl,
+        destinationId,
+        legacyDestinationState: destination
+          ? 'migrated'
+          : existing.legacyDestinationState,
+        iconKey: newIconKey,
+        imageAssetId,
+      },
+      event: portalLinkUpdated({
+        portalId: existing.portalId,
+        linkId: existing.id,
+        categoryId: existing.categoryId,
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        sourceAggregateVersion: revision.toISOString(),
+        occurredAt,
+      }),
+    })
+
+    return {
+      ...existing,
+      ...(validatedLabel === undefined ? {} : { label: validatedLabel }),
+      url: newUrl,
+      destinationId,
+      legacyDestinationState: destination ? 'migrated' : existing.legacyDestinationState,
+      iconKey: newIconKey,
+      imageAssetId,
+      updatedAt: occurredAt,
+    }
+  }
+
+export type UpdateLink = ReturnType<typeof updateLink>
