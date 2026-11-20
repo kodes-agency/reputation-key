@@ -7,7 +7,7 @@ export type { ScanEvent, Rating, Feedback } from '../domain/types'
 export type {
   PortalRatingLanguageBreakdown,
   PortalResponseIntegritySummary,
-} from './ports/guest-response.repository'
+} from '../responses/guest-response.repository.port.server'
 
 export {
   guestScanRecorded,
@@ -27,4 +27,4 @@ export type {
   GuestEvent,
 } from '../domain/events'
 
-export type { PortalScanPatternsReader } from './ports/portal-scan-patterns.reader'
+export type { PortalScanPatternsReader } from '../page/portal-scan-patterns-reader.port.server'

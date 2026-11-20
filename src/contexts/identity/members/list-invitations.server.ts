@@ -9,7 +9,7 @@ import { betaInvitationRole, invitationState } from '../domain/invitation-state'
 import type {
   ListInvitationsOutput,
   OrganizationInvitation,
-} from '../application/dto/invitation.dto'
+} from './invitation.contracts'
 import type {
   InvitationReadModel,
   OrganizationInvitationRow,

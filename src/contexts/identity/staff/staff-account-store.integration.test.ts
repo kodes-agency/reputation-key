@@ -7,11 +7,11 @@ import {
   resendStaffInvitation,
 } from './manage-staff-accounts.server'
 import { linkStaffInvitation } from './staff-invitation-link.server'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from '../members/identity-command-store.server'
 import { identityMemberRemoved } from '../domain/events'
 import { sql } from 'drizzle-orm'
 import type { Tx } from '#/shared/outbox/commit'
-import { createStaffParticipationRepository } from '../infrastructure/repositories/staff-participation.repository'
+import { createStaffParticipationRepository } from './staff-participation-repository.server'
 import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'

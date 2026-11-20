@@ -6,7 +6,7 @@ import type {
 import {
   isMerchantAiNoticeInForceForCapabilities,
   type MerchantAiNoticeDto,
-} from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+} from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import type { Action } from '#/components/hooks/use-action'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import type { MerchantAiPropertyOption } from './merchant-ai-settings-content'

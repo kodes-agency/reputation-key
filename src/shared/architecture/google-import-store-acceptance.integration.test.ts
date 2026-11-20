@@ -20,7 +20,7 @@ import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { capabilityExecutionControl } from '#/shared/db/schema/google-content-control.schema'
-import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createGoogleContentAuthorityRepository } from '#/contexts/identity/policy/google-content-authority-repository.server'
 import {
   createGoogleImportAcceptanceFixture,
   IMPORT_TEST_NOW,

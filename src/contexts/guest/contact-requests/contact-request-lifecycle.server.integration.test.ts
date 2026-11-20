@@ -20,8 +20,8 @@ import type {
 } from './contracts'
 import { CONTACT_REQUEST_RETENTION_MS } from './contracts'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
-import type { GuestWithdrawalJournal } from '../infrastructure/guest-withdrawal-journal.server'
-import { createGuestContactRequestErasureReplayer } from '../infrastructure/adapters/guest-response-erasure-replayer.adapter'
+import type { GuestWithdrawalJournal } from '../responses/guest-withdrawal-journal.server'
+import { createGuestContactRequestErasureReplayer } from '../rights/guest-response-erasure-replayer.adapter.server'
 
 const ORG_A = organizationId('cb000000-0000-4000-8000-000000000001')
 const ORG_B = organizationId('cb000000-0000-4000-8000-000000000002')

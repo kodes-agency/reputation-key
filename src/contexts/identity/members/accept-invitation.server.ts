@@ -5,8 +5,8 @@
 // command store commits the member insert, invitation status update, the
 // invited Property access grants and the accepted fact in one transaction.
 
-import type { IdentityPort } from '../application/ports/identity.port'
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
+import type { IdentityPort } from './auth-identity.port.server'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
 import { identityInvitationAccepted } from '../domain/events'

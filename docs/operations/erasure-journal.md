@@ -79,7 +79,7 @@ recovery procedure after use.
 ## Activation
 
 Guest withdrawal journaling is on (`GUEST_WITHDRAWAL_JOURNAL_ACTIVE` in
-`contexts/guest/infrastructure/guest-withdrawal-journal.server.ts`), enabled
+`contexts/guest/responses/guest-withdrawal-journal.server.ts`), enabled
 after the restore replay for both guest target kinds and a verified backup set
 (2026-11-04). Keep these true while it is on:
 

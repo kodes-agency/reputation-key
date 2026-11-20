@@ -1,7 +1,7 @@
 import type {
   GuestResponseRepository,
   GuestResponseScope,
-} from '../application/ports/guest-response.repository'
+} from './guest-response.repository.port.server'
 import {
   correctResponse,
   createResponse,
@@ -36,7 +36,7 @@ import type {
   GuestResponseCommandStore,
   GuestMutationFact,
   GuestSubmissionFact,
-} from '../application/ports/guest-response-command-store.port'
+} from './guest-response-command-store.port.server'
 import {
   feedbackId,
   guestResponseId,

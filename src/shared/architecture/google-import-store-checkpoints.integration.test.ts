@@ -23,7 +23,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { capabilityExecutionControl } from '#/shared/db/schema/google-content-control.schema'
 import { googleImports, googleImportItems } from '#/shared/db/schema/google-import.schema'
 import { workItems } from '#/shared/db/schema/work-items.schema'
-import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createGoogleContentAuthorityRepository } from '#/contexts/identity/policy/google-content-authority-repository.server'
 import {
   createGoogleImportAcceptanceFixture,
   IMPORT_TEST_NOW,

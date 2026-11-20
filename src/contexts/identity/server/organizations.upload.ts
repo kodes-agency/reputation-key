@@ -12,12 +12,12 @@ import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { MAX_UPLOAD_BYTES } from './organizations.shared'
-import { retireReplacedIdentityAsset } from '../application/retire-replaced-identity-asset'
+import { retireReplacedIdentityAsset } from '../images/retire-replaced-identity-asset.server'
 import { throwIdentityError } from './organizations.errors.server'
-import { requestOrgLogoUpload as requestOrgLogoUploadUseCase } from '../application/use-cases/request-org-logo-upload'
-import { finalizeOrgLogoUpload as finalizeOrgLogoUploadUseCase } from '../application/use-cases/finalize-org-logo-upload'
-import { requestAvatarUpload as requestAvatarUploadUseCase } from '../application/use-cases/request-avatar-upload'
-import { finalizeAvatarUpload as finalizeAvatarUploadUseCase } from '../application/use-cases/finalize-avatar-upload'
+import { requestOrgLogoUpload as requestOrgLogoUploadUseCase } from '../images/request-org-logo-upload.server'
+import { finalizeOrgLogoUpload as finalizeOrgLogoUploadUseCase } from '../images/finalize-org-logo-upload.server'
+import { requestAvatarUpload as requestAvatarUploadUseCase } from '../images/request-avatar-upload.server'
+import { finalizeAvatarUpload as finalizeAvatarUploadUseCase } from '../images/finalize-avatar-upload.server'
 
 // ── Organization logo upload ────────────────────────────────────────
 
@@ -70,7 +70,7 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
             identityAssetReferences.currentOrganizationLogo(ctx.organizationId),
           retireReplaced: retireReplacedIdentityAsset({ storage, logger }),
           // Persist the logo via the auth provider — injected as a closure so the
-          // use case owns the persistence step (mirrors update-organization.ts).
+          // use case owns the persistence step (mirrors update-organization.server.ts).
           updateOrg: async (updateData) => {
             const auth = getAuth()
             await auth.api.updateOrganization({ headers, body: { data: updateData } })

@@ -12,7 +12,7 @@ import { lockUnrevokedGrant } from './property-grant-locks.server'
 import {
   grantPropertyAccess,
   revokePropertyAccess,
-} from '../infrastructure/repositories/property-access-grant.repository'
+} from './property-access-grant-repository.server'
 
 /** Why a grant this command replaced was retired. */
 const SUPERSEDED_REASON = 'superseded'

@@ -10,7 +10,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
-import { signInInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
+import { signInInputSchema } from '#/contexts/identity/members/invitation.contracts'
 import { isEmailNotVerified } from './email-not-verified'
 import { UnverifiedEmailNotice } from './unverified-email-notice'
 

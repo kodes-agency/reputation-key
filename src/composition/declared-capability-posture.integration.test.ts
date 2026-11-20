@@ -14,7 +14,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createAiControlAdapter } from '#/contexts/ai/infrastructure/adapters/ai-control.adapter'
-import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createGoogleContentAuthorityRepository } from '#/contexts/identity/policy/google-content-authority-repository.server'
 import {
   holdTransaction,
   type HeldTransaction,

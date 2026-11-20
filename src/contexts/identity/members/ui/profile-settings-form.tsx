@@ -18,7 +18,7 @@ import type { Action } from '#/components/hooks/use-action'
 import {
   updateProfileInputSchema,
   type UpdateProfileInput,
-} from '#/contexts/identity/application/dto/profile-settings.dto'
+} from '#/contexts/identity/members/profile-settings.contracts'
 
 export type Props = Readonly<{
   user: {

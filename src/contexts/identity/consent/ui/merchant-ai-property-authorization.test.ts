@@ -8,7 +8,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { Action } from '#/components/hooks/use-action'
-import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import { MERCHANT_AI_NOTICE } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import type { MerchantAiSnapshot } from '#/contexts/identity/application/public-api'
 import {
   MerchantAiPropertyAuthorization,

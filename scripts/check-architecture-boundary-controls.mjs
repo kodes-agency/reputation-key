@@ -27,6 +27,23 @@ const BOUNDARY_RULES = [
 
 const controls = [
   {
+    name: 'a feature server file that is not an adapter cannot import a port another area owns',
+    file: 'src/contexts/guest/rights/boundary-negative-control.server.ts',
+    source:
+      "import '#/contexts/identity/application/ports/organization-export-contributor.port'\n",
+  },
+  {
+    name: 'a feature adapter cannot import another area outside its ports',
+    file: 'src/contexts/guest/rights/boundary-negative-control.adapter.server.ts',
+    source: "import '#/contexts/identity/domain/errors'\n",
+  },
+  {
+    name: "a feature contract cannot take a value from another area's public API",
+    file: 'src/contexts/guest/page/boundary-negative-control.contracts.ts',
+    source:
+      "import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-api'\nexport const control = StoredObjectTooLargeError\n",
+  },
+  {
     name: 'ordinary test helpers cannot import Feed infrastructure',
     file: 'src/shared/testing/boundary-negative-control.ts',
     source: "import '#/contexts/feed/infrastructure/notification-outbox-consumers'\n",
@@ -265,6 +282,18 @@ const controls = [
 ]
 
 const allowedControls = [
+  {
+    name: 'a feature adapter may import the port another area owns that it implements',
+    file: 'src/contexts/guest/rights/boundary-positive-control.adapter.server.ts',
+    source:
+      "import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type Control = OrganizationExportContributor\n",
+  },
+  {
+    name: "a feature contract may take types from another area's public API",
+    file: 'src/contexts/guest/page/boundary-positive-control.contracts.ts',
+    source:
+      "import type { PublicPortalResult } from '#/contexts/portal/application/public-api'\nexport type Control = PublicPortalResult\n",
+  },
   {
     name: 'route may import a feature browser contract',
     file: 'src/routes/boundary-positive-control.ts',

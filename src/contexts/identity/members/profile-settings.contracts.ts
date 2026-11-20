@@ -1,0 +1,26 @@
+import { z } from 'zod/v4'
+import { identityAssetKeyFromPath } from '../images/identity-assets.contracts'
+
+export const updateProfileInputSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Name is required')
+    .max(100, 'Name must be 100 characters or less'),
+})
+
+/**
+ * An avatar is a URL, or the path an uploaded one is stored at on the app
+ * itself (see identity-assets.contracts.ts), which carries no host. `null` removes it: the
+ * field is still required, so a call that names no image is an error and never a
+ * removal by omission.
+ */
+export const updateUserImageInputSchema = z.object({
+  imageUrl: z
+    .union([
+      z.url(),
+      z.string().refine((path) => identityAssetKeyFromPath(path)?.startsWith('avatars/')),
+    ])
+    .nullable(),
+})
+
+export type UpdateProfileInput = z.infer<typeof updateProfileInputSchema>

@@ -110,7 +110,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/guest/infrastructure/resolvers/portal-context-resolver.ts',
+    file: 'src/contexts/guest/page/portal-context-resolver.server.ts',
     symbol: 'resolve',
     reason:
       'Unauthenticated guest resolution starts from an unguessable Portal UUID capability and must discover the owning tenant before any scoped operation.',
@@ -131,21 +131,21 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts',
+    file: 'src/contexts/identity/policy/google-content-authority-repository.server.ts',
     symbol: 'fenceActivePermits',
     reason:
       'A global capability kill switch must fence every active permit for that capability across tenants in one authority transaction.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts',
+    file: 'src/contexts/identity/policy/google-content-authority-repository.server.ts',
     symbol: 'hasActiveCapabilityWork',
     reason:
       'The global capability-control transaction must detect any remaining admitted work across tenants before completing its fence transition.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts',
+    file: 'src/contexts/identity/policy/google-content-authority-repository.server.ts',
     symbol: 'listElapsedAdmittedPermitIds',
     reason:
       'The bounded global deadline sweep enumerates elapsed admitted permits across tenants so each permit can be fenced by its authority workflow.',
@@ -467,7 +467,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts',
+    file: 'src/contexts/identity/policy/google-content-authority-repository.server.ts',
     symbol: 'lockPermit',
     reason:
       'The global start-deadline sweep locks each elapsed permit by the id listElapsedAdmittedPermitIds returned; the Organization filter is optional and that sweep, the only caller, omits it.',

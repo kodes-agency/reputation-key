@@ -7,7 +7,7 @@
 //
 // These rules are enforced where responsibilities are written:
 // replaceResponsibilities in
-// infrastructure/repositories/staff-participation.repository.ts ends and
+// staff/staff-participation-repository.server.ts ends and
 // starts intervals and refuses a primary Portal another participation holds,
 // backed by pr_unique_active_primary, pr_no_overlapping_primary_intervals and
 // pr_no_overlapping_responsibility_intervals.

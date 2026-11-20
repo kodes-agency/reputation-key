@@ -7,7 +7,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import type {
   PlatformAdminInvitationView,
   PlatformOrganizationView,
-} from '#/contexts/identity/application/dto/platform-console.dto'
+} from '#/contexts/identity/operator/platform-console.contracts'
 import type { OperatorConsoleActions } from './operator-console-page'
 
 /**

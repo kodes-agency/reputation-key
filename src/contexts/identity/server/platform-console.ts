@@ -13,7 +13,7 @@ import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { getContainer } from '#/composition'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import type { PlatformOrganizationView } from '../application/dto/platform-console.dto'
+import type { PlatformOrganizationView } from '../operator/platform-console.contracts'
 import { asOperator } from './platform-console-operator.server'
 
 /** The list names the invitees of ownerless Organizations: no cache keeps it. */

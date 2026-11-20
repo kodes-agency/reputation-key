@@ -17,7 +17,7 @@ import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
 } from '#/contexts/reporting/application/public-api'
-import { toPublicPortalLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
+import { toPublicPortalLoaderData } from '#/contexts/guest/page/public-portal.contracts'
 import { printKitFileName } from '#/shared/domain/portal-print-kit'
 import { printDocumentTitle, printFileName } from '#/shared/domain/portal-print-how-to'
 import type { Portal } from '../domain/types'

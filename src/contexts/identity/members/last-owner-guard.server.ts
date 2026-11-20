@@ -4,7 +4,7 @@
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../domain/errors'
-import type { IdentityPort } from '../application/ports/identity.port'
+import type { IdentityPort } from './auth-identity.port.server'
 
 /**
  * Throw `forbidden` with `refusal` when the organization has at most one owner.

@@ -14,7 +14,7 @@ import {
   inviteMemberInputSchema,
   updateMemberRoleInputSchema,
   removeMemberInputSchema,
-} from '../application/dto/invitation.dto'
+} from '../members/invitation.contracts'
 import { enforceInvitationSendRateLimit } from './invitation-rate-limit.server'
 
 // ── Invite member ──────────────────────────────────────────────────

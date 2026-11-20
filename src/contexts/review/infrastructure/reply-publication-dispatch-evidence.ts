@@ -26,8 +26,8 @@
 // (`recovery_runs.completed_at`, src/shared/db/recovery/postgres-recovery-fence.ts)
 // is therefore never provable.
 //
-// Identity's permit repository already reads this shared table from its
-// infrastructure (google-content-authority.repository.ts); the boundary rules
+// Identity's permit repository already reads this shared table
+// (policy/google-content-authority-repository.server.ts); the boundary rules
 // allow any context's infrastructure to reach `shared/db`.
 
 import { and, eq, gte, sql } from 'drizzle-orm'

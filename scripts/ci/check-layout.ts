@@ -87,8 +87,19 @@ export const LAYOUT: Layout = {
   areas: {
     ai: ['guest-voice', 'replay', 'reply'],
     feed: ['audit', 'email', 'feed', 'notify', 'preferences', 'rights'],
-    guest: ['contact-requests', 'page', 'responses'],
-    identity: ['consent', 'feedback', 'members', 'operator', 'staff', 'updates'],
+    guest: ['contact-requests', 'page', 'responses', 'rights'],
+    identity: [
+      'consent',
+      'feedback',
+      'images',
+      'members',
+      'operator',
+      'organization',
+      'policy',
+      'rights',
+      'staff',
+      'updates',
+    ],
     // Review and Inbox are one bounded context with Reputation (rule 7). Their
     // code moves into Reputation's features; neither gains features of its own.
     inbox: [],

@@ -4,7 +4,7 @@
 // transaction and names the ones it could not. Every acceptance path (signed
 // in, registration, recovery) reports them the same way.
 
-import type { InvitationAcceptance } from '../application/ports/identity-command-store.port'
+import type { InvitationAcceptance } from './identity-command-store.port.server'
 
 type ErrorLogger = Readonly<{ error: (obj: object, message?: string) => void }>
 

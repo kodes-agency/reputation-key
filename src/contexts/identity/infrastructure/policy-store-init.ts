@@ -22,7 +22,7 @@ import {
   type DelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
-import { createGrantAccessLookup } from './adapters/grant-access-lookup.adapter'
+import { createGrantAccessLookup } from '../members/grant-access-lookup.adapter.server'
 import { hasActiveMerchantAiConsent } from '../consent/merchant-ai-authorization.repository.server'
 
 const MERCHANT_AI_PURPOSES: Readonly<Record<string, true>> = Object.freeze({

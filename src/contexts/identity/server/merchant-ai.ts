@@ -9,7 +9,7 @@ import {
   MerchantAiAuthorizationError,
   MerchantAiAuthorizationStoreError,
 } from '../consent/merchant-ai-authorization.server'
-import { MERCHANT_AI_NOTICE } from '../application/dto/merchant-ai-notice.dto'
+import { MERCHANT_AI_NOTICE } from '../consent/merchant-ai-notice.contracts'
 import { isMerchantAiDecisionError } from '../domain/merchant-ai-decision-errors'
 import {
   merchantAiAuthorizationInputSchema,

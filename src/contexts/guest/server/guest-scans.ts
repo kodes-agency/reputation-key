@@ -7,7 +7,7 @@ import {
   decidePublicExecution,
   type ExecutionDecision,
 } from '#/shared/auth/execution-policy'
-import type { GuestResponseFormAvailability } from '../application/dto/public-portal.dto'
+import type { GuestResponseFormAvailability } from '../page/public-portal.contracts'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { enrichSpan } from '#/shared/observability/request-context'
 import { z } from 'zod/v4'
@@ -33,7 +33,7 @@ import {
 } from './public-response-privacy.server'
 import { checkLayeredGuestRateLimit, guestRateLimitKeys } from './guest-session'
 import { QUALIFIED_SCAN_BUDGET } from './guest-rate-limit-budgets'
-import { toPublicPortalLoaderData } from '../application/dto/public-portal.dto'
+import { toPublicPortalLoaderData } from '../page/public-portal.contracts'
 
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
 

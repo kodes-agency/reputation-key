@@ -7,7 +7,7 @@ import {
   setupServerFunctionHarness,
   type TestOrganization,
 } from '#/shared/testing/server-function-harness'
-import { identityAssetPath } from '../application/identity-assets'
+import { identityAssetPath } from '../images/identity-assets.contracts'
 
 vi.mock(
   '@tanstack/react-start',
