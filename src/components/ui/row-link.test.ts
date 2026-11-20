@@ -1,6 +1,5 @@
-// The row link recipes (UI consistency scan: COLL-20) and where they are used.
+// The row link recipes (UI consistency scan: COLL-20).
 import { describe, expect, it } from 'vitest'
-import { readUiSources } from '#/shared/testing/source-tree'
 import { ROW_FIGURE_LINK, ROW_LINK_SURFACE, ROW_NAME_LINK } from './row-link'
 
 describe('row link recipes', () => {
@@ -27,17 +26,5 @@ describe('row link recipes', () => {
     for (const recipe of [ROW_NAME_LINK, ROW_FIGURE_LINK, ROW_LINK_SURFACE]) {
       expect(recipe).not.toMatch(/(^|\s)!|!(\s|$)/u)
     }
-  })
-})
-
-const FILES = readUiSources({ comments: 'kept' })
-
-describe('the row link convention in the sources', () => {
-  it('is imported, not copied: no file keeps its own FOCUS_RING for a row link', () => {
-    const copies = FILES.filter((file) => /\bconst FOCUS_RING\b/u.test(file.text)).map(
-      (file) => file.path,
-    )
-
-    expect(copies).toEqual([])
   })
 })

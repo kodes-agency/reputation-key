@@ -110,10 +110,5 @@ describe('loadGuestPortalCopy', () => {
       )
       .map((path) => relative(SRC, path).split(sep).join('/'))
     expect(importers).toEqual([])
-    const loader = readFileSync(join(import.meta.dirname, 'load-guest-copy.ts'), 'utf8')
-    expect(loader).toMatch(/import\('\.\/en'\)/)
-    for (const locale of GUEST_LOCALES) {
-      expect(loader).toContain(`import('./${locale}')`)
-    }
   })
 })

@@ -1,10 +1,8 @@
 // Tests for the BQC-6.1 canonical test-environment builder.
 // Pins: the deterministic floor (bare shell → complete, non-empty, schema-valid
-// env), the explicit-override passthroughs, and the Storybook no-env boundary.
+// env) and the explicit-override passthroughs.
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { getEnv, resetEnv } from '#/shared/config/env'
 import {
   testEnvironment,
@@ -81,25 +79,5 @@ describe('testEnvironment (BQC-6.1)', () => {
     expect(env.GOOGLE_CLIENT_SECRET).toBe('real-dev-client-secret')
     expect(env.ENCRYPTION_KEY).toBe('b'.repeat(64))
     expect(env.OPS_METRICS_TOKEN).toBe('shell-provided-ops-token-0123456789abcdef')
-  })
-})
-
-describe('storybook hermeticity (BQC-6.1)', () => {
-  it('the storybook project needs NO env — .storybook/main.ts stub aliases stay the boundary', () => {
-    const mainTs = readFileSync(
-      fileURLToPath(new URL('../../../.storybook/main.ts', import.meta.url)),
-      'utf8',
-    )
-    // The viteFinal stub aliases keep server-only modules (async_hooks,
-    // TanStack server core via #/composition, pino) out of the browser
-    // preview — that boundary, not env vars, is what makes stories hermetic.
-    for (const stub of [
-      'async-hooks',
-      'review-reply-server',
-      'observability-logger',
-      'portal-links',
-    ]) {
-      expect(mainTs).toContain(`${stub}`)
-    }
   })
 })

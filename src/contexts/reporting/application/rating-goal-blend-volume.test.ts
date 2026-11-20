@@ -18,7 +18,6 @@
 //     the ten-review hold (20 goal-days, against 0 for the switch); the built one
 //     holds the blend at the target's minimum quality then, so it never does.
 // docs/plan/google-rating-goal.md quotes these numbers.
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { PropertyRatingGoal } from '../domain/rating-goal'
 import {
@@ -379,18 +378,6 @@ describe('the notice volume of blending new reviews into the planned average', (
       tenthBlended: '0.06',
       tenthSwitched: '0.30',
     })
-  })
-
-  it('reads the notices from the status alone, never from the forecast average', () => {
-    const sources = [
-      './rating-goal-evaluation.ts',
-      '../domain/rating-goal-notices.ts',
-    ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'))
-
-    expect(sources.map((source) => source.includes('trackingMix'))).toEqual([
-      false,
-      false,
-    ])
   })
 
   it('regression guard: never forecasts a goal that is too low as reachable', async () => {

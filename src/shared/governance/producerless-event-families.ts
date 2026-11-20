@@ -1,6 +1,6 @@
 // Consumed event families that no production code emits, and why.
 //
-// event-job-catalogue.test.ts requires every family with durable consumers in
+// src/shared/architecture/event-job-producers.test.ts requires every family with durable consumers in
 // event-job-catalogue.ts to have a production producer or an entry here, and
 // fails on an entry whose family gained a producer or lost its consumers.
 
