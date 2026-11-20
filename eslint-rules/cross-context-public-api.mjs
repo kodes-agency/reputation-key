@@ -2,9 +2,10 @@
 //
 //   "Cross-context: import from application/public-api.ts only. Never from
 //    domain/, infrastructure/, server/, or non-public-api application/."
-//   "Exception: Cross-context adapter implementations (infrastructure/adapters/**)
-//    may import the port they implement (application/ports/**). The port IS the
-//    public interface for adapter contracts."
+//   "Exception: Cross-context adapter implementations (infrastructure/adapters/**
+//    and a feature's *.adapter.server.ts) may import the port they implement
+//    (application/ports/**). The port IS the public interface for adapter
+//    contracts."
 //
 // eslint-plugin-boundaries enforces layer-to-layer rules via element types but
 // has no notion of WHICH context a file belongs to, so it cannot express
@@ -19,7 +20,9 @@
 import path from 'node:path'
 
 const IMPORTER_RE = /\/src\/contexts\/([^/]+)\//
-const ADAPTERS_RE = /\/src\/contexts\/[^/]+\/infrastructure\/adapters\//
+// An adapter lives in infrastructure/adapters/ or is a feature's *.adapter.server.ts.
+const ADAPTERS_RE =
+  /\/src\/contexts\/[^/]+\/(?:infrastructure\/adapters\/|(?!(?:domain|application|infrastructure|server|ports|queries|ui)\/)[^/]+\/[^/]+\.adapter\.server\.ts$)/
 const TARGET_RE = /^src\/contexts\/([^/]+)\//
 // Review, Inbox and Reputation are one bounded context.
 const MERGED_CONTEXTS = new Set(['reputation', 'review', 'inbox'])
@@ -43,7 +46,7 @@ export default {
     },
     messages: {
       publicApiOnly:
-        "Cross-context import '{{source}}' violates src/contexts/CONTEXT.md \"Dependency rules\": import from the target context's application/public-api.ts only — never domain/, infrastructure/, server/, or non-public-api application/. Exception: infrastructure/adapters/** may import the foreign application/ports/** contract they implement.",
+        "Cross-context import '{{source}}' violates src/contexts/CONTEXT.md \"Dependency rules\": import from the target context's application/public-api.ts only — never domain/, infrastructure/, server/, or non-public-api application/. Exception: infrastructure/adapters/** and a feature's *.adapter.server.ts may import the foreign application/ports/** contract they implement.",
     },
     schema: [],
   },
