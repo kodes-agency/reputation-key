@@ -39,6 +39,7 @@ describe('layout: places the map names', () => {
       'src/contexts/portal/domain/portal.ts',
       'src/contexts/portal/server/portals.ts',
       'src/contexts/portal/links/contracts.ts',
+      'src/contexts/portal/links/link-targets.contracts.ts',
       'src/contexts/portal/links/CONTEXT.md',
       'src/contexts/portal/links/link-store.server.ts',
       'src/contexts/portal/links/link-store.integration.test.ts',

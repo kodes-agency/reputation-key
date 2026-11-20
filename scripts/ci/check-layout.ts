@@ -142,7 +142,8 @@ const SHARED_LOOSE_FILES = 'src/shared/*'
 const TEST_FILE = /\.test\.tsx?$/u
 const TEST_OR_STORY = /\.(?:test|stories)\.tsx?$/u
 const AREA_WIRING_FILE = /^(?:build(?:-[\w.-]+)?|public-api)\.ts$/u
-const FEATURE_FILE = /^contracts\.ts$|\.server\.ts$|\.test-fixtures\.ts$|\.json$/u
+const FEATURE_FILE =
+  /^(?:[\w-]+\.)?contracts\.ts$|\.server\.ts$|\.test-fixtures\.ts$|\.json$/u
 const UI_MISPLACED_FILE = /^index\.tsx?$|\.server\.tsx?$/u
 
 /** The baseline path a file counts against, or null when the map names its place. */
