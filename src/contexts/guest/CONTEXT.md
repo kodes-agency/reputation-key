@@ -11,14 +11,15 @@ and the separately consented Contact Request, which stays off until its launch s
 
 ## Where things live
 
-| Feature                                                                    | Code                                                        |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Response lifecycle, command store, repository, browser-safe view           | `responses/`                                                |
-| Contact Request: sealing, authority, repository, lifecycle, manager screen | `contact-requests/`                                         |
-| Guest page and response screens                                            | `page/ui/` (Immersive renderer in `page/ui/public-portal/`) |
-| Public endpoints, session, rate limits                                     | `server/`                                                   |
-| Ceilings, receipts, retention, reconciliation                              | `application/`, `infrastructure/`                           |
-| Composition                                                                | `build.ts`                                                  |
+| Feature                                                                                                                                                                     | Code                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Response lifecycle, command store, repository, ceiling, withdrawal journal, integrity and rating-language reads, feedback attribution, browser-safe view and form contracts | `responses/`                                                                                                |
+| Public Portal read, Qualified Scans, Google and Linktree actions, observation store and loss monitor, network pressure                                                      | `page/`                                                                                                     |
+| Contact Request: sealing, authority, repository, lifecycle, manager screen                                                                                                  | `contact-requests/`                                                                                         |
+| Guest page and response screens                                                                                                                                             | `page/ui/` (Immersive renderer in `page/ui/public-portal/`), `src/components/features/guest/public-portal/` |
+| Export, erasure, purge and restore replay for the rights command                                                                                                            | `rights/`                                                                                                   |
+| Public endpoints, session, rate limits                                                                                                                                      | `server/`                                                                                                   |
+| Composition                                                                                                                                                                 | `build.ts`                                                                                                  |
 
 ## Boundaries
 
@@ -108,7 +109,7 @@ keep their 429 and the fail-closed rule. Whenever any network-and-Portal layer i
 exhausted, filtered submit included, one content-free warning
 `guest.network_budget_exhausted` names the action and nothing else: never the address,
 its pseudonym or a session, and not the Organization or the Portal either, because the
-log policy (BQC-7.3) bans tenant identifiers in log objects. After these controls, `application/use-cases/response-ceiling.server.ts` reserves each new response
+log policy (BQC-7.3) bans tenant identifiers in log objects. After these controls, `responses/response-ceiling.server.ts` reserves each new response
 once: 300 per Portal per UTC hour, 2,000 per Portal per UTC day, and 5,000 per
 Organization per UTC day. PostgreSQL serializes reservations by Organization;
 content-free pressure records make retries idempotent. Existing responses and
@@ -117,7 +118,7 @@ content row is written. The signed session cookie carries the temporary rating
 receipt; reload checks the admission outcome, retaining thank-you and Google and
 hiding correction, withdrawal and private feedback. The Google action navigates
 without a selection fact for an unstored response. One content-free warning per
-exhausted window identifies only its kind. `application/use-cases/response-ceiling-budgets.ts`
+exhausted window identifies only its kind. `responses/response-ceiling-budgets.server.ts`
 owns the three constants. Admission outcomes use the existing seven-day pressure retention; a purpose- and
 scope-separated HMAC of the session identifies each record without storing its
 UUID. They stop deciding anything at the signed-session deadline.
@@ -149,7 +150,10 @@ and backend-only until its approval and handling requirements are met.
 
 `responses/` owns the response lifecycle, its command store and repository
 (`*.server.ts`); `responses/contracts.ts` holds the browser-safe response view and its
-action rules. `build.ts` composes response lifecycle, public Portal resolution, qualified-action
+action rules. `page/` holds the public Portal read, the observation store and loss
+monitor, and network pressure. `rights/` holds the export, erasure and purge code for
+the rights command and the restore replayers. Each port sits beside its implementation
+as `<impl>.port.server.ts`. `build.ts` composes response lifecycle, public Portal resolution, qualified-action
 stores, integrity reads, rating-language reads (private ratings by the language of the
 page the guest saw, from the response's experience snapshot), reconciliation, and
 retention. PostgreSQL receipts own
@@ -157,7 +161,7 @@ correctness; Redis provides abuse control and observation-loss monitoring. State
 source-event identities, and identifier-only outbox facts commit atomically.
 
 Response and private-feedback withdrawals journal to the bucket through
-`infrastructure/guest-withdrawal-journal.server.ts`, switched on by
+`responses/guest-withdrawal-journal.server.ts`, switched on by
 `GUEST_WITHDRAWAL_JOURNAL_ACTIVE`. The command store checks the existing
 session/state predicate, writes an IDs-only intent outside the deletion
 transaction, then rechecks that predicate in the transaction. A failed bucket

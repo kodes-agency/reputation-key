@@ -8,7 +8,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { guestResponseMutationDto } from '../application/dto/guest-response-form.dto'
+import { guestResponseMutationDto } from '../responses/guest-response-form.contracts'
 import { isContactRequestError } from '../domain/errors'
 import {
   contactRequestEmailSchema,

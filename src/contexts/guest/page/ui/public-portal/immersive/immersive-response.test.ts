@@ -9,7 +9,7 @@
 // page container and its preview.
 
 import { describe, expect, it } from 'vitest'
-import { PRIVATE_FEEDBACK_MAX_LENGTH } from '#/contexts/guest/application/dto/private-feedback.dto'
+import { PRIVATE_FEEDBACK_MAX_LENGTH } from '#/contexts/guest/responses/private-feedback.contracts'
 import { formatGuestPlural, guestCopyText } from '../guest-copy-format'
 import type { GuestPagePreviewState } from '../guest-page-preview-state'
 import { directChildren, text } from '../__fixtures__/markup-walk'

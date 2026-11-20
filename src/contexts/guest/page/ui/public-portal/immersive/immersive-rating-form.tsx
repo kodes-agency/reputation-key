@@ -1,6 +1,6 @@
 import { useForm } from '@tanstack/react-form'
 import { submitHandler } from '#/components/forms/form-submit'
-import { guestRatingFormDto } from '#/contexts/guest/application/dto/guest-response-form.dto'
+import { guestRatingFormDto } from '#/contexts/guest/responses/guest-response-form.contracts'
 import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { ImmersiveBanner } from './immersive-banner'
 import { ImmersiveHoneypot } from './immersive-honeypot'

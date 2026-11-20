@@ -3,7 +3,7 @@
 // (the language read, the copy pack loader, the English fallback) is in the
 // route's first-paint code.
 
-import { preferredGuestLocale } from '#/contexts/guest/application/preferred-guest-locale'
+import { preferredGuestLocale } from '#/contexts/guest/page/preferred-guest-locale.contracts'
 import {
   unavailableCopyOf,
   type PortalUnavailableCopy,

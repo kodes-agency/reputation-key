@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createContactRequestResponseAuthority } from './contact-request-authority.server'
-import type { GuestResponseRepository } from '../application/ports/guest-response.repository'
+import type { GuestResponseRepository } from '../responses/guest-response.repository.port.server'
 
 const NOW = new Date('2026-08-28T12:00:00.000Z')
 const SCOPE = Object.freeze({
