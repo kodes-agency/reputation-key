@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { portals } from '#/shared/db/schema'

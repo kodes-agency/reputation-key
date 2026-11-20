@@ -1,0 +1,229 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { Pool } from 'pg'
+import { getDb } from '#/shared/db'
+import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { organizationId, propertyId } from '#/shared/domain/ids'
+import type { GoalMetricAggregateQuery } from './metric-repository.port.server'
+import { createMetricRepository } from './metric-repository.server'
+
+const ORG_ID = organizationId('org-metricrepo-0000-0000-0000-000000000001')
+const PROP_ID = propertyId('4f000000-0000-4000-8000-000000000001')
+const NOW = new Date('2026-08-08T12:00:00Z')
+const RATING_COUNT_VERSION = '11111111-1111-4111-8111-111111111302'
+const RATING_AVERAGE_VERSION = '11111111-1111-4111-8111-111111111303'
+const LEGACY_COMPLETENESS_VERSION = '11111111-1111-4111-8111-111111111102'
+const IMMERSIVE_COMPLETENESS_VERSION = '11111111-1111-4111-8111-111111113102'
+
+let pool: Pool
+let nextReading = 1
+
+const goalQuery = (
+  definitionVersionId: string,
+  expectedMetricKey: GoalMetricAggregateQuery['expectedMetricKey'],
+): GoalMetricAggregateQuery => ({
+  organizationId: ORG_ID,
+  propertyId: PROP_ID,
+  definitionVersionId,
+  expectedMetricKey,
+  allowedSourcePolicies: ['first_party_guest_gateway_metric'],
+  subject: { kind: 'property', propertyId: PROP_ID },
+  periodStart: new Date('2026-08-08T00:00:00.000Z'),
+  periodEnd: new Date('2026-08-09T00:00:00.000Z'),
+})
+
+async function insertReading(
+  input: Readonly<{
+    versionId: string
+    metricKey: GoalMetricAggregateQuery['expectedMetricKey']
+    sourcePolicy: string
+    value: number
+    sampleCount?: number
+  }>,
+): Promise<string> {
+  const id = `4f000000-0000-4000-8000-${String(nextReading++).padStart(12, '0')}`
+  await pool.query(
+    `INSERT INTO metric_readings (
+       id, organization_id, property_id, portal_id, group_id, metric_key,
+       value, recorded_at, definition_version_id, source_event_id,
+       source_policy, exact_value, numerator, denominator, sample_count,
+       attribution_quality, event_at, property_local_date, data_quality,
+       retention_class
+     ) VALUES (
+       $1, $2, $3, NULL, NULL, $4,
+       $5::real, $6, $7, $8,
+       $9, $5::numeric, NULL, NULL, $10,
+       'exact', $6, '2026-08-08', 'exact', 'standard'
+     )`,
+    [
+      id,
+      ORG_ID,
+      PROP_ID,
+      input.metricKey,
+      input.value,
+      NOW,
+      input.versionId,
+      `metric-repository-source-${id}`,
+      input.sourcePolicy,
+      input.sampleCount ?? 1,
+    ],
+  )
+  return id
+}
+
+async function clean(): Promise<void> {
+  await pool.query(
+    `DELETE FROM metric_corrections
+     WHERE reading_id IN (SELECT id FROM metric_readings WHERE organization_id = $1)`,
+    [ORG_ID],
+  )
+  await pool.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG_ID])
+}
+
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  await pool.query(
+    `INSERT INTO organization (id, name, slug, "createdAt")
+     VALUES ($1, 'Metric Repository Org', 'metric-repository-org', NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [ORG_ID],
+  )
+  await pool.query(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, 'Metric Repository Property', 'metric-repository-property', 'UTC', NOW(), NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [PROP_ID, ORG_ID],
+  )
+})
+
+beforeEach(async () => {
+  nextReading = 1
+  await clean()
+})
+
+afterAll(async () => {
+  await clean()
+  await pool.query('DELETE FROM properties WHERE id = $1', [PROP_ID])
+  await deleteTestOrganizations(pool, [ORG_ID])
+  await pool.end()
+})
+
+describe.sequential('governed metric aggregate reader (integration)', () => {
+  it('pins Goal reads to one immutable version and a half-open period', async () => {
+    await insertReading({
+      versionId: RATING_COUNT_VERSION,
+      metricKey: 'portal.rating_count',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 1,
+    })
+    await pool.query(
+      `INSERT INTO metric_readings (
+         id, organization_id, property_id, metric_key, value, recorded_at,
+         definition_version_id, source_event_id, source_policy, exact_value,
+         sample_count, attribution_quality, event_at, property_local_date,
+         data_quality, retention_class
+       ) VALUES (
+         '4f000000-0000-4000-8000-000000000301', $1, $2,
+         'portal.rating_count', 1, $3, $4, 'period-end-source',
+         'first_party_guest_gateway_metric', 1, 1, 'exact', $3,
+         '2026-08-09', 'exact', 'guest_gateway_24_month'
+       )`,
+      [ORG_ID, PROP_ID, new Date('2026-08-09T00:00:00.000Z'), RATING_COUNT_VERSION],
+    )
+    const repository = createMetricRepository(getDb())
+
+    await expect(
+      repository.queryGoalAggregate(
+        goalQuery(RATING_COUNT_VERSION, 'portal.rating_count'),
+      ),
+    ).resolves.toMatchObject({
+      sum: 1,
+      weightedSum: 1,
+      sampleCount: 1,
+      readingCount: 1,
+      invalidDefinitionCount: 0,
+      invalidSourceCount: 0,
+    })
+  })
+
+  it('weights averages by eligible samples and excludes retracted facts', async () => {
+    const first = await insertReading({
+      versionId: RATING_AVERAGE_VERSION,
+      metricKey: 'portal.rating_average',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 5,
+      sampleCount: 2,
+    })
+    await insertReading({
+      versionId: RATING_AVERAGE_VERSION,
+      metricKey: 'portal.rating_average',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 3,
+      sampleCount: 1,
+    })
+    const repository = createMetricRepository(getDb())
+    await expect(
+      repository.queryGoalAggregate(
+        goalQuery(RATING_AVERAGE_VERSION, 'portal.rating_average'),
+      ),
+    ).resolves.toMatchObject({
+      sum: 8,
+      weightedSum: 13,
+      sampleCount: 3,
+      readingCount: 2,
+    })
+
+    await pool.query(
+      `INSERT INTO metric_corrections (
+         id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
+         exact_delta, replacement_value, event_at, recorded_at
+       ) VALUES (
+         '4f000000-0000-4000-8000-000000000302', $1,
+         'goal-reader-retraction', 'retract', 'guest_fact_retracted',
+         'system', 'guest.gateway', NULL, NULL, $2, $2
+       )`,
+      [first, NOW],
+    )
+
+    await expect(
+      repository.queryGoalAggregate(
+        goalQuery(RATING_AVERAGE_VERSION, 'portal.rating_average'),
+      ),
+    ).resolves.toMatchObject({
+      sum: 3,
+      weightedSum: 3,
+      sampleCount: 1,
+      readingCount: 1,
+      correctionHead: NOW,
+    })
+  })
+
+  it('finds a reading by its source event under one version and Organization only', async () => {
+    const readingId = await insertReading({
+      versionId: LEGACY_COMPLETENESS_VERSION,
+      metricKey: 'portal.configuration_completeness',
+      sourcePolicy: 'first_party_workflow',
+      value: 80,
+    })
+    const sourceEventId = `metric-repository-source-${readingId}`
+    const repository = createMetricRepository(getDb())
+    const presence = (overrides: Partial<Parameters<typeof repository.hasReading>[0]>) =>
+      repository.hasReading({
+        organizationId: ORG_ID,
+        definitionVersionId: LEGACY_COMPLETENESS_VERSION,
+        sourceEventId,
+        ...overrides,
+      })
+
+    await expect(presence({})).resolves.toBe(true)
+    await expect(
+      presence({ definitionVersionId: IMMERSIVE_COMPLETENESS_VERSION }),
+    ).resolves.toBe(false)
+    await expect(presence({ sourceEventId: 'another-source-event' })).resolves.toBe(false)
+    await expect(
+      presence({
+        organizationId: organizationId('org-metricrepo-0000-0000-0000-000000000009'),
+      }),
+    ).resolves.toBe(false)
+  })
+})

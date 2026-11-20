@@ -16,8 +16,8 @@
 // twice (the evaluation writes a change once).
 
 import { isRatingGoalError } from '../domain/rating-goal'
-import type { RatingGoalScope } from '../application/ports/property-rating-goal.repository'
-import { unclassifiedFailureCause } from '../application/use-cases/failure-cause'
+import type { RatingGoalScope } from './property-rating-goal-repository.port.server'
+import { unclassifiedFailureCause } from '../goals/failure-cause.server'
 import {
   evaluateActiveRatingGoal,
   type RatingGoalEvaluationDependencies,

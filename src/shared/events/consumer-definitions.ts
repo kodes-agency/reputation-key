@@ -59,7 +59,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ]),
   ...consumersIn(
-    'src/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers.ts',
+    'src/contexts/reporting/readings/current-google-reputation-outbox-consumers.server.ts',
     [
       [
         'metric.current-google-reputation',
@@ -69,7 +69,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ),
   ...consumersIn(
-    'src/contexts/reporting/infrastructure/rating-goal-outbox-consumers.ts',
+    'src/contexts/reporting/rating-goals/rating-goal-outbox-consumers.server.ts',
     [
       [
         'goal.google-rating-evaluation',
@@ -410,7 +410,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     [['inbox.on-property-archived', 'inbox.property-lifecycle', ['property.archived']]],
   ),
   ...consumersIn(
-    'src/contexts/reporting/infrastructure/rating-goal-property-lifecycle-consumers.ts',
+    'src/contexts/reporting/rating-goals/rating-goal-property-lifecycle-consumers.server.ts',
     [['goal.on-property-archived', 'goal.property-lifecycle', ['property.archived']]],
   ),
   ...consumersIn(
@@ -554,7 +554,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ),
   ...consumersIn(
-    'src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts',
+    'src/contexts/reporting/monthly-goals/metric-correction-outbox-consumers.server.ts',
     [
       [
         'goal.metric-correction-reconciliation',

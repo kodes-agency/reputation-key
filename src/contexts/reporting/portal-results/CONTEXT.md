@@ -17,7 +17,12 @@ the server's retention activation state: "All time" while inactive, "Last 24 mon
 when active. `portal-analytics.repository.server.ts` owns
 the governed SQL and rejects invalid bounded periods before database work.
 The shared SQL and policy helpers also serve the Portals overview and last-scan
-read; they remain server-only. Central schema paths are unchanged.
+read; they remain server-only. The Portals overview
+(`get-portal-results-overview.server.ts`, `portal-results-overview-repository.server.ts`,
+`portal-last-scans.server.ts`), link taps (`get-portal-link-taps.server.ts`), time ranges
+(`time-range.server.ts`) and the staff self reads (`staff-results-reader.server.ts`) live
+here too. Each port sits beside its implementation as `*.port.server.ts`. Central schema
+paths are unchanged.
 
 The colocated unit suites cover periods, floors, evidence, copy, chart models
 and persistence refusals. The two story files run through the standard Storybook

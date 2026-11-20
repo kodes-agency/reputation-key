@@ -11,7 +11,7 @@ const read = (path: string): string => readFileSync(join(process.cwd(), path), '
 describe('rating goal notice inputs', () => {
   it('reads the notices from the status alone, never from the forecast average', () => {
     const sources = [
-      'src/contexts/reporting/application/rating-goal-evaluation.ts',
+      'src/contexts/reporting/rating-goals/rating-goal-evaluation.server.ts',
       'src/contexts/reporting/domain/rating-goal-notices.ts',
     ].map(read)
 

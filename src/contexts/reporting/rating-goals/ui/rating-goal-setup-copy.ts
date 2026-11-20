@@ -2,7 +2,7 @@ import type { RatingGoalSetupInputs } from '#/contexts/reporting/rating-goals/co
 import {
   PLANNED_AVERAGE_WEIGHT_REVIEWS,
   perMonthOf,
-} from '#/contexts/reporting/application/rating-goal-setup-plan'
+} from '#/contexts/reporting/rating-goals/rating-goal-setup-plan.contracts'
 import { formatMonthName, formatNumber } from '#/lib/format'
 import type { PaceUnit, SetupPlan } from './rating-goal-setup-draft'
 import { paceText } from './rating-goal-pace-words'

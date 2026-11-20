@@ -24,14 +24,14 @@ import {
   propertyId as toPropertyId,
   ratingId as toRatingId,
 } from '#/shared/domain/ids'
-import { recordMetrics } from '#/contexts/reporting/application/use-cases/record-metric'
-import { retractMetrics } from '#/contexts/reporting/application/use-cases/retract-metric'
+import { recordMetrics } from '#/contexts/reporting/readings/record-metric.server'
+import { retractMetrics } from '#/contexts/reporting/readings/retract-metric.server'
 import { createAtomicMetricCommandStore } from '#/contexts/reporting/readings/metric-command-store.server'
 import {
   onRatingRetractedDurably,
   onRatingSubmittedDurably,
 } from '#/contexts/reporting/readings/record-portal-metric.server'
-import { createPropertyLocalDateResolver } from '#/contexts/reporting/infrastructure/repositories/property-local-date'
+import { createPropertyLocalDateResolver } from '#/contexts/reporting/readings/property-local-date.server'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { composeRightsReplayers } from './rights-executors'

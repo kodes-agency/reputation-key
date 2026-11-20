@@ -23,7 +23,7 @@ import {
   isPortalGoalMeasure,
   type PortalCountGoal,
   type PropertyCountGoal,
-} from '../application/monthly-portal-goal-identity'
+} from './monthly-portal-goal-identity.server'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
@@ -31,7 +31,7 @@ import type {
   GoalSubjectAssignment,
 } from '../application/ports/goal-program.repository'
 import type { GoalActor, GoalMetricReadPort } from './goal-programs.server'
-import { progressOf, readSubjectMonth } from '../application/use-cases/goal-progress'
+import { progressOf, readSubjectMonth } from './goal-progress.server'
 import { changeFactsOf, newGoalFromOf } from './monthly-portal-goal-change-facts.server'
 import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in.server'
 

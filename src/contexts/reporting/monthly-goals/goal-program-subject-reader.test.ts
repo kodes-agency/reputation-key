@@ -1,0 +1,303 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createGoalProgramSubjectReader } from './goal-program-subject-reader.server'
+
+const propertyApi = { getPropertyTimezone: vi.fn() }
+const portalApi = {
+  resolvePortalContext: vi.fn(),
+  getPortalInfo: vi.fn(),
+  listPortalRatingFacts: vi.fn(),
+}
+const portalGroupApi = {
+  getGroupPortalIds: vi.fn(),
+  portalGroupBelongsToProperty: vi.fn(),
+  getGroupInfo: vi.fn(),
+}
+const reader = (enabled = false) =>
+  createGoalProgramSubjectReader(
+    propertyApi as never,
+    portalApi as never,
+    portalGroupApi as never,
+    enabled,
+  )
+
+describe('Goal Program subject reader', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('delegates timezone and Portal Group ownership through tenant-bound APIs', async () => {
+    propertyApi.getPropertyTimezone.mockResolvedValue('Europe/Sofia')
+    portalGroupApi.portalGroupBelongsToProperty.mockResolvedValue(true)
+
+    await expect(reader().getTimezone('org-1', 'property-1')).resolves.toBe(
+      'Europe/Sofia',
+    )
+    await expect(
+      reader().subjectBelongsToProperty('org-1', 'property-1', {
+        kind: 'portal_group',
+        portalGroupId: 'group-1',
+      }),
+    ).resolves.toBe(true)
+    expect(portalGroupApi.portalGroupBelongsToProperty).toHaveBeenCalledWith(
+      'org-1',
+      'property-1',
+      'group-1',
+    )
+  })
+
+  it('accepts a Portal only when both Organization and Property match', async () => {
+    portalApi.resolvePortalContext.mockResolvedValue({
+      organizationId: 'org-1',
+      propertyId: 'property-1',
+    })
+    portalApi.getPortalInfo.mockResolvedValue({
+      id: 'portal-1',
+      name: 'Lobby',
+      publicationState: 'published',
+    })
+    const subject = { kind: 'portal' as const, portalId: 'portal-1' }
+
+    await expect(
+      reader().subjectBelongsToProperty('org-1', 'property-1', subject),
+    ).resolves.toBe(true)
+    await expect(
+      reader().subjectBelongsToProperty('org-2', 'property-1', subject),
+    ).resolves.toBe(false)
+  })
+
+  it('does not treat an archived Portal as a current Goal subject', async () => {
+    portalApi.resolvePortalContext.mockResolvedValue({
+      organizationId: 'org-1',
+      propertyId: 'property-1',
+    })
+    portalApi.getPortalInfo.mockResolvedValue({
+      id: 'portal-1',
+      name: 'Lobby',
+      publicationState: 'archived',
+    })
+
+    await expect(
+      reader().subjectBelongsToProperty('org-1', 'property-1', {
+        kind: 'portal',
+        portalId: 'portal-1',
+      }),
+    ).resolves.toBe(false)
+  })
+
+  it('checks Property subjects without cross-context reads', async () => {
+    await expect(
+      reader().subjectBelongsToProperty('org-1', 'property-1', {
+        kind: 'property',
+        propertyId: 'property-2',
+      }),
+    ).resolves.toBe(false)
+    expect(portalApi.resolvePortalContext).not.toHaveBeenCalled()
+  })
+
+  describe('subject names', () => {
+    const lobby = { kind: 'portal' as const, portalId: 'portal-1' }
+    const north = { kind: 'portal_group' as const, portalGroupId: 'group-1' }
+    const livePortal = (publicationState = 'published') => {
+      portalApi.resolvePortalContext.mockResolvedValue({
+        organizationId: 'org-1',
+        propertyId: 'property-1',
+      })
+      portalApi.getPortalInfo.mockResolvedValue({
+        id: 'portal-1',
+        name: 'Lobby',
+        publicationState,
+      })
+    }
+
+    it('names a Portal of the Property', async () => {
+      livePortal()
+
+      await expect(reader().getSubjectName('org-1', 'property-1', lobby)).resolves.toBe(
+        'Lobby',
+      )
+      expect(portalApi.getPortalInfo).toHaveBeenCalledWith('org-1', 'portal-1')
+    })
+
+    it('names no Portal of another Property, another organization, or the archive', async () => {
+      livePortal()
+      await expect(
+        reader().getSubjectName('org-1', 'property-2', lobby),
+      ).resolves.toBeNull()
+      await expect(
+        reader().getSubjectName('org-2', 'property-1', lobby),
+      ).resolves.toBeNull()
+
+      livePortal('archived')
+      await expect(
+        reader().getSubjectName('org-1', 'property-1', lobby),
+      ).resolves.toBeNull()
+    })
+
+    it('names a Portal Group of the Property, and none of another Property', async () => {
+      portalGroupApi.getGroupInfo.mockResolvedValue({
+        id: 'group-1',
+        propertyId: 'property-1',
+        name: 'North wing',
+      })
+
+      await expect(reader().getSubjectName('org-1', 'property-1', north)).resolves.toBe(
+        'North wing',
+      )
+      await expect(
+        reader().getSubjectName('org-1', 'property-2', north),
+      ).resolves.toBeNull()
+      expect(portalGroupApi.getGroupInfo).toHaveBeenCalledWith('org-1', 'group-1')
+    })
+
+    it('names no group the organization does not have', async () => {
+      portalGroupApi.getGroupInfo.mockResolvedValue(null)
+
+      await expect(
+        reader().getSubjectName('org-1', 'property-1', north),
+      ).resolves.toBeNull()
+    })
+  })
+})
+
+describe('private-rating eligibility from scoped Portal facts', () => {
+  const asOf = new Date('2026-11-02T12:00:00.000Z')
+  it.each([true, false])('an all-switched group: %s', async (allSwitched) => {
+    portalApi.listPortalRatingFacts.mockResolvedValue([
+      { portalId: 'one', portalGroupId: 'group', skipPrivateRating: true },
+      { portalId: 'two', portalGroupId: 'group', skipPrivateRating: allSwitched },
+    ])
+    await expect(
+      reader().ratingSubjectsSkipPrivateRating!(
+        'org',
+        'property',
+        [{ kind: 'portal_group', portalGroupId: 'group' }],
+        asOf,
+      ),
+    ).resolves.toBe(allSwitched)
+    expect(portalApi.listPortalRatingFacts).toHaveBeenLastCalledWith('org', 'property', {
+      kind: 'portal_group',
+      portalGroupId: 'group',
+    })
+  })
+  it('keeps the 101st collecting Portal eligible without a readiness cap or 500', async () => {
+    const facts = Array.from({ length: 101 }, (_, i) => ({
+      portalId: 'portal-' + i,
+      portalGroupId: 'group',
+      skipPrivateRating: i !== 100,
+    }))
+    portalApi.listPortalRatingFacts.mockResolvedValue(facts)
+    await expect(
+      reader().ratingSubjectsSkipPrivateRating!(
+        'org',
+        'property',
+        [{ kind: 'portal_group', portalGroupId: 'group' }],
+        asOf,
+      ),
+    ).resolves.toBe(false)
+    portalApi.listPortalRatingFacts.mockResolvedValue([facts[100]])
+    await expect(
+      reader().ratingSubjectsSkipPrivateRating!(
+        'org',
+        'property',
+        [{ kind: 'portal', portalId: 'portal-100' }],
+        asOf,
+      ),
+    ).resolves.toBe(false)
+  })
+})
+
+describe('personal Portal scan targets', () => {
+  it('refuses new personal targets while off and permits only scans when on', async () => {
+    portalApi.resolvePortalContext.mockResolvedValue({
+      organizationId: 'org',
+      propertyId: 'property',
+    })
+    portalApi.getPortalInfo.mockResolvedValue({
+      id: 'personal',
+      kind: 'personal',
+      publicationState: 'published',
+      name: 'Polly',
+    })
+    const subject = { kind: 'portal' as const, portalId: 'personal' }
+    expect(
+      await reader().staffTargetAllowed!('org', 'property', subject, 'qualified_scans'),
+    ).toBe(false)
+    expect(
+      await reader(true).staffTargetAllowed!(
+        'org',
+        'property',
+        subject,
+        'qualified_scans',
+      ),
+    ).toBe(true)
+    expect(
+      await reader(true).staffTargetAllowed!(
+        'org',
+        'property',
+        subject,
+        'portal_rating_count',
+      ),
+    ).toBe(false)
+    expect(
+      await reader(true).staffTargetAllowed!(
+        'org',
+        'property',
+        subject,
+        'portal_rating_average',
+      ),
+    ).toBe(false)
+  })
+  it('applies the same rule to a Group holding a personal Portal', async () => {
+    portalApi.resolvePortalContext.mockResolvedValue({
+      organizationId: 'org',
+      propertyId: 'property',
+    })
+    portalApi.getPortalInfo.mockResolvedValue({
+      id: 'personal',
+      kind: 'personal',
+      publicationState: 'published',
+      name: 'Polly',
+    })
+    portalGroupApi.getGroupPortalIds.mockResolvedValue(['personal'])
+    const subject = { kind: 'portal_group' as const, portalGroupId: 'group' }
+    expect(
+      await reader(true).staffTargetAllowed!(
+        'org',
+        'property',
+        subject,
+        'portal_rating_count',
+      ),
+    ).toBe(false)
+    expect(
+      await reader(true).staffTargetAllowed!(
+        'org',
+        'property',
+        subject,
+        'qualified_scans',
+      ),
+    ).toBe(true)
+  })
+})
+
+it('refuses a scan target when a place sibling skips ratings in a staff Group', async () => {
+  portalApi.resolvePortalContext.mockResolvedValue({
+    organizationId: 'org',
+    propertyId: 'property',
+  })
+  portalApi.getPortalInfo.mockImplementation(async (_org, id) => ({
+    id,
+    kind: id === 'personal' ? 'personal' : 'place',
+    name: id,
+    publicationState: 'published',
+    skipPrivateRating: id === 'place',
+  }))
+  portalGroupApi.getGroupPortalIds.mockResolvedValue(['personal', 'place'])
+  expect(
+    await reader(true).staffTargetProblem!(
+      'org',
+      'property',
+      { kind: 'portal_group', portalGroupId: 'group' },
+      'qualified_scans',
+    ),
+  ).toBe('staff_private_ratings_skipped')
+})

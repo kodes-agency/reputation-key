@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // Migration 0052 against real PostgreSQL: before readers stop letting a newer
 // `portal_links.label` beat the primary-language text, the wording they showed
 // is copied into that text, once, with a History row. The migration is hand

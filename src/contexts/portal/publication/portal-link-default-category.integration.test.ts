@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // Adding a link without a category, as the Linktree editor does, against real
 // PostgreSQL. Starting the Portal's first category moves the Portal revision the
 // link command is fenced on, so this is the test that proves the use case reads

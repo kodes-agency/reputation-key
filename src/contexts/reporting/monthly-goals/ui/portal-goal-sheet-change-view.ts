@@ -9,7 +9,7 @@ import type {
   PortalGoalOfCard,
   PortalGoalSheetFacts,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { goalPace } from '#/contexts/reporting/application/goal-pace'
+import { goalPace } from '#/contexts/reporting/monthly-goals/goal-pace.contracts'
 import { formatNumber } from '#/lib/format'
 import {
   changeSubmissionOf,

@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // Linktree working model (round 4, slices 10 and 44) against real PostgreSQL: the
 // link cap under the Portal row lock, the primary-language text as the only
 // name of a link (the legacy `portal_links.label` is never written), per-language texts, the section title and switch, and the pending-change rows

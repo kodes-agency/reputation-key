@@ -6,8 +6,8 @@ import type { RatingFraction } from '#/contexts/reporting/rating-goals/contracts
 import type {
   ChangeRatingGoalSchemaInput,
   SetRatingGoalSchemaInput,
-} from '#/contexts/reporting/application/dto/rating-goal.dto'
-import { HIGHEST_TARGET_TENTHS } from '#/contexts/reporting/application/rating-goal-setup-plan'
+} from '#/contexts/reporting/rating-goals/rating-goal.contracts'
+import { HIGHEST_TARGET_TENTHS } from '#/contexts/reporting/rating-goals/rating-goal-setup-plan.contracts'
 import { paceSentence } from './rating-goal-pace-words'
 import { likelyText, whenText } from './rating-goal-setup-time'
 import { tenthsText } from './rating-goal-view'

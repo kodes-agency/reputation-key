@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // Review & publish (round 4, slice 31) against real PostgreSQL: the change list
 // comes from the page-edit ledger and the pending-change fence a real write
 // leaves behind, read from the instant the newest version was published, and a

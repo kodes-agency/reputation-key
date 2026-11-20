@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // A phone number or an email address on a Linktree tile, against real
 // PostgreSQL: the widened CHECK takes the `contact` source (migration 0073), a
 // contact is approved as a manager enters it, the job that checks websites again

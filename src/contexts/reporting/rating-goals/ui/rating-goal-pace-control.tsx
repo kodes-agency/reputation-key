@@ -17,7 +17,7 @@ import type { PaceUnit, SetupPlan } from './rating-goal-setup-draft'
 import {
   dayTenthsOf,
   perMonthOf,
-} from '#/contexts/reporting/application/rating-goal-setup-plan'
+} from '#/contexts/reporting/rating-goals/rating-goal-setup-plan.contracts'
 
 type Props = Readonly<{
   plan: SetupPlan

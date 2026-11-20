@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // A Portal's own look and its publish, against PostgreSQL (ADR 0070). A save
 // takes the Property's publication lock and then the Portal row, the order
 // publish takes them, so a save waits for a publish of the same Portal to

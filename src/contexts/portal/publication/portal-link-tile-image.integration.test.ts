@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // The picture on a link tile (round 4, slice 42c1) against real PostgreSQL: the
 // update command writes and clears `image_asset_id`, the working model reads it
 // back, the composite foreign key keeps a tile to its own Property's assets, and

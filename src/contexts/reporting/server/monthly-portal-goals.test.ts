@@ -72,7 +72,7 @@ import {
   portalGoalSinglePageSchema,
   reviseMonthlyPortalGoalSchema,
   stopMonthlyPortalGoalSchema,
-} from '../application/dto/monthly-portal-goal.dto'
+} from '../monthly-goals/monthly-portal-goals.contracts'
 import { GoalProgramError } from '../monthly-goals/goal-programs.server'
 import {
   addPortalGoal,

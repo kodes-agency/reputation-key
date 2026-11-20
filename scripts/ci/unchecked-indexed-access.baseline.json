@@ -42,7 +42,7 @@
   "src/contexts/portal/infrastructure/repositories/portal.repository.integration.test.ts": 3,
   "src/contexts/portal/infrastructure/repositories/portal.repository.ts": 2,
   "src/contexts/property/profile/property-repository.integration.test.ts": 2,
-  "src/contexts/reporting/infrastructure/repositories/dashboard.repository.integration.test.ts": 13,
+  "src/contexts/reporting/property-overview/dashboard-repository.integration.test.ts": 13,
   "src/contexts/reputation/inbox/response-targets/reminder-time-travel.integration.test.ts": 2,
   "src/contexts/reputation/inbox/ui/inbox-thread-model-fold.test.ts": 5,
   "src/contexts/reputation/inbox/ui/inbox-thread-model.test.ts": 2,

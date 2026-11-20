@@ -19,7 +19,7 @@ vi.mock(
   '@tanstack/react-start',
   async () => (await import('#/shared/testing/compiled-server-fns')).startServerBuild,
 )
-import { PORTAL_RESULTS_PORTAL_LIMIT } from '../application/use-cases/get-portal-results-overview'
+import { PORTAL_RESULTS_PORTAL_LIMIT } from '../portal-results/get-portal-results-overview.server'
 import { getPortalResultsOverviewFn } from './portal-results-overview'
 
 const harness = setupServerFunctionHarness({

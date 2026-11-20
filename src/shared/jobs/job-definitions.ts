@@ -369,7 +369,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'goal-program.maintain',
-    'src/contexts/reporting/infrastructure/jobs/goal-program-maintenance.job.ts',
+    'src/contexts/reporting/monthly-goals/goal-program-maintenance-job.server.ts',
     {
       queue: 'background',
       capability: 'goal.use',
@@ -384,7 +384,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // so Below pace is found here (ADR 0067 decision 6).
   defineJob(
     'rating-goal.evaluate',
-    'src/contexts/reporting/infrastructure/jobs/rating-goal-evaluation.job.ts',
+    'src/contexts/reporting/rating-goals/rating-goal-evaluation-job.server.ts',
     {
       queue: 'background',
       capability: 'goal.use',

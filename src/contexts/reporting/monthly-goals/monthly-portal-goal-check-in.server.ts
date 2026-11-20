@@ -10,7 +10,7 @@ import type {
   PortalGoalCheckIn,
   PortalGoalRunningMonth,
 } from './contracts'
-import type { PropertyCountGoal } from '../application/monthly-portal-goal-identity'
+import type { PropertyCountGoal } from './monthly-portal-goal-identity.server'
 import { checkInOfferOf } from './monthly-portal-goal-offer.server'
 
 export type MonthlyPortalGoalCheckInContext = Readonly<{

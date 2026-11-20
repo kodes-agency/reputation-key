@@ -13,9 +13,9 @@ import type {
 import {
   monthlyPortalGoalOf,
   type PropertyCountGoal,
-} from '../application/monthly-portal-goal-identity'
+} from './monthly-portal-goal-identity.server'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
-import type { PortalGoalPromptDeferralStore } from '../application/ports/portal-goal-prompt-deferrals.port'
+import type { PortalGoalPromptDeferralStore } from './portal-goal-prompt-deferrals-repository.port.server'
 import type {
   GoalActor,
   GoalExecutionPolicy,
@@ -25,7 +25,7 @@ import type {
 import {
   gatherPortalGoalRecommendation,
   type PortalGoalRecommendationReads,
-} from '../application/use-cases/goal-recommendation-read'
+} from './goal-recommendation-read.server'
 import {
   portalGoalOfferOf,
   portalGoalSheetFactsOf,

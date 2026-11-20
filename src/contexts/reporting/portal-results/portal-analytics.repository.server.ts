@@ -1,7 +1,7 @@
 import {
   currentCorrectionTips,
   effectiveValue,
-} from '../infrastructure/readings/effective-readings.server'
+} from '../readings/effective-readings.server'
 // This owner pins immutable definition versions, registry consumer/source
 // policy, exact quality, current correction tips, half-open business time,
 // tenant scope, and a statement-level budget. What it shares with the batched
@@ -41,7 +41,7 @@ import type {
   MetricPortalMetricEvidenceSet,
   PortalAnalyticsRepository,
   PortalRatingBucket,
-} from '../application/ports/portal-analytics.repository'
+} from './portal-analytics.repository.port.server'
 import { type SeriesReadingRow } from '../domain/portal-results-series'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 

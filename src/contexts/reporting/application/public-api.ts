@@ -1,16 +1,16 @@
 import type { Tx } from '#/shared/outbox/commit'
-import type { PortalRatingGoalBlock } from './running-portal-rating-goal'
+import type { PortalRatingGoalBlock } from '../monthly-goals/running-portal-rating-goal.server'
 // Reporting context — the single cross-context interface for metrics, goals,
 // and dashboard reads. Implementation modules inside this context import one
 // another directly through the normal layer rules rather than through this file.
 
-import type { GoalMetricCorrectionImpactLookup } from './ports/goal-metric-correction-impact.lookup'
-import type { CurrentGoogleReputationSnapshotStore } from './ports/current-google-reputation-snapshot.port'
-import type { PortalAnalyticsRepository } from './ports/portal-analytics.repository'
+import type { GoalMetricCorrectionImpactLookup } from '../monthly-goals/goal-metric-correction-impact-lookup.port.server'
+import type { CurrentGoogleReputationSnapshotStore } from '../readings/current-google-reputation-snapshot-repository.port.server'
+import type { PortalAnalyticsRepository } from '../portal-results/portal-analytics.repository.port.server'
 import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
-} from './use-cases/query-goal-metric'
+} from '../readings/query-goal-metric.server'
 import type { GovernedMetricVersion } from '../readings/contracts'
 
 // Metric contracts.
@@ -20,7 +20,7 @@ export type {
   MetricPortalMetricEvidenceSet,
   PortalMetricSumRow,
   PortalRatingBucket,
-} from './ports/portal-analytics.repository'
+} from '../portal-results/portal-analytics.repository.port.server'
 export type { MetricRecorded, MetricEvent } from '../domain/metric-events'
 export {
   METRIC_DEFINITION_IDS,
@@ -35,7 +35,7 @@ export type {
 export type {
   FindGoalMetricCorrectionImpactsInput,
   GoalMetricCorrectionImpact,
-} from './ports/goal-metric-correction-impact.lookup'
+} from '../monthly-goals/goal-metric-correction-impact-lookup.port.server'
 
 export type MetricPublicApi = Readonly<{
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
@@ -69,7 +69,7 @@ export type { GoalProgram, GoalSubjectAssignment } from './ports/goal-program.re
 export type {
   MonthlyResultNotificationFactsLookup,
   MonthlyResultRevisionNotificationFacts,
-} from './ports/monthly-result-notification-facts.lookup'
+} from '../monthly-goals/monthly-result-notification-facts-lookup.port.server'
 export type { GoalMetric, GoalSubject } from '../domain/goal-program'
 export { goalSubjectIdentity } from '../domain/goal-subject'
 export { buildGoalResultsMatrix } from './goal-results-matrix'
@@ -79,8 +79,11 @@ export type {
   GoalResultsMatrixRow,
 } from './goal-results-matrix'
 export { GoalProgramError } from './use-cases/goal-program-shared'
-export type { GoalProgress, GoalProgressReading } from './use-cases/goal-progress'
-export type { GoalListProgress } from './use-cases/goal-list-progress'
+export type {
+  GoalProgress,
+  GoalProgressReading,
+} from '../monthly-goals/goal-progress.server'
+export type { GoalListProgress } from '../monthly-goals/goal-list-progress.server'
 export type {
   GoalMonthlyResultClosed,
   GoalMonthlyResultReconciled,
@@ -139,7 +142,7 @@ export type {
   PortalResultsPropertyZone,
   PortalResultsRosterEntry,
   PortalResultsTimeRange,
-} from './use-cases/get-portal-results-overview'
+} from '../portal-results/get-portal-results-overview.server'
 export type {
   PropertySetup,
   PropertySetupSection,
@@ -147,7 +150,7 @@ export type {
   PropertySetupStepKey,
   PropertySetupStepStatus,
 } from '../domain/property-setup'
-export type { PropertySetupSummary } from './use-cases/list-property-setup-summaries'
+export type { PropertySetupSummary } from '../property-overview/list-property-setup-summaries.server'
 export type { DashboardError } from '../domain/dashboard-errors'
 export {
   GOOGLE_PERFORMANCE_ERROR_CODES,
@@ -168,7 +171,7 @@ export type {
 export type {
   ReadPropertyGoogleNumbersInput,
   ReadPropertyGoogleNumbers,
-} from './use-cases/read-property-google-numbers'
+} from '../property-overview/read-property-google-numbers.server'
 
 export type { PortalLinkTaps } from '../domain/portal-link-taps'
 export type { PortalScanPatterns } from '../domain/portal-scan-patterns'

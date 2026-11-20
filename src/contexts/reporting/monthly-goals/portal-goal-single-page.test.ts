@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { GoalSubject } from '../domain/goal-program'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import { GoalProgramError } from '../application/use-cases/goal-program-shared'
-import type { GovernedGoalMetricResult } from '../application/use-cases/query-goal-metric'
+import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.server'
 import { readPortalGoalSinglePage } from './get-portal-goal-page.server'
 import {
   DEC_1,

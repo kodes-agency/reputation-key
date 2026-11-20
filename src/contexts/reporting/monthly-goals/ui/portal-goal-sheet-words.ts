@@ -6,7 +6,7 @@ import type {
   PortalGoalOffer,
   PortalGoalSheetFacts,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { ownNumberNote } from '#/contexts/reporting/application/goal-number-steps'
+import { ownNumberNote } from '#/contexts/reporting/monthly-goals/goal-number-steps.contracts'
 import { formatNumber } from '#/lib/format'
 import type { GoalStatusPart } from '../../goals/ui/goal-setup-parts'
 import { dayWords, portalGoalUnit, RECOMMENDED_TAG } from './portal-goal-words'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RatingGoalSetupInputs } from '#/contexts/reporting/rating-goals/contracts'
-import { workOutRatingGoal } from '#/contexts/reporting/application/rating-goal-setup-plan'
+import { workOutRatingGoal } from '#/contexts/reporting/rating-goals/rating-goal-setup-plan.contracts'
 import { choicesOf, type SetupDraft, type SetupPlan } from './rating-goal-setup-draft'
 import {
   averageSourceText,

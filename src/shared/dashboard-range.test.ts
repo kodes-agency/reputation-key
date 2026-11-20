@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { timeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
+import { timeRangePreset } from '#/contexts/reporting/property-overview/contracts'
 import {
   DASHBOARD_RANGES,
   DASHBOARD_RANGE_LABELS,

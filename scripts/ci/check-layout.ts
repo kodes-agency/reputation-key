@@ -113,6 +113,7 @@ export const LAYOUT: Layout = {
       'property-overview',
       'rating-goals',
       'readings',
+      'rights',
     ],
     reputation: ['content', 'inbox', 'library', 'replies', 'response-targets', 'reviews'],
     review: [],

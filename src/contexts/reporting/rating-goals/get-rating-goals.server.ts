@@ -29,16 +29,16 @@ import {
   goalBasis,
   historyEntry,
   planProgressView,
-} from '../application/rating-goal-views'
-import { forecastFor } from '../application/rating-goal-tracking-views'
-import { detailChartStart, detailTracking } from '../application/rating-goal-detail-views'
+} from './rating-goal-views.server'
+import { forecastFor } from './rating-goal-tracking-views.server'
+import { detailChartStart, detailTracking } from './rating-goal-detail-views.server'
 import {
   LOW_REVIEW_READ_LIMIT,
   lowReviewRows,
   lowStarCount,
   setbackNumbers,
   thisWeekView,
-} from '../application/rating-goal-low-reviews'
+} from './rating-goal-low-reviews.server'
 import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import {
   authorizeRatingGoal,

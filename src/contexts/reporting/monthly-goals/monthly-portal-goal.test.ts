@@ -4,13 +4,13 @@ import type {
   RecommendationDayCount,
   RecommendationPortal,
 } from '../domain/goal-recommendation-types'
-import { setMonthlyPortalGoalSchema } from '../application/dto/monthly-portal-goal.dto'
+import { setMonthlyPortalGoalSchema } from './monthly-portal-goals.contracts'
 import type { SetMonthlyPortalGoalRequest } from './contracts'
 import type {
   GoalProgramBundle,
   GoalProgramVersion,
 } from '../application/ports/goal-program.repository'
-import type { GoalRecommendationFactsPort } from '../application/ports/goal-recommendation-facts.port'
+import type { GoalRecommendationFactsPort } from './goal-recommendation-facts.port.server'
 import {
   GoalProgramError,
   type GoalActor,
@@ -29,7 +29,7 @@ import {
   type MonthlyPortalGoalSetDeps,
 } from './monthly-portal-goal.server'
 import { readMonthlyPortalGoalCard } from './monthly-portal-goal-card.server'
-import { monthlyPortalGoalOf } from '../application/monthly-portal-goal-identity'
+import { monthlyPortalGoalOf } from './monthly-portal-goal-identity.server'
 import {
   days as localDays,
   fakeWorld as seaviewWorld,

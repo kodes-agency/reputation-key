@@ -8,12 +8,9 @@ import type {
   GuestReviewLinkClicked,
   GuestScanRecorded,
 } from '#/contexts/guest/application/public-api'
-import type {
-  RecordMetricEntryInput,
-  RecordMetrics,
-} from '../application/use-cases/record-metric'
-import type { RetractMetricCommand } from '../application/ports/metric-command-store.port'
-import type { RetractMetrics } from '../application/use-cases/retract-metric'
+import type { RecordMetricEntryInput, RecordMetrics } from './record-metric.server'
+import type { RetractMetricCommand } from './metric-command-store.port.server'
+import type { RetractMetrics } from './retract-metric.server'
 import type {
   OrganizationId,
   PortalGroupId,

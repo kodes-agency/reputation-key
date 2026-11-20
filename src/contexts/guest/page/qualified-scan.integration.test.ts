@@ -29,7 +29,7 @@ import {
   type ReportingContextBuildInput,
 } from '#/contexts/reporting/build'
 import { METRIC_VERSION_IDS } from '#/contexts/reporting/application/public-api'
-import { createMetricRepository } from '#/contexts/reporting/infrastructure/repositories/metric.repository'
+import { createMetricRepository } from '#/contexts/reporting/readings/metric-repository.server'
 import {
   createConsumerRegistry,
   type ConsumerEvent,

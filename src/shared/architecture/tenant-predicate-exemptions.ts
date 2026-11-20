@@ -89,14 +89,14 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reporting/infrastructure/repositories/goal-program.repository.ts',
+    file: 'src/contexts/reporting/monthly-goals/goal-program-repository.server.ts',
     symbol: 'hydrateBundles',
     reason:
       'The hydration query receives a finite set of already-authorized or globally scheduled program rows and loads children only through their globally unique parent IDs.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reporting/infrastructure/repositories/goal-monthly-result.repository.ts',
+    file: 'src/contexts/reporting/monthly-goals/goal-monthly-result-repository.server.ts',
     symbol: 'listDueResults',
     reason:
       'The bounded goal-maintenance scheduler intentionally enumerates due result records across all tenants before tenant-preserving maintenance work.',
@@ -607,21 +607,21 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reporting/infrastructure/adapters/goal-program-subject-reader.ts',
+    file: 'src/contexts/reporting/monthly-goals/goal-program-subject-reader.server.ts',
     symbol: 'currentPortal',
     reason:
       "The Portal's owning Organization and Property are resolved by its id and the Portal is answered only when both equal the Goal Program's own.",
     category: 'TENANT-CHECKED',
   },
   {
-    file: 'src/contexts/reporting/infrastructure/repositories/goal-program.repository.ts',
+    file: 'src/contexts/reporting/monthly-goals/goal-program-repository.server.ts',
     symbol: 'listOperational',
     reason:
       'The bounded goal-maintenance scheduler intentionally lists scheduled and active Goal Programs across tenants, in tenant order, before tenant-preserving maintenance work.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reporting/infrastructure/repositories/property-rating-goal.repository.ts',
+    file: 'src/contexts/reporting/rating-goals/property-rating-goal-repository.server.ts',
     symbol: 'listActiveGoalScopes',
     reason:
       "The daily rating goal evaluation intentionally lists active Property Google rating goals across tenants, a bounded page in goal id order, returning only each goal's id, Organization and Property; every goal is then authorized and evaluated under its own Organization and Property.",

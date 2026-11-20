@@ -1,0 +1,279 @@
+// Shared row mapping and PostgreSQL conflict helpers. Keep this a leaf so
+// Program and monthly-result repositories can use it without a dependency cycle.
+
+import type {
+  goalMonthlyResults,
+  goalPrograms,
+  goalProgramVersions,
+  goalResultRevisions,
+  goalSubjectAssignments,
+} from '#/shared/db/schema/goal.schema'
+import type {
+  GoalMonthlyResult,
+  GoalResultRevision,
+  GoalProgram,
+  GoalProgramVersion,
+  GoalSubjectAssignment,
+} from '../application/ports/goal-program.repository'
+import { parseGoalSubject, type GoalTargetSource } from '../domain/goal-program'
+
+export class GoalProgramRevisionConflict extends Error {}
+
+export function hasPostgresErrorCode(error: unknown, code: string): boolean {
+  const seen = new Set<unknown>()
+  let candidate = error
+  while (typeof candidate === 'object' && candidate !== null && !seen.has(candidate)) {
+    seen.add(candidate)
+    if ((candidate as { code?: unknown }).code === code) return true
+    candidate = (candidate as { cause?: unknown }).cause
+  }
+  return false
+}
+
+/**
+ * Runs a write transaction once more when PostgreSQL ended it as a deadlock
+ * victim (40P01); the aborted run wrote nothing. Two inserts that conflict on
+ * an exclusion constraint at the same moment each wait on the other inside the
+ * check, so PostgreSQL ends one of them that way instead of with the conflict
+ * (23P01). By the second run the other insert holds its row, and the check
+ * waits for it and meets the conflict. A second deadlock is thrown as it is.
+ */
+export async function runAgainAfterDeadlock<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write()
+  } catch (error) {
+    if (!hasPostgresErrorCode(error, '40P01')) throw error
+    return write()
+  }
+}
+
+/**
+ * The Program as the port knows it. Of the columns migration 0062 added, it
+ * names when the goal was ended and who ended it, and the month whose check-in
+ * was answered with Keep, only when those were stored (the Monthly portal
+ * goal's card says the day it was stopped, and asks no check-in it was given
+ * an answer to; its page says who stopped it).
+ */
+export function mapProgram(row: typeof goalPrograms.$inferSelect): GoalProgram {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    name: row.name,
+    description: row.description,
+    status: row.status as GoalProgram['status'],
+    statusReason: row.statusReason,
+    currentVersion: row.currentVersion,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    ...(row.endedAt ? { endedAt: row.endedAt } : {}),
+    ...(row.endedBy ? { endedBy: row.endedBy } : {}),
+    ...(row.checkInAnsweredMonth
+      ? { checkInAnsweredMonth: row.checkInAnsweredMonth }
+      : {}),
+  }
+}
+
+/**
+ * Where a stored number came from, as a read names it: only when the row
+ * records one. A row written before migration 0062, or by a command that did
+ * not say, gives nothing.
+ */
+export function storedTargetSource(
+  value: string | null,
+): Readonly<{ targetSource?: GoalTargetSource }> {
+  return value === 'recommended' || value === 'own' ? { targetSource: value } : {}
+}
+
+export function mapVersion(
+  row: typeof goalProgramVersions.$inferSelect,
+): GoalProgramVersion {
+  return {
+    id: row.id,
+    programId: row.programId,
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    version: row.version,
+    metricDefinitionId: row.metricDefinitionId,
+    metricDefinitionVersionId: row.metricDefinitionVersionId,
+    metric: row.metricKey as GoalProgramVersion['metric'],
+    metricMinimumSample: row.metricMinimumSample,
+    targetValue: row.targetValue,
+    propertyTimezone: row.propertyTimezone,
+    effectiveFrom: row.effectiveFrom,
+    effectiveTo: row.effectiveTo,
+    changeReason: row.changeReason,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    ...storedTargetSource(row.targetSource),
+  }
+}
+
+export function mapAssignment(
+  row: typeof goalSubjectAssignments.$inferSelect,
+): GoalSubjectAssignment {
+  const subjectId = row.propertySubjectId ?? row.portalGroupId ?? row.portalId ?? ''
+  const subject = parseGoalSubject(row.subjectKind, subjectId, row.propertyId)
+  if (!subject) throw new Error(`Invalid Goal assignment subject ${row.id}`)
+  return {
+    id: row.id,
+    programId: row.programId,
+    programVersionId: row.programVersionId,
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    metric: row.metricKey as GoalSubjectAssignment['metric'],
+    subject,
+    effectiveFrom: row.effectiveFrom,
+    effectiveTo: row.effectiveTo,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+  }
+}
+
+export function mapResult(
+  row: typeof goalMonthlyResults.$inferSelect,
+  correction?: typeof goalResultRevisions.$inferSelect,
+): GoalMonthlyResult {
+  const evaluation = correction
+    ? {
+        state: correction.evaluationState as GoalMonthlyResult['evaluation']['state'],
+        value: correction.value,
+        sampleCount: correction.sampleCount,
+        achieved: correction.achieved,
+        reason: correction.reason,
+      }
+    : {
+        state: row.evaluationState as GoalMonthlyResult['evaluation']['state'],
+        value: row.value,
+        sampleCount: row.sampleCount,
+        achieved: row.achieved,
+        reason: row.reason,
+      }
+  return {
+    id: row.id,
+    assignmentId: row.assignmentId,
+    programId: row.programId,
+    programVersionId: row.programVersionId,
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    periodStart: row.periodStart,
+    periodEnd: row.periodEnd,
+    propertyTimezone: row.propertyTimezone,
+    status: row.status as GoalMonthlyResult['status'],
+    targetValue: row.targetValue,
+    evaluation,
+    sourceCompleteThrough: correction
+      ? correction.sourceCompleteThrough
+      : row.sourceCompleteThrough,
+    evaluationWatermark: correction
+      ? correction.evaluationWatermark
+      : row.evaluationWatermark,
+    closedAt: row.closedAt,
+    createdAt: row.createdAt,
+    updatedAt: correction?.createdAt ?? row.updatedAt,
+    ...(correction
+      ? {
+          revision: {
+            id: correction.id,
+            number: correction.revision,
+            changeReason: correction.changeReason,
+            createdAt: correction.createdAt,
+          },
+        }
+      : {}),
+  }
+}
+
+export function mapResultRevision(
+  row: typeof goalResultRevisions.$inferSelect,
+): GoalResultRevision {
+  return {
+    id: row.id,
+    monthlyResultId: row.monthlyResultId,
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    revision: row.revision,
+    supersedesRevisionId: row.supersedesRevisionId,
+    evaluation: {
+      state: row.evaluationState as GoalResultRevision['evaluation']['state'],
+      value: row.value,
+      sampleCount: row.sampleCount,
+      achieved: row.achieved,
+      reason: row.reason,
+    },
+    sourceCompleteThrough: row.sourceCompleteThrough,
+    evaluationWatermark: row.evaluationWatermark,
+    changeReason: row.changeReason,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+  }
+}
+
+export const programValues = (program: GoalProgram) => ({ ...program })
+
+export const versionValues = (version: GoalProgramVersion) => ({
+  id: version.id,
+  programId: version.programId,
+  organizationId: version.organizationId,
+  propertyId: version.propertyId,
+  version: version.version,
+  metricDefinitionId: version.metricDefinitionId,
+  metricDefinitionVersionId: version.metricDefinitionVersionId,
+  metricKey: version.metric,
+  metricMinimumSample: version.metricMinimumSample,
+  targetValue: version.targetValue,
+  propertyTimezone: version.propertyTimezone,
+  effectiveFrom: version.effectiveFrom,
+  effectiveTo: version.effectiveTo,
+  changeReason: version.changeReason,
+  createdBy: version.createdBy,
+  createdAt: version.createdAt,
+  targetSource: version.targetSource ?? null,
+})
+
+export const assignmentValues = (assignment: GoalSubjectAssignment) => ({
+  id: assignment.id,
+  programId: assignment.programId,
+  programVersionId: assignment.programVersionId,
+  organizationId: assignment.organizationId,
+  propertyId: assignment.propertyId,
+  metricKey: assignment.metric,
+  subjectKind: assignment.subject.kind,
+  propertySubjectId:
+    assignment.subject.kind === 'property' ? assignment.subject.propertyId : null,
+  portalGroupId:
+    assignment.subject.kind === 'portal_group' ? assignment.subject.portalGroupId : null,
+  portalId: assignment.subject.kind === 'portal' ? assignment.subject.portalId : null,
+  effectiveFrom: assignment.effectiveFrom,
+  effectiveTo: assignment.effectiveTo,
+  createdBy: assignment.createdBy,
+  createdAt: assignment.createdAt,
+})
+
+export const resultValues = (result: GoalMonthlyResult) => ({
+  id: result.id,
+  assignmentId: result.assignmentId,
+  programId: result.programId,
+  programVersionId: result.programVersionId,
+  organizationId: result.organizationId,
+  propertyId: result.propertyId,
+  periodStart: result.periodStart,
+  periodEnd: result.periodEnd,
+  propertyTimezone: result.propertyTimezone,
+  status: result.status,
+  // A month always opens on its version's target. Nothing here sets the
+  // column, and the guard refuses any writer that would give a month its own
+  // target once it is not open or its period has ended.
+  targetValue: null,
+  evaluationState: result.evaluation.state,
+  value: result.evaluation.value,
+  sampleCount: result.evaluation.sampleCount,
+  achieved: result.evaluation.achieved,
+  reason: result.evaluation.reason,
+  sourceCompleteThrough: result.sourceCompleteThrough,
+  evaluationWatermark: result.evaluationWatermark,
+  closedAt: result.closedAt,
+  createdAt: result.createdAt,
+  updatedAt: result.updatedAt,
+})

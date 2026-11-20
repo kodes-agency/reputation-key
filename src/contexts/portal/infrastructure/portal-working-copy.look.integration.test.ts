@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // A Portal's own look (ADR 0070) in the working copy, against real PostgreSQL.
 //
 // The reader lays the Portal's `portal_look_overrides` row over its Property's

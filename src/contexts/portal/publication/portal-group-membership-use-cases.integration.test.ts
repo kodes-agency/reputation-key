@@ -20,7 +20,7 @@ import {
 } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { isPortalError } from '../domain/errors'
 import { portalCreated } from '../domain/events'
 import { addPortalToGroup } from '../application/use-cases/add-portal-to-group'

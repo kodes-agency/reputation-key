@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // The life of a code's print codes on real PostgreSQL (ADR 0069 decisions 6 and 7).
 //
 // Issue and replace store both keyed hashes with the new row in one transaction;

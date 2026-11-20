@@ -1,0 +1,272 @@
+// Share tenant/Property/date predicates and aggregate SQL across dashboard reads.
+// Every direct read uses DASHBOARD_READ_BUDGET_MS inside withStatementTimeout,
+// raising DashboardReadTimeout instead of holding the pool connection indefinitely.
+// Client TanStack Query stale times own caching; a server cache would duplicate
+// the authoritative read model.
+
+import {
+  currentCorrectionTips,
+  effectiveValue,
+  effectiveSampleCount,
+} from '../readings/effective-readings.server'
+import { and, count, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
+import type { Database, Tx } from '#/shared/db'
+import { metricReadings, inboxItems } from '#/shared/db/schema'
+import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import { METRIC_VERSION_IDS, findMetricVersionById } from '../readings/contracts'
+import type { MetricStatsDataState } from './metric-stats.port.server'
+
+/** Hard statement-level budget for one direct dashboard read. */
+export const DASHBOARD_READ_BUDGET_MS = 5000
+
+// ── Scoped where-builders (one per table family) ──────────────────────
+
+/**
+ * metric_readings scope: tenant + property + EVENT-time range.
+ *
+ * TRAP: the drizzle field `metricReadings.occurredAt` maps to the DB column
+ * `recorded_at` (see metric.schema.ts) — it is the INGESTION timestamp, not
+ * the guest-action time; metric-command-store.ts performs the swap on write
+ * (`eventAt: reading.occurredAt, occurredAt: reading.recordedAt`). The true
+ * event time is `metricReadings.eventAt` (column `event_at`), which is what
+ * an analytics window must bound: filtering on ingestion means outbox lag,
+ * retries or a replay silently shift a day's numbers. The drizzle field is
+ * NOT renamed here because it is shared with metric
+ * repositories; every reader in this facade must know the swap.
+ *
+ * Governed readings always carry event_at (metric_readings_governed_provenance_check),
+ * and readings/metric-repository.server.ts / recognition.repository.ts / the fleet
+ * projection already bound their windows on event_at — this is the same convention.
+ */
+export function metricPeriodWhere(
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+  startDate: Date,
+  endDate: Date,
+) {
+  return and(
+    eq(metricReadings.organizationId, organizationId),
+    eq(metricReadings.propertyId, propertyId),
+    gte(metricReadings.eventAt, startDate),
+    lt(metricReadings.eventAt, endDate),
+  )
+}
+
+/** metric_readings scope for one portal. */
+export function metricPortalWhere(
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+  portalId: PortalId,
+  startDate: Date,
+  endDate: Date,
+) {
+  return and(
+    metricPeriodWhere(organizationId, propertyId, startDate, endDate),
+    eq(metricReadings.portalId, portalId),
+  )
+}
+
+/** metric_readings scope for a set of portals. */
+export function metricPortalsWhere(
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+  portalIds: ReadonlyArray<PortalId>,
+  startDate: Date,
+  endDate: Date,
+) {
+  return and(
+    metricPeriodWhere(organizationId, propertyId, startDate, endDate),
+    // Drizzle inArray() doesn't accept branded PortalId[] — the cast is safe
+    // because PortalId is a string-brand.
+    inArray(metricReadings.portalId, portalIds as unknown as string[]),
+  )
+}
+
+/** inbox_items scope: tenant + property. */
+export function inboxScopeWhere(organizationId: OrganizationId, propertyId: PropertyId) {
+  return and(
+    eq(inboxItems.organizationId, organizationId),
+    eq(inboxItems.propertyId, propertyId),
+  )
+}
+
+// ── Shared direct reads (one query skeleton per table family) ───────
+
+export type MetricAggregateRow = Readonly<{
+  definitionVersionId: string
+  metricKey: string
+  total: number
+  count: number
+  state: MetricStatsDataState
+  sampleCount: number
+  minimumSample: number
+}>
+
+const DASHBOARD_PORTAL_ANALYTICS = Object.freeze(
+  [
+    METRIC_VERSION_IDS.portalScanAnalytics,
+    METRIC_VERSION_IDS.portalRatingAnalytics,
+    METRIC_VERSION_IDS.portalFeedbackAnalytics,
+    METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+  ].map((versionId) => {
+    const metric = findMetricVersionById(versionId)
+    if (!metric || !metric.version.permittedConsumers.includes('portal_analytics')) {
+      throw new Error(`Dashboard metric catalogue entry is unavailable: ${versionId}`)
+    }
+    return metric
+  }),
+)
+
+/**
+ * THE aggregate skeleton over metric_readings: summed + counted values
+ * grouped by metricKey for a scope. Consumers project the fields their port
+ * returns (sums, counts, or both). Runs under the statement budget.
+ */
+export async function readMetricAggregates(
+  db: Database,
+  scope: SQL | undefined,
+): Promise<readonly MetricAggregateRow[]> {
+  const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) => {
+    const correctionTips = currentCorrectionTips(tx)
+    const value = effectiveValue(correctionTips)
+    const sampleCount = effectiveSampleCount(correctionTips)
+    const cataloguePolicy = or(
+      ...DASHBOARD_PORTAL_ANALYTICS.map(({ definition, version }) =>
+        and(
+          eq(metricReadings.definitionVersionId, version.id),
+          eq(metricReadings.metricKey, definition.key),
+          inArray(metricReadings.sourcePolicy, [...version.sourcePolicyAllowlist]),
+        ),
+      ),
+    )
+    if (!cataloguePolicy) throw new Error('Dashboard metric catalogue is empty')
+    const governedSource = and(
+      isNotNull(metricReadings.exactValue),
+      eq(metricReadings.dataQuality, 'exact'),
+      sql`${metricReadings.attributionQuality} <> 'unresolved'`,
+      cataloguePolicy,
+    )
+    const governedEffectiveValue = sql<number>`CASE
+      WHEN ${governedSource} THEN ${value}
+      ELSE NULL
+    END`
+    const governedSampleCount = sql<number>`CASE
+      WHEN ${governedSource} THEN ${sampleCount}
+      ELSE 0
+    END`
+
+    return tx
+      .select({
+        definitionVersionId: metricReadings.definitionVersionId,
+        total: sql<number>`COALESCE(SUM(${governedEffectiveValue}), 0)`,
+        count: count(governedEffectiveValue),
+        sampleCount: sql<number>`COALESCE(SUM(${governedSampleCount}), 0)`,
+        evidenceCount: count(metricReadings.id),
+        governedEvidenceCount: sql<number>`COUNT(${metricReadings.id}) FILTER (
+          WHERE ${governedSource}
+        )`,
+      })
+      .from(metricReadings)
+      .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
+      .where(
+        and(
+          scope,
+          inArray(
+            metricReadings.definitionVersionId,
+            DASHBOARD_PORTAL_ANALYTICS.map(({ version }) => version.id),
+          ),
+        ),
+      )
+      .groupBy(metricReadings.definitionVersionId)
+  })
+  const rowsByVersion = new Map(
+    rows.map((row) => {
+      if (row.definitionVersionId === null) {
+        throw new Error('Dashboard metric projection returned an unversioned reading')
+      }
+      return [row.definitionVersionId, row] as const
+    }),
+  )
+
+  return DASHBOARD_PORTAL_ANALYTICS.map(({ definition, version }) => {
+    const row = rowsByVersion.get(version.id)
+    const sampleCount = Number(row?.sampleCount ?? 0)
+    const evidenceCount = Number(row?.evidenceCount ?? 0)
+    const governedEvidenceCount = Number(row?.governedEvidenceCount ?? 0)
+    const state =
+      evidenceCount === 0
+        ? 'insufficient_data'
+        : governedEvidenceCount === evidenceCount && sampleCount >= version.minimumSample
+          ? 'available'
+          : 'unavailable'
+    return {
+      definitionVersionId: version.id,
+      metricKey: definition.key,
+      total: Number(row?.total ?? 0),
+      count: Number(row?.count ?? 0),
+      state,
+      sampleCount,
+      minimumSample: version.minimumSample,
+    }
+  })
+}
+
+// ── Statement timeout ─────────────────────────────────────────────────
+
+/**
+ * Tagged timeout error — an over-budget read aborts with this, never an
+ * untagged PG 57014. Infrastructure failures (not domain rejections), so it
+ * is NOT a DashboardError code: server fns route it to the generic 500 path.
+ */
+export type DashboardReadTimeout = Readonly<{
+  _tag: 'DashboardReadTimeout'
+  budgetMs: number
+  message: string
+}>
+
+export const isDashboardReadTimeout = (e: unknown): e is DashboardReadTimeout =>
+  typeof e === 'object' &&
+  e !== null &&
+  (e as DashboardReadTimeout)._tag === 'DashboardReadTimeout'
+
+/** PG raises 57014 (query_canceled) when statement_timeout fires. Drizzle
+ *  wraps query failures in DrizzleQueryError with the PG error on .cause. */
+function isPgStatementTimeout(err: unknown): boolean {
+  let cur: unknown = err
+  for (let depth = 0; depth < 3 && typeof cur === 'object' && cur !== null; depth++) {
+    if ((cur as { code?: unknown }).code === '57014') return true
+    cur = (cur as { cause?: unknown }).cause
+  }
+  return false
+}
+
+/**
+ * Run `read` inside a transaction whose statement_timeout is `budgetMs`
+ * (set_config …, true = LOCAL to the transaction — the setting never leaks
+ * to the pooled connection). A statement exceeding the budget aborts; the PG
+ * 57014 is rethrown as a tagged DashboardReadTimeout.
+ */
+export async function withStatementTimeout<T>(
+  db: Database,
+  budgetMs: number,
+  read: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  try {
+    return await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('statement_timeout', ${String(budgetMs)}, true)`,
+      )
+      return await read(tx)
+    })
+  } catch (err) {
+    if (isPgStatementTimeout(err)) {
+      throw {
+        _tag: 'DashboardReadTimeout',
+        budgetMs,
+        message: `dashboard read exceeded ${budgetMs}ms budget`,
+      } satisfies DashboardReadTimeout
+    }
+    throw err
+  }
+}
