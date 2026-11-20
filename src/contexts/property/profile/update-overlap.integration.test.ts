@@ -14,14 +14,11 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { PropertyRepository } from '../application/ports/property.repository'
-import {
-  updateProperty,
-  type UpdatePropertyInput,
-} from '../application/use-cases/update-property'
+import type { PropertyRepository } from './property-repository.port.server'
+import { updateProperty, type UpdatePropertyInput } from './update-property.server'
 import { isPropertyError } from '../domain/errors'
 import { createAtomicPropertyCommandStore } from './update-store.server'
-import { createPropertyRepository } from '../infrastructure/repositories/property.repository'
+import { createPropertyRepository } from './property-repository.server'
 
 const db = getDb()
 const ORGANIZATION_ID = organizationId('org-property-update-overlap')

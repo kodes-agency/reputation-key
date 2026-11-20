@@ -11,9 +11,9 @@ import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../domain/types'
 import {
   PROPERTY_OPERATION_RECEIPT_TTL_MS,
   PropertyGoogleBindingError,
-} from '../application/ports/property-google-binding.port'
+} from './google-binding-store.port.server'
 import { createPropertyGoogleBindingStore } from './google-binding-store.server'
-import { seedTestProperty } from '../infrastructure/property-test-fixtures'
+import { seedTestProperty } from './property.test-fixtures'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { propertyReceiptKey, propertyReceiptPayload } from './operation-receipts.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'

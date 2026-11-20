@@ -12,7 +12,7 @@ import {
 } from '../domain/events'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { PropertyResponsibleManager } from '../domain/property-responsible-manager'
-import type { PropertyResponsibleManagerRepository } from '../application/ports/property-responsible-manager.repository'
+import type { PropertyResponsibleManagerRepository } from './manager-repository.port.server'
 
 const fromRow = (
   row: typeof propertyResponsibleManagers.$inferSelect,

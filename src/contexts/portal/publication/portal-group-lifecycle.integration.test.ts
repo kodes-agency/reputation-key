@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
+import { createPropertyRepository } from '#/contexts/property/profile/property-repository.server'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 import { getDb } from '#/shared/db'

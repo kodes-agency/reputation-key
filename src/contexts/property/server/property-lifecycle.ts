@@ -1,13 +1,13 @@
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { command } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
-import { toBrowserProperty } from '../application/dto/browser-property.dto'
+import { toBrowserProperty } from '../profile/browser-property.contracts'
 import {
   archivePropertyInputSchema,
   propertyLifecycleTargetSchema,
   type ArchivePropertyDto,
   type PropertyLifecycleTargetDto,
-} from '../application/dto/property-lifecycle.dto'
+} from '../lifecycle/contracts'
 import { propertyCommandErrors } from './property-shared'
 
 export const archivePropertyHandler = createServerOnlyFn(

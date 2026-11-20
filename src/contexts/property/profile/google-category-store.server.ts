@@ -3,7 +3,7 @@ import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { lockGoogleConnectionBindingAuthority } from '#/shared/db/google-connection-binding-authority'
 import { normalizeGooglePrimaryCategory } from '#/shared/domain/google-primary-category'
-import type { PropertyGoogleBindingStore } from '../application/ports/property-google-binding.port'
+import type { PropertyGoogleBindingStore } from './google-binding-store.port.server'
 
 export const createGooglePrimaryCategoryRefresh =
   (db: Database): PropertyGoogleBindingStore['refreshPrimaryCategory'] =>
