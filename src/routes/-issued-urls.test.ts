@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-router'
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPortalTokenCodec } from '#/contexts/portal/infrastructure/adapters/portal-token-codec'
+import { createPortalTokenCodec } from '#/contexts/portal/addresses/portal-token-codec.server'
 import { signSvixPayload } from '#/shared/auth/svix-signature.verifier'
 import { answerPrintHost, printHostPolicy } from '#/shared/security/print-host-redirect'
 import {

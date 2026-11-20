@@ -236,28 +236,28 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-approved-destination.repository.ts',
+    file: 'src/contexts/portal/destinations/portal-approved-destination-repository.server.ts',
     symbol: 'listDueForNetworkRevalidation',
     reason:
       'The bounded network-revalidation scheduler intentionally enumerates due approved destinations across tenants and preserves tenant identity per row.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-media-asset.repository.ts',
+    file: 'src/contexts/portal/media/portal-media-asset-repository.server.ts',
     symbol: 'findForPublicRead',
     reason:
       'A guest has no tenant: the asset id is a random UUID presented as a capability, and the caller serves the row only if it is still active.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-media-asset.repository.ts',
+    file: 'src/contexts/portal/media/portal-media-asset-repository.server.ts',
     symbol: 'listTakenDownWithObject',
     reason:
       'The bounded media sweep intentionally finishes taken-down object removals across tenants and preserves tenant identity on every row it returns.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-media-asset.repository.ts',
+    file: 'src/contexts/portal/media/portal-media-asset-repository.server.ts',
     symbol: 'listUnreferencedBefore',
     reason:
       'The bounded media sweep intentionally enumerates old unreferenced images across tenants, and each candidate is rechecked by tenant-scoped discardIfUnreferenced before anything is deleted.',
@@ -558,42 +558,42 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-publication.repository.ts',
+    file: 'src/contexts/portal/publication/portal-publication-repository.server.ts',
     symbol: 'resolveActiveByTokenDigest',
     reason:
       'The public Portal token digest is the capability a guest presents before tenant identity is known, so the lookup derives the Portal and its live publication from the token row.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-scope.repository.ts',
+    file: 'src/contexts/portal/publication/portal-scope-repository.server.ts',
     symbol: 'resolvePortal',
     reason:
       'Returns only the Organization and Property that own a Portal id; the Portal server functions pass it to requirePortalResourceScope or requireMatchingPortalResourceScopes, which answer not found for any Organization but the caller.',
     category: 'OWNER-LOOKUP',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-scope.repository.ts',
+    file: 'src/contexts/portal/publication/portal-scope-repository.server.ts',
     symbol: 'resolveGroup',
     reason:
       'Returns only the Organization and Property that own a Portal Group id; the Portal server functions pass it to requirePortalResourceScope or requireMatchingPortalResourceScopes, which answer not found for any Organization but the caller.',
     category: 'OWNER-LOOKUP',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-scope.repository.ts',
+    file: 'src/contexts/portal/publication/portal-scope-repository.server.ts',
     symbol: 'resolveCategory',
     reason:
       'Returns only the Organization, Property and Portal that own a link category id; the Portal server functions pass it to requirePortalResourceScope or requireMatchingPortalResourceScopes, which answer not found for any Organization but the caller.',
     category: 'OWNER-LOOKUP',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-scope.repository.ts',
+    file: 'src/contexts/portal/publication/portal-scope-repository.server.ts',
     symbol: 'resolveLink',
     reason:
       'Returns only the Organization, Property and Portal that own a link id; the Portal server functions pass it to requirePortalResourceScope or requireMatchingPortalResourceScopes, which answer not found for any Organization but the caller.',
     category: 'OWNER-LOOKUP',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal.repository.ts',
+    file: 'src/contexts/portal/publication/portal-repository.server.ts',
     symbol: 'resolvePortalContext',
     reason:
       'Returns only the Organization and Property that own a Portal id: a guest presents the id before any tenant is known, and Reporting compares the answer with its own Organization.',

@@ -256,7 +256,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   }),
   defineJob(
     'portal-approved-destination-revalidation',
-    'src/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job.ts',
+    'src/contexts/portal/destinations/revalidate-approved-destinations-job.server.ts',
     {
       queue: 'background',
       capability: 'portal.write',
@@ -273,7 +273,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // the upload capability, because it is what makes switching uploads off safe.
   defineJob(
     'portal-media-sweep',
-    'src/contexts/portal/infrastructure/jobs/sweep-portal-media.job.ts',
+    'src/contexts/portal/media/sweep-portal-media-job.server.ts',
     {
       queue: 'background',
       capability: 'none',

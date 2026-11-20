@@ -12,7 +12,7 @@ export const QR_QUIET_ZONE_MODULES = 4
 
 /**
  * The error correction of every symbol the product draws: the print kit's PDF
- * (`print-kit-qr.ts`), the preview and both downloads. Said here and not left to
+ * (`print-kit-qr.server.ts`), the preview and both downloads. Said here and not left to
  * the library's default, because the short print address is a version 3 symbol
  * only at this level (Q makes it version 4; ADR 0069), and the file and the
  * picture must be one symbol.

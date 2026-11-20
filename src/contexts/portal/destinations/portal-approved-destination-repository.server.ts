@@ -1,0 +1,519 @@
+import {
+  and,
+  asc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  like,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
+import type { Database } from '#/shared/db'
+import { portalApprovedDestinations, portalLinks } from '#/shared/db/schema/portal.schema'
+import {
+  organizationId,
+  portalApprovedDestinationId,
+  propertyId,
+  unbrand,
+  userId,
+} from '#/shared/domain/ids'
+import type { PortalApprovedDestinationRepository } from './portal-approved-destination-repository.port.server'
+import {
+  isConsistentDestinationKind,
+  PORTAL_DESTINATION_VALIDATION_VERSION,
+  type PortalApprovedDestination,
+  type PortalApprovedDestinationSource,
+} from '../domain/approved-destination'
+import { trace } from '#/shared/observability/trace'
+import { lockPortalPublicationProperty } from '../publication/portal-publication-serialization.server'
+import { recordPortalContentChange } from '../publication/portal-page-edits.server'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { portalApprovedDestinationUpdated } from '../domain/events'
+
+type DestinationRow = typeof portalApprovedDestinations.$inferSelect
+type RequestInput = Parameters<PortalApprovedDestinationRepository['request']>[0]
+
+/** `disabled_reason` of a row the network check quarantined: the prefix, then its reason. */
+const NETWORK_QUARANTINE_REASON = 'network_validation:'
+
+/**
+ * A recognized site, a phone number and an email address are approved as they
+ * are requested; a custom site only by an AccountAdmin.
+ */
+function isApprovedOnRequest(
+  sourceType: PortalApprovedDestinationSource,
+  approveCustom: boolean,
+): boolean {
+  return sourceType === 'recognized' || sourceType === 'contact' || approveCustom
+}
+
+/**
+ * Which existing row of the same address a request approves in place, keeping
+ * its id, or null for none.
+ *
+ * A manager may have created a Pending row first: a later AccountAdmin request
+ * is the explicit approval. A phone number or an email address is approved as
+ * it is entered, and a contact row a network check quarantined is approved
+ * again, because a contact has nothing to check: only a server from before
+ * contacts would have checked one, and it refuses every `tel:`/`mailto:`. Any
+ * other disabled or quarantined row stays terminal and is never revived.
+ */
+function promotableOnRequest(input: RequestInput): SQL | null {
+  const state = portalApprovedDestinations.approvalState
+  if (input.destination.sourceType === 'contact') {
+    return (
+      or(
+        eq(state, 'pending'),
+        and(
+          eq(state, 'quarantined'),
+          like(
+            portalApprovedDestinations.disabledReason,
+            `${NETWORK_QUARANTINE_REASON}%`,
+          ),
+        ),
+      ) ?? null
+    )
+  }
+  return input.approveCustom ? eq(state, 'pending') : null
+}
+
+async function promoteOnRequest(tx: Tx, input: RequestInput): Promise<boolean> {
+  const promotable = promotableOnRequest(input)
+  if (promotable === null) return false
+  const promoted = await tx
+    .update(portalApprovedDestinations)
+    .set({
+      approvalState: 'approved',
+      approvedBy: unbrand(input.requestedBy),
+      approvedAt: input.at,
+      disabledAt: null,
+      disabledReason: null,
+      lastValidatedAt: input.at,
+      nextAttemptAt: null,
+      validationFailures: 0,
+      updatedAt: input.at,
+    })
+    .where(
+      and(
+        eq(portalApprovedDestinations.organizationId, unbrand(input.organizationId)),
+        eq(portalApprovedDestinations.propertyId, unbrand(input.propertyId)),
+        eq(portalApprovedDestinations.normalizedUri, input.destination.normalizedUri),
+        promotable,
+      ),
+    )
+    .returning({ id: portalApprovedDestinations.id })
+  return promoted.length > 0
+}
+
+/** Who changed a destination; null when the system did (a failed network check). */
+async function recordDestinationChange(
+  tx: Tx,
+  row: DestinationRow,
+  actorUserId: string | null,
+): Promise<void> {
+  const linked = await tx
+    .select({ portalId: portalLinks.portalId })
+    .from(portalLinks)
+    .where(
+      and(
+        eq(portalLinks.organizationId, row.organizationId),
+        eq(portalLinks.propertyId, row.propertyId),
+        eq(portalLinks.destinationId, row.id),
+      ),
+    )
+  await recordPortalContentChange(tx, {
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    portalIds: [...new Set(linked.map((link) => link.portalId))],
+    kind: 'approved_destination',
+    key: row.id,
+    ledger: [{ key: row.id }],
+    sourceVersion: `${row.approvalState}:${row.updatedAt.toISOString()}`,
+    changedAt: row.updatedAt,
+    actorUserId,
+  })
+}
+
+function fromRow(row: DestinationRow): PortalApprovedDestination {
+  if (row.validationVersion !== PORTAL_DESTINATION_VALIDATION_VERSION) {
+    throw new Error('Stored Portal destination validation version is unsupported')
+  }
+  return {
+    id: portalApprovedDestinationId(row.id),
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.propertyId),
+    normalizedUri: row.normalizedUri,
+    hostname: row.hostname,
+    sourceType: row.sourceType as PortalApprovedDestination['sourceType'],
+    approvalState: row.approvalState as PortalApprovedDestination['approvalState'],
+    validationVersion: row.validationVersion,
+    requestedBy: userId(row.requestedBy),
+    approvedBy: row.approvedBy ? userId(row.approvedBy) : null,
+    approvedAt: row.approvedAt,
+    disabledAt: row.disabledAt,
+    disabledReason: row.disabledReason,
+    lastValidatedAt: row.lastValidatedAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+export const createPortalApprovedDestinationRepository = (
+  db: Database,
+): PortalApprovedDestinationRepository => ({
+  request: (input) =>
+    trace('portalApprovedDestination.request', async () => {
+      // The contact source exempts a row from the network check and the guest
+      // edge's freshness cut-off: it is never written for anything else.
+      if (!isConsistentDestinationKind(input.destination)) {
+        throw new Error(
+          'A Portal destination is a contact exactly when it is a stored tel: or mailto: address',
+        )
+      }
+      const committed = await db.transaction(async (tx) => {
+        await lockPortalPublicationProperty(
+          tx,
+          unbrand(input.organizationId),
+          unbrand(input.propertyId),
+        )
+        const automaticallyApproved = isApprovedOnRequest(
+          input.destination.sourceType,
+          input.approveCustom,
+        )
+        const inserted = await tx
+          .insert(portalApprovedDestinations)
+          .values({
+            id: unbrand(input.id),
+            organizationId: unbrand(input.organizationId),
+            propertyId: unbrand(input.propertyId),
+            normalizedUri: input.destination.normalizedUri,
+            hostname: input.destination.hostname,
+            sourceType: input.destination.sourceType,
+            approvalState: automaticallyApproved ? 'approved' : 'pending',
+            validationVersion: PORTAL_DESTINATION_VALIDATION_VERSION,
+            requestedBy: unbrand(input.requestedBy),
+            approvedBy: automaticallyApproved ? unbrand(input.requestedBy) : null,
+            approvedAt: automaticallyApproved ? input.at : null,
+            disabledAt: null,
+            disabledReason: null,
+            lastValidatedAt: input.at,
+            nextAttemptAt: null,
+            validationFailures: 0,
+            createdAt: input.at,
+            updatedAt: input.at,
+          })
+          .onConflictDoNothing({
+            target: [
+              portalApprovedDestinations.organizationId,
+              portalApprovedDestinations.propertyId,
+              portalApprovedDestinations.normalizedUri,
+            ],
+          })
+          .returning({ id: portalApprovedDestinations.id })
+        const promoted = await promoteOnRequest(tx, input)
+        const changed = inserted.length > 0 || promoted
+        const [row] = await tx
+          .select()
+          .from(portalApprovedDestinations)
+          .where(
+            and(
+              eq(
+                portalApprovedDestinations.organizationId,
+                unbrand(input.organizationId),
+              ),
+              eq(portalApprovedDestinations.propertyId, unbrand(input.propertyId)),
+              eq(
+                portalApprovedDestinations.normalizedUri,
+                input.destination.normalizedUri,
+              ),
+            ),
+          )
+          .limit(1)
+        if (!row) throw new Error('Approved destination disappeared after request')
+        if (!changed) return fromRow(row)
+        await recordDestinationChange(tx, row, unbrand(input.requestedBy))
+        const event = portalApprovedDestinationUpdated({
+          approvedDestinationId: portalApprovedDestinationId(row.id),
+          organizationId: organizationId(row.organizationId),
+          propertyId: propertyId(row.propertyId),
+          approvalState: row.approvalState as PortalApprovedDestination['approvalState'],
+          sourceAggregateVersion: row.updatedAt.toISOString(),
+          occurredAt: row.updatedAt,
+        })
+        await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
+        return fromRow(row)
+      })
+
+      return committed
+    }),
+
+  findById: (orgId, propertyIdValue, id) =>
+    trace('portalApprovedDestination.findById', async () => {
+      const [row] = await db
+        .select()
+        .from(portalApprovedDestinations)
+        .where(
+          and(
+            eq(portalApprovedDestinations.organizationId, unbrand(orgId)),
+            eq(portalApprovedDestinations.propertyId, unbrand(propertyIdValue)),
+            eq(portalApprovedDestinations.id, unbrand(id)),
+          ),
+        )
+        .limit(1)
+      return row ? fromRow(row) : null
+    }),
+
+  list: (orgId, propertyIdValue) =>
+    trace('portalApprovedDestination.list', async () => {
+      const rows = await db
+        .select()
+        .from(portalApprovedDestinations)
+        .where(
+          and(
+            eq(portalApprovedDestinations.organizationId, unbrand(orgId)),
+            eq(portalApprovedDestinations.propertyId, unbrand(propertyIdValue)),
+          ),
+        )
+        .orderBy(
+          asc(portalApprovedDestinations.hostname),
+          asc(portalApprovedDestinations.id),
+        )
+      return rows.map(fromRow)
+    }),
+
+  listApprovedUris: (orgId, propertyIdValue, uris, validatedAfter) =>
+    trace('portalApprovedDestination.listApprovedUris', async () => {
+      const uniqueUris = [...new Set(uris)]
+      if (uniqueUris.length === 0) return []
+      const rows = await db
+        .select({ normalizedUri: portalApprovedDestinations.normalizedUri })
+        .from(portalApprovedDestinations)
+        .where(
+          and(
+            eq(portalApprovedDestinations.organizationId, unbrand(orgId)),
+            eq(portalApprovedDestinations.propertyId, unbrand(propertyIdValue)),
+            eq(portalApprovedDestinations.approvalState, 'approved'),
+            // A phone number or an email address is never checked over the
+            // network, so its age says nothing; a website's must be recent.
+            or(
+              eq(portalApprovedDestinations.sourceType, 'contact'),
+              gte(portalApprovedDestinations.lastValidatedAt, validatedAfter),
+            ),
+            inArray(portalApprovedDestinations.normalizedUri, uniqueUris),
+          ),
+        )
+        .orderBy(asc(portalApprovedDestinations.normalizedUri))
+      return rows.map((row) => row.normalizedUri)
+    }),
+
+  listDueForNetworkRevalidation: (before, limit, selection) =>
+    trace('portalApprovedDestination.listDueForNetworkRevalidation', async () => {
+      const rows = await db
+        .select()
+        .from(portalApprovedDestinations)
+        .where(
+          and(
+            inArray(portalApprovedDestinations.approvalState, ['pending', 'approved']),
+            // Only websites are checked over the network; a phone number or an
+            // email address has nothing to resolve and takes no place in a page.
+            ne(portalApprovedDestinations.sourceType, 'contact'),
+            lte(portalApprovedDestinations.lastValidatedAt, before),
+            or(
+              isNull(portalApprovedDestinations.nextAttemptAt),
+              lte(portalApprovedDestinations.nextAttemptAt, selection.at),
+            ),
+            selection.excludeIds?.length
+              ? sql`${portalApprovedDestinations.id} <> ALL(${sql.param(selection.excludeIds)}::uuid[])`
+              : undefined,
+          ),
+        )
+        .orderBy(
+          asc(portalApprovedDestinations.lastValidatedAt),
+          asc(portalApprovedDestinations.id),
+        )
+        .limit(Math.min(500, Math.max(1, limit)))
+      return rows.map((row) => ({
+        ...fromRow(row),
+        nextAttemptAt: row.nextAttemptAt,
+        validationFailures: row.validationFailures,
+      }))
+    }),
+
+  recordNetworkValidation: (input) =>
+    trace('portalApprovedDestination.recordNetworkValidation', async () => {
+      const committed = await db.transaction(async (tx) => {
+        await lockPortalPublicationProperty(
+          tx,
+          unbrand(input.organizationId),
+          unbrand(input.propertyId),
+        )
+        const result = input.result
+        const [row] = await tx
+          .update(portalApprovedDestinations)
+          .set(
+            result.outcome === 'safe'
+              ? {
+                  lastValidatedAt: result.validatedAt,
+                  nextAttemptAt: null,
+                  validationFailures: 0,
+                }
+              : result.outcome === 'unavailable'
+                ? {
+                    nextAttemptAt: result.nextAttemptAt,
+                    validationFailures: sql`least(${portalApprovedDestinations.validationFailures} + 1, 30)`,
+                  }
+                : {
+                    approvalState: 'quarantined',
+                    approvedBy: null,
+                    approvedAt: null,
+                    disabledAt: result.observedAt,
+                    disabledReason: `${NETWORK_QUARANTINE_REASON}${result.reason}`,
+                    updatedAt: result.observedAt,
+                  },
+          )
+          .where(
+            and(
+              eq(
+                portalApprovedDestinations.organizationId,
+                unbrand(input.organizationId),
+              ),
+              eq(portalApprovedDestinations.propertyId, unbrand(input.propertyId)),
+              eq(portalApprovedDestinations.id, unbrand(input.id)),
+              eq(
+                portalApprovedDestinations.lastValidatedAt,
+                input.expectedLastValidatedAt,
+              ),
+              input.expectedNextAttemptAt === undefined
+                ? undefined
+                : input.expectedNextAttemptAt === null
+                  ? isNull(portalApprovedDestinations.nextAttemptAt)
+                  : eq(
+                      portalApprovedDestinations.nextAttemptAt,
+                      input.expectedNextAttemptAt,
+                    ),
+              inArray(portalApprovedDestinations.approvalState, ['pending', 'approved']),
+              // A run that started before a row was due could still reach a
+              // contact; it is never checked, so it is never quarantined.
+              ne(portalApprovedDestinations.sourceType, 'contact'),
+            ),
+          )
+          .returning()
+        if (!row || result.outcome !== 'unsafe') {
+          return row ? fromRow(row) : null
+        }
+        await recordDestinationChange(tx, row, null)
+        const event = portalApprovedDestinationUpdated({
+          approvedDestinationId: portalApprovedDestinationId(row.id),
+          organizationId: organizationId(row.organizationId),
+          propertyId: propertyId(row.propertyId),
+          approvalState: 'quarantined',
+          sourceAggregateVersion: row.updatedAt.toISOString(),
+          occurredAt: row.updatedAt,
+        })
+        await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
+        return fromRow(row)
+      })
+
+      return committed
+    }),
+
+  approve: (input) =>
+    trace('portalApprovedDestination.approve', async () => {
+      const committed = await db.transaction(async (tx) => {
+        await lockPortalPublicationProperty(
+          tx,
+          unbrand(input.organizationId),
+          unbrand(input.propertyId),
+        )
+        const [row] = await tx
+          .update(portalApprovedDestinations)
+          .set({
+            approvalState: 'approved',
+            approvedBy: unbrand(input.approvedBy),
+            approvedAt: input.at,
+            disabledAt: null,
+            disabledReason: null,
+            lastValidatedAt: input.at,
+            nextAttemptAt: null,
+            validationFailures: 0,
+            updatedAt: input.at,
+          })
+          .where(
+            and(
+              eq(
+                portalApprovedDestinations.organizationId,
+                unbrand(input.organizationId),
+              ),
+              eq(portalApprovedDestinations.propertyId, unbrand(input.propertyId)),
+              eq(portalApprovedDestinations.id, unbrand(input.id)),
+              eq(portalApprovedDestinations.approvalState, 'pending'),
+            ),
+          )
+          .returning()
+        if (!row) return null
+        await recordDestinationChange(tx, row, unbrand(input.approvedBy))
+        const event = portalApprovedDestinationUpdated({
+          approvedDestinationId: portalApprovedDestinationId(row.id),
+          organizationId: organizationId(row.organizationId),
+          propertyId: propertyId(row.propertyId),
+          approvalState: 'approved',
+          sourceAggregateVersion: row.updatedAt.toISOString(),
+          occurredAt: row.updatedAt,
+        })
+        await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
+        return fromRow(row)
+      })
+
+      return committed
+    }),
+
+  disable: (input) =>
+    trace('portalApprovedDestination.disable', async () => {
+      const committed = await db.transaction(async (tx) => {
+        await lockPortalPublicationProperty(
+          tx,
+          unbrand(input.organizationId),
+          unbrand(input.propertyId),
+        )
+        const [row] = await tx
+          .update(portalApprovedDestinations)
+          .set({
+            approvalState: 'disabled',
+            approvedBy: null,
+            approvedAt: null,
+            disabledAt: input.at,
+            disabledReason: input.reason,
+            updatedAt: input.at,
+          })
+          .where(
+            and(
+              eq(
+                portalApprovedDestinations.organizationId,
+                unbrand(input.organizationId),
+              ),
+              eq(portalApprovedDestinations.propertyId, unbrand(input.propertyId)),
+              eq(portalApprovedDestinations.id, unbrand(input.id)),
+            ),
+          )
+          .returning()
+        if (!row) return null
+        await recordDestinationChange(tx, row, unbrand(input.disabledBy))
+        const event = portalApprovedDestinationUpdated({
+          approvedDestinationId: portalApprovedDestinationId(row.id),
+          organizationId: organizationId(row.organizationId),
+          propertyId: propertyId(row.propertyId),
+          approvalState: 'disabled',
+          sourceAggregateVersion: row.updatedAt.toISOString(),
+          occurredAt: row.updatedAt,
+        })
+        await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
+        return fromRow(row)
+      })
+
+      return committed
+    }),
+})

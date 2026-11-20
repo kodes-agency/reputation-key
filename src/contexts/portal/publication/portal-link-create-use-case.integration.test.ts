@@ -13,7 +13,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalLinkCategoryId } from '#/shared/domain/ids'
-import { createLink } from '../application/use-cases/create-link'
+import { createLink } from '../links/create-link.server'
 import { isPortalError } from '../domain/errors'
 import type { PortalCommandStore } from './portal-command-store-port.server'
 import {

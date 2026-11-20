@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { PORTAL_PREVIEW_SOURCES } from '../portal-preview'
+import { PORTAL_PREVIEW_SOURCES } from '../../preview/portal-preview.server'
 
 /** What the preview read takes: which Portal, and the draft or the live version. */
 export const portalPreviewInputSchema = z.object({

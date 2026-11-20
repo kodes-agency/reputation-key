@@ -12,7 +12,7 @@ import {
 import type {
   CreatePortalInput,
   NewPortalFormValues,
-} from '#/contexts/portal/application/dto/create-portal.dto'
+} from '#/contexts/portal/publication/create-portal.contracts'
 import {
   describeManagers,
   type PortalManagerName,

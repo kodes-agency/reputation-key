@@ -8,7 +8,7 @@ import {
   resetCapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
 import { immersiveConfiguration } from '../application/__fixtures__/immersive-snapshot'
-import { seedLiveImmersiveSnapshot } from '../infrastructure/testing/portal-live-immersive-seed'
+import { seedLiveImmersiveSnapshot } from '../publication/portal-live-immersive-seed.test-fixtures'
 import {
   setupServerFunctionHarness,
   type TestMember,

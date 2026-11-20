@@ -12,7 +12,7 @@ import {
   portalCodeReplacementFormSchema,
   toRotatePortalTokenInput,
   type PortalCodeReplacementForm,
-} from '#/contexts/portal/application/dto/portal-token-lifecycle.dto'
+} from '#/contexts/portal/addresses/portal-token-lifecycle.contracts'
 import { PortalReplacementChoice } from './portal-replacement-choice'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
 

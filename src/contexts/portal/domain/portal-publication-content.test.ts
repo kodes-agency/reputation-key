@@ -3,7 +3,7 @@ import {
   GOLDEN_V1_ROW,
   GOLDEN_V2_BG_PRIMARY_ROW,
   GOLDEN_V2_SEEDED_ROW,
-} from '../application/__fixtures__/publication-snapshots.golden'
+} from '../publication/publication-snapshots-golden.test-fixtures'
 import {
   bulgarianPrimaryConfiguration,
   immersiveConfiguration,

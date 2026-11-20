@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import type { NewPortalFormValues } from '#/contexts/portal/application/dto/create-portal.dto'
+import type { NewPortalFormValues } from '#/contexts/portal/publication/create-portal.contracts'
 import type { PortalNewSource } from './portal-new-types'
 
 type StartFrom = NewPortalFormValues['startFrom']

@@ -11,21 +11,18 @@ import {
   savePropertyPortalBrandContent,
   savePropertyPortalBrandProfile,
   savePropertyPublicDisplayName,
-} from './application/use-cases/manage-portal-experience'
+} from './editor/manage-portal-experience.server'
 import {
   savePortalLookColours,
   savePortalLookIdentity,
-} from './application/use-cases/save-portal-look'
-import { savePortalLookPhoto } from './application/use-cases/save-portal-photo'
-import { savePropertyLook } from './application/use-cases/save-property-look'
-import {
-  savePropertyHero,
-  savePropertyLogo,
-} from './application/use-cases/save-property-media'
-import type { PortalMediaAssetRepository } from './application/ports/portal-media-asset.repository'
-import type { PortalExperienceRepository } from './application/ports/portal-experience.repository'
-import type { PortalLookRepository } from './application/ports/portal-look.repository'
-import type { PortalRepository } from './application/ports/portal.repository'
+} from './look/save-portal-look.server'
+import { savePortalLookPhoto } from './look/save-portal-photo.server'
+import { savePropertyLook } from './look/save-property-look.server'
+import { savePropertyHero, savePropertyLogo } from './look/save-property-media.server'
+import type { PortalMediaAssetRepository } from './media/portal-media-asset-repository.port.server'
+import type { PortalExperienceRepository } from './editor/portal-experience-repository.port.server'
+import type { PortalLookRepository } from './look/portal-look-repository.port.server'
+import type { PortalRepository } from './publication/portal-repository.port.server'
 
 type ExperienceDeps = Readonly<{
   experienceRepo: PortalExperienceRepository

@@ -215,13 +215,13 @@ describe('LIF-01: Organization Export contributor port', () => {
   it('lets a foreign adapter import the port but not the contract', async () => {
     const viaPort = await lintSnippet(
       `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
-      'src/contexts/portal/infrastructure/adapters/portal-organization-export.adapter.ts',
+      'src/contexts/portal/rights/portal-organization-export.adapter.server.ts',
     )
     expect(hitsRule(viaPort), JSON.stringify(viaPort)).toBe(false)
 
     const viaContract = await lintSnippet(
       `import type { OrganizationExportContributor } from '#/contexts/identity/rights/organization-export-contract.server'\nexport type { OrganizationExportContributor }\n`,
-      'src/contexts/portal/infrastructure/adapters/portal-organization-export.adapter.ts',
+      'src/contexts/portal/rights/portal-organization-export.adapter.server.ts',
     )
     expect(hitsRule(viaContract), JSON.stringify(viaContract)).toBe(true)
   })

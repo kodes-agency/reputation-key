@@ -350,7 +350,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ),
   ...consumersIn(
-    'src/contexts/portal/infrastructure/member-offboarding-outbox-consumers.ts',
+    'src/contexts/portal/responsibility/member-offboarding-outbox-consumers.server.ts',
     [
       [
         'portal.on-member-removed',
@@ -391,7 +391,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ['identity.member.role_changed'],
     ],
   ]),
-  ...consumersIn('src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts', [
+  ...consumersIn('src/contexts/portal/health/portal-health-outbox-consumers.server.ts', [
     [
       'portal.reconcile-health-dependencies',
       'portal.health-outbox-consumers',
@@ -414,7 +414,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     [['goal.on-property-archived', 'goal.property-lifecycle', ['property.archived']]],
   ),
   ...consumersIn(
-    'src/contexts/portal/infrastructure/property-lifecycle-outbox-consumers.ts',
+    'src/contexts/portal/responsibility/property-lifecycle-outbox-consumers.server.ts',
     [['portal.on-property-restored', 'portal.property-lifecycle', ['property.restored']]],
   ),
   ...consumersIn(

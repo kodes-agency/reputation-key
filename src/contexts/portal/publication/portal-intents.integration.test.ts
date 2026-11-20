@@ -22,14 +22,14 @@ import { printKitFileName } from '#/shared/domain/portal-print-kit'
 import { printDocumentTitle, printFileName } from '#/shared/domain/portal-print-how-to'
 import type { Portal } from '../domain/types'
 import type { PortalPublicationSnapshot } from '../domain/portal-publication-snapshot'
-import { resolvePublicPortalToken } from '../application/use-cases/resolve-public-portal-token'
-import { loadPortalPrintKitContext } from '../application/load-portal-print-kit-context'
-import { archivePersonalPortal } from '../application/use-cases/archive-personal-portal'
-import { reviewedPublicationDigest } from '../application/portal-publication-snapshot'
+import { resolvePublicPortalToken } from './resolve-public-portal-token.server'
+import { loadPortalPrintKitContext } from '../printing/load-portal-print-kit-context.server'
+import { archivePersonalPortal } from '../personal-portals/archive-personal-portal.server'
+import { reviewedPublicationDigest } from './portal-publication-snapshot.server'
 import { isPortalError } from '../domain/errors'
-import { createPortalPublicationRepository } from '../infrastructure/repositories/portal-publication.repository'
-import { createPortalRepository } from '../infrastructure/repositories/portal.repository'
-import { createPortalTokenRepository } from '../infrastructure/repositories/portal-token.repository'
+import { createPortalPublicationRepository } from './portal-publication-repository.server'
+import { createPortalRepository } from './portal-repository.server'
+import { createPortalTokenRepository } from '../addresses/portal-token-repository.server'
 import {
   PORTAL_CREATION_TABLES,
   seedCreationPortal,
@@ -37,7 +37,7 @@ import {
   seedCreationToken,
   VERIFIED_GOOGLE_DESTINATION,
 } from '../infrastructure/testing/portal-creation-world'
-import { publishFromSource } from '../infrastructure/testing/portal-working-copy-publish'
+import { publishFromSource } from './portal-working-copy-publish.test-fixtures'
 import {
   archivePortal,
   changePortalLanguages,

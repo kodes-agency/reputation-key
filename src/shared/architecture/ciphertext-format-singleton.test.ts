@@ -52,14 +52,7 @@ const FORMAT_OWNERS = [
     'connections',
     'token-encryption.adapter.server.ts',
   ),
-  join(
-    'src',
-    'contexts',
-    'portal',
-    'infrastructure',
-    'adapters',
-    'portal-address-cipher.ts',
-  ),
+  join('src', 'contexts', 'portal', 'addresses', 'portal-address-cipher.server.ts'),
 ] as const
 
 function walk(dir: string): string[] {

@@ -49,7 +49,7 @@ export type SeededPortalGoalProperty = Readonly<{
 
 /**
  * Publishing needs a verified Google review destination on the Property
- * (portal-publication-readiness.ts), as the seed's Properties have
+ * (portal-publication-readiness.server.ts), as the seed's Properties have
  * (scripts/seed-e2e-user.ts); a seeded Property starts with none.
  */
 export async function verifyGoogleReviewDestination(

@@ -3,7 +3,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { createPortalMediaServeHandler } from './portal-media-serve'
-import type { ServedPortalMedia } from '../application/use-cases/serve-portal-media'
+import type { ServedPortalMedia } from '../media/serve-portal-media.server'
 
 const ID = '30000000-0000-4000-8000-000000000001'
 const BYTES = new Uint8Array([82, 73, 70, 70, 1, 2, 3])

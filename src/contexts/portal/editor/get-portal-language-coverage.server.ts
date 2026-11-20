@@ -1,0 +1,80 @@
+// Portal context — the language coverage read (round 4, slice 29).
+//
+// For each language a Portal offers: how much of the wording guests read is
+// written, and what is missing. Read-only and gated by `portal.read` in the
+// Portal's Property, like the other editor reads. It composes reads the Portal
+// already has (the Property's wording, the Portal's own wording, the links and
+// their per-language texts); nothing is stored for it.
+
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { portalId, type OrganizationId } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PortalRepository } from '../publication/portal-repository.port.server'
+import type { PortalLinkRepository } from '../links/portal-link-repository.port.server'
+import type { PortalExperienceRepository } from './portal-experience-repository.port.server'
+import type { Portal } from '../domain/types'
+import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
+import {
+  computePortalLanguageCoverage,
+  type PortalLanguageCoverage,
+} from '../domain/portal-language-coverage'
+
+export type GetPortalLanguageCoverageInput = Readonly<{ portalId: string }>
+
+export type GetPortalLanguageCoverageDeps = Readonly<{
+  portalRepo: PortalRepository
+  portalLinkRepo: PortalLinkRepository
+  experienceRepo: PortalExperienceRepository
+  staffPublicApi: StaffPublicApi
+}>
+
+/**
+ * The coverage of a Portal the caller has already loaded and been allowed to
+ * read. The Review & publish read composes it with its own checks.
+ */
+export async function readPortalLanguageCoverage(
+  deps: Readonly<{
+    portalLinkRepo: Pick<PortalLinkRepository, 'listAllLinks' | 'listLinkTexts'>
+    experienceRepo: Pick<
+      PortalExperienceRepository,
+      'getPropertyExperience' | 'listPortalOverrides'
+    >
+  }>,
+  organizationId: OrganizationId,
+  portal: Portal,
+): Promise<PortalLanguageCoverage> {
+  const [experience, overrides, links, linkTexts] = await Promise.all([
+    deps.experienceRepo.getPropertyExperience(organizationId, portal.propertyId),
+    deps.experienceRepo.listPortalOverrides(organizationId, portal.propertyId, portal.id),
+    deps.portalLinkRepo.listAllLinks(organizationId, portal.id),
+    deps.portalLinkRepo.listLinkTexts(
+      organizationId,
+      portal.id,
+      portal.primaryGuestLocale,
+    ),
+  ])
+  return computePortalLanguageCoverage({
+    portalId: portal.id,
+    primaryLocale: portal.primaryGuestLocale,
+    additionalLocales: portal.additionalGuestLocales,
+    propertyContent: experience.content,
+    overrides,
+    links,
+    linkTexts,
+  })
+}
+
+export const getPortalLanguageCoverage =
+  (deps: GetPortalLanguageCoverageDeps) =>
+  async (
+    input: GetPortalLanguageCoverageInput,
+    ctx: AuthContext,
+  ): Promise<PortalLanguageCoverage> => {
+    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+      permission: 'portal.read',
+      forbiddenMessage: 'Insufficient permissions to read Portal languages',
+    })
+    return readPortalLanguageCoverage(deps, ctx.organizationId, portal)
+  }
+
+export type GetPortalLanguageCoverage = ReturnType<typeof getPortalLanguageCoverage>

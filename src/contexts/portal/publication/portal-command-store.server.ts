@@ -1,8 +1,8 @@
-import { assertStaffScanSwitch } from '../infrastructure/staff-scan-switch-guard'
+import { assertStaffScanSwitch } from '../personal-portals/staff-scan-switch-guard.server'
 import {
   assertPortalCollectorChange,
   assertPortalCollectorAvailable,
-} from '../infrastructure/portal-collector-guard'
+} from './portal-collector-guard.server'
 import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
 import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
 // Atomic Portal command store (ARC-01).
@@ -20,12 +20,12 @@ import {
   portalPublicationSnapshots,
 } from '#/shared/db/schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
-import { lockPortalPublicationProperty } from '../infrastructure/portal-publication-serialization'
-import { resolvePortalPendingContentChanges } from '../infrastructure/portal-pending-content-changes'
+import { lockPortalPublicationProperty } from './portal-publication-serialization.server'
+import { resolvePortalPendingContentChanges } from './portal-pending-content-changes.server'
 import {
   readPortalSettings,
   recordPortalSettingsChange,
-} from '../infrastructure/portal-settings-edits'
+} from './portal-settings-edits.server'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 import type {
@@ -37,17 +37,11 @@ import type {
 } from './portal-command-store-port.server'
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
-import { verifyPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
-import {
-  assertCommittedRevision,
-  sameInstant,
-} from '../infrastructure/portal-command-guards'
+import { verifyPortalPublicationSnapshot } from './portal-publication-snapshot.server'
+import { assertCommittedRevision, sameInstant } from './portal-command-guards.server'
 import { createPortalGroupCommands } from './portal-group-commands.server'
 import { createPortalLinkCommands } from './portal-link-commands.server'
-import {
-  assertLocaleSetFact,
-  watchPrimaryLocaleChange,
-} from '../infrastructure/portal-locale-set'
+import { assertLocaleSetFact, watchPrimaryLocaleChange } from './portal-locale-set.server'
 import { createPortalTokenCommands } from './portal-token-commands.server'
 import {
   activationToRow,
@@ -55,15 +49,15 @@ import {
   closeActivePublication,
   createPortalPublicationCommands,
   snapshotToRow,
-} from '../infrastructure/portal-publication-commands'
-import { createPortalCreateCommand } from '../infrastructure/portal-create-command'
-import { createPersonalPortalContentCommand } from '../infrastructure/portal-personal-content-command'
+} from './portal-publication-commands.server'
+import { createPortalCreateCommand } from './portal-create-command.server'
+import { createPersonalPortalContentCommand } from '../personal-portals/portal-personal-content-command.server'
 import {
   PORTAL_SLUG_UNIQUE,
   refusingWhenTaken,
   slugTaken,
-} from '../infrastructure/portal-unique-violation'
-import { NO_SEALED_ADDRESS } from '../infrastructure/portal-sealed-address-columns'
+} from './portal-unique-violation.server'
+import { NO_SEALED_ADDRESS } from '../addresses/portal-sealed-address-columns.server'
 
 type PortalSetValues = {
   name?: string
