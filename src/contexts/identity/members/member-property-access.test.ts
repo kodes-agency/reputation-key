@@ -9,7 +9,7 @@ import { userId } from '#/shared/domain/ids'
 import type { Permission } from '#/shared/domain/permissions'
 import { isIdentityError } from '../domain/errors'
 import type { IdentityMemberPropertyAccessChanged } from '../domain/events'
-import type { MemberRecord } from '../application/ports/identity.port'
+import type { MemberRecord } from './auth-identity.port.server'
 import type {
   AppliedPropertyAccess,
   MemberPropertyAccessStore,

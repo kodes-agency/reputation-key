@@ -27,7 +27,7 @@ import {
   identityMemberInvited,
 } from '../domain/events'
 import { isIdentityError, type IdentityErrorCode } from '../domain/errors'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
 
 const ORG_ID = organizationId('org-idlife-0000-0000-0000-000000000001')
 const OTHER_ORG_ID = organizationId('org-idlife-0000-0000-0000-000000000002')

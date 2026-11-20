@@ -19,7 +19,7 @@ import { resetExecutionPolicy } from '#/shared/auth/execution-policy'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { capabilityExecutionControl } from '#/shared/db/schema/google-content-control.schema'
-import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createGoogleContentAuthorityRepository } from '#/contexts/identity/policy/google-content-authority-repository.server'
 import { GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS } from '#/contexts/integration/application/ports/google-import-store.port'
 import {
   createGoogleImportAcceptanceFixture,

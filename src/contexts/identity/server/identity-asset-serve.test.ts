@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-api'
-import { MAX_UPLOAD_BYTES } from '../application/upload-policy'
+import { MAX_UPLOAD_BYTES } from '../images/upload-policy.server'
 import { createIdentityAssetServeHandler } from './identity-asset-serve'
 
 const ASSET = '3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'

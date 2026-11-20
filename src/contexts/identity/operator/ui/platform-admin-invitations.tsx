@@ -21,7 +21,7 @@ import type {
   OrganizationInvitationInput,
   PlatformAdminInvitationView,
   ResendOrganizationAdminInvitationResult,
-} from '#/contexts/identity/application/dto/platform-console.dto'
+} from '#/contexts/identity/operator/platform-console.contracts'
 import { formatInvitationExpiry } from './platform-console-model'
 
 export type ResendAdminInvitationAction = Action<

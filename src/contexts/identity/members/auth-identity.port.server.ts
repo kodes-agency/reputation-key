@@ -1,0 +1,119 @@
+// Identity context — port for identity operations delegated to better-auth.
+// Ports are TypeScript types defining capability contracts. The implementation
+// lives in auth-identity.adapter.server.ts beside this file. The use case
+// depends only on the type.
+
+import type { Role } from '#/shared/domain/roles'
+import type { OrganizationId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
+
+/** Organization member shape returned by the port. */
+export type MemberRecord = Readonly<{
+  id: string
+  userId: string
+  email: string
+  name: string
+  /** Built-in domain Role, or null when the member has a custom-only / multi role. */
+  role: Role | null
+  /** Raw better-auth role string (may be multi-role or custom) — for display + owner detection. */
+  rawRole: string
+  image: string | null
+  createdAt: Date
+}>
+
+export type MemberListOptions = Readonly<{
+  /** Staff-only logins are not part of the manager directory. */
+  excludeStaff?: boolean
+  limit?: number
+  offset?: number
+}>
+
+/**
+ * A signed-in user's own invitation (listUserInvitations). The Members page
+ * reads OrganizationInvitation from the invitation read model instead.
+ */
+export type InvitationRecord = Readonly<{
+  id: string
+  email: string
+  role: Role | null
+  /** Raw better-auth role string — for display + owner detection. */
+  rawRole: string
+  status: 'pending' | 'accepted' | 'rejected' | 'canceled' | 'expired'
+  expiresAt: Date
+  createdAt: Date
+  organizationId?: OrganizationId
+  organizationName?: string
+  propertyIds: ReadonlyArray<string>
+}>
+
+/** Organization record shape returned by the port. */
+export type OrganizationRecord = Readonly<{
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  createdAt: Date
+  contactEmail: string | null
+}>
+
+/** Current manager membership facts exposed to read-only cross-context policies. */
+export type ManagerMembership = Readonly<{
+  userId: string
+  role: 'AccountAdmin' | 'PropertyManager'
+  /**
+   * Current Identity authority for Property reads. Consumers may display
+   * `role`, but must use this scope (plus grants when assigned-only) for
+   * access-sensitive decisions.
+   */
+  propertyAccessScope: 'organization' | 'assigned-properties'
+}>
+
+/** Port for identity operations — wraps better-auth API calls. */
+export type IdentityPort = Readonly<{
+  /**
+   * Sign up a new user. Returns user ID. When supplied, expectedUserId is a
+   * recovery-fenced identities allocated before provider work begins.
+   */
+  signUp: (
+    name: string,
+    email: string,
+    password: string,
+    expectedAuthIds?: RegistrationAuthIds,
+  ) => Promise<string>
+
+  /** List members in ctx.organizationId; without pagination, return every member. */
+  listMembers: (
+    ctx: AuthContext,
+    options?: MemberListOptions,
+  ) => Promise<ReadonlyArray<MemberRecord>>
+
+  /** Exact count across the organization, including comma-delimited owner roles. */
+  countOwners: (ctx: AuthContext) => Promise<number>
+
+  /** Get a single member by ID within ctx.organizationId, including staff logins. */
+  getMember: (ctx: AuthContext, memberId: string) => Promise<MemberRecord | null>
+
+  /** List invitations for the current user across all organizations. */
+  listUserInvitations: (headers: Headers) => Promise<ReadonlyArray<InvitationRecord>>
+
+  /** Get the active organization details for the current session. */
+  getActiveOrg: (headers: Headers) => Promise<OrganizationRecord | null>
+
+  /** Set the active organization for the current session. */
+  setActiveOrganization: (headers: Headers, organizationId: string) => Promise<void>
+
+  /** Resolve the session user for invitation acceptance. */
+  getSessionUser: (
+    headers: Headers,
+  ) => Promise<Readonly<{ id: string; email: string; name?: string }> | null>
+}>
+
+/** Storage port for avatar uploads — local abstraction to avoid cross-context imports. */
+export type IdentityStoragePort = Readonly<{
+  createPresignedUploadUrl: (
+    key: string,
+    contentType: string,
+    maxSizeBytes: number,
+  ) => Promise<{ uploadUrl: string; key: string }>
+}>

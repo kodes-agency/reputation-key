@@ -9,8 +9,8 @@ import { composeRightsReplayers } from '#/composition/rights-executors'
 import {
   createIdentityRightsExecutor,
   createStaffRightsExecutor,
-} from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
-import { STAFF_LIFECYCLE_TABLES } from '#/contexts/identity/infrastructure/adapters/staff-organization-erasure'
+} from '#/contexts/identity/rights/identity-rights.adapter.server'
+import { STAFF_LIFECYCLE_TABLES } from '#/contexts/identity/rights/staff-organization-erasure.server'
 import { createPropertyRightsExecutor } from '#/contexts/property/lifecycle/property-rights.adapter.server'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'

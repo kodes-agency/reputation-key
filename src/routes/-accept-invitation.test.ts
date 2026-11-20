@@ -14,7 +14,7 @@ vi.mock('#/contexts/identity/server/organizations', () => ({
   getInvitationPreview,
 }))
 
-import { invitationPreviewInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
+import { invitationPreviewInputSchema } from '#/contexts/identity/members/invitation.contracts'
 import { INVITATION_ID_MAX_LENGTH } from '#/shared/domain/ids'
 import { acceptInvitationSearch, Route } from './accept-invitation'
 

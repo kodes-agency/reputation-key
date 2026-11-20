@@ -5,7 +5,7 @@ import { getPool } from '#/shared/db/pool'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { Permission } from '#/shared/domain/permissions'
-import { decideCurrentManagerPropertyAuthority } from '../infrastructure/repositories/member-property-authority'
+import { decideCurrentManagerPropertyAuthority } from './member-property-authority.server'
 
 const db = getDb()
 const ORG = 'org-inbox-assignee-identity-authority'

@@ -5,8 +5,9 @@
 Identity owns authentication, sessions, Organizations, memberships, invitations,
 Property access grants, lifecycle/export authority, and the People model. People
 covers Staff Participants, effective-dated Property participation, optional login
-links, and Portal performance attribution. Better Auth remains an infrastructure
-adapter; no other context reads its tables directly.
+links, and Portal performance attribution. Better Auth remains an adapter
+(`members/auth-identity.adapter.server.ts`); no other context reads its tables
+directly.
 
 ## Vocabulary
 
@@ -25,26 +26,56 @@ Each feature's server code lives beside its tests, and its screens in a `ui/`
 folder beside it; routes import the screens from there:
 
 - `consent/` — merchant AI authorization, notices, deferral and renewal; the
-  organization AI settings screens are in `consent/ui/`.
-- `updates/` — product updates; the What's new modal, history and preferences
-  are in `updates/ui/`.
+  standing renewal job and `merchant-ai-notice.contracts.ts`; the organization AI
+  settings screens are in `consent/ui/`.
+- `updates/` — product updates and their purge; the What's new modal, history
+  and preferences are in `updates/ui/`.
 - `feedback/` — beta feedback submission and delivery; the launcher and form are
   in `feedback/ui/`.
-- `operator/` — the platform console and its Organization creation and
-  first-AccountAdmin invitation screens (`operator/ui/`).
-- `staff/` — staff accounts, invitations and address checks; the account roster
-  is in `staff/ui/accounts/` and the personal staff home in `staff/ui/home/`.
+- `operator/` — the platform console use cases, `platform-console.contracts.ts`
+  and its Organization creation and first-AccountAdmin invitation screens
+  (`operator/ui/`).
+- `staff/` — staff accounts, invitations and address checks; Staff
+  Participations and their repository, the staff self reader, the assigned-Portal
+  lookup, the invitation budget and `people-public-api`; the account roster is in
+  `staff/ui/accounts/` and the personal staff home in `staff/ui/home/`.
 - `members/` — member invitations, role changes, removal and Property access
-  grants; the member directory screens (members, invitations, role change,
-  removal, Property access), sign-in, registration, reset password, profile and
-  security settings are in `members/ui/`.
+  grants; the Better Auth adapter and port, the Identity command store, the
+  Property access grant store and lookup, member Property authority, manager
+  memberships, invitation email delivery, the role-change consumer, and the
+  invited-registration recovery job and its contracts; the member directory
+  screens (members, invitations, role change, removal, Property access),
+  sign-in, registration, reset password, profile and security settings are in
+  `members/ui/`.
+- `organization/` — Organization settings: `update-organization`, its Better
+  Auth patch and `update-org-settings.contracts.ts`. The screens stay in
+  `members/ui/organization/`.
+- `images/` — avatar and Organization logo uploads. It holds
+  `identity-assets.contracts.ts` (key shapes, public path), the upload policy,
+  request and finalize, retiring a replaced picture, and the reclaim pass and
+  its job.
+- `policy/` — the `policy.admin` operations behind `server/policy-admin.ts`
+  (explain a decision, the operator grant and revoke) with their command store,
+  and the Google content capability controls and execution permits.
+- `rights/` — Identity's rights executors and replayers (Organization closure,
+  Identity's Property Erase rows, the Staff directory purge, participant
+  erasure) and the Organization Export bundle builder.
 
-Files in these folders are `*.server.ts`; server functions stay under `server/`.
-The Organization settings screens still live in
-`src/contexts/identity/members/ui/organization/`. Anything a screen, route, script or
-another context imports, and the rights, erasure and export contributors, stay
-in the layer folders. Screens take other contexts' server-function signatures as
-types only.
+Server code is `*.server.ts`, and what the browser imports is
+`<name>.contracts.ts`. Server functions stay under `server/`. Only these stay in
+the layer folders:
+
+- `application/public-api.ts`.
+- `application/staff-self-context.ts` (`public-api` re-exports it to a browser
+  screen).
+- `application/ports/organization-export-contributor.port.ts` (foreign export
+  contributors implement it).
+- The files operator scripts import: `beta-feedback-issue`,
+  `beta-feedback-pseudonym`, `beta-feedback-triage-invocation`,
+  `beta-feedback-reporter`, `beta-feedback-triage.repository`,
+  `better-auth-schemas`, `policy-store-init` and `capability-refusal.repository`.
+
+Screens take other contexts' server-function signatures as types only.
 
 ## Invariants
 
@@ -128,11 +159,11 @@ imports only `#/contexts/identity/application/public-api`, which exports just
 what other contexts use.
 
 Server functions for Organizations, settings, invitations, registration, policy,
-feedback, and Staff Participation live in `server/`. Application code owns use
-cases and ports; Drizzle, Better Auth, storage, and lifecycle implementations stay
-under `infrastructure/`. Beta-feedback requests reach the triage store only
-through the build's `betaFeedback` capability (`submit`, `listMine`); the
-operator triage workflow stays with `scripts/ops`.
+feedback, and Staff Participation live in `server/`. Use cases, ports, stores
+and the Better Auth adapter (`members/auth-identity.adapter.server.ts`) live in
+the feature folders. Beta-feedback requests reach the triage store only through
+the build's `betaFeedback` capability (`submit`, `listMine`); the operator
+triage workflow stays with `scripts/ops`.
 
 The Identity adapter reads members through Organization-scoped member/user SQL.
 Unpaged callers receive the full roster; the manager directory excludes staff-only
@@ -215,7 +246,7 @@ deleted, and Recent Activity keeps projecting and replaying the facts recorded b
 
 The manual rights path (`pnpm ops rights-request organization --apply`, see
 `docs/operations/rights-requests.md`) runs `deleteIdentityOrganizationRows`
-(`infrastructure/adapters/identity-organization-erasure.ts`) behind its journal
+(`rights/identity-organization-erasure.server.ts`) behind its journal
 entry, in one transaction. The order is fixed:
 
 1. Delete the Organization's AI decide-later records, Property access grants,
@@ -236,7 +267,7 @@ another Organization.
 
 People rows are Identity-owned, but durable lifecycle receipt context `staff`
 remains a stable persisted identifier. The moved `staff-organization-lifecycle`
-adapter therefore retains that key while living under Identity infrastructure. Purge order is `staff_onboardings`, `staff_property_settings`,
+adapter therefore retains that key while living in `rights/staff-organization-erasure.server.ts`. Purge order is `staff_onboardings`, `staff_property_settings`,
 Portal Responsibilities, Portal Group memberships, Staff Participations, Staff user
 links, then Staff Participants; it never deletes users, memberships, sessions, or
 Property access grants.

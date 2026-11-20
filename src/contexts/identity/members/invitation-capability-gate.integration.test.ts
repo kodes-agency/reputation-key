@@ -57,7 +57,7 @@ import { isIdentityError } from '../domain/errors'
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { buildIdentityContext } from '../build'
 import { createInvitedRegistrationStore } from './invited-registration-store.server'
-import { createRecoverInvitedRegistrationsHandler } from '../infrastructure/jobs/recover-invited-registrations.job'
+import { createRecoverInvitedRegistrationsHandler } from './recover-invited-registrations-job.server'
 
 const START = new Date('2026-10-13T12:00:00.000Z')
 const EXPIRES_AT = new Date('2026-10-20T12:00:00.000Z')

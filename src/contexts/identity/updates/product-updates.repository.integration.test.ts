@@ -9,7 +9,7 @@ import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createProductUpdatesStore } from './product-updates.repository.server'
-import { purgeProductUpdates } from '../infrastructure/product-updates-purge'
+import { purgeProductUpdates } from './product-updates-purge.server'
 
 let db: Database
 let lease: TestLease

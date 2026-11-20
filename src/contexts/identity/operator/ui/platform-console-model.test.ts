@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import type { PlatformOrganizationView } from '#/contexts/identity/application/dto/platform-console.dto'
+import type { PlatformOrganizationView } from '#/contexts/identity/operator/platform-console.contracts'
 import {
   canInviteAdmin,
   formatConsoleDate,

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createStaffInvitationBudget } from '../infrastructure/staff-invitation-budget'
+import { createStaffInvitationBudget } from './staff-invitation-budget.server'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
 describe('staff invitation budget binding', () => {

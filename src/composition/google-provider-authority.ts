@@ -24,7 +24,7 @@ import {
 } from '#/shared/provider-ephemeral/runtime-verification'
 import { createGoogleExecutionPermitIssuer } from '#/shared/auth/google-execution-permit-issuer'
 import { createInProcessGoogleEgressRuntime } from './google-egress-runtime'
-import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createGoogleContentAuthorityRepository } from '#/contexts/identity/policy/google-content-authority-repository.server'
 import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/infrastructure/google-content-authorization-check'
 import { createGoogleContentAuthorizer } from '#/contexts/integration/infrastructure/google-content-authorizer'
 import {

@@ -23,7 +23,7 @@ import {
   type ProvisionOrganizationInput,
   type ProvisionOrganizationResult,
   type ResendOrganizationAdminInvitationResult,
-} from '../application/dto/platform-console.dto'
+} from '../operator/platform-console.contracts'
 import { asOperator } from './platform-console-operator.server'
 
 type Request<T> = Readonly<{ data: T }>

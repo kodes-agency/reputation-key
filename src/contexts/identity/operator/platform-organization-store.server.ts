@@ -33,7 +33,7 @@ import type {
   IdentityCommandStore,
   InviteMemberCommand,
   RenewInvitationCommand,
-} from '../application/ports/identity-command-store.port'
+} from '../members/identity-command-store.port.server'
 import type {
   OrganizationAdministration,
   PlatformAdminInvitationRow,
@@ -41,7 +41,7 @@ import type {
   PlatformOrganizationStore,
   ProvisionOrganizationCommand,
 } from './platform-organization-store.port.server'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from '../members/identity-command-store.server'
 
 const SLUG_TAKEN_MESSAGE = 'Another Organization already uses this slug'
 /** Better Auth's unique index on organization.slug. */

@@ -20,7 +20,7 @@ import {
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
 import { buildCapabilityPolicyHandle } from '../policy-store-init'
-import { grantPropertyAccess } from './property-access-grant.repository'
+import { grantPropertyAccess } from '../../members/property-access-grant-repository.server'
 import { organizationId, userId, propertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'

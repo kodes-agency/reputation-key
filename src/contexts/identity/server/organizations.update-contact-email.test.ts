@@ -32,9 +32,9 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
 }))
 vi.mock('#/composition', async () => {
   const { updateOrganization } =
-    await import('../application/use-cases/update-organization')
+    await import('../organization/update-organization.server')
   const { retireReplacedIdentityAsset } =
-    await import('../application/retire-replaced-identity-asset')
+    await import('../images/retire-replaced-identity-asset.server')
   const requests = {
     updateOrganization: updateOrganization({
       updateOrg: mocks.saveOrganization,

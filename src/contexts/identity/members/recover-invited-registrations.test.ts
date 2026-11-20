@@ -5,7 +5,7 @@ import type { InvitedRegistrationStore } from './invited-registration-store.port
 import type {
   AcceptInvitationCommand,
   IdentityCommandStore,
-} from '../application/ports/identity-command-store.port'
+} from './identity-command-store.port.server'
 import { recoverInvitedRegistrations } from './recover-invited-registrations.server'
 
 const NOW = new Date('2026-08-27T12:00:00.000Z')

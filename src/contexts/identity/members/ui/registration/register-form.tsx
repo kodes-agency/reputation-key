@@ -13,7 +13,7 @@ import { submitHandler } from '#/components/forms/form-submit'
 import {
   registerUserInputSchema,
   registerMemberInputSchema,
-} from '#/contexts/identity/application/dto/invitation.dto'
+} from '#/contexts/identity/members/invitation.contracts'
 import { RegisterFormFields } from './register-form-fields'
 // MutateAsync uses `unknown` so specific mutation types are compatible via structural typing.
 

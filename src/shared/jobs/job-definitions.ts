@@ -427,7 +427,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'merchant-ai-standing-renewal',
-    'src/contexts/identity/infrastructure/jobs/merchant-ai-standing-renewal.job.ts',
+    'src/contexts/identity/consent/merchant-ai-standing-renewal-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -440,7 +440,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'identity-pending-upload-reclaim',
-    'src/contexts/identity/infrastructure/jobs/reclaim-pending-identity-uploads.job.ts',
+    'src/contexts/identity/images/reclaim-pending-identity-uploads-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -492,7 +492,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'recover-invited-registrations',
-    'src/contexts/identity/infrastructure/jobs/recover-invited-registrations.job.ts',
+    'src/contexts/identity/members/recover-invited-registrations-job.server.ts',
     {
       queue: 'background',
       // Recovery accepts invitations: a membership is an Organization write.

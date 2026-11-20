@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db/index'
 
 const mocks = vi.hoisted(() => ({ getMemberRole: vi.fn(), decide: vi.fn() }))
-vi.mock('../infrastructure/repositories/manager-membership.repository', () => ({
+vi.mock('../members/manager-membership-repository.server', () => ({
   getMemberRole: mocks.getMemberRole,
 }))
-vi.mock('../infrastructure/repositories/member-property-authority', () => ({
+vi.mock('../members/member-property-authority.server', () => ({
   decideMemberPropertyAuthority: mocks.decide,
 }))
 

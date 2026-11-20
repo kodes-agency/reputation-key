@@ -1,6 +1,6 @@
 import { APIError } from 'better-auth'
 import { describe, expect, it, vi } from 'vitest'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
 import { setupIdentityMembersDb } from '#/shared/testing/identity-members-fixtures'
 import { invitationId, organizationId } from '#/shared/domain/ids'
 import { identityError, isIdentityError } from '../domain/errors'

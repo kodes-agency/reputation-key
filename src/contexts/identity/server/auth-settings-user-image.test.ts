@@ -5,7 +5,7 @@
 
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_UPLOAD_BYTES } from '../application/upload-policy'
+import { MAX_UPLOAD_BYTES } from '../images/upload-policy.server'
 
 const OLD = '3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
 const NEW = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'

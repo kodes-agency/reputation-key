@@ -1,4 +1,4 @@
-import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import type { MerchantAiNoticeDto } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import { MerchantAiDataHandling } from '#/contexts/identity/consent/ui/merchant-ai-data-handling'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { BackButton } from '#/components/ui/back-link'

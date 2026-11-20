@@ -10,7 +10,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { identityInvitationAccepted } from '../domain/events'
 import { invitationId, userId, type InvitationId } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
 import { createInvitedRegistrationStore } from './invited-registration-store.server'
 
 const NOW = new Date('2026-08-27T12:00:00.000Z')

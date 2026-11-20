@@ -6,8 +6,8 @@
 // (`create-organization.dto.test.ts`); a copy of it used to be tested here.
 
 import { describe, it, expect } from 'vitest'
-import { changePasswordCommandSchema as changePasswordSchema } from '../application/dto/change-password.dto'
-import { updateProfileInputSchema as updateProfileSchema } from '../application/dto/profile-settings.dto'
+import { changePasswordCommandSchema as changePasswordSchema } from '../members/change-password.contracts'
+import { updateProfileInputSchema as updateProfileSchema } from '../members/profile-settings.contracts'
 
 // ── changePassword input validation ───────────────────────────────
 

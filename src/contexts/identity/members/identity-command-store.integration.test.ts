@@ -27,7 +27,7 @@ import {
 } from '../domain/events'
 import type { IdentityMemberInvited } from '../domain/events'
 import { isIdentityError } from '../domain/errors'
-import { createAtomicIdentityCommandStore as createAtomicIdentityCommandStoreWithDeps } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore as createAtomicIdentityCommandStoreWithDeps } from './identity-command-store.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const createAtomicIdentityCommandStore = (db: Database) =>

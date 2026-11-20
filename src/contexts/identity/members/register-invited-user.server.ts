@@ -1,4 +1,4 @@
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { userId as toUserId } from '#/shared/domain/ids'
 import { identityError, isIdentityError } from '../domain/errors'
@@ -12,7 +12,7 @@ import {
   type InvitationAdmissionDeps,
 } from './invitation-admission.server'
 import { reportUngrantedInvitedProperties } from './invited-property-access.server'
-import { providerRefusalCode } from '../application/provider-refusal'
+import { providerRefusalCode } from './provider-refusal.server'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 import type {
   InvitedRegistrationStore,

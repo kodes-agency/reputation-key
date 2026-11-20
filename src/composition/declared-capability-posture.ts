@@ -36,7 +36,7 @@ import { createAiControlAdapter } from '#/contexts/ai/infrastructure/adapters/ai
 import {
   createGoogleContentAuthorityRepository,
   type GoogleContentAuthorityRepository,
-} from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+} from '#/contexts/identity/policy/google-content-authority-repository.server'
 
 export type DeclaredCapabilityPostureStores = Readonly<{
   google: Pick<

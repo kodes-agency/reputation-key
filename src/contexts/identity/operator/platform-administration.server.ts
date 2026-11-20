@@ -17,7 +17,7 @@ import { invitationState } from '../domain/invitation-state'
 import type {
   OrganizationInvitationInput,
   PlatformOrganizationView,
-} from '../application/dto/platform-console.dto'
+} from './platform-console.contracts'
 import type {
   OrganizationAdministration,
   PlatformOrganizationRow,

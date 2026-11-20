@@ -39,7 +39,7 @@ const REMAINING_SITES: Readonly<Record<string, number>> = {
   'src/contexts/feed/notify/notice-write.server.ts': 1,
   // The repository's port types every method `tx: Database`; the port needs a
   // transaction type of its own.
-  'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts': 1,
+  'src/contexts/identity/policy/google-content-authority-repository.server.ts': 1,
 }
 
 const TEST_FILE = /\.(?:test|spec)\.tsx?$/u

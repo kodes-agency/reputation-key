@@ -212,7 +212,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
     it('flags a ui screen → foreign ui, dto and application even for types', async () => {
       const messages = await lintSnippet(
-        `import type { Wizard } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard'\nimport type { Notice } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'\nexport type Shapes = [Wizard, Notice]\n`,
+        `import type { Wizard } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard'\nimport type { Notice } from '#/contexts/identity/consent/merchant-ai-notice.contracts'\nexport type Shapes = [Wizard, Notice]\n`,
         screen,
       )
       expect(

@@ -28,9 +28,9 @@ import {
   identityMemberRoleChanged,
   type IdentityMemberRemoved,
 } from '../domain/events'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
-import { createBetterAuthIdentityAdapter } from '../infrastructure/adapters/auth-identity.adapter'
-import { registerMemberRoleConsumers } from '../infrastructure/member-role-outbox-consumers'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
+import { createBetterAuthIdentityAdapter } from './auth-identity.adapter.server'
+import { registerMemberRoleConsumers } from './member-role-outbox-consumers.server'
 import {
   MEMBER_ROLE_CLEANUP_CONSUMER,
   roleChangeCleanup,

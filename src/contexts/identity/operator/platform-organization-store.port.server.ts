@@ -17,7 +17,7 @@ import type {
   InviteMemberCommand,
   RenewedInvitation,
   RenewInvitationCommand,
-} from '../application/ports/identity-command-store.port'
+} from '../members/identity-command-store.port.server'
 
 /** An open AccountAdmin invitation: role 'owner', stored 'pending' or 'expired'. */
 export type PlatformAdminInvitationRow = Readonly<{

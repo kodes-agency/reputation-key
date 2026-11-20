@@ -15,7 +15,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import { decideCurrentManagerPropertyAuthorities } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
+import { decideCurrentManagerPropertyAuthorities } from '#/contexts/identity/members/member-property-authority.server'
 import type { InboxItem } from '../domain/types'
 import {
   inboxItemAssigned,

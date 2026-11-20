@@ -8,7 +8,7 @@ import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { userId as toUserId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
 import { identityMemberPropertyAccessChanged } from '../domain/events'
-import type { IdentityPort } from '../application/ports/identity.port'
+import type { IdentityPort } from './auth-identity.port.server'
 import type { MemberPropertyAccessStore } from './member-property-access.port.server'
 import type {
   ListMemberPropertyAccessOutput,

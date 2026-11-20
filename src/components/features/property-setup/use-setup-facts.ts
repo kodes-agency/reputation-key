@@ -1,6 +1,6 @@
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useQueries, useQuery } from '@tanstack/react-query'
-import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import type { MerchantAiNoticeDto } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import {
   portalKeys,
   propertyKeys,

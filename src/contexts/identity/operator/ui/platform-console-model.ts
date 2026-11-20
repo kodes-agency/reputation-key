@@ -11,7 +11,7 @@ import { formatDate } from '#/lib/format'
 import type {
   PlatformAdminInvitationView,
   PlatformOrganizationView,
-} from '#/contexts/identity/application/dto/platform-console.dto'
+} from '#/contexts/identity/operator/platform-console.contracts'
 
 /** The code the operator guard raises for a change on a session older than 30 minutes. */
 const REAUTH_REQUIRED_CODE = 'operator_reauth_required'

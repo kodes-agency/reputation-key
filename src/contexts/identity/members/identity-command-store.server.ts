@@ -1,0 +1,734 @@
+import { linkStaffInvitation } from '../staff/staff-invitation-link.server'
+// Atomic identity command store (BQC-3.5).
+//
+// One PostgreSQL transaction per command commits the better-auth-owned state
+// mutation (invitation / member rows — the app-owned write path, the same
+// precedent as the pre-existing acceptInvitation transaction) together with its
+// outbox_events fact. Acceptance also commits the invitation's Property access
+// grants there: Identity owns that table, and an accepted invitation cannot be
+// accepted again to add them.
+//
+// Crash contract:
+// - Crash anywhere inside the transaction rolls back BOTH the state mutation
+//   and the outbox row — no state/outbox split is ever observable (the
+//   pre-BQC-3.5 use cases could lose the fact between the better-auth write
+//   and the separate fact record).
+// - A committed outbox row is the durable fact and is delivered by the relay.
+// - Guarded transitions (already-member/already-invited, last-owner,
+//   invitation lifecycle) record no fact.
+// - removeMember/changeMemberRole share one lock order: the org advisory
+//   lock, then (removal only) the user-membership lock acceptance takes, then
+//   the actor's member row, then the target's. Under it they re-check that the
+//   actor is still an AccountAdmin and the last-owner invariant.
+
+import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import type { Database } from '#/shared/db/index'
+import { invitation, member, session, user as userTable } from '#/shared/db/schema/auth'
+import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { trace } from '#/shared/observability/trace'
+import { isOwnerToken } from '#/shared/domain/roles'
+import { decideUserOrganizationMembership } from '#/shared/auth/user-organization-membership'
+import { identityError } from '../domain/errors'
+import {
+  INELIGIBLE_ROLE_MESSAGE,
+  REGISTRATION_FAILED_MESSAGE,
+} from '../domain/invitation-copy'
+import {
+  assertAddressHasNoMembership,
+  assertInvitationAcceptable,
+  assertInvitationOpenForRegistration,
+  assertRenewalHasNoCompetitor,
+  consumedInvitation,
+  encodePropertyIds,
+  grantedRoleToken,
+  lapsedCompetitorIds,
+  parsePropertyIds,
+  renewableInvitation,
+  toOpenInvitations,
+  type OpenInvitation,
+} from '../domain/invitation-store-rules'
+import { grantInvitedPropertyAccess } from './invited-property-access.adapter.server'
+import { revokeAllPropertyAccessForUser } from './property-access-grant-repository.server'
+import { MEMBER_ROLE_CLEANUP_CONSUMER } from './member-role-cleanup.server'
+import type {
+  AcceptedInvitation,
+  AcceptInvitationCommand,
+  CancelInvitationCommand,
+  ChangeMemberRoleCommand,
+  IdentityCommandStore,
+  PendingRoleChangeCleanup,
+  InviteMemberCommand,
+  RemoveMemberCommand,
+  RenewInvitationCommand,
+  ValidateInvitationRegistrationCommand,
+} from './identity-command-store.port.server'
+
+/**
+ * Invitation insert via raw SQL. The drizzle mirror for the better-auth
+ * invitation table carries a speculative `teamId` column (BA teams plugin,
+ * not enabled) that the real table does not have; drizzle's insert emits
+ * every mirrored column, so going through the table definition breaks
+ * against the real schema. Migration/schema files are owned outside this
+ * slice, so the insert bypasses the mirror. Reads/updates use only columns
+ * that exist and stay on the typed table.
+ */
+async function insertInvitationRow(
+  tx: Tx,
+  row: Readonly<{
+    id: string
+    organizationId: string
+    email: string
+    role: string
+    expiresAt: Date
+    propertyIds: string | null
+    inviterId: string
+    createdAt: Date
+  }>,
+): Promise<void> {
+  await tx.execute(sql`
+    INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "propertyIds", "inviterId", "createdAt")
+    VALUES (${row.id}, ${row.organizationId}, ${row.email}, ${row.role}, 'pending', ${row.expiresAt}, ${row.propertyIds}, ${row.inviterId}, ${row.createdAt})
+  `)
+}
+
+/** Same hash as the pre-BQC-3.5 withOrgLock — the advisory-lock key space is unchanged. */
+function hashStringToInteger(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash)
+}
+
+async function lockOrg(tx: Tx, orgId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${hashStringToInteger(orgId)})`)
+}
+
+/**
+ * Serializes membership creation and removal for one user, so two invitations
+ * cannot place one closed-beta account in different Organizations and an
+ * acceptance waits for a removal of the same user to commit.
+ */
+async function lockUserMembership(tx: Tx, userId: string): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user-organization-membership:${userId}`}, 0))`,
+  )
+}
+
+async function checkSingleOrganizationMembership(
+  tx: Tx,
+  input: Readonly<{ userId: string; organizationId: string }>,
+): Promise<Readonly<{ hasCurrentMembership: boolean }>> {
+  await lockUserMembership(tx, input.userId)
+  const memberships = await tx
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, input.userId))
+  const decision = decideUserOrganizationMembership(
+    memberships.map((row) => row.organizationId),
+    input.organizationId,
+  )
+  if (decision.kind === 'allow') {
+    return { hasCurrentMembership: true }
+  }
+  if (decision.reason === 'organization_membership_missing') {
+    return { hasCurrentMembership: false }
+  }
+  throw identityError(
+    'organization_conflict',
+    'This account already belongs to another Organization',
+  )
+}
+
+/** One member of one Organization: the scope every member read and write shares. */
+const memberOfOrganization = (memberId: string, orgId: string) =>
+  and(eq(member.id, memberId), eq(member.organizationId, orgId))
+
+/** Count owner-token members of the org. Caller holds the advisory lock. */
+async function countOwners(tx: Tx, orgId: string): Promise<number> {
+  const rows = await tx
+    .select({ role: member.role })
+    .from(member)
+    .where(eq(member.organizationId, orgId))
+  return rows.filter((r) => isOwnerToken(r.role)).length
+}
+
+/**
+ * The admitting request saw the actor as an AccountAdmin; a concurrent
+ * demotion or removal may have committed since. The row is held FOR SHARE so
+ * the actor cannot lose the role before this command commits.
+ */
+async function recheckActor(tx: Tx, orgId: string, actorUserId: string): Promise<void> {
+  const rows = await tx
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.organizationId, orgId), eq(member.userId, actorUserId)))
+    .for('share')
+  if (!isOwnerToken(rows[0]?.role ?? '')) {
+    throw identityError('forbidden', 'Your role no longer allows changing members')
+  }
+}
+
+/**
+ * Take the lock order every member-role command shares, then re-check the
+ * actor and the last-owner invariant. Without `newRole` the member is being
+ * removed and any owner triggers the check; with `newRole` it fires only on
+ * owner demotion.
+ */
+async function lockMemberForRoleChange(
+  tx: Tx,
+  orgId: string,
+  memberId: string,
+  opts: { newRole?: string; actorUserId?: string; removal?: boolean } = {},
+): Promise<typeof member.$inferSelect> {
+  await lockOrg(tx, orgId)
+  if (opts.removal) {
+    // A member row's user never changes, so it can name the lock before the
+    // row itself is locked.
+    const located = await tx
+      .select({ userId: member.userId })
+      .from(member)
+      .where(memberOfOrganization(memberId, orgId))
+      .limit(1)
+    if (located[0]) await lockUserMembership(tx, located[0].userId)
+  }
+  if (opts.actorUserId !== undefined) await recheckActor(tx, orgId, opts.actorUserId)
+  const rows = await tx
+    .select()
+    .from(member)
+    .where(memberOfOrganization(memberId, orgId))
+    .for('update')
+  const target = rows[0]
+  if (!target) {
+    throw identityError('member_not_found', 'Member not found in this organization')
+  }
+  if (
+    isOwnerToken(target.role) &&
+    (opts.newRole === undefined || !isOwnerToken(opts.newRole))
+  ) {
+    const owners = await countOwners(tx, orgId)
+    if (owners <= 1) {
+      throw identityError(
+        'last_owner',
+        'Cannot remove the last owner of the organization',
+      )
+    }
+  }
+  return target
+}
+
+/** Serialize every invitation write for one address, across Organizations. */
+async function lockInvitationEmail(tx: Tx, email: string): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`beta-invitation-email:${email}`}, 0))`,
+  )
+}
+
+/** Guard 1 — the address's memberships, judged by the shared rule. */
+async function checkAddressHasNoMembership(
+  tx: Tx,
+  email: string,
+  organizationId: string,
+): Promise<void> {
+  const memberRows = await tx
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .innerJoin(userTable, eq(member.userId, userTable.id))
+    .where(sql`LOWER(${userTable.email}) = ${email}`)
+  assertAddressHasNoMembership(
+    memberRows.map((row) => row.organizationId),
+    organizationId,
+  )
+}
+
+/** The address's open (stored pending or expired) invitations, read as their state. */
+async function openInvitationsForAddress(
+  tx: Tx,
+  email: string,
+  now: Date,
+): Promise<ReadonlyArray<OpenInvitation>> {
+  const rows = await tx
+    .select({
+      id: invitation.id,
+      organizationId: invitation.organizationId,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    })
+    .from(invitation)
+    .where(
+      and(
+        sql`LOWER(${invitation.email}) = ${email}`,
+        inArray(invitation.status, ['pending', 'expired']),
+      ),
+    )
+  return rows.flatMap((row) => toOpenInvitations(row, now))
+}
+
+/**
+ * Guard 2 (the shared rule), then the write it asks for: another
+ * Organization's lapsed row is marked 'expired' (no fact — the precedent is
+ * the 'rejected' write in acceptInvitation) so it stops blocking the address.
+ */
+async function checkNoCompetingInvitation(
+  tx: Tx,
+  input: Readonly<{ email: string; organizationId: string; now: Date }>,
+): Promise<void> {
+  const open = await openInvitationsForAddress(tx, input.email, input.now)
+  const lapsedIds = lapsedCompetitorIds(open, input.organizationId)
+  if (lapsedIds.length > 0) {
+    await tx
+      .update(invitation)
+      .set({ status: 'expired' })
+      .where(inArray(invitation.id, lapsedIds))
+  }
+}
+
+/** The renewed row must not compete with a live invitation elsewhere (shared rule). */
+async function checkRenewalHasNoCompetitor(
+  tx: Tx,
+  input: Readonly<{ id: string; email: string; organizationId: string; now: Date }>,
+): Promise<void> {
+  const open = await openInvitationsForAddress(tx, input.email, input.now)
+  assertRenewalHasNoCompetitor(open, input)
+}
+
+/**
+ * Registration paths only: consuming the emailed link proves the inbox. The
+ * row must be exactly the acceptor at the invited address; anything else —
+ * including Better Auth's synthetic duplicate-sign-up user, which was never
+ * written — rolls the acceptance back.
+ */
+async function markAcceptorEmailVerified(
+  tx: Tx,
+  input: Readonly<{ userId: string; email: string; now: Date }>,
+): Promise<void> {
+  const verified = await tx
+    .update(userTable)
+    .set({ emailVerified: true, updatedAt: input.now })
+    .where(
+      and(
+        eq(userTable.id, input.userId),
+        sql`LOWER(${userTable.email}) = ${input.email}`,
+      ),
+    )
+    .returning({ id: userTable.id })
+  if (!verified[0]) {
+    throw identityError('registration_failed', REGISTRATION_FAILED_MESSAGE)
+  }
+}
+
+/**
+ * How long a role change's cleanup counts as owed to a retried request. Past
+ * it the durable consumer has long finished or alerted, and an identical
+ * request is a no-op the member screen refuses.
+ */
+const ROLE_CHANGE_RETRY_WINDOW = sql`interval '24 hours'`
+
+/**
+ * What the store runs on: the pool-backed `Database`, or a transaction its
+ * caller has already opened. The operator console binds a command to its audit
+ * row that way (platform-organization-store.ts). On a transaction every
+ * `db.transaction` below is a savepoint of the caller's, so nothing in this
+ * store may assume a command's writes are durable when it returns.
+ */
+type IdentityCommandStoreDatabase = Pick<Database, 'select' | 'transaction'>
+
+export const createAtomicIdentityCommandStore = (
+  db: IdentityCommandStoreDatabase,
+  idGen: () => string,
+  admitStaffInvitation: (organizationId: string) => Promise<boolean> = async () => false,
+): IdentityCommandStore => {
+  return {
+    validateInvitationRegistration: async (
+      command: ValidateInvitationRegistrationCommand,
+    ) => {
+      const rows = await db
+        .select({
+          email: invitation.email,
+          organizationId: invitation.organizationId,
+          role: invitation.role,
+          staffParticipationId: invitation.staffParticipationId,
+          status: invitation.status,
+          expiresAt: invitation.expiresAt,
+        })
+        .from(invitation)
+        .where(eq(invitation.id, command.invitationId as string))
+        .limit(1)
+      if (
+        rows[0]?.staffParticipationId &&
+        !(await admitStaffInvitation(
+          'organizationId' in rows[0] ? String(rows[0].organizationId) : '',
+        ))
+      )
+        throw identityError(
+          'forbidden',
+          'This staff invitation cannot be accepted right now. Try again later',
+        )
+      assertInvitationOpenForRegistration(rows[0], command)
+    },
+
+    inviteMember: async (command: InviteMemberCommand) => {
+      return trace('identity.commandStore.inviteMember', async () => {
+        if (!isBetaInteractiveMemberRoleToken(command.role)) {
+          throw identityError(
+            'forbidden',
+            'Only beta manager roles can receive an account invitation',
+          )
+        }
+        const email = command.email.toLowerCase()
+        await db.transaction(async (tx) => {
+          // Serialize all invitations for an address, including the
+          // absent-row race across two Organizations.
+          await lockInvitationEmail(tx, email)
+          await checkAddressHasNoMembership(tx, email, command.organizationId as string)
+          await checkNoCompetingInvitation(tx, {
+            email,
+            organizationId: command.organizationId as string,
+            now: command.now,
+          })
+
+          await insertInvitationRow(tx, {
+            id: command.invitationId as string,
+            organizationId: command.organizationId as string,
+            email,
+            role: command.role,
+            expiresAt: command.expiresAt,
+            propertyIds: encodePropertyIds(command.propertyIds),
+            inviterId: command.inviterId as string,
+            createdAt: command.now,
+          })
+          await insertOutboxRow(tx, command.event)
+        })
+      })
+    },
+
+    acceptInvitation: async (command: AcceptInvitationCommand) => {
+      return trace('identity.commandStore.acceptInvitation', async () => {
+        const acceptorEmail = command.acceptorEmail.toLowerCase()
+        const outcome = await db.transaction(async (tx) => {
+          // 1. Lock + load the invitation (serializes concurrent accepts).
+          //    Explicit column list — the drizzle mirror carries speculative
+          //    columns (teamId) that real better-auth tables do not have.
+          const rows = await tx
+            .select({
+              id: invitation.id,
+              organizationId: invitation.organizationId,
+              email: invitation.email,
+              role: invitation.role,
+              staffParticipationId: invitation.staffParticipationId,
+              status: invitation.status,
+              expiresAt: invitation.expiresAt,
+              propertyIds: invitation.propertyIds,
+              inviterId: invitation.inviterId,
+            })
+            .from(invitation)
+            .where(eq(invitation.id, command.invitationId as string))
+            .for('update')
+          const inv = rows[0]
+          if (!inv) {
+            throw identityError('invitation_not_found', 'Invitation not found')
+          }
+          // 2-3. Email-match invariant and lifecycle gate: only the invitee
+          //      may accept, and only a pending invitation.
+          if (
+            inv.staffParticipationId &&
+            !(await admitStaffInvitation(inv.organizationId))
+          )
+            throw identityError(
+              'forbidden',
+              'This staff invitation cannot be accepted right now. Try again later',
+            )
+          assertInvitationAcceptable(inv, acceptorEmail, command.now)
+          // 4. Re-validate the role at acceptance. Member users and custom
+          //    roles are retained as data but cannot become beta logins.
+          const role = grantedRoleToken(inv.role, inv.staffParticipationId)
+          if (role === null) {
+            await tx
+              .update(invitation)
+              .set({ status: 'rejected' })
+              .where(eq(invitation.id, inv.id))
+            return {
+              kind: 'rejected' as const,
+              message: INELIGIBLE_ROLE_MESSAGE,
+            }
+          }
+          // 5. Re-check Better Auth membership while the invitation is locked.
+          //    An incompatible membership aborts invitation consumption and
+          //    fact recording in the same transaction.
+          const membership = await checkSingleOrganizationMembership(tx, {
+            userId: command.acceptorUserId as string,
+            organizationId: inv.organizationId,
+          })
+          if (membership.hasCurrentMembership) {
+            throw identityError(
+              'already_exists',
+              'User is already a member of this Organization',
+            )
+          }
+          // 6. Registration paths: the link proved the inbox. Verified in the
+          //    same transaction as the membership, or not at all.
+          if (command.markEmailVerified === true) {
+            await markAcceptorEmailVerified(tx, {
+              userId: command.acceptorUserId as string,
+              email: acceptorEmail,
+              now: command.now,
+            })
+          }
+
+          // 7. Create membership, link staff and mark accepted in this transaction.
+          await tx.insert(member).values({
+            id: idGen(),
+            organizationId: inv.organizationId,
+            userId: command.acceptorUserId as string,
+            role,
+            createdAt: command.now,
+          })
+          if (inv.staffParticipationId) {
+            await linkStaffInvitation(tx, {
+              organizationId: inv.organizationId,
+              participationId: inv.staffParticipationId,
+              userId: command.acceptorUserId,
+              actorId: inv.inviterId,
+              at: command.now,
+            })
+          }
+          await tx
+            .update(invitation)
+            .set({ status: 'accepted' })
+            .where(eq(invitation.id, inv.id))
+          // 8. The invited Property access, with the membership it belongs
+          //    to. A step after the commit could fail or never run, and an
+          //    accepted invitation cannot be accepted again to repeat it.
+          const accepted: AcceptedInvitation = consumedInvitation(inv)
+          const ungrantedPropertyIds = await grantInvitedPropertyAccess(tx, {
+            organizationId: inv.organizationId,
+            userId: command.acceptorUserId as string,
+            propertyIds: accepted.propertyIds,
+            inviterId: inv.inviterId,
+            now: command.now,
+          })
+          // 9. The fact carries invitation-row data read under the lock.
+          const fact = command.buildEvent(accepted)
+          await insertOutboxRow(tx, fact)
+          return {
+            kind: 'accepted' as const,
+            result: { ...accepted, ungrantedPropertyIds },
+          }
+        })
+        if (outcome.kind === 'rejected') {
+          throw identityError('forbidden', outcome.message)
+        }
+        return outcome.result
+      })
+    },
+
+    renewInvitation: async (command: RenewInvitationCommand) => {
+      return trace('identity.commandStore.renewInvitation', async () =>
+        db.transaction(async (tx) => {
+          const scope = and(
+            eq(invitation.id, command.invitationId as string),
+            eq(invitation.organizationId, command.organizationId as string),
+          )
+          // The address names the lock, so read it before taking it.
+          const located = await tx
+            .select({ email: invitation.email })
+            .from(invitation)
+            .where(scope)
+            .limit(1)
+          if (!located[0]) {
+            throw identityError('invitation_not_found', 'Invitation not found')
+          }
+          const email = located[0].email.toLowerCase()
+          await lockInvitationEmail(tx, email)
+          const rows = await tx
+            .select({
+              id: invitation.id,
+              email: invitation.email,
+              role: invitation.role,
+              staffParticipationId: invitation.staffParticipationId,
+              status: invitation.status,
+              propertyIds: invitation.propertyIds,
+            })
+            .from(invitation)
+            .where(scope)
+            .for('update')
+          const { inv, role } = renewableInvitation(rows[0])
+          await checkAddressHasNoMembership(tx, email, command.organizationId as string)
+          await checkRenewalHasNoCompetitor(tx, {
+            id: inv.id,
+            email,
+            organizationId: command.organizationId as string,
+            now: command.now,
+          })
+          await tx
+            .update(invitation)
+            .set({ status: 'pending', expiresAt: command.expiresAt })
+            .where(eq(invitation.id, inv.id))
+          return {
+            email: inv.email,
+            role,
+            propertyIds: parsePropertyIds(inv.propertyIds),
+            expiresAt: command.expiresAt,
+          }
+        }),
+      )
+    },
+
+    cancelInvitation: async (command: CancelInvitationCommand) => {
+      return trace('identity.commandStore.cancelInvitation', async () => {
+        await db.transaction(async (tx) => {
+          const updated = await tx
+            .update(invitation)
+            .set({ status: 'canceled' })
+            .where(
+              and(
+                eq(invitation.id, command.invitationId as string),
+                eq(invitation.organizationId, command.organizationId as string),
+                // An accepted, rejected or canceled invitation is history;
+                // only an open one can be withdrawn.
+                inArray(invitation.status, ['pending', 'expired']),
+              ),
+            )
+            .returning({ id: invitation.id })
+          if (!updated[0]) {
+            throw identityError('invitation_not_found', 'Invitation not found')
+          }
+          await insertOutboxRow(tx, command.event)
+        })
+      })
+    },
+
+    removeMember: async (command: RemoveMemberCommand) => {
+      return trace('identity.commandStore.removeMember', async () => {
+        await db.transaction(async (tx) => {
+          const target = await lockMemberForRoleChange(
+            tx,
+            command.organizationId as string,
+            command.memberId,
+            { actorUserId: command.actorUserId, removal: true },
+          )
+          if (command.staffOnly && target.role !== 'member') return
+          if (!command.staffOnly && target.role === 'member')
+            throw identityError('forbidden', 'Remove this person from Staff')
+          if (target.userId !== (command.event.userId as string)) {
+            throw identityError(
+              'organization_conflict',
+              'Member removal fact does not match the locked member authority',
+            )
+          }
+          const staff =
+            await tx.execute(sql`SELECT p.id FROM staff_participations p JOIN staff_user_links l ON l.organization_id = p.organization_id AND l.staff_participant_id = p.staff_participant_id
+            WHERE p.organization_id = ${command.organizationId} AND l.user_id = ${target.userId} AND l.effective_to IS NULL AND p.status = 'active'
+              AND (p.personal_portal_id IS NOT NULL OR EXISTS (SELECT 1 FROM staff_onboardings o WHERE o.organization_id = p.organization_id AND o.staff_participation_id = p.id)) FOR UPDATE OF p, l`)
+          if (staff.rows.length)
+            throw identityError(
+              'forbidden',
+              'Staff removal is unfinished. Retry removing this member before continuing',
+            )
+          // Sessions, grants and the membership go in one commit, with the
+          // fact: a stale cookie or a grant cannot outlive the membership.
+          // The member row's trigger fences the Google connections this user
+          // authorized in the same commit; Integration releases the rest of
+          // their Google authority from the fact.
+          await tx.delete(session).where(eq(session.userId, target.userId))
+          await revokeAllPropertyAccessForUser(tx, {
+            organizationId: command.organizationId as string,
+            userId: target.userId,
+            reason: 'member_offboarded',
+          })
+          await tx
+            .delete(member)
+            .where(
+              memberOfOrganization(command.memberId, command.organizationId as string),
+            )
+          await insertOutboxRow(tx, command.event)
+        })
+      })
+    },
+
+    changeMemberRole: async (command: ChangeMemberRoleCommand) => {
+      return trace('identity.commandStore.changeMemberRole', async () => {
+        if (!isBetaInteractiveMemberRoleToken(command.newRole)) {
+          throw identityError(
+            'forbidden',
+            'Only beta manager roles can be assigned to login accounts',
+          )
+        }
+        await db.transaction(async (tx) => {
+          const target = await lockMemberForRoleChange(
+            tx,
+            command.organizationId as string,
+            command.memberId,
+            { newRole: command.newRole, actorUserId: command.actorUserId },
+          )
+          if (target.userId !== (command.event.memberUserId as string)) {
+            throw identityError(
+              'organization_conflict',
+              'Role change fact does not match the locked member',
+            )
+          }
+          // The fact names the role it replaces; a change committed since
+          // the request read it would make that a false record.
+          if (target.role === command.newRole) {
+            throw identityError('validation_error', 'The member already has this role')
+          }
+          await tx
+            .update(member)
+            .set({ role: command.newRole })
+            .where(
+              memberOfOrganization(command.memberId, command.organizationId as string),
+            )
+          await insertOutboxRow(tx, command.event)
+        })
+      })
+    },
+
+    pendingRoleChangeCleanup: async (input) => {
+      const rows = await db
+        .select({ id: outboxEvents.id, payload: outboxEvents.payload })
+        .from(outboxEvents)
+        .where(
+          and(
+            eq(outboxEvents.organizationId, input.organizationId as string),
+            eq(outboxEvents.eventType, 'identity.member.role_changed'),
+            sql`${outboxEvents.payload}->>'memberUserId' = ${input.memberUserId}`,
+            sql`${outboxEvents.createdAt} > now() - ${ROLE_CHANGE_RETRY_WINDOW}`,
+          ),
+        )
+        .orderBy(desc(outboxEvents.createdAt))
+        .limit(1)
+      const newest = rows[0]
+      if (!newest) return null
+      const receipts = await db
+        .select({ eventId: eventConsumerReceipts.eventId })
+        .from(eventConsumerReceipts)
+        .where(
+          and(
+            eq(eventConsumerReceipts.eventId, newest.id),
+            eq(eventConsumerReceipts.consumerName, MEMBER_ROLE_CLEANUP_CONSUMER),
+          ),
+        )
+        .limit(1)
+      if (receipts[0]) return null
+      const actor = (newest.payload as { userId?: unknown }).userId
+      if (typeof actor !== 'string') return null
+      const pending: PendingRoleChangeCleanup = { eventId: newest.id, actorUserId: actor }
+      return pending
+    },
+
+    completeRoleChangeCleanup: async (eventId) => {
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(eventConsumerReceipts)
+          .values({
+            eventId,
+            consumerName: MEMBER_ROLE_CLEANUP_CONSUMER,
+            status: 'applied',
+          })
+          .onConflictDoNothing()
+      })
+    },
+  }
+}

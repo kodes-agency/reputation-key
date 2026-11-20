@@ -9,13 +9,13 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { assertSavableAvatar, handleAuthError } from './auth-settings.helpers'
-import { identityAssetKeyFromPath } from '../application/identity-assets'
-import { retireReplacedIdentityAsset } from '../application/retire-replaced-identity-asset'
-import { changePasswordCommandSchema } from '../application/dto/change-password.dto'
+import { identityAssetKeyFromPath } from '../images/identity-assets.contracts'
+import { retireReplacedIdentityAsset } from '../images/retire-replaced-identity-asset.server'
+import { changePasswordCommandSchema } from '../members/change-password.contracts'
 import {
   updateProfileInputSchema,
   updateUserImageInputSchema,
-} from '../application/dto/profile-settings.dto'
+} from '../members/profile-settings.contracts'
 
 // ── Change password ────────────────────────────────────────────────
 

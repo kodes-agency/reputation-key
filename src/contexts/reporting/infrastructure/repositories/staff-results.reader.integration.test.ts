@@ -11,7 +11,7 @@ import {
   STAFF_FIXTURE_NOW as NOW,
   type StaffAccountFixture,
 } from '#/shared/testing/staff-account-fixture'
-import { createStaffSelfReader } from '#/contexts/identity/infrastructure/adapters/staff-self.reader'
+import { createStaffSelfReader } from '#/contexts/identity/staff/staff-self-reader.server'
 import { createStaffResultsReader } from './staff-results.reader'
 import { METRIC_VERSION_IDS } from '../../readings/contracts'
 

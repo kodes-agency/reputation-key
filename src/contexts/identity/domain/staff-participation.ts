@@ -7,7 +7,7 @@
 //
 // Per ADR 0052: removing property access does not erase participation
 // or history. Archiving is written by
-// infrastructure/repositories/staff-participation.repository.ts, which ends the
+// staff/staff-participation-repository.server.ts, which ends the
 // participation's open Portal responsibility intervals in the same transaction.
 
 export type ParticipationStatus = 'active' | 'inactive' | 'archived'
