@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // Create-Portal command against real PostgreSQL (round 4, slice 26): the Portal,
 // its managers, its group membership and everything copied from another Portal
 // (its own look too, ADR 0070) commit together or not at all, and a copy never

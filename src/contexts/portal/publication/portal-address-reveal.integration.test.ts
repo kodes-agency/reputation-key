@@ -8,7 +8,7 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'

@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // ARC-01 — Portal authoritative state and lifecycle facts share one commit.
 //
 // These tests use real PostgreSQL because a mocked transaction cannot prove

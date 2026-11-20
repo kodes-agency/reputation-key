@@ -12,7 +12,7 @@ import {
   NOW,
   type FakeWorld,
   useRatingGoalDatabase,
-} from '../infrastructure/testing/rating-goal-fixtures'
+} from './rating-goal-use-cases.test-fixtures'
 
 useRatingGoalDatabase()
 

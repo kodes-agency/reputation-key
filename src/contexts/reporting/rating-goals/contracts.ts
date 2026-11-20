@@ -1,4 +1,4 @@
-// Browser-safe read types; command schemas stay in application/dto/rating-goal.dto.ts.
+// Browser-safe read types; command schemas stay in rating-goal.contracts.ts.
 // Display decimals accompany exact target tenths and pace tenths per week.
 // "Google shows" always means Google's own one-decimal number.
 

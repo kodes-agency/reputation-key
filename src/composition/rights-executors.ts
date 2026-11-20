@@ -52,7 +52,7 @@ import {
 import {
   createReportingRightsExecutor,
   createReportingRightsReplayers,
-} from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
+} from '#/contexts/reporting/rights/reporting-rights.adapter.server'
 import { createRetiredReadingsReplayer } from '#/contexts/reporting/infrastructure/adapters/retired-readings-erasure.adapter'
 import { createStaffParticipantErasureReplayer } from '#/contexts/identity/rights/staff-participant-erasure-replayer.adapter.server'
 import { createStaffParticipantRightsExecutor } from '#/contexts/identity/rights/staff-participant-rights.adapter.server'

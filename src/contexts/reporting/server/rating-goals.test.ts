@@ -53,7 +53,7 @@ import {
   changeRatingGoalSchema,
   keepRatingGoalPaceSchema,
   setRatingGoalSchema,
-} from '../application/dto/rating-goal.dto'
+} from '../rating-goals/rating-goal.contracts'
 import {
   changeRatingGoal,
   deferRatingGoal,

@@ -8,9 +8,9 @@ import type { MonthlyPortalGoalLineRequest, PortalGoalLineView } from './contrac
 import {
   isPortalGoalMeasure,
   type PropertyCountGoal,
-} from '../application/monthly-portal-goal-identity'
+} from './monthly-portal-goal-identity.server'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
-import { progressOf } from '../application/use-cases/goal-progress'
+import { progressOf } from './goal-progress.server'
 import type { GoalActor, GoalExecutionPolicy } from './goal-programs.server'
 import {
   gatherMonthlyPortalGoal,

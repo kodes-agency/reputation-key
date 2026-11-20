@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // The links a Portal's Results read names (real PostgreSQL): the Portal's own, in
 // guest order, each in the Portal's primary language or else its stored label.
 

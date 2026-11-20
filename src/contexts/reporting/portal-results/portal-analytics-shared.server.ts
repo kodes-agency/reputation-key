@@ -14,7 +14,7 @@ import type {
   MetricPortalMetricEvidence,
   MetricPortalMetricEvidenceSet,
   PortalMetricFamily,
-} from '../application/ports/portal-analytics.repository'
+} from './portal-analytics.repository.port.server'
 import {
   METRIC_VERSION_IDS,
   findMetricVersionById,

@@ -13,7 +13,7 @@ import {
   PROPERTY,
   type FakeWorld,
   useRatingGoalDatabase,
-} from '../infrastructure/testing/rating-goal-fixtures'
+} from './rating-goal-use-cases.test-fixtures'
 import {
   changeRatingGoal,
   endRatingGoal,

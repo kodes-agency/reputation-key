@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // Portal working copy (F4): publish, the in-transaction verification and the
 // history comparison must all see one working copy. These tests seed the rows
 // by SQL and pin what the working copy is (golden), then prove that each of

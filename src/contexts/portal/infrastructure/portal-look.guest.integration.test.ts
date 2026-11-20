@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // Two Portals of one Property, one with a look of its own (ADR 0070), published
 // and served the way a guest and the print kit read them, against real PostgreSQL.
 //

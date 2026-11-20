@@ -6,7 +6,7 @@ import type {
   GoalSubject,
   GoalTargetSource,
 } from '../../domain/goal-program'
-import type { GoalMetricSourceHead } from './goal-metric-source-status.port'
+import type { GoalMetricSourceHead } from '../../readings/goal-metric-source-status.port.server'
 import type {
   GoalMonthTargetChange,
   GoalMonthTargetFollowingOutcome,

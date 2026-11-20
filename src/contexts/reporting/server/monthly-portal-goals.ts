@@ -1,6 +1,6 @@
 // Keep this RPC module behind its own dynamic import. Sharing it with first-paint
 // entries or importing other RPC modules would merge its chunk. Validators stay
-// in the lazy monthly-portal-goal.dto.ts; read contracts are types only.
+// in the lazy monthly-portal-goals.contracts.ts; read contracts are types only.
 // withGoalPrograms checks goal.use, Property access and the operation's permission
 // before reading: create for reads/set/deferral, update for change/Keep, cancel for Stop.
 
@@ -20,7 +20,7 @@ import {
   reviseMonthlyPortalGoalSchema,
   setMonthlyPortalGoalSchema,
   stopMonthlyPortalGoalSchema,
-} from '../application/dto/monthly-portal-goal.dto'
+} from '../monthly-goals/monthly-portal-goals.contracts'
 import { withGoalPrograms } from './goal-program-request.server'
 
 /** The Goals page card: the goal by Program, or the state before one. */

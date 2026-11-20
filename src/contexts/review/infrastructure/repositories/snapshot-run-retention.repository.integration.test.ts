@@ -13,7 +13,7 @@ import {
   REVIEW_SNAPSHOT_RUN_RETENTION_SUBJECT,
 } from '#/shared/jobs/retention-sweep.job'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { createPropertySetupRepository } from '#/contexts/reporting/infrastructure/repositories/property-setup.repository'
+import { createPropertySetupRepository } from '#/contexts/reporting/property-overview/property-setup-repository.server'
 import { createReviewHeadCheckRepository } from './review-head-check.repository'
 import { recordedFailureCode } from './review-provider-snapshot-listing-change'
 import {

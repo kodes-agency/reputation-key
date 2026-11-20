@@ -11,7 +11,7 @@ import type {
 import {
   goalStepDown,
   goalStepUp,
-} from '#/contexts/reporting/application/goal-number-steps'
+} from '#/contexts/reporting/monthly-goals/goal-number-steps.contracts'
 import { formatNumber } from '#/lib/format'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
 import type { PortalGoalSetIntent } from './portal-goal-sheet-intent'

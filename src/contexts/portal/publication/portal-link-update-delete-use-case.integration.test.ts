@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'

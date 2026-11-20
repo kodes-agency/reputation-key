@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // A person's guest page takes over another Portal's wording, links and look in one
 // commit (R19). The rows and the working copy publication reads, on real PostgreSQL.
 

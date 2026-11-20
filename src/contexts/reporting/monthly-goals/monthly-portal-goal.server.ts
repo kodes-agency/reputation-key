@@ -1,4 +1,4 @@
-import { ratingSubjectSkipsPrivateRating } from '../application/goal-rating-eligibility'
+import { ratingSubjectSkipsPrivateRating } from './goal-rating-eligibility.server'
 // Monthly Property count goals use ordinary Programs (ADR 0068). Authorize before
 // reading. The cross-measure pre-check gives early feedback; the repository
 // repeats it under the Property definition lock for creates and revisions.
@@ -30,14 +30,14 @@ import {
   monthlyPortalGoalOf,
   portalGoalPageOf,
   type PropertyCountGoal,
-} from '../application/monthly-portal-goal-identity'
+} from './monthly-portal-goal-identity.server'
 import type {
   GoalProgram,
   GoalProgramBundle,
   GoalProgramRepository,
 } from '../application/ports/goal-program.repository'
-import type { PortalGoalPromptDeferralStore } from '../application/ports/portal-goal-prompt-deferrals.port'
-import type { GoalMonthTargetChangeResult } from '../application/use-cases/goal-month-target'
+import type { PortalGoalPromptDeferralStore } from './portal-goal-prompt-deferrals-repository.port.server'
+import type { GoalMonthTargetChangeResult } from './goal-month-target.server'
 import {
   GoalProgramError,
   type GoalActor,
@@ -50,12 +50,9 @@ import {
   gatherPortalGoalRecommendation,
   recommendationFrom,
   type PortalGoalRecommendationReads,
-} from '../application/use-cases/goal-recommendation-read'
+} from './goal-recommendation-read.server'
 import { offeredChoices } from './monthly-portal-goal-offer.server'
-import {
-  narrowedFor,
-  portalGoalAddBasisOf,
-} from '../application/use-cases/portal-goal-add-numbers'
+import { narrowedFor, portalGoalAddBasisOf } from './portal-goal-add-numbers.server'
 
 /** What the goal is called, everywhere it is named. */
 export const MONTHLY_PORTAL_GOAL_NAME = 'Monthly portal goal'

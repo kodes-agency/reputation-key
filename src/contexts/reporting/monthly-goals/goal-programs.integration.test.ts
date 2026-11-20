@@ -21,10 +21,10 @@ import {
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { findMetricVersionById, METRIC_VERSION_IDS } from '../readings/contracts'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
-import { withGoalProgramVisibility } from '../application/use-cases/goal-program-visibility'
-import { createGoalProgramRepository } from '../infrastructure/repositories/goal-program.repository'
-import { readGoalMetricSourceHead } from '../infrastructure/repositories/goal-metric-source-head'
-import { seedLockedMonthTarget } from '../infrastructure/testing/goal-month-target-seed'
+import { withGoalProgramVisibility } from './goal-program-visibility.server'
+import { createGoalProgramRepository } from './goal-program-repository.server'
+import { readGoalMetricSourceHead } from '../readings/goal-metric-source-head.server'
+import { seedLockedMonthTarget } from './goal-month-target-seed.test-fixtures'
 import {
   createGoalProgramService,
   GoalProgramError,

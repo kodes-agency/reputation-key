@@ -21,7 +21,7 @@ import type {
   RecordMetricsCommand,
   RetractMetricCommand,
   RetractMetricResult,
-} from '../application/ports/metric-command-store.port'
+} from './metric-command-store.port.server'
 import { primaryStaffAttributionEquals } from '#/shared/domain/primary-staff-attribution'
 import { validatePortalReading } from './contracts'
 

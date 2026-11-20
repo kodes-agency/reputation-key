@@ -6,7 +6,7 @@ import {
 import { propertyId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type { PortalAnalyticsData } from '../domain/dashboard-types'
-import type { PortalAnalyticsRepository } from '../application/ports/portal-analytics.repository'
+import type { PortalAnalyticsRepository } from './portal-analytics.repository.port.server'
 import {
   ORG,
   PROP,

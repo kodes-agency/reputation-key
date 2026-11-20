@@ -19,16 +19,16 @@ import type {
 import type {
   GoalRecommendationCounts,
   GoalRecommendationFactsPort,
-} from '../application/ports/goal-recommendation-facts.port'
+} from './goal-recommendation-facts.port.server'
 import type {
   PortalGoalPromptDeferral,
   PortalGoalPromptDeferralStore,
-} from '../application/ports/portal-goal-prompt-deferrals.port'
+} from './portal-goal-prompt-deferrals-repository.port.server'
 import {
   GoalProgramError,
   type GoalActor,
 } from '../application/use-cases/goal-program-shared'
-import type { GovernedGoalMetricResult } from '../application/use-cases/query-goal-metric'
+import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.server'
 import type { PortalGoalCardView, PortalGoalOfCard } from './contracts'
 import type { MonthlyPortalGoalPageDeps } from './monthly-portal-goal-page.server'
 import type { PortalGoalSinglePageDeps } from './get-portal-goal-page.server'

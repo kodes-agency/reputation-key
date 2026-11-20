@@ -4,7 +4,7 @@
 import {
   dayTenthsOf,
   perMonthOf,
-} from '#/contexts/reporting/application/rating-goal-setup-plan'
+} from '#/contexts/reporting/rating-goals/rating-goal-setup-plan.contracts'
 import { formatNumber } from '#/lib/format'
 
 /** One review a day, in tenths of a review a week. */

@@ -9,7 +9,7 @@ import {
   getGoalProgressSchema,
   getGoalProgramHistorySchema,
   listGoalProgramsSchema,
-} from '../application/dto/goal-program.dto'
+} from '../monthly-goals/goal-program.contracts'
 import { withGoalPrograms } from './goal-program-request.server'
 
 export const listGoalPrograms = createServerFn({ method: 'GET' })

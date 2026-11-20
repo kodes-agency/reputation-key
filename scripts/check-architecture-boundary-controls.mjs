@@ -147,7 +147,7 @@ const controls = [
   {
     name: 'feature contract cannot import application runtime',
     file: 'src/contexts/reporting/portal-results/contracts.ts',
-    source: "import '../application/utils'\n",
+    source: "import '../application/goal-results-matrix'\n",
   },
   {
     name: 'new feature UI cannot import a server implementation',
@@ -360,8 +360,8 @@ const allowedControls = [
   },
   {
     name: 'Reporting repositories may share Portal results SQL helpers',
-    file: 'src/contexts/reporting/infrastructure/repositories/portal-last-scans.ts',
-    source: "import '../../portal-results/portal-analytics-shared.server'\n",
+    file: 'src/contexts/reporting/portal-results/portal-last-scans.server.ts',
+    source: "import './portal-analytics-shared.server'\n",
   },
   {
     name: 'a feature server may use another feature’s server code in its area',
