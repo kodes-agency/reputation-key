@@ -1,0 +1,1067 @@
+import { describe, expect, it, vi } from 'vitest'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import {
+  googleConnectionId,
+  organizationId,
+  propertyId,
+  userId,
+} from '#/shared/domain/ids'
+import type { ExecutionDecision } from '#/shared/auth/execution-policy'
+import { googleAuthorizationPermissionDigest } from '#/shared/domain/google-content-authorization-vector'
+import { BANNED_LOG_KEYS } from '#/shared/observability/metrics-schema'
+import { integrationError } from '../domain/errors'
+import type { GoogleConnection } from '../domain/types'
+import { createGoogleImportCommandAuthorizer } from './google-import-command-authorizer.server'
+
+const actor: AuthContext = {
+  organizationId: organizationId('org-1'),
+  userId: userId('user-1'),
+  role: 'AccountAdmin',
+  effectivePermissions: new Set<Permission>([
+    'integration.manage',
+    'property.read',
+    'property.update',
+  ]),
+}
+const connectionId = googleConnectionId('11111111-1111-4111-8111-111111111111')
+const destinationId = propertyId('22222222-2222-4222-8222-222222222222')
+
+const connection = (overrides: Partial<GoogleConnection> = {}): GoogleConnection => ({
+  id: connectionId,
+  organizationId: actor.organizationId,
+  googleSubject: 'subject',
+  googleAccountEmail: null,
+  encryptedAccessToken: 'encrypted-access',
+  encryptedRefreshToken: 'encrypted-refresh',
+  tokenExpiresAt: new Date('2026-08-12T11:00:00.000Z'),
+  scopes: ['https://www.googleapis.com/auth/business.manage'],
+  connectedBy: actor.userId,
+  visibility: 'organization',
+  status: 'active',
+  credentialUseState: 'active',
+  cleanupMaterialDeadlineAt: null,
+  lifecycleVersion: 3,
+  accessVersion: 4,
+  credentialGeneration: 5,
+  encryptionKeyId: 'v1',
+  lastSuccessfulSyncAt: null,
+  statusReason: null,
+  statusChangedAt: null,
+  createdAt: new Date('2026-08-01T10:00:00.000Z'),
+  updatedAt: new Date('2026-08-01T10:00:00.000Z'),
+  ...overrides,
+  credentialAuthorizedBy: overrides.credentialAuthorizedBy ?? actor.userId,
+})
+
+const allow = (policyVersion = 'beta-local-2'): ExecutionDecision => ({
+  allowed: true,
+  reason: 'allowed',
+  action: 'integration.manage',
+  policyVersion,
+})
+
+const contentAuthorization = (
+  overrides: Partial<{
+    connectionLifecycleVersion: number
+    connectionAccessVersion: number
+    credentialGeneration: number
+  }> = {},
+) => ({
+  ok: true as const,
+  policyVersion: 11,
+  emergencyKillVersion: 4,
+  authorizationVector: {
+    executionPolicyVersion: 'beta-local-2',
+    principalKind: 'user',
+    role: 'AccountAdmin',
+    permissionVersion: 7,
+    permissionDigest: googleAuthorizationPermissionDigest(actor),
+    connectionLifecycleVersion: 3,
+    connectionAccessVersion: 4,
+    credentialGeneration: 5,
+    ...overrides,
+  },
+})
+
+function setup(
+  input?: Readonly<{
+    current?: GoogleConnection | null
+    decide?: (
+      request: Parameters<
+        Parameters<typeof createGoogleImportCommandAuthorizer>[0]['decide']
+      >[0],
+    ) => Promise<ExecutionDecision>
+    authorizeGoogleContent?: (
+      input: Parameters<
+        Parameters<
+          typeof createGoogleImportCommandAuthorizer
+        >[0]['authorizeGoogleContent']
+      >[0],
+    ) => Promise<
+      Awaited<
+        ReturnType<
+          Parameters<
+            typeof createGoogleImportCommandAuthorizer
+          >[0]['authorizeGoogleContent']
+        >
+      >
+    >
+    /**
+     * Only the cases that assert on the refusal log pass this; every other
+     * case leaves it unset, which is what proves the dep is optional and
+     * defaults to a no-op.
+     */
+    warn?: (fields: Readonly<Record<string, unknown>>, message: string) => void
+  }>,
+) {
+  const findById = vi.fn(async () => input?.current ?? connection())
+  const getAccessToken = vi.fn(async () => 'plain-access-token')
+  const decide = vi.fn(input?.decide ?? (async () => allow()))
+  const authorizeGoogleContent = vi.fn(
+    input?.authorizeGoogleContent ?? (async () => contentAuthorization()),
+  )
+  const readProperty = vi.fn(async () => ({
+    organizationId: actor.organizationId,
+    propertyId: destinationId,
+    state: 'disconnected' as const,
+    connectionId,
+    accountId: 'account-1',
+    locationId: 'location-1',
+    sourceEpoch: 8,
+    profileVersion: 6,
+    profileSource: 'tenant_confirmed' as const,
+    profileConfirmedAt: new Date('2026-08-01T10:00:00.000Z'),
+    deletedAt: null,
+    name: 'Property',
+    address: null,
+    countryCode: 'US',
+    timezone: 'America/New_York',
+    lifecycleState: 'active',
+  }))
+  const authorize = createGoogleImportCommandAuthorizer({
+    connectionRepo: { findById },
+    tokenProvider: { getAccessToken },
+    decide,
+    readProperty,
+    authorizeGoogleContent,
+    clock: () => new Date('2026-08-12T12:00:00.000Z'),
+    ...(input?.warn ? { warn: input.warn } : {}),
+  })
+  return {
+    authorize,
+    findById,
+    getAccessToken,
+    decide,
+    readProperty,
+    authorizeGoogleContent,
+  }
+}
+
+describe('authorizeGoogleImportCommand', () => {
+  it('refuses content authority withdrawn during token access without a credential change', async () => {
+    let tokenRead = false
+    const fixture = setup({
+      authorizeGoogleContent: async () =>
+        tokenRead ? { ok: false, code: 'authorization_denied' } : contentAuthorization(),
+    })
+    fixture.getAccessToken.mockImplementation(async () => {
+      tokenRead = true
+      return 'plain-access-token'
+    })
+
+    await expect(
+      fixture.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+  })
+
+  it('refuses a relink target changed during token access', async () => {
+    const fixture = setup()
+    fixture.getAccessToken.mockImplementation(async () => {
+      const property = await fixture.readProperty()
+      fixture.readProperty.mockResolvedValue({ ...property, sourceEpoch: 9 })
+      return 'plain-access-token'
+    })
+
+    await expect(
+      fixture.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+        properties: [
+          {
+            propertyId: destinationId,
+            sourceEpoch: 8,
+            profileVersion: 6,
+            action: 'property.update',
+          },
+        ],
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+  })
+
+  it('returns a connection generation snapshot only after both capability decisions', async () => {
+    const { authorize, decide, getAccessToken } = setup()
+
+    const result = await authorize({
+      actor,
+      connectionId,
+      phase: 'provider_call',
+      requireAccessToken: true,
+    })
+
+    expect(decide.mock.calls.map(([request]) => request.capability)).toEqual([
+      'property.import_gbp_v2',
+      'property.connect_gbp',
+      'property.import_gbp_v2',
+      'property.connect_gbp',
+    ])
+    expect(decide.mock.invocationCallOrder[1]).toBeLessThan(
+      getAccessToken.mock.invocationCallOrder[0]!,
+    )
+    expect(decide.mock.invocationCallOrder[2]).toBeGreaterThan(
+      getAccessToken.mock.invocationCallOrder[0]!,
+    )
+    expect(getAccessToken).toHaveBeenCalledWith(actor.organizationId, connectionId)
+    expect(result).toMatchObject({
+      ok: true,
+      authorization: {
+        organizationId: actor.organizationId,
+        userId: actor.userId,
+        connectionId,
+        connectionLifecycleVersion: 3,
+        connectionAccessVersion: 4,
+        credentialGeneration: 5,
+        authorizationVector: {
+          executionPolicyVersion: 'beta-local-2',
+          role: 'AccountAdmin',
+          connectionLifecycleVersion: 3,
+          connectionAccessVersion: 4,
+          credentialGeneration: 5,
+        },
+      },
+      accessToken: 'plain-access-token',
+    })
+  })
+
+  it('reauthorizes a provider call after an authorized credential refresh', async () => {
+    const fixture = setup()
+    fixture.findById
+      .mockResolvedValueOnce(connection())
+      .mockResolvedValueOnce(connection({ credentialGeneration: 6 }))
+    fixture.authorizeGoogleContent
+      .mockResolvedValueOnce(contentAuthorization())
+      .mockResolvedValueOnce(contentAuthorization({ credentialGeneration: 6 }))
+
+    await expect(
+      fixture.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      authorization: {
+        connectionLifecycleVersion: 3,
+        connectionAccessVersion: 4,
+        credentialGeneration: 6,
+        authorizationVector: {
+          connectionLifecycleVersion: 3,
+          connectionAccessVersion: 4,
+          credentialGeneration: 6,
+        },
+      },
+      accessToken: 'plain-access-token',
+    })
+    expect(fixture.authorizeGoogleContent).toHaveBeenCalledTimes(2)
+  })
+
+  it('fails closed when connection authority changes during token access', async () => {
+    const fixture = setup()
+    fixture.findById
+      .mockResolvedValueOnce(connection())
+      .mockResolvedValueOnce(connection({ lifecycleVersion: 4, credentialGeneration: 6 }))
+
+    await expect(
+      fixture.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+    expect(fixture.authorizeGoogleContent).toHaveBeenCalledOnce()
+  })
+
+  it('denies before token access for capability, status, credential, or scope failure', async () => {
+    const deniedDecision = setup({
+      decide: async () => ({ ...allow(), allowed: false, reason: 'capability_disabled' }),
+    })
+    await expect(
+      deniedDecision.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+    expect(deniedDecision.getAccessToken).not.toHaveBeenCalled()
+
+    for (const current of [
+      connection({ status: 'disconnected' }),
+      connection({ credentialUseState: 'none' }),
+      connection({ scopes: [] }),
+    ]) {
+      const denied = setup({ current })
+      await expect(
+        denied.authorize({
+          actor,
+          connectionId,
+          phase: 'provider_call',
+          requireAccessToken: true,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'connection_unavailable' })
+      expect(denied.getAccessToken).not.toHaveBeenCalled()
+    }
+  })
+
+  it('treats connectedBy as provenance for a legacy private row', async () => {
+    const current = connection({
+      visibility: 'private',
+      connectedBy: userId('former-connector'),
+    })
+    const { authorize } = setup({ current })
+
+    await expect(
+      authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: false,
+      }),
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('requires current Organization-wide authority instead of the raw role label', async () => {
+    const { authorize, decide, findById } = setup()
+    const assignedManager: AuthContext = {
+      ...actor,
+      role: 'PropertyManager',
+      effectivePermissions: new Set<Permission>(['integration.manage']),
+      scopeByPermission: new Map<Permission, 'assigned-properties'>([
+        ['integration.manage', 'assigned-properties'],
+      ]),
+    }
+
+    await expect(
+      authorize({
+        actor: assignedManager,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: false,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+    expect(decide).not.toHaveBeenCalled()
+    expect(findById).not.toHaveBeenCalled()
+  })
+
+  it('denies a post-call check when any frozen connection generation changed', async () => {
+    const expected = {
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      connectionId,
+      connectionLifecycleVersion: 3,
+      connectionAccessVersion: 4,
+      credentialGeneration: 5,
+      authorizationVector: {
+        executionPolicyVersion: 'beta-local-2',
+        role: 'AccountAdmin',
+        permissionDigest: 'irrelevant',
+      },
+    }
+    const { authorize, getAccessToken } = setup({
+      current: connection({ credentialGeneration: 6 }),
+    })
+
+    await expect(
+      authorize({
+        actor,
+        connectionId,
+        phase: 'publish',
+        expected,
+        requireAccessToken: false,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+    expect(getAccessToken).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before token access when content authorization is unavailable', async () => {
+    const denied = setup({
+      authorizeGoogleContent: async () => ({
+        ok: false,
+        code: 'runtime_unavailable',
+      }),
+    })
+    await expect(
+      denied.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'runtime_unavailable',
+      step: 'content_authorization',
+    })
+    expect(denied.getAccessToken).not.toHaveBeenCalled()
+  })
+
+  // On 2026-10-23 a token refresh failed inside this step and the only record was
+  // "temporarily unavailable" (#946): the catch named neither the step nor the
+  // failure. Each unavailable step now says which it was, content-free.
+  it('names the token access step and logs its failure without the message', async () => {
+    const warn = vi.fn()
+    const failing = setup({ warn })
+    failing.getAccessToken.mockRejectedValueOnce(
+      integrationError('token_refresh_failed', 'refresh for tenant-secret failed'),
+    )
+
+    await expect(
+      failing.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'runtime_unavailable', step: 'token_access' })
+    expect(warn).toHaveBeenCalledWith(
+      {
+        step: 'token_access',
+        errorName: 'IntegrationError',
+        error_code: 'token_refresh_failed',
+      },
+      'google_import.runtime_unavailable_detail',
+    )
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('tenant-secret')
+  })
+
+  it('names the reread after token access separately from the token itself', async () => {
+    const failing = setup()
+    failing.findById
+      .mockImplementationOnce(async () => connection())
+      .mockRejectedValueOnce(new Error('connection read failed'))
+
+    await expect(
+      failing.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'runtime_unavailable', step: 'token_reread' })
+  })
+
+  it('names the capability decision step when the policy read fails', async () => {
+    const warn = vi.fn()
+    const failing = setup({
+      decide: async () => {
+        throw new TypeError('policy store down')
+      },
+      warn,
+    })
+
+    await expect(
+      failing.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'runtime_unavailable',
+      step: 'capability_decision',
+    })
+    expect(warn).toHaveBeenCalledWith(
+      { step: 'capability_decision', errorName: 'TypeError' },
+      'google_import.runtime_unavailable_detail',
+    )
+  })
+
+  it('rechecks destination generations and scoped permission before publication', async () => {
+    const allowed = setup()
+    const result = await allowed.authorize({
+      actor,
+      connectionId,
+      phase: 'publish',
+      properties: [
+        {
+          propertyId: destinationId,
+          sourceEpoch: 8,
+          profileVersion: 6,
+          action: 'property.update',
+        },
+      ],
+      requireAccessToken: false,
+    })
+    expect(result.ok).toBe(true)
+    expect(allowed.readProperty).toHaveBeenCalledWith(actor.organizationId, destinationId)
+    expect(allowed.decide).toHaveBeenCalledTimes(3)
+
+    const stale = setup()
+    stale.readProperty.mockResolvedValueOnce({
+      ...(await stale.readProperty()),
+      sourceEpoch: 9,
+    })
+    await expect(
+      stale.authorize({
+        actor,
+        connectionId,
+        phase: 'publish',
+        properties: [
+          {
+            propertyId: destinationId,
+            sourceEpoch: 8,
+            profileVersion: 6,
+            action: 'property.update',
+          },
+        ],
+        requireAccessToken: false,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+  })
+
+  // The per-property capability decision is the GATE, not the frozen
+  // expectations checked immediately above it, so it must not report
+  // `authorization_changed` — that code is reserved for drift, and reusing it
+  // here made a denied capability indistinguishable from a moved source epoch
+  // in everything downstream, including the persisted import outcome.
+  it('reports a per-property capability denial as a denial, not as drift', async () => {
+    let calls = 0
+    const denied = setup({
+      decide: async () => {
+        calls += 1
+        // Org-level import + connect decisions allow; only the third call,
+        // the property-scoped one, denies.
+        return calls < 3
+          ? allow()
+          : { ...allow(), allowed: false, reason: 'capability_disabled' }
+      },
+    })
+
+    await expect(
+      denied.authorize({
+        actor,
+        connectionId,
+        phase: 'publish',
+        properties: [
+          {
+            propertyId: destinationId,
+            sourceEpoch: 8,
+            profileVersion: 6,
+            action: 'property.update',
+          },
+        ],
+        requireAccessToken: false,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+    expect(denied.decide).toHaveBeenCalledTimes(3)
+  })
+
+  // One import job mixing a create with a relink. Both items freeze the same
+  // authorization at approval time, then run as separate delayed effects. The
+  // content authority reports the live execution-control generation. A sibling
+  // may advance that generation while this item's own authorization remains
+  // unchanged, so authorization is re-proved instead of comparing a global
+  // generation snapshot.
+  describe('a sibling item advancing the execution-control generation', () => {
+    const relinkProperties = [
+      {
+        propertyId: destinationId,
+        sourceEpoch: 8,
+        profileVersion: 6,
+        action: 'property.update' as const,
+      },
+    ]
+
+    /**
+     * The vector persisted per item at approval time.
+     *
+     * It no longer carries `googleContentPolicyVersion` — WP2.2 step 2 removed
+     * that key from the vector entirely, so `generation` now only drives what
+     * the content authority reports. These tests keep their value: they assert
+     * the OUTCOME (a sibling's bump does not cancel an in-flight relink), which
+     * used to be protected by excluding the key from the comparison and is now
+     * true by construction. The outcome is what the product depends on.
+     */
+    const frozenAtApproval = () => ({
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      connectionId,
+      connectionLifecycleVersion: 3,
+      connectionAccessVersion: 4,
+      credentialGeneration: 5,
+      authorizationVector: {
+        executionPolicyVersion: 'beta-local-2',
+        principalKind: 'user',
+        role: 'AccountAdmin',
+        permissionVersion: 7,
+        permissionDigest: googleAuthorizationPermissionDigest(actor),
+        connectionLifecycleVersion: 3,
+        connectionAccessVersion: 4,
+        credentialGeneration: 5,
+      },
+    })
+
+    /** What the content authority reports once the control generation moves. */
+    const atGeneration = (
+      generation: number,
+      overrides: Partial<{ role: string }> = {},
+    ) => {
+      const base = contentAuthorization()
+      return {
+        ...base,
+        policyVersion: generation,
+        authorizationVector: {
+          ...base.authorizationVector,
+          ...overrides,
+        },
+      }
+    }
+
+    it('does not cancel the relink when only the control generation moves', async () => {
+      let globalPolicyGeneration = 11
+      const frozen = frozenAtApproval()
+
+      // An unrelated sibling advances the live control generation.
+      globalPolicyGeneration += 1
+
+      const { authorize, decide } = setup({
+        authorizeGoogleContent: async () => atGeneration(globalPolicyGeneration),
+      })
+
+      const result = await authorize({
+        actor,
+        connectionId,
+        phase: 'publish',
+        expected: frozen,
+        properties: relinkProperties,
+        requireAccessToken: false,
+      })
+
+      expect(result).toMatchObject({ ok: true })
+      // The relink item still had to re-prove its own authorization from
+      // scratch: org import, org connect, and the property-scoped decision.
+      expect(decide).toHaveBeenCalledTimes(3)
+    })
+
+    it('survives a generation that moved many times, not merely by one', async () => {
+      const frozen = frozenAtApproval()
+      const { authorize } = setup({
+        authorizeGoogleContent: async () => atGeneration(4096),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozen,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toMatchObject({ ok: true })
+    })
+
+    it('still cancels when the actor lost authority in the same window', async () => {
+      const frozen = frozenAtApproval()
+      const { authorize } = setup({
+        authorizeGoogleContent: async () => atGeneration(12, { role: 'Member' }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozen,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+    })
+
+    it('still denies when the fresh property-scoped decision refuses access', async () => {
+      // A generation counter cannot prove that this property's decision stayed
+      // valid. The property-scoped decision is therefore re-proved freshly.
+      let calls = 0
+      const { authorize } = setup({
+        authorizeGoogleContent: async () => atGeneration(12),
+        decide: async () => {
+          calls += 1
+          return calls < 3
+            ? allow()
+            : { ...allow(), allowed: false, reason: 'capability_disabled' }
+        },
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtApproval(),
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+    })
+  })
+
+  // A routine expired-access-token refresh bumps `credential_generation` and
+  // NOTHING else (`updateTokens`). Requiring equality against the value frozen
+  // at approval therefore reported revocation for a successful refresh and
+  // cancelled any import whose token aged between approval and effect — the
+  // same class of bug as the sibling-generation cancellation above, on a
+  // different counter. The performance lease fence already excluded it.
+  describe('a routine credential refresh between approval and effect', () => {
+    const relinkProperties = [
+      {
+        propertyId: destinationId,
+        sourceEpoch: 8,
+        profileVersion: 6,
+        action: 'property.update' as const,
+      },
+    ]
+
+    /** Frozen at approval while the connection sat at generation 5. */
+    const frozenAtGeneration5 = {
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      connectionId,
+      connectionLifecycleVersion: 3,
+      connectionAccessVersion: 4,
+      credentialGeneration: 5,
+      authorizationVector: {
+        executionPolicyVersion: 'beta-local-2',
+        principalKind: 'user',
+        role: 'AccountAdmin',
+        permissionVersion: 7,
+        permissionDigest: googleAuthorizationPermissionDigest(actor),
+        connectionLifecycleVersion: 3,
+        connectionAccessVersion: 4,
+        credentialGeneration: 5,
+      },
+    }
+
+    it('no longer cancels the item when the generation moved forward', async () => {
+      // The refresh landed: the connection is at 6, the revocation epochs did
+      // not move, and the content authority reports the fresh generation.
+      const { authorize } = setup({
+        current: connection({ credentialGeneration: 6 }),
+        authorizeGoogleContent: async () =>
+          contentAuthorization({ credentialGeneration: 6 }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtGeneration5,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        authorization: { credentialGeneration: 6 },
+      })
+    })
+
+    it('still denies a generation REGRESSION, naming the site and the values', async () => {
+      const warn = vi.fn()
+      const { authorize } = setup({
+        current: connection({ credentialGeneration: 4 }),
+        authorizeGoogleContent: async () =>
+          contentAuthorization({ credentialGeneration: 4 }),
+        warn,
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtGeneration5,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn.mock.calls[0]?.[1]).toBe('google_import.authorization_changed_detail')
+      expect(warn.mock.calls[0]?.[0]).toMatchObject({
+        site: 'expected_connection_pre_token',
+        expected: { credentialGeneration: 5 },
+        observed: { credentialGeneration: 4 },
+      })
+    })
+
+    it('still denies when a revocation epoch moved alongside the generation', async () => {
+      const { authorize } = setup({
+        current: connection({ lifecycleVersion: 4, credentialGeneration: 6 }),
+        authorizeGoogleContent: async () =>
+          contentAuthorization({ credentialGeneration: 6 }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtGeneration5,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+    })
+
+    it('names the property_snapshot site when the relink target drifted', async () => {
+      const warn = vi.fn()
+      const fixture = setup({ warn })
+      fixture.readProperty.mockResolvedValueOnce({
+        organizationId: actor.organizationId,
+        propertyId: destinationId,
+        state: 'disconnected' as const,
+        connectionId,
+        accountId: 'account-1',
+        locationId: 'location-1',
+        sourceEpoch: 9,
+        profileVersion: 7,
+        profileSource: 'tenant_confirmed' as const,
+        profileConfirmedAt: new Date('2026-08-01T10:00:00.000Z'),
+        deletedAt: null,
+        name: 'Property',
+        address: null,
+        countryCode: 'US',
+        timezone: 'America/New_York',
+        lifecycleState: 'active',
+      })
+
+      await expect(
+        fixture.authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtGeneration5,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+
+      expect(warn.mock.calls[0]?.[0]).toMatchObject({
+        site: 'property_snapshot',
+        expected: { sourceEpoch: 8, profileVersion: 6 },
+        observed: { sourceEpoch: 9, profileVersion: 7, missing: false, deleted: false },
+      })
+    })
+  })
+
+  // The same-request vector check compares the content authority's vector with
+  // a local recompute - and those come from DIFFERENT reads (the authority runs
+  // its own SQL in google-content-authorization-check.server.ts). Exact equality here
+  // cancelled healthy relinks on main: the sibling create item's provisioning
+  // bumped the global policy generation between the two reads.
+  describe('the authority and the local recompute read at different instants', () => {
+    const relinkProperties = [
+      {
+        propertyId: destinationId,
+        sourceEpoch: 8,
+        profileVersion: 6,
+        action: 'property.update' as const,
+      },
+    ]
+
+    it('allows a global policy generation that moved between the two reads', async () => {
+      const { authorize } = setup({
+        // The authority's vector was built at generation 11; its returned
+        // policyVersion - and so the local recompute - already sees 12.
+        authorizeGoogleContent: async () => ({
+          ...contentAuthorization(),
+          policyVersion: 12,
+        }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toMatchObject({ ok: true })
+    })
+
+    it('allows a credential generation that moved between the two reads', async () => {
+      const { authorize } = setup({
+        current: connection({ credentialGeneration: 6 }),
+        authorizeGoogleContent: async () => contentAuthorization(),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        authorization: { credentialGeneration: 6 },
+      })
+    })
+
+    it('still denies an authority-withdrawing difference, and the drift is never empty', async () => {
+      const warn = vi.fn()
+      const { authorize } = setup({
+        warn,
+        authorizeGoogleContent: async () => ({
+          ...contentAuthorization(),
+          authorizationVector: {
+            ...contentAuthorization().authorizationVector,
+            permissionDigest: 'b'.repeat(64),
+          },
+        }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+
+      const logged = warn.mock.calls[0]?.[0] as { site: string; drift: unknown[] }
+      expect(logged.site).toBe('same_request_vector')
+      // The whole point of the report: a denial always names a key. A previous
+      // version logged `drift: []` here because it excluded the keys that had
+      // actually moved.
+      expect(logged.drift).toEqual([
+        {
+          key: 'permissionDigest',
+          frozen: 'b'.repeat(64),
+          recomputed: googleAuthorizationPermissionDigest(actor),
+        },
+      ])
+    })
+  })
+})
+
+// Tenant identifiers are never log fields (BANNED_LOG_KEYS). The logger-call-site
+// gate cannot see through the injected `warn`, so the sites that build their
+// fields in a helper are held to the rule here.
+describe('the authorization_changed log', () => {
+  const frozen = {
+    organizationId: actor.organizationId,
+    userId: actor.userId,
+    connectionId,
+    connectionLifecycleVersion: 3,
+    connectionAccessVersion: 4,
+    credentialGeneration: 5,
+    authorizationVector: contentAuthorization().authorizationVector,
+  }
+  const relinkProperties = [
+    {
+      propertyId: destinationId,
+      sourceEpoch: 8,
+      profileVersion: 6,
+      action: 'property.update' as const,
+    },
+  ]
+  const loggedKeys = (value: unknown): string[] =>
+    typeof value === 'object' && value !== null
+      ? Object.entries(value).flatMap(([key, child]) => [key, ...loggedKeys(child)])
+      : []
+  const bannedKeysLogged = (warn: ReturnType<typeof vi.fn>) =>
+    warn.mock.calls
+      .flatMap((call) => loggedKeys(call[0]))
+      .filter((key) => (BANNED_LOG_KEYS as readonly string[]).includes(key))
+
+  it('names the site and the drift without a tenant identifier when the connection regressed', async () => {
+    const warn = vi.fn()
+    const { authorize } = setup({
+      current: connection({ credentialGeneration: 4 }),
+      authorizeGoogleContent: async () =>
+        contentAuthorization({ credentialGeneration: 4 }),
+      warn,
+    })
+
+    await authorize({
+      actor,
+      connectionId,
+      phase: 'publish',
+      expected: frozen,
+      properties: relinkProperties,
+      requireAccessToken: false,
+    })
+
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({
+      site: 'expected_connection_pre_token',
+    })
+    expect(bannedKeysLogged(warn)).toEqual([])
+  })
+
+  it('names the site and the drift without a tenant identifier when the relink target drifted', async () => {
+    const warn = vi.fn()
+    const fixture = setup({ warn })
+    fixture.readProperty.mockResolvedValueOnce({
+      ...(await fixture.readProperty()),
+      sourceEpoch: 9,
+    })
+
+    await fixture.authorize({
+      actor,
+      connectionId,
+      phase: 'publish',
+      expected: frozen,
+      properties: relinkProperties,
+      requireAccessToken: false,
+    })
+
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({ site: 'property_snapshot' })
+    expect(bannedKeysLogged(warn)).toEqual([])
+  })
+
+  it('names the site and the counters without a tenant identifier when the connection moved during token access', async () => {
+    const warn = vi.fn()
+    const fixture = setup({ warn })
+    fixture.findById
+      .mockResolvedValueOnce(connection())
+      .mockResolvedValueOnce(connection({ lifecycleVersion: 4 }))
+
+    await fixture.authorize({
+      actor,
+      connectionId,
+      phase: 'provider_call',
+      requireAccessToken: true,
+    })
+
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({
+      site: 'connection_moved_during_token_access',
+    })
+    expect(bannedKeysLogged(warn)).toEqual([])
+  })
+})

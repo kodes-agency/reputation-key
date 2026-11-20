@@ -149,7 +149,7 @@ only.
 
 Nothing to run. Two paths tell Google to publish, both through the same
 `subscribe` use case
-(`src/contexts/integration/application/use-cases/manage-notifications.ts`):
+(`src/contexts/integration/connections/manage-notifications.server.ts`):
 
 1. **On import.** Each imported property subscribes its connection's accounts
    as soon as the import item completes.

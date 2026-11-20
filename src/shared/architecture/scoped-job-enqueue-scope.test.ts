@@ -40,7 +40,7 @@ import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/replay/ai-job-enqueue.server'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails-job.server'
-import { createGoogleImportQueue } from '#/contexts/integration/infrastructure/google-import-queue'
+import { createGoogleImportQueue } from '#/contexts/integration/imports/google-import-queue.server'
 import { buildReviewContext } from '#/contexts/review/build'
 
 vi.mock('#/shared/observability/logger', () => ({

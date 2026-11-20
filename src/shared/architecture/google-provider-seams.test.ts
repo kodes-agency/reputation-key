@@ -24,7 +24,7 @@ describe('Review and Identity seams to Integration', () => {
   it('reaches Integration through its seams, never through a context-private hatch', () => {
     expect(read('src/contexts/review/build.ts')).not.toContain('.internal.')
     expect(
-      read(`${INTEGRATION}/infrastructure/member-departure-outbox-consumers.ts`),
+      read(`${INTEGRATION}/connections/member-departure-outbox-consumers.server.ts`),
     ).not.toContain('.internal.')
   })
 
@@ -72,7 +72,9 @@ describe('Google provider authority wiring', () => {
     expect(notificationWiring).toContain('notifications,')
     expect(notificationWiring).not.toContain('createGoogleAccountManagementAdapter')
 
-    const runtime = read(`${INTEGRATION}/infrastructure/google-notification-runtime.ts`)
+    const runtime = read(
+      `${INTEGRATION}/connections/google-notification-runtime.server.ts`,
+    )
     expect(runtime).toContain('manageNotifications({')
     expect(runtime).toContain('notifications: deps.notifications')
     expect(runtime).not.toContain('createGoogleAccountManagementAdapter')
@@ -82,7 +84,7 @@ describe('Google provider authority wiring', () => {
       read(`${INTEGRATION}/review-sync/google-review-sync-runtime.server.ts`),
     ).toContain('createGoogleNotificationProviderAuthorizer({')
     const authorizer = read(
-      `${INTEGRATION}/application/google-notification-provider-authorizer.ts`,
+      `${INTEGRATION}/connections/google-notification-provider-authorizer.server.ts`,
     )
     expect(authorizer).toContain('const targetedAccounts = new Set<string>()')
     expect(authorizer).toContain('gbpAccountId: binding.accountId')

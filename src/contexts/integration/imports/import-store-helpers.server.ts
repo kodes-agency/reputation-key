@@ -6,7 +6,7 @@ import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '../application/google-
 import type {
   GoogleImportIntent,
   GoogleImportTerminalAuthority,
-} from '../application/ports/google-import-store.port'
+} from './import-store.port.server'
 import type {
   IntegrationPropertyImportRequested,
   IntegrationPropertyImportRetentionReleased,

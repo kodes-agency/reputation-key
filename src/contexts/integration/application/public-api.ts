@@ -4,17 +4,17 @@
  * Re-exports domain types that components need.
  * Per boundary rules: components may import from `application/` but NOT from `domain/`.
  */
-export type { GoogleConnectionDto } from './dto/google-connection.dto'
-export type { GoogleAuthUrlInput } from './dto/google-auth-url.dto'
+export type { GoogleConnectionDto } from '../connections/contracts'
+export type { GoogleAuthUrlInput } from '../connections/google-auth-url.contracts'
 
-export type { GoogleReviewSyncContentAuthorizer } from './google-review-sync-authorizer'
-export type { GoogleReplyPublicationContentAuthorizer } from './google-reply-publication-authorizer'
+export type { GoogleReviewSyncContentAuthorizer } from '../review-sync/google-review-sync-authorizer.server'
+export type { GoogleReplyPublicationContentAuthorizer } from '../review-sync/google-reply-publication-authorizer.server'
 
 export {
   contentExpiryDelayMs,
   createGoogleImportContentLifecycle,
-} from './google-import-content-lifecycle'
-export type { GoogleImportViewCompletion } from './google-import-content-lifecycle'
+} from '../imports/google-import-content-lifecycle.contracts'
+export type { GoogleImportViewCompletion } from '../imports/google-import-content-lifecycle.contracts'
 
 export type { GoogleConnectionStatus } from '../domain/types'
 
@@ -34,8 +34,8 @@ export {
   MAX_GOOGLE_PERFORMANCE_DAILY_VALUE,
   MAX_GOOGLE_PERFORMANCE_RESPONSE_BYTES,
   isGooglePerformanceDailyMetric,
-} from './google-provider-contract'
-export type { GoogleProviderRouteKey } from './google-provider-contract'
+} from '../provider/contracts'
+export type { GoogleProviderRouteKey } from '../provider/contracts'
 
 export {
   GBP_IMPORT_ITEM_STATUSES,

@@ -12,7 +12,7 @@ import {
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi, type Mock } from 'vitest'
-import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
+import { createGoogleReviewApiAdapter } from '#/contexts/integration/review-sync/google-review-api.adapter.server'
 import { readReviewBeforePublish } from '../../application/use-cases/read-review-before-publish'
 import { createPublishReplyHandler } from './publish-reply.job'
 

@@ -4,9 +4,9 @@
 
 import { asc, eq, inArray } from 'drizzle-orm'
 import type { Clock } from '#/shared/domain/clock'
-import type { GoogleConnectionRepository } from '#/contexts/integration/application/ports/google-connection.repository'
-import { googleConnectionFromRow } from '#/contexts/integration/infrastructure/mappers/google-connection.mapper'
-import { createGoogleConnectionRepository } from '#/contexts/integration/infrastructure/repositories/google-connection.repository'
+import type { GoogleConnectionRepository } from '#/contexts/integration/connections/google-connection-repository.port.server'
+import { googleConnectionFromRow } from '#/contexts/integration/connections/google-connection-mapper.server'
+import { createGoogleConnectionRepository } from '#/contexts/integration/connections/google-connection-repository.server'
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import type { Database } from '#/shared/db'
 import { googleConnections, outboxEvents } from '#/shared/db/schema'

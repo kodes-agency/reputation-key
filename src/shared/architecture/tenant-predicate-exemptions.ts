@@ -159,49 +159,49 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'consumeCandidateClaims',
     reason:
       'Candidate claims are addressed by keyed opaque reference digests before tenant scope is disclosed, and ownership is verified before deletion.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'lockedRows',
     reason:
       'The keyed opaque discovery-reference digests are capability identifiers that must be locked before their owning tenant scope can be recovered.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'releaseCandidateClaims',
     reason:
       'Candidate claims are addressed by keyed opaque reference digests before tenant scope is disclosed, and ownership is verified before release.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-persistence.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-persistence.server.ts',
     symbol: 'durableImportReferenceExists',
     reason:
       'The keyed opaque import-reference digest is checked for global replay uniqueness before the referenced row can disclose its tenant scope.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-persistence.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-persistence.server.ts',
     symbol: 'loadDurableImportRecord',
     reason:
       'The keyed opaque import-reference digest is the capability presented before tenant scope is known, so the lookup derives scope from its row.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
+    file: 'src/contexts/integration/connections/google-connection-repository.server.ts',
     symbol: 'listOrganizationIdsWithActiveConnections',
     reason:
       'The daily GBP push reconciliation enumerates the organizations holding an active Google connection, identifiers only, and re-authorizes each organization before any tenant work.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
+    file: 'src/contexts/integration/connections/google-connection-repository.server.ts',
     symbol: 'findByGoogleIdentityGlobal',
     reason:
       'Google subject identity is a global uniqueness authority; this explicitly global lookup prevents one provider identity from binding across tenants.',
@@ -516,7 +516,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
+    file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'claimCandidates',
     reason:
       'Candidate claims are addressed by keyed opaque reference digests before tenant scope is disclosed; the claim is refused unless every locked record belongs to the requesting Organization and user.',
@@ -551,7 +551,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository.ts',
+    file: 'src/contexts/integration/connections/google-disconnect-revoke-repository.server.ts',
     symbol: 'reconcileElapsed',
     reason:
       'The bounded disconnect-revoke reconciliation walks elapsed attempts across tenants and reads the cleanup permit of each by the permit id that attempt recorded.',

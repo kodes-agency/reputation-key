@@ -33,7 +33,7 @@
   "src/contexts/inbox/application/use-cases/get-inbox-item-history.integration.test.ts": 1,
   "src/contexts/inbox/application/use-cases/get-inbox-notes.integration.test.ts": 3,
   "src/contexts/inbox/infrastructure/review-projection-ordering.integration.test.ts": 1,
-  "src/contexts/integration/application/oauth-callback-abuse-gate.test.ts": 2,
+  "src/contexts/integration/connections/oauth-callback-abuse-gate.test.ts": 2,
   "src/contexts/portal/application/use-cases/create-link.ts": 1,
   "src/contexts/portal/application/use-cases/list-portal-groups.test.ts": 2,
   "src/contexts/portal/infrastructure/adapters/portal-token-codec.ts": 1,

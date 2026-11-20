@@ -33,14 +33,14 @@ import {
 import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '#/contexts/integration/application/google-import-contract'
 
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import type { GoogleImportStore } from '#/contexts/integration/application/ports/google-import-store.port'
+import type { GoogleImportStore } from '#/contexts/integration/imports/import-store.port.server'
 import * as bindingModule from '#/contexts/property/profile/google-binding-store.server'
 import * as importStoreModule from '#/contexts/integration/imports/import-store.server'
-import { createTokenEncryptionAdapter } from '#/contexts/integration/infrastructure/adapters/token-encryption.adapter'
+import { createTokenEncryptionAdapter } from '#/contexts/integration/connections/token-encryption.adapter.server'
 import {
   createDurableImportReferenceKeys,
   invalidationScopeFor,
-} from '#/contexts/integration/infrastructure/durable-import-reference-keys'
+} from '#/contexts/integration/imports/durable-import-reference-keys.server'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import { member, organization, user } from '#/shared/db/schema/auth'
 import { permissionVersion } from '#/shared/db/schema/dac.schema'

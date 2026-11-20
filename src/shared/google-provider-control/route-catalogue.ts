@@ -109,7 +109,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     repositoryState: 'gateway_wired',
     recovery: 'safe_read_repeat',
     ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-account-management.adapter.ts',
+      'src/contexts/integration/imports/google-account-management.adapter.server.ts',
     ...DISCOVERY_POLICY,
     endpointClass: 'account-management' as const,
   }),
@@ -121,7 +121,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     repositoryState: 'gateway_wired',
     recovery: 'safe_read_repeat',
     ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-business-information.adapter.ts',
+      'src/contexts/integration/imports/google-business-information.adapter.server.ts',
     ...DISCOVERY_POLICY,
     endpointClass: 'business-information' as const,
   }),
@@ -133,7 +133,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     repositoryState: 'gateway_wired',
     recovery: 'safe_read_repeat',
     ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-performance.adapter.ts',
+      'src/contexts/integration/performance/google-performance.adapter.server.ts',
     endpointClass: 'performance' as const,
     requestClass: 'performance' as const,
     maxRequestBytes: 0,
@@ -148,8 +148,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     transport: 'authorized_gateway_mtls',
     repositoryState: 'gateway_wired_durable_recovery',
     recovery: 'preserve_then_never_reexchange',
-    ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
+    ownerModule: 'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     ...IDENTITY_POLICY,
     endpointClass: 'oauth-token' as const,
     maxResponseBytes: 64 * 1024,
@@ -161,8 +160,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     transport: 'authorized_gateway_mtls',
     repositoryState: 'gateway_wired',
     recovery: 'renewable_single_flight_generation_cas',
-    ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
+    ownerModule: 'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     endpointClass: 'oauth-token' as const,
     requestClass: 'credential_refresh' as const,
     maxRequestBytes: 64 * 1024,
@@ -177,8 +175,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     transport: 'direct_fixed_trust_read',
     repositoryState: 'direct_fixed_trust_read',
     recovery: 'safe_read_repeat',
-    ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
+    ownerModule: 'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     ...IDENTITY_POLICY,
     endpointClass: 'oauth-jwks' as const,
     maxRequestBytes: 0,
@@ -190,8 +187,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     transport: 'authorized_gateway_mtls',
     repositoryState: 'gateway_wired_durable_recovery',
     recovery: 'one_use_revoke_reconciliation',
-    ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
+    ownerModule: 'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     endpointClass: 'oauth-revoke' as const,
     requestClass: 'credential_cleanup' as const,
     maxRequestBytes: 64 * 1024,
@@ -207,7 +203,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     repositoryState: 'gateway_wired',
     recovery: 'safe_read_repeat',
     ownerModule:
-      'src/contexts/integration/infrastructure/adapters/mybusiness-notifications.adapter.ts',
+      'src/contexts/integration/connections/mybusiness-notifications.adapter.server.ts',
     endpointClass: 'notifications' as const,
     requestClass: 'notifications' as const,
     maxRequestBytes: 0,
@@ -223,7 +219,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     repositoryState: 'gateway_wired',
     recovery: 'desired_state_readback',
     ownerModule:
-      'src/contexts/integration/infrastructure/adapters/mybusiness-notifications.adapter.ts',
+      'src/contexts/integration/connections/mybusiness-notifications.adapter.server.ts',
     endpointClass: 'notifications' as const,
     requestClass: 'notifications' as const,
     maxRequestBytes: 64 * 1024,
@@ -239,7 +235,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     repositoryState: 'gateway_wired',
     recovery: 'desired_state_readback',
     ownerModule:
-      'src/contexts/integration/infrastructure/adapters/mybusiness-notifications.adapter.ts',
+      'src/contexts/integration/connections/mybusiness-notifications.adapter.server.ts',
     endpointClass: 'notifications' as const,
     requestClass: 'notifications' as const,
     maxRequestBytes: 64 * 1024,
@@ -255,7 +251,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     repositoryState: 'gateway_wired',
     recovery: 'safe_read_repeat',
     ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts',
+      'src/contexts/integration/review-sync/google-review-api.adapter.server.ts',
     ...REVIEWS_POLICY,
     maxRequestBytes: 0,
   }),
@@ -267,7 +263,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     repositoryState: 'gateway_wired',
     recovery: 'safe_read_repeat',
     ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts',
+      'src/contexts/integration/review-sync/google-review-api.adapter.server.ts',
     ...REVIEWS_POLICY,
     maxRequestBytes: 0,
     maxResponseBytes: 64 * 1024,
@@ -280,7 +276,7 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     repositoryState: 'gateway_wired',
     recovery: 'publication_observation',
     ownerModule:
-      'src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts',
+      'src/contexts/integration/review-sync/google-review-api.adapter.server.ts',
     ...REVIEWS_POLICY,
     maxResponseBytes: 64 * 1024,
     // Its own lane: see `google-reviews-write-v1` in quota-coordinator.ts.

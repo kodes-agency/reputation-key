@@ -24,7 +24,7 @@ import {
 } from '#/shared/testing/fixtures'
 import { createGoogleConnectionCeremonyFixture } from '#/contexts/integration/connections/google-connection-ceremony.test-fixtures'
 import { requestGooglePrimaryCategoryRefresh } from '#/shared/db/google-primary-category-refresh'
-import { createRefreshBoundGoogleCategories } from '#/contexts/integration/application/refresh-bound-google-categories'
+import { createRefreshBoundGoogleCategories } from '#/contexts/integration/imports/refresh-bound-google-categories.server'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'

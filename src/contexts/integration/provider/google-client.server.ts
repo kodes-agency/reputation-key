@@ -18,14 +18,14 @@ import {
   isGoogleDisconnectRevokeAuthorization,
   type GoogleDisconnectRevokeAuthorization,
   type GoogleProviderCallAuthorization,
-} from '../application/google-provider-contract'
+} from './contracts'
 import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderAdmissionCode,
   GoogleProviderPermitAdmissionCode,
   GoogleProviderExecutionResult,
-} from '../application/ports/google-authorized-provider-executor.port'
-import type { GoogleDisconnectRevokeDispatchHooks } from '../application/google-disconnect-revoke'
+} from './google-client.port.server'
+import type { GoogleDisconnectRevokeDispatchHooks } from '../connections/google-disconnect-revoke.server'
 import { isIntegrationError } from '../domain/errors'
 import {
   createGoogleCallError,
