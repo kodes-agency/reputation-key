@@ -3,14 +3,14 @@
 import { vi, type Mock } from 'vitest'
 import type { Queue } from 'bullmq'
 import type { Notice, NoticeWriter } from '../notify/consumers.server'
-import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
+import type { UserLookupPort } from '../notify/notification-db-user-lookup.port.server'
+import type { InboxItemLookupPort } from '../notify/inbox-item-lookup.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
+import type { ResponsibleManagerLookupPort } from '../notify/responsible-manager-lookup.port.server'
 import type {
   ReplyApprovalAuthorityPort,
   DisplayNameLookupPort,
-} from '../application/ports/cross-context-lookups.port'
+} from '../notify/cross-context-lookups.port.server'
 import {
   organizationId,
   propertyId,

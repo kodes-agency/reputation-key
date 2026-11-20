@@ -27,16 +27,16 @@ import {
 import type { GoogleConnectionStatus } from '#/contexts/integration/application/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { NotificationCategory, NotificationType } from '../domain/notification-types'
-import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
+import type { EscalationResolutionLookupPort } from './escalation-resolution-lookup.port.server'
 import type {
   HandlingCycleNotificationFacts,
   InboxItemLookupPort,
-} from '../application/ports/notification-inbox-item-lookup.port'
+} from './inbox-item-lookup.port.server'
 import type {
   ReplyWorkStateLookupPort,
   ReplyWorkStatus,
-} from '../application/ports/cross-context-lookups.port'
-import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
+} from './cross-context-lookups.port.server'
+import type { ResponsibleManagerLookupPort } from './responsible-manager-lookup.port.server'
 import type { Database } from '#/shared/db'
 import {
   cancelQueuedEmailsForNotifications,
@@ -45,23 +45,20 @@ import {
 import type {
   GroupedReopenStorePort,
   WaitingGroupedReopen,
-} from '../application/ports/grouped-reopen-store.port'
-import { isActionablePortalHealthReason } from '../application/portal-health-notification'
+} from './notification-grouped-reopen-repository.port.server'
+import { isActionablePortalHealthReason } from './portal-health-notification.server'
 import {
   parseNotificationAudience,
   type HandlingCycleRef,
-} from '../application/notification-audience'
+} from './notification-audience.server'
 import {
   isActionableNotificationType,
   RETRACTABLE_NOTIFICATION_TYPES,
   SETTLED_EMAIL_REASON,
   type NotificationWorkDecision,
 } from '../domain/notification-actionable'
-import type {
-  NotificationWorkState,
-  NotificationWorkSubject,
-} from '../application/ports/notification-work-state.port'
-import { isRecordPayload } from '../infrastructure/outbox-payload-fields'
+import type { NotificationWorkState, NotificationWorkSubject } from './settle.port.server'
+import { isRecordPayload } from './outbox-payload-fields.server'
 
 /** Whether a settling fact may retire this type: work it asked for, or a warning taken back. */
 export const isSettleableNotificationType = (type: NotificationType): boolean =>

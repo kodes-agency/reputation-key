@@ -22,12 +22,13 @@ own source review, inbox, property, portal, identity, or goal state.
   boundaries, while its `publicApi` merges both surfaces. The activity half is
   built in `build-activity.ts`, and `notify/register-routes.server.ts`
   registers every notification route.
-- The email renderer and templates (`render.server.ts`, `digest-email.server.tsx`,
-  `urgent-email.server.tsx`, `notification-facts.server.tsx`) live in `email/`
-  beside `send-emails.job.ts`.
+- The email renderer (`email/render.server.ts`) lives in `email/` beside
+  `send-emails-job.server.ts`. Its React templates (`digest-email.tsx`,
+  `urgent-email.tsx`, `notification-facts.tsx`) and their story stay in
+  `infrastructure/email/` until a feature may hold a server-side `.tsx` file.
 - The small single-answer lookups other owners provide (active Property,
   display names, feedback Portal, reply approval, reply state, review rating)
-  share `application/ports/cross-context-lookups.port.ts`.
+  share `notify/cross-context-lookups.port.server.ts`.
 - Activity and notification lifecycle/export contributor identifiers remain
   distinct because the persisted lifecycle and archive contracts distinguish
   those data families.
@@ -35,13 +36,29 @@ own source review, inbox, property, portal, identity, or goal state.
   Goal's application public API.
 - Whether a notice's work still waits is asked of the context that owns it,
   through `notify/settle.server.ts` (built into the delivery
-  processors in `infrastructure/jobs/notification-delivery-processors.ts`, which
+  processors in `email/notification-delivery-processors.server.ts`, which
   pass it to the insert, immediate-email and digest jobs): Inbox's lookups, Review's reply state through
   `ReplyWorkStateLookupPort` (`review.lookups.reply.findStatesByReviewIds`,
   internal replies only), Portal Health, responsibility, and the Organization
   lifecycle. Feed reads the Property lifecycle through `ActivePropertyLookup`
   and a bulk reopen's cycles through `GroupedReopenStorePort`, which reads that
   one fact's outbox payload by id.
+
+The area is split into feature folders:
+
+- `notify/`: audience and recipients, notice routes and outbox consumers,
+  `insert-notification`, settlement and its consumers, payload facts, and the
+  lookup adapters with their ports.
+- `email/`: the immediate and digest jobs, the delivery processors, the sender
+  adapters and `EmailSenderPort`, the Resend event handler, frozen requests, the
+  unsubscribe token and repository, recipient timezone, and the delivery scope
+  repositories.
+- `feed/`: the in-app feed reads, the access-removal read behind `/unavailable`,
+  and the browser contracts (`contracts.ts` for Mark all read and Clear all, plus
+  `notification-list-filter`, `notification-page` and `notification-view`
+  `.contracts.ts`).
+- `application/` keeps `public-api.ts` and its two halves. `infrastructure/` keeps
+  the email templates and the two fixtures the shared route harness imports.
 
 ## Preferences
 
@@ -70,11 +87,17 @@ has been retired. Activating the writer requires verified source copying, coordi
 policy-audit writers, privacy coverage and the published retention wording.
 See [audit operations](../../../docs/operations/audit-events.md).
 
+`audit/` also holds Operational Action History: its store and port, the access
+and lifecycle use cases, and `activity-outbox-consumers.server.ts`, which maps
+facts through `fact.server.ts`.
+
 ## Model
 
 Recent Activity records are retained for Organization export, privacy redaction
-and lifecycle fulfilment. No projection writer, recovery command or manager read
-API remains. Existing rows retain their 90-day expiry. Inbox item timeline and
+and lifecycle fulfilment. Its repository, privacy store, actor-label redaction
+and erasure (`activity-rights.adapter.server.ts`,
+`activity-organization-erasure.server.ts`) live in `rights/`. No projection
+writer, recovery command or manager read API remains. Existing rows retain their 90-day expiry. Inbox item timeline and
 Portal history use their own stores. Operational Action History is append-oriented,
 organization-scoped evidence with restricted list/export access and legal-hold
 handling. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
@@ -352,7 +375,7 @@ An Urgent review raises one alert (`review.ai_urgent_detected`; ADR 0046, amende
 identifier-only fact per review revision (`ai.review_analysis.urgent_detected`, from the AI
 context; the fact says which revision and nothing of why), and
 `notification.on-ai-review-urgent-detected`
-(`notify/goals.server.ts`, registered in `infrastructure/goal-notice-routes.ts`) turns it into "An urgent review
+(`notify/goals.server.ts`, registered in `notify/goal-notice-routes.server.ts`) turns it into "An urgent review
 needs you at <Property>" for whoever receives that Property's review notifications: the
 Property's responsible managers, AccountAdmins when none is eligible, under the
 `responsible_scope` audience of `review.created` (the assignee and the people who wrote
@@ -375,7 +398,7 @@ The Monday email is `guest_voice.summary` (ADR 0046, amended 2026-10-30), raised
 `ai.guest_voice_summary.ready`, which the AI context records at most once per Property per
 Property-local Monday when the week held something or it is the first Monday of the month.
 `notification.on-ai-guest-voice-summary-ready`
-(`notify/goals.server.ts`, registered in `infrastructure/goal-notice-routes.ts`) queues one notice per
+(`notify/goals.server.ts`, registered in `notify/goal-notice-routes.server.ts`) queues one notice per
 AccountAdmin and PropertyManager still eligible for the Property (`property_operator`) and
 leaves the rest to the reader's preferences: the category `guest_voice` ("Guest voice
 summary") is opt-in on both channels and offers `immediate` only, so its email is a message of
@@ -423,7 +446,7 @@ below what its target needs; also at most once in 14 days; it replaced the
 Can't reach notice), and a keep goal dropped below. Reporting decides them and writes one
 `goal.rating_goal.transitioned` fact per notice with the change it stores, so
 each is told once; `notification.on-rating-goal-transitioned`
-(`notify/goals.server.ts`, registered in `infrastructure/goal-notice-routes.ts`) only fans each fact out to
+(`notify/goals.server.ts`, registered in `notify/goal-notice-routes.server.ts`) only fans each fact out to
 the Property's responsible managers, AccountAdmins as the fallback, under a
 `responsible_scope` audience. They are `recognition` ("Google rating goal") in
 name only: change notices about a Property figure, never workforce
@@ -632,13 +655,13 @@ recipient for it). Both counts are restated at send. A closed cycle settles a gr
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
 Notification jobs perform immediate-email and digest work. Notices are written by the notice writer, in the transaction of the step they report; the operator's manual final warning writes through its direct form, all recipients on one transaction.
-`infrastructure/jobs/send-emails.job.ts` sends immediate mail: it renders a row once, stores the
+`email/send-emails-job.server.ts` sends immediate mail: it renders a row once, stores the
 provider request on the row (`provider_request`) before the first attempt, and every
 retry re-checks the recipient and sends that stored request under the same key until the
 23-hour retry horizon closes the row. An attempted row without a stored request is closed,
 never re-rendered. The daily
 digest groups lines in queue order and freezes membership from those same lines.
-`digest-batch-identity.ts` owns member, request and provider-key fingerprints;
+`email/digest-batch-identity.server.ts` owns member, request and provider-key fingerprints;
 assembly uses the email renderer's group contract. `email/notification-digest-batch.server.ts` retains the
 transactional batch and member settlement boundary.
 A durable delivery is settled when its consumer's receipt is claimed, in the transaction that writes its notices: a row was written, preferences asked for none, or the recipient no longer qualified. A redelivery that finds the receipt writes nothing.
@@ -662,7 +685,7 @@ Delivery-lag evidence judges immediate email only in scopes where the injected
 rows are never attempted, so they are not late mail. Its bounded scan reads
 only those scopes' rows, so a dark backlog cannot saturate it. The in-app
 delivery-lag count leaves out route facts whose consumer announces nothing
-(`silent-route-fact.ts` restates those consumers' rules in SQL: a change to
+(`notify/silent-route-fact.server.ts` restates those consumers' rules in SQL: a change to
 either belongs in both), so an import's silent facts do not page: its
 historical arrivals, the cycle opened with an item, and the provider's close of
 a history item's first cycle. The source read finds the facts still missing a
@@ -721,13 +744,13 @@ delivery-lag source read once a bulk import raised its cost estimate.
 
 Unit tests stay beside domain rules, use cases, consumers, jobs, and server
 contracts. PostgreSQL-backed repository, export, and
-lifecycle tests stay beside their infrastructure subjects. The build test pins
+lifecycle tests stay beside their subjects in the feature folders. The build test pins
 that one Feed build exposes both former APIs without widening either lifecycle
 surface.
 
 Notification route examples live in
-`infrastructure/beta-notification-route-contract.test.ts` and
-`infrastructure/notification-acceptance.test.ts`. Their shared producer fixtures
+`notify/beta-notification-route-contract.test.ts` and
+`notify/notification-acceptance.test.ts`. Their shared producer fixtures
 and dispatcher harness in `src/shared/testing/` also drive
 `notification-acceptance.integration.test.ts`, which reads the persisted outbox
 envelope and checks delivery receipts,
@@ -735,7 +758,7 @@ redelivery, and same-user isolation across Organizations in PostgreSQL. Unit
 controls catch an omitted consumer and incorrect application read/mutation scope;
 database isolation still requires the integration project.
 
-`infrastructure/inbox-workflow-acceptance.test.ts` checks producer-to-dispatcher
+`notify/inbox-workflow-acceptance.test.ts` checks producer-to-dispatcher
 payload/copy parity, note audience precedence, bulk/per-item arrival order and
 receipt-last retries for assignment, note and escalation fanout. Those single-item
 routes share `inboxWorkflowNotices` in
@@ -746,7 +769,7 @@ per-Property identities. The Inbox and reply consumers return their notices to
 Low ratings routing of arrivals and a stale assignee through PostgreSQL. Database concurrency and assignment-generation
 fences require separate PostgreSQL coverage.
 
-`infrastructure/notification-family-acceptance.test.ts` preserves recipients,
+`notify/notification-family-acceptance.test.ts` preserves recipients,
 categories, defaults and copy for invitation acceptance, review updates, reply
 outcomes, import completion, goal results and feedback outcomes through real
 producers and the dispatcher. Its preference contract round trips keep Google

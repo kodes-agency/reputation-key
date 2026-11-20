@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { registerWorkflowNotificationConsumers } from '../infrastructure/inbox-notice-routes'
+import { registerWorkflowNotificationConsumers } from './inbox-notice-routes.server'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {

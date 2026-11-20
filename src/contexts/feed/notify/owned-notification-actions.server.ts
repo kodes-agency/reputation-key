@@ -17,7 +17,7 @@ import {
   saveNotificationUnread,
   saveRestoredNotification,
 } from './notification-rows.server'
-import { toNotificationView } from '../application/notification-view'
+import { toNotificationView } from '../feed/notification-view.contracts'
 
 type Dependencies = Readonly<{
   db: Database

@@ -1,7 +1,7 @@
 // ADR 0046 r.3 — the notification language and timezone a user actually gets.
 //
 // Delivery resolves the recipient's clock as "the user's own timezone, else the
-// Organization's" (recipient-timezone.ts), but the settings page and the bell
+// Organization's" (recipient-timezone.server.ts), but the settings page and the bell
 // read the raw settings row. A user who never saved one therefore saw UTC while
 // quiet hours and the 08:00 digest ran on their Organization's zone — and
 // saving only a language wrote that UTC over the Organization fallback. Both
@@ -29,13 +29,13 @@ import type {
   NotificationUserSettings,
   PersonalDeliveryWindow,
 } from '../domain/notification-types'
-import type { NotificationOrganizationScopeResolver } from '../infrastructure/repositories/notification-organization-scope.repository'
+import type { NotificationOrganizationScopeResolver } from '../email/notification-organization-scope-repository.server'
 import {
   isResolvableTimezone,
   recipientTimezoneSource,
   resolveRecipientTimezone,
   type RecipientTimezoneSource,
-} from '../infrastructure/jobs/recipient-timezone'
+} from '../email/recipient-timezone.server'
 
 type Deps = Readonly<{
   db: Database

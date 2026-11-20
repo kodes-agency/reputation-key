@@ -11,7 +11,7 @@ describe('Notification runtime dependency injection', () => {
     expect(build).not.toMatch(/\b(?:crypto\.)?randomUUID\s*\(/u)
     expect(build).toContain('idGen: () => string')
 
-    const digest = read('infrastructure/jobs/digest-notification.job.ts')
+    const digest = read('email/digest-notification-job.server.ts')
     expect(digest).not.toMatch(/\brandomUUID\b/u)
     expect(digest).toContain('batchIdGen: () => string')
   })

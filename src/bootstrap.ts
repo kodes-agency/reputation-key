@@ -562,7 +562,7 @@ async function registerNotificationJobs(
   // wiring time. A production worker that would capture admitted mail refuses
   // to boot. Rules live in shared/email/transport-selection.ts.
   const { createNotificationEmailSender } =
-    await import('#/contexts/feed/infrastructure/adapters/notification-email-sender')
+    await import('#/contexts/feed/email/notification-email-sender.server')
   const notifEmailSender = createNotificationEmailSender({
     transport: runtime.notification,
     outboundEmailEnabled: isCapabilityJobEnabled('notification.send_email'),
@@ -577,7 +577,7 @@ async function registerNotificationJobs(
     activeOneClickUnsubscribeKeyVersion,
     oneClickUnsubscribeUrl,
     unsubscribeKeysConfigError,
-  } = await import('#/contexts/feed/application/one-click-unsubscribe-token')
+  } = await import('#/contexts/feed/email/one-click-unsubscribe-token.server')
   // Parsed here, not first at send time: a malformed keyring otherwise boots
   // and then fails every optional email while composing its unsubscribe link.
   const unsubscribeKeysError = unsubscribeKeysConfigError({
@@ -629,7 +629,7 @@ async function registerNotificationJobs(
   // the beta allowlist does not gate, so an account/security notice leaves
   // even for an Organization ordinary product mail is still dark for.
   const { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } =
-    await import('#/contexts/feed/infrastructure/jobs/notification-delivery-processors')
+    await import('#/contexts/feed/email/notification-delivery-processors.server')
   registerCapabilityGatedJob(
     URGENT_EMAIL_JOB_NAME,
     'notification.send_email',
@@ -641,7 +641,7 @@ async function registerNotificationJobs(
     processors.email,
   )
   const { DIGEST_JOB_NAME } =
-    await import('#/contexts/feed/infrastructure/jobs/digest-notification.job')
+    await import('#/contexts/feed/email/digest-notification-job.server')
   registerCapabilityGatedJob(
     DIGEST_JOB_NAME,
     'notification.send_email',

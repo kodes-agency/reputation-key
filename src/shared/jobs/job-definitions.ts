@@ -230,7 +230,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // enforces each type's scope (notificationScopeForType) in the notification
   // and email constructors and their CHECKs; a job that carries a Property is
   // still decided at that Property.
-  defineJob('urgent-email', 'src/contexts/feed/infrastructure/jobs/send-emails.job.ts', {
+  defineJob('urgent-email', 'src/contexts/feed/email/send-emails-job.server.ts', {
     queue: 'default',
     capability: 'notification.send_email',
     action: 'system:notification.email_urgent',
@@ -245,19 +245,15 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // exactly where it mattered; the mandatory capability is core, so the
   // environment stop and tenant suspension still refuse it and the tenant
   // allowlist no longer does (ADR 0046).
-  defineJob(
-    'mandatory-email',
-    'src/contexts/feed/infrastructure/jobs/send-emails.job.ts',
-    {
-      queue: 'default',
-      capability: 'notification.send_mandatory_email',
-      action: 'system:notification.email_mandatory',
-      scope: 'organization',
-      externalEffect: true,
-      schedule: 'none',
-      registration: 'enabled',
-    },
-  ),
+  defineJob('mandatory-email', 'src/contexts/feed/email/send-emails-job.server.ts', {
+    queue: 'default',
+    capability: 'notification.send_mandatory_email',
+    action: 'system:notification.email_mandatory',
+    scope: 'organization',
+    externalEffect: true,
+    schedule: 'none',
+    registration: 'enabled',
+  }),
   defineJob(
     'portal-approved-destination-revalidation',
     'src/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job.ts',
@@ -533,7 +529,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'digest-notification',
-    'src/contexts/feed/infrastructure/jobs/digest-notification.job.ts',
+    'src/contexts/feed/email/digest-notification-job.server.ts',
     {
       queue: 'background',
       capability: 'notification.send_email',

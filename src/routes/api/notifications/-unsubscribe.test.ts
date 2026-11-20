@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createOneClickUnsubscribeToken } from '#/contexts/feed/application/one-click-unsubscribe-token'
+import { createOneClickUnsubscribeToken } from '#/contexts/feed/email/one-click-unsubscribe-token.server'
 import { createOneClickUnsubscribePostHandler } from '#/contexts/feed/server/one-click-unsubscribe'
 import { Route } from './unsubscribe'
 

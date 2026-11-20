@@ -26,11 +26,11 @@ import type { NotificationType } from '../domain/notification-types'
 import type {
   HandlingCycleRef,
   NotificationAudience,
-} from '../application/notification-audience'
-import type { HandlingCycleNotificationFacts } from '../application/ports/notification-inbox-item-lookup.port'
-import { resolveHandlingCycleRecipients } from '../application/responsible-recipients'
+} from './notification-audience.server'
+import type { HandlingCycleNotificationFacts } from './inbox-item-lookup.port.server'
+import { resolveHandlingCycleRecipients } from './responsible-recipients.server'
 import type { InboxFanoutDeps } from './inbox.server'
-import { buildInboxItemPayload } from '../infrastructure/notification-payload-facts'
+import { buildInboxItemPayload } from './notification-payload-facts.server'
 import { deliverNotices, type NoticeDeliveryDeps } from './consumers.server'
 
 const OPENED_EVENT = 'inbox.handling_cycle.opened' as const

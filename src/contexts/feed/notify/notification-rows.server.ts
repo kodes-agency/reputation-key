@@ -14,9 +14,9 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 import type { Notification, NotificationStatus } from '../domain/notification-types'
-import { notificationFromRow } from '../infrastructure/repositories/notification-row.mapper'
+import { notificationFromRow } from './notification-row-mapper.server'
 import { isCurrentInboxAssignee } from '#/contexts/reputation/application/public-api'
-import { SENDABLE } from '../infrastructure/repositories/notification-email-queue-rows'
+import { SENDABLE } from '../email/notification-email-queue-rows.server'
 import {
   awaitingSettlement,
   mayBecomeUnread,

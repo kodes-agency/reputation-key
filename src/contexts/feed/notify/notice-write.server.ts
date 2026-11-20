@@ -2,11 +2,11 @@ import type { Database, Tx } from '#/shared/db'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { NotificationEmailId, NotificationId } from '#/shared/domain/ids'
 import { unbrand } from '#/shared/domain/ids'
-import type { ReviewRatingForRouting } from '../application/ports/cross-context-lookups.port'
+import type { ReviewRatingForRouting } from './cross-context-lookups.port.server'
 import type { NotificationEmail } from '../domain/notification-types'
-import type { InsertNotificationInput } from '../application/use-cases/insert-notification'
-import { insertNotification } from '../application/use-cases/insert-notification'
-import type { NotificationAudience } from '../application/notification-audience'
+import type { InsertNotificationInput } from './insert-notification.server'
+import { insertNotification } from './insert-notification.server'
+import type { NotificationAudience } from './notification-audience.server'
 
 export type NoticeWriteSettings = Readonly<{
   db: Database
