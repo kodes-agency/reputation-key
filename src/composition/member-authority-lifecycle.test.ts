@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Clock } from '#/shared/domain/clock'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
-import type { PropertyResponsibilityRuntime } from '#/contexts/property/application/property-responsibility-runtime'
+import type { PropertyResponsibilityRuntime } from '#/contexts/property/responsibility/property-responsibility-runtime.server'
 import type { PortalResponsibilityRuntime } from '#/contexts/portal/application/portal-responsibility-runtime'
 import type { InboxAssignmentRuntime } from '#/contexts/inbox/application/inbox-assignment-runtime'
 import type { PropertyResponsibleManager } from '#/contexts/property/domain/property-responsible-manager'

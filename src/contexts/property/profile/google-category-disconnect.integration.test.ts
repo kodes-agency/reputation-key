@@ -27,10 +27,10 @@ import { disconnectGoogleAccount } from '#/contexts/integration/application/use-
 import { integrationGoogleAccountDisconnected } from '#/contexts/integration/domain/events'
 import { createAtomicIntegrationCommandStore } from '#/contexts/integration/infrastructure/integration-command-store'
 import { createGoogleConnectionRepository } from '#/contexts/integration/infrastructure/repositories/google-connection.repository'
-import { buildGoogleImportedProperty } from '../application/build-google-imported-property'
-import { disconnectPropertyGoogleBinding } from '../application/use-cases/property-lifecycle'
+import { buildGoogleImportedProperty } from './build-google-imported-property.server'
+import { disconnectPropertyGoogleBinding } from '../lifecycle/property-lifecycle.server'
 import { createPropertyGoogleBindingStore } from './google-binding-store.server'
-import { createPropertyRepository } from '../infrastructure/repositories/property.repository'
+import { createPropertyRepository } from './property-repository.server'
 
 const db = getDb()
 const ORG = organizationId('org-category-publication-disconnect')

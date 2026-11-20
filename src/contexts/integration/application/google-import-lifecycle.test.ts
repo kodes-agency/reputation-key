@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { PropertyOperationReceipt } from '#/contexts/property/application/ports/property-google-binding.port'
+import type { PropertyOperationReceipt } from '#/contexts/property/profile/google-binding-store.port.server'
 import type { GoogleImportStore } from './ports/google-import-store.port'
 import { createGoogleImportLifecycle } from './google-import-lifecycle'
 

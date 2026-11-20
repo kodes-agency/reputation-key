@@ -3,11 +3,11 @@
 // to query property data. Per ADR-0001.
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
-import type { PropertyGoogleBindingStore } from './ports/property-google-binding.port'
+import type { PropertyGoogleBindingStore } from '../profile/google-binding-store.port.server'
 import type { PropertyLifecycleState } from '../domain/property-lifecycle'
 import type { GoogleBindingState } from '../domain/google-binding-contract'
 export type { PropertyLifecycleState } from '../domain/property-lifecycle'
-export { buildGoogleImportedProperty } from './build-google-imported-property'
+export { buildGoogleImportedProperty } from '../profile/build-google-imported-property.server'
 export type {
   PropertyArchived,
   PropertyCreated,

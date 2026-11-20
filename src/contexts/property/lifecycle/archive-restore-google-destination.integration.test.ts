@@ -39,9 +39,9 @@ import { handlePortalHealthDependencyChanged } from '#/contexts/portal/infrastru
 import { createPortalHealthReconciliationStore } from '#/contexts/portal/infrastructure/portal-health-reconciliation-store'
 import { snapshotToRow } from '#/contexts/portal/infrastructure/portal-publication-commands'
 import { createPortalPublicationRepository } from '#/contexts/portal/infrastructure/repositories/portal-publication.repository'
-import { buildGoogleImportedProperty } from '../application/build-google-imported-property'
+import { buildGoogleImportedProperty } from '../profile/build-google-imported-property.server'
 import { buildPropertyContext } from '../build'
-import { createPropertyRepository } from '../infrastructure/repositories/property.repository'
+import { createPropertyRepository } from '../profile/property-repository.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = organizationId('org-property-archive-restore-google')

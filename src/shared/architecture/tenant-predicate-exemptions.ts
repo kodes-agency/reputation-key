@@ -600,7 +600,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'OWNER-LOOKUP',
   },
   {
-    file: 'src/contexts/property/infrastructure/repositories/property.repository.ts',
+    file: 'src/contexts/property/profile/property-repository.server.ts',
     symbol: 'listByGbpLocationId',
     reason:
       "A verified Google notification names a location before any tenant is known. A location is unique only within an Organization, so the lookup answers with every Property that holds it, each with its own Organization, in a fixed order; the one caller, the notification handler, hands the notification to each Property whose binding matches the account it names, under that Property's own Organization and connection.",

@@ -1,8 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { command } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
-import { toBrowserProperty } from '../application/dto/browser-property.dto'
-import { updatePropertyInputSchema } from '../application/dto/update-property.dto'
+import { toBrowserProperty } from '../profile/browser-property.contracts'
+import { updatePropertyInputSchema } from '../profile/contracts'
 import { propertyCommandErrors } from './property-shared'
 
 export const updateProperty = createServerFn({ method: 'POST' })

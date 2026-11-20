@@ -1,5 +1,5 @@
 import { isValidIanaTimezone } from '#/shared/domain/timezones'
-import { PropertyGoogleBindingError } from '../application/ports/property-google-binding.port'
+import { PropertyGoogleBindingError } from './google-binding-store.port.server'
 import { isGoogleBindingTupleValid } from '../domain/google-binding-contract'
 import type { GoogleConnectionId } from '#/shared/domain/ids'
 

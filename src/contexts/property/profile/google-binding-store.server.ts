@@ -22,13 +22,9 @@ import {
   type PropertyGoogleBindingStore,
   type PropertyGoogleBindingInternalView,
   type PropertyOperationCommit,
-} from '../application/ports/property-google-binding.port'
+} from './google-binding-store.port.server'
 import { propertyCreated, propertyGoogleBindingChanged } from '../domain/events'
-import {
-  propertyToRow,
-  summaryFromRow,
-  internalFromRow,
-} from '../infrastructure/mappers/property.mapper'
+import { propertyToRow, summaryFromRow, internalFromRow } from './property-mapper.server'
 import {
   findLiveReceipt,
   markRetentionReleased,

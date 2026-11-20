@@ -343,7 +343,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ),
   ...consumersIn(
-    'src/contexts/property/infrastructure/member-offboarding-outbox-consumers.ts',
+    'src/contexts/property/responsibility/member-offboarding-outbox-consumers.server.ts',
     [
       [
         'property.on-member-removed',
@@ -543,13 +543,16 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ],
     ],
   ),
-  ...consumersIn('src/contexts/property/infrastructure/outbox-consumers.ts', [
+  ...consumersIn(
+    'src/contexts/property/profile/property-retention-outbox-consumer.server.ts',
     [
-      'property.import-retention-release',
-      'property.import-retention-release',
-      ['integration.property_import.retention_released'],
+      [
+        'property.import-retention-release',
+        'property.import-retention-release',
+        ['integration.property_import.retention_released'],
+      ],
     ],
-  ]),
+  ),
   ...consumersIn(
     'src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts',
     [

@@ -23,7 +23,7 @@ import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-fra
 import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import type { Action } from '#/components/hooks/use-action'
-import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
+import { updatePropertyInputSchema } from '#/contexts/property/profile/contracts'
 import { PROPERTY_REPLY_LANGUAGE_OPTIONS } from './property-reply-language-options'
 
 const UNCONFIGURED = '__not_configured__'

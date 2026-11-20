@@ -52,10 +52,10 @@ fine), and move a file out in a change that does nothing else.
 2. For a new one, create `src/contexts/<area>/<feature>/` and add its name to
    `LAYOUT.areas` in `scripts/ci/check-layout.ts` in the same change.
 3. Put pure rules in the area's `domain/`, effects in `<feature>/<name>.server.ts`,
-   browser-safe types in `<feature>/contracts.ts` and screens in `<feature>/ui/`.
-   A feature's server files do not import another feature's server files: pass
-   what they need through `build.ts`. A feature that outgrows one folder becomes
-   two features, not a folder with sub-folders.
+   browser-safe types in `<feature>/contracts.ts` (or `<name>.contracts.ts`) and
+   screens in `<feature>/ui/`. The features of one area may use each other's
+   server files; another area is reached only through its public API. A feature
+   that outgrows one folder becomes two features, not a folder with sub-folders.
 4. Expose a call to the browser as a server function in the area's `server/`.
    Expose a read or command to another area through `application/public-api.ts`.
 5. Wire new dependencies in `build.ts`.

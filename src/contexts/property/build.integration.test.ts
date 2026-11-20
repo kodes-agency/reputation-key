@@ -6,8 +6,8 @@ import { describe, it, expect, vi } from 'vitest'
 import { buildPropertyContext } from './build'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { createPropertyRepository } from './infrastructure/repositories/property.repository'
-import { seedTestProperty } from './infrastructure/property-test-fixtures'
+import { createPropertyRepository } from './profile/property-repository.server'
+import { seedTestProperty } from './profile/property.test-fixtures'
 import {
   googleConnectionId,
   organizationId,
@@ -19,7 +19,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { PropertyGoogleBindingStore } from './application/ports/property-google-binding.port'
+import type { PropertyGoogleBindingStore } from './profile/google-binding-store.port.server'
 import { createPropertyGoogleBindingStore } from './profile/google-binding-store.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
