@@ -2,6 +2,7 @@
 // optional private note when ratings are collected.
 
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
+import { PortalContactRequestsForm } from '../portal-contact-requests-form'
 import { PortalPrivateNoteForm } from '../portal-private-note-form'
 import type { PortalEditorSectionProps } from '../portal-editor-types'
 
@@ -20,6 +21,14 @@ export function PrivateNoteSection({ resources, canEdit }: PortalEditorSectionPr
         mutation={resources.autosaveUpdateMutation}
         disabled={!canEdit}
       />
+      {resources.contactRequestsLaunch?.launched === true ? (
+        <PortalContactRequestsForm
+          portal={resources.portal}
+          mutation={resources.autosaveUpdateMutation}
+          noticeInForce={resources.contactRequestsLaunch.noticeInForce}
+          disabled={!canEdit}
+        />
+      ) : null}
     </PortalEditorSectionFrame>
   )
 }

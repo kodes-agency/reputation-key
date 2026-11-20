@@ -46,6 +46,7 @@ const SETTING_ACTION: Readonly<Record<string, string>> = {
   theme: 'changed the colours',
   feedback_threshold: 'changed the private feedback threshold',
   skip_private_rating: 'changed whether the portal skips the private rating',
+  contact_requests: 'changed whether the portal offers contact requests',
   primary_language: 'changed the main language',
   additional_languages: 'changed the languages',
 }

@@ -118,6 +118,7 @@ export function buildTestPortal(
     theme: { primaryColor: '#6366F1' },
     privateFeedbackThreshold: 3,
     skipPrivateRating: false,
+    contactRequestsEnabled: false,
     publicationState: 'published',
     createdBy: userId('user-00000000-0000-0000-0000-000000000001'),
     responsibleManagerRevision: 1,

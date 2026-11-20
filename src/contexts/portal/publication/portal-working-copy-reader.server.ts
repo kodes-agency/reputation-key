@@ -470,6 +470,7 @@ export async function readPortalWorkingCopyWithLook(
       },
       privateFeedbackThreshold: portal.privateFeedbackThreshold,
       skipPrivateRating: portal.skipPrivateRating,
+      contactRequests: portal.contactRequestsEnabled,
       primaryGuestLocale,
       localeSet,
       linktreeEnabled: portal.linktreeEnabled,

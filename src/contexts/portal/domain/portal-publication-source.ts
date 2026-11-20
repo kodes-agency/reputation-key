@@ -22,6 +22,10 @@
 // answers all three, so they cannot disagree about what a publication is.
 
 import { deriveFieldColour } from '#/shared/domain/portal-field-colour'
+import {
+  contactNoticeEvidenceFor,
+  type ContactNoticeEvidence,
+} from '#/shared/domain/contact-request-notice'
 import { currentGuestLanguagePack, type GuestLocale } from '#/shared/domain/guest-locale'
 import { isValidTimeZone } from './portal-immersive-snapshot'
 import { linktreeDefaultTitle } from './portal-linktree'
@@ -104,6 +108,8 @@ export type PortalPublicationSource = Readonly<{
   portal: Readonly<{ id: string; name: string; slug: string }>
   privateFeedbackThreshold: number
   skipPrivateRating: boolean
+  /** The Portal's own setting; a publication carries it only under a notice in force. */
+  contactRequests: boolean
   primaryGuestLocale: GuestLocale
   /** The primary first, then the additional languages. */
   localeSet: readonly GuestLocale[]
@@ -158,6 +164,17 @@ export type PortalPublicationResolution = Readonly<{
   /** Best effort while there are blockers; complete when there are none. */
   content: ImmersivePublicationContent
 }>
+
+/**
+ * The notice a publication of `source` pins for contact requests: present only
+ * when the Portal switched them on and a Privacy Notice version in force covers
+ * them. The setting alone never enables them, so the snapshot's evidence check
+ * is never what refuses a publication.
+ */
+export const contactRequestEvidenceOf = (
+  source: Pick<PortalPublicationSource, 'contactRequests' | 'primaryGuestLocale'>,
+): ContactNoticeEvidence | null =>
+  source.contactRequests ? contactNoticeEvidenceFor(source.primaryGuestLocale) : null
 
 const isWritten = (value: string | null | undefined): value is string =>
   value !== null && value !== undefined && value.trim().length > 0

@@ -448,6 +448,7 @@ async function publishPortalSnapshot(input: {
       portal: { id: fixture.id, name: fixture.name, slug: fixture.slug },
       privateFeedbackThreshold: 3,
       skipPrivateRating: fixture.skipPrivateRating ?? false,
+      contactRequests: false,
       // Every offered guest locale, because the cross-browser gate proves the
       // Bulgarian, German and French contracts render and reflow. A snapshot
       // published with `en` alone makes `?locale=bg` fall back to English:

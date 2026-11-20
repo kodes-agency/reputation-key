@@ -103,9 +103,9 @@ async function seedFixture(): Promise<Fixture> {
   await q(
     `INSERT INTO portals (
        id, organization_id, property_id, entity_id, name, slug, description,
-       publication_state, created_by, created_at, updated_at
+       publication_state, created_by, created_at, updated_at, contact_requests_enabled
      ) VALUES ($1, $2, $3, $4, 'Front Desk', 'front-desk', 'Lobby portal',
-               'published', $5, now(), now())`,
+               'published', $5, now(), now(), true)`,
     [
       fixture.portalId,
       organizationId,
@@ -498,6 +498,7 @@ describe.sequential('Portal Organization Export contributor', () => {
       slug: 'front-desk',
       publication_state: 'published',
       linktree_enabled: true,
+      contact_requests_enabled: true,
     })
     expect(payload.portalGroups?.[0]).toMatchObject({ created_by: fixture.userId })
     // Names live in the ledger, not on events, so the export carries them.

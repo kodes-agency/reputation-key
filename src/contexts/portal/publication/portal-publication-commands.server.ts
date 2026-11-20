@@ -30,7 +30,10 @@ import type {
 import { portalError } from '../domain/errors'
 import { workingCopyMatchesSnapshot } from './portal-working-copy-match.server'
 import { verifyPortalPublicationSnapshot } from './portal-publication-snapshot.server'
-import { snapshotMirrorColumns } from './portal-publication-snapshot-mapper.server'
+import {
+  snapshotContactColumns,
+  snapshotMirrorColumns,
+} from './portal-publication-snapshot-mapper.server'
 import { assertCommittedRevision, sameInstant } from './portal-command-guards.server'
 import { lockPortalPublicationProperty } from './portal-publication-serialization.server'
 import { resolvePortalPendingContentChanges } from './portal-pending-content-changes.server'
@@ -56,6 +59,7 @@ export function snapshotToRow(snapshot: PortalPublicationSnapshot) {
     guestLocale: snapshot.configuration.guestLocale,
     languagePackVersion: snapshot.configuration.languagePackVersion,
     ...snapshotMirrorColumns(snapshot.configuration),
+    ...snapshotContactColumns(snapshot.configuration),
     privateFeedbackThreshold:
       snapshot.configuration.reviewGateway.privateFeedbackThreshold,
     destinationUri: snapshot.destinationUri,

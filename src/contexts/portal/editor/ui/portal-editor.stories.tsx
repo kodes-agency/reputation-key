@@ -508,6 +508,52 @@ export const PrivateNoteThreshold: Story = {
   },
 }
 
+// Until contact requests launch the control is not drawn at all, whether the
+// launch read has not answered or says no.
+export const ContactRequestsAbsentWhileNotLaunched: Story = {
+  args: {
+    resources: {
+      ...makeResources(action(async () => undefined)),
+      contactRequestsLaunch: { launched: false, noticeInForce: false },
+    },
+    requestedSection: 'private-note',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('switch', { name: /skip the private rating/i }),
+    ).toBeVisible()
+    await expect(
+      canvas.queryByRole('switch', { name: /ask to be contacted/i }),
+    ).toBeNull()
+    await expect(canvas.queryByText(/contact requests/i)).toBeNull()
+  },
+}
+
+// Launched, but no Privacy Notice version covers them yet: the switch is there,
+// and says nothing reaches guests until they are available.
+export const ContactRequestsSwitchWhenLaunched: Story = {
+  args: {
+    resources: {
+      ...makeResources(action(async () => undefined)),
+      contactRequestsLaunch: { launched: true, noticeInForce: false },
+    },
+    requestedSection: 'private-note',
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/not available yet/i)).toBeVisible()
+    await userEvent.click(canvas.getByRole('switch', { name: /ask to be contacted/i }))
+    await waitFor(
+      () =>
+        expect(args.resources.autosaveUpdateMutation).toHaveBeenCalledWith({
+          data: { portalId: 'p-1', contactRequestsEnabled: true },
+        }),
+      AUTOSAVE_WAIT,
+    )
+  },
+}
+
 export const LookOpensThePropertyLook: Story = {
   args: {
     resources: makeResources(action(async () => undefined)),

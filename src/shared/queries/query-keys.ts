@@ -250,6 +250,8 @@ export const portalKeys = {
    */
   languageCoverage: (propertyId: string, portalId: string) =>
     [...portalKeys.experience(propertyId, portalId), 'language-coverage'] as const,
+  /** The deployment's contact-request launch, the same for every Portal. */
+  contactRequestsLaunch: () => [...portalKeys.all, 'contact-requests-launch'] as const,
   approvedDestinations: (portalId: string) =>
     [...portalKeys.detail(portalId), 'approved-destinations'] as const,
   groups: (propertyId: string) => [...portalKeys.all, 'groups', propertyId] as const,

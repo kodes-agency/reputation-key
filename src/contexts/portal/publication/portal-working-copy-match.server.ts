@@ -15,7 +15,9 @@ import {
   type PortalPublicationSnapshot,
 } from '../domain/portal-publication-snapshot'
 import type { VerifiedPublicationDestination } from '../domain/portal-publication-snapshot'
+import type { ContactNoticeEvidence } from '#/shared/domain/contact-request-notice'
 import {
+  contactRequestEvidenceOf,
   resolvePortalPublication,
   type ImmersivePublicationContent,
   type PortalPublicationSource,
@@ -26,6 +28,7 @@ type ComparableContent = Readonly<{
   propertyId: string
   privateFeedbackThreshold: number
   skipPrivateRating: boolean
+  contactRequest: ContactNoticeEvidence | null
   content: ImmersivePublicationContent
 }>
 
@@ -42,6 +45,7 @@ export function publishedContent(
     skipPrivateRating:
       configuration.schemaVersion === 3 &&
       configuration.reviewGateway.skipPrivateRating === true,
+    contactRequest: configuration.reviewGateway.contactRequest ?? null,
     content: {
       portal: configuration.portal,
       guestLocale: configuration.guestLocale,
@@ -71,6 +75,7 @@ function comparableWorkingContent(
     propertyId: workingCopy.propertyId,
     privateFeedbackThreshold: workingCopy.privateFeedbackThreshold,
     skipPrivateRating: workingCopy.skipPrivateRating,
+    contactRequest: contactRequestEvidenceOf(workingCopy),
     content: resolvePortalPublication(workingCopy).content,
   }
 }

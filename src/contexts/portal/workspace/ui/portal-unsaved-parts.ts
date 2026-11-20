@@ -9,6 +9,7 @@ import type { PortalDraftAttention } from '#/contexts/portal/editor/ui/portal-dr
 const FIXED: Readonly<Record<string, string>> = {
   welcome: 'the portal’s name',
   'private-note': 'the private note setting',
+  'contact-requests': 'the contact request setting',
   'linktree-title': 'the Linktree title',
   languages: 'the languages',
   'responsible-managers': 'the responsible managers',
