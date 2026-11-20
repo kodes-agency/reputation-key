@@ -2,7 +2,7 @@ import { reviewSourceContents } from './schema/review-source-content.schema'
 // Whether a stored Review can still be refreshed by a sync.
 //
 // A refresh sync is authorized against the Property's CURRENT Google binding
-// (`google-review-sync-authorizer.ts`): the Property must be live, bound to
+// (`google-review-sync-authorizer.server.ts`): the Property must be live, bound to
 // Google and bound to the connection the job names, and that connection must
 // be usable. The Review row keeps the connection and location it was fetched
 // through after an archive, a suspension or a disconnect, so its content clock

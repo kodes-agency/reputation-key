@@ -12,7 +12,10 @@ import { MAX_ADDITIONAL_GUEST_LOCALES } from '#/shared/domain/guest-locale'
 import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
 import type { PortalLookSources } from '../../domain/portal-look'
 import { BACKGROUND_MODES, type BackgroundMode } from '../../domain/property-look'
-import type { PropertyLookHero, PropertyLookLogo } from '../property-look-media'
+import type {
+  PropertyLookHero,
+  PropertyLookLogo,
+} from '../../look/property-look-media.server'
 
 const scope = {
   propertyId: z.string().min(1, 'Property ID is required'),

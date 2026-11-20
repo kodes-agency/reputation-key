@@ -1,0 +1,107 @@
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import {
+  historyBoundCondition,
+  historyIdOrder,
+} from '../workspace/portal-history-bound.server'
+import type { Database } from '#/shared/db'
+import { portalHealthIntervals } from '#/shared/db/schema/portal.schema'
+import { organizationId, portalId, propertyId, unbrand } from '#/shared/domain/ids'
+import type { PortalHealthRepository } from './portal-health-repository.port.server'
+import type { PortalHealthInterval } from '../domain/portal-health'
+import { portalError } from '../domain/errors'
+import { trace } from '#/shared/observability/trace'
+
+const VALID_STATUS = new Set(['healthy', 'degraded', 'unavailable'])
+const VALID_REASON = new Set([
+  'operational',
+  'publication_draft',
+  'publication_disabled',
+  'publication_archived',
+  'property_unavailable',
+  'publication_snapshot_unavailable',
+  'public_address_unavailable',
+  'responsibility_needed',
+  'google_destination_awaiting_refresh',
+  'google_destination_unavailable',
+])
+
+function fromRow(row: typeof portalHealthIntervals.$inferSelect): PortalHealthInterval {
+  if (!VALID_STATUS.has(row.status) || !VALID_REASON.has(row.reason)) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'Stored Portal Health is invalid',
+    )
+  }
+  return {
+    id: row.id,
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.propertyId),
+    portalId: portalId(row.portalId),
+    status: row.status as PortalHealthInterval['status'],
+    reason: row.reason as PortalHealthInterval['reason'],
+    sourceVersion: row.sourceVersion,
+    effectiveFrom: row.effectiveFrom,
+    effectiveTo: row.effectiveTo,
+    observedAt: row.observedAt,
+  }
+}
+
+export const createPortalHealthRepository = (db: Database): PortalHealthRepository => ({
+  getCurrent: (orgId, propertyIdValue, portalIdValue) =>
+    trace('portalHealth.getCurrent', async () => {
+      const [row] = await db
+        .select()
+        .from(portalHealthIntervals)
+        .where(
+          and(
+            eq(portalHealthIntervals.organizationId, unbrand(orgId)),
+            eq(portalHealthIntervals.propertyId, unbrand(propertyIdValue)),
+            eq(portalHealthIntervals.portalId, unbrand(portalIdValue)),
+            isNull(portalHealthIntervals.effectiveTo),
+          ),
+        )
+        .limit(1)
+      return row ? fromRow(row) : null
+    }),
+
+  listCurrentForPortals: (orgId, portalIds) =>
+    trace('portalHealth.listCurrentForPortals', async () => {
+      if (portalIds.length === 0) return []
+      const rows = await db
+        .select()
+        .from(portalHealthIntervals)
+        .where(
+          and(
+            eq(portalHealthIntervals.organizationId, unbrand(orgId)),
+            inArray(
+              portalHealthIntervals.portalId,
+              portalIds.map((id) => unbrand(id)),
+            ),
+            isNull(portalHealthIntervals.effectiveTo),
+          ),
+        )
+      return rows.map(fromRow)
+    }),
+
+  listHistory: (orgId, propertyIdValue, portalIdValue, requestedLimit, bound) =>
+    trace('portalHealth.listHistory', async () => {
+      const limit = Number.isSafeInteger(requestedLimit)
+        ? Math.min(100, Math.max(1, requestedLimit))
+        : 25
+      const idText = sql`${portalHealthIntervals.id}::text`
+      const rows = await db
+        .select()
+        .from(portalHealthIntervals)
+        .where(
+          and(
+            eq(portalHealthIntervals.organizationId, unbrand(orgId)),
+            eq(portalHealthIntervals.propertyId, unbrand(propertyIdValue)),
+            eq(portalHealthIntervals.portalId, unbrand(portalIdValue)),
+            historyBoundCondition(portalHealthIntervals.effectiveFrom, idText, bound),
+          ),
+        )
+        .orderBy(desc(portalHealthIntervals.effectiveFrom), desc(historyIdOrder(idText)))
+        .limit(limit)
+      return rows.map(fromRow)
+    }),
+})

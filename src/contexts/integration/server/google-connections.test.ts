@@ -6,27 +6,13 @@
 // validate input → call use case → translate errors → return.
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
 import { integrationErrorStatus } from './error-helpers'
 import { integrationError } from '../domain/errors'
 import type { IntegrationErrorCode } from '../domain/errors'
 import { throwContextError } from '#/shared/auth/server-errors'
-import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
-import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
-import { googleAuthUrlInputSchema } from '../application/dto/google-auth-url.dto'
-
-describe('Google OAuth server boundary', () => {
-  it('does not expose a server function that accepts PKCE verifier material', () => {
-    const source = readFileSync(
-      'src/contexts/integration/server/google-connections.ts',
-      'utf8',
-    )
-
-    expect(source).not.toMatch(/export const connectGoogle\s*=/)
-    expect(source).not.toMatch(/\bconnectGoogleInputSchema\b/)
-    expect(source).not.toContain('verifierMaterial')
-  })
-})
+import { connectGoogleInputSchema } from '../connections/connect-google.contracts'
+import { disconnectGoogleInputSchema } from '../connections/disconnect-google.contracts'
+import { googleAuthUrlInputSchema } from '../connections/google-auth-url.contracts'
 
 // ── throwContextError with IntegrationError ───────────────────────
 

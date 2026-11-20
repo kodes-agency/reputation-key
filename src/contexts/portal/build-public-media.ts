@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
-import { resolvePortalMediaUrls } from './application/resolve-portal-media-urls'
+import { resolvePortalMediaUrls } from './media/resolve-portal-media-urls.server'
 import {
   servePortalMedia,
   type ServePortalMediaDeps,
-} from './application/use-cases/serve-portal-media'
-import type { PortalMediaAssetRepository } from './application/ports/portal-media-asset.repository'
+} from './media/serve-portal-media.server'
+import type { PortalMediaAssetRepository } from './media/portal-media-asset-repository.port.server'
 
 /** The public reader and staff appearance reader share current media admission. */
 export function buildPortalPublicMedia(

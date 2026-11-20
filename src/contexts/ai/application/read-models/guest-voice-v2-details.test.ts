@@ -7,9 +7,12 @@ import {
   input,
   mention,
   review,
-} from './guest-voice-v2.test-fixtures'
+} from '../../guest-voice/guest-voice-v2.test-fixtures'
 import type { GuestVoiceBuildInput } from './guest-voice-v2-build'
-import type { GuestVoiceMention, GuestVoiceReview } from './guest-voice-v2-facts'
+import type {
+  GuestVoiceMention,
+  GuestVoiceReview,
+} from '../../guest-voice/guest-voice-v2-facts.contracts'
 
 describe('detail builders', () => {
   it('uses the analysed-comment set difference, same-sense recency, hidden evidence and overlapping concerns', () => {

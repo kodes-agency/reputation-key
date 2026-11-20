@@ -11,7 +11,7 @@
 // managers read on screen, and its save runs through the real
 // `useActionMutation`. The unit project has no DOM, so the component is
 // rendered once on the server renderer and the Action it handed its card is
-// called (as `components/inbox/inbox-cache-test-harness.ts` does). The router,
+// called (as `reputation/inbox/ui/page/inbox-cache-test-harness.ts` does). The router,
 // the card and the server stand outside: the server is the revision fence of
 // `property-responsible-manager.repository.ts`.
 

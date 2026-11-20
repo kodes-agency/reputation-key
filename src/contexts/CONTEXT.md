@@ -69,7 +69,10 @@ are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-cont
 
 - Cross-context code imports only `application/public-api.ts` or implements a
   consumer-owned application port. Never import a foreign `domain/`,
-  `infrastructure/`, `server/`, or non-public application module.
+  `infrastructure/`, `server/`, or non-public application module. The port's
+  implementation lives in `infrastructure/adapters/` or in a feature as
+  `<name>.adapter.server.ts`; a feature's contracts may name another area's
+  public types, as types only.
 - A context owns its state changes and durable facts. Consumers react through
   registered outbox delivery; an event payload is not a foreign content cache.
 - Extend the owning public interface when a required contract is missing. Do not

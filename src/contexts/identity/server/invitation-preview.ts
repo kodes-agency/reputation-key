@@ -14,7 +14,7 @@ import { isIdentityError } from '../domain/errors'
 import {
   invitationPreviewInputSchema,
   type InvitationPreviewInput,
-} from '../application/dto/invitation.dto'
+} from '../members/invitation.contracts'
 import type { InvitationPreview } from '../members/get-invitation-preview.server'
 import { throwIdentityError } from './organizations.errors.server'
 

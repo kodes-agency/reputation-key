@@ -27,9 +27,27 @@ const BOUNDARY_RULES = [
 
 const controls = [
   {
+    name: 'a feature server file that is not an adapter cannot import a port another area owns',
+    file: 'src/contexts/guest/rights/boundary-negative-control.server.ts',
+    source:
+      "import '#/contexts/identity/application/ports/organization-export-contributor.port'\n",
+  },
+  {
+    name: 'a feature adapter cannot import another area outside its ports',
+    file: 'src/contexts/guest/rights/boundary-negative-control.adapter.server.ts',
+    source: "import '#/contexts/identity/domain/errors'\n",
+  },
+  {
+    name: "a feature contract cannot take a value from another area's public API",
+    file: 'src/contexts/guest/page/boundary-negative-control.contracts.ts',
+    source:
+      "import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-api'\nexport const control = StoredObjectTooLargeError\n",
+  },
+  {
     name: 'ordinary test helpers cannot import Feed infrastructure',
     file: 'src/shared/testing/boundary-negative-control.ts',
-    source: "import '#/contexts/feed/infrastructure/notification-outbox-consumers'\n",
+    source:
+      "import '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'\n",
   },
   {
     name: 'notification route harness cannot import another context infrastructure',
@@ -129,7 +147,7 @@ const controls = [
   {
     name: 'feature contract cannot import application runtime',
     file: 'src/contexts/reporting/portal-results/contracts.ts',
-    source: "import '../application/utils'\n",
+    source: "import '../application/goal-results-matrix'\n",
   },
   {
     name: 'new feature UI cannot import a server implementation',
@@ -266,6 +284,18 @@ const controls = [
 
 const allowedControls = [
   {
+    name: 'a feature adapter may import the port another area owns that it implements',
+    file: 'src/contexts/guest/rights/boundary-positive-control.adapter.server.ts',
+    source:
+      "import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type Control = OrganizationExportContributor\n",
+  },
+  {
+    name: "a feature contract may take types from another area's public API",
+    file: 'src/contexts/guest/page/boundary-positive-control.contracts.ts',
+    source:
+      "import type { PublicPortalResult } from '#/contexts/portal/application/public-api'\nexport type Control = PublicPortalResult\n",
+  },
+  {
     name: 'route may import a feature browser contract',
     file: 'src/routes/boundary-positive-control.ts',
     source: "import '#/contexts/reporting/portal-results/contracts'\n",
@@ -278,7 +308,8 @@ const allowedControls = [
   {
     name: 'notification route harness may register Feed consumers',
     file: 'src/shared/testing/notification-route-test-harness.ts',
-    source: "import '#/contexts/feed/infrastructure/notification-outbox-consumers'\n",
+    source:
+      "import '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'\n",
   },
   {
     name: 'domain may import shared domain',
@@ -329,8 +360,8 @@ const allowedControls = [
   },
   {
     name: 'Reporting repositories may share Portal results SQL helpers',
-    file: 'src/contexts/reporting/infrastructure/repositories/portal-last-scans.ts',
-    source: "import '../../portal-results/portal-analytics-shared.server'\n",
+    file: 'src/contexts/reporting/portal-results/portal-last-scans.server.ts',
+    source: "import './portal-analytics-shared.server'\n",
   },
   {
     name: 'a feature server may use another feature’s server code in its area',

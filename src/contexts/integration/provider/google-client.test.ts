@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
-import type { GoogleProviderCallAuthorization } from '../application/google-provider-contract'
+import type { GoogleProviderCallAuthorization } from './contracts'
 import {
   createGoogleAuthorizedProviderExecutor,
   createSingle401RefreshExecutor,

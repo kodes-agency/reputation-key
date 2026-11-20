@@ -93,8 +93,9 @@ export default defineConfig({
       name: 'storybook-metrics',
       // Desktop Chrome's device descriptor; each describe block in the harness
       // overrides only `viewport`. No touch emulation: nothing in
-      // `src/components/inbox` or `src/components/ui` keys a size on
-      // `pointer: coarse`, so a coarse pointer would measure the same boxes.
+      // `src/contexts/reputation/inbox/ui/page` or `src/components/ui` keys a
+      // size on `pointer: coarse`, so a coarse pointer would measure the same
+      // boxes.
       use: { ...devices['Desktop Chrome'] },
     },
   ],

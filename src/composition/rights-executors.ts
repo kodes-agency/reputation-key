@@ -8,12 +8,12 @@ import { NOTIFICATION_RIGHTS_TABLES } from '#/contexts/feed/application/public-a
 import {
   createAiErasureReplayers,
   createAiRightsExecutor,
-} from '#/contexts/ai/infrastructure/adapters/ai-rights.adapter'
+} from '#/contexts/ai/rights/ai-rights.adapter.server'
 import {
   activityReplayRefusal,
   createActivityErasureReplayers,
   createActivityRightsExecutor,
-} from '#/contexts/feed/infrastructure/adapters/activity-rights.adapter'
+} from '#/contexts/feed/rights/activity-rights.adapter.server'
 import type {
   BackupErasureLedgerEntry,
   BackupErasureReplayer,
@@ -22,11 +22,11 @@ import {
   createGuestContactRequestErasureReplayer,
   createGuestFeedbackErasureReplayer,
   createGuestResponseErasureReplayer,
-} from '#/contexts/guest/infrastructure/adapters/guest-response-erasure-replayer.adapter'
+} from '#/contexts/guest/rights/guest-response-erasure-replayer.adapter.server'
 import {
   createGuestBackupErasureReplayer,
   createGuestPropertyErasureReplayer,
-} from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
+} from '#/contexts/guest/rights/guest-backup-erasure-replayer.adapter.server'
 import {
   createIdentityRightsExecutor,
   createStaffRightsExecutor,
@@ -34,7 +34,7 @@ import {
   identityPropertyErasureReplayer,
   staffOrganizationErasureReplayer,
   staffPropertyErasureReplayer,
-} from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
+} from '#/contexts/identity/rights/identity-rights.adapter.server'
 import {
   createPropertyRightsExecutor,
   propertyErasureReplayer,
@@ -43,19 +43,19 @@ import {
 import {
   createGuestRightsExecutor,
   type GuestRightsExecutorDeps,
-} from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
+} from '#/contexts/guest/rights/guest-rights.adapter.server'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import {
   createPortalErasureReplayers,
   createPortalRightsExecutor,
-} from '#/contexts/portal/infrastructure/adapters/portal-rights.adapter'
+} from '#/contexts/portal/rights/portal-rights.adapter.server'
 import {
   createReportingRightsExecutor,
   createReportingRightsReplayers,
-} from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
+} from '#/contexts/reporting/rights/reporting-rights.adapter.server'
 import { createRetiredReadingsReplayer } from '#/contexts/reporting/infrastructure/adapters/retired-readings-erasure.adapter'
-import { createStaffParticipantErasureReplayer } from '#/contexts/identity/infrastructure/adapters/staff-participant-erasure-replayer.adapter'
-import { createStaffParticipantRightsExecutor } from '#/contexts/identity/infrastructure/adapters/staff-participant-rights.adapter'
+import { createStaffParticipantErasureReplayer } from '#/contexts/identity/rights/staff-participant-erasure-replayer.adapter.server'
+import { createStaffParticipantRightsExecutor } from '#/contexts/identity/rights/staff-participant-rights.adapter.server'
 import {
   createGoogleRightsExecutor,
   createGoogleRightsReplayers,

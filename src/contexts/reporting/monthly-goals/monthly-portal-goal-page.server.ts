@@ -16,8 +16,8 @@ import type {
 } from './contracts'
 import type { PortalGoalOfCard, PortalGoalRunningMonth } from './contracts'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
-import type { GoalSubjectNameReader } from '../application/use-cases/goal-bulk-create'
-import { inParallel, listProgressOf } from '../application/use-cases/goal-list-progress'
+import type { GoalSubjectNameReader } from './goal-bulk-create.server'
+import { inParallel, listProgressOf } from './goal-list-progress.server'
 import type { GoalActor, GoalExecutionPolicy } from './goal-programs.server'
 import {
   gatherMonthlyPortalGoal,

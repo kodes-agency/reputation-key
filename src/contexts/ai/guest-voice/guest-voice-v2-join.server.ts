@@ -1,0 +1,128 @@
+// Where the analysis and Review meet. Review says which reviews the Property has now
+// (a review Google no longer shows, or whose text has expired, is not among them); the
+// analysis says what each of those says. A page counts a review only when both agree on
+// it: the same review, in the same revision and analysis sequence, on the same day. So an
+// analysis of a review that has since gone, or changed and awaits a new analysis, is
+// never counted as though it still stood.
+import type { AiTrendPopulationReview } from '#/contexts/review/application/public-api'
+import { ratingCountsOf, type RatingCounts } from '../application/aspect-review-evidence'
+import type {
+  GuestVoiceFactsRead,
+  GuestVoiceUnavailableReview,
+} from './ai-guest-voice-facts.port.server'
+import type { GuestVoiceReview } from './guest-voice-v2-facts.contracts'
+
+/** What Review counted for the window: every review, those with only stars included. */
+export type WindowPopulation = Readonly<{
+  /** How many of them gave 1, 2, 3, 4 and 5 stars. */
+  stars: RatingCounts
+  /** Of those, the ones with text. */
+  textReviews: number
+}>
+
+export type Period = Readonly<{ startLocalDate: string; endLocalDate: string }>
+
+export type JoinedPeriod = Readonly<{
+  /** Reviews of the period with a current analysis. */
+  analysed: readonly GuestVoiceReview[]
+  /** What Review counted in the period: its stars, and how many have text. */
+  currentPopulation: readonly AiTrendPopulationReview[]
+  population: WindowPopulation
+  /** Reviews with text that have no analysis yet, and so make a figure provisional. */
+  awaitingAnalysis: number
+}>
+
+type VersionedReview = Readonly<{
+  reviewId: string
+  sourceRevision: number
+  analysisSequence: number
+}>
+
+/** The key Review and the analysis agree a review's current version by. */
+export function reviewVersionKey(review: VersionedReview): string {
+  return `${review.reviewId}:${review.sourceRevision}:${review.analysisSequence}`
+}
+
+/** Where a review settled without an analysis meets Review's count: the sequence Review issued. */
+function sequenceKey(review: Readonly<{ reviewId: string; analysisSequence: number }>) {
+  return `${review.reviewId}:${review.analysisSequence}`
+}
+
+type DatedUnavailableReview = Extract<
+  GuestVoiceUnavailableReview,
+  { sourceRevision: number }
+>
+
+function isDated(review: GuestVoiceUnavailableReview): review is DatedUnavailableReview {
+  return review.sourceRevision !== null
+}
+
+function inPeriod(localDate: string, period: Period): boolean {
+  return localDate >= period.startLocalDate && localDate <= period.endLocalDate
+}
+
+export function joinPeriod(
+  period: Period,
+  population: readonly AiTrendPopulationReview[],
+  analysed: readonly GuestVoiceReview[],
+  unavailable: readonly GuestVoiceUnavailableReview[],
+): JoinedPeriod {
+  const here = population.filter((review) => inPeriod(review.localDate, period))
+  const byVersion = new Map(here.map((review) => [reviewVersionKey(review), review]))
+  const counted = analysed.filter(
+    (review) => byVersion.get(reviewVersionKey(review))?.localDate === review.localDate,
+  )
+  const settled = new Set([
+    ...counted.map(reviewVersionKey),
+    ...unavailable
+      .filter(isDated)
+      .filter(
+        (review) =>
+          byVersion.get(reviewVersionKey(review))?.localDate === review.localDate,
+      )
+      .map(reviewVersionKey),
+  ])
+  // A review settled without any analysis has no revision or day of its own; Review's
+  // population supplies both, and the sequence it issued is what ties the two together.
+  // A newer sequence of the same review is not covered by an older settlement.
+  const excluded = new Set(
+    unavailable.filter((review) => !isDated(review)).map(sequenceKey),
+  )
+  const withText = here.filter((review) => review.hasText)
+  return {
+    analysed: counted,
+    currentPopulation: here,
+    population: { stars: ratingCountsOf(here), textReviews: withText.length },
+    awaitingAnalysis: withText.filter(
+      (review) =>
+        !settled.has(reviewVersionKey(review)) && !excluded.has(sequenceKey(review)),
+    ).length,
+  }
+}
+
+/**
+ * A window and the period before it, joined with Review's answer, and whether the figures
+ * are provisional: some review with text, in either period or anywhere the analysis reads,
+ * still waits for its analysis.
+ */
+export function joinWindows(
+  input: Readonly<{
+    window: Period
+    /** The period before the window; null where a year before it is too much to read. */
+    before: Period | null
+    population: readonly AiTrendPopulationReview[]
+    facts: Pick<GuestVoiceFactsRead, 'reviews' | 'unavailable' | 'coverage'>
+  }>,
+): Readonly<{ now: JoinedPeriod; earlier: JoinedPeriod | null; provisional: boolean }> {
+  const { window, before, population, facts } = input
+  const now = joinPeriod(window, population, facts.reviews, facts.unavailable)
+  const earlier =
+    before === null
+      ? null
+      : joinPeriod(before, population, facts.reviews, facts.unavailable)
+  const provisional =
+    facts.coverage.awaitingAnalysisCount > 0 ||
+    now.awaitingAnalysis > 0 ||
+    (earlier?.awaitingAnalysis ?? 0) > 0
+  return { now, earlier, provisional }
+}

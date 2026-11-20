@@ -3,31 +3,29 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   GoogleOAuthPort,
   GoogleOAuthProviderCallAuthorizer,
-} from '../application/ports/google-oauth.port'
+} from './google-oauth.port.server'
 import type { OAuthStateHandleService } from '../application/oauth-state-handle'
-import type { OAuthCallbackAbuseGate } from '../application/oauth-callback-abuse-gate'
+import type { OAuthCallbackAbuseGate } from './oauth-callback-abuse-gate.server'
 import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderTokenAccess,
-} from '../application/ports/google-authorized-provider-executor.port'
-import type { GoogleRefreshCoordination } from '../application/ports/google-refresh-coordination.port'
-import type { GoogleDisconnectRevokeStore } from '../application/google-disconnect-revoke'
-import { createActiveConnectionTokenProvider } from '../application/active-connection-token-provider'
-import {
-  connectGoogleAccount,
-  disconnectGoogleAccount,
-  getGoogleAuthUrl,
-  listGoogleConnections,
-  prepareGoogleConnectorDeparture,
-  refreshGoogleToken,
-} from '../application/use-cases'
-import { createGoogleConnectionRepository } from '../infrastructure/repositories/google-connection.repository'
-import { createGoogleOAuthExchangeRecoveryRepository } from '../infrastructure/repositories/google-oauth-exchange-recovery.repository'
-import { createGoogleDisconnectRevokeRepository } from '../infrastructure/repositories/google-disconnect-revoke.repository'
-import { createGoogleOAuthAdapter } from '../infrastructure/adapters/google-oauth.adapter'
-import { createTokenEncryptionAdapter } from '../infrastructure/adapters/token-encryption.adapter'
-import { createAtomicIntegrationCommandStore } from '../infrastructure/integration-command-store'
-import { createGoogleConnectorDepartureStore } from '../infrastructure/google-connector-departure.store'
+} from '../provider/google-client.port.server'
+import type { GoogleRefreshCoordination } from './google-refresh-coordination.port.server'
+import type { GoogleDisconnectRevokeStore } from './google-disconnect-revoke.server'
+import { createActiveConnectionTokenProvider } from './active-connection-token-provider.server'
+import { connectGoogleAccount } from './connect-google-account.server'
+import { disconnectGoogleAccount } from './disconnect-google-account.server'
+import { getGoogleAuthUrl } from './get-google-auth-url.server'
+import { listGoogleConnections } from './list-google-connections.server'
+import { prepareGoogleConnectorDeparture } from './prepare-google-connector-departure.server'
+import { refreshGoogleToken } from './refresh-google-token.server'
+import { createGoogleConnectionRepository } from './google-connection-repository.server'
+import { createGoogleOAuthExchangeRecoveryRepository } from './google-oauth-exchange-recovery-repository.server'
+import { createGoogleDisconnectRevokeRepository } from './google-disconnect-revoke-repository.server'
+import { createGoogleOAuthAdapter } from './google-oauth.adapter.server'
+import { createTokenEncryptionAdapter } from './token-encryption.adapter.server'
+import { createAtomicIntegrationCommandStore } from './integration-command-store.server'
+import { createGoogleConnectorDepartureStore } from './google-connector-departure-store.server'
 
 export type GoogleConnectionsRuntimeDeps = Readonly<{
   db: Database

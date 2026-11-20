@@ -5,7 +5,7 @@ import { unbrand } from '#/shared/domain/ids'
 import { notificationError } from '../domain/notification-errors'
 import type { Notification } from '../domain/notification-types'
 import { applyCoalescence } from '../domain/notification-policy'
-import { notificationFromRow } from '../infrastructure/repositories/notification-row.mapper'
+import { notificationFromRow } from './notification-row-mapper.server'
 
 /**
  * Lock, read, merge, write attempts before giving up. A round only repeats

@@ -4,17 +4,17 @@
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { createRecentActivityRepository } from './infrastructure/recent-activity-repository.drizzle'
-import { registerActivityOutboxConsumers } from './infrastructure/activity-outbox-consumers'
+import { createRecentActivityRepository } from './rights/recent-activity-repository.server'
+import { registerActivityOutboxConsumers } from './audit/activity-outbox-consumers.server'
 import type { OperationalActionHistoryRecordId } from './domain/operational-action-history'
-import { createOperationalActionHistoryStore } from './infrastructure/operational-action-history-store'
-import { createRecentActivityPrivacyStore } from './infrastructure/recent-activity-privacy-store'
-import { redactRecentActivityActorLabels } from './application/use-cases/redact-recent-activity-actor-labels'
+import { createOperationalActionHistoryStore } from './audit/operational-action-history-store.server'
+import { createRecentActivityPrivacyStore } from './rights/recent-activity-privacy-store.server'
+import { redactRecentActivityActorLabels } from './rights/redact-recent-activity-actor-labels.server'
 import {
   exportOperationalActionHistory,
   listOperationalActionHistory,
   type OperationalHistoryAccessAuthority,
-} from './application/use-cases/operational-action-history-access'
+} from './audit/operational-action-history-access.server'
 import {
   appendOperationalAction,
   assessOperationalActionHistoryRetention,
@@ -22,7 +22,7 @@ import {
   placeOperationalActionHistoryLegalHold,
   redactOperationalActionHistorySubject,
   releaseOperationalActionHistoryLegalHold,
-} from './application/use-cases/operational-action-history-lifecycle'
+} from './audit/operational-action-history-lifecycle.server'
 
 export type ActivityBuildInput = Readonly<{
   db: Database

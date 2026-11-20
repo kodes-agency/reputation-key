@@ -11,10 +11,10 @@ import { portalMediaAssetId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { revealPortalAddress } from '../application/use-cases/reveal-portal-address'
-import { createPortalAddressRepository } from '../infrastructure/repositories/portal-address.repository'
-import { createPortalMediaAssetRepository } from '../infrastructure/repositories/portal-media-asset.repository'
-import { createPortalRepository } from '../infrastructure/repositories/portal.repository'
+import { revealPortalAddress } from '../addresses/reveal-portal-address.server'
+import { createPortalAddressRepository } from '../addresses/portal-address-repository.server'
+import { createPortalMediaAssetRepository } from '../media/portal-media-asset-repository.server'
+import { createPortalRepository } from '../publication/portal-repository.server'
 import {
   BASE_URL,
   LOGO_ASSET,
@@ -24,15 +24,15 @@ import {
   seedPrintKitCode,
   sha256Hex,
   storePrintKitPicture,
-} from '../infrastructure/print-kit/__fixtures__/print-kit-live-seed'
-import { testPortalTokenCodec } from '../infrastructure/testing/portal-token-codec-fixture'
-import { seedPortalWorkingCopy } from '../infrastructure/testing/portal-working-copy-seed'
+} from './print-kit-live-seed.test-fixtures'
+import { testPortalTokenCodec } from '../addresses/portal-token-codec.test-fixtures'
+import { seedPortalWorkingCopy } from '../publication/portal-working-copy-seed.test-fixtures'
 import {
   COMPLETE_SCENARIO,
   SCENARIO_HERO_ASSET,
   WORKING_COPY_ORG,
   WORKING_COPY_OTHER_ORG,
-} from '../infrastructure/testing/portal-working-copy-scenarios'
+} from '../publication/portal-working-copy-scenarios.test-fixtures'
 import { readPicturesThenReveal } from './print-download.server'
 
 const { getPool } = setupIntegrationDb({

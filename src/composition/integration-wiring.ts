@@ -5,8 +5,8 @@ import {
   createInMemoryOAuthCallbackQuotaCounter,
   createOAuthCallbackAbuseGate,
   type OAuthCallbackQuotaCounter,
-} from '#/contexts/integration/application/oauth-callback-abuse-gate'
-import { createRedisOAuthCallbackQuotaCounter } from '#/contexts/integration/infrastructure/oauth-callback-quota-counter'
+} from '#/contexts/integration/connections/oauth-callback-abuse-gate.server'
+import { createRedisOAuthCallbackQuotaCounter } from '#/contexts/integration/connections/oauth-callback-quota-counter.server'
 import { getLogger } from '#/shared/observability/logger'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'

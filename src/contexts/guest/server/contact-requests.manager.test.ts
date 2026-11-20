@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { contactRequestError } from '../domain/errors'
-import { getContactRequestFn, revealContactRequestFn } from './contact-requests'
+import { revealContactRequestFn } from './contact-requests'
 
 const mocks = vi.hoisted(() => ({
   enabled: true,
@@ -50,7 +50,6 @@ const IDS = {
   propertyId: '10000000-0000-4000-8000-000000000001',
   portalId: '10000000-0000-4000-8000-000000000002',
 }
-const getData = { ...IDS, responseId: '10000000-0000-4000-8000-000000000003' }
 const revealData = { ...IDS, contactRequestId: '10000000-0000-4000-8000-000000000004' }
 const CTX = { userId: 'manager-1', organizationId: 'org-1' }
 
@@ -64,40 +63,12 @@ beforeEach(() => {
   mocks.requireExecutionAllowed.mockResolvedValue(undefined)
 })
 
-describe('contact request manager endpoints', () => {
-  it('answers a read with no request on the feedback like any missing request', async () => {
-    mocks.getMasked.mockResolvedValue(null)
-
-    await expect(getContactRequestFn({ data: getData })).rejects.toMatchObject(refused)
-    expect(mocks.getMasked).toHaveBeenCalledOnce()
-  })
-
-  it('returns the masked request when there is one', async () => {
-    const masked = { id: 'r1', maskedContact: '••••••••' }
-    mocks.getMasked.mockResolvedValue(masked)
-
-    await expect(getContactRequestFn({ data: getData })).resolves.toEqual(masked)
-  })
-
-  it.each([
-    ['read', () => getContactRequestFn({ data: getData })],
-    ['reveal', () => revealContactRequestFn({ data: revealData })],
-  ])(
-    'checks the switch on a %s before any identity or permission answer',
-    async (_name, call) => {
-      mocks.enabled = false
-      mocks.resolveTenantContext.mockRejectedValue(new Error('identity was reached'))
-      mocks.requireExecutionAllowed.mockRejectedValue(new Error('policy was reached'))
-
-      await expect(call()).rejects.toMatchObject(refused)
-      expect(mocks.headers).not.toHaveBeenCalled()
-      expect(mocks.resolveTenantContext).not.toHaveBeenCalled()
-      expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
-      expect(mocks.getMasked).not.toHaveBeenCalled()
-      expect(mocks.reveal).not.toHaveBeenCalled()
-    },
-  )
-
+// The switch, role and Organization outcomes are asserted through the real
+// stack in contact-requests.integration.test.ts and
+// contact-requests-switched-off.integration.test.ts. What stays here is the
+// refusal mapping of a reveal, which the capability posture keeps unreachable
+// there.
+describe('contact request reveal refusals', () => {
   it.each(['not_found', 'unavailable', 'not_authorized'] as const)(
     'answers a reveal refused as %s with the same 404',
     async (code) => {

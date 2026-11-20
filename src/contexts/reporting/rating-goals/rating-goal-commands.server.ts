@@ -35,15 +35,15 @@ import type {
 import type {
   NewPropertyRatingGoal,
   RatingGoalWriteResult,
-} from '../application/ports/property-rating-goal.repository'
-import { evaluateRatingGoal } from '../application/rating-goal-evaluation'
+} from './property-rating-goal-repository.port.server'
+import { evaluateRatingGoal } from './rating-goal-evaluation.server'
 import {
   numbersEligibility,
   ratingBasis,
   setupEligibility,
   type RatingGoalReading,
-} from '../application/rating-goal-reading'
-import { googleShowsSoonOf } from '../application/rating-goal-views'
+} from './rating-goal-reading.server'
+import { googleShowsSoonOf } from './rating-goal-views.server'
 import type { RatingGoalPropertyInput } from './get-rating-goals.server'
 import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import {

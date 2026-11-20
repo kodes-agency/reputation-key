@@ -3,9 +3,9 @@
 // again (the command store re-checks membership and competing invitations),
 // then the email goes out with the renewed lifetime.
 
-import type { IdentityPort } from '../application/ports/identity.port'
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
-import type { InvitationEmailSender } from '../application/ports/invitation-email.port'
+import type { IdentityPort } from './auth-identity.port.server'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
+import type { InvitationEmailSender } from './invitation-email.port.server'
 import type { PropertyNameLookup } from './invitation-read-model.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -14,8 +14,8 @@ import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../domain/errors'
 import { betaInvitationRole } from '../domain/invitation-state'
 import { INELIGIBLE_ROLE_MESSAGE } from '../domain/invitation-copy'
-import type { AcceptInvitationInput } from '../application/dto/invitation.dto'
-import { deliverInvitationEmail } from '../application/invitation-email-delivery'
+import type { AcceptInvitationInput } from './invitation.contracts'
+import { deliverInvitationEmail } from './invitation-email-delivery.server'
 
 export type ResendInvitationInput = AcceptInvitationInput
 

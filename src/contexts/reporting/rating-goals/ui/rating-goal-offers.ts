@@ -2,7 +2,7 @@ import type { RatingGoalSetupView } from '#/contexts/reporting/rating-goals/cont
 import {
   HIGHEST_TARGET_TENTHS,
   KEEP_FIRST_FROM_TENTHS,
-} from '#/contexts/reporting/application/rating-goal-setup-plan'
+} from '#/contexts/reporting/rating-goals/rating-goal-setup-plan.contracts'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
 export function ratingGoalStartIntent(

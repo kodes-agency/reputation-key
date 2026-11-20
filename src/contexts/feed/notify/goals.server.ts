@@ -14,28 +14,28 @@ import {
   type InboxItemId,
   type UserId,
 } from '#/shared/domain/ids'
-import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
-import type { ActivePropertyLookup } from '../application/ports/cross-context-lookups.port'
-import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { NotificationAudience } from '../application/notification-audience'
+import type { ResponsibleManagerLookupPort } from './responsible-manager-lookup.port.server'
+import type { ActivePropertyLookup } from './cross-context-lookups.port.server'
+import type { UserLookupPort } from './notification-db-user-lookup.port.server'
+import type { NotificationAudience } from './notification-audience.server'
 import {
   goalNoticeScope,
   inboxNotificationAudience,
   resolveInboxResponsibleRecipients,
   resolveResponsibleRecipients,
-} from '../application/responsible-recipients'
+} from './responsible-recipients.server'
 import type {
   NotificationGuestVoiceLine,
   NotificationPayload,
 } from '../domain/notification-payload'
 import type { NotificationType } from '../domain/notification-types'
 import type { InboxFanoutDeps } from './inbox.server'
-import { goalMonthMarker } from '../infrastructure/goal-month-marker'
+import { goalMonthMarker } from './goal-month-marker.server'
 import {
   buildInboxItemPayload,
   buildPropertyPayload,
   type PropertyPayloadDeps,
-} from '../infrastructure/notification-payload-facts'
+} from './notification-payload-facts.server'
 import { deliverNotices, type Notice, type NoticeDeliveryDeps } from './consumers.server'
 
 export const ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER =

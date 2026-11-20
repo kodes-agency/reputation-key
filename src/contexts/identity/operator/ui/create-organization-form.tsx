@@ -19,7 +19,7 @@ import {
   provisionOrganizationInputSchema,
   type ProvisionOrganizationInput,
   type ProvisionOrganizationResult,
-} from '#/contexts/identity/application/dto/platform-console.dto'
+} from '#/contexts/identity/operator/platform-console.contracts'
 import { suggestedSlug } from './platform-console-model'
 
 // The form always submits a slug (the one on screen); the DTO leaves it optional.

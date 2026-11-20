@@ -9,18 +9,18 @@ import type { RatingGoalNotice } from '../domain/rating-goal-notices'
 import { statusPaceWindow } from '../domain/rating-goal-status'
 import type { GoogleRatingRangeTotals } from '#/contexts/review/application/public-api'
 import { previousWeekStartInstant, weekStartInstant } from '../domain/rating-goal-weeks'
-import type { PropertyRatingGoalRepository } from '../application/ports/property-rating-goal.repository'
+import type { PropertyRatingGoalRepository } from './property-rating-goal-repository.port.server'
 import {
   readRatingGoalInputs,
   type RatingGoalReadDeps,
   type RatingGoalReading,
   type RatingGoalReadRequest,
-} from '../application/rating-goal-reading'
+} from './rating-goal-reading.server'
 import {
   evaluateRatingGoal,
   recordRatingGoalEvaluation,
   type RatingGoalEvaluation,
-} from '../application/rating-goal-evaluation'
+} from './rating-goal-evaluation.server'
 import type {
   GoalActor,
   GoalExecutionPolicy,

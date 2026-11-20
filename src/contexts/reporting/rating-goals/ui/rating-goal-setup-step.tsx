@@ -3,7 +3,7 @@
 
 import { useId, useRef, type FormEvent, type ReactNode } from 'react'
 import type { RatingGoalSetupView } from '#/contexts/reporting/rating-goals/contracts'
-import { workOutRatingGoal } from '#/contexts/reporting/application/rating-goal-setup-plan'
+import { workOutRatingGoal } from '#/contexts/reporting/rating-goals/rating-goal-setup-plan.contracts'
 import { Button } from '#/components/ui/button'
 import { DialogFooter } from '#/components/ui/dialog'
 import { TONE_INK } from '#/components/ui/tone'

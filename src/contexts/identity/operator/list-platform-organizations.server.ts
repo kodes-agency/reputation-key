@@ -3,7 +3,7 @@
 // AccountAdmin.
 
 import type { Clock } from '#/shared/domain/clock'
-import type { PlatformOrganizationView } from '../application/dto/platform-console.dto'
+import type { PlatformOrganizationView } from './platform-console.contracts'
 import type { PlatformOrganizationStore } from './platform-organization-store.port.server'
 import {
   PLATFORM_ORGANIZATION_LIST_LIMIT,

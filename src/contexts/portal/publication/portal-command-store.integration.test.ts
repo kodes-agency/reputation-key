@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // ARC-01 — Portal authoritative state and lifecycle facts share one commit.
 //
 // These tests use real PostgreSQL because a mocked transaction cannot prove
@@ -47,8 +47,8 @@ import {
 import { publishPortalAccessArtifact } from '../domain/portal-access-artifact'
 import { portalAccessArtifactId } from '#/shared/domain/ids'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
-import { createPortalWorkflowFactStore } from '../infrastructure/portal-workflow-fact-store'
-import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
+import { createPortalWorkflowFactStore } from './portal-workflow-fact-store.server'
+import { buildPortalPublicationSnapshot } from './portal-publication-snapshot.server'
 import { publicationSource } from '../domain/__fixtures__/publication-source'
 import { issueToken, rotateToken } from '../domain/portal-token'
 

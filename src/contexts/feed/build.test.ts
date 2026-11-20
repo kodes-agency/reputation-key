@@ -6,7 +6,7 @@ import type { OutboxRepository } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { operationalActionHistoryRecordId } from './domain/operational-action-history'
 import { buildFeedContext } from './build'
-import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './infrastructure/repositories/health-read-timeout'
+import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './notify/health-read-timeout.server'
 
 function buildWith(db: Database) {
   const logger = createMockLogger()

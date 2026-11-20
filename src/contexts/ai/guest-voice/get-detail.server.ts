@@ -1,6 +1,6 @@
 import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
 import { REVIEW_URGENT_REASONS_V3 } from '#/shared/review-analysis-v3'
-import { addDays } from '../application/local-date'
+import { addDays } from './local-date.contracts'
 import {
   loadGuestVoiceReadContext,
   type GuestVoiceReadDependencies,
@@ -11,7 +11,7 @@ import {
   type GuestVoiceDetailDraft,
 } from '../application/read-models/guest-voice-v2-details'
 import type { GuestVoiceDetailRead, GuestVoiceDetailTarget } from './contracts'
-import { withSentences } from '../application/read-models/guest-voice-v2-sentences'
+import { withSentences } from './guest-voice-v2-sentences.server'
 
 export type ReadGuestVoiceDetailInput = GuestVoiceReadInput &
   Readonly<{

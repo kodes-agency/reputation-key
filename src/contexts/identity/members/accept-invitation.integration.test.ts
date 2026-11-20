@@ -8,13 +8,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { acceptInvitation } from './accept-invitation.server'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
 import { setupIdentityMembersDb } from '#/shared/testing/identity-members-fixtures'
 import { isIdentityError } from '../domain/errors'
 import { INVITATION_PAUSED_MESSAGE } from '../domain/invitation-copy'
 import { invitationId, userId, organizationId } from '#/shared/domain/ids'
 import type { InvitationId, UserId } from '#/shared/domain/ids'
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
 import type { DomainEvent } from '#/shared/events/events'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')

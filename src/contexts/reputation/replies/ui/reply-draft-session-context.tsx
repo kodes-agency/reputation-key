@@ -16,7 +16,7 @@ import {
   type DraftSessionSnapshot,
   type ReplyDraftSession,
 } from './reply-draft-session'
-import type { ReplySuggestionResult } from '#/components/inbox/reply-suggestion-contract'
+import type { ReplySuggestionResult } from '#/contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 import type { DraftStream } from '#/components/inbox/reply-draft-stream'
 import { streamReplyDraft } from '#/components/inbox/use-reply-actions'
 import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply/schema'

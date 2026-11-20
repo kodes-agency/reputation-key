@@ -4,7 +4,7 @@
  * on it without importing each other: the Review repository's SQL stage CASE
  * (`reply.repository.ts` findReviewIdsByReplyStage, which feeds queue lists and
  * counts) and the browser's optimistic queue matcher
- * (`components/inbox/inbox-queues.ts` itemMatchesQueue). The SQL CASE is built
+ * (`reputation/inbox/ui/page/inbox-queues.ts` itemMatchesQueue). The SQL CASE is built
  * from the constants below, and `reply.repository.test.ts` enumerates every
  * status × publication state × due time against both.
  *

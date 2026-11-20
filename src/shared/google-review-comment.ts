@@ -106,7 +106,7 @@ export type GoogleReplyComment = Readonly<{
  * `marker < 0` branch above). For review text that is harmless. For a reply it
  * is not: reconciliation read `replyText: null` as "Google has no reply", so a
  * reply Google did show, in a form we could not read back, counted as absent
- * (google-review-api.adapter.ts `mapReview`). Absence is never evidence about a
+ * (google-review-api.adapter.server.ts `mapReview`). Absence is never evidence about a
  * publication, so the unreadable case is reported on its own.
  */
 export function parseGoogleReplyComment(

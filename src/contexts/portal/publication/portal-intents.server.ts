@@ -9,17 +9,17 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import type { Permission } from '#/shared/domain/permissions'
 import type { Result } from '#/shared/domain'
-import { loadPortalOrThrow } from '../application/load-accessible-portal'
+import { loadPortalOrThrow } from './load-accessible-portal.server'
 import {
   assertPropertyAllowsPublication,
   loadVerifiedGoogleReviewDestination,
-} from '../application/portal-publication-readiness'
+} from './portal-publication-readiness.server'
 import type {
   ChangePortalLanguagesInput,
   ChangePortalSlugInput,
   PortalIdInput,
   UpdatePortalSettingsInput,
-} from '../application/dto/portal-intents.dto'
+} from './portal-intents.contracts'
 import { portalError, type PortalError } from '../domain/errors'
 import {
   validateDescription,

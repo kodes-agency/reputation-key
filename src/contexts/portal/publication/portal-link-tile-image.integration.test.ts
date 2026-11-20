@@ -1,4 +1,4 @@
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 // The picture on a link tile (round 4, slice 42c1) against real PostgreSQL: the
 // update command writes and clears `image_asset_id`, the working model reads it
 // back, the composite foreign key keeps a tile to its own Property's assets, and
@@ -23,8 +23,8 @@ import {
 } from '#/shared/domain/ids'
 import { portalCreated, portalLinkCreated, portalLinkUpdated } from '../domain/events'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
-import { createPortalLinkRepository } from '../infrastructure/repositories/portal-link.repository'
-import { createPortalMediaAssetRepository } from '../infrastructure/repositories/portal-media-asset.repository'
+import { createPortalLinkRepository } from '../links/portal-link-repository.server'
+import { createPortalMediaAssetRepository } from '../media/portal-media-asset-repository.server'
 
 const ORG_A = organizationId('org-tileimg-0000-0000-000000000001')
 const ORG_B = organizationId('org-tileimg-0000-0000-000000000002')

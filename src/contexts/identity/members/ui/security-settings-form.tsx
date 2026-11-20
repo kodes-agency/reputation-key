@@ -13,8 +13,8 @@ import {
   CardTitle,
   CardDescription,
 } from '#/components/ui/card'
-import { changePasswordSchema } from '#/contexts/identity/application/dto/change-password.dto'
-import type { ChangePasswordInput } from '#/contexts/identity/application/dto/change-password.dto'
+import { changePasswordSchema } from '#/contexts/identity/members/change-password.contracts'
+import type { ChangePasswordInput } from '#/contexts/identity/members/change-password.contracts'
 import type { Action } from '#/components/hooks/use-action'
 
 type Props = Readonly<{

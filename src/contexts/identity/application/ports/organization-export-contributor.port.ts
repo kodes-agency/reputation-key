@@ -8,7 +8,7 @@
 // foreign `infrastructure/adapters/**` reach only into `application/ports/**`
 // ("The port IS the public interface for adapter contracts"). So the contract a
 // contributor implements lives here rather than beside the bundle builder —
-// `application/organization-export-contract.ts` re-exports these names so
+// `rights/organization-export-contract.server.ts` re-exports these names so
 // Identity's own callers keep one vocabulary.
 //
 // Nothing in this file may grow behaviour. It is a contract, and every rule it

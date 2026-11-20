@@ -14,7 +14,7 @@ import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import {
   requestPasswordResetFormSchema,
   type RequestPasswordResetFormInput,
-} from '#/contexts/identity/application/dto/password-reset.dto'
+} from '#/contexts/identity/members/password-reset.contracts'
 
 import type { AnyAction } from '#/components/hooks/use-action'
 

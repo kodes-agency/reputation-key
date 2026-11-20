@@ -11,7 +11,7 @@ import { METRIC_VERSION_IDS, type GovernedMetricVersion } from '../../readings/c
 import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
-} from './query-goal-metric'
+} from '../../readings/query-goal-metric.server'
 import {
   organizationId as toOrganizationId,
   portalGroupId as toPortalGroupId,

@@ -439,7 +439,7 @@ Only on-demand work lands here. A schedule firing is never dead-lettered: every 
 
 **Alerts:** `notification.in-app-delivery-lag` (P1), `notification.immediate-email-acceptance-lag` (P2), `notification.email-stalled` (P2), and the email-outcome alerts `notification.email-permanent-failures`, `notification.email-bounce-rate`, `notification.email-complaints`, `notification.email-retry-exhausted`, and `notification.email-provider-feedback-missing` (all P2).
 
-**What `notification.in-app-delivery-lag` means:** an active beta Notification source fact has remained incomplete for more than 60 seconds from its durable source clock. Route facts whose consumer announces nothing (an import's historical arrivals, a cycle opening Feed does not announce, the provider's close of a history item's first cycle, a bulk reopen's per-item facts) are not counted; `silent-route-fact.ts` restates those consumers' rules in SQL, so a change to either belongs in both; only the facts still missing a receipt are tested for silence, and the scan limit bounds the facts left. `notification.delivery.source_receipt_pending` is source work the durable consumer has not acknowledged; `notification.delivery.materialization_pending` is Redis-accepted work without its atomic PostgreSQL notification/materialization receipt. The alert uses the oldest outstanding source age as a breach signal. It does not by itself prove the deployed p99 latency distribution.
+**What `notification.in-app-delivery-lag` means:** an active beta Notification source fact has remained incomplete for more than 60 seconds from its durable source clock. Route facts whose consumer announces nothing (an import's historical arrivals, a cycle opening Feed does not announce, the provider's close of a history item's first cycle, a bulk reopen's per-item facts) are not counted; `silent-route-fact.server.ts` restates those consumers' rules in SQL, so a change to either belongs in both; only the facts still missing a receipt are tested for silence, and the scan limit bounds the facts left. `notification.delivery.source_receipt_pending` is source work the durable consumer has not acknowledged; `notification.delivery.materialization_pending` is Redis-accepted work without its atomic PostgreSQL notification/materialization receipt. The alert uses the oldest outstanding source age as a breach signal. It does not by itself prove the deployed p99 latency distribution.
 
 **First three things to check:**
 
@@ -2544,7 +2544,7 @@ they open it or press "Got it" (`merchant_ai_notice_update_receipts`).
 `src/shared/merchant-ai-notice-announcements.ts` (a test fails without it). A
 stored analysis stays visible across a notice that leaves review analysis
 unchanged: delivery applies the per-capability material-change rule that
-settlement uses (`ai-analysis-notice-coverage.ts`). A newly named AI provider
+settlement uses (`ai-analysis-notice-coverage.server.ts`). A newly named AI provider
 still receives no Google review before the 14th day after the email to
 Participants (Privacy Notice section 9).
 

@@ -21,7 +21,7 @@ import type {
   InboxItem,
 } from '#/contexts/inbox/application/public-api'
 import { fakePage } from './google-return-fake-page'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { GoogleReviewCheck } from './use-google-review-check'
 
 export const MINUTE = 60_000

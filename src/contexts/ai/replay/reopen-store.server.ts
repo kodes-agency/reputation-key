@@ -12,7 +12,7 @@ import {
   AI_REVIEW_ANALYSIS_REOPEN_CODES,
 } from '../domain/review-analysis-reopen'
 import type { AiReviewAnalysisReopenPort } from './contracts'
-import { lockReviewAnalysisPropertyFence } from '../infrastructure/adapters/review-analysis-property-fence'
+import { lockReviewAnalysisPropertyFence } from '../analysis/review-analysis-property-fence.server'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>

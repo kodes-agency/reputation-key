@@ -13,7 +13,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   publishPortalChangesInputSchema,
   publishPortalsChangesInputSchema,
-} from '../application/dto/publish-portal-changes.dto'
+} from '../publication/publish-portal-changes.contracts'
 import { isPortalError, portalError } from '../domain/errors'
 import { portalCommandErrors } from './portal-command-errors'
 import { requirePortalResourceScope } from './property-scope'

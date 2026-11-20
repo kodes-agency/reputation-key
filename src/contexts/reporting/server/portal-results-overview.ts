@@ -22,7 +22,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
-import { getPortalResultsOverviewDto } from '../application/dto/dashboard.dto'
+import { getPortalResultsOverviewDto } from '../property-overview/contracts'
 import type {
   PortalResultsRosterEntry,
   PortalResultsTimeRange,

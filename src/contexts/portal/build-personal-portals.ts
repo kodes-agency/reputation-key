@@ -1,14 +1,14 @@
-import { createPortal } from './application/use-cases/create-portal'
+import { createPortal } from './publication/create-portal.server'
 import {
   createPersonalPortal,
   checkPersonalPortalSource,
   type CreatePersonalPortalDeps,
-} from './application/use-cases/create-personal-portal'
+} from './personal-portals/create-personal-portal.server'
 import {
   publishPortalChanges,
   type PublishPortalChangesDeps,
-} from './application/use-cases/publish-portal-changes'
-import { updatePersonalGuestPage } from './application/use-cases/update-personal-guest-page'
+} from './publication/publish-portal-changes.server'
+import { updatePersonalGuestPage } from './personal-portals/update-personal-guest-page.server'
 export const buildPersonalPortalUseCases = (
   deps: CreatePersonalPortalDeps,
   publishDeps: PublishPortalChangesDeps,

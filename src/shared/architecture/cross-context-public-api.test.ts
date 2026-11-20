@@ -70,6 +70,30 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
 
+  it('allows a feature adapter → foreign application/ports (adapter exception)', async () => {
+    const messages = await lintSnippet(
+      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      'src/contexts/integration/imports/sample.adapter.server.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
+  })
+
+  it('flags a feature server file that is not an adapter → foreign application/ports', async () => {
+    const messages = await lintSnippet(
+      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      'src/contexts/integration/imports/sample.server.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+  })
+
+  it('flags a feature adapter → foreign infrastructure', async () => {
+    const messages = await lintSnippet(
+      `import '#/contexts/review/infrastructure/sample'\n`,
+      'src/contexts/integration/imports/sample.adapter.server.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+  })
+
   it('flags infrastructure → foreign infrastructure', async () => {
     const messages = await lintSnippet(
       `import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'\nexport const factory = createSourceContentPurge\n`,
@@ -188,7 +212,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
     it('flags a ui screen → foreign ui, dto and application even for types', async () => {
       const messages = await lintSnippet(
-        `import type { Wizard } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard'\nimport type { Notice } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'\nexport type Shapes = [Wizard, Notice]\n`,
+        `import type { Wizard } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard'\nimport type { Notice } from '#/contexts/identity/consent/merchant-ai-notice.contracts'\nexport type Shapes = [Wizard, Notice]\n`,
         screen,
       )
       expect(

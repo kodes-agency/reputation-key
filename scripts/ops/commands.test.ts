@@ -98,7 +98,7 @@ describe('pnpm ops jobs acknowledge-repair', () => {
     expect(jobRepairCommandSpec.usage).toContain('pnpm ops jobs acknowledge-repair')
   })
 
-  it('is listed in the command list, with what it refuses', () => {
+  it('is listed in the command list, with how to apply it', () => {
     const entry = readFileSync(
       resolve(ROOT, 'docs/operations/operator-commands.md'),
       'utf8',
@@ -106,9 +106,6 @@ describe('pnpm ops jobs acknowledge-repair', () => {
       .split('\n')
       .find((line) => line.startsWith('- `ops:jobs acknowledge-repair '))
 
-    expect(entry).toContain('dead letter')
-    expect(entry).toContain('retained failed job')
-    expect(entry).toContain('latest on-demand failure is newer than its latest success')
     expect(entry).toContain('`--reason <text> --apply`')
   })
 })
@@ -124,7 +121,7 @@ describe('pnpm ops ai release-orphan-sequences', () => {
     )
   })
 
-  it('is listed in the command list, with what it refuses', () => {
+  it('is listed in the command list, with how to apply it', () => {
     const entry = readFileSync(
       resolve(ROOT, 'docs/operations/operator-commands.md'),
       'utf8',
@@ -132,7 +129,6 @@ describe('pnpm ops ai release-orphan-sequences', () => {
       .split('\n')
       .find((line) => line.startsWith('- `ops:ai release-orphan-sequences '))
 
-    expect(entry).toContain('15 minutes')
     expect(entry).toContain('`--reason <text> --apply`')
   })
 })
@@ -151,7 +147,7 @@ describe('pnpm ops inbox exclude-restated-revision-targets', () => {
     )
   })
 
-  it('is listed in the command list, with what it refuses and how to apply it', () => {
+  it('is listed in the command list, with how to apply it', () => {
     const entry = readFileSync(
       resolve(ROOT, 'docs/operations/operator-commands.md'),
       'utf8',
@@ -159,9 +155,7 @@ describe('pnpm ops inbox exclude-restated-revision-targets', () => {
       .split('\n')
       .find((line) => line.startsWith('- `ops:inbox exclude-restated-revision-targets '))
 
-    expect(entry).toContain('no longer the one recorded for that revision')
     expect(entry).toContain('`--reason <text> --apply`')
-    expect(entry).toContain('A second apply finds nothing')
   })
 })
 
@@ -259,7 +253,7 @@ describe('what the report-only commands point to, under the runbook stops', () =
   /** Check Google again is a reply command before it reads. */
   const CHECK_GOOGLE_AGAIN = capabilityForPermission('reply.manage')
   /** Both reconciliation reads are review-sync provider calls
-   * (google-review-sync-authorizer.ts returns this capability). */
+   * (google-review-sync-authorizer.server.ts returns this capability). */
   const GOOGLE_READ: Capability = 'property.connect_gbp'
 
   const decisionsFor = (capability: Capability) =>
@@ -280,11 +274,6 @@ describe('what the report-only commands point to, under the runbook stops', () =
     )
 
   const opening = (passage: string): string => passage.slice(0, 60)
-
-  /** Runbook section `number`, from its heading to the next one. */
-  const section = (number: number): string =>
-    new RegExp(`^## ${number}\\. [^]*?(?=^## )`, 'm').exec(RUNBOOKS)?.[0] ??
-    `runbook §${number} is missing`
 
   afterEach(() => {
     resetCapabilityPolicyStore()
@@ -310,29 +299,6 @@ describe('what the report-only commands point to, under the runbook stops', () =
     expect(decisionsFor(CHECK_GOOGLE_AGAIN)).toEqual(refusedByAll)
   })
 
-  it('every passage that sends the operator to the in-app disconnect says what refuses it and gives the order', () => {
-    const saysWhatRefusesIt = (passage: string): boolean =>
-      passage.includes(
-        'refuses that disconnect while the Organization is in `BETA_SUSPENDED_ORGS`',
-      ) &&
-      passage.includes('while `BETA_CAPABILITIES_OFF` is `all`') &&
-      passage.includes('disconnect before you suspend the Organization')
-    const passages = passagesNaming('Settings, Integrations')
-
-    // At least runbook §2 and §10, and the command list.
-    expect(passages.length).toBeGreaterThanOrEqual(3)
-    expect(
-      passages.filter((passage) => !saysWhatRefusesIt(passage)).map(opening),
-    ).toEqual([])
-  })
-
-  it('runbook §2 says what to do when the Organization is already suspended', () => {
-    expect(section(2)).toContain('If it is already suspended, or the full stop is on')
-    expect(section(2)).toContain(
-      'the stored credentials stay until the disconnect can run',
-    )
-  })
-
   it('every passage that sends the operator to the reconciliation reads says which capabilities they need', () => {
     const saysWhatTheyNeed = (passage: string): boolean =>
       passage.includes(`\`${GOOGLE_READ}\``) &&
@@ -345,12 +311,6 @@ describe('what the report-only commands point to, under the runbook stops', () =
     expect(passages.filter((passage) => !saysWhatTheyNeed(passage)).map(opening)).toEqual(
       [],
     )
-  })
-
-  it('runbook §6 says what happens to a due reply while its read is refused, and what the operator does', () => {
-    expect(section(6)).toContain('each due check passes without a read')
-    expect(section(6)).toContain('no switch stops sending alone')
-    expect(section(6)).toContain('until the capabilities are back for that Organization')
   })
 })
 

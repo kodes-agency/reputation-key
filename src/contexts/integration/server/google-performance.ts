@@ -9,7 +9,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   getPropertyGooglePerformanceInputSchema,
   renewPropertyGooglePerformanceLeaseInputSchema,
-} from '../application/dto/google-performance.dto'
+} from '../performance/contracts'
 
 function disableProviderContentCaching(): void {
   setResponseHeader('Cache-Control', 'private, no-store, max-age=0')

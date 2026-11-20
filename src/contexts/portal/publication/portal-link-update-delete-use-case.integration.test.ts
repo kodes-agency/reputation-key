@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
@@ -15,10 +15,10 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId } from '#/shared/domain/ids'
 import type { PortalMediaAsset } from '../domain/portal-media-asset'
-import { deleteLink } from '../application/use-cases/delete-link'
-import { updateLink } from '../application/use-cases/update-link'
+import { deleteLink } from '../links/delete-link.server'
+import { updateLink } from '../links/update-link.server'
 import { isPortalError } from '../domain/errors'
-import { createPortalMediaAssetRepository } from '../infrastructure/repositories/portal-media-asset.repository'
+import { createPortalMediaAssetRepository } from '../media/portal-media-asset-repository.server'
 import type { PortalCommandStore } from './portal-command-store-port.server'
 import {
   LINK_WORLD_TABLES,

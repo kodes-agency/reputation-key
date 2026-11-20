@@ -18,7 +18,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 import { InboxDetailContent as BareInboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
 import { withInboxDetailPaneEnv } from '#/contexts/reputation/inbox/ui/inbox-detail-pane-story'
-import { openConfirmation } from '#/components/inbox/reply-editor.stories.play'
+import { openConfirmation } from '#/contexts/reputation/replies/ui/composer/reply-editor.stories.play'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
 import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
@@ -33,7 +33,7 @@ import {
   withPermissions,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import type { ComposerFocusBox } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import { fn } from 'storybook/test'
 import { ON_DEMAND_ANALYSIS_DWELL_MILLIS } from '#/contexts/reputation/inbox/ui/use-on-demand-review-analysis'
 import type {

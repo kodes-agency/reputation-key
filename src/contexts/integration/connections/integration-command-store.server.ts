@@ -1,0 +1,327 @@
+// Atomic integration command store (BQC-3.5).
+//
+// One PostgreSQL transaction per command commits the google_connections state
+// mutation and its durable outbox_events fact.
+
+import { and, eq, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
+import { clearGooglePrimaryCategoryForConnection } from '#/shared/db/google-primary-category-purge'
+import { requestGooglePrimaryCategoryRefresh } from '#/shared/db/google-primary-category-refresh'
+import type { Clock } from '#/shared/domain/clock'
+import { googleConnections } from '#/shared/db/schema/google-connection.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { trace } from '#/shared/observability/trace'
+import { integrationError } from '../domain/errors'
+import {
+  assertGoogleDisconnectAuthority,
+  isGovernedDisconnectInFlight,
+} from '../domain/rules'
+import { uniqueViolationError } from './google-connection-repository.port.server'
+import {
+  googleConnectionFromRow,
+  googleConnectionToInsert,
+} from './google-connection-mapper.server'
+import type {
+  ConnectGoogleAccountCommand,
+  DisconnectGoogleAccountCommand,
+  IntegrationCommandStore,
+  ReconnectGoogleAccountCommand,
+  RequireGoogleReauthorizationCommand,
+} from './integration-command-store.port.server'
+
+/** True when a Postgres unique-constraint violation (SQLSTATE 23505) caused the error. */
+function isPgUniqueViolation(err: unknown): boolean {
+  // drizzle wraps driver errors in DrizzleQueryError — the SQLSTATE lives on
+  // the cause (older call sites check the top level only; accept both).
+  if (typeof err !== 'object' || err === null) return false
+  const code = (err as { code?: unknown }).code
+  if (code === '23505') return true
+  const cause = (err as { cause?: unknown }).cause
+  return (
+    typeof cause === 'object' &&
+    cause !== null &&
+    (cause as { code?: unknown }).code === '23505'
+  )
+}
+
+type GoogleConnectionInsert = typeof googleConnections.$inferInsert
+type GoogleConnectionUpdateSet = {
+  [K in keyof GoogleConnectionInsert]?: GoogleConnectionInsert[K] | SQL
+}
+
+type ConnectionKey = Readonly<{ organizationId: string; connectionId: string }>
+
+/**
+ * Update the google_connections row for (organizationId, connectionId)
+ * inside the command transaction (single source for the guarded connection
+ * updates, BQC-5.9 E16). `guard` narrows the match further. Callers chain
+ * .returning(...) as needed.
+ */
+function updateConnectionRow(
+  tx: Tx,
+  command: ConnectionKey,
+  set: GoogleConnectionUpdateSet,
+  guard?: SQL,
+) {
+  return tx
+    .update(googleConnections)
+    .set(set)
+    .where(
+      and(
+        eq(googleConnections.organizationId, command.organizationId),
+        eq(googleConnections.id, command.connectionId),
+        guard,
+      ),
+    )
+}
+
+async function completeOAuthExchangeAttempt(
+  tx: Tx,
+  input: Readonly<{
+    attemptId: string | undefined
+    organizationId: string
+    connectionId: string
+    initiatorUserId: string
+    now: Date
+  }>,
+): Promise<void> {
+  if (!input.attemptId) return
+  const rows = await tx
+    .update(idempotencyReceipts)
+    .set({
+      payload: sql`${idempotencyReceipts.payload} || jsonb_build_object(
+        'state', 'completed',
+        'encryptedResult', NULL,
+        'responseExpiresAt', NULL,
+        'applyLeaseExpiresAt', NULL,
+        'terminalAt', ${input.now.toISOString()}::timestamptz,
+        'outcomeCode', 'connection_committed',
+        'updatedAt', ${input.now.toISOString()}::timestamptz
+      )`,
+    })
+    .where(
+      and(
+        eq(idempotencyReceipts.scope, 'google_oauth_exchange'),
+        eq(idempotencyReceipts.key, input.attemptId),
+        sql`${idempotencyReceipts.payload}->>'organizationId' = ${input.organizationId}`,
+        sql`${idempotencyReceipts.payload}->>'connectionId' = ${input.connectionId}`,
+        sql`${idempotencyReceipts.payload}->>'initiatorUserId' = ${input.initiatorUserId}`,
+        sql`${idempotencyReceipts.payload}->>'state' = 'applying'`,
+      ),
+    )
+    .returning({ key: idempotencyReceipts.key })
+  if (!rows[0]) {
+    throw integrationError('oauth_failed', 'Google OAuth recovery state changed')
+  }
+}
+
+export const createAtomicIntegrationCommandStore = (
+  db: Database,
+  clock: Clock,
+): IntegrationCommandStore => {
+  return {
+    connectGoogleAccount: async (command: ConnectGoogleAccountCommand) => {
+      return trace('integration.commandStore.connectGoogleAccount', async () => {
+        try {
+          await db.transaction(async (tx) => {
+            await tx
+              .insert(googleConnections)
+              .values(googleConnectionToInsert(command.connection))
+            await completeOAuthExchangeAttempt(tx, {
+              attemptId: command.exchangeAttemptId,
+              organizationId: command.connection.organizationId,
+              connectionId: command.connection.id,
+              initiatorUserId: command.event.userId,
+              now: command.event.occurredAt,
+            })
+            await insertOutboxRow(tx, command.event)
+          })
+        } catch (err) {
+          // Global one-account-one-org race — the use case's fallback contract.
+          if (isPgUniqueViolation(err)) {
+            throw uniqueViolationError('Duplicate Google connection identity')
+          }
+          throw err
+        }
+      })
+    },
+
+    reconnectGoogleAccount: async (command: ReconnectGoogleAccountCommand) => {
+      return trace('integration.commandStore.reconnectGoogleAccount', async () => {
+        let updated: typeof googleConnections.$inferSelect
+        try {
+          updated = await db.transaction(async (tx) => {
+            const now = clock()
+            const rows = await updateConnectionRow(
+              tx,
+              command,
+              {
+                googleSubject: command.googleSubject,
+                googleAccountEmail: command.googleAccountEmail,
+                encryptedAccessToken: command.encryptedAccessToken,
+                encryptedRefreshToken: command.encryptedRefreshToken,
+                tokenExpiresAt: command.tokenExpiresAt,
+                scopes: [...command.scopes],
+                status: 'active',
+                statusReason: null,
+                statusChangedAt: command.event.occurredAt,
+                visibility: command.visibility,
+                credentialUseState: 'active',
+                credentialAuthorizedBy: command.event.userId,
+                credentialAuthorizedAt: command.event.occurredAt,
+                cleanupMaterialDeadlineAt: null,
+                lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
+                accessVersion: sql`${googleConnections.accessVersion} + 1`,
+                credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
+                updatedAt: now,
+              },
+              // Only the exact row the OAuth ceremony was approved against: a
+              // disconnect or departure fence that committed after the
+              // ceremony re-proved its target must not be undone here.
+              and(
+                eq(googleConnections.lifecycleVersion, command.expected.lifecycleVersion),
+                eq(googleConnections.accessVersion, command.expected.accessVersion),
+                eq(
+                  googleConnections.credentialGeneration,
+                  command.expected.credentialGeneration,
+                ),
+              ),
+            ).returning()
+            if (!rows[0]) {
+              const [current] = await tx
+                .select({ id: googleConnections.id })
+                .from(googleConnections)
+                .where(
+                  and(
+                    eq(googleConnections.organizationId, command.organizationId),
+                    eq(googleConnections.id, command.connectionId),
+                  ),
+                )
+                .limit(1)
+              // The same refusal the use case gives when it sees the change
+              // first, so the exchange claim is released rather than lost.
+              throw current
+                ? integrationError('oauth_failed', 'Google connection authority changed')
+                : integrationError('connection_not_found', 'Google connection not found')
+            }
+            await requestGooglePrimaryCategoryRefresh(tx, {
+              organizationId: command.organizationId,
+              connectionId: command.connectionId,
+              eventId: command.event.eventId,
+            })
+            await completeOAuthExchangeAttempt(tx, {
+              attemptId: command.exchangeAttemptId,
+              organizationId: command.organizationId,
+              connectionId: command.connectionId,
+              initiatorUserId: command.event.userId,
+              now: command.event.occurredAt,
+            })
+            await insertOutboxRow(tx, command.event)
+            return rows[0]
+          })
+        } catch (error) {
+          if (isPgUniqueViolation(error)) {
+            throw uniqueViolationError('Duplicate Google connection identity')
+          }
+          throw error
+        }
+        return googleConnectionFromRow(updated)
+      })
+    },
+
+    disconnectGoogleAccount: async (command: DisconnectGoogleAccountCommand) => {
+      return trace('integration.commandStore.disconnectGoogleAccount', async () => {
+        const connection = await db.transaction(async (tx) => {
+          const now = clock()
+          // Held until commit, so a governed revoke, a reconnect or another
+          // disconnect of this row cannot change it between these checks and
+          // the write. Binding publication takes a conflicting share lock first;
+          // unrelated Property foreign-key checks remain compatible.
+          const [current] = await tx
+            .select()
+            .from(googleConnections)
+            .where(
+              and(
+                eq(googleConnections.organizationId, command.organizationId),
+                eq(googleConnections.id, command.connectionId),
+              ),
+            )
+            .for('no key update')
+            .limit(1)
+          assertGoogleDisconnectAuthority(current, command.cleanupOnly?.lifecycleVersion)
+          // An overlapping disconnect already committed: there is nothing left
+          // to redact, and a second fact would send the admins a second notice.
+          if (current.status === 'disconnected') {
+            await clearGooglePrimaryCategoryForConnection(tx, command)
+            return current
+          }
+          if (isGovernedDisconnectInFlight(current, now)) {
+            throw integrationError(
+              'invalid_transition',
+              'Google disconnect is already in progress',
+            )
+          }
+          // BQC-1.7: remove provider identifiers and secret material — the
+          // row stays as a content-free audit fact.
+          const [redacted] = await updateConnectionRow(tx, command, {
+            status: 'disconnected',
+            encryptedAccessToken: 'redacted',
+            encryptedRefreshToken: 'redacted',
+            googleSubject: null,
+            googleAccountEmail: null,
+            scopes: [],
+            credentialUseState: 'none',
+            cleanupMaterialDeadlineAt: null,
+            lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
+            accessVersion: sql`${googleConnections.accessVersion} + 1`,
+            credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
+            updatedAt: now,
+          }).returning()
+          if (!redacted) {
+            throw integrationError('connection_not_found', 'Google connection not found')
+          }
+          await clearGooglePrimaryCategoryForConnection(tx, command)
+          await insertOutboxRow(tx, command.event)
+          return redacted
+        })
+        return googleConnectionFromRow(connection)
+      })
+    },
+
+    requireReauthorization: async (command: RequireGoogleReauthorizationCommand) => {
+      return trace('integration.commandStore.requireReauthorization', async () => {
+        return db.transaction(async (tx) => {
+          const rows = await tx
+            .update(googleConnections)
+            .set({
+              status: 'reauth_required',
+              lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
+              accessVersion: sql`${googleConnections.accessVersion} + 1`,
+              statusReason: command.event.cause,
+              statusChangedAt: command.event.occurredAt,
+              updatedAt: clock(),
+            })
+            .where(
+              and(
+                eq(googleConnections.organizationId, command.organizationId),
+                eq(googleConnections.id, command.connectionId),
+                eq(googleConnections.status, 'active'),
+                eq(googleConnections.credentialUseState, 'active'),
+                eq(googleConnections.lifecycleVersion, command.expected.lifecycleVersion),
+                eq(
+                  googleConnections.credentialGeneration,
+                  command.expected.credentialGeneration,
+                ),
+              ),
+            )
+            .returning({ id: googleConnections.id })
+          if (!rows[0]) return false
+          await insertOutboxRow(tx, command.event)
+          return true
+        })
+      })
+    },
+  }
+}

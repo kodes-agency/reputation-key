@@ -28,19 +28,19 @@ import {
   identityMemberRoleChanged,
   type IdentityMemberRemoved,
 } from '../domain/events'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
-import { createBetterAuthIdentityAdapter } from '../infrastructure/adapters/auth-identity.adapter'
-import { registerMemberRoleConsumers } from '../infrastructure/member-role-outbox-consumers'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
+import { createBetterAuthIdentityAdapter } from './auth-identity.adapter.server'
+import { registerMemberRoleConsumers } from './member-role-outbox-consumers.server'
 import {
   MEMBER_ROLE_CLEANUP_CONSUMER,
   roleChangeCleanup,
 } from './member-role-cleanup.server'
 import { updateMemberRole } from './update-member-role.server'
 import { removeMember } from './remove-member.server'
-import { registerMemberDepartureConsumers } from '#/contexts/integration/infrastructure/member-departure-outbox-consumers'
-import { createActiveMemberAuthResolver } from '#/contexts/integration/infrastructure/active-member-auth.adapter'
-import { createGoogleConnectorDepartureStore } from '#/contexts/integration/infrastructure/google-connector-departure.store'
-import { prepareGoogleConnectorDeparture } from '#/contexts/integration/application/use-cases/prepare-google-connector-departure'
+import { registerMemberDepartureConsumers } from '#/contexts/integration/connections/member-departure-outbox-consumers.server'
+import { createActiveMemberAuthResolver } from '#/contexts/integration/provider/active-member-auth.adapter.server'
+import { createGoogleConnectorDepartureStore } from '#/contexts/integration/connections/google-connector-departure-store.server'
+import { prepareGoogleConnectorDeparture } from '#/contexts/integration/connections/prepare-google-connector-departure.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const PREFIX = 'mco-integration-'

@@ -14,8 +14,8 @@ import {
   CardDescription,
 } from '#/components/ui/card'
 import { OrgIdentityCard } from './org-identity-card'
-import { updateOrgSettingsSchema } from '#/contexts/identity/application/dto/update-org-settings.dto'
-import type { UpdateOrgSettingsInput } from '#/contexts/identity/application/dto/update-org-settings.dto'
+import { updateOrgSettingsSchema } from '#/contexts/identity/organization/update-org-settings.contracts'
+import type { UpdateOrgSettingsInput } from '#/contexts/identity/organization/update-org-settings.contracts'
 
 // ── Types ────────────────────────────────────────────────────────────
 

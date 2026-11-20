@@ -19,7 +19,7 @@ import {
   portalGroupCreated,
   portalGroupUpdated,
 } from '../domain/events'
-import { portalToRow } from '../infrastructure/mappers/portal.mapper'
+import { portalToRow } from './portal-mapper.server'
 import { createPortalGroupCommands } from './portal-group-commands.server'
 
 const ORG = organizationId('org-group-name-collision-a')

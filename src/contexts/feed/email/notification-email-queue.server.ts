@@ -20,10 +20,7 @@ import type {
   FrozenEmailRequest,
   NotificationEmail,
 } from '../domain/notification-types'
-import {
-  frozenEmailRequest,
-  readFrozenEmailRequest,
-} from '../infrastructure/email-frozen-request'
+import { frozenEmailRequest, readFrozenEmailRequest } from './email-frozen-request.server'
 import type {
   NotificationEmailRecipient,
   ProviderDeliveryState,
@@ -33,13 +30,13 @@ import {
   emailFromRow,
   firstAttemptAt,
   SENDABLE,
-} from '../infrastructure/repositories/notification-email-queue-rows'
+} from './notification-email-queue-rows.server'
 import { notificationError } from '../domain/notification-errors'
 import {
   DUE_RECIPIENT_SWEEP_CAP,
   dueRecipientsInVisitOrder,
-} from '../infrastructure/repositories/notification-due-recipients.query'
-import { activePropertyCondition } from '../infrastructure/repositories/active-property'
+} from './notification-due-recipients-query.server'
+import { activePropertyCondition } from '../notify/active-property.server'
 
 const scope = (id: string, orgId: string, propertyId: string | null) =>
   and(

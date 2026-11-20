@@ -40,7 +40,7 @@ import {
   handleReplyPublicationRequested,
   ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
 } from '../outbox-consumers'
-import { decideCurrentMemberPropertyAuthority } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
+import { decideCurrentMemberPropertyAuthority } from '#/contexts/identity/members/member-property-authority.server'
 
 const ORG_A = organizationId('org-reply-cmd-aaaa-1111111111111111')
 const PROP_A = propertyId('2b000000-0000-0000-0000-000000000001')

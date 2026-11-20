@@ -5,13 +5,13 @@
 // snapshot a go-live pins, the health fact and the locale-set fact, and writes
 // them in one command.
 
-import type { PortalRepository } from '../application/ports/portal.repository'
+import type { PortalRepository } from './portal-repository.port.server'
 import type {
   PortalCommandStore,
   PortalPublicationMutation,
 } from './portal-command-store-port.server'
-import type { PortalPublicationRepository } from '../application/ports/portal-publication.repository'
-import type { PortalTokenRepository } from '../application/ports/portal-token.repository'
+import type { PortalPublicationRepository } from './portal-publication-repository.port.server'
+import type { PortalTokenRepository } from '../addresses/portal-token-repository.port.server'
 import type { Portal, PortalTheme } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { unbrand } from '#/shared/domain/ids'
@@ -36,9 +36,9 @@ import type { PortalPublicationSource } from '../domain/portal-publication-sourc
 import {
   buildPortalPublicationSnapshot,
   reviewedPublicationDigest,
-} from '../application/portal-publication-snapshot'
-import { assertPortalHasOwnerAndAddress } from '../application/portal-publication-readiness'
-import { nextPortalCommandAt } from '../application/portal-command-version'
+} from './portal-publication-snapshot.server'
+import { assertPortalHasOwnerAndAddress } from './portal-publication-readiness.server'
+import { nextPortalCommandAt } from './portal-command-version.server'
 import { buildLocaleSetFact, buildPortalHealthFact } from './portal-facts.server'
 
 export type PortalIntentDeps = Readonly<{

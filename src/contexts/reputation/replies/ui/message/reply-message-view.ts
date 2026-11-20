@@ -1,0 +1,214 @@
+import {
+  approvedReplyStateCopy,
+  isCheckingGoogleAutomatically,
+  REPLY_CHIP_WORDS,
+  REPLY_STATE_COPY,
+  replyStateDescription,
+} from './reply-state-copy'
+// `import type` in a `typeof` position: `ResolvedReplyView` is not exported
+// from `reply-status-view.tsx`, but the function that returns it is, and this
+// file must stay free of any runtime import from a `.tsx` module so the unit
+// test never loads the editor tree.
+import type { resolveReplyView } from '../composer/reply-status-view'
+
+/** The nine-variant union `resolveReplyView` returns. */
+export type ResolvedReplyView = ReturnType<typeof resolveReplyView>
+
+/** The reply exactly as a rendered thread message receives it. */
+type ReplyEntity = Extract<ResolvedReplyView, { kind: 'pending' }>['reply']
+
+export type ReplyMessageAction =
+  | 'approve'
+  | 'reject'
+  | 'check'
+  | 'retry'
+  | 'deleteReply'
+  | 'editPublished'
+  | 'editRejected'
+
+export type ReplyMessageTone = 'neutral' | 'positive' | 'negative' | 'accent'
+
+export type ReplyMessageView = Readonly<{
+  chip: string
+  tone: ReplyMessageTone
+  /** Timestamp-only meta. NEVER a person's name — none exists in the payload. */
+  meta: { label: string; at: Date } | null
+  /**
+   * RepKey's own sentence about this reply — what the publication machine is
+   * doing, or what it stopped on. Always product copy, never a person's words.
+   */
+  detail: string | null
+  /**
+   * A COLLEAGUE's words: the reason a reply was refused. Kept apart from
+   * `detail` so the render site can attribute it. Rendered in the same muted
+   * slot, an authored sentence is indistinguishable from RepKey speaking.
+   */
+  reason: string | null
+  actions: readonly ReplyMessageAction[]
+}>
+
+/**
+ * The mirror's meta keeps the meaning of the copy it replaces (`Observed: …  —
+ * via Google Business Profile`): this reply was seen on Google, not sent from
+ * here, and the timestamp is an observation rather than a publication RepKey
+ * performed.
+ */
+const MIRROR_META_LABEL = 'Observed via Google Business Profile'
+
+/**
+ * A server fn serializes a `Date` over the wire, so the runtime value can be a
+ * string while the type still says `Date` — the guard every inbox component
+ * carries. A missing milestone is no meta line at all; the pane never prints a
+ * label with nothing after it.
+ */
+function meta(label: string, at: Date | string | null): ReplyMessageView['meta'] {
+  return at === null ? null : { label, at: new Date(at) }
+}
+
+/**
+ * A publish failure that is safe to send again. Retry and Delete reply are its
+ * only actions: no server path edits the text of a `publish_failed` reply.
+ * `editPublishedReply` refuses anything but `published` (`reply-operations.ts`),
+ * so an Edit reply here would open an editor headed "Edit published reply" whose
+ * every save fails into a toast. Delete reply clears the reply in its row, and
+ * the manager writes a new one in the empty composer.
+ */
+function failedRetryView(reply: ReplyEntity): ReplyMessageView {
+  const copy =
+    reply.publicationLastErrorClass === 'terminal_rejection'
+      ? REPLY_STATE_COPY.terminal_rejection
+      : REPLY_STATE_COPY.retryable
+  return {
+    chip: REPLY_CHIP_WORDS.notPublished,
+    tone: 'negative',
+    // There is no `failedAt`; the confirmation is the last milestone this
+    // reply actually reached, and the detail below says what happened after.
+    meta: meta('Confirmed', reply.approvedAt),
+    detail: replyStateDescription(copy, reply.publicationAttempts),
+    reason: null,
+    actions: ['retry', 'deleteReply'],
+  }
+}
+
+/**
+ * A publication RepKey cannot confirm. Check is its ONLY action in both
+ * readings: `retryPublish` refuses a reply descended from an uncertain attempt
+ * unless dispatch evidence proves it never left (`reply-operations.ts`), so a
+ * resend offered here could only fail.
+ *
+ * What differs is whether a person is needed. While the automatic read ladder
+ * runs, the reply sits in the Waiting for Google queue and reads the same word
+ * in the neutral tone; once it has ended, the word asks for a check in the
+ * accent tone. `reconcileDueAt` is what tells the two apart — the domain clears
+ * it exactly when automatic checks stop.
+ */
+function failedCheckView(reply: ReplyEntity): ReplyMessageView {
+  const isChecking = isCheckingGoogleAutomatically(reply)
+  return {
+    chip: isChecking ? REPLY_CHIP_WORDS.waitingForGoogle : REPLY_CHIP_WORDS.needsCheck,
+    tone: isChecking ? 'neutral' : 'accent',
+    meta: meta('Confirmed', reply.approvedAt),
+    // The one sentence a manager must read before touching this reply:
+    // RepKey will only ever re-read Google, never send a second copy.
+    detail: replyStateDescription(
+      isChecking ? REPLY_STATE_COPY.ambiguous : REPLY_STATE_COPY.ambiguous_stopped,
+    ),
+    reason: null,
+    actions: ['check'],
+  }
+}
+
+/**
+ * One reply, one message shape (plan row 6). `null` means the thread renders
+ * nothing: a draft — and the absence of a reply — lives in the composer, never
+ * in the thread, so a manager is never editing one thing in two places.
+ *
+ * `accent` is the tone for "this reply is waiting on a person here", which is
+ * true of exactly `pending` and a `failed-check` whose automatic reads have
+ * ended. It is deliberately not `negative`: an ambiguous publication may well
+ * be live on Google, and red would assert a failure the domain says is unknown.
+ */
+export function presentReplyMessage(view: ResolvedReplyView): ReplyMessageView | null {
+  switch (view.kind) {
+    case 'compose':
+      return null
+    // A status this bundle cannot name. It prints as a read-only message with
+    // no actions: every action is a state transition, and offering one on a
+    // state we cannot identify would be a guess. `compose`'s silence is right
+    // for a draft — the composer holds it — and wrong here, where returning
+    // null left the pane showing neither the reply nor a box to write one, so
+    // a manager read it as unanswered and had no control to act on either way.
+    // The chip claims nothing about Google: `Needs a check` would ask for a
+    // Check this message cannot offer.
+    case 'none':
+      return {
+        chip: REPLY_CHIP_WORDS.statusUnavailable,
+        tone: 'neutral',
+        meta: null,
+        detail:
+          'This reply is in a state this version of RepKey cannot display. Reload the page to pick up the current one.',
+        reason: null,
+        actions: [],
+      }
+    case 'pending':
+      return {
+        chip: REPLY_CHIP_WORDS.awaitingApproval,
+        tone: 'accent',
+        meta: meta('Submitted', view.reply.submittedAt),
+        detail: null,
+        reason: null,
+        actions: ['approve', 'reject'],
+      }
+    case 'approved':
+      return {
+        chip: REPLY_CHIP_WORDS.waitingForGoogle,
+        tone: 'neutral',
+        meta: meta('Confirmed', view.reply.approvedAt),
+        // One chip covers five publication states, so the stage the machine is
+        // in is the description's job — and this is its only renderer. Without
+        // it nothing separates `approved` (nothing attempted yet) from
+        // `pending_observation` (Google already accepted it).
+        detail: replyStateDescription(
+          approvedReplyStateCopy(view.reply.publicationState),
+        ),
+        reason: null,
+        actions: [],
+      }
+    case 'published':
+      return {
+        chip: REPLY_CHIP_WORDS.liveOnGoogle,
+        tone: 'positive',
+        meta: meta('Live on Google', view.reply.publishedAt),
+        detail: null,
+        reason: null,
+        actions: ['editPublished'],
+      }
+    case 'mirror':
+      return {
+        chip: REPLY_CHIP_WORDS.liveOnGoogle,
+        tone: 'positive',
+        meta: meta(MIRROR_META_LABEL, view.reply.publishedAt),
+        detail: null,
+        reason: null,
+        // Editing a Google-authored reply from here is a future feature.
+        actions: [],
+      }
+    case 'failed-check':
+      return failedCheckView(view.reply)
+    case 'failed-retry':
+      return failedRetryView(view.reply)
+    case 'rejected':
+      return {
+        chip: REPLY_CHIP_WORDS.rejected,
+        tone: 'negative',
+        // `ReplyView` carries `rejectedBy` but no `rejectedAt`; `updatedAt` is
+        // the only field that moved when the rejection was recorded.
+        meta: meta('Rejected', view.reply.updatedAt),
+        detail: null,
+        // An empty reason is no reason: it must not open a blank line under
+        // the reply that reads as a redaction.
+        reason: view.reply.rejectionReason || null,
+        actions: ['editRejected'],
+      }
+  }
+}

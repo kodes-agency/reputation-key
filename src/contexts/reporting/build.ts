@@ -1,9 +1,9 @@
 import { metricRegistry } from './readings/contracts'
-import { createPortalRatingGoalGuard } from './infrastructure/portal-rating-goal-guard'
-import { createGoalMetricBatchReader } from './infrastructure/repositories/goal-metric-batch-reader'
-import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
-import { createStaffResultsReader } from './infrastructure/repositories/staff-results.reader'
-import { getPortalLinkTaps } from './application/use-cases/get-portal-link-taps'
+import { createPortalRatingGoalGuard } from './monthly-goals/portal-rating-goal-guard.server'
+import { createGoalMetricBatchReader } from './readings/goal-metric-batch-reader.server'
+import { findPortalRatingGoalBlock } from './monthly-goals/running-portal-rating-goal.server'
+import { createStaffResultsReader } from './portal-results/staff-results-reader.server'
+import { getPortalLinkTaps } from './portal-results/get-portal-link-taps.server'
 // Reporting context — one composition root for governed metrics, Goal Programs,
 // and dashboard read models.
 
@@ -31,34 +31,34 @@ import type {
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import type { MetricPublicApi, PortalRatingGoalReadApi } from './application/public-api'
 
-import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
-import { createGoalMetricSnapshotReader } from './infrastructure/repositories/goal-metric-snapshot'
+import { createPropertyLocalDateResolver } from './readings/property-local-date.server'
+import { createGoalMetricSnapshotReader } from './readings/goal-metric-snapshot.server'
 import { createAtomicMetricCommandStore } from './readings/metric-command-store.server'
-import { recordMetric, recordMetrics } from './application/use-cases/record-metric'
-import { retractMetrics } from './application/use-cases/retract-metric'
+import { recordMetric, recordMetrics } from './readings/record-metric.server'
+import { retractMetrics } from './readings/retract-metric.server'
 import { registerGuestMetricConsumers } from './readings/guest-outbox-consumers.server'
-import { queryGoalMetric } from './application/use-cases/query-goal-metric'
+import { queryGoalMetric } from './readings/query-goal-metric.server'
 import { createPortalAnalyticsRepository } from './portal-results/portal-analytics.repository.server'
-import { createPortalResultsOverviewRepository } from './infrastructure/repositories/portal-results-overview.repository'
-import { createGoalMetricCorrectionImpactLookup } from './infrastructure/repositories/goal-metric-correction-impact.lookup'
-import { createCurrentGoogleReputationSnapshotRepository } from './infrastructure/repositories/current-google-reputation-snapshot.repository'
-import { registerCurrentGoogleReputationConsumer } from './infrastructure/current-google-reputation-outbox-consumers'
+import { createPortalResultsOverviewRepository } from './portal-results/portal-results-overview-repository.server'
+import { createGoalMetricCorrectionImpactLookup } from './monthly-goals/goal-metric-correction-impact-lookup.server'
+import { createCurrentGoogleReputationSnapshotRepository } from './readings/current-google-reputation-snapshot-repository.server'
+import { registerCurrentGoogleReputationConsumer } from './readings/current-google-reputation-outbox-consumers.server'
 
-import { createGoalProgramSubjectReader } from './infrastructure/adapters/goal-program-subject-reader'
-import { createGoalProgramVisibilityAdapter } from './infrastructure/adapters/goal-program-visibility.adapter'
-import { createGoalProgramRepository } from './infrastructure/repositories/goal-program.repository'
+import { createGoalProgramSubjectReader } from './monthly-goals/goal-program-subject-reader.server'
+import { createGoalProgramVisibilityAdapter } from './monthly-goals/goal-program-visibility.adapter.server'
+import { createGoalProgramRepository } from './monthly-goals/goal-program-repository.server'
 import {
   createGoalProgramService,
   type GoalExecutionPolicy,
   type GoalProgramRequestApi,
 } from './monthly-goals/goal-programs.server'
-import { withGoalProgramVisibility } from './application/use-cases/goal-program-visibility'
-import { createGoalsForSubjects } from './application/use-cases/goal-bulk-create'
+import { withGoalProgramVisibility } from './monthly-goals/goal-program-visibility.server'
+import { createGoalsForSubjects } from './monthly-goals/goal-bulk-create.server'
 import {
   readPortalGoalRecommendation,
   type PortalGoalRecommendationRequestApi,
-} from './application/use-cases/goal-recommendation-read'
-import type { GoalRecommendationFactsPort } from './application/ports/goal-recommendation-facts.port'
+} from './monthly-goals/goal-recommendation-read.server'
+import type { GoalRecommendationFactsPort } from './monthly-goals/goal-recommendation-facts.port.server'
 import { readMonthlyPortalGoalCard } from './monthly-goals/monthly-portal-goal-card.server'
 import {
   readMonthlyPortalGoalPage,
@@ -77,35 +77,35 @@ import {
   addPortalGoals,
   type PortalGoalAddDeps,
   type PortalGoalAddRequestApi,
-} from './application/use-cases/portal-goal-add'
-import { readPortalGoalAddOptions } from './application/use-cases/portal-goal-add-options'
+} from './monthly-goals/portal-goal-add.server'
+import { readPortalGoalAddOptions } from './monthly-goals/portal-goal-add-options.server'
 import { readMonthlyPortalGoalLine } from './monthly-goals/monthly-portal-goal-line.server'
-import { createPortalGoalPromptDeferralStore } from './infrastructure/repositories/portal-goal-prompt-deferrals.repository'
+import { createPortalGoalPromptDeferralStore } from './monthly-goals/portal-goal-prompt-deferrals-repository.server'
 import {
   readPortalGoalSinglePage,
   type PortalGoalSinglePageRequestApi,
 } from './monthly-goals/get-portal-goal-page.server'
-import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
+import { readGoalRecommendationCounts } from './monthly-goals/goal-recommendation-readings.server'
 import {
   createGoalProgramProgressReader,
   createGoalProgressReader,
   type GoalProgressRequestApi,
-} from './application/use-cases/goal-progress'
+} from './monthly-goals/goal-progress.server'
 import {
   createGoalListProgressReader,
   type GoalListProgressRequestApi,
-} from './application/use-cases/goal-list-progress'
+} from './monthly-goals/goal-list-progress.server'
 import type { GoalProgramRepository } from './application/ports/goal-program.repository'
 import {
   createPropertyRatingGoalRepository,
   createRatingGoalPropertyFactsReader,
-} from './infrastructure/repositories/property-rating-goal.repository'
+} from './rating-goals/property-rating-goal-repository.server'
 import {
   createArchivedPropertyRatingGoalEnder,
   createRatingGoalEvaluator,
   createRatingGoalRequestApi,
 } from './rating-goals/rating-goals.server'
-import { registerRatingGoalEvaluationConsumer } from './infrastructure/rating-goal-outbox-consumers'
+import { registerRatingGoalEvaluationConsumer } from './rating-goals/rating-goal-outbox-consumers.server'
 import {
   sweepRatingGoals,
   type AuthorizeRatingGoalScope,
@@ -113,52 +113,52 @@ import {
 import {
   createRatingGoalEvaluationJobHandler,
   RATING_GOAL_EVALUATION_JOB_NAME,
-} from './infrastructure/jobs/rating-goal-evaluation.job'
-import { registerRatingGoalPropertyLifecycleConsumer } from './infrastructure/rating-goal-property-lifecycle-consumers'
-import { createMonthlyResultNotificationFactsLookup } from './infrastructure/adapters/monthly-result-notification-facts.lookup'
-import { reconcileMetricCorrection } from './application/use-cases/reconcile-metric-correction'
-import { registerGoalMetricCorrectionConsumer } from './infrastructure/metric-correction-outbox-consumers'
+} from './rating-goals/rating-goal-evaluation-job.server'
+import { registerRatingGoalPropertyLifecycleConsumer } from './rating-goals/rating-goal-property-lifecycle-consumers.server'
+import { createMonthlyResultNotificationFactsLookup } from './monthly-goals/monthly-result-notification-facts-lookup.server'
+import { reconcileMetricCorrection } from './monthly-goals/reconcile-metric-correction.server'
+import { registerGoalMetricCorrectionConsumer } from './monthly-goals/metric-correction-outbox-consumers.server'
 import {
   createGoalProgramMaintenanceHandler,
   GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
-} from './infrastructure/jobs/goal-program-maintenance.job'
+} from './monthly-goals/goal-program-maintenance-job.server'
 
-import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
-import { createMetricStatsAdapter } from './infrastructure/adapters/metric-stats.adapter'
-import { createAttentionSignalsAdapter } from './infrastructure/adapters/attention-signals.adapter'
-import { createFleetOverviewProjectionAdapter } from './infrastructure/adapters/fleet-overview-projection.adapter'
-import { createStaffPortalResolverAdapter } from './infrastructure/adapters/staff-portal-resolver.adapter'
-import { getDashboardData } from './application/use-cases/get-dashboard-data'
-import type { DashboardPropertyAccess } from './application/dashboard-property-access'
+import { createDashboardRepository } from './property-overview/dashboard-repository.server'
+import { createMetricStatsAdapter } from './property-overview/metric-stats.adapter.server'
+import { createAttentionSignalsAdapter } from './property-overview/attention-signals.adapter.server'
+import { createFleetOverviewProjectionAdapter } from './property-overview/fleet-overview-projection.adapter.server'
+import { createStaffPortalResolverAdapter } from './monthly-goals/staff-portal-resolver.adapter.server'
+import { getDashboardData } from './property-overview/get-dashboard-data.server'
+import type { DashboardPropertyAccess } from './property-overview/dashboard-property-access.server'
 import {
   getPortalAnalytics,
   type GetPortalAnalyticsDeps,
 } from './portal-results/get-portal-analytics.server'
 import { SCHEDULED_RETENTION_ACTIVE } from '#/shared/db/retention/scheduled-retention-activation'
-import { getPortalResultsOverview } from './application/use-cases/get-portal-results-overview'
+import { getPortalResultsOverview } from './portal-results/get-portal-results-overview.server'
 import {
   getAttentionSignals,
   type GetAttentionSignals,
-} from './application/use-cases/get-attention-signals'
+} from './property-overview/get-attention-signals.server'
 import {
   getPropertyOverview,
   type GetPropertyOverview,
-} from './application/use-cases/get-property-overview'
-import { createReadPropertyGoogleNumbers } from './application/use-cases/read-property-google-numbers'
-import { readGoogleNumbers } from './application/google-numbers-read'
+} from './property-overview/get-property-overview.server'
+import { createReadPropertyGoogleNumbers } from './property-overview/read-property-google-numbers.server'
+import { readGoogleNumbers } from './property-overview/google-numbers-read.server'
 import {
   getFleetOverview,
   type GetFleetOverview,
-} from './application/use-cases/get-fleet-overview'
-import { createPropertySetupRepository } from './infrastructure/repositories/property-setup.repository'
+} from './property-overview/get-fleet-overview.server'
+import { createPropertySetupRepository } from './property-overview/property-setup-repository.server'
 import {
   getPropertySetup,
   type GetPropertySetup,
-} from './application/use-cases/get-property-setup'
+} from './property-overview/get-property-setup.server'
 import {
   listPropertySetupSummaries,
   type ListPropertySetupSummaries,
-} from './application/use-cases/list-property-setup-summaries'
+} from './property-overview/list-property-setup-summaries.server'
 
 export type ReportingContextBuildInput = Readonly<{
   staffScanTargetsEnabled?: boolean

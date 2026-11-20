@@ -6,11 +6,10 @@
 //
 // The probe tests need no Redis: "unreachable" is a loopback port nothing
 // listens on, and "reachable" is a stub that speaks just enough of the Redis
-// protocol for the real ioredis client to connect and ping it.
+// protocol for the real ioredis client to connect and ping it. Where CI sets
+// the arm is pinned in src/shared/architecture/ci-build-wiring.test.ts.
 
-import { readdirSync, readFileSync } from 'node:fs'
 import { createServer, type AddressInfo, type Socket } from 'node:net'
-import { resolve } from 'node:path'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { acquireRedisTestLease } from './redis-test-lease'
 import { TestEnvironmentError } from './test-environment-lease'
@@ -248,55 +247,5 @@ describe('RedisTestLease (BQC-6.1)', () => {
         )
       },
     )
-  })
-
-  // The arm above only protects CI if the job that runs the Redis-backed suites
-  // sets it, and only a job that has a Redis service may set it.
-  describe('CI wiring', () => {
-    const WORKFLOWS = resolve(import.meta.dirname, '../../../.github/workflows')
-    const RUNS_INTEGRATION = /test:integration|--project=integration/u
-    const SETS_REQUIREMENT = /^\s+REQUIRE_TEST_REDIS:/mu
-    const REQUIRES_REDIS = /^\s+REQUIRE_TEST_REDIS: '1'$/mu
-    const REDIS_SERVICE = /^ {4}services:\n(?:.*\n)*? {6}redis:$/mu
-
-    const jobs = readdirSync(WORKFLOWS)
-      .filter((file) => file.endsWith('.yml'))
-      .flatMap((file) => {
-        const text = readFileSync(resolve(WORKFLOWS, file), 'utf8')
-        const body = text.slice(text.indexOf('\njobs:\n'))
-        return body
-          .split(/\n(?= {2}[\w-]+:\n)/u)
-          .slice(1)
-          .map((block) => ({ id: `${file}#${block.trim().split(':')[0]}`, block }))
-      })
-
-    it('requires Redis in every step that runs the integration project, beside a Redis service', () => {
-      const integrationJobs = jobs.filter(({ block }) => RUNS_INTEGRATION.test(block))
-      // A new job that runs the integration project joins this list only with
-      // a Redis service and the requirement on its test step.
-      expect(integrationJobs.map(({ id }) => id)).toEqual(['ci.yml#integration'])
-
-      for (const { id, block } of integrationJobs) {
-        const steps = block
-          .split(/\n(?= {6}- )/u)
-          .filter((step) => RUNS_INTEGRATION.test(step))
-        expect(block, `${id} declares a Redis service`).toMatch(REDIS_SERVICE)
-        expect(steps, `${id} has a step that runs the integration project`).not.toEqual(
-          [],
-        )
-        for (const step of steps) {
-          expect(step, `${id} sets REQUIRE_TEST_REDIS on the test step`).toMatch(
-            REQUIRES_REDIS,
-          )
-        }
-      }
-    })
-
-    it('never requires Redis in a job that has no Redis service', () => {
-      const withoutRedis = jobs
-        .filter(({ block }) => SETS_REQUIREMENT.test(block))
-        .filter(({ block }) => !REDIS_SERVICE.test(block))
-      expect(withoutRedis.map(({ id }) => id)).toEqual([])
-    })
   })
 })

@@ -1,0 +1,724 @@
+import { createHash } from 'node:crypto'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
+import { getDb } from '#/shared/db'
+import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import {
+  portalPublicationActivations,
+  portalPublicationSnapshots,
+} from '#/shared/db/schema/portal-publication.schema'
+import {
+  guestResponseExperienceSnapshots,
+  guestResponses,
+} from '#/shared/db/schema/guest.schema'
+import { buildLegacyPortalPublicationSnapshot as buildPortalPublicationSnapshot } from './legacy-snapshot-builder.test-fixtures'
+import { verifyPortalPublicationSnapshot } from './portal-publication-snapshot.server'
+import {
+  createPortalPublicationRepository,
+  snapshotFromRow,
+} from './portal-publication-repository.server'
+
+const ORG = organizationId('org-portal-publication-0000000000001')
+const OTHER_ORG = organizationId('org-portal-publication-0000000000002')
+const PROPERTY = propertyId('f4d00000-0000-4000-8000-000000000001')
+const PORTAL = portalId('f4e00000-0000-4000-8000-000000000001')
+const RESPONSE = 'f5200000-0000-4000-8000-000000000001'
+const NOW = new Date('2026-08-26T13:00:00.000Z')
+const TOKEN_DIGEST = {
+  kind: 'long',
+  tokenIdentifier: 'publicationkey01',
+  // Unique to this integration suite: portal-token repository tests run in a
+  // separate worker against the same local database and the production index
+  // correctly makes this digest globally unique.
+  tokenHash: 'c1'.repeat(32),
+  tokenKeyVersion: 1,
+} as const
+
+const { getPool } = setupIntegrationDb({
+  orgA: ORG,
+  orgB: OTHER_ORG,
+  tables: [
+    'guest_response_experience_snapshots',
+    'guest_responses',
+    'portal_pending_content_changes',
+    'portal_publication_activations',
+    'portal_publication_snapshots',
+    'portal_tokens',
+    'portal_links',
+    'portal_link_categories',
+    'portals',
+    'properties',
+  ],
+})
+
+function snapshot(version: number, name: string, id: string) {
+  return buildPortalPublicationSnapshot({
+    id,
+    portalId: PORTAL,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    version,
+    source: {
+      portal: {
+        id: PORTAL,
+        name,
+        slug: 'lobby',
+        description: null,
+        heroImageUrl: null,
+        theme: { primaryColor: '#123456' },
+        organizationName: `Test Org t-${String(ORG).replace(/-/gu, '')}`,
+      },
+      categories: [],
+      links: [],
+      privateFeedbackThreshold: 3,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+    },
+    destination: {
+      state: 'verified',
+      uri: 'https://search.google.com/local/writereview?placeid=publication-test',
+      retrievedAt: NOW,
+      sourceEpoch: 2,
+      profileVersion: 3,
+    },
+    createdBy: 'manager-publication-1',
+    createdAt: new Date(NOW.getTime() + version),
+  })
+}
+
+function snapshotRow(value: ReturnType<typeof snapshot>) {
+  return {
+    id: value.id,
+    organizationId: value.organizationId,
+    propertyId: value.propertyId,
+    portalId: value.portalId,
+    version: value.version,
+    configurationDigest: value.configurationDigest,
+    configuration: value.configuration,
+    guestLocale: value.configuration.guestLocale,
+    languagePackVersion: value.configuration.languagePackVersion,
+    privateFeedbackThreshold: value.configuration.reviewGateway.privateFeedbackThreshold,
+    destinationUri: value.destinationUri,
+    destinationRetrievedAt: value.destinationRetrievedAt,
+    destinationSourceEpoch: value.destinationSourceEpoch,
+    destinationProfileVersion: value.destinationProfileVersion,
+    createdBy: value.createdBy,
+    createdAt: value.createdAt,
+  }
+}
+
+beforeEach(async () => {
+  await getPool().query(
+    `INSERT INTO properties
+       (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, 'Publication Property', 'publication-property', 'UTC', $3, $3)`,
+    [PROPERTY, ORG, NOW],
+  )
+  await getPool().query(
+    `INSERT INTO portals
+       (id, organization_id, property_id, entity_type, entity_id, name, slug,
+        theme, private_feedback_threshold, publication_state, created_at, updated_at)
+     VALUES ($1, $2, $3, 'property', $4, 'Mutable working name', 'lobby',
+             '{"primaryColor":"#123456"}'::jsonb, 3, 'published', $5, $5)`,
+    [PORTAL, ORG, PROPERTY, PROPERTY, NOW],
+  )
+  await getPool().query(
+    `INSERT INTO portal_tokens
+       (id, organization_id, property_id, portal_id, token_identifier,
+        token_hash, token_key_version, version, status, issued_at)
+     VALUES ('f4f00000-0000-4000-8000-000000000001', $1, $2, $3, $4, $5, $6,
+             1, 'active', $7)`,
+    [
+      ORG,
+      PROPERTY,
+      PORTAL,
+      TOKEN_DIGEST.tokenIdentifier,
+      TOKEN_DIGEST.tokenHash,
+      TOKEN_DIGEST.tokenKeyVersion,
+      NOW,
+    ],
+  )
+})
+
+afterEach(async () => {
+  await getPool().query(`DELETE FROM guest_responses WHERE organization_id = $1`, [ORG])
+})
+
+describe.sequential('Portal publication repository (real PostgreSQL)', () => {
+  it('resolves a token to one immutable active version despite working-copy edits', async () => {
+    const published = snapshot(
+      1,
+      'Published immutable name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    await getDb().insert(portalPublicationSnapshots).values(snapshotRow(published))
+    await getDb().insert(portalPublicationActivations).values({
+      id: 'f5100000-0000-4000-8000-000000000001',
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      snapshotId: published.id,
+      activationSequence: 1,
+      kind: 'publish',
+      activatedBy: 'manager-publication-1',
+      activatedAt: published.createdAt,
+    })
+
+    await getPool().query(
+      `UPDATE portals SET name = 'Later working-copy edit', updated_at = $1
+       WHERE organization_id = $2 AND id = $3`,
+      [new Date(NOW.getTime() + 10_000), ORG, PORTAL],
+    )
+
+    const repo = createPortalPublicationRepository(getDb())
+    await expect(repo.resolveActiveByTokenDigest(TOKEN_DIGEST, NOW)).resolves.toBeNull()
+    const resolved = await repo.resolveActiveByTokenDigest(
+      TOKEN_DIGEST,
+      new Date(NOW.getTime() + 100),
+    )
+    expect(resolved?.snapshot.version).toBe(1)
+    expect(resolved?.snapshot.configuration).toMatchObject({
+      portal: { name: 'Published immutable name' },
+    })
+    expect(resolved?.snapshot.configurationDigest).toBe(published.configurationDigest)
+  })
+
+  it('rollback appends a route to an older snapshot and revocation still wins', async () => {
+    const first = snapshot(
+      1,
+      'First published name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    const second = snapshot(
+      2,
+      'Second published name',
+      'f5000000-0000-4000-8000-000000000002',
+    )
+    await getDb()
+      .insert(portalPublicationSnapshots)
+      .values([snapshotRow(first), snapshotRow(second)])
+    await getDb()
+      .insert(portalPublicationActivations)
+      .values([
+        {
+          id: 'f5100000-0000-4000-8000-000000000001',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 1,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: first.createdAt,
+          deactivatedAt: second.createdAt,
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000002',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: second.id,
+          activationSequence: 2,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: second.createdAt,
+          deactivatedAt: new Date(NOW.getTime() + 20_000),
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000003',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 3,
+          kind: 'rollback',
+          activatedBy: 'manager-publication-2',
+          activatedAt: new Date(NOW.getTime() + 20_000),
+        },
+      ])
+    const repo = createPortalPublicationRepository(getDb())
+
+    await expect(
+      repo.resolveActiveByTokenDigest(TOKEN_DIGEST, new Date(NOW.getTime() + 30_000)),
+    ).resolves.toMatchObject({ snapshot: { id: first.id, version: 1 } })
+
+    await getPool().query(
+      `UPDATE portal_tokens SET status = 'revoked', revoked_at = $1, retired_at = $1,
+               revoked_by = 'manager-publication-2', revoked_reason = 'address_replaced'
+       WHERE organization_id = $2 AND portal_id = $3`,
+      [new Date(NOW.getTime() + 31_000), ORG, PORTAL],
+    )
+    await expect(
+      repo.resolveActiveByTokenDigest(TOKEN_DIGEST, new Date(NOW.getTime() + 32_000)),
+    ).resolves.toBeNull()
+  })
+
+  it('lists publication and rollback activity only inside the exact property scope', async () => {
+    const first = snapshot(
+      1,
+      'First published name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    const second = snapshot(
+      2,
+      'Second published name',
+      'f5000000-0000-4000-8000-000000000002',
+    )
+    await getDb()
+      .insert(portalPublicationSnapshots)
+      .values([snapshotRow(first), snapshotRow(second)])
+    await getDb()
+      .insert(portalPublicationActivations)
+      .values([
+        {
+          id: 'f5100000-0000-4000-8000-000000000001',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 1,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: first.createdAt,
+          deactivatedAt: second.createdAt,
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000002',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: second.id,
+          activationSequence: 2,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: second.createdAt,
+          deactivatedAt: new Date(NOW.getTime() + 20_000),
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000003',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 3,
+          kind: 'rollback',
+          activatedBy: 'manager-publication-2',
+          activatedAt: new Date(NOW.getTime() + 20_000),
+        },
+      ])
+
+    const repo = createPortalPublicationRepository(getDb())
+    const history = await repo.listActivationHistoryPage(ORG, PROPERTY, PORTAL, {
+      beforeSequence: null,
+      limit: 2,
+    })
+
+    expect(
+      history.records.map(({ activation, snapshot: publication }) => ({
+        sequence: activation.activationSequence,
+        kind: activation.kind,
+        version: publication.version,
+        current: activation.deactivatedAt === null,
+      })),
+    ).toEqual([
+      { sequence: 3, kind: 'rollback', version: 1, current: true },
+      { sequence: 2, kind: 'publish', version: 2, current: false },
+    ])
+    expect(history.current?.activation.activationSequence).toBe(3)
+    expect(history.latest?.activation.activationSequence).toBe(3)
+    expect(history.nextCursor).toBe(2)
+
+    const secondPage = await repo.listActivationHistoryPage(ORG, PROPERTY, PORTAL, {
+      beforeSequence: history.nextCursor,
+      limit: 2,
+    })
+    expect(secondPage.records).toHaveLength(1)
+    expect(secondPage.records[0]?.activation.activationSequence).toBe(1)
+    expect(secondPage.nextCursor).toBeNull()
+    await expect(
+      repo.listActivationHistoryPage(
+        ORG,
+        propertyId('f4d00000-0000-4000-8000-000000000099'),
+        PORTAL,
+        { beforeSequence: null, limit: 2 },
+      ),
+    ).resolves.toMatchObject({ records: [], latest: null, current: null })
+    await expect(
+      repo.listActivationHistoryPage(OTHER_ORG, PROPERTY, PORTAL, {
+        beforeSequence: null,
+        limit: 2,
+      }),
+    ).resolves.toMatchObject({ records: [], latest: null, current: null })
+  })
+
+  it('lists the versions that went live inside a window, oldest first, in scope only', async () => {
+    const first = snapshot(
+      1,
+      'First published name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    const second = snapshot(
+      2,
+      'Second published name',
+      'f5000000-0000-4000-8000-000000000002',
+    )
+    await getDb()
+      .insert(portalPublicationSnapshots)
+      .values([snapshotRow(first), snapshotRow(second)])
+    const at = (seconds: number) => new Date(NOW.getTime() + seconds * 1000)
+    await getDb()
+      .insert(portalPublicationActivations)
+      .values([
+        {
+          id: 'f5100000-0000-4000-8000-000000000011',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 1,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: at(0),
+          deactivatedAt: at(10),
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000012',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: second.id,
+          activationSequence: 2,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: at(10),
+          deactivatedAt: at(20),
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000013',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 3,
+          kind: 'rollback',
+          activatedBy: 'manager-publication-2',
+          activatedAt: at(20),
+        },
+      ])
+    const repo = createPortalPublicationRepository(getDb())
+
+    // Half-open: the first instant is in, the last is out.
+    await expect(
+      repo.listActivationsBetween(ORG, PROPERTY, PORTAL, {
+        startAt: at(10),
+        endAt: at(20),
+      }),
+    ).resolves.toEqual([{ version: 2, kind: 'publish', activatedAt: at(10) }])
+    await expect(
+      repo.listActivationsBetween(ORG, PROPERTY, PORTAL, {
+        startAt: at(0),
+        endAt: at(60),
+      }),
+    ).resolves.toEqual([
+      { version: 1, kind: 'publish', activatedAt: at(0) },
+      { version: 2, kind: 'publish', activatedAt: at(10) },
+      { version: 1, kind: 'rollback', activatedAt: at(20) },
+    ])
+    await expect(
+      repo.listActivationsBetween(OTHER_ORG, PROPERTY, PORTAL, {
+        startAt: at(0),
+        endAt: at(60),
+      }),
+    ).resolves.toEqual([])
+  })
+
+  it('fails closed if durable snapshot content no longer matches its digest', async () => {
+    const published = snapshot(
+      1,
+      'Published immutable name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    await getDb()
+      .insert(portalPublicationSnapshots)
+      .values({
+        ...snapshotRow(published),
+        configuration: {
+          ...published.configuration,
+          portal: {
+            ...published.configuration.portal,
+            name: 'Mismatched stored content',
+          },
+        },
+      })
+    await getDb().insert(portalPublicationActivations).values({
+      id: 'f5100000-0000-4000-8000-000000000001',
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      snapshotId: published.id,
+      activationSequence: 1,
+      kind: 'publish',
+      activatedBy: 'manager-publication-1',
+      activatedAt: published.createdAt,
+    })
+    await expect(
+      createPortalPublicationRepository(getDb()).resolveActiveByTokenDigest(
+        TOKEN_DIGEST,
+        new Date(NOW.getTime() + 100),
+      ),
+    ).resolves.toBeNull()
+  })
+
+  it('counts only the open pending changes of each Portal, as the single read lists them', async () => {
+    const published = snapshot(
+      1,
+      'Published immutable name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    await getDb().insert(portalPublicationSnapshots).values(snapshotRow(published))
+    const change = (
+      kind: string,
+      key: string,
+      resolved: boolean,
+      changedBy: string | null = null,
+    ) =>
+      getPool().query(
+        `INSERT INTO portal_pending_content_changes
+           (organization_id, property_id, portal_id, change_kind, change_key,
+            source_version, changed_at, resolved_snapshot_id, resolved_at, changed_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          ORG,
+          PROPERTY,
+          PORTAL,
+          kind,
+          key,
+          `${kind}:${key}`,
+          NOW,
+          resolved ? published.id : null,
+          resolved ? NOW : null,
+          changedBy,
+        ],
+      )
+    await change('portal_configuration', 'all', false, 'manager-publication-1')
+    await change('portal_links', 'all', false)
+    await change('portal_links', 'settled', true)
+
+    const repo = createPortalPublicationRepository(getDb())
+    const open = await repo.listOpenPendingContentChanges?.(ORG, PROPERTY, PORTAL)
+
+    expect(open).toHaveLength(2)
+    // Who made each change comes back with it; a change nobody is recorded for is null.
+    // The read promises no order among changes made at the same instant.
+    expect(
+      open
+        ?.map((row) => [row.kind, row.changedBy])
+        .sort((a, b) => `${a[0]}`.localeCompare(`${b[0]}`)),
+    ).toEqual([
+      ['portal_configuration', 'manager-publication-1'],
+      ['portal_links', null],
+    ])
+    await expect(repo.countOpenPendingContentChanges(ORG, [PORTAL])).resolves.toEqual([
+      { portalId: PORTAL, count: 2 },
+    ])
+    // Another tenant is told nothing about this Portal.
+    await expect(
+      repo.countOpenPendingContentChanges(OTHER_ORG, [PORTAL]),
+    ).resolves.toEqual([])
+  })
+
+  it('rejects guest evidence that names the right snapshot with the wrong version', async () => {
+    const published = snapshot(
+      1,
+      'Published immutable name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    await getDb().insert(portalPublicationSnapshots).values(snapshotRow(published))
+    await getDb()
+      .insert(guestResponses)
+      .values({
+        id: RESPONSE,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        retentionDeadline: new Date(NOW.getTime() + 86_400_000),
+      })
+
+    await expect(
+      getDb().insert(guestResponseExperienceSnapshots).values({
+        responseId: RESPONSE,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        publicationState: 'published',
+        publicationSnapshotId: published.id,
+        publicationVersion: 2,
+        publicationDigest: published.configurationDigest,
+        configurationDigest: published.configurationDigest,
+        guestLocale: published.configuration.guestLocale,
+        languagePackVersion: published.configuration.languagePackVersion,
+        privateFeedbackThreshold:
+          published.configuration.reviewGateway.privateFeedbackThreshold,
+        capturedAt: NOW,
+      }),
+    ).rejects.toMatchObject({
+      cause: {
+        code: '23503',
+        constraint: 'guest_response_experience_snapshots_publication_scope_fk',
+      },
+    })
+  })
+})
+
+describe.sequential('Snapshot guest locale CHECKs (real PostgreSQL)', () => {
+  const SNAPSHOT_ID = 'f5000000-0000-4000-8000-000000000031'
+  const CONTROL_ID = 'f5000000-0000-4000-8000-000000000032'
+  const DE_V2_ID = 'f5000000-0000-4000-8000-000000000033'
+  const DE_V1_ID = 'f5000000-0000-4000-8000-000000000034'
+  type SnapshotInsert = typeof portalPublicationSnapshots.$inferInsert
+
+  async function insertRow(overrides: Partial<SnapshotInsert>) {
+    const built = snapshot(1, 'Locale layering', SNAPSHOT_ID)
+    await getDb()
+      .insert(portalPublicationSnapshots)
+      .values({ ...snapshotRow(built), ...overrides })
+    return built
+  }
+
+  async function rejectedConstraint(
+    overrides: Partial<SnapshotInsert>,
+  ): Promise<string | undefined> {
+    try {
+      await insertRow(overrides)
+    } catch (error) {
+      const cause = (error as { cause?: { code?: string; constraint?: string } }).cause
+      expect(cause?.code).toBe('23514')
+      return cause?.constraint
+    }
+    return undefined
+  }
+
+  // A v2 snapshot of one locale whose digest is recomputed, so the only thing
+  // that can make a reader refuse it is the locale or pack gate.
+  function localizedRow(
+    version: number,
+    id: string,
+    guestLocale: string,
+    languagePackVersion: string,
+  ) {
+    const built = snapshot(1, 'Locale layering', id)
+    const configuration = {
+      ...built.configuration,
+      schemaVersion: 2,
+      guestLocale,
+      languagePackVersion,
+      localeSet: [guestLocale],
+      languagePackVersions: { [guestLocale]: languagePackVersion },
+      localizedContent: {
+        [guestLocale]: {
+          title: 'Layering',
+          shortDescription: 'A portal used to prove locale layering.',
+          heroImageUrl: null,
+        },
+      },
+      brandProfile: {
+        displayName: 'Layering',
+        logoUrl: null,
+        defaultHeroImageUrl: null,
+        primaryColor: '#123456',
+        backgroundColor: '#ffffff',
+        textColor: '#111111',
+        version: 1,
+      },
+    }
+    const digest = createHash('sha256')
+      .update(canonicalizeRfc8785(configuration), 'utf8')
+      .digest('hex')
+    const value = {
+      ...built,
+      version,
+      configuration: configuration as never,
+      configurationDigest: digest,
+    }
+    return {
+      value,
+      row: {
+        ...snapshotRow(value),
+        guestLocale,
+        languagePackVersion,
+        localeSet: [guestLocale],
+        languagePackVersions: { [guestLocale]: languagePackVersion },
+        localizedContent: configuration.localizedContent,
+        brandProfileVersion: 1,
+      },
+    }
+  }
+
+  async function storedRow(id: string) {
+    const [stored] = await getDb()
+      .select()
+      .from(portalPublicationSnapshots)
+      .where(eq(portalPublicationSnapshots.id, id))
+    if (!stored) throw new Error(`snapshot ${id} was not stored`)
+    return stored
+  }
+
+  it('reads a Bulgarian v2 control row, so the refusals below are the locale gate', async () => {
+    const control = localizedRow(2, CONTROL_ID, 'bg', 'guest-ui-bg-v1')
+    await getDb().insert(portalPublicationSnapshots).values(control.row)
+
+    expect(verifyPortalPublicationSnapshot(control.value)).toBe(true)
+    expect(snapshotFromRow(await storedRow(CONTROL_ID))).not.toBeNull()
+  })
+
+  it.each([
+    ['guest-ui-de-v2', 'a generation 2 pack in a version 2 snapshot', 3, DE_V2_ID],
+    ['guest-ui-de-v1', 'a generation 1 pack the registry never had', 4, DE_V1_ID],
+  ])(
+    'accepts %s at the database while the readers refuse %s',
+    async (pack, _why, version, id) => {
+      const german = localizedRow(version, id, 'de', pack)
+      await getDb().insert(portalPublicationSnapshots).values(german.row)
+
+      const stored = await storedRow(id)
+      expect(stored).toMatchObject({ guestLocale: 'de', languagePackVersion: pack })
+      // The database is broad; the application registry is authoritative.
+      expect(snapshotFromRow(stored)).toBeNull()
+      expect(verifyPortalPublicationSnapshot(german.value)).toBe(false)
+    },
+  )
+
+  it('rejects a primary locale outside the catalogue', async () => {
+    // A row this wrong breaks both locale checks; Postgres reports whichever
+    // it evaluates first, so either named constraint proves the rejection.
+    await expect(
+      rejectedConstraint({ guestLocale: 'pt', localeSet: ['pt'] }),
+    ).resolves.toMatch(/^portal_publication_snapshots_locale_(set_)?valid$/)
+  })
+
+  it.each(['guest-ui-pt-v1', 'guest-ui-en-v1000', 'guest-ui-en-v0'])(
+    'rejects the pack id %s with the named constraint',
+    async (languagePackVersion) => {
+      await expect(rejectedConstraint({ languagePackVersion })).resolves.toBe(
+        'portal_publication_snapshots_language_pack_valid',
+      )
+    },
+  )
+
+  it('rejects a locale set outside the catalogue or missing its primary locale', async () => {
+    await expect(rejectedConstraint({ localeSet: ['en', 'pt'] })).resolves.toBe(
+      'portal_publication_snapshots_locale_set_valid',
+    )
+    await expect(rejectedConstraint({ localeSet: ['de'] })).resolves.toBe(
+      'portal_publication_snapshots_locale_set_valid',
+    )
+  })
+})

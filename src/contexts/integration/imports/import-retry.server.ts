@@ -3,7 +3,7 @@ import type { Database } from '#/shared/db'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import type { GoogleImportStore } from '../application/ports/google-import-store.port'
+import type { GoogleImportStore } from './import-store.port.server'
 import {
   authorizationFromRow,
   itemScope as googleImportItemScope,

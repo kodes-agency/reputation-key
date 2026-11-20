@@ -1,5 +1,5 @@
 // A month's own target overrides its version's target. Evaluation and presentation
-// share this rule; goal-running-months.ts mirrors it with SQL coalesce.
+// share this rule; property-overview/goal-running-months.server.ts mirrors it with SQL coalesce.
 // Future-month offers use the head version's target instead.
 // Type-only dependencies keep this safe for browser callers.
 

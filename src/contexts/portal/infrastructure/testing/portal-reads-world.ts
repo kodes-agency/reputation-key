@@ -19,8 +19,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Portal } from '../../domain/types'
 import type { PortalMediaAsset } from '../../domain/portal-media-asset'
 import type { PortalApprovedDestination } from '../../domain/approved-destination'
-import { createPortalRepository } from '../repositories/portal.repository'
-import { createPortalMediaAssetRepository } from '../repositories/portal-media-asset.repository'
+import { createPortalRepository } from '../../publication/portal-repository.server'
+import { createPortalMediaAssetRepository } from '../../media/portal-media-asset-repository.server'
 import { createPostgresPortalFixtureStore } from './postgres-portal-fixture-store'
 
 export type PortalReadsWorld = ReturnType<typeof createPortalReadsWorld>

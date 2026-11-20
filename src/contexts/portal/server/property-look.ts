@@ -14,7 +14,7 @@ import {
   propertyHeroInputSchema,
   propertyLogoInputSchema,
   propertyLookInputSchema,
-} from '../application/dto/property-look.dto'
+} from '../look/property-look.contracts'
 import { portalCommandErrors } from './portal-command-errors'
 
 /** Save the accent, background and wordmark guests see on every page of the Property. */

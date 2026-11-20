@@ -10,7 +10,7 @@ import {
   betaFeedbackInputSchema,
   type BetaFeedbackInput,
 } from '#/shared/beta-feedback-contract'
-import { changePasswordCommandSchema } from '../application/dto/change-password.dto'
+import { changePasswordCommandSchema } from '../members/change-password.contracts'
 import { isBetaFeedbackError } from '../domain/errors'
 import { resolveStaffSelfContext } from './staff-self-context'
 import { enforceBetaFeedbackRateLimit } from './beta-feedback-rate-limit.server'

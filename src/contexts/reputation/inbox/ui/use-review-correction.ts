@@ -8,7 +8,7 @@ import {
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { aiKeys, inboxKeys } from '#/shared/queries/query-keys'
 import { outcomeOf, type CorrectionOutcome } from './review-correction-view'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 /** The reading a manager is correcting, and where a correction shows up. */
 export type ReviewCorrectionTarget = Readonly<{

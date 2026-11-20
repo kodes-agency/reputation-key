@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { publishPortalInputSchema } from '../../src/contexts/portal/application/dto/portal-intents.dto'
+import { publishPortalInputSchema } from '../../src/contexts/portal/publication/portal-intents.contracts'
 import { seedPortalGoalProperty } from './portal-goal-fixtures'
 import { seedPortalLookProperty } from './portal-look-fixtures'
 

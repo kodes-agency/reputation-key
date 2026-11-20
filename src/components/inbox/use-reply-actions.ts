@@ -29,12 +29,15 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
-import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from './reply-suggestion-contract'
-import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
-import { replyCheckMutationOptions } from './reply-check-feedback'
-import type { ReplyLanguageTarget } from './reply-language-options'
-import type { ReplyOnScreen } from './reply-message-actions'
-import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
+import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from '../../contexts/reputation/replies/ui/composer/reply-suggestion-contract'
+import {
+  inboxCachePolicy,
+  type InboxReplyCacheChange,
+} from '../../contexts/reputation/inbox/ui/page/inbox-cache-policy'
+import { replyCheckMutationOptions } from '../../contexts/reputation/replies/ui/message/reply-check-feedback'
+import type { ReplyLanguageTarget } from '../../contexts/reputation/replies/ui/composer/reply-language-options'
+import type { ReplyOnScreen } from '../../contexts/reputation/replies/ui/message/reply-message-actions'
+import type { LoadedReplyTemplateDraft } from '../../contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 
 type ReplyTemplateServer = typeof import('#/contexts/review/server/reply-templates')
 

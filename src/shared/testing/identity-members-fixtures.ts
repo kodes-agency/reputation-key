@@ -13,7 +13,7 @@ import { getEnv } from '#/shared/config/env'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { IdentityCommandStore } from '#/contexts/identity/application/ports/identity-command-store.port'
+import type { IdentityCommandStore } from '#/contexts/identity/members/identity-command-store.port.server'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 

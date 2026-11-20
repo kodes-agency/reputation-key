@@ -8,7 +8,7 @@
 // person, so a guest on shared Wi-Fi is never the one who hits them. What it
 // still bounds is a client that drops its cookie and keeps posting.
 
-import type { GuestNetworkBudgetAction } from '../application/use-cases/report-network-budget-exhausted'
+import type { GuestNetworkBudgetAction } from '../page/report-network-budget-exhausted.server'
 
 export type GuestRateLimitAction = Exclude<GuestNetworkBudgetAction, 'scan'>
 

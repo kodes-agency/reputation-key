@@ -103,7 +103,7 @@ function defineJob(
 export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   defineJob(
     'import-gbp-property-item',
-    'src/contexts/integration/infrastructure/jobs/import-gbp-property-item.job.ts',
+    'src/contexts/integration/imports/import-gbp-property-item-job.server.ts',
     {
       queue: 'default',
       capability: 'property.import_gbp_v2',
@@ -118,7 +118,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'import-gbp-property-item-v2',
-    'src/contexts/integration/infrastructure/jobs/retired-import-item.job.ts',
+    'src/contexts/integration/imports/retired-import-item-job.server.ts',
     {
       queue: 'default',
       capability: 'none',
@@ -144,7 +144,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'ai-review-analysis-backlog-drain',
-    'src/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job.ts',
+    'src/contexts/ai/replay/drain-review-analysis-backlog-job.server.ts',
     {
       queue: 'background',
       capability: 'ai.analyze',
@@ -160,7 +160,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // past the hour, so it does not meet the hour's other recurring work.
   defineJob(
     'ai-guest-voice-summary-sweep',
-    'src/contexts/ai/infrastructure/jobs/guest-voice-summary-sweep.job.ts',
+    'src/contexts/ai/guest-voice/guest-voice-summary-sweep-job.server.ts',
     {
       queue: 'background',
       capability: 'ai.analyze',
@@ -173,7 +173,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'ai-review-analysis-on-demand',
-    'src/contexts/ai/infrastructure/jobs/analyze-review-now.job.ts',
+    'src/contexts/ai/replay/analyze-review-now-job.server.ts',
     {
       queue: 'default',
       capability: 'ai.analyze',
@@ -230,7 +230,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // enforces each type's scope (notificationScopeForType) in the notification
   // and email constructors and their CHECKs; a job that carries a Property is
   // still decided at that Property.
-  defineJob('urgent-email', 'src/contexts/feed/infrastructure/jobs/send-emails.job.ts', {
+  defineJob('urgent-email', 'src/contexts/feed/email/send-emails-job.server.ts', {
     queue: 'default',
     capability: 'notification.send_email',
     action: 'system:notification.email_urgent',
@@ -245,22 +245,18 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // exactly where it mattered; the mandatory capability is core, so the
   // environment stop and tenant suspension still refuse it and the tenant
   // allowlist no longer does (ADR 0046).
-  defineJob(
-    'mandatory-email',
-    'src/contexts/feed/infrastructure/jobs/send-emails.job.ts',
-    {
-      queue: 'default',
-      capability: 'notification.send_mandatory_email',
-      action: 'system:notification.email_mandatory',
-      scope: 'organization',
-      externalEffect: true,
-      schedule: 'none',
-      registration: 'enabled',
-    },
-  ),
+  defineJob('mandatory-email', 'src/contexts/feed/email/send-emails-job.server.ts', {
+    queue: 'default',
+    capability: 'notification.send_mandatory_email',
+    action: 'system:notification.email_mandatory',
+    scope: 'organization',
+    externalEffect: true,
+    schedule: 'none',
+    registration: 'enabled',
+  }),
   defineJob(
     'portal-approved-destination-revalidation',
-    'src/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job.ts',
+    'src/contexts/portal/destinations/revalidate-approved-destinations-job.server.ts',
     {
       queue: 'background',
       capability: 'portal.write',
@@ -277,7 +273,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // the upload capability, because it is what makes switching uploads off safe.
   defineJob(
     'portal-media-sweep',
-    'src/contexts/portal/infrastructure/jobs/sweep-portal-media.job.ts',
+    'src/contexts/portal/media/sweep-portal-media-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -373,7 +369,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'goal-program.maintain',
-    'src/contexts/reporting/infrastructure/jobs/goal-program-maintenance.job.ts',
+    'src/contexts/reporting/monthly-goals/goal-program-maintenance-job.server.ts',
     {
       queue: 'background',
       capability: 'goal.use',
@@ -388,7 +384,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // so Below pace is found here (ADR 0067 decision 6).
   defineJob(
     'rating-goal.evaluate',
-    'src/contexts/reporting/infrastructure/jobs/rating-goal-evaluation.job.ts',
+    'src/contexts/reporting/rating-goals/rating-goal-evaluation-job.server.ts',
     {
       queue: 'background',
       capability: 'goal.use',
@@ -427,7 +423,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'merchant-ai-standing-renewal',
-    'src/contexts/identity/infrastructure/jobs/merchant-ai-standing-renewal.job.ts',
+    'src/contexts/identity/consent/merchant-ai-standing-renewal-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -440,7 +436,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'identity-pending-upload-reclaim',
-    'src/contexts/identity/infrastructure/jobs/reclaim-pending-identity-uploads.job.ts',
+    'src/contexts/identity/images/reclaim-pending-identity-uploads-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -492,7 +488,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'recover-invited-registrations',
-    'src/contexts/identity/infrastructure/jobs/recover-invited-registrations.job.ts',
+    'src/contexts/identity/members/recover-invited-registrations-job.server.ts',
     {
       queue: 'background',
       // Recovery accepts invitations: a membership is an Organization write.
@@ -506,7 +502,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'google-import-claim-reaper',
-    'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
+    'src/contexts/integration/imports/google-import-claim-reaper-job.server.ts',
     {
       queue: 'background',
       capability: 'property.import_gbp_v2',
@@ -519,7 +515,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'reconcile-gbp-notification-subscriptions',
-    'src/contexts/integration/infrastructure/jobs/reconcile-gbp-notification-subscriptions.job.ts',
+    'src/contexts/integration/connections/reconcile-gbp-notification-subscriptions-job.server.ts',
     {
       queue: 'background',
       capability: 'property.connect_gbp',
@@ -533,7 +529,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'digest-notification',
-    'src/contexts/feed/infrastructure/jobs/digest-notification.job.ts',
+    'src/contexts/feed/email/digest-notification-job.server.ts',
     {
       queue: 'background',
       capability: 'notification.send_email',

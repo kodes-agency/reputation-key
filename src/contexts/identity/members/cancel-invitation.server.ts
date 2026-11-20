@@ -3,7 +3,7 @@
 // independently testable. The status update and identity.invitation.canceled
 // fact commit in one transaction via the command store.
 
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { InvitationId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'

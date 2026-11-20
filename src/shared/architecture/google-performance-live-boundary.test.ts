@@ -39,7 +39,7 @@ const BUILD_FILE = join(
 )
 const USE_CASE_FILE = join(
   SRC,
-  'contexts/integration/application/get-property-google-performance.ts',
+  'contexts/integration/performance/get-property-google-performance.server.ts',
 )
 const WIRING_CALL = 'createGetPropertyGooglePerformance({'
 
@@ -226,8 +226,8 @@ describe('architecture: live Google Performance has no persistence dependency', 
   )
 
   it.each([
-    '#/contexts/integration/infrastructure/repositories/google-connection.repository',
-    '#/contexts/integration/infrastructure/jobs/import-gbp-property-item.job',
+    '#/contexts/integration/connections/google-connection-repository.server',
+    '#/contexts/integration/imports/import-gbp-property-item-job.server',
     '#/shared/cache/google-performance-cache',
   ] as const)(
     'rejects an allowed-kind dependency from forbidden module %s',

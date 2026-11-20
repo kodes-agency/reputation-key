@@ -17,7 +17,7 @@ import {
   type MerchantAiSnapshot,
   type MerchantAiState,
 } from '../domain/merchant-ai-authorization'
-import { decideMemberPropertyAuthority } from '../infrastructure/repositories/member-property-authority'
+import { decideMemberPropertyAuthority } from '../members/member-property-authority.server'
 import {
   MerchantAiAuthorizationStoreError,
   type MerchantAiMutationInput,

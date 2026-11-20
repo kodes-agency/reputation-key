@@ -6,9 +6,9 @@ import {
   AI_RUNTIME_CAPABILITIES_V1,
   isExecutionCompatibleWithConsent,
 } from '#/shared/ai-runtime-capability-contract'
-import type { AiMerchantAuthorizationSnapshot } from './ports/ai-authorization.port'
+import type { AiMerchantAuthorizationSnapshot } from '../consent/ai-authorization.port.server'
 import type { AiControlPort } from './ports/ai-control.port'
-import type { AiOperationRecord } from './ports/ai-operation-store.port'
+import type { AiOperationRecord } from '../execution/ai-operation-store.port.server'
 import type { AiExecutionBinding, AiExecutionStopFence } from '../domain/types'
 
 export function aiRequestFingerprint(value: unknown): string {

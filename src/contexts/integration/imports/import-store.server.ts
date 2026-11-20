@@ -3,10 +3,7 @@ import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import type {
-  GoogleImportIntent,
-  GoogleImportStore,
-} from '../application/ports/google-import-store.port'
+import type { GoogleImportIntent, GoogleImportStore } from './import-store.port.server'
 import {
   completeImportItem,
   type GoogleImportCompletionDeps,

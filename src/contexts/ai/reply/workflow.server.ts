@@ -1,11 +1,11 @@
 import type {
   GenerateReplySuggestionDependencies,
   GenerateReplySuggestionInput,
-} from '../application/reply-suggestion-contract'
+} from './reply-suggestion-contract.server'
 import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
 import type { AiExecutionBinding } from '../domain/types'
 import { aiRequestFingerprint } from '../application/ai-workflow-support'
-import type { AiAdmissionPort } from '../application/ports/ai-admission.port'
+import type { AiAdmissionPort } from '../execution/ai-lane-admission.port.server'
 import type { ReplyBodyIssueCode } from '#/shared/domain/reply-body-lint-policy'
 
 export type ReplyDraftingV2Attempt = Readonly<{

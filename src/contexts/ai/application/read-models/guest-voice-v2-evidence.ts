@@ -24,8 +24,12 @@ import type {
   LatestReview,
   LiveEvidence,
 } from '../../guest-voice/contracts'
-import type { GuestVoiceMention, GuestVoiceReview, Sense } from './guest-voice-v2-facts'
-import { senseOf, type StarValue } from './guest-voice-v2-facts'
+import type {
+  GuestVoiceMention,
+  GuestVoiceReview,
+  Sense,
+} from '../../guest-voice/guest-voice-v2-facts.contracts'
+import { senseOf, type StarValue } from '../../guest-voice/guest-voice-v2-facts.contracts'
 
 /** At most this many reviews are put forward for one card, in the order to try them. */
 const EVIDENCE_CANDIDATES_PER_CARD = 3

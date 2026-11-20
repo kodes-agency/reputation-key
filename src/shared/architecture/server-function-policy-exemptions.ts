@@ -72,7 +72,7 @@ const googlePerformance = (
   category: 'DECIDED-BELOW',
   guard: 'resolveTenantContext',
   decidedIn: {
-    file: 'src/contexts/integration/application/google-performance-authorizer.ts',
+    file: 'src/contexts/integration/performance/google-performance-authorizer.server.ts',
     call: "decide('property.read_gbp_performance')",
   },
   reason: `${what} The Performance authorizer asks the execution policy with the member, the Property and property.read_gbp_performance, before the provider and again before the answer returns.`,
@@ -110,7 +110,7 @@ export const SERVER_FUNCTION_POLICY_EXEMPTIONS: readonly ServerFunctionPolicyExe
       category: 'DECIDED-BELOW',
       guard: null,
       decidedIn: {
-        file: 'src/contexts/portal/application/use-cases/resolve-public-portal-token.ts',
+        file: 'src/contexts/portal/publication/resolve-public-portal-token.server.ts',
         call: 'deps.decidePublic(',
       },
       reason:

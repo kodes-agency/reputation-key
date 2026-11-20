@@ -79,7 +79,7 @@ type HistoricalGuestPortalCopy = Readonly<{
  * response withdrawal — produced two different strings and React threw a
  * hydration mismatch (#418) for any guest outside UTC, which is nearly all of
  * them. UTC also matches how the rest of the app renders instants
- * (see components/inbox/utils.ts).
+ * (see reputation/inbox/ui/page/utils.ts).
  */
 const formatDate = (value: string, locale: GuestLocale): string =>
   formatDateTime(new Date(value), {

@@ -1,7 +1,7 @@
 // Feed notification surface — the order of the delivery-lag source read.
 //
 // The source read counts the facts a notification route has no receipt for,
-// minus those that announce nothing (silent-route-fact.ts). A bulk import
+// minus those that announce nothing (silent-route-fact.server.ts). A bulk import
 // puts thousands of silent facts in the 24 h window while only a few lack a
 // receipt, so the read must find the unreceipted facts first and test only
 // those for silence: testing every window row ran two hashed subplans over

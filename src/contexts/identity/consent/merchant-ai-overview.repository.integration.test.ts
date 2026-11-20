@@ -12,7 +12,7 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { listMerchantAiOverview } from './merchant-ai-overview.server'
-import { resolveMemberPermissionPropertyScope } from '../infrastructure/repositories/member-property-authority'
+import { resolveMemberPermissionPropertyScope } from '../members/member-property-authority.server'
 import { createMerchantAiOverviewReader } from './merchant-ai-overview.repository.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 

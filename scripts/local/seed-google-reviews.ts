@@ -28,7 +28,7 @@ import {
 } from '../../src/contexts/review/domain/events'
 import { createGoogleRatingReads } from '../../src/contexts/review/infrastructure/google-rating-reads'
 import { displayedTenths } from '../../src/contexts/reporting/domain/rating-goal-numbers'
-import { createCurrentGoogleReputationSnapshotRepository } from '../../src/contexts/reporting/infrastructure/repositories/current-google-reputation-snapshot.repository'
+import { createCurrentGoogleReputationSnapshotRepository } from '../../src/contexts/reporting/readings/current-google-reputation-snapshot-repository.server'
 
 const FAR_FUTURE = new Date('2030-01-01T00:00:00.000Z')
 

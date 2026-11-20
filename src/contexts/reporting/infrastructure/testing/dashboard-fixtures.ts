@@ -4,10 +4,10 @@
 
 import type { Pool } from 'pg'
 import type { Database } from '#/shared/db'
-import type { DashboardRepository } from '../../application/ports/dashboard.repository'
-import type { ReviewStatsPort } from '../../application/ports/review-stats.port'
-import { createDashboardRepository } from '../repositories/dashboard.repository'
-import { createMetricStatsAdapter } from '../adapters/metric-stats.adapter'
+import type { DashboardRepository } from '../../property-overview/dashboard-repository.port.server'
+import type { ReviewStatsPort } from '../../property-overview/review-stats.port.server'
+import { createDashboardRepository } from '../../property-overview/dashboard-repository.server'
+import { createMetricStatsAdapter } from '../../property-overview/metric-stats.adapter.server'
 
 let fixtureSequence = 0
 

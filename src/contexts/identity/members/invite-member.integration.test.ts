@@ -7,13 +7,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { inviteMember } from './invite-member.server'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
 import { setupIdentityMembersDb } from '#/shared/testing/identity-members-fixtures'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../domain/errors'
 import { invitationId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import type { InvitationEmailSender } from '../application/ports/invitation-email.port'
+import type { InvitationEmailSender } from './invitation-email.port.server'
 import type { PropertyNameLookup } from './invitation-read-model.port.server'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')

@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
@@ -15,12 +15,12 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { PortalMediaAsset } from '../domain/portal-media-asset'
-import { createLink } from '../application/use-cases/create-link'
-import { getPortalLinktree } from '../application/use-cases/get-portal-linktree'
-import { listPortalLinks } from '../application/use-cases/list-portal-links'
-import { saveLinktreeSettings } from '../application/use-cases/save-linktree-settings'
+import { createLink } from '../links/create-link.server'
+import { getPortalLinktree } from '../links/get-portal-linktree.server'
+import { listPortalLinks } from '../links/list-portal-links.server'
+import { saveLinktreeSettings } from '../links/save-linktree-settings.server'
 import { isPortalError } from '../domain/errors'
-import { createPortalMediaAssetRepository } from '../infrastructure/repositories/portal-media-asset.repository'
+import { createPortalMediaAssetRepository } from '../media/portal-media-asset-repository.server'
 import {
   LINK_WORLD_TABLES,
   bindLinkWorld,

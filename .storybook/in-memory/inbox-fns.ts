@@ -48,7 +48,7 @@ import type {
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { InboxQueue } from '#/contexts/inbox/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 

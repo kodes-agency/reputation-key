@@ -10,15 +10,15 @@ import type { PortalAnalyticsData, PortalRatingLanguages } from './contracts'
 import type {
   PortalAnalyticsRepository,
   PortalMetricSumRow,
-} from '../application/ports/portal-analytics.repository'
+} from './portal-analytics.repository.port.server'
 import type { TimeRangePreset } from './contracts'
 import {
   requireDashboardPropertyAccess,
   type DashboardPropertyAccess,
-} from '../application/dashboard-property-access'
-import { priorPeriodDates } from '../application/utils'
-import { portalPeriodKpis } from '../application/use-cases/portal-period-kpis'
-import { qualifiedScansSince } from '../application/use-cases/qualified-scans-since'
+} from '../property-overview/dashboard-property-access.server'
+import { priorPeriodDates } from './time-range.server'
+import { portalPeriodKpis } from './portal-period-kpis.server'
+import { qualifiedScansSince } from './qualified-scans-since.server'
 import type { PortalResponseIntegritySummary } from '#/contexts/guest/application/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import { PORTAL_RESULTS_THRESHOLDS } from '../domain/portal-results-thresholds'

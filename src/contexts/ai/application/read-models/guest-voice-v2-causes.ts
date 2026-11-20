@@ -1,4 +1,4 @@
-import { senseOf } from './guest-voice-v2-facts'
+import { senseOf } from '../../guest-voice/guest-voice-v2-facts.contracts'
 import type { IssueTally } from './guest-voice-v2-tally'
 
 /** Each normalized cause once per review, shared by titles, cards and details. */

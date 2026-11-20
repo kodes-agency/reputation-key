@@ -2,7 +2,7 @@ import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
 import { googleImportItems } from '#/shared/db/schema/google-import.schema'
-import type { GoogleImportStore } from '../application/ports/google-import-store.port'
+import type { GoogleImportStore } from './import-store.port.server'
 
 const RECOVERY_APPOINTMENT_MS = 60_000
 

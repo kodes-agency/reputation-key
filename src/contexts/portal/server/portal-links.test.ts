@@ -7,11 +7,11 @@ import {
   updateLinkInputSchema,
   reorderLinksInputSchema,
   MAX_REORDER_LINKS,
-} from '#/contexts/portal/application/dto/portal-link.dto'
+} from '#/contexts/portal/links/portal-link.contracts'
 import {
   saveLinktreeSettingsInputSchema,
   savePortalLinkTextsInputSchema,
-} from '#/contexts/portal/application/dto/portal-linktree.dto'
+} from '#/contexts/portal/links/portal-linktree.contracts'
 
 // ── Link DTO validation ────────────────────────────────────────────
 

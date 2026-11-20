@@ -9,7 +9,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import { MERCHANT_AI_NOTICE } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import type { PropertySetupPlan } from './setup-plan'
 import { SetupReview } from './setup-review'
 

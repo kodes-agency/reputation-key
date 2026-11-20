@@ -7,11 +7,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { removeMember } from './remove-member.server'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
 import { setupIdentityMembersDb } from '#/shared/testing/identity-members-fixtures'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../domain/errors'
-import type { MemberRecord } from '../application/ports/identity.port'
+import type { MemberRecord } from './auth-identity.port.server'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const DEFAULT_ORG_ID = 'org-00000000-0000-0000-0000-000000000001'

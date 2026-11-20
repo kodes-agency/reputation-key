@@ -13,19 +13,19 @@ import type { PortalCommandStore } from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { hasRoomForAnotherLink } from '../domain/portal-linktree'
 import { portalPageEditKey } from '../domain/portal-page-edit'
-import { categoryToRow, newLinkToRow } from '../infrastructure/mappers/portal-link.mapper'
-import { fencePortalContent } from '../infrastructure/portal-aggregate-fence'
+import { categoryToRow, newLinkToRow } from '../links/portal-link-mapper.server'
+import { fencePortalContent } from './portal-aggregate-fence.server'
 import {
   assertPortalContentCommand,
   contentScope,
   recordPortalContentCommandChange,
-} from '../infrastructure/portal-content-command-guards'
+} from './portal-content-command-guards.server'
 import { createPortalLinktreeCommands } from './portal-linktree-commands.server'
 import {
   readPortalLocales,
   readPrimaryLinkLabel,
   syncPrimaryLinkText,
-} from '../infrastructure/portal-link-texts-store'
+} from '../links/portal-link-texts-store.server'
 
 export type PortalLinkCommandStore = Pick<
   PortalCommandStore,

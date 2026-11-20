@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ReviewCheck } from '#/contexts/portal/application/portal-management-contracts'
-import { MAX_PORTALS_PER_PUBLISH_BATCH } from '#/contexts/portal/application/dto/publish-portal-changes.dto'
+import { MAX_PORTALS_PER_PUBLISH_BATCH } from '#/contexts/portal/publication/publish-portal-changes.contracts'
 import {
   batchEntryOf,
   blockedReasons,

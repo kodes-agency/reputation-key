@@ -3,7 +3,7 @@
 // a change from a coming month starts with, and the month the sheet opens on;
 // and, once the goal was stopped, the month a new goal can start in.
 import { describe, expect, it } from 'vitest'
-import { isPropertyCountGoal } from '../application/monthly-portal-goal-identity'
+import { isPropertyCountGoal } from './monthly-portal-goal-identity.server'
 import {
   readMonthlyPortalGoalCard,
   type MonthlyPortalGoalCardDeps,

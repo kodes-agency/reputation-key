@@ -23,16 +23,16 @@ import {
   type ReplySuggestionGenerate,
   type ReplySuggestionResult,
   type ReplyTone,
-} from '#/components/inbox/reply-suggestion-contract'
+} from '#/contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 import {
   resolveSuggestedReplyLanguageTag,
   type ReplyLanguageTarget,
-} from '#/components/inbox/reply-language-options'
+} from '#/contexts/reputation/replies/ui/composer/reply-language-options'
 
 export type {
   ReplySuggestionResult,
   ReplyTone,
-} from '#/components/inbox/reply-suggestion-contract'
+} from '#/contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 
 /**
  * The draft and the language target one assist request runs against, stated
@@ -57,7 +57,7 @@ export type {
  * never persist a language nobody chose. Omitted, `request` reads the render's
  * draft and target exactly as before.
  */
-export type { ReplyAssistScope } from '#/components/inbox/reply-suggestion-contract'
+export type { ReplyAssistScope } from '#/contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 
 type Input = Readonly<{
   draft: ReplyDraftSnapshot

@@ -24,26 +24,26 @@ import {
 } from '#/shared/provider-ephemeral/runtime-verification'
 import { createGoogleExecutionPermitIssuer } from '#/shared/auth/google-execution-permit-issuer'
 import { createInProcessGoogleEgressRuntime } from './google-egress-runtime'
-import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
-import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/infrastructure/google-content-authorization-check'
-import { createGoogleContentAuthorizer } from '#/contexts/integration/infrastructure/google-content-authorizer'
+import { createGoogleContentAuthorityRepository } from '#/contexts/identity/policy/google-content-authority-repository.server'
+import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/provider/google-content-authorization-check.server'
+import { createGoogleContentAuthorizer } from '#/contexts/integration/provider/google-content-authorizer.server'
 import {
   permitAdmissionCode,
   createGoogleAuthorizedProviderExecutor,
   createGoogleProviderCredentialAdmission,
 } from '#/contexts/integration/build'
-import { createDurableGoogleImportReferenceStore } from '#/contexts/integration/infrastructure/durable-import-reference-store'
-import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository'
+import { createDurableGoogleImportReferenceStore } from '#/contexts/integration/imports/durable-import-reference-store.server'
+import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/connections/google-disconnect-revoke-repository.server'
 import {
   createOAuthStateHandleService,
   type OAuthStateHandleService,
 } from '#/contexts/integration/application/oauth-state-handle'
-import { createRedisGoogleRefreshCoordination } from '#/contexts/integration/infrastructure/adapters/google-refresh-coordination.adapter'
-import type { GoogleOAuthProviderCallAuthorizer } from '#/contexts/integration/application/ports/google-oauth.port'
-import type { GoogleImportContentAuthorizer } from '#/contexts/integration/application/google-import-command-authorizer'
-import type { PerformanceContentAuthorizer } from '#/contexts/integration/application/google-performance-authorizer'
-import type { GoogleReviewSyncContentAuthorizer } from '#/contexts/integration/application/google-review-sync-authorizer'
-import type { GoogleReplyPublicationContentAuthorizer } from '#/contexts/integration/application/google-reply-publication-authorizer'
+import { createRedisGoogleRefreshCoordination } from '#/contexts/integration/connections/google-refresh-coordination.adapter.server'
+import type { GoogleOAuthProviderCallAuthorizer } from '#/contexts/integration/connections/google-oauth.port.server'
+import type { GoogleImportContentAuthorizer } from '#/contexts/integration/imports/google-import-command-authorizer.server'
+import type { PerformanceContentAuthorizer } from '#/contexts/integration/performance/google-performance-authorizer.server'
+import type { GoogleReviewSyncContentAuthorizer } from '#/contexts/integration/review-sync/google-review-sync-authorizer.server'
+import type { GoogleReplyPublicationContentAuthorizer } from '#/contexts/integration/review-sync/google-reply-publication-authorizer.server'
 import type { ProviderOverrides } from './provider-runtime'
 
 /** The exact capability set this module owns. Pinned by its test. */

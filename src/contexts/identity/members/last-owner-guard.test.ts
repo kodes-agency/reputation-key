@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { assertAnotherOwnerRemains } from './last-owner-guard.server'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import type { MemberRecord } from '../application/ports/identity.port'
+import type { MemberRecord } from './auth-identity.port.server'
 
 const REFUSAL = 'Cannot change the last admin of the organization'
 

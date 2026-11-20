@@ -15,11 +15,14 @@ import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
-import { ifNoneMatchMatches, parseIdentityAssetKey } from '../application/identity-assets'
+import {
+  ifNoneMatchMatches,
+  parseIdentityAssetKey,
+} from '../images/identity-assets.contracts'
 import {
   ALLOWED_IMAGE_CONTENT_TYPES,
   MAX_UPLOAD_BYTES,
-} from '../application/upload-policy'
+} from '../images/upload-policy.server'
 
 /** A key never holds a different image, so a cache may keep it for a while. */
 const CACHEABLE = 'public, max-age=3600'

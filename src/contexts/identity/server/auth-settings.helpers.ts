@@ -4,7 +4,7 @@
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { assertOwnStoredAvatar } from '../application/use-cases/finalize-avatar-upload'
+import { assertOwnStoredAvatar } from '../images/finalize-avatar-upload.server'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
 

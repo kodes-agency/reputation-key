@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import type { GuestVoiceFactsRead } from '../application/ports/ai-guest-voice-facts.port'
+import type { GuestVoiceFactsRead } from './ai-guest-voice-facts.port.server'
 import type {
   GuestVoiceIssueGroup,
   GuestVoiceMention,
   GuestVoiceReview,
   StarValue,
-} from '../application/read-models/guest-voice-v2-facts'
+} from './guest-voice-v2-facts.contracts'
 import {
   createPlanGuestVoiceSummary,
   type PlanGuestVoiceSummaryDependencies,

@@ -11,16 +11,16 @@
 
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { getFleetOverview } from '#/contexts/reporting/application/use-cases/get-fleet-overview'
+import { getFleetOverview } from '#/contexts/reporting/property-overview/get-fleet-overview.server'
 import { createRatingGoalEvaluator } from '#/contexts/reporting/rating-goals/rating-goals.server'
-import { createFleetOverviewProjectionAdapter } from '#/contexts/reporting/infrastructure/adapters/fleet-overview-projection.adapter'
-import { handleCurrentGoogleReputationSnapshot } from '#/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers'
-import { handleRatingGoalEvaluation } from '#/contexts/reporting/infrastructure/rating-goal-outbox-consumers'
-import { createCurrentGoogleReputationSnapshotRepository } from '#/contexts/reporting/infrastructure/repositories/current-google-reputation-snapshot.repository'
+import { createFleetOverviewProjectionAdapter } from '#/contexts/reporting/property-overview/fleet-overview-projection.adapter.server'
+import { handleCurrentGoogleReputationSnapshot } from '#/contexts/reporting/readings/current-google-reputation-outbox-consumers.server'
+import { handleRatingGoalEvaluation } from '#/contexts/reporting/rating-goals/rating-goal-outbox-consumers.server'
+import { createCurrentGoogleReputationSnapshotRepository } from '#/contexts/reporting/readings/current-google-reputation-snapshot-repository.server'
 import {
   createPropertyRatingGoalRepository,
   createRatingGoalPropertyFactsReader,
-} from '#/contexts/reporting/infrastructure/repositories/property-rating-goal.repository'
+} from '#/contexts/reporting/rating-goals/property-rating-goal-repository.server'
 import { createGoogleRatingReads } from '#/contexts/review/infrastructure/google-rating-reads'
 import {
   holdTransaction,

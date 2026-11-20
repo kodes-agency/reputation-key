@@ -15,7 +15,7 @@ import {
   listImportAccountsInputSchema,
   listImportCandidatesInputSchema,
   renewImportAuthorizationLeaseInputSchema,
-} from '../application/dto/google-import-discovery.dto'
+} from '../imports/google-import-discovery-input.contracts'
 import {
   cancelPropertyImportInputSchema,
   getPropertyImportStatusInputSchema,
@@ -26,11 +26,11 @@ import {
 import {
   GoogleImportDiscoveryError,
   type GoogleImportDiscoveryErrorCode,
-} from '../application/google-import-discovery'
+} from '../imports/google-import-discovery.server'
 import {
   GoogleImportTransactionError,
   type GoogleImportTransactionErrorCode,
-} from '../application/google-import-transaction'
+} from '../imports/google-import-transaction.server'
 
 function disableProviderContentCaching(): void {
   setResponseHeader('Cache-Control', 'private, no-store, max-age=0')

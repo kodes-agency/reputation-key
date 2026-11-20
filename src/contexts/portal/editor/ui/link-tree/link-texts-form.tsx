@@ -8,7 +8,7 @@ import {
   LINK_TEXT_LABEL_MAX_LENGTH,
   LINK_TEXT_LINE_MAX_LENGTH,
   linkTextsFormSchema,
-} from '#/contexts/portal/application/dto/portal-linktree.dto'
+} from '#/contexts/portal/links/portal-linktree.contracts'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { FieldGroup } from '#/components/ui/field'

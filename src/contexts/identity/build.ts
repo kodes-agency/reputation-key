@@ -33,12 +33,12 @@ import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
-import type { IdentityPort } from './application/ports/identity.port'
-import type { IdentityCommandStore } from './application/ports/identity-command-store.port'
-import type { InvitationEmailSender } from './application/ports/invitation-email.port'
+import type { IdentityPort } from './members/auth-identity.port.server'
+import type { IdentityCommandStore } from './members/identity-command-store.port.server'
+import type { InvitationEmailSender } from './members/invitation-email.port.server'
 import type { PropertyNameLookup } from './members/invitation-read-model.port.server'
-import { retireReplacedIdentityAsset } from './application/retire-replaced-identity-asset'
-import { reclaimPendingIdentityUploads } from './application/reclaim-pending-identity-uploads'
+import { retireReplacedIdentityAsset } from './images/retire-replaced-identity-asset.server'
+import { reclaimPendingIdentityUploads } from './images/reclaim-pending-identity-uploads.server'
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import { staffFailureDiagnostic } from './staff/staff-failure-diagnostic.server'
 import {
@@ -49,21 +49,21 @@ import {
   MERCHANT_AI_REDACTION_PROFILE_FAMILY,
   MERCHANT_AI_SOURCE_POLICY_ID,
   isMerchantAiNoticeInForceForCapabilities,
-} from './application/dto/merchant-ai-notice.dto'
+} from './consent/merchant-ai-notice.contracts'
 import { acceptInvitation } from './members/accept-invitation.server'
 import { addStaffMember } from './staff/add-staff-member.server'
 import { cancelInvitation } from './members/cancel-invitation.server'
 import {
   cancelOrganizationAdminInvitation,
   type CancelOrganizationAdminInvitation,
-} from './application/use-cases/cancel-organization-admin-invitation'
+} from './operator/cancel-organization-admin-invitation.server'
 import { changeStaffInvitationEmail } from './staff/change-staff-email.server'
 import { getInvitationPreview } from './members/get-invitation-preview.server'
 import { inviteMember } from './members/invite-member.server'
 import {
   inviteOrganizationAdmin,
   type InviteOrganizationAdmin,
-} from './application/use-cases/invite-organization-admin'
+} from './operator/invite-organization-admin.server'
 import { listInvitations } from './members/list-invitations.server'
 import { listMyBetaFeedback } from './feedback/list-my-beta-feedback.server'
 import {
@@ -89,46 +89,46 @@ import { createMerchantAiAuthorization } from './consent/merchant-ai-authorizati
 import { createMerchantAiDecisionDeferral } from './consent/merchant-ai-decision-deferral.server'
 import { createMerchantAiNoticeUpdates } from './consent/merchant-ai-notice-updates.server'
 import { listMerchantAiOverview } from './consent/merchant-ai-overview.server'
-import { createPolicyAdminOps } from './application/use-cases/policy-admin'
+import { createPolicyAdminOps } from './policy/policy-admin.server'
 import { createProductUpdates } from './updates/product-updates.server'
 import {
   provisionOrganization,
   type ProvisionOrganization,
-} from './application/use-cases/provision-organization'
+} from './operator/provision-organization.server'
 import { recoverInvitedRegistrations } from './members/recover-invited-registrations.server'
 import { registerInvitedUser } from './members/register-invited-user.server'
 import { removeMember } from './members/remove-member.server'
 import { roleChangeCleanup } from './members/member-role-cleanup.server'
 import type { ConsumerRegistry } from '#/shared/outbox'
-import { registerMemberRoleConsumers } from './infrastructure/member-role-outbox-consumers'
+import { registerMemberRoleConsumers } from './members/member-role-outbox-consumers.server'
 import { renewLapsedMerchantAiAuthorizations } from './consent/renew-lapsed-merchant-ai-authorizations.server'
 import { resendInvitation } from './members/resend-invitation.server'
 import {
   resendOrganizationAdminInvitation,
   type ResendOrganizationAdminInvitation,
-} from './application/use-cases/resend-organization-admin-invitation'
+} from './operator/resend-organization-admin-invitation.server'
 import {
   archiveStaffParticipation,
   createStaffParticipation,
   listStaffParticipations,
   updatePortalResponsibilities,
-} from './application/use-cases/staff-participations'
+} from './staff/staff-participations.server'
 import { submitBetaFeedback } from './feedback/submit-beta-feedback.server'
 import { updateMemberRole } from './members/update-member-role.server'
-import { updateOrganization } from './application/use-cases/update-organization'
+import { updateOrganization } from './organization/update-organization.server'
 import { identityMemberRemoved } from './domain/events'
 import { createStaffManagementStore } from './staff/staff-management.store.server'
-import { createStaffSelfReader } from './infrastructure/adapters/staff-self.reader'
+import { createStaffSelfReader } from './staff/staff-self-reader.server'
 import {
   createGrantAccessLookup,
   createPropertyGrantHolderLookup,
-} from './infrastructure/adapters/grant-access-lookup.adapter'
-import { createIdentityAssetReferences } from './infrastructure/adapters/identity-asset-references.adapter'
+} from './members/grant-access-lookup.adapter.server'
+import { createIdentityAssetReferences } from './images/identity-asset-references.adapter.server'
 import { deliverBetaFeedback } from './feedback/beta-feedback-sentry-delivery.adapter.server'
 import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
 import { findBetaFeedbackReporterContact } from './infrastructure/beta-feedback-reporter'
-import { createAssignedPortalLookup } from './infrastructure/assigned-portal-lookup'
-import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
+import { createAssignedPortalLookup } from './staff/assigned-portal-lookup.server'
+import { createAtomicIdentityCommandStore } from './members/identity-command-store.server'
 import { isAcceptanceAdmitted } from './members/invitation-admission.adapter.server'
 import { createInvitationReadModel } from './members/invitation-read-model.server'
 import { createInvitedRegistrationStore } from './members/invited-registration-store.server'
@@ -142,29 +142,29 @@ import {
   merchantAiRenewalDecision,
 } from './consent/merchant-ai-pause-reason.server'
 import { createPlatformOrganizationStore } from './operator/platform-organization-store.server'
-import { createPostgresPolicyAdminCommandStore } from './infrastructure/policy-admin-command-store'
+import { createPostgresPolicyAdminCommandStore } from './policy/policy-admin-command-store.server'
 import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
 import { createPrimaryStaffAttributionResolver } from './staff/primary-staff-attribution.server'
 import { createOrganizationCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {
   getMemberRole,
   createManagerMembershipRepository,
-} from './infrastructure/repositories/manager-membership.repository'
+} from './members/manager-membership-repository.server'
 import {
   decideCurrentManagerPropertyAuthorities,
   decideCurrentManagerPropertyAuthority,
   createMemberPropertyAuthorityLookup,
   decidePublicationActorAuthority,
   resolveMemberPermissionPropertyScope,
-} from './infrastructure/repositories/member-property-authority'
+} from './members/member-property-authority.server'
 import { createMerchantAiAuthorizationStore } from './consent/merchant-ai-authorization.repository.server'
 import { createMerchantAiDecisionDeferralStore } from './consent/merchant-ai-decision.repository.server'
 import { createMerchantAiNoticeUpdateStore } from './consent/merchant-ai-notice-updates.repository.server'
 import { createMerchantAiOverviewReader } from './consent/merchant-ai-overview.repository.server'
 import { createStandingRenewalStore } from './consent/merchant-ai-standing-renewal.repository.server'
 import { createProductUpdatesStore } from './updates/product-updates.repository.server'
-import { hasActiveGrant } from './infrastructure/repositories/property-access-grant.repository'
-import { createStaffParticipationRepository } from './infrastructure/repositories/staff-participation.repository'
+import { hasActiveGrant } from './members/property-access-grant-repository.server'
+import { createStaffParticipationRepository } from './staff/staff-participation-repository.server'
 import { createStaffAccountStore } from './staff/staff-account-store.server'
 
 type AuthSession = Readonly<{

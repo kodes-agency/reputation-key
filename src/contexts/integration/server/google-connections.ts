@@ -9,9 +9,9 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
-import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
+import { disconnectGoogleInputSchema } from '../connections/disconnect-google.contracts'
 import { isIntegrationError } from '../domain/errors'
-import { toGoogleConnectionDto } from '../application/dto/google-connection.dto'
+import { toGoogleConnectionDto } from '../connections/contracts'
 import { integrationErrorStatus } from './error-helpers'
 
 // ── listGoogleConnections ───────────────────────────────────────────

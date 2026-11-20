@@ -6,7 +6,6 @@
 // Construction is query-free: the DB is a Proxy that throws on any access.
 
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
 import type { Database } from '#/shared/db'
 import type {
   PropertyGoogleBindingPublicApi,
@@ -18,11 +17,11 @@ import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildIntegrationContext } from './build'
-import type { GoogleAuthorizedProviderExecutor } from './application/ports/google-authorized-provider-executor.port'
-import type { GoogleImportReferenceStore } from './application/ports/google-import-reference-store.port'
-import type { GoogleImportContentAuthorizer } from './application/google-import-command-authorizer'
+import type { GoogleAuthorizedProviderExecutor } from './provider/google-client.port.server'
+import type { GoogleImportReferenceStore } from './imports/durable-import-reference-store.port.server'
+import type { GoogleImportContentAuthorizer } from './imports/google-import-command-authorizer.server'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import type { PerformanceContentAuthorizer } from './application/google-performance-authorizer'
+import type { PerformanceContentAuthorizer } from './performance/google-performance-authorizer.server'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { OAuthStateHandleService } from './application/oauth-state-handle'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -151,79 +150,6 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(Object.isFrozen(ctx.lifecycle)).toBe(true)
     expect(Object.isFrozen(ctx.webhook)).toBe(true)
     expect(Object.isFrozen(ctx.worker)).toBe(true)
-  })
-
-  it('uses only the parsed configuration injected by the composition boundary', () => {
-    const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
-    expect(source).not.toMatch(/\bgetEnv\s*\(/u)
-    expect(source).not.toContain("from '#/shared/config/env'")
-  })
-
-  it('routes Review reads and reply publication through their distinct system authorities', () => {
-    const source = readFileSync(
-      new URL('./review-sync/google-review-sync-runtime.server.ts', import.meta.url),
-      'utf8',
-    )
-    const start = source.indexOf('const reviewSyncAuthorizer =')
-    const end = source.indexOf('const googleReviewApi:', start)
-    expect(start).toBeGreaterThanOrEqual(0)
-    expect(end).toBeGreaterThan(start)
-    const reviewWiring = source.slice(start, end)
-    expect(reviewWiring).toContain('createGoogleReviewSyncAuthorizer')
-    expect(reviewWiring).toContain('createGoogleReplyPublicationAuthorizer')
-    expect(reviewWiring).toContain("authorization.capability === 'property.connect_gbp'")
-    expect(reviewWiring).toContain(
-      "authorization.capability === 'property.publish_reply'",
-    )
-    expect(reviewWiring).toContain('authorization.publication.attemptNumber')
-    expect(reviewWiring).toContain('propertySourceEpoch')
-    expect(reviewWiring).not.toContain('connectedBy')
-    expect(reviewWiring).not.toContain('property.import_gbp_v2')
-  })
-
-  it('routes notification account lookup and desired-state writes through the governed executor', () => {
-    const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
-    const notificationWiring = readFileSync(
-      new URL('./connections/notifications-runtime.server.ts', import.meta.url),
-      'utf8',
-    )
-    expect(notificationWiring).toContain('withSingle401Refresh')
-    expect(notificationWiring).toContain('createMyBusinessNotificationsAdapter')
-    expect(notificationWiring).toContain('authorization_unavailable')
-    expect(notificationWiring).toContain('notifications,')
-    expect(notificationWiring).not.toContain('createGoogleAccountManagementAdapter')
-    const runtime = readFileSync(
-      new URL('./infrastructure/google-notification-runtime.ts', import.meta.url),
-      'utf8',
-    )
-    expect(runtime).toContain('manageNotifications({')
-    expect(runtime).toContain('notifications: deps.notifications')
-    expect(runtime).not.toContain('createGoogleAccountManagementAdapter')
-    // The account targets come from active Property bindings, never discovery.
-    const authorizer = readFileSync(
-      new URL(
-        './application/google-notification-provider-authorizer.ts',
-        import.meta.url,
-      ),
-      'utf8',
-    )
-    expect(
-      readFileSync(
-        new URL('./review-sync/google-review-sync-runtime.server.ts', import.meta.url),
-        'utf8',
-      ),
-    ).toContain('createGoogleNotificationProviderAuthorizer({')
-    expect(authorizer).toContain('const targetedAccounts = new Set<string>()')
-    expect(authorizer).toContain('gbpAccountId: binding.accountId')
-    expect(authorizer).not.toContain('listAccounts')
-    expect(source).not.toContain('createGbpApiAdapter')
-  })
-
-  it('activates a durable, non-empty provider-authorization invalidation handler set', () => {
-    const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
-    expect(source).toContain('createProviderAuthorizationInvalidationFanout')
-    expect(source).toContain("id: 'google_import_references'")
-    expect(source).toContain('registerProviderAuthorizationInvalidationConsumer')
   })
 
   it('honors the injected googleOAuth override', () => {

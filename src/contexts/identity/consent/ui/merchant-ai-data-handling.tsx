@@ -1,7 +1,7 @@
 import { SectionTitle } from '#/components/ui/section-title'
 import { ShieldCheck } from 'lucide-react'
 import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
-import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import type { MerchantAiNoticeDto } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 
 export function MerchantAiDataHandling({
   notice,

@@ -5,8 +5,8 @@ import {
   targetForReplyLanguage,
   type ReplyLanguageTarget,
   type ReviewLanguageReadiness,
-} from '#/components/inbox/reply-language-options'
-import type { ReplyDraftAdoption } from '#/components/inbox/reply-draft-origin'
+} from '#/contexts/reputation/replies/ui/composer/reply-language-options'
+import type { ReplyDraftAdoption } from '#/contexts/reputation/replies/ui/composer/reply-draft-origin'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
 import type { ReplyAssistScope } from './use-reply-suggestion'
 

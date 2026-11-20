@@ -17,7 +17,7 @@ import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
 import { invitationId, userId } from '#/shared/domain/ids'
-import { acceptInvitationInputSchema } from '../application/dto/invitation.dto'
+import { acceptInvitationInputSchema } from '../members/invitation.contracts'
 import { enforceInvitationSendRateLimit } from './invitation-rate-limit.server'
 
 // ── Accept invitation ──────────────────────────────────────────────

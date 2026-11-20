@@ -4,19 +4,19 @@ import { vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { idempotencyReceipts } from '#/shared/db/schema'
-import { createAtomicIntegrationCommandStore } from '#/contexts/integration/infrastructure/integration-command-store'
-import { createGoogleOAuthExchangeRecoveryRepository } from '#/contexts/integration/infrastructure/repositories/google-oauth-exchange-recovery.repository'
+import { createAtomicIntegrationCommandStore } from '#/contexts/integration/connections/integration-command-store.server'
+import { createGoogleOAuthExchangeRecoveryRepository } from '#/contexts/integration/connections/google-oauth-exchange-recovery-repository.server'
 import {
   createGoogleConnectionTestStore,
   createOutboxReader,
 } from '#/contexts/integration/connections/google-connection.test-fixtures'
-import { connectGoogleAccount } from '#/contexts/integration/application/use-cases/connect-google-account'
+import { connectGoogleAccount } from '#/contexts/integration/connections/connect-google-account.server'
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createTestTokenEncryption } from '#/contexts/integration/connections/token-encryption.test-fixtures'
-import type { GoogleOAuthProviderCallAuthorizer } from '#/contexts/integration/application/ports/google-oauth.port'
-import type { GoogleOAuthExchangeRecoveryStore } from '#/contexts/integration/application/google-oauth-exchange-recovery'
+import type { GoogleOAuthProviderCallAuthorizer } from '#/contexts/integration/connections/google-oauth.port.server'
+import type { GoogleOAuthExchangeRecoveryStore } from '#/contexts/integration/connections/google-oauth-exchange-recovery.server'
 
 // Organization of buildTestAuthContext unless a test passes its own.
 const DEFAULT_TEST_ORG_ID = 'org-00000000-0000-0000-0000-000000000001'

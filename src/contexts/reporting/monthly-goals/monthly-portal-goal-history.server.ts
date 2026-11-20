@@ -12,18 +12,18 @@ import type {
 } from './contracts'
 import { localDateOf } from '../domain/local-days'
 import { effectiveMonthTarget } from '../application/goal-effective-month-target'
-import { versionNoteOf } from '../application/goal-version-reasons'
+import { versionNoteOf } from './goal-version-reasons.server'
 import {
   isPropertyCountGoal,
   type PropertyCountGoal,
-} from '../application/monthly-portal-goal-identity'
+} from './monthly-portal-goal-identity.server'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
   GoalProgramVersion,
 } from '../application/ports/goal-program.repository'
 import type { GoalActor } from './goal-programs.server'
-import { readSubjectMonth } from '../application/use-cases/goal-progress'
+import { readSubjectMonth } from './goal-progress.server'
 import {
   finalFigureOn,
   measureOf,

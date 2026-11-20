@@ -1,8 +1,8 @@
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
 import type { Clock } from '#/shared/domain/clock'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
-import type { TimeRangePreset } from '../application/dto/dashboard.dto'
-import { localDaysWindow, timeRangeToDates } from '../application/utils'
+import type { TimeRangePreset } from '../property-overview/contracts'
+import { localDaysWindow, timeRangeToDates } from '../portal-results/time-range.server'
 
 type ResolvePropertyPeriodDeps = Readonly<{
   propertyFacts: PropertyFactsPublicApi

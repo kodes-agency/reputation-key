@@ -4,8 +4,8 @@
 // is step 2 (validate referenced entities), and the role hierarchy check with the
 // actual current role is step 3 (check business invariants).
 
-import type { IdentityPort } from '../application/ports/identity.port'
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
+import type { IdentityPort } from './auth-identity.port.server'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { ADMIN_ROLE, isOwnerToken, toBetterAuthRole } from '#/shared/domain/roles'
@@ -15,7 +15,7 @@ import { identityError } from '../domain/errors'
 import { identityMemberRoleChanged } from '../domain/events'
 import { assertAnotherOwnerRemains } from './last-owner-guard.server'
 import { userId as toUserId } from '#/shared/domain/ids'
-import type { UpdateMemberRoleInput } from '../application/dto/invitation.dto'
+import type { UpdateMemberRoleInput } from './invitation.contracts'
 export type { UpdateMemberRoleInput }
 
 export type UpdateMemberRoleOutput = Readonly<{

@@ -5,7 +5,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { OrganizationSettingsForm } from './organization-settings-form'
-import type { UpdateOrgSettingsInput } from '#/contexts/identity/application/dto/update-org-settings.dto'
+import type { UpdateOrgSettingsInput } from '#/contexts/identity/organization/update-org-settings.contracts'
 
 const organization = {
   name: 'Acme Hotels',

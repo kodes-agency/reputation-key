@@ -1,0 +1,248 @@
+// Apply the Property recommendation rule to one Portal or Portal Group (ADR 0068).
+// Rates use current members with two live weeks; month totals use the group
+// recorded at event time, so moving a Portal preserves its earlier group's counts.
+// A quarantined basis/current day yields no offer, conservatively even if that
+// basis day was not live. Single-subject page/change offers use the same narrowed scope.
+
+import {
+  narrowedRecommendation,
+  subjectRecommendation,
+} from '../domain/goal-recommendation'
+import type {
+  PerMeasure,
+  PortalFacts,
+  PortalGoalMeasure,
+  RecommendationGroupDayCount,
+} from '../domain/goal-recommendation-types'
+import type { PortalGoalRecommendation } from './contracts'
+import type { PortalGoalAddChoices, PortalGoalAddSubject } from './contracts'
+import { ratingSubjectSkipsPrivateRating } from './goal-rating-eligibility.server'
+import type { PortalGoalFacts } from './goal-recommendation-read.server'
+
+/** The month and measure the add sheet offers, and what its numbers stand on. */
+export type PortalGoalAddBasis = Readonly<{
+  facts: PortalGoalFacts
+  recommendation: PortalGoalRecommendation
+  month: string
+  current: boolean
+  measure: PortalGoalMeasure
+}>
+
+export function portalGoalAddBasisOf(
+  facts: PortalGoalFacts,
+  recommendation: PortalGoalRecommendation,
+): PortalGoalAddBasis {
+  const month = recommendation.defaultMonthKey
+  return {
+    facts,
+    recommendation,
+    month,
+    current: month === recommendation.months.current.key,
+    measure: recommendation.defaultMeasure,
+  }
+}
+
+/** What one subject is offered: its choices, and this month so far when it is offered. */
+export type SubjectNumbers = Readonly<{
+  choices: PortalGoalAddChoices | null
+  soFar: number | null
+}>
+
+const perMeasure = <T>(of: (measure: PortalGoalMeasure) => T): PerMeasure<T> => ({
+  portal_rating_count: of('portal_rating_count'),
+  qualified_scans: of('qualified_scans'),
+})
+
+/** The measures with a flagged day at or after `from`. */
+function flaggedSince(
+  flags: readonly Readonly<{ measure: PortalGoalMeasure; localDay: string }>[],
+  from: string,
+): ReadonlySet<PortalGoalMeasure> {
+  return new Set(
+    flags.filter(({ localDay }) => localDay >= from).map(({ measure }) => measure),
+  )
+}
+
+/** What one subject's numbers stand on: its members, its month so far, and its flagged measures. */
+type SubjectScope = Readonly<{
+  members: readonly PortalFacts[]
+  monthToDate: PerMeasure<number>
+  unreadable: ReadonlySet<PortalGoalMeasure>
+}>
+
+function numbersOf(
+  basis: PortalGoalAddBasis,
+  { members, monthToDate, unreadable }: SubjectScope,
+): SubjectNumbers {
+  const { recommendation, measure, current } = basis
+  const measures = subjectRecommendation({
+    members: members.filter(({ inBasis }) => inBasis),
+    monthToDate,
+    unreadable,
+    months: recommendation.months,
+  })[measure]
+  const offered = current ? measures.fromToday : measures.fullMonth.next
+  return {
+    choices:
+      offered === null
+        ? null
+        : { usual: offered.usual, aBitMore: offered.aBitMore, stretch: offered.stretch },
+    soFar: current && !unreadable.has(measure) ? monthToDate[measure] : null,
+  }
+}
+
+const monthFirstDay = (basis: PortalGoalAddBasis): string =>
+  `${basis.recommendation.months.current.key}-01`
+
+function portalScope(basis: PortalGoalAddBasis, portal: PortalFacts): SubjectScope {
+  const flags = basis.facts.counts.unreadable.filter(
+    ({ portalId }) => portalId === portal.portalId,
+  )
+  return {
+    members: [portal],
+    monthToDate: portal.monthToDate,
+    unreadable: flaggedSince(flags, basis.recommendation.window.firstDay),
+  }
+}
+
+/** A Portal's own numbers. */
+export function portalNumbers(
+  basis: PortalGoalAddBasis,
+  portal: PortalFacts,
+): SubjectNumbers {
+  return numbersOf(basis, portalScope(basis, portal))
+}
+
+/** The Portals listed in a group now, in name order. */
+export function groupMembers(
+  basis: PortalGoalAddBasis,
+  groupId: string,
+): readonly PortalFacts[] {
+  const inGroup = new Set(
+    basis.facts.listed.portals
+      .filter(({ portalGroupId }) => portalGroupId === groupId)
+      .map(({ portalId }) => portalId),
+  )
+  return basis.recommendation.portals.filter(({ portalId }) => inGroup.has(portalId))
+}
+
+function groupMonthToDate(
+  days: readonly RecommendationGroupDayCount[],
+  from: string,
+): PerMeasure<number> {
+  return perMeasure((measure) =>
+    days.reduce(
+      (sum, day) =>
+        day.measure === measure && day.localDay >= from ? sum + day.count : sum,
+      0,
+    ),
+  )
+}
+
+function groupScope(basis: PortalGoalAddBasis, groupId: string): SubjectScope {
+  const { counts } = basis.facts
+  const members = groupMembers(basis, groupId)
+  const memberIds = new Set(members.map(({ portalId }) => portalId))
+  const from = monthFirstDay(basis)
+  const unreadable = new Set([
+    ...flaggedSince(
+      counts.groupUnreadable.filter((flag) => flag.groupId === groupId),
+      from,
+    ),
+    ...flaggedSince(
+      counts.unreadable.filter(
+        ({ portalId }) => portalId !== null && memberIds.has(portalId),
+      ),
+      basis.recommendation.window.firstDay,
+    ),
+  ])
+  return {
+    members,
+    monthToDate: groupMonthToDate(
+      counts.groupDays.filter((day) => day.groupId === groupId),
+      from,
+    ),
+    unreadable,
+  }
+}
+
+/** A Portal Group's numbers: its members' rates, its own month so far. */
+export function groupNumbers(basis: PortalGoalAddBasis, groupId: string): SubjectNumbers {
+  return numbersOf(basis, groupScope(basis, groupId))
+}
+
+/** A Portal Portal no longer lists (a draft again, archived or deleted): nothing to stand on. */
+const UNLISTED: SubjectScope = {
+  members: [],
+  monthToDate: perMeasure(() => 0),
+  unreadable: new Set(['portal_rating_count', 'qualified_scans']),
+}
+
+/**
+ * The Property recommendation narrowed to one Portal or Portal Group:
+ * every month and measure of its own numbers, for the page and
+ * the change sheet of a goal set for it. A Portal Portal no longer lists has no
+ * number and no month so far.
+ */
+export function narrowedFor(
+  basis: PortalGoalAddBasis,
+  subject: PortalGoalAddSubject,
+): PortalGoalRecommendation {
+  const recommendation = ratingSubjectSkipsPrivateRating(
+    basis.facts.listed.portals,
+    subject,
+  )
+    ? {
+        ...basis.recommendation,
+        ratingsAvailable: false,
+        defaultMeasure: 'qualified_scans' as const,
+      }
+    : basis.recommendation
+  const scope =
+    subject.kind === 'portal_group'
+      ? groupScope(basis, subject.portalGroupId)
+      : (() => {
+          const portal = recommendation.portals.find(
+            ({ portalId }) => portalId === subject.portalId,
+          )
+          return portal ? portalScope(basis, portal) : UNLISTED
+        })()
+  const narrowed = narrowedRecommendation(recommendation, scope)
+  return narrowed.portals.some((portal) => portal.kind === 'personal')
+    ? {
+        ...narrowed,
+        staffTarget: true,
+        personalTarget: subject.kind === 'portal',
+        ratingsAvailable: false,
+        defaultMeasure: 'qualified_scans',
+      }
+    : narrowed
+}
+
+/** The live Portals, in name order: published, with a live run now. */
+export const livePortalsOf = (
+  recommendation: PortalGoalRecommendation,
+): readonly PortalFacts[] =>
+  recommendation.portals.filter(
+    ({ publicationState, liveSince }) =>
+      publicationState === 'published' && liveSince !== null,
+  )
+
+/**
+ * The recommended number for one subject, in the month and measure offered;
+ * null when it has none there (the set command then stores "own").
+ */
+export function recommendedNumberFor(
+  basis: PortalGoalAddBasis,
+  subject: PortalGoalAddSubject,
+): number | null {
+  if (subject.kind === 'portal_group') {
+    return groupNumbers(basis, subject.portalGroupId).choices?.aBitMore ?? null
+  }
+  const portal = livePortalsOf(basis.recommendation).find(
+    ({ portalId }) => portalId === subject.portalId,
+  )
+  return portal && portal.kind !== 'personal'
+    ? (portalNumbers(basis, portal).choices?.aBitMore ?? null)
+    : null
+}

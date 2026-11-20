@@ -16,7 +16,7 @@ import {
   keepRatingGoalPaceSchema,
   ratingGoalPropertySchema,
   setRatingGoalSchema,
-} from '../application/dto/rating-goal.dto'
+} from '../rating-goals/rating-goal.contracts'
 import { withInboxItems } from './rating-goal-inbox-links.server'
 import { withRatingGoals } from './rating-goal-request.server'
 

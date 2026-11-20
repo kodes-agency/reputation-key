@@ -15,13 +15,10 @@ import { asAccountAdmin } from '#/shared/testing/authorized-reads'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import {
-  recordMetric,
-  type RecordMetricInput,
-} from '../application/use-cases/record-metric'
+import { recordMetric, type RecordMetricInput } from '../readings/record-metric.server'
 import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
 import { METRIC_VERSION_IDS, metricRegistry } from '../readings/contracts'
-import { createPropertyLocalDateResolver } from '../infrastructure/repositories/property-local-date'
+import { createPropertyLocalDateResolver } from '../readings/property-local-date.server'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository.server'
 import { getPortalAnalytics } from './get-portal-analytics.server'
 

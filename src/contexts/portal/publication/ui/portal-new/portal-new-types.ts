@@ -2,7 +2,7 @@
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalLookSources } from '#/contexts/portal/application/portal-management-contracts'
-import type { CreatePortalInput } from '#/contexts/portal/application/dto/create-portal.dto'
+import type { CreatePortalInput } from '#/contexts/portal/publication/create-portal.contracts'
 import type { PortalManagerName } from '../../../../../components/features/portal/portal-overview/portal-overview-view'
 import type { PortalNewOptions } from './portal-new-rules'
 

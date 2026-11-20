@@ -25,7 +25,7 @@ import {
   createNotificationPreference,
 } from '../domain/constructors-preference'
 import * as store from './notification-preferences.server'
-import { createReviewRatingForRouting } from '../infrastructure/adapters/review-rating-routing.adapter'
+import { createReviewRatingForRouting } from '../notify/review-rating-routing.adapter.server'
 import {
   markAllNotificationsDismissed,
   readNotificationFeedHead,

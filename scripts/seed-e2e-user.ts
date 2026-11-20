@@ -42,9 +42,9 @@ import {
   portalPublicationActivations,
 } from '../src/shared/db/schema'
 import { propertyResponsibleManagers } from '../src/shared/db/schema/property.schema'
-import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
+import { buildPortalPublicationSnapshot } from '../src/contexts/portal/publication/portal-publication-snapshot.server'
 import { OFFERED_GUEST_LOCALES } from '../src/shared/domain/guest-locale'
-import { snapshotMirrorColumns } from '../src/contexts/portal/infrastructure/mappers/portal-publication-snapshot.mapper'
+import { snapshotMirrorColumns } from '../src/contexts/portal/publication/portal-publication-snapshot-mapper.server'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
 import {
@@ -57,14 +57,14 @@ import { notificationPreferences } from '../src/shared/db/schema/notification.sc
 import {
   grantPropertyAccess,
   hasActiveGrant,
-} from '../src/contexts/identity/infrastructure/repositories/property-access-grant.repository'
-import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
+} from '../src/contexts/identity/members/property-access-grant-repository.server'
+import { createPortalTokenCodec } from '../src/contexts/portal/addresses/portal-token-codec.server'
 import {
   LOCAL_E2E_OPERATOR_USER_ID,
   LOCAL_E2E_ORGANIZATION_ID,
 } from '../src/shared/config/local-stack-contract'
 import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/domain/google-content-capability'
-import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/policy/google-content-authority-repository.server'
 import { createDeclaredCapabilityPostureStores } from '../src/composition/declared-capability-posture'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../src/shared/ai-operation-profiles'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '../src/shared/domain/merchant-ai-capability'

@@ -12,7 +12,7 @@
 import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import { likelyChange, starsWhenMentioned } from '../domain/guest-voice-statistics'
-import type { AiPropertyAnalyzedReview } from './ports/ai-property-aggregate-store.port'
+import type { AiPropertyAnalyzedReview } from '../analysis/ai-property-aggregate-store.port.server'
 
 /** How many reviews gave 1, 2, 3, 4 and 5 stars. */
 export type RatingCounts = readonly [number, number, number, number, number]

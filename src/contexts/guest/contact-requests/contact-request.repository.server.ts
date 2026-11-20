@@ -9,7 +9,7 @@ import {
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
 import { journalBeforeErasure } from '#/shared/db/lifecycle/erasure-journal.server'
-import type { GuestWithdrawalJournal } from '../infrastructure/guest-withdrawal-journal.server'
+import type { GuestWithdrawalJournal } from '../responses/guest-withdrawal-journal.server'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { portalPublicationSnapshots } from '#/shared/db/schema/portal-publication.schema'
 import {

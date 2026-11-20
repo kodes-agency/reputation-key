@@ -1,7 +1,7 @@
 import { tenantScope } from '#/shared/queries/tenant-scope'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { MerchantAiDataHandling } from '#/contexts/identity/consent/ui/merchant-ai-data-handling'
-import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import { MERCHANT_AI_NOTICE } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import {
   useActionMutation,
   actionFailureMessage,

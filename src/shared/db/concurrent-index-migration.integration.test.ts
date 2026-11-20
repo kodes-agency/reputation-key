@@ -116,7 +116,7 @@ describe('review_provider_snapshot_runs completed-property index', () => {
     )
     expect(rows.rows).toEqual([{ property_id: propertyId }])
 
-    // Catalogue shape: property-setup.repository.ts's synced_properties CTE
+    // Catalogue shape: property-setup-repository.server.ts's synced_properties CTE
     // filters on (organization_id, state = 'completed'); the index must lead
     // with organization_id and be partial on the completed state, and the
     // CONCURRENTLY build must have left it valid and ready.

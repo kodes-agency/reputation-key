@@ -14,11 +14,11 @@ import {
 } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import type { NotificationPayload } from '../domain/notification-payload'
-import { createDisplayNameLookupAdapter } from '../infrastructure/adapters/display-name-lookup.adapter'
-import { buildOrganizationPayload } from '../infrastructure/notification-payload-facts'
-import { createNotificationDbUserLookupAdapter } from '../infrastructure/adapters/notification-db-user-lookup.adapter'
-import type { NotificationAudience } from '../application/notification-audience'
-import type { InsertNotificationInput } from '../application/use-cases/insert-notification'
+import { createDisplayNameLookupAdapter } from '../notify/display-name-lookup.adapter.server'
+import { buildOrganizationPayload } from '../notify/notification-payload-facts.server'
+import { createNotificationDbUserLookupAdapter } from '../notify/notification-db-user-lookup.adapter.server'
+import type { NotificationAudience } from '../notify/notification-audience.server'
+import type { InsertNotificationInput } from '../notify/insert-notification.server'
 import {
   getFormerMemberRemovals,
   getNotificationHistory,

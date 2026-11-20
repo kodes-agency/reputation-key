@@ -1,0 +1,175 @@
+import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
+import { portalPrintWordings } from '#/shared/db/schema/portal-print-wording.schema'
+// Portal command store — the create-Portal command.
+// Split out of portal-command-store.ts (it grew group, copy and manager parts);
+// composed back behind the same PortalCommandStore port by
+// createAtomicPortalCommandStore.
+//
+// One transaction writes the Portal, who is responsible, its first Health, its
+// group membership, everything copied from another Portal (its own look too)
+// and every fact. A failure in any part leaves no trace of the others.
+
+import type { Database } from '#/shared/db'
+import {
+  portalHealthIntervals,
+  portalResponsibleManagers,
+  portals,
+} from '#/shared/db/schema'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { trace } from '#/shared/observability/trace'
+import { unbrand, type UserId } from '#/shared/domain/ids'
+import type {
+  CreatePortalCommand,
+  PortalCommandStore,
+} from './portal-command-store-port.server'
+import { assertPersonalSourceFence } from '../personal-portals/personal-portal-source-fence.server'
+import { portalError } from '../domain/errors'
+import { portalToRow } from './portal-mapper.server'
+import { assertCommittedRevision } from './portal-command-guards.server'
+import { assertCreateCommand } from './portal-create-guards.server'
+import { joinPortalGroupInTransaction } from './portal-group-commands.server'
+import {
+  insertCopiedContent,
+  refusingGoneLookImage,
+} from './portal-copied-content.server'
+import {
+  PORTAL_SLUG_UNIQUE,
+  refusingWhenTaken,
+  slugTaken,
+} from './portal-unique-violation.server'
+
+export type PortalCreateCommandStore = Pick<PortalCommandStore, 'createPortal'>
+
+/** The person who created the Portal; every write beyond the Portal row is attributed to them. */
+function creatorOf(command: CreatePortalCommand): UserId {
+  const { createdBy } = command.portal
+  if (createdBy === null) {
+    throw portalError(
+      'forbidden',
+      'A Portal created with group or copied content needs its creator',
+    )
+  }
+  return createdBy
+}
+
+async function insertResponsibleManagers(
+  tx: Tx,
+  command: CreatePortalCommand,
+): Promise<void> {
+  if (command.initialResponsibleManagerIds.length === 0) return
+  const { portal } = command
+  await tx.insert(portalResponsibleManagers).values(
+    command.initialResponsibleManagerIds.map((userId) => ({
+      organizationId: command.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      userId,
+      effectiveFrom: portal.createdAt,
+      createdBy: portal.createdBy ?? userId,
+    })),
+  )
+}
+
+async function joinGroup(tx: Tx, command: CreatePortalCommand): Promise<void> {
+  const membership = command.groupMembership
+  if (!membership) return
+  const { portal } = command
+  await joinPortalGroupInTransaction(tx, {
+    organizationId: command.organizationId,
+    propertyId: portal.propertyId,
+    portalGroupId: membership.portalGroupId,
+    portalId: portal.id,
+    expectedUpdatedAt: membership.expectedGroupUpdatedAt,
+    revision: membership.revision,
+    occurredAt: portal.createdAt,
+    changedBy: creatorOf(command),
+    event: membership.event,
+  })
+}
+
+async function insertInitialHealth(tx: Tx, command: CreatePortalCommand): Promise<void> {
+  const { health, portal } = command
+  if (!health) return
+  await tx.insert(portalHealthIntervals).values({
+    id: health.id,
+    organizationId: unbrand(command.organizationId),
+    propertyId: unbrand(portal.propertyId),
+    portalId: unbrand(portal.id),
+    status: health.value.status,
+    reason: health.value.reason,
+    sourceVersion: health.sourceVersion,
+    effectiveFrom: health.effectiveAt,
+    effectiveTo: null,
+    observedAt: health.observedAt,
+  })
+}
+
+export const createPortalCreateCommand = (db: Database): PortalCreateCommandStore => ({
+  createPortal: async (command) =>
+    trace('portal.commandStore.createPortal', async () => {
+      assertCreateCommand(command)
+      await refusingWhenTaken(
+        () => refusingGoneLookImage(() => commitCreate(db, command)),
+        PORTAL_SLUG_UNIQUE,
+        slugTaken,
+      )
+    }),
+})
+
+async function commitCreate(db: Database, command: CreatePortalCommand): Promise<void> {
+  await db.transaction(async (tx) => {
+    if (command.groupMembership) {
+      await lockStaffTargetProperty(tx, command.organizationId, command.portal.propertyId)
+    }
+    await assertPersonalSourceFence(
+      tx,
+      {
+        organizationId: command.organizationId,
+        propertyId: command.portal.propertyId,
+      },
+      command.personalSourceFence,
+    )
+    const [created] = await tx
+      .insert(portals)
+      .values(portalToRow(command.portal))
+      .returning({ updatedAt: portals.updatedAt })
+    assertCommittedRevision(
+      created,
+      command.portal.updatedAt,
+      'Portal',
+      'Portal creation did not return its command revision',
+    )
+    await insertResponsibleManagers(tx, command)
+    await insertInitialHealth(tx, command)
+    if (command.copiedContent) {
+      await insertCopiedContent(
+        tx,
+        {
+          organizationId: unbrand(command.organizationId),
+          propertyId: unbrand(command.portal.propertyId),
+          portalId: unbrand(command.portal.id),
+          actorUserId: unbrand(creatorOf(command)),
+          at: command.portal.createdAt,
+        },
+        command.copiedContent,
+      )
+    }
+    if (command.personalPrintWording) {
+      await tx.insert(portalPrintWordings).values({
+        organizationId: command.organizationId,
+        propertyId: command.portal.propertyId,
+        portalId: command.portal.id,
+        callToAction: command.personalPrintWording.callToAction,
+        callToActionCustom: command.personalPrintWording.customWords,
+        updatedAt: command.portal.createdAt,
+      })
+    }
+    await joinGroup(tx, command)
+    await insertOutboxRow(tx, command.event, { recordedAt: command.portal.createdAt })
+    if (command.responsibilityNeededEvent) {
+      await insertOutboxRow(tx, command.responsibilityNeededEvent, {
+        recordedAt: command.portal.createdAt,
+      })
+    }
+  })
+}

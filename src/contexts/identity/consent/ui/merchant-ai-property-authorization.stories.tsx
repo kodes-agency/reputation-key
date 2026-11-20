@@ -9,7 +9,7 @@ import {
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
-import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import { MERCHANT_AI_NOTICE } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   AI_CONSENT_ACKNOWLEDGEMENT,

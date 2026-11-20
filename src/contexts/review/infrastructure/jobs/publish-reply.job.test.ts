@@ -14,12 +14,12 @@ import {
   createGoogleAuthorizedProviderExecutor,
   createSingle401RefreshExecutor,
 } from '#/contexts/integration/provider/google-client.server'
-import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
+import { createGoogleReviewApiAdapter } from '#/contexts/integration/review-sync/google-review-api.adapter.server'
 import { integrationError } from '#/contexts/integration/domain/errors'
 import {
   createReplyPublicationProviderCall,
   type GoogleReplyPublicationAuthorizationResult,
-} from '#/contexts/integration/application/google-reply-publication-authorizer'
+} from '#/contexts/integration/review-sync/google-reply-publication-authorizer.server'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { createPublishReplyHandler } from './publish-reply.job'
 

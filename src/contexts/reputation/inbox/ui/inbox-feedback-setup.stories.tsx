@@ -5,7 +5,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, waitFor, within } from 'storybook/test'
 import { withPermissions } from '../../../../../.storybook/AuthedRouterDecorator'
 import { InboxFeedbackSetup } from './inbox-feedback-setup'
-import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 const HARBOR = '60000000-0000-4000-8000-000000000001'
 const GARDEN = '60000000-0000-4000-8000-000000000002'

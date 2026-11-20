@@ -2,8 +2,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type {
   OperationalActionHistoryAccessInput,
   exportOperationalActionHistory,
-} from './use-cases/operational-action-history-access'
-import type { OperationalActionHistoryPage } from '../ports/operational-action-history-store.port'
+} from '../audit/operational-action-history-access.server'
+import type { OperationalActionHistoryPage } from '../audit/operational-action-history-store.port.server'
 
 export type { RecentActivityEntry } from '../domain/activity-types'
 

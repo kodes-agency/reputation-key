@@ -13,7 +13,7 @@ import type {
   InviteOrganizationAdminInput,
   InviteOrganizationAdminResult,
   PlatformOrganizationView,
-} from '#/contexts/identity/application/dto/platform-console.dto'
+} from '#/contexts/identity/operator/platform-console.contracts'
 import type { Action } from '#/components/hooks/use-action'
 import { InviteOrganizationAdminForm } from './invite-organization-admin-form'
 import {

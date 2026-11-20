@@ -2,7 +2,7 @@
 // Storybook glob matches only a final `.stories.` segment, and the import
 // progress stories share these with the step's own stories.
 import { fn } from 'storybook/test'
-import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import { MERCHANT_AI_NOTICE } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import type { PropertySetupFns, SetupMember } from './property-setup-contract'
 import { replyLibraryFixture } from '../../../contexts/reputation/library/ui/reply-library.stories.fixtures'
 

@@ -10,11 +10,11 @@ import {
   createLinkInputSchema,
   updateLinkInputSchema,
   reorderLinksInputSchema,
-} from '../application/dto/portal-link.dto'
+} from '../links/portal-link.contracts'
 import {
   saveLinktreeSettingsInputSchema,
   savePortalLinkTextsInputSchema,
-} from '../application/dto/portal-linktree.dto'
+} from '../links/portal-linktree.contracts'
 import { portalError } from '../domain/errors'
 import { portalCommandErrors } from './portal-command-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'

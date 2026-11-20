@@ -17,9 +17,9 @@ import { workItems } from '#/shared/db/schema/work-items.schema'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import type { GoogleImportItemJobData } from '../application/ports/gbp-queue.port'
-import type { GoogleImportIntent } from '../application/ports/google-import-store.port'
-import { createGoogleImportClaimReaper } from '../application/google-import-claim-reaper'
+import type { GoogleImportItemJobData } from './google-import-queue.port.server'
+import type { GoogleImportIntent } from './import-store.port.server'
+import { createGoogleImportClaimReaper } from './google-import-claim-reaper.server'
 import { createImportStore } from './import-store.server'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')

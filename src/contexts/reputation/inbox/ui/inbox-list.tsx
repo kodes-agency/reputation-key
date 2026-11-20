@@ -1,7 +1,7 @@
 import { cn } from '#/lib/utils'
 import { useIsMobile } from '#/components/hooks/use-mobile'
-import { InboxActiveFilters } from '#/components/inbox/inbox-active-filters'
-import { InboxListHeader } from '#/components/inbox/inbox-list-header'
+import { InboxActiveFilters } from '#/contexts/reputation/inbox/ui/page/inbox-active-filters'
+import { InboxListHeader } from '#/contexts/reputation/inbox/ui/page/inbox-list-header'
 import {
   INBOX_BULK_LIMIT,
   type Cursor,
@@ -9,22 +9,22 @@ import {
   type InboxSort,
   type InboxQueue,
 } from '#/contexts/inbox/application/public-api'
-import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
+import { InboxBulkActions } from '#/contexts/reputation/inbox/ui/page/inbox-bulk-actions'
 import { LoadMoreButton } from '#/components/ui/load-more-button'
-import type { InboxServerFns } from '#/components/inbox/types'
-import type { InboxAssignmentOption } from '#/components/inbox/inbox-owner-view'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
+import type { InboxAssignmentOption } from '#/contexts/reputation/inbox/ui/page/inbox-owner-view'
 import { useMemo, type ReactNode, type RefObject } from 'react'
 import {
   countActiveInboxFilters,
   type InboxListFilterValues,
-} from '#/components/inbox/inbox-filters'
+} from '#/contexts/reputation/inbox/ui/page/inbox-filters'
 import {
   InboxListEmpty,
   InboxListError,
   InboxListSkeleton,
-} from '#/components/inbox/inbox-list-states'
+} from '#/contexts/reputation/inbox/ui/page/inbox-list-states'
 import type { InboxCurrentUser } from '#/contexts/reputation/inbox/ui/inbox-case-toolbar-props'
-import { InboxListRow } from '#/components/inbox/inbox-list-row'
+import { InboxListRow } from '#/contexts/reputation/inbox/ui/page/inbox-list-row'
 
 export interface InboxListPanelProps {
   queue: InboxQueue

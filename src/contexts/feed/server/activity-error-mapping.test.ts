@@ -35,7 +35,7 @@ import {
   exportOperationalActionHistory,
   listOperationalActionHistory,
   type OperationalActionHistoryAccessDeps,
-} from '../application/use-cases/operational-action-history-access'
+} from '../audit/operational-action-history-access.server'
 import {
   operationalActionHistoryRecordId,
   type OperationalActionRecord,

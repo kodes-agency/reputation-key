@@ -307,12 +307,11 @@ Test a server function with `testing/server-function-harness.ts` in a
 `*.integration.test.ts` file beside it, not with `vi.mock` of `#/composition`,
 `#/shared/auth/headers`, `#/shared/auth/middleware` or
 `#/shared/auth/execution-policy`. `setupServerFunctionHarness()` builds the real
-container (in-memory queues, Google OAuth and storage; no Redis or email) and
-makes it the process's container. `seedOrganization`, `seedMember(org, role)`,
-`seedProperty`, `seedPortal` and `grantProperty` write the rows; a member signs
-in through Better Auth and selects the Organization as the app does.
-`callAs(member, () => fn({ data }))` runs the call in a Start request carrying
-that member's session cookie (`null` for no session), so tenant resolution and
+container (in-memory queues, Google OAuth, storage and email; no Redis unless
+asked) and makes it the process's container. Seeds write the rows; a member
+signs in through Better Auth and selects the Organization as the app does.
+`callAs(caller, () => fn({ data }))` runs the call in a Start request carrying
+that caller's session cookie (`null` for no session), so tenant resolution and
 the execution policy decide it: a missing guard or a wrong role fails the test.
 
 The file also declares
@@ -322,11 +321,71 @@ validator runs and the call answers with the handler's result or throws its
 error; uncompiled, the result is lost. Global request and function middleware
 (Sentry, release skew, request guards) are not run.
 
-Assert on what the member gets back and on the rows left behind: the allowed
+Options, each for the whole file:
+
+- `env`: environment variables as the app reads them (`'true'`, comma lists,
+  keyrings), parsed by the env schema. They reach the container and every
+  `getEnv()` reader (client address, Organization suspension), and the file's
+  previous values come back afterwards. A file that needs two settings of one
+  variable is two files.
+- `redis: true`: the container gets the local test Redis through
+  `redis-test-lease.ts`, so rate limits count and refuse (429). Keys carry the
+  file's own prefix and are cleared after each test; `harness.redis()` reads
+  and writes them under the same prefix. Without Redis it is undefined and the
+  limiter fails open: such a test returns early, as the other Redis suites do.
+- `clock`, `providers`: the container's clock and provider fakes.
+- `cleanupTables`, `afterPropertiesCleanup`, `disabledTriggers`: see cleanup.
+
+Calls: `callAs(caller, call, request?)` takes extra request `headers`
+(`user-agent`, `accept-language`, `x-forwarded-for`), `cookies` sent beside the
+session cookie (a guest session), and `origin` (`null` sends none).
+`respondAs` takes the same and answers `{ ok, value | error, status, headers }`
+with the response headers the call set (Set-Cookie, Cache-Control,
+Retry-After), also when it throws.
+
+Seeds: `seedOrganization({ id })`; `seedMember(org, role, { userId,
+emailVerified })` returns `userId`, `memberId`, `email`, `password` and the
+cookie; `seedVisitor()` is a signed-in user with no membership;
+`seedInvitation(org, { inviter, email, role, status, propertyIds })`;
+`seedProperty(org, { name, timezone, defaultReplyLanguage, lifecycle, google,
+reviewDestination })`, where `google` binds the Property through a
+google_connections row (its tokens are placeholders unless the file passes the
+app's `createTokenEncryptionAdapter` as `googleTokenEncryption`: shared testing
+code neither imports a context's infrastructure nor restates a ciphertext
+format); `seedPortal(property,
+{ kind, publicName, state, primaryLocale, additionalLocales })`;
+`grantProperty(member, property)`. Further families sit in
+`server-function-*-seeds.ts` and are listed in `server-function-seeds.ts`:
+published Portals, Portal Groups and staff participation (portal seeds);
+reviews, Inbox items and replies (review seeds); goal programs, rating goals,
+Metric readings, Google numbers and merchant AI consent (goal seeds). Each
+family exports the tables it writes, children first
+(`PORTAL_SEED_CLEANUP_TABLES`, `REVIEW_SEED_TABLES`, `GOAL_CLEANUP_TABLES` with
+`GOAL_CLEANUP_TRIGGERS`), for the file's `cleanupTables` and `disabledTriggers`.
+Seeds stamp `updated_at` a second before the container's clock, at the
+millisecond precision commands fence on. A seed family imports only domain and
+application code and shared helpers, never a context's infrastructure.
+
+Fakes: `harness.fakes()` holds the in-memory `storage` (`objects()`,
+`failNextPut/Get/Delete`), `googleOAuth`, `email` (`captured()`, `failNext`)
+and `queues` the container was given. Use them for provider failures. Fault
+injection into our own modules (a store failing mid-command) stays a small
+unit test.
+
+Cleanup runs after each test in one transaction: `cleanupTables` (deleted by
+organization_id before Portals and Properties; name the ones whose rows keep a
+seeded Portal or Property from being deleted), then grants, Portals,
+Properties and Google connections, then `afterPropertiesCleanup(client, {
+organizationIds, userIds })` for tables with no organization_id, then members,
+Organizations and users. `disabledTriggers` names guard triggers disabled
+inside that transaction (the last-owner guard always is). Rows a call creates
+(a provisioned Organization, a registered user) are cleaned once the test
+passes their id to `trackOrganization` or `trackUser`.
+
+Assert on what the caller gets back and on the rows left behind: the allowed
 role succeeds, a refused role gets its refusal code, another Organization's
-member is refused or finds nothing. Name in `cleanupTables` the tables the
-calls write whose rows would keep a seeded Property or Portal from being
-deleted. Use a plain unit test only for a rule that needs no request.
+member is refused or finds nothing. Use a plain unit test only for a rule that
+needs no request.
 
 ## Verification
 

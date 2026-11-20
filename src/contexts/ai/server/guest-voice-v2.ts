@@ -12,7 +12,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { GUEST_VOICE_RANGES, type GuestVoiceRange } from '#/shared/dashboard-range'
 import type { GuestVoiceV2Read } from '../guest-voice/contracts'
 import { withLiveEvidence } from '../application/read-models/guest-voice-v2-evidence'
-import { resolveDraftReviews } from '../application/read-models/guest-voice-v2-resolve'
+import { resolveDraftReviews } from '../guest-voice/guest-voice-v2-resolve.server'
 import type { GuestVoiceV2Range } from '../guest-voice/get-guest-voice.server'
 import { isAiError } from '../domain/errors'
 

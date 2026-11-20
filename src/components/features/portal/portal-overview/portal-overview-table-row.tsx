@@ -6,7 +6,7 @@ import { useStaffAccounts } from '#/contexts/identity/staff/ui/accounts/staff-ac
 // once, which Storybook (no CSS container queries to lean on) and the e2e
 // journeys both rely on.
 import { OwnerDisc } from '#/components/ui/owner-disc'
-import { personInitials } from '#/components/inbox/person-initials'
+import { personInitials } from '#/components/ui/person-initials'
 import { StaffPortalMeta } from '#/contexts/identity/staff/ui/accounts/staff-portal-meta'
 import type { ReactNode } from 'react'
 import { DataTableRow } from '#/components/ui/data-table'

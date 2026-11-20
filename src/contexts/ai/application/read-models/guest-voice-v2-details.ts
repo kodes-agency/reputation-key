@@ -19,7 +19,10 @@ import {
   type EvidenceSlot,
   type ResolvedReview,
 } from './guest-voice-v2-evidence'
-import { senseOf, type GuestVoiceReview } from './guest-voice-v2-facts'
+import {
+  senseOf,
+  type GuestVoiceReview,
+} from '../../guest-voice/guest-voice-v2-facts.contracts'
 import {
   calendarMonths,
   lastMentionedLocalDate,

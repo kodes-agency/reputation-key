@@ -12,7 +12,7 @@ import { invitedPropertySelection } from '../domain/invitation-store-rules'
 import {
   grantPropertyAccess,
   revokePropertyAccess,
-} from '../infrastructure/repositories/property-access-grant.repository'
+} from './property-access-grant-repository.server'
 import {
   lockPropertyGrant,
   lockPropertyInOrganization,

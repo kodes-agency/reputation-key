@@ -12,11 +12,11 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { ContactRequestNotice } from '#/shared/domain/contact-request-notice'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
-import { reviewedPublicationDigest } from '../application/portal-publication-snapshot'
-import { createPortalPublicationRepository } from '../infrastructure/repositories/portal-publication.repository'
-import { createPortalRepository } from '../infrastructure/repositories/portal.repository'
-import { createPortalTokenRepository } from '../infrastructure/repositories/portal-token.repository'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
+import { reviewedPublicationDigest } from './portal-publication-snapshot.server'
+import { createPortalPublicationRepository } from './portal-publication-repository.server'
+import { createPortalRepository } from './portal-repository.server'
+import { createPortalTokenRepository } from '../addresses/portal-token-repository.server'
 import {
   PORTAL_CREATION_TABLES,
   seedCreationPortal,

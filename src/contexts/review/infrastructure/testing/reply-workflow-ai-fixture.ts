@@ -459,7 +459,7 @@ export function createReplyWorkflowAiFixture(
    * changes: its processing profile moves to its next version, and the same
    * transaction runs the AI draft purge for the Property. These are the two
    * writes of the profile adapter
-   * (ai/infrastructure/adapters/property-processing-profile.adapter.ts).
+   * (ai/analysis/property-processing-profile.adapter.server.ts).
    * `beforeCommit` runs once both are written and holds the transaction open
    * until it resolves, so a test can run a command against the purge's locks.
    */

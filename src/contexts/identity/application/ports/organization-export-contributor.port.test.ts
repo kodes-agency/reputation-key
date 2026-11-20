@@ -16,7 +16,7 @@ import {
   buildOrganizationExportBundle,
   CLASSIFICATIONS_BY_CONTEXT as CONTRACT_CLASSIFICATIONS_BY_CONTEXT,
   ORGANIZATION_EXPORT_CLASSIFICATIONS as CONTRACT_ORGANIZATION_EXPORT_CLASSIFICATIONS,
-} from '../organization-export-contract'
+} from '../../rights/organization-export-contract.server'
 import {
   CLASSIFICATIONS_BY_CONTEXT,
   ORGANIZATION_EXPORT_CLASSIFICATIONS,
@@ -30,7 +30,8 @@ import {
 const RULE_ID = 'local/cross-context-public-api'
 const PORT_FILE =
   'src/contexts/identity/application/ports/organization-export-contributor.port.ts'
-const CONTRACT_FILE = 'src/contexts/identity/application/organization-export-contract.ts'
+const CONTRACT_FILE =
+  'src/contexts/identity/rights/organization-export-contract.server.ts'
 const AS_OF = new Date('2026-08-28T12:00:00.000Z')
 
 // A contributor adapter has to name its context, its entries, its coverage
@@ -214,13 +215,13 @@ describe('LIF-01: Organization Export contributor port', () => {
   it('lets a foreign adapter import the port but not the contract', async () => {
     const viaPort = await lintSnippet(
       `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
-      'src/contexts/portal/infrastructure/adapters/portal-organization-export.adapter.ts',
+      'src/contexts/portal/rights/portal-organization-export.adapter.server.ts',
     )
     expect(hitsRule(viaPort), JSON.stringify(viaPort)).toBe(false)
 
     const viaContract = await lintSnippet(
-      `import type { OrganizationExportContributor } from '#/contexts/identity/application/organization-export-contract'\nexport type { OrganizationExportContributor }\n`,
-      'src/contexts/portal/infrastructure/adapters/portal-organization-export.adapter.ts',
+      `import type { OrganizationExportContributor } from '#/contexts/identity/rights/organization-export-contract.server'\nexport type { OrganizationExportContributor }\n`,
+      'src/contexts/portal/rights/portal-organization-export.adapter.server.ts',
     )
     expect(hitsRule(viaContract), JSON.stringify(viaContract)).toBe(true)
   })

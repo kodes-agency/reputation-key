@@ -8,18 +8,31 @@ metric authority. Sub-maps: [monthly goals](monthly-goals/CONTEXT.md) and
 
 ## Where things live
 
-| Area                                    | Location                                                                                              |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Cross-context interface                 | `application/public-api.ts` (the only one)                                                            |
-| Request boundary                        | `server/*.ts`: the paths routes import, kept stable                                                   |
-| Metric catalogue and reading commands   | `readings/` (`contracts.ts` is browser-safe)                                                          |
-| Monthly goal commands, cards, pages     | `monthly-goals/*.server.ts`, screens in `monthly-goals/ui/`                                           |
-| Google rating goal                      | `rating-goals/*.server.ts`, `rating-goals/contracts.ts` (browser-safe), screens in `rating-goals/ui/` |
-| Portal Results                          | `portal-results/` (`contracts.ts`, `get-portal-analytics.server.ts`, SQL in `*.repository.server.ts`) |
-| Rules without I/O                       | `domain/`                                                                                             |
-| Use cases and read views                | `application/` (components import values only from here, never from `infrastructure/`)                |
-| Repositories, adapters, jobs, consumers | `infrastructure/`                                                                                     |
-| Tables                                  | `src/shared/db/schema/` (central; not moved)                                                          |
+| Area                                                                                                                                                                                | Location                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cross-context interface                                                                                                                                                             | `application/public-api.ts` (the only one)                                                                                                                                                  |
+| Request boundary                                                                                                                                                                    | `server/*.ts`: the paths routes import, kept stable                                                                                                                                         |
+| Metric catalogue and reading commands, the governed goal-metric read (`query-goal-metric`, `goal-metric-*`), effective readings and the Current on Google snapshot and its consumer | `readings/` (`contracts.ts` is browser-safe)                                                                                                                                                |
+| Goal Programs and the Monthly portal goal: commands, reads, add sheet, recommendation, repositories, maintenance job, metric-correction consumer                                    | `monthly-goals/*.server.ts`, browser-safe `contracts.ts` and `*.contracts.ts`, screens in `monthly-goals/ui/`                                                                               |
+| Google rating goal: repository, evaluation, views, job and consumers                                                                                                                | `rating-goals/*.server.ts`, browser-safe `rating-goals/contracts.ts`, `rating-goal.contracts.ts` (command schemas) and `rating-goal-setup-plan.contracts.ts`, screens in `rating-goals/ui/` |
+| Portal Results, the Portals overview results, link taps, time ranges and the staff self reads                                                                                       | `portal-results/` (`contracts.ts`, `get-portal-analytics.server.ts`, SQL in `*.repository.server.ts`)                                                                                       |
+| Dashboard reads: Property overview, Ratings page data, attention band, Properties list, Property setup, Google's own numbers, dashboard authorization                               | `property-overview/*.server.ts`, `property-overview/contracts.ts` (browser-safe), screens in `property-overview/ui/`                                                                        |
+| What both goal kinds share                                                                                                                                                          | `goals/` (sweep failure causes; shared goal screens in `goals/ui/`)                                                                                                                         |
+| Rights executor (access export, Organization purge)                                                                                                                                 | `rights/`                                                                                                                                                                                   |
+| Rules without I/O                                                                                                                                                                   | `domain/`                                                                                                                                                                                   |
+| Left in the layer folders                                                                                                                                                           | `application/` and `infrastructure/`: only the files named below the table                                                                                                                  |
+| Tables                                                                                                                                                                              | `src/shared/db/schema/` (central; not moved)                                                                                                                                                |
+
+In `application/` stay the month-target rules the Goals screens run
+(`goal-effective-month-target`, `goal-month-target-marker`, `goal-month-target-plan`,
+`goal-revision-start`, `goal-target-provenance`, `goal-results-matrix`),
+`use-cases/goal-program-shared.ts` and `ports/goal-program.repository.ts`, because browser
+code reaches them and they type-import the port. In `infrastructure/` stay
+`adapters/retired-readings-erasure.adapter.ts` (an operator script imports it) and
+`testing/dashboard-fixtures.ts` (it writes Replies), and
+`application/use-cases/__fixtures__/portal-overview-place-only.json` stays because lint has
+no place for a JSON fixture in a feature folder. Every other port sits beside its
+implementation as `<impl>.port.server.ts`.
 
 Reporting depends on the public interfaces of Property, Portal, Staff, Review, Inbox and
 Guest, never on their repositories. `buildReportingContext` returns one public interface,
@@ -27,17 +40,17 @@ one outbox registration function, goal maintenance and the rights adapter. Root
 composition may keep the aliases `metricPublicApi`, `goalPublicApi` and
 `dashboardPublicApi`; they point at the same interface. Clocks, identifiers, logging,
 storage and upstream reads are injected by composition
-(`infrastructure/runtime-dependency-injection.test.ts`).
+(`src/shared/architecture/context-injected-runtime.test.ts`).
 
 Jobs, declared in `src/shared/jobs/job-definitions.ts`:
-`goal-program-maintenance.job.ts` (hourly, opens due months and closes finished ones) and
-`rating-goal-evaluation.job.ts` (`rating-goal.evaluate`, daily, evaluates every active
+`monthly-goals/goal-program-maintenance-job.server.ts` (hourly, opens due months and closes finished ones) and
+`rating-goals/rating-goal-evaluation-job.server.ts` (`rating-goal.evaluate`, daily, evaluates every active
 rating goal). Outbox consumers: guest facts into readings
 (`readings/guest-outbox-consumers.server.ts`), metric corrections into goal results
-(`infrastructure/metric-correction-outbox-consumers.ts`), Current on Google snapshots
-(`infrastructure/current-google-reputation-outbox-consumers.ts`), rating goal evaluation on
+(`monthly-goals/metric-correction-outbox-consumers.server.ts`), Current on Google snapshots
+(`readings/current-google-reputation-outbox-consumers.server.ts`), rating goal evaluation on
 verified Google numbers and rating goal end on Property archive
-(`infrastructure/rating-goal-*-consumers.ts`).
+(`rating-goals/rating-goal-*-consumers.server.ts`).
 
 ## Core model
 
@@ -103,9 +116,9 @@ Semantics that stay fixed:
   90% of that (exactly 90% is on pace). Not judged in the first three days or when fewer
   than `GOAL_PACE_MINIMUM_EXPECTED` (5) are expected by today (`target × days gone < 5 ×
 days in the month`); averages have no pace. One rule feeds the Goals list, the Overview
-  chip and the Properties list; `application/goal-pace-parity.test.ts` holds them to one
+  chip and the Properties list; `monthly-goals/goal-pace-parity.test.ts` holds them to one
   verdict. The chip and list count behind-pace goals from the readings of every running
-  month in one statement (`infrastructure/adapters/goal-running-months.ts`) because a
+  month in one statement (`property-overview/goal-running-months.server.ts`) because a
   running month stores no value; it sums what the goal's own page sums, skips only the
   outbox completeness proof, and leaves out a goal whose Portal or Portal Group was
   deleted, whose metric version was not in effect the whole month
@@ -116,7 +129,7 @@ days in the month`); averages have no pace. One rule feeds the Goals list, the O
   figures, three in flight, and goals past that carry no line. Rows hold the room their
   line takes while figures load.
 
-**Monthly portal goal** (ADR 0068; `application/monthly-portal-goal-identity.ts`): not a
+**Monthly portal goal** (ADR 0068; `monthly-goals/monthly-portal-goal-identity.server.ts`): not a
 Program kind but the Property's count goal whose subject is the Property alone and whose
 measure is private ratings or scans. Writes serialize this identity under the Property
 definition lock, including month-target changes and status changes. Reads choose in
@@ -128,7 +141,7 @@ never ended automatically. Every Property count goal's `$goalId` page sends the 
 the card (`isPropertyCountGoal`).
 
 - _Recommendation_ (`domain/goal-recommendation.ts`, read by
-  `application/use-cases/goal-recommendation-read.ts`): the number offered, never a result.
+  `monthly-goals/goal-recommendation-read.server.ts`): the number offered, never a result.
   Basis W is the 28 whole Property-local days ending yesterday, from the goal versions'
   first day (2026-08-01) on. A Portal's live days are those on which a publication
   activation was open for any part of the day. A Portal joins the rate when published,
@@ -143,8 +156,8 @@ the card (`isPropertyCountGoal`).
   or on a joined Portal's live day in the basis), `nothing` (R = 0) or `ready`. The
   Property state is `no_live_portal`, `getting_ready`, then `ready`, `scans_only`,
   `nothing_counted` or `unreadable`. The readings come from one statement
-  (`infrastructure/adapters/goal-recommendation-readings.ts`), sharing the counted-reading
-  SQL with the behind-pace count (`goal-count-readings.sql.ts`); an integration test holds
+  (`monthly-goals/goal-recommendation-readings.server.ts`), sharing the counted-reading
+  SQL with the behind-pace count (`goal-count-readings-sql.server.ts`); an integration test holds
   it to `queryGoalAggregate`.
 - _Card_ (`monthly-goals/monthly-portal-goal-card.server.ts`): authorizes `goal.create`,
   reads the clock once, then Programs and the recommendation together, and answers the goal
@@ -176,7 +189,7 @@ the card (`isPropertyCountGoal`).
   (`monthly-portal-goal-line.server.ts`, `goal.create`) shows that Portal's count toward the
   goal when every Portal's count adds up to the governed figure, and the Portal's own goal
   when one runs.
-- _Add a portal goal_ (`application/use-cases/portal-goal-add-*.ts`): a goal for one Portal,
+- _Add a portal goal_ (`monthly-goals/portal-goal-add*.server.ts`): a goal for one Portal,
   each Portal (from 2 live), a Portal Group (with a live Portal) or the Property's average
   private rating (from 10 private ratings in 4 weeks). Offers follow the recommendation's
   month and measure; a group counts readings recorded under the group at source-event time
@@ -255,7 +268,7 @@ quota, ranking, incentive or employment input.
   no version and no change row, and refuses a closed check-in (`recap_closed`); a pace
   change this week answers it too. It is a card, never a notice.
 - Setup is one screen worked out on the page from the setup read's exact inputs
-  (`rating-goals/contracts.ts` `setupInputs`; `application/rating-goal-setup-plan.ts`
+  (`rating-goals/contracts.ts` `setupInputs`; `rating-goals/rating-goal-setup-plan.contracts.ts`
   `workOutRatingGoal`, client-safe, never throwing on typed input): planned average
   (`domain/rating-goal-average.ts`), pace chips (`rating-goal-pace-chips.ts`), recommended
   goal and time range (`rating-goal-duration.ts`). Keep comes first from 4.7. A tenth the
@@ -266,7 +279,7 @@ quota, ranking, incentive or employment input.
   sums, serving eligibility, binding epoch, per-year, per-month and per-date counts, the
   exact average at each week's end, Google's own numbers over time). Google's own numbers
   come from the Current on Google snapshot.
-- Evaluation (`application/rating-goal-evaluation.ts`) runs from the card and detail reads,
+- Evaluation (`rating-goals/rating-goal-evaluation.server.ts`) runs from the card and detail reads,
   from `goal.google-rating-evaluation` when Review verifies Google's numbers (a completed
   snapshot's, or a head check's under `REVIEW_HEAD_CHECKS=persist`: the fact only says when
   to look, and the evaluation reads the current numbers itself), and daily from
@@ -352,7 +365,7 @@ quota, ranking, incentive or employment input.
 
 `getDashboardData`, `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
 `getPortalResultsOverview` take the caller's `AuthContext` and first ask
-`application/dashboard-property-access.ts`: the reader belongs to the Organization, holds
+`property-overview/dashboard-property-access.server.ts`: the reader belongs to the Organization, holds
 `dashboard.read` and reaches every Property named (Organization-wide holders all, managers
 only those granted). A refusal is a tagged `DashboardError` `forbidden` raised before
 anything is read. `getPropertyOverview` and `getAttentionSignals` also need
@@ -366,11 +379,12 @@ governed by ADR 0076.
 `getPropertyOverview` carries the governed dashboard read in `dashboard` and grant filtering
 and expired-Review exclusion are checked through it by the dashboard-governance and
 review-expiry e2e specs. Reply redaction has no session that can ask for it in the beta, so
-`get-dashboard-data.test.ts` holds that rule.
+`property-overview/get-dashboard-data.integration.test.ts` holds that rule.
 
 ### Staff self reads (ADR 0076)
 
-`staff-self-results.ts` reads only the session's own personal Portal, under `staff.self` and
+`staff-self-results.ts` reads only the session's own personal Portal (through
+`portal-results/staff-results-reader.server.ts`), under `staff.self` and
 `staff.accounts`. DTOs allow scans, delayed rating count and average, scan-only targets or
 an enabled colleague list; no Google fact, private note or manager field. Colleagues are one
 accepted active roster and one batch scan read in name order; the default-off Property
@@ -390,17 +404,18 @@ qualified scans may drive a staff target (`STAFF_SCAN_TARGETS_ENABLED`, default 
   measure definitions of recording, so withdrawing a rating retracts its value, count and
   average together. `metric-command-store.server.ts` commits readings, corrections,
   attribution and source receipts atomically.
-- `infrastructure/readings/effective-readings.server.ts` owns correction-tip selection,
+- `readings/effective-readings.server.ts` owns correction-tip selection,
   effective values and retracted sample counts for dashboard, goal and Portal reads (raw SQL
   uses its `readings`/`tip` aliases). Staff reads use the as-of variant. Source status and
   Portal evidence still check every required projection and retraction independently of the
   effective value. Period reads use the concurrent index on Organization, Property, metric
   version and event time (migration `0138`).
 - Monthly goal totals and their completeness proof are read in one read-only
-  repeatable-read transaction (`goal-metric-snapshot.ts`). The Goals list batches up to 60
+  repeatable-read transaction (`readings/goal-metric-snapshot.server.ts`). The Goals list batches up to 60
   figures in one statement; historical Portal Group membership is resolved inside it,
   captured attribution (including an explicit null group) taking precedence.
-  `goal-completeness-volume.test.ts` and `goal-list-progress-volume.test.ts` hold those
+  `readings/goal-completeness-volume.integration.test.ts` and
+  `monthly-goals/goal-list-progress-volume.integration.test.ts` hold those
   set-based predicates to Portal's own group API.
 - Maintenance reads Programs and due results in keyset pages of 100 (by Organization,
   Property and Program id; by period end and result id). Denied, failed and raced work
@@ -411,7 +426,7 @@ qualified scans may drive a staff target (`STAFF_SCAN_TARGETS_ENABLED`, default 
   compares the snapshot's source head, so a changed head leaves the month reconciling. A
   contended fence skips the month for retry. Closure also holds the Organization lifecycle
   fence and rechecks execution policy inside its transaction; a committed hold still lets
-  existing months drain (`goal-result-closure-barrier.test.ts`).
+  existing months drain (`monthly-goals/goal-result-closure-barrier.integration.test.ts`).
   `scripts/ops/find-stale-goal-results.sql` lists closed heads whose values differ from
   current effective readings; it is read-only and authorizes no repair.
 - Metric and goal event tags (`metric-events.ts`, `goal-events.ts`) stay stable for outbox
@@ -425,10 +440,11 @@ qualified scans may drive a staff target (`STAFF_SCAN_TARGETS_ENABLED`, default 
   goal correction consumer writes its receipt after a complete reconciliation pass, outside
   the result transactions (the second form in `ConsumerRegistration.handler`,
   `src/shared/outbox/consumer-registry.ts`); a pending result throws before the receipt.
-- Rights: `infrastructure/adapters/reporting-rights.adapter.ts` is Reporting's executor for
+- Rights: `rights/reporting-rights.adapter.server.ts` is Reporting's executor for
   the manual rights script (access export and Organization purge of goal, metric and
-  dashboard records). `retired-readings-erasure.adapter.ts` serves the command that erases
-  the retired `property.review` readings.
+  dashboard records). `retired-readings-erasure.adapter.ts` stays in `infrastructure/adapters/` because
+  `scripts/ops` imports it; it serves the command that erases the retired `property.review`
+  readings.
 
 ## Verification
 

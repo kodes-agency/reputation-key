@@ -16,7 +16,7 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { TimelineIndicator } from '#/components/ui/timeline'
-import { personInitials } from '#/components/inbox/person-initials'
+import { personInitials } from '#/components/ui/person-initials'
 import type { HistoryGlyph } from './portal-history-line-types'
 
 const SMALL_GLYPH = {

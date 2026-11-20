@@ -3,7 +3,7 @@ import type {
   PendingReplyRequest,
   ReplySuggestionGenerate,
   ReplySuggestionResult,
-} from '#/components/inbox/reply-suggestion-contract'
+} from '#/contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 import type {
   DraftStream,
   DraftStreamRequest,

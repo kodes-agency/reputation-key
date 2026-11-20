@@ -19,15 +19,15 @@ import { HistoryEventNode } from './history-event-node'
 import { googleReviewLink } from './google-review-link'
 import { buildThread, foldEarlierEvents } from './inbox-thread-model'
 import { NoteIndicator, NoteMessage } from './note-message'
-import { ReplyMessage } from '#/components/inbox/reply-message'
-import type { ReplyOnScreen } from '#/components/inbox/reply-message-actions'
+import { ReplyMessage } from '#/contexts/reputation/replies/ui/message/reply-message'
+import type { ReplyOnScreen } from '#/contexts/reputation/replies/ui/message/reply-message-actions'
 import type {
   FoldedEventsEntry,
   InboxHistoryEntry,
   LedgerEntry,
   ThreadEntry,
 } from './inbox-thread-model'
-import type { InboxDetailFns } from '#/components/inbox/types'
+import type { InboxDetailFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { ReactNode } from 'react'
 import type {
   InboxItem,

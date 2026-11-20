@@ -5,8 +5,8 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { partitionWorkspaceProperties } from '#/contexts/property/lifecycle/ui/property-workspace'
-import type { InboxPropertyScopeInput } from '#/components/inbox/inbox-property-scope'
-import { useInboxScopeNavigation } from '#/components/inbox/use-inbox-scope-navigation'
+import type { InboxPropertyScopeInput } from '#/contexts/reputation/inbox/ui/page/inbox-property-scope'
+import { useInboxScopeNavigation } from '#/contexts/reputation/inbox/ui/page/use-inbox-scope-navigation'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
 
 export function useInboxRouteScope(

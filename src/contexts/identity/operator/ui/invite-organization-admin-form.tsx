@@ -18,7 +18,7 @@ import {
   inviteOrganizationAdminInputSchema,
   type InviteOrganizationAdminInput,
   type InviteOrganizationAdminResult,
-} from '#/contexts/identity/application/dto/platform-console.dto'
+} from '#/contexts/identity/operator/platform-console.contracts'
 
 const inviteFormSchema = inviteOrganizationAdminInputSchema.pick({ email: true })
 

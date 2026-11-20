@@ -8,17 +8,17 @@ import {
   AUTO_DETECT_REVIEW_LANGUAGE,
   replyLanguageOptions,
   type ReplyLanguageOption,
-} from '#/components/inbox/reply-language-options'
-import type { ReplyComposerInput } from '#/components/inbox/reply-suggestion-contract'
+} from '#/contexts/reputation/replies/ui/composer/reply-language-options'
+import type { ReplyComposerInput } from '#/contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 import { isReloadSafe } from './reply-autosave-coordinator'
 import { useReplySuggestion, type ReplyAssistScope } from './use-reply-suggestion'
 import { useReplyTemplate } from './use-reply-template'
 import { useReplyDraftChecks } from './use-reply-draft-checks'
-import { replyDraftOrigin } from '#/components/inbox/reply-draft-origin'
+import { replyDraftOrigin } from '#/contexts/reputation/replies/ui/composer/reply-draft-origin'
 import {
   hasPropertyDefaultOption,
   unresolvedLanguageSubmitReason,
-} from '#/components/inbox/reply-assist-language'
+} from '#/contexts/reputation/replies/ui/composer/reply-assist-language'
 import { assistTargetFor } from './reply-composer-transitions'
 import {
   composerLanguageContext,
@@ -26,7 +26,7 @@ import {
   isValidReplyDraft,
 } from './reply-composer-controller'
 
-export type { ReplyDraftOrigin } from '#/components/inbox/reply-draft-origin'
+export type { ReplyDraftOrigin } from '#/contexts/reputation/replies/ui/composer/reply-draft-origin'
 export type { ReplyAssistScope } from './use-reply-suggestion'
 export { assistTargetFor, draftInLanguage } from './reply-composer-transitions'
 

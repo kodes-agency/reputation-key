@@ -17,9 +17,9 @@ import {
 } from '../domain/goal-program'
 import { monthKeyOf } from '../domain/goal-start'
 import { nextRevisionStart } from '../application/goal-revision-start'
-import { GOAL_VERSION_REASONS } from '../application/goal-version-reasons'
-import { changeMonthTarget } from '../application/use-cases/goal-month-target'
-import { createGoal } from '../application/use-cases/goal-program-create'
+import { GOAL_VERSION_REASONS } from './goal-version-reasons.server'
+import { changeMonthTarget } from './goal-month-target.server'
+import { createGoal } from './goal-program-create.server'
 import {
   GoalProgramMaintenanceError,
   loadCaughtUpProgram,
@@ -27,7 +27,7 @@ import {
   reconcileClosedResult,
   reconcileResult,
   type GoalProgramMaintenanceStats,
-} from '../application/use-cases/goal-program-maintenance'
+} from './goal-program-maintenance.server'
 import {
   assertRatingSubjectsAllowed,
   assertSubjectsAreFree,

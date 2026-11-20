@@ -25,7 +25,7 @@ import {
 import { acceptInvitation } from './accept-invitation.server'
 import { registerInvitedUser } from './register-invited-user.server'
 import { recoverInvitedRegistrations } from './recover-invited-registrations.server'
-import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { createAtomicIdentityCommandStore } from './identity-command-store.server'
 import { createInvitationReadModel } from './invitation-read-model.server'
 import { createInvitedRegistrationStore } from './invited-registration-store.server'
 

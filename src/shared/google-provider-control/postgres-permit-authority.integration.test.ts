@@ -8,7 +8,7 @@ import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { getDb } from '#/shared/db'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
-import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository'
+import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/connections/google-disconnect-revoke-repository.server'
 import { compileGoogleProviderRequest } from './route-catalogue'
 import { createPostgresGoogleAdmissionPermitAuthority } from './postgres-permit-authority'
 import {

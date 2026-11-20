@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createPortalInputSchema } from '#/contexts/portal/application/dto/create-portal.dto'
+import { createPortalInputSchema } from '#/contexts/portal/publication/create-portal.contracts'
 import {
   languageChoices,
   languageNote,

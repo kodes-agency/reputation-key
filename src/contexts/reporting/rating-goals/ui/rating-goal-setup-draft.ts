@@ -15,7 +15,7 @@ import {
   ownAverageTenths,
   ownPaceTenths,
   workOutRatingGoal,
-} from '#/contexts/reporting/application/rating-goal-setup-plan'
+} from '#/contexts/reporting/rating-goals/rating-goal-setup-plan.contracts'
 import { paceText } from './rating-goal-pace-words'
 import { tenthsText } from './rating-goal-view'
 

@@ -25,11 +25,11 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { Portal } from '../../domain/types'
 import { portalCreated } from '../../domain/events'
 import type { PortalCommandStore } from '../../publication/portal-command-store-port.server'
-import { createPortalRepository } from '../repositories/portal.repository'
-import { createPortalLinkRepository } from '../repositories/portal-link.repository'
-import { createPortalMediaAssetRepository } from '../repositories/portal-media-asset.repository'
-import { createPortalApprovedDestinationRepository } from '../repositories/portal-approved-destination.repository'
-import { createPortalExperienceRepository } from '../repositories/portal-experience.repository'
+import { createPortalRepository } from '../../publication/portal-repository.server'
+import { createPortalLinkRepository } from '../../links/portal-link-repository.server'
+import { createPortalMediaAssetRepository } from '../../media/portal-media-asset-repository.server'
+import { createPortalApprovedDestinationRepository } from '../../destinations/portal-approved-destination-repository.server'
+import { createPortalExperienceRepository } from '../../editor/portal-experience-repository.server'
 
 /** Tables the link suites write, in an order that clears children first. */
 export const LINK_WORLD_TABLES = [

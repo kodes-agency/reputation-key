@@ -3,7 +3,7 @@
 
 import { useForm } from '@tanstack/react-form'
 import type { z } from 'zod/v4'
-import { updatePortalSettingsInputSchema } from '#/contexts/portal/application/dto/portal-intents.dto'
+import { updatePortalSettingsInputSchema } from '#/contexts/portal/publication/portal-intents.contracts'
 import type { Action } from '#/components/hooks/use-action'
 import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import { usePortalFormAutosave } from './use-portal-form-autosave'

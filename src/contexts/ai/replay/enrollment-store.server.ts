@@ -1,4 +1,4 @@
-import { eraseRetiredDerivatives } from '../infrastructure/adapters/ai-review-analysis-erasure'
+import { eraseRetiredDerivatives } from './ai-review-analysis-erasure.server'
 import { preserveAnalysisEnrollment } from './consent-refresh.server'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -20,7 +20,7 @@ import {
   lockPropertyBeforeReplay,
   replayEnrollmentCandidates,
 } from './enrollment-candidates.server'
-import { lockPropertyForAuthorizationChange } from '../infrastructure/adapters/review-analysis-property-fence'
+import { lockPropertyForAuthorizationChange } from '../analysis/review-analysis-property-fence.server'
 import { planReplaySnapshot } from './snapshot'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]

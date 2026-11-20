@@ -3,11 +3,11 @@ import { Badge, type BadgeVariant } from '#/components/ui/badge'
 import { cn } from '#/lib/utils'
 import { URGENT_REASON_SENTENCES_V3 } from '#/shared/review-urgent-reasons'
 import type { ReviewUrgentReasonV3 } from '#/shared/review-analysis-v3'
-import { INBOX_CHIP_STATIC_CLASS } from '#/components/inbox/inbox-chip'
+import { INBOX_CHIP_STATIC_CLASS } from '#/contexts/reputation/inbox/ui/page/inbox-chip'
 import {
   prioritySuggestion,
   prioritySuggestionHint,
-} from '#/components/inbox/inbox-priority-view'
+} from '#/contexts/reputation/inbox/ui/page/inbox-priority-view'
 import {
   causeLine,
   correctionWord,

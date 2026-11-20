@@ -9,7 +9,7 @@ import {
 import { Building2, ChevronsUpDown, Plus } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { personInitials } from '#/components/inbox/person-initials'
+import { personInitials } from '#/components/ui/person-initials'
 
 type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>

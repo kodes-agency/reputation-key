@@ -16,7 +16,7 @@ import {
 } from '#/shared/db/testing/held-transaction'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { mandatoryRepeatEmailKey } from '../application/use-cases/insert-notification'
+import { mandatoryRepeatEmailKey } from './insert-notification.server'
 import { readNotificationDeliveryLag } from './delivery-lag.server'
 
 const ORG = organizationId('notification-delivery-lag-org')

@@ -1,0 +1,236 @@
+import { merchantAiNoticeInForceSql } from '#/shared/db/merchant-ai-notice-in-force'
+import { sql, type SQL } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
+import { propertyIdInScope } from '#/shared/db/property-scope'
+import {
+  merchantAiDecisionDeferrals,
+  merchantAiEnablement,
+  metricCurrentGoogleReputationSnapshots,
+  portalPublicationActivations,
+  portals,
+  properties,
+  propertyRatingGoalDeferrals,
+  propertyRatingGoals,
+  organizationReplyVoices,
+  propertyReplyVoices,
+  propertyResponsibleManagers,
+  reviewProviderSnapshotRuns,
+} from '#/shared/db/schema'
+import { propertyId, type OrganizationId } from '#/shared/domain/ids'
+import { trace } from '#/shared/observability/trace'
+import type {
+  PropertySetupFacts,
+  PropertySetupRepository,
+} from './property-setup-repository.port.server'
+import type { PropertySetupMerchantAiState } from '../domain/property-setup'
+
+type FactRow = Readonly<{
+  property_id: unknown
+  google_binding_active: unknown
+  reviews_synced: unknown
+  reply_language_chosen: unknown
+  merchant_ai_state: unknown
+  ai_decision_deferred: unknown
+  responsible_manager_assigned: unknown
+  reply_voice_configured: unknown
+  portal_published: unknown
+  property_active: unknown
+  google_review_count: unknown
+  rating_goal_set: unknown
+  rating_goal_deferred: unknown
+}>
+
+const MERCHANT_AI_STATES: ReadonlySet<string> = new Set([
+  'disabled',
+  'enabled',
+  'revoked',
+  'paused',
+])
+
+function readFlag(row: FactRow, column: keyof FactRow): boolean {
+  const value = row[column]
+  if (typeof value !== 'boolean') {
+    throw new Error(`Property setup fact ${column} is unavailable`)
+  }
+  return value
+}
+
+/** Google's count at the current binding; null when Google sent none under it. */
+function readGoogleReviewCount(row: FactRow): number | null {
+  const value = row.google_review_count
+  if (value === null) return null
+  const count = typeof value === 'string' ? Number(value) : value
+  if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
+    throw new Error('Property setup Google review count is invalid')
+  }
+  return count
+}
+
+function readMerchantAiState(row: FactRow): PropertySetupMerchantAiState {
+  const value = row.merchant_ai_state
+  // No authorization head means AI was never authorized for the Property.
+  if (value === null) return 'disabled'
+  if (typeof value !== 'string' || !MERCHANT_AI_STATES.has(value)) {
+    throw new Error('Property setup Merchant AI state is invalid')
+  }
+  return value as PropertySetupMerchantAiState
+}
+
+function toFacts(row: FactRow): PropertySetupFacts {
+  if (typeof row.property_id !== 'string') {
+    throw new Error('Property setup Property identifier is unavailable')
+  }
+  return Object.freeze({
+    propertyId: propertyId(row.property_id),
+    googleBindingActive: readFlag(row, 'google_binding_active'),
+    reviewsSyncedForCurrentSource: readFlag(row, 'reviews_synced'),
+    replyLanguageChosen: readFlag(row, 'reply_language_chosen'),
+    merchantAiState: readMerchantAiState(row),
+    aiDecisionDeferred: readFlag(row, 'ai_decision_deferred'),
+    responsibleManagerAssigned: readFlag(row, 'responsible_manager_assigned'),
+    replyVoiceConfigured: readFlag(row, 'reply_voice_configured'),
+    portalPublished: readFlag(row, 'portal_published'),
+    propertyActive: readFlag(row, 'property_active'),
+    googleReviewCount: readGoogleReviewCount(row),
+    ratingGoalSet: readFlag(row, 'rating_goal_set'),
+    ratingGoalDeferred: readFlag(row, 'rating_goal_deferred'),
+  })
+}
+
+/**
+ * One statement, so every fact comes from a single snapshot. Each source is
+ * bound to the Organization as well as to the scoped Property rows.
+ *
+ * - Reviews are synced when a completed provider snapshot run exists for the
+ *   Property's current source epoch — the evidence the Organization checklist
+ *   reads for its initial review sync. Terminal runs are retained for 30 days
+ *   and sync recurs within hours, so a healthy Property keeps it. No index
+ *   serves completed runs by Property, so the runs are read once for the whole
+ *   scope in a CTE instead of once per Property in a correlated subquery.
+ * - A Portal counts as published when the tenant published it and its current
+ *   publication activation is still open; Portal health is not a setup step.
+ * - Google's review count is the Current on Google snapshot's at the
+ *   Property's current binding epoch, as every rating goal read takes it; a
+ *   snapshot from an earlier binding is no count.
+ * - A rating goal counts as set when a manager decided it: active, reached, or
+ *   ended by a manager. One its Google location or an archive ended does not.
+ * - The remaining per-Property lookups are index-backed correlated subqueries
+ *   (the rating goals' Property index, the "Not now" row's primary key).
+ */
+function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
+  return sql`
+    WITH scoped_properties AS MATERIALIZED (
+      SELECT p.id, p.source_epoch, p.google_binding_state, p.default_reply_language,
+        p.lifecycle_state
+      FROM ${properties} p
+      WHERE p.organization_id = ${organizationId}
+        AND p.deleted_at IS NULL
+        AND ${scope}
+    ), synced_properties AS (
+      SELECT DISTINCT run.property_id
+      FROM ${reviewProviderSnapshotRuns} run
+      JOIN scoped_properties p
+        ON p.id = run.property_id
+        AND p.source_epoch = run.source_epoch
+      WHERE run.organization_id = ${organizationId}
+        AND run.state = 'completed'
+    )
+    SELECT
+      p.id::text AS property_id,
+      (p.google_binding_state = 'active') AS google_binding_active,
+      (synced.property_id IS NOT NULL) AS reviews_synced,
+      (p.default_reply_language IS NOT NULL) AS reply_language_chosen,
+      CASE WHEN enablement.state = 'enabled' AND NOT ${merchantAiNoticeInForceSql(sql`enablement.notice_version`, sql`enablement.notice_digest`, sql`enablement.capabilities`)}
+        THEN 'paused' ELSE enablement.state END AS merchant_ai_state,
+      EXISTS (
+        SELECT 1
+        FROM ${merchantAiDecisionDeferrals} deferral
+        WHERE deferral.organization_id = ${organizationId}
+          AND deferral.property_id = p.id
+      ) AS ai_decision_deferred,
+      EXISTS (
+        SELECT 1
+        FROM ${propertyResponsibleManagers} manager
+        WHERE manager.organization_id = ${organizationId}
+          AND manager.property_id = p.id
+          AND manager.effective_to IS NULL
+      ) AS responsible_manager_assigned,
+      EXISTS (
+        SELECT 1
+        FROM ${propertyReplyVoices} property_voice
+        WHERE property_voice.organization_id = ${organizationId}
+          AND property_voice.property_id = p.id
+      ) OR EXISTS (
+        SELECT 1
+        FROM ${organizationReplyVoices} organization_voice
+        WHERE organization_voice.organization_id = ${organizationId}
+      ) AS reply_voice_configured,
+      EXISTS (
+        SELECT 1
+        FROM ${portals} portal
+        JOIN ${portalPublicationActivations} activation
+          ON activation.organization_id = portal.organization_id
+          AND activation.property_id = portal.property_id
+          AND activation.portal_id = portal.id
+          AND activation.deactivated_at IS NULL
+        WHERE portal.organization_id = ${organizationId}
+          AND portal.property_id = p.id
+          AND portal.deleted_at IS NULL
+          AND portal.publication_state = 'published'
+      ) AS portal_published,
+      (p.lifecycle_state = 'active') AS property_active,
+      google.review_count AS google_review_count,
+      EXISTS (
+        SELECT 1
+        FROM ${propertyRatingGoals} goal
+        WHERE goal.organization_id = ${organizationId}
+          AND goal.property_id = p.id
+          AND (
+            goal.status IN ('active', 'reached')
+            OR (goal.status = 'ended' AND goal.ended_reason = 'manager')
+          )
+      ) AS rating_goal_set,
+      EXISTS (
+        SELECT 1
+        FROM ${propertyRatingGoalDeferrals} not_now
+        WHERE not_now.organization_id = ${organizationId}
+          AND not_now.property_id = p.id
+      ) AS rating_goal_deferred
+    FROM scoped_properties p
+    LEFT JOIN synced_properties synced ON synced.property_id = p.id
+    LEFT JOIN ${merchantAiEnablement} enablement
+      ON enablement.organization_id = ${organizationId}
+      AND enablement.property_id = p.id
+    LEFT JOIN ${metricCurrentGoogleReputationSnapshots} google
+      ON google.organization_id = ${organizationId}
+      AND google.property_id = p.id
+      AND google.source_epoch = p.source_epoch
+    ORDER BY p.id
+  `
+}
+
+/** Reporting-owned read facade over the canonical per-Property setup facts. */
+export const createPropertySetupRepository = (db: Database): PropertySetupRepository => ({
+  readPropertyFacts: (input) =>
+    trace('dashboard.propertySetup.readPropertyFacts', async () => {
+      const result = await db.execute<FactRow>(
+        propertyFactsSql(
+          input.organizationId,
+          propertyIdInScope(sql`p.id`, [input.propertyId]),
+        ),
+      )
+      const row = result.rows[0]
+      return row ? toFacts(row) : null
+    }),
+
+  listPropertyFacts: (input) =>
+    trace('dashboard.propertySetup.listPropertyFacts', async () => {
+      const result = await db.execute<FactRow>(
+        propertyFactsSql(
+          input.organizationId,
+          propertyIdInScope(sql`p.id`, input.accessiblePropertyIds),
+        ),
+      )
+      return result.rows.map(toFacts)
+    }),
+})

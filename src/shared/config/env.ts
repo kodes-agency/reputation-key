@@ -11,7 +11,7 @@ const PORTAL_ADDRESS_MAX_KEYS = 4
 /**
  * The shape of `PORTAL_ADDRESS_ENCRYPTION_KEYS`, checked at boot so a typo fails
  * there and not on the first code that is made. The adapter parses it again
- * (portal-address-cipher.ts) and owns what the entries mean.
+ * (portal-address-cipher.server.ts) and owns what the entries mean.
  */
 function isPortalAddressKeyring(value: string): boolean {
   const entries = value.split(',')

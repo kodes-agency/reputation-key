@@ -4,7 +4,7 @@ import { measureReplyDrafting } from './measurement.server'
 import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
-} from '../application/reply-suggestion-contract'
+} from './reply-suggestion-contract.server'
 
 const input: GenerateReplySuggestionInput = {
   organizationId: organizationId('tenant'),

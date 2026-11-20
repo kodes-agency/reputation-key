@@ -12,7 +12,7 @@ import type {
   MerchantAiDecisionDeferral,
   MerchantAiDecisionDeferralStore,
 } from './merchant-ai-decision-deferral.server'
-import { decideMemberPropertyAuthority } from '../infrastructure/repositories/member-property-authority'
+import { decideMemberPropertyAuthority } from '../members/member-property-authority.server'
 
 type Row = Record<string, unknown>
 type Executor = Pick<Database, 'execute'>

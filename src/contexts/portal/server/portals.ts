@@ -11,15 +11,15 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { createPortalInputSchema } from '../application/dto/create-portal.dto'
+import { createPortalInputSchema } from '../publication/create-portal.contracts'
 import {
   changePortalLanguagesInputSchema,
   changePortalSlugInputSchema,
   portalIdInputSchema,
   publishPortalInputSchema,
   updatePortalSettingsInputSchema,
-} from '../application/dto/portal-intents.dto'
-import { completeContentReviewInputSchema } from '../application/dto/complete-content-review.dto'
+} from '../publication/portal-intents.contracts'
+import { completeContentReviewInputSchema } from '../publication/complete-content-review.contracts'
 import {
   portalApprovedDestinationDecisionInputSchema,
   portalApprovedDestinationDisableInputSchema,
@@ -30,13 +30,13 @@ import {
   propertyPortalBrandProfileInputSchema,
   propertyPortalExperienceInputSchema,
   propertyPublicDisplayNameInputSchema,
-} from '../application/dto/portal-experience.dto'
+} from '../editor/portal-experience.contracts'
 import {
   issuePortalTokenInputSchema,
   revealPortalAddressInputSchema,
   revokePortalTokensInputSchema,
   rotatePortalTokenInputSchema,
-} from '../application/dto/portal-token-lifecycle.dto'
+} from '../addresses/portal-token-lifecycle.contracts'
 import { isPortalError, portalError } from '../domain/errors'
 import { PORTAL_HISTORY_CATEGORIES } from '../domain/portal-history'
 import type { AuthContext } from '#/shared/domain/auth-context'

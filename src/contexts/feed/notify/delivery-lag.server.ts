@@ -3,15 +3,15 @@ import type { IsEmailDeliveryAllowed } from '#/shared/observability/health-metri
 import type { Database } from '#/shared/db'
 import { notificationEmailQueue, notifications } from '#/shared/db/schema'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
-import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../application/beta-notification-trigger-matrix'
-import { notificationDeliveryReceiptPrefixes } from '../infrastructure/notification-delivery-receipts'
-import { notificationRouteValues as routeValues } from '../infrastructure/repositories/notification-route-values'
+import { BETA_NOTIFICATION_TRIGGER_MATRIX } from './beta-notification-trigger-matrix.server'
+import { notificationDeliveryReceiptPrefixes } from './notification-delivery-receipts.server'
+import { notificationRouteValues as routeValues } from './notification-route-values.server'
 import {
   assertStatementTimeoutMs,
   withHealthReadTimeout,
-} from '../infrastructure/repositories/health-read-timeout'
-import { activePropertyCondition } from '../infrastructure/repositories/active-property'
-import { silentRouteFact } from '../infrastructure/silent-route-fact'
+} from './health-read-timeout.server'
+import { activePropertyCondition } from './active-property.server'
+import { silentRouteFact } from './silent-route-fact.server'
 
 export const MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT = 1000
 
@@ -183,7 +183,7 @@ END`
  * Only scopes where email may be sent now: a capability-dark scope's pending
  * rows are never attempted, so they are not late mail, and neither are the
  * rows of a Property that is no longer active, which every send path holds
- * (active-property.ts). The capability decision is process policy, so the
+ * (active-property.server.ts). The capability decision is process policy, so the
  * window's scopes (bounded by the Property count) are judged in-process first
  * and the sample is then read from the allowed ones alone — the scan bound,
  * and so saturation, counts only sendable rows, and a dark or held backlog can
@@ -268,7 +268,7 @@ const readSendableImmediateEmailRows = async (
 /**
  * Durable source facts whose base consumer receipt is still absent (bounded),
  * counted per route event type. A fact its route consumes only to announce
- * nothing is not a notice waiting (silent-route-fact.ts): an import writes up
+ * nothing is not a notice waiting (silent-route-fact.server.ts): an import writes up
  * to three per past review.
  *
  * The receipt anti-join runs first, in a materialized CTE, and the silent test

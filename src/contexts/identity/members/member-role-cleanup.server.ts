@@ -6,7 +6,7 @@
 // runs it again if the request never got that far. Both record the same
 // receipt, which is how a retried request knows whether the cleanup finished.
 
-import type { IdentityCommandStore } from '../application/ports/identity-command-store.port'
+import type { IdentityCommandStore } from './identity-command-store.port.server'
 
 export const MEMBER_ROLE_CLEANUP_CONSUMER = 'identity.on-member-role-changed'
 

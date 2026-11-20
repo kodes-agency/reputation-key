@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { registerHandlingCycleNotificationConsumers } from '../infrastructure/inbox-notice-routes'
+import { registerHandlingCycleNotificationConsumers } from './inbox-notice-routes.server'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
   createConsumerRegistry,
@@ -19,7 +19,7 @@ import type {
   HandlingCycleNotificationFacts,
   InboxItemFacts,
   InboxItemLookupPort,
-} from '../application/ports/notification-inbox-item-lookup.port'
+} from './inbox-item-lookup.port.server'
 import { noticeWriterOver } from '../infrastructure/notification-consumer-test-fixtures'
 
 // ARC-03-T7: a fresh container-scoped registry per test.

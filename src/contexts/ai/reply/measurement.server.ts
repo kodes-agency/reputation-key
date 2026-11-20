@@ -2,7 +2,7 @@ import type {
   GenerateReplySuggestionDependencies,
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
-} from '../application/reply-suggestion-contract'
+} from './reply-suggestion-contract.server'
 
 /** Only error classification is safe to log, including wrapped database failures. */
 function measurementFailure(error: unknown) {

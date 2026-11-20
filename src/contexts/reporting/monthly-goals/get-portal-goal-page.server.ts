@@ -18,9 +18,9 @@ import {
   isPortalCountGoal,
   portalGoalPageOf,
   type PortalCountGoal,
-} from '../application/monthly-portal-goal-identity'
+} from './monthly-portal-goal-identity.server'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
-import { listProgressOf } from '../application/use-cases/goal-list-progress'
+import { listProgressOf } from './goal-list-progress.server'
 import { dueResultsForProgram } from '../application/use-cases/goal-program-shared'
 import {
   GoalProgramError,
@@ -28,11 +28,11 @@ import {
   type GoalExecutionPolicy,
   type GoalProgramService,
 } from './goal-programs.server'
-import { progressOf } from '../application/use-cases/goal-progress'
+import { progressOf } from './goal-progress.server'
 import {
   gatherPortalGoalFacts,
   recommendationFrom,
-} from '../application/use-cases/goal-recommendation-read'
+} from './goal-recommendation-read.server'
 import { changeFactsOf } from './monthly-portal-goal-change-facts.server'
 import {
   averageMeasureOf,
@@ -46,10 +46,7 @@ import {
   type MonthlyPortalGoalPageDeps,
 } from './monthly-portal-goal-page.server'
 import { monthKeyOf, monthlyPortalGoalOnCard } from './monthly-portal-goal-running.server'
-import {
-  narrowedFor,
-  portalGoalAddBasisOf,
-} from '../application/use-cases/portal-goal-add-numbers'
+import { narrowedFor, portalGoalAddBasisOf } from './portal-goal-add-numbers.server'
 
 export type PortalGoalSinglePageDeps = MonthlyPortalGoalPageDeps &
   Readonly<{

@@ -25,7 +25,7 @@ import { portalOverviewQuery } from './portals/-portal-overview-data'
 import { OverviewRatingGoal } from './goals/-rating-goal-overview'
 import { OverviewPortalGoal } from './goals/-portal-goal-overview'
 import { useRatingGoalNotNow } from './goals/-rating-goal-not-now'
-import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
+import type { TimeRangePreset } from '#/contexts/reporting/property-overview/contracts'
 
 /**
  * Overview has no range control and no `?range=` (redesign row 5): it reads two

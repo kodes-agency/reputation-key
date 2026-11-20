@@ -24,16 +24,16 @@ import {
   handleInboxReviewUpdated,
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
-import { createInboxItemLookupAdapter } from '#/contexts/feed/infrastructure/adapters/inbox-item-lookup.adapter'
+import { createInboxItemLookupAdapter } from '#/contexts/feed/notify/inbox-item-lookup.adapter.server'
 import {
   handleNotificationHandlingCycle,
   type HandlingCycleNotificationConsumerDeps,
 } from '#/contexts/feed/notify/inbox-handling-cycle.server'
-import { handleNotificationInboxItemCreated } from '#/contexts/feed/infrastructure/notification-outbox-consumers'
+import { handleNotificationInboxItemCreated } from '#/contexts/feed/notify/notification-outbox-consumers.server'
 import type { QueuedNotice } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
-import { insertNotification } from '#/contexts/feed/application/use-cases/insert-notification'
+import { insertNotification } from '#/contexts/feed/notify/insert-notification.server'
 import { createNotificationWorkState } from '#/contexts/feed/notify/settle.server'
-import { buildInsertNotificationDeps } from '#/contexts/feed/application/use-cases/test-fixtures'
+import { buildInsertNotificationDeps } from '#/contexts/feed/notify/insert-notification.test-fixtures'
 import { notificationPreferences, notifications } from '#/shared/db/schema'
 import { eq } from 'drizzle-orm'
 

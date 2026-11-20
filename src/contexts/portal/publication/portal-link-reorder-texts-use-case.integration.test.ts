@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
@@ -13,8 +13,8 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalLinkCategoryId } from '#/shared/domain/ids'
-import { reorderLinks } from '../application/use-cases/reorder-links'
-import { savePortalLinkTexts } from '../application/use-cases/save-portal-link-texts'
+import { reorderLinks } from '../links/reorder-links.server'
+import { savePortalLinkTexts } from '../links/save-portal-link-texts.server'
 import { isPortalError } from '../domain/errors'
 import {
   LINK_WORLD_TABLES,

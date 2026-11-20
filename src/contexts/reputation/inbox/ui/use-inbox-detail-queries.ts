@@ -7,9 +7,9 @@ import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { inboxHistoryQueryOptions } from './inbox-history-query'
-import { replyRefetchInterval } from '#/components/inbox/inbox-cache-policy'
-import { useTargetDeadlineRefresh } from '#/components/inbox/response-target-deadline-refresh'
-import type { InboxServerFns } from '#/components/inbox/types'
+import { replyRefetchInterval } from '#/contexts/reputation/inbox/ui/page/inbox-cache-policy'
+import { useTargetDeadlineRefresh } from '#/contexts/reputation/response-targets/ui/response-target-deadline-refresh'
+import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 const inboxDetailQueryOptions = (
   id: string,

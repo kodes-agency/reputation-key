@@ -12,7 +12,7 @@ import type {
   PortalAnalyticsRepository,
   PortalMetricSumRow,
   PortalRatingBucket,
-} from '../application/ports/portal-analytics.repository'
+} from './portal-analytics.repository.port.server'
 
 export const ORG = organizationId('org-test')
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { preferredGuestLocale } from '#/contexts/guest/application/preferred-guest-locale'
+import { preferredGuestLocale } from '#/contexts/guest/page/preferred-guest-locale.contracts'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
 import { unavailableCopyOf, type PortalUnavailableCopy } from './portal-unavailable-copy'
 

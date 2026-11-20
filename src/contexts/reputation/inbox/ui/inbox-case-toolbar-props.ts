@@ -30,9 +30,9 @@ import type {
   InboxPriority,
   ResponseTargetView,
 } from '#/contexts/inbox/application/public-api'
-import type { InboxAssignmentOption } from '#/components/inbox/inbox-owner-view'
-import { isHeaderCommandPending } from '#/components/inbox/inbox-header-command-pending'
-import { prioritySuggestion } from '#/components/inbox/inbox-priority-view'
+import type { InboxAssignmentOption } from '#/contexts/reputation/inbox/ui/page/inbox-owner-view'
+import { isHeaderCommandPending } from '#/contexts/reputation/inbox/ui/page/inbox-header-command-pending'
+import { prioritySuggestion } from '#/contexts/reputation/inbox/ui/page/inbox-priority-view'
 import type { InboxDetailState } from './use-inbox-detail'
 
 /**
