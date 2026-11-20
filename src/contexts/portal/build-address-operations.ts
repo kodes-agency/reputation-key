@@ -3,17 +3,17 @@ import {
   ensurePersonalPortalToken,
   issuePortalToken,
   type IssuePortalTokenDeps,
-} from './application/use-cases/issue-portal-token'
+} from './addresses/issue-portal-token.server'
 import {
   revealPortalAddress,
   type RevealPortalAddressDeps,
-} from './application/use-cases/reveal-portal-address'
-import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
-import type { PersonalPortalPresentationDeps } from './application/personal-portal-presentation'
+} from './addresses/reveal-portal-address.server'
+import { rotatePortalToken } from './addresses/rotate-portal-token.server'
+import type { PersonalPortalPresentationDeps } from './personal-portals/personal-portal-presentation.server'
 import {
   getOwnPersonalCode,
   getOwnPersonalLook,
-} from './application/use-cases/get-own-personal-code'
+} from './personal-portals/get-own-personal-code.server'
 
 /** Manager and own-code commands share the same sealing and print-code bindings. */
 export function buildPortalAddressOperations(

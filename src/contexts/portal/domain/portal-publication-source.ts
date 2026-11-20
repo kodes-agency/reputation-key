@@ -15,8 +15,8 @@
 //  - The Linktree title is never copied: a language with none reads its pack's
 //    default, which is a decision about wording the design already made.
 //
-// Pure. The reader (infrastructure/portal-working-copy.reader.ts) builds the
-// source, the builder (application/portal-publication-snapshot.ts) turns the
+// Pure. The reader (publication/portal-working-copy-reader.server.ts) builds the
+// source, the builder (publication/portal-publication-snapshot.server.ts) turns the
 // content into a snapshot, and the working-copy comparison resolves a source
 // the same way to see whether it still says what a snapshot says. One function
 // answers all three, so they cannot disagree about what a publication is.

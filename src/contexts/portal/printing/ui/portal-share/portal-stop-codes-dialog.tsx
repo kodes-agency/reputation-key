@@ -6,7 +6,7 @@ import { useForm, useStore } from '@tanstack/react-form'
 import { FormFieldFrame } from '#/components/forms/form-field-frame'
 import { Input } from '#/components/ui/input'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
-import { revokePortalTokensInputSchema } from '#/contexts/portal/application/dto/portal-token-lifecycle.dto'
+import { revokePortalTokensInputSchema } from '#/contexts/portal/addresses/portal-token-lifecycle.contracts'
 import type { PortalShareMutations } from './portal-share-types'
 
 const revokeLinksFormSchema = revokePortalTokensInputSchema

@@ -15,24 +15,46 @@ assignment, and governed access artifacts.
   and facts. `application/portal-management-contracts.ts` contains the browser-safe
   management types and pure rules used by screens.
 - RPC calls stay in `server/`. None of the screens imports the context build at runtime.
+- Each port sits beside its implementation as `<impl>.port.server.ts`. What stays in
+  the layer folders, and why:
+  - `application/public-api.ts`: lint names every area's public API by this path.
+  - `portal-management-contracts.ts` and two DTOs: they import server modules, so they
+    cannot become contracts files yet.
+  - The storage port and the S3 adapter: operator scripts import the adapter.
+  - The print fonts and a JSON fixture: a feature folder holds no font or JSON file
+    that lint can place.
+  - Seven test worlds under `infrastructure/testing/`: shared test setup, which the
+    single-writer and transaction checks exempt only in `testing/` folders.
 - Where a feature lives:
 
-  | Feature                                                               | Code                                                                      |
-  | --------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-  | Editor, Linktree, save coordinator, field writers                     | `editor/ui/`, `editor/contracts.ts`                                       |
-  | Property look and a Portal's own look                                 | `look/ui/`, `application/portal-look-command.ts`, `domain/portal-look.ts` |
-  | Workspace (detail, history, ledger)                                   | `workspace/`                                                              |
-  | Publication, groups, links, address commands and facts                | `publication/*.server.ts`                                                 |
-  | Print kit and print downloads                                         | `printing/`, `build-print-kit.ts`, `src/shared/domain/portal-print-*.ts`  |
-  | Media ingest, serving, takedown, sweep                                | `server/portal-media-*.ts`, `build-public-media.ts`                       |
-  | Share and print screens                                               | `printing/ui/portal-share/`                                               |
-  | New Portal, review and versions screens                               | `publication/ui/`                                                         |
-  | Overview, groups, list and preview (they import other areas' screens) | `src/components/features/portal/`                                         |
-  | Guest page and response                                               | `src/contexts/guest/` (`page/ui/public-portal/`)                          |
+  | Feature                                                                                                                                                           | Code                                                                                |
+  | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+  | Editor, Linktree screens, save coordinator, settings and wording (manage-portal-experience, language coverage, experience repository)                             | `editor/`                                                                           |
+  | Property look and a Portal's own look                                                                                                                             | `look/`, `domain/portal-look.ts`                                                    |
+  | Portal lifecycle, New portal, intents, command store, publish/rollback, snapshots, working copy, Review & publish, public token resolution, goal and rating facts | `publication/`                                                                      |
+  | Portal Groups                                                                                                                                                     | `groups/` (the group commands are still `publication/portal-group-*.server.ts`)     |
+  | Links, link texts, Linktree settings, results link list                                                                                                           | `links/` (the commands are still `publication/portal-link*-commands.server.ts`)     |
+  | Addresses, print codes, codec, cipher, access artifacts                                                                                                           | `addresses/` (the commands are still `publication/portal-token-commands.server.ts`) |
+  | Approved destinations and revalidation                                                                                                                            | `destinations/`                                                                     |
+  | Media ingest, serving, takedown, sweep                                                                                                                            | `media/`, `server/portal-media-*.ts`, `build-public-media.ts`                       |
+  | Draft and version previews                                                                                                                                        | `preview/`                                                                          |
+  | Workspace (detail, list, overview, history, versions, ledger)                                                                                                     | `workspace/`                                                                        |
+  | Personal Portals                                                                                                                                                  | `personal-portals/`, `build-personal-portals.ts`                                    |
+  | Responsible managers                                                                                                                                              | `responsibility/`                                                                   |
+  | Portal Health                                                                                                                                                     | `health/`                                                                           |
+  | Rights (export, erasure)                                                                                                                                          | `rights/`                                                                           |
+  | Print kit and print downloads                                                                                                                                     | `printing/`, `build-print-kit.ts`, `src/shared/domain/portal-print-*.ts`            |
+  | Share and print screens                                                                                                                                           | `printing/ui/portal-share/`                                                         |
+  | New Portal, review and versions screens                                                                                                                           | `publication/ui/`                                                                   |
+  | Overview, groups, list and preview (they import other areas' screens)                                                                                             | `src/components/features/portal/`                                                   |
+  | Guest page and response                                                                                                                                           | `src/contexts/guest/` (`page/ui/public-portal/`)                                    |
 
+- Object storage stays at `application/ports/storage.port.ts` and
+  `infrastructure/adapters/s3-storage.adapter.ts`, because ops scripts import the
+  adapter. The print fonts stay in `infrastructure/print-kit/fonts/`.
 - `build.ts` composes request management separately from worker jobs. Portal and
   Guest retain separate builds.
-- `infrastructure/adapters/portal-rights.adapter.ts` supplies Property and
+- `rights/portal-rights.adapter.server.ts` supplies Property and
   Organization reports and erasure, plus Organization export, to
   `scripts/ops/rights-request.ts` through `src/composition/rights-executors.ts`.
   Composition requires the image store. Images are deleted outside the database
@@ -53,7 +75,7 @@ until a successful write, including when the person returns to the initial value
   membership and a group's name through `PortalGroupPublicApi`. Portal does not
   read their stores.
 - Reporting's Monthly portal goal reads `listGoalReadinessFacts(org, property, asOf)`
-  on `PortalPublicApi` (`application/goal-readiness-facts.ts`): every non-archived,
+  on `PortalPublicApi` (`publication/goal-readiness-facts.server.ts`): every non-archived,
   non-deleted Portal of the Property in name order, including the complete roster
   (`truncated` is always false), each with its publication state, `liveSince`, the live
   intervals that overlap the last 60 days, when its current code was made, whether
@@ -116,7 +138,7 @@ Staff provisioning in `src/composition/identity-wiring.ts` deliberately calls th
 publish intent without a digest to publish the personal Portal it just created.
 
 Link, link-text and Linktree-setting commands recheck content mutability in
-`infrastructure/portal-aggregate-fence.ts`, using the state returned by the
+`publication/portal-aggregate-fence.server.ts`, using the state returned by the
 revision update while it holds the Portal row lock. An archived write rolls back
 before content, history or facts change. Address issue, rotation and revocation
 use the revision fence without the content restriction, preserving address
@@ -196,7 +218,7 @@ text on the brand content. It is the look every Portal starts with: a Portal fol
 it until an Account Admin gives that Portal its own version of one of three groups
 (below, ADR 0070). The profile keeps two versions on purpose. `version` moves only
 with the public display name, because AI reply drafts fence on it
-(`infrastructure/ai-reply-brand-profile-authority.ts`); `look_version` moves with the look. A look
+(`look/ai-reply-brand-profile-authority.server.ts`); `look_version` moves with the look. A look
 edit writes one `property_brand_profile` pending change per look facet (`look:accent`,
 `look:field`, `look:text`, `look:wordmark`, `look:logo`, `look:photo`; a row written
 before the photo and logo were split reads `look:images` as both) for each Portal that
@@ -295,7 +317,7 @@ text on a manual field), the photo and the logo against `findReferencableMediaAs
 for this Property, the wordmark (24 characters) and each description (160 characters,
 for a language the Portal offers; blank means decorative). No outbox event is emitted.
 The Property's writers narrow with it: `recordPropertyProfileChange` (in
-`infrastructure/property-look-fanout.ts`) opens the fence only on Portals that follow a
+`look/property-look-fanout.server.ts`) opens the fence only on Portals that follow a
 changed group and, under the lock it already holds, raises the version of the override
 rows that follow it, once per save; `saveHeroAltText` fences only photo followers and
 writes its ledger key as `photo_alt:<locale>`. With no override rows the fence set is
@@ -353,13 +375,13 @@ order. The browser contract retains `categoryId` through the
 `application/public-api.ts` type exports.
 
 Creating a link without a category joins the Portal's last category or starts
-one with a neutral title. `application/use-cases/create-link.ts` builds it only after the label, icon,
+one with a neutral title. `links/create-link.server.ts` builds it only after the label, icon,
 cap and destination pass, then commits it with the link (`startCategory`) and
 the category-created fact imported through `domain/events.ts`. A refused link
 leaves neither the category nor its fact behind.
 
 Publication also depends on categories: `readPortalWorkingCopy` in
-`infrastructure/portal-working-copy.reader.ts`, used by the publication repository
+`publication/portal-working-copy-reader.server.ts`, used by the publication repository
 and commands, orders by category sort key, category id, link sort key and link id.
 `resolvePortalPublication` preserves that sequence in the flat guest Linktree.
 Keep category rows, references, events and sort keys while these editor and
@@ -410,7 +432,7 @@ hidden in a segment do not survive, and the original is never stored.
   minimum size, aspect limit, output size and output budget. The declared type
   must agree with the leading bytes. SVG, GIF, HEIC, AVIF and animated PNG or
   WebP are refused. Every refusal is `image_rejected` carrying one `reason`.
-- **Decoder** (`infrastructure/adapters/sharp-image-processor.adapter.ts`): only the JPEG, PNG and WebP
+- **Decoder** (`media/sharp-image-processor.adapter.server.ts`): only the JPEG, PNG and WebP
   loaders are enabled in libvips; the decoder holds at most 40 million pixels
   and fails on any decode error; at most two decodes run at once.
 - **Ingest** (`ingestPortalImage`): checks who (an Account Admin for a Property's
@@ -617,7 +639,7 @@ Portal, Group, content, responsibility, and token commands use Portal-owned stor
 that commit state, revisions, receipts, and identifier-only outbox facts together.
 
 A server function that is addressed by a Portal, group, category or link resolves it to
-its Organization and Property (`infrastructure/repositories/portal-scope.repository.ts`) before it asks the policy,
+its Organization and Property (`publication/portal-scope-repository.server.ts`) before it asks the policy,
 because the Property the policy decides on comes from that row: one lookup, or two where
 a request names a pair that must match (a Portal and its category, a group and a
 Portal). A request that names many rows does not read them all first.
@@ -638,7 +660,7 @@ fails as a database error and a sanitized 500.
 `publicApi.management` is Portal's request surface (`docs/standards.md` §3.1).
 Its scope reads are the exceptions to that section's rules:
 
-- Five members are reads of `infrastructure/repositories/portal-scope.repository.ts` published as they are, not
+- Five members are reads of `publication/portal-scope-repository.server.ts` published as they are, not
   application functions: `resolvePortalManagementScope`,
   `resolvePortalGroupManagementScope`, `resolvePortalCategoryManagementScope`,
   `resolvePortalLinkManagementScope` and `listPortalManagementPropertyIds`. They take no
@@ -651,7 +673,7 @@ It takes its scope decision from its caller. It runs every 15 minutes and is due
 website destination validated 10 minutes ago or earlier (never a phone number or email
 address, which has nothing to check); the public edge serves an approval up
 to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
-(`application/approved-destination-age.ts` and its test). That holds only
+(`destinations/approved-destination-age.server.ts` and its test). That holds only
 while a run can take everything that is due. See [Destination revalidation](#destination-revalidation)
 for paging, retry scheduling and the lag alert.
 
@@ -668,7 +690,7 @@ or for the Organization it returns one row per Portal (languages, Health and its
 reason, pending-change count, current group, responsible-manager user ids, token
 status, publication state) and asks each source once for the whole set: the
 `*ForPortals` reads on the health, publication, group, responsible-manager and token
-repositories. Each mirrors its single-Portal read (`infrastructure/repositories/portal-overview-reads.test.ts`
+repositories. Each mirrors its single-Portal read (`workspace/portal-overview-reads.integration.test.ts`
 compares them), so each batched read returns what its single-Portal read returns,
 including the token's grace end. It is scoped like
 `listPortals` (`portal.read`, assigned Properties) and carries no content.
@@ -697,7 +719,7 @@ written by hand in the Welcome and Linktree sections.
 
 "Download again" (ADR 0064) is optional and off until `PORTAL_ADDRESS_ENCRYPTION_KEYS`
 is set. With a keyring, issue and replace seal the raw address
-(`infrastructure/adapters/portal-address-cipher.ts`, AES-256-GCM, bound to organisation, property,
+(`addresses/portal-address-cipher.server.ts`, AES-256-GCM, bound to organisation, property,
 portal, token and version) beside the hash, and replace, stop and delete clear
 it. `revealPortalAddress` is the only reader: it authorises `portal.update`,
 records a `portal_address_downloads` row, then decrypts, and its server function
@@ -927,7 +949,7 @@ goes quiet (`infrastructure/adapters/s3-storage.adapter.endpoints.test.ts`).
 2. Private Feedback Threshold is an integer from 1 through 5.
 3. A Portal may have no secondary links. It cannot enter `published` unless its Property has a verified, provider-derived Google review destination.
 4. Publishing atomically creates and activates an immutable snapshot. Working-copy edits are prospective and cannot change the public response until another deliberate publication.
-   A live Portal can be republished (`republishPortal`, "Publish changes"): in one commit the live activation closes with reason `replaced` and a new snapshot and activation open, under the same Property publication fence as a first publication. The Portal stays Published, and it is refused for a Portal that is not (publishing, not republishing, takes it live). It does nothing when nothing is pending, and it asks the same readiness questions as a first publication. Both compare the snapshot with the committed working copy under the Portal row, which every link, category and link-text command takes first, and lock no table: one Organization's publish never waits for another's link write, and a link edit of the same Portal waits for the publish and is then refused as stale (`infrastructure/portal-publication-commands.integration.test.ts`).
+   A live Portal can be republished (`republishPortal`, "Publish changes"): in one commit the live activation closes with reason `replaced` and a new snapshot and activation open, under the same Property publication fence as a first publication. The Portal stays Published, and it is refused for a Portal that is not (publishing, not republishing, takes it live). It does nothing when nothing is pending, and it asks the same readiness questions as a first publication. Both compare the snapshot with the committed working copy under the Portal row, which every link, category and link-text command takes first, and lock no table: one Organization's publish never waits for another's link write, and a link edit of the same Portal waits for the publish and is then refused as stale (`publication/portal-publication-commands.integration.test.ts`).
 5. Rollback never rewrites history: it closes the current activation and appends a new activation to another valid snapshot of the same Portal, never the one already live. "Make live again" is that act, and it works in both directions (an earlier version, or a later one after an earlier was restored), so restoring a version never strands the ones after it. It does not touch the working copy or its pending changes.
 6. If that destination later becomes stale, unavailable, or temporarily unreadable, the published private rating/feedback gateway remains available in a degraded state. No stale URI is serialized and Google selection is denied with gentle guest copy.
 7. Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
@@ -978,7 +1000,7 @@ it imports no Reporting implementation.
 
 Portal kind is `place` or `personal`, set only at creation. A personal Portal keeps the person's name in `name` for managers and a fixed guest name in `public_name`; publication sources, guest data and print metadata use `public_name ?? name`. Its slug is always derived from its reserved id. The copy path supplies wording, links and look; a source with unpublished changes or an archived source is refused, and preflight names links the copy omits. Without a source it starts from the Property wording and public name. Address recovery must be configured. Code issuance precedes first publication, using the manager's own context.
 
-`updatePersonalGuestPage` (R19) lets a person's page take over a published Portal's wording, links, look and opening print wording, keeping its code, results, Group, responsible managers and rating settings. `replacePersonalPortalContent` does that in one commit under the Property's publication fence and the same source fence as a copy at creation; going live is then the ordinary `publishPortalChanges`. Publishing's gates are asked before the replace; if publishing still refuses, the result is `not_live` and the new content waits as the draft. A link that keeps its destination keeps its id, so open pages and tap history survive. The replace is recorded through `recordPortalContentChange`. Rows the two paths share are written by `infrastructure/portal-copied-content.ts`.
+`updatePersonalGuestPage` (R19) lets a person's page take over a published Portal's wording, links, look and opening print wording, keeping its code, results, Group, responsible managers and rating settings. `replacePersonalPortalContent` does that in one commit under the Property's publication fence and the same source fence as a copy at creation; going live is then the ordinary `publishPortalChanges`. Publishing's gates are asked before the replace; if publishing still refuses, the result is `not_live` and the new content waits as the draft. A link that keeps its destination keeps its id, so open pages and tap history survive. The replace is recorded through `recordPortalContentChange`. Rows the two paths share are written by `publication/portal-copied-content.server.ts`.
 
 Only Staff Remove archives a personal Portal, under `staff.remove`. The ordinary update refuses its rename, slug change, Archive and Restore; Disable remains available. The own-code read checks the session's personal assignment, uses the same sealed-address reader and ledger, and returns QR wording only. It records one `show` per user and token version and spends no Organization address budget. `Portal` and `PortalOverviewRow` carry kind; this foundation changes no list presentation.
 

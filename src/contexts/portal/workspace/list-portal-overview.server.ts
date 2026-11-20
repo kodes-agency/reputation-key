@@ -1,0 +1,193 @@
+// Portal context — list portal overview use case.
+//
+// The Portals overview needs, for every Portal at once: its languages, its
+// health and the reason, how many page changes are waiting to be published, the
+// group it is in, who is responsible for it, what its address looks like and
+// whether it is published. One read answers all of that, however many Portals
+// there are: each source is asked once for the whole set, never once per Portal.
+//
+// Scoped like `listPortals`: the caller needs `portal.read`, sees the Portals of
+// the Properties they are assigned (an organisation-wide role sees all of them),
+// and asking for one Property they may not see answers nothing, not an error.
+// A source row that names a Portal outside the set is dropped, so a source can
+// never widen the answer.
+
+import type { PortalRepository } from '../publication/portal-repository.port.server'
+import type { PortalHealthRepository } from '../health/portal-health-repository.port.server'
+import type { PortalPublicationRepository } from '../publication/portal-publication-repository.port.server'
+import type { PortalGroupRepository } from '../groups/portal-group-repository.port.server'
+import type { PortalResponsibleManagerRepository } from '../responsibility/portal-responsible-manager-repository.port.server'
+import type { PortalTokenRepository } from '../addresses/portal-token-repository.port.server'
+import type { PortalLookRepository } from '../look/portal-look-repository.port.server'
+import type { PortalHealth } from '../domain/portal-health'
+import type { PortalPublicationState } from '../domain/portal-publication'
+import type { PortalLookSources } from '../domain/portal-look'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
+import type { PortalGroupId, PortalId, PropertyId } from '#/shared/domain/ids'
+import { propertyId } from '#/shared/domain/ids'
+import { canForContext } from '#/shared/domain/permissions'
+import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { portalError } from '../domain/errors'
+import {
+  toPortalTokenStatus,
+  type PortalTokenStatus,
+} from '../addresses/portal-token-status.server'
+import type { PortalAddressCipher } from '../addresses/portal-address-cipher.port.server'
+import { comparePortalsByName } from './portal-name-order.server'
+
+export type ListPortalOverviewInput = Readonly<
+  | { scope: 'property'; propertyId: string }
+  | {
+      scope: 'organization'
+      /**
+       * Narrows the read to these Properties (an empty list reads none). The
+       * request layer passes the Properties whose execution policy allows the
+       * read; omitted, every Property the caller may see is read.
+       */
+      propertyIds?: readonly string[]
+    }
+>
+
+export type ListPortalOverviewDeps = Readonly<{
+  portalRepo: Pick<PortalRepository, 'list' | 'listByProperty'>
+  portalHealthRepo: Pick<PortalHealthRepository, 'listCurrentForPortals'>
+  publicationRepo: Pick<PortalPublicationRepository, 'countOpenPendingContentChanges'>
+  portalGroupRepo: Pick<PortalGroupRepository, 'listGroupsForPortals'>
+  managerRepo: Pick<PortalResponsibleManagerRepository, 'listActiveForPortals'>
+  portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummariesForPortals'>
+  /** Where each Portal's look groups come from, for the Portals that have a look of their own. */
+  portalLookRepo: Pick<PortalLookRepository, 'listSourcesForPortals'>
+  staffPublicApi: StaffPublicApi
+  /** Says whether a code can be downloaded again; null when no keyring is configured. */
+  addressCipher: Pick<PortalAddressCipher, 'canOpen'> | null
+  clock: () => Date
+}>
+
+/** One Portal as the overview lists it. Carries identifiers and states, no content. */
+export type PortalOverviewRow = Readonly<{
+  portalId: PortalId
+  propertyId: PropertyId
+  kind: 'place' | 'personal'
+  name: string
+  slug: string
+  skipPrivateRating: boolean
+  publicationState: PortalPublicationState
+  primaryGuestLocale: GuestLocale
+  additionalGuestLocales: readonly GuestLocale[]
+  /** Null until Health has been derived for the Portal once. */
+  health: PortalHealth | null
+  /** Page changes made since the live version, not yet published. */
+  pendingChangeCount: number
+  group: Readonly<{ id: PortalGroupId; name: string }> | null
+  /** Sorted; empty means nobody is responsible for the Portal yet. */
+  responsibleManagerUserIds: readonly string[]
+  token: PortalTokenStatus
+  /**
+   * Where the Portal's look groups come from (ADR 0070). Present only for a
+   * Portal that has a look of its own; absent reads as following the whole
+   * Property look (`PROPERTY_LOOK_SOURCES`).
+   */
+  lookSources?: PortalLookSources
+}>
+
+const groupByPortal = <T extends Readonly<{ portalId: string }>>(
+  rows: readonly T[],
+): ReadonlyMap<string, readonly T[]> => {
+  const grouped = new Map<string, T[]>()
+  for (const row of rows) {
+    grouped.set(row.portalId, [...(grouped.get(row.portalId) ?? []), row])
+  }
+  return grouped
+}
+
+const indexByPortal = <T extends Readonly<{ portalId: string }>>(
+  rows: readonly T[],
+): ReadonlyMap<string, T> => new Map(rows.map((row) => [row.portalId, row]))
+
+export const listPortalOverview =
+  (deps: ListPortalOverviewDeps) =>
+  async (
+    input: ListPortalOverviewInput,
+    ctx: AuthContext,
+  ): Promise<ReadonlyArray<PortalOverviewRow>> => {
+    if (!canForContext(ctx, 'portal.read')) {
+      throw portalError('forbidden', 'No portal read permission')
+    }
+    // D6-001: scope reads to properties in the caller's staff_assignment.
+    // Organization-wide roles bypass (the lookup answers null).
+    const accessible = await getAccessiblePropertyIdsForPermission(
+      (orgId, userId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+      ctx,
+      'portal.read',
+    )
+    const listed =
+      input.scope === 'property'
+        ? await deps.portalRepo.listByProperty(
+            ctx.organizationId,
+            propertyId(input.propertyId),
+          )
+        : await deps.portalRepo.list(ctx.organizationId)
+    const narrowedTo = input.scope === 'organization' ? input.propertyIds : undefined
+    const portals = listed
+      .filter((portal) => accessible === null || accessible.includes(portal.propertyId))
+      .filter((portal) => !narrowedTo || narrowedTo.includes(portal.propertyId))
+      .sort(comparePortalsByName)
+    if (portals.length === 0) return []
+
+    const portalIds = portals.map((portal) => portal.id)
+    const asOf = deps.clock()
+    const [healths, pending, groups, managers, tokens, lookSources] = await Promise.all([
+      deps.portalHealthRepo.listCurrentForPortals(ctx.organizationId, portalIds),
+      deps.publicationRepo.countOpenPendingContentChanges(ctx.organizationId, portalIds),
+      deps.portalGroupRepo.listGroupsForPortals(ctx.organizationId, portalIds, asOf),
+      deps.managerRepo.listActiveForPortals(ctx.organizationId, portalIds),
+      deps.portalTokenRepo.findResolvableSummariesForPortals(
+        ctx.organizationId,
+        portalIds,
+        asOf,
+      ),
+      deps.portalLookRepo.listSourcesForPortals(
+        ctx.organizationId,
+        portals.map((portal) => ({ propertyId: portal.propertyId, portalId: portal.id })),
+      ),
+    ])
+    const healthByPortal = indexByPortal(healths)
+    const pendingByPortal = indexByPortal(pending)
+    const groupByPortalId = indexByPortal(groups)
+    const managersByPortal = groupByPortal(managers)
+    const tokenByPortal = indexByPortal(tokens)
+    const lookSourcesByPortal = indexByPortal(lookSources)
+
+    return portals.map((portal) => {
+      const health = healthByPortal.get(portal.id)
+      const group = groupByPortalId.get(portal.id)?.group
+      const look = lookSourcesByPortal.get(portal.id)
+      return {
+        portalId: portal.id,
+        propertyId: portal.propertyId,
+        kind: portal.kind,
+        name: portal.name,
+        slug: portal.slug,
+        publicationState: portal.publicationState,
+        skipPrivateRating: portal.skipPrivateRating,
+        primaryGuestLocale: portal.primaryGuestLocale,
+        additionalGuestLocales: portal.additionalGuestLocales,
+        health: health ? { status: health.status, reason: health.reason } : null,
+        pendingChangeCount: pendingByPortal.get(portal.id)?.count ?? 0,
+        group: group ? { id: group.id, name: group.name } : null,
+        responsibleManagerUserIds: (managersByPortal.get(portal.id) ?? [])
+          .map((manager) => manager.userId)
+          .sort(),
+        token: toPortalTokenStatus(
+          tokenByPortal.get(portal.id),
+          (version) => deps.addressCipher?.canOpen(version) ?? false,
+        ),
+        ...(look ? { lookSources: look.sources } : {}),
+      }
+    })
+  }
+
+export type ListPortalOverview = ReturnType<typeof listPortalOverview>

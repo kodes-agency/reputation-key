@@ -11,7 +11,7 @@ import {
   LINKTREE_TITLE_MAX_LENGTH,
   linktreeDefaultTitle,
   linktreeTitlesFormSchema,
-} from '#/contexts/portal/application/dto/portal-linktree.dto'
+} from '#/contexts/portal/links/portal-linktree.contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { usePortalFormAutosave } from '../use-portal-form-autosave'
 import {

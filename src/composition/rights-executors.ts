@@ -48,7 +48,7 @@ import type { StoragePort } from '#/contexts/portal/application/ports/storage.po
 import {
   createPortalErasureReplayers,
   createPortalRightsExecutor,
-} from '#/contexts/portal/infrastructure/adapters/portal-rights.adapter'
+} from '#/contexts/portal/rights/portal-rights.adapter.server'
 import {
   createReportingRightsExecutor,
   createReportingRightsReplayers,

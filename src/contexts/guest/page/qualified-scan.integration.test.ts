@@ -21,8 +21,8 @@ import {
   guestReviewLinkClicked,
   guestScanRecorded,
 } from '../domain/events'
-import { createPortalGroupRepository } from '#/contexts/portal/infrastructure/repositories/portal-group.repository'
-import { createPortalAccessArtifactRepository } from '#/contexts/portal/infrastructure/repositories/portal-access-artifact.repository'
+import { createPortalGroupRepository } from '#/contexts/portal/groups/portal-group-repository.server'
+import { createPortalAccessArtifactRepository } from '#/contexts/portal/addresses/portal-access-artifact-repository.server'
 import { createAtomicGuestObservationStore } from './guest-observation-store.server'
 import {
   buildReportingContext,

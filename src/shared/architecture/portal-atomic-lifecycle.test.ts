@@ -7,11 +7,11 @@ import { readFileSync } from 'node:fs'
 import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 
 const CORE_USE_CASES = [
-  'src/contexts/portal/application/use-cases/create-portal.ts',
+  'src/contexts/portal/publication/create-portal.server.ts',
   'src/contexts/portal/publication/portal-change.server.ts',
-  'src/contexts/portal/application/use-cases/soft-delete-portal.ts',
-  'src/contexts/portal/application/use-cases/update-link.ts',
-  'src/contexts/portal/application/use-cases/delete-link.ts',
+  'src/contexts/portal/publication/soft-delete-portal.server.ts',
+  'src/contexts/portal/links/update-link.server.ts',
+  'src/contexts/portal/links/delete-link.server.ts',
 ] as const
 
 const read = (path: string): string => readFileSync(path, 'utf8')
@@ -63,17 +63,15 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
   })
 
   it('leaves no partial responsibility-fact writer in PortalRepository', () => {
-    const source = read(
-      'src/contexts/portal/infrastructure/repositories/portal.repository.ts',
-    )
+    const source = read('src/contexts/portal/publication/portal-repository.server.ts')
     expect(source).not.toContain('insertOutboxRow')
     expect(source).not.toContain('responsibilityNeededEvent')
   })
 
   it('keeps the production PortalRepository read-only', () => {
-    const port = read('src/contexts/portal/application/ports/portal.repository.ts')
+    const port = read('src/contexts/portal/publication/portal-repository.port.server.ts')
     const implementation = read(
-      'src/contexts/portal/infrastructure/repositories/portal.repository.ts',
+      'src/contexts/portal/publication/portal-repository.server.ts',
     )
 
     for (const mutation of ['insert', 'update', 'softDelete']) {
@@ -94,17 +92,17 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
 
   it('captures child state and the Portal revision in one update/delete snapshot', () => {
     // update-link reaches the snapshot through the shared opening step.
-    expect(read('src/contexts/portal/application/use-cases/update-link.ts')).toContain(
+    expect(read('src/contexts/portal/links/update-link.server.ts')).toContain(
       'authorizeLinkCommand',
     )
     for (const file of [
-      'src/contexts/portal/application/authorize-link-command.ts',
-      'src/contexts/portal/application/use-cases/delete-link.ts',
+      'src/contexts/portal/links/authorize-link-command.server.ts',
+      'src/contexts/portal/links/delete-link.server.ts',
     ]) {
       expect(read(file)).toContain('findLinkCommandTarget')
     }
     const implementation = read(
-      'src/contexts/portal/infrastructure/repositories/portal-link.repository.ts',
+      'src/contexts/portal/links/portal-link-repository.server.ts',
     )
     expect(implementation).toContain('portalUpdatedAt: portals.updatedAt')
   })

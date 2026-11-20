@@ -13,8 +13,8 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalLinkCategoryId } from '#/shared/domain/ids'
-import { reorderLinks } from '../application/use-cases/reorder-links'
-import { savePortalLinkTexts } from '../application/use-cases/save-portal-link-texts'
+import { reorderLinks } from '../links/reorder-links.server'
+import { savePortalLinkTexts } from '../links/save-portal-link-texts.server'
 import { isPortalError } from '../domain/errors'
 import {
   LINK_WORLD_TABLES,

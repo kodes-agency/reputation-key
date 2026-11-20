@@ -4,9 +4,9 @@ export { isValidLinkDestination } from '../domain/rules'
 export { hasPropertyWording } from '../domain/property-wording'
 export type { Portal } from '../domain/types'
 /** C2: portal token existence/metadata for management surfaces — never token material. */
-export type { PortalTokenStatus } from './portal-token-status'
-export type { PortalOverviewRow } from './use-cases/list-portal-overview'
-export type { PortalPublicationHistory } from './use-cases/get-portal-publication-history'
+export type { PortalTokenStatus } from '../addresses/portal-token-status.server'
+export type { PortalOverviewRow } from '../workspace/list-portal-overview.server'
+export type { PortalPublicationHistory } from '../workspace/get-portal-publication-history.server'
 export type {
   PortalLinktreeDestination,
   PortalLinktreeDestinationState,
@@ -17,7 +17,7 @@ export type {
   PropertyLookHero,
   PropertyLookLogo,
   PropertyLookMedia,
-} from './property-look-media'
+} from '../look/property-look-media.server'
 export type {
   PortalPreview,
   PortalPreviewExperience,
@@ -27,17 +27,23 @@ export type {
   PortalPreviewOutcome,
   PortalPreviewSource,
   PortalPreviewUnavailableReason,
-} from './portal-preview'
-export type { PortalHistoryEntry } from './use-cases/get-portal-history'
-export type { PortalVersionItem, PortalVersions } from './use-cases/get-portal-versions'
-export type { PortalVersionDetail } from './use-cases/get-portal-version'
+} from '../preview/portal-preview.server'
+export type { PortalHistoryEntry } from '../workspace/get-portal-history.server'
+export type {
+  PortalVersionItem,
+  PortalVersions,
+} from '../workspace/get-portal-versions.server'
+export type { PortalVersionDetail } from '../workspace/get-portal-version.server'
 export type {
   PortalPrintKitLastPrint,
   PortalPrintKitView,
-} from './portal-print-kit-context'
+} from '../printing/portal-print-kit-context.server'
 export type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
-export type { PortalReview, PortalReviewChange } from './use-cases/get-portal-review'
-export type { PublishPortalsChangesResult } from './use-cases/publish-portal-changes'
+export type {
+  PortalReview,
+  PortalReviewChange,
+} from '../publication/get-portal-review.server'
+export type { PublishPortalsChangesResult } from '../publication/publish-portal-changes.server'
 export type { ReviewCheck, ReviewLanguageRow } from '../domain/portal-review-rules'
 export type {
   PublicationContentChange,

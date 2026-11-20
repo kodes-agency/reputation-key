@@ -5,10 +5,10 @@
 // because that table is not exported and not queried; this suite keeps it that
 // way by naming who may touch them:
 //
-// - the page repository (`portal-publication.repository.ts`): resolves a print
-//   code to its Portal;
+// - the page repository (`publication/portal-publication-repository.server.ts`):
+//   resolves a print code to its Portal;
 // - the access-artifact repository: resolves a scan to its channel;
-// - the Portal command store (and `portal-token-commands.ts`, split out of it):
+// - the Portal command store (and `portal-token-commands.server.ts`, split out of it):
 //   writes both hashes with a new or replacement code;
 // - the address repository: fills a missing hash when an address is revealed.
 //
@@ -27,14 +27,14 @@ import { describe, expect, it } from 'vitest'
 const ROOT = process.cwd()
 const ROOTS = ['src', 'services', 'scripts'] as const
 
-const PORTAL_INFRASTRUCTURE = join('src', 'contexts', 'portal', 'infrastructure')
 const PORTAL_PUBLICATION = join('src', 'contexts', 'portal', 'publication')
+const PORTAL_ADDRESSES = join('src', 'contexts', 'portal', 'addresses')
 const READERS = [
-  join(PORTAL_INFRASTRUCTURE, 'repositories', 'portal-publication.repository.ts'),
-  join(PORTAL_INFRASTRUCTURE, 'repositories', 'portal-access-artifact.repository.ts'),
+  join(PORTAL_PUBLICATION, 'portal-publication-repository.server.ts'),
+  join(PORTAL_ADDRESSES, 'portal-access-artifact-repository.server.ts'),
   join(PORTAL_PUBLICATION, 'portal-command-store.server.ts'),
   join(PORTAL_PUBLICATION, 'portal-token-commands.server.ts'),
-  join(PORTAL_INFRASTRUCTURE, 'repositories', 'portal-address.repository.ts'),
+  join(PORTAL_ADDRESSES, 'portal-address-repository.server.ts'),
 ] as const
 
 /** Where the columns are declared. */

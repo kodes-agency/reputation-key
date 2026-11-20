@@ -15,7 +15,7 @@ import {
 } from '#/components/ui/card'
 import { FieldGroup } from '#/components/ui/field'
 import { InlineLink } from '#/components/ui/inline-link'
-import { propertyPublicDisplayNameFormInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
+import { propertyPublicDisplayNameFormInputSchema } from '#/contexts/portal/editor/portal-experience.contracts'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 
 /**

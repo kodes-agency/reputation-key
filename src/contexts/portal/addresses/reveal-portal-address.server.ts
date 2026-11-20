@@ -1,0 +1,136 @@
+import type { Portal } from '../domain/types'
+// Portal context — "Download again" (round 4, slice 33; ADR 0064).
+//
+// Hands a manager the address of the Portal's live code, decrypted from the
+// sealed copy made when the code was issued or replaced. The order is the
+// point: authorise, find the sealed copy, record the disclosure, and only then
+// decrypt. A disclosure therefore never happens without its row, and a request
+// that cannot disclose (no keyring, no sealed copy, a retired key, a stopped
+// code) writes no row. The rate limit is the server function's, at the trust
+// boundary, like every other limiter in the tree.
+//
+// After the decrypt it derives the code's print codes (ADR 0069), fills the
+// hashes an older code lacks, and returns the short addresses the row vouches
+// for; the long address stays for anything it cannot.
+
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { portalId } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PortalRepository } from '../publication/portal-repository.port.server'
+import type { PortalAddressCipher } from './portal-address-cipher.port.server'
+import type { PortalTokenCodec } from './portal-token-codec.port.server'
+import type { PrintCodeReporter } from './print-code-reporter.port.server'
+import type {
+  AddressDownloadPurpose,
+  PortalAddressRepository,
+} from './portal-address-repository.port.server'
+import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
+import {
+  portalPublicUrls,
+  type PortalAddressFormat,
+  type PortalPublicUrls,
+} from './portal-address-urls.server'
+import { revealedPrintCodes } from './print-code-reveal.server'
+import { portalError } from '../domain/errors'
+
+export type RevealPortalAddressDeps = Readonly<{
+  portalRepo: PortalRepository
+  staffPublicApi: StaffPublicApi
+  portalAddressRepo: PortalAddressRepository
+  /** Null when no keyring is configured: nothing can be revealed. */
+  addressCipher: PortalAddressCipher | null
+  tokenCodec: Pick<PortalTokenCodec, 'derivePrintCodes'>
+  reportPrintCodeProblem: PrintCodeReporter
+  clock: () => Date
+  address: PortalAddressFormat
+}>
+
+export type RevealedPortalAddress = Readonly<{
+  publicUrl: string
+  publicUrls: PortalPublicUrls
+  version: number
+  issuedAt: Date
+}>
+
+const unavailable = () =>
+  portalError(
+    'address_unavailable',
+    'This code cannot be downloaded again. Replace the code to get a new set.',
+  )
+
+export const revealPortalAddress =
+  (deps: RevealPortalAddressDeps) =>
+  async (
+    input: Readonly<{ portalId: string; purpose: AddressDownloadPurpose }>,
+    ctx: AuthContext,
+  ): Promise<RevealedPortalAddress> => {
+    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+      permission: 'portal.update',
+      forbiddenMessage: 'Insufficient permissions to download portal codes',
+    })
+    return revealLoadedPortalAddress(deps, input, portal, ctx)
+  }
+
+/** Shared disclosure mechanics; authorization belongs to the two named callers. */
+export async function revealLoadedPortalAddress(
+  deps: RevealPortalAddressDeps,
+  input: Readonly<{ purpose: AddressDownloadPurpose; oncePerUserToken?: boolean }>,
+  portal: Portal,
+  ctx: AuthContext,
+): Promise<RevealedPortalAddress> {
+  const { addressCipher } = deps
+  if (addressCipher === null) throw unavailable()
+
+  const live = await deps.portalAddressRepo.findRevealable(ctx.organizationId, portal.id)
+  if (live === null || !addressCipher.canOpen(live.sealed.keyVersion)) {
+    throw unavailable()
+  }
+
+  const recorded = await deps.portalAddressRepo.recordDownload({
+    organizationId: ctx.organizationId,
+    propertyId: portal.propertyId,
+    portalId: portal.id,
+    tokenId: live.tokenId,
+    downloadedBy: ctx.userId,
+    purpose: input.purpose,
+    oncePerUserToken: input.oncePerUserToken,
+    at: deps.clock(),
+  })
+  if (!recorded) throw unavailable()
+
+  let rawToken: string
+  try {
+    rawToken = addressCipher.open(live.sealed, {
+      organizationId: ctx.organizationId,
+      propertyId: live.propertyId,
+      portalId: portal.id,
+      tokenId: live.tokenId,
+      version: live.version,
+    })
+  } catch {
+    throw unavailable()
+  }
+  const printCodes = await revealedPrintCodes(
+    deps,
+    {
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+    },
+    live,
+    rawToken,
+  )
+  const publicUrls = portalPublicUrls(deps.address, {
+    rawToken,
+    artifacts: live.accessArtifactIds,
+    printCodes,
+  })
+  return {
+    publicUrl: publicUrls.qr,
+    publicUrls,
+    version: live.version,
+    issuedAt: live.issuedAt,
+  }
+}
+
+export type RevealPortalAddress = ReturnType<typeof revealPortalAddress>

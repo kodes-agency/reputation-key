@@ -45,7 +45,7 @@ import type {
 } from '../domain/events'
 import type { PortalLinkTextProvenance } from '../domain/portal-linktree'
 import type { PortalToken } from '../domain/portal-token'
-import type { SealedPortalAddress } from '../application/ports/portal-address-cipher.port'
+import type { SealedPortalAddress } from '../addresses/portal-address-cipher.port.server'
 import type { PortalAccessArtifact } from '../domain/portal-access-artifact'
 import type { PortalHealth } from '../domain/portal-health'
 import type { PortalLookOverrideColumns } from '../domain/portal-look'

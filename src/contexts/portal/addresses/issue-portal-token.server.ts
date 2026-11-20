@@ -1,0 +1,199 @@
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { unbrand, portalId } from '#/shared/domain/ids'
+import type { PortalRepository } from '../publication/portal-repository.port.server'
+import type { PortalTokenRepository } from './portal-token-repository.port.server'
+import type { PortalTokenCodec } from './portal-token-codec.port.server'
+import type { PortalAddressCipher } from './portal-address-cipher.port.server'
+import type { PortalAddressRepository } from './portal-address-repository.port.server'
+import type { PrintCodeReporter } from './print-code-reporter.port.server'
+import {
+  portalPublicUrls,
+  type PortalAddressFormat,
+  type PortalPublicUrls,
+} from './portal-address-urls.server'
+import {
+  derivePrintCodesForNewCode,
+  printCodeHashesOf,
+  printCodesOf,
+  reportingPrintCodeCollision,
+} from './print-code-lifecycle.server'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
+import { publishNewCodeArtifacts } from './new-code-artifacts.server'
+import { issueToken } from '../domain/portal-token'
+import { portalError } from '../domain/errors'
+import { portalTokenIssued } from '../domain/events'
+import type { PortalCommandStore } from '../publication/portal-command-store-port.server'
+import { nextPortalCommandAt } from '../publication/portal-command-version.server'
+
+export type IssuePortalTokenDeps = Readonly<{
+  portalRepo: PortalRepository
+  portalTokenRepo: PortalTokenRepository
+  tokenCodec: PortalTokenCodec
+  /** Null when no keyring is configured: the address is then shown once (ADR 0064). */
+  addressCipher: PortalAddressCipher | null
+  staffPublicApi: StaffPublicApi
+  commandStore: PortalCommandStore
+  reportPrintCodeProblem: PrintCodeReporter
+  idGen: () => string
+  clock: () => Date
+  address: PortalAddressFormat
+}>
+
+export type IssuedPortalTokenResult = Readonly<{
+  rawToken: string
+  publicUrl: string
+  publicUrls: PortalPublicUrls
+  tokenIdentifier: string
+  version: number
+  issuedAt: Date
+  /** The address was sealed, so a manager can download it again (ADR 0064). */
+  addressRecoverable: boolean
+}>
+
+export const issuePortalToken =
+  (deps: IssuePortalTokenDeps) =>
+  async (
+    input: Readonly<{ portalId: string }>,
+    ctx: AuthContext,
+  ): Promise<IssuedPortalTokenResult> => {
+    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+      permission: 'portal.update',
+      forbiddenMessage: 'Insufficient permissions to issue portal tokens',
+    })
+    const latest = await deps.portalTokenRepo.findLatestForPortal(
+      ctx.organizationId,
+      portal.id,
+    )
+    if (latest && latest.status !== 'revoked') {
+      throw portalError('token_unavailable', 'Rotate the active portal token instead')
+    }
+
+    const material = deps.tokenCodec.issue()
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
+    const token = issueToken({
+      id: deps.idGen(),
+      organizationId: unbrand(portal.organizationId),
+      propertyId: unbrand(portal.propertyId),
+      portalId: unbrand(portal.id),
+      tokenIdentifier: material.tokenIdentifier,
+      tokenHash: material.tokenHash,
+      tokenKeyVersion: material.tokenKeyVersion,
+      version: (latest?.version ?? 0) + 1,
+      now: occurredAt,
+    })
+    const sealedAddress =
+      deps.addressCipher?.seal(material.rawToken, {
+        organizationId: token.organizationId,
+        propertyId: token.propertyId,
+        portalId: token.portalId,
+        tokenId: token.id,
+        version: token.version,
+      }) ?? null
+    const event = portalTokenIssued({
+      portalId: portal.id,
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      tokenIdentifier: token.tokenIdentifier,
+      version: token.version,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt: token.issuedAt,
+    })
+    const { accessArtifacts, accessArtifactEvents, artifactIds } =
+      publishNewCodeArtifacts({
+        portal,
+        portalTokenId: token.id,
+        idGen: deps.idGen,
+        occurredAt,
+        revision,
+      })
+    const printCodes = derivePrintCodesForNewCode(deps.tokenCodec, {
+      rawToken: material.rawToken,
+      accessArtifactIds: artifactIds,
+    })
+    await reportingPrintCodeCollision(deps.reportPrintCodeProblem, () =>
+      deps.commandStore.issuePortalToken({
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        portalId: portal.id,
+        expectedPortalUpdatedAt: portal.updatedAt,
+        token,
+        // fallow-ignore-next-line code-duplication
+        issuedBy: ctx.userId,
+        sealedAddress,
+        printCodeHashes: printCodeHashesOf(printCodes),
+        accessArtifacts,
+        revision,
+        occurredAt,
+        event,
+        accessArtifactEvents,
+      }),
+    )
+    const publicUrls = portalPublicUrls(deps.address, {
+      rawToken: material.rawToken,
+      artifacts: artifactIds,
+      printCodes: printCodesOf(printCodes),
+    })
+    return {
+      rawToken: material.rawToken,
+      publicUrl: publicUrls.qr,
+      publicUrls,
+      tokenIdentifier: token.tokenIdentifier,
+      version: token.version,
+      issuedAt: token.issuedAt,
+      addressRecoverable: sealedAddress !== null,
+    }
+  }
+
+export type IssuePortalToken = ReturnType<typeof issuePortalToken>
+
+/** A checkpoint retry must keep the existing code recoverable for its person. */
+export const ensurePersonalPortalToken =
+  (
+    deps: IssuePortalTokenDeps & Readonly<{ portalAddressRepo: PortalAddressRepository }>,
+  ) =>
+  async (input: Readonly<{ portalId: string }>, ctx: AuthContext): Promise<void> => {
+    if (!deps.addressCipher)
+      throw portalError(
+        'address_keyring_missing',
+        'Configure Portal address recovery before adding staff',
+      )
+    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+      permission: 'staff.invite',
+      forbiddenMessage: 'This account cannot add staff',
+    })
+    if (portal.kind !== 'personal')
+      throw portalError('forbidden', 'Choose a personal Portal')
+    const latest = await deps.portalTokenRepo.findLatestForPortal(
+      ctx.organizationId,
+      portal.id,
+    )
+    if (!latest || latest.status === 'revoked') {
+      await issuePortalToken(deps)(input, ctx)
+      return
+    }
+    const address = await deps.portalAddressRepo.findRevealable(
+      ctx.organizationId,
+      portal.id,
+    )
+    if (!address || !deps.addressCipher.canOpen(address.sealed.keyVersion))
+      throw portalError(
+        'address_keyring_missing',
+        'Restore the address recovery key before continuing staff setup',
+      )
+    try {
+      deps.addressCipher.open(address.sealed, {
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        portalId: portal.id,
+        tokenId: address.tokenId,
+        version: address.version,
+      })
+    } catch {
+      throw portalError(
+        'address_keyring_missing',
+        'Restore the address recovery key before continuing staff setup',
+      )
+    }
+  }

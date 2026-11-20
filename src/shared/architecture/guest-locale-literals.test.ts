@@ -30,8 +30,7 @@ const ALLOWLIST: ReadonlyArray<
   },
   {
     match: (p) =>
-      p ===
-      'src/contexts/portal/infrastructure/repositories/portal-publication.repository.ts',
+      p === 'src/contexts/portal/publication/portal-publication-repository.server.ts',
     why: 'the frozen v1/v2 zod branches that parse stored snapshot rows',
   },
   {

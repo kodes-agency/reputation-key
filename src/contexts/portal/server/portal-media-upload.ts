@@ -30,7 +30,7 @@ import { readBoundedBody } from '#/shared/security/read-bounded-body'
 import {
   portalImagePermission,
   type IngestPortalImage,
-} from '../application/use-cases/ingest-portal-image'
+} from '../media/ingest-portal-image.server'
 import { isPortalError, type PortalError } from '../domain/errors'
 import type { PortalImageRejectionReason } from '../domain/portal-image-policy'
 import { portalErrorStatus } from './portals'

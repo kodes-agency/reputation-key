@@ -76,7 +76,7 @@ const MODULE_BANS: ReadonlyArray<readonly [string, readonly RegExp[]]> = [
   ['src/contexts/integration/imports/google-import-claim-reaper-job.server.ts', [LOGGER]],
   // Token entropy comes from composition; a namespace import cannot stand in.
   [
-    'src/contexts/portal/infrastructure/adapters/portal-token-codec.ts',
+    'src/contexts/portal/addresses/portal-token-codec.server.ts',
     [/\bcrypto\.randomBytes\b/u, /\?\?\s*randomBytes/u],
   ],
 ]

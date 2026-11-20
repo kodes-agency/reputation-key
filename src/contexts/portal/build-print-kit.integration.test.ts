@@ -5,14 +5,14 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { createPortalLastPrintRepository } from './infrastructure/repositories/portal-last-print.repository'
-import { createPortalPrintWordingRepository } from './infrastructure/repositories/portal-print-wording.repository'
-import { createPortalMediaAssetRepository } from './infrastructure/repositories/portal-media-asset.repository'
+import { createPortalLastPrintRepository } from './printing/portal-last-print-repository.server'
+import { createPortalPrintWordingRepository } from './printing/portal-print-wording-repository.server'
+import { createPortalMediaAssetRepository } from './media/portal-media-asset-repository.server'
 import { createPortalReadsWorld } from './infrastructure/testing/portal-reads-world'
 import { immersiveConfiguration } from './domain/__fixtures__/immersive-configuration'
 import type { PortalPublicationSnapshot } from './domain/portal-publication-snapshot'
 import { buildPortalPrintKit } from './build-print-kit'
-import type { RevealPortalAddress } from './application/use-cases/reveal-portal-address'
+import type { RevealPortalAddress } from './addresses/reveal-portal-address.server'
 
 const world = createPortalReadsWorld('build-print-kit')
 

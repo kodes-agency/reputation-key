@@ -15,20 +15,20 @@ import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/p
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
-import type { CreatePersonalPortalDeps } from '../../application/use-cases/create-personal-portal'
+import type { CreatePersonalPortalDeps } from '../../personal-portals/create-personal-portal.server'
 import { createAtomicPortalCommandStore } from '../../publication/portal-command-store.server'
 import { issueToken } from '../../domain/portal-token'
 import { seedPortalToken } from './portal-read-fixtures'
-import { createPortalApprovedDestinationRepository } from '../repositories/portal-approved-destination.repository'
-import { createPortalExperienceRepository } from '../repositories/portal-experience.repository'
-import { createPortalGroupRepository } from '../repositories/portal-group.repository'
-import { createPortalLastPrintRepository } from '../repositories/portal-last-print.repository'
-import { createPortalLinkRepository } from '../repositories/portal-link.repository'
-import { createPortalLookRepository } from '../repositories/portal-look.repository'
-import { createPortalPrintWordingRepository } from '../repositories/portal-print-wording.repository'
-import { createPortalPublicationRepository } from '../repositories/portal-publication.repository'
-import { createPortalRepository } from '../repositories/portal.repository'
-import { createPortalResponsibleManagerRepository } from '../repositories/portal-responsible-manager.repository'
+import { createPortalApprovedDestinationRepository } from '../../destinations/portal-approved-destination-repository.server'
+import { createPortalExperienceRepository } from '../../editor/portal-experience-repository.server'
+import { createPortalGroupRepository } from '../../groups/portal-group-repository.server'
+import { createPortalLastPrintRepository } from '../../printing/portal-last-print-repository.server'
+import { createPortalLinkRepository } from '../../links/portal-link-repository.server'
+import { createPortalLookRepository } from '../../look/portal-look-repository.server'
+import { createPortalPrintWordingRepository } from '../../printing/portal-print-wording-repository.server'
+import { createPortalPublicationRepository } from '../../publication/portal-publication-repository.server'
+import { createPortalRepository } from '../../publication/portal-repository.server'
+import { createPortalResponsibleManagerRepository } from '../../responsibility/portal-responsible-manager-repository.server'
 
 /** Every table the creation and personal-page use cases write, children first. */
 export const PORTAL_CREATION_TABLES = [
@@ -147,7 +147,7 @@ export function createPortalCreationDeps(options: CreationWorldOptions) {
     entityIdGen: () => randomUUID(),
     clock: () => options.clock,
   } satisfies Parameters<
-    typeof import('../../application/use-cases/create-portal').createPortal
+    typeof import('../../publication/create-portal.server').createPortal
   >[0]
   return { deps, db }
 }

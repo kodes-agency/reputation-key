@@ -8,7 +8,7 @@ import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
-import { updatePortalGroupInputSchema } from '#/contexts/portal/application/dto/update-portal-group.dto'
+import { updatePortalGroupInputSchema } from '#/contexts/portal/groups/update-portal-group.contracts'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'
 
 const renameGroupFormSchema = updatePortalGroupInputSchema.pick({ name: true }).required()

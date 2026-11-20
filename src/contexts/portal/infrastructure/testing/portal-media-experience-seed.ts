@@ -19,7 +19,7 @@ import {
 import { currentGuestLanguagePack } from '#/shared/domain/guest-locale'
 import { portalMediaObjectKey } from '#/shared/domain/portal-media'
 import type { PortalMediaAsset } from '../../domain/portal-media-asset'
-import { createPortalMediaAssetRepository } from '../repositories/portal-media-asset.repository'
+import { createPortalMediaAssetRepository } from '../../media/portal-media-asset-repository.server'
 
 /** The tables a media, look and experience suite empties between tests, children first. */
 export const MEDIA_EXPERIENCE_TABLES = [
