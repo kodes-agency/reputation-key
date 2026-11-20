@@ -1,0 +1,640 @@
+import {
+  googleConnectionAuthorizationVector,
+  googlePropertyAuthorizationVector,
+  googleSystemAuthorizationVector,
+  googleUserAuthorizationVector,
+} from './google-authorization-vector.server'
+import { sql } from 'drizzle-orm'
+import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
+import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
+import type { Database } from '#/shared/db'
+import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
+import {
+  hasGoogleProviderRequestBindingKeys,
+  type GoogleContentAuthorizationCheck,
+  type GoogleContentAuthorizationScope,
+  type GoogleContentAuthorizationVector,
+} from '#/shared/domain/google-content-authorization-vector'
+import {
+  GOOGLE_NOTIFICATION_SYSTEM_PERMISSION_DIGEST,
+  GOOGLE_NOTIFICATION_SYSTEM_PRINCIPAL,
+  GOOGLE_REVIEW_SYNC_SYSTEM_PERMISSION_DIGEST,
+  GOOGLE_REVIEW_SYNC_SYSTEM_PRINCIPAL,
+} from '../review-sync/google-review-sync-authorizer.server'
+import {
+  GOOGLE_REPLY_PUBLICATION_SYSTEM_PERMISSION_DIGEST,
+  GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
+} from '../review-sync/google-reply-publication-authorizer.server'
+import {
+  canForContext,
+  scopeForPermission,
+  type Permission,
+} from '#/shared/domain/permissions'
+const POLICY_VERSION = 1
+
+type GoogleContentAuthorizationCheckDeps = Readonly<{
+  clock: () => Date
+  hasActivePropertyGrant: (
+    tx: Database,
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      userId: string
+      at: Date
+    }>,
+  ) => Promise<boolean>
+}>
+
+const deny = (code = 'authorization_denied') => ({ allowed: false as const, code })
+
+type AuthorizationInput = Parameters<GoogleContentAuthorizationCheck<Database>>[1]
+
+/**
+ * Every stage of the check either denies (and that denial is the whole
+ * decision) or contributes one slice of the authorization vector.
+ */
+type VectorStage =
+  | ReturnType<typeof deny>
+  | Readonly<{ allowed: true; value: GoogleContentAuthorizationVector }>
+
+const stageVector = (value: GoogleContentAuthorizationVector): VectorStage => ({
+  allowed: true,
+  value,
+})
+
+const EMPTY_VECTOR_STAGE = stageVector(Object.freeze({}))
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
+const SHA256_PATTERN = /^[a-f0-9]{64}$/u
+
+const isCountFrom = (value: number, minimum: number) =>
+  Number.isSafeInteger(value) && value >= minimum
+
+const REVIEW_SYNC_SYSTEM_OPERATIONS: Readonly<Record<string, true>> = {
+  'review.sync': true,
+  'provider.reviews.list': true,
+  'provider.reviews.get': true,
+}
+const NOTIFICATION_SYSTEM_OPERATIONS: Readonly<Record<string, true>> = {
+  'notifications.manage': true,
+  'provider.notifications.get': true,
+  'provider.notifications.subscribe': true,
+  'provider.notifications.unsubscribe': true,
+}
+const OAUTH_CREDENTIAL_OPERATIONS: Readonly<Record<string, true>> = {
+  'oauth.token.exchange': true,
+  'provider.oauth.token.exchange': true,
+  'oauth.token.refresh': true,
+  'provider.oauth.token.refresh': true,
+  'oauth.revoke': true,
+  'provider.oauth.revoke': true,
+}
+const OAUTH_EXCHANGE_OPERATIONS: Readonly<Record<string, true>> = {
+  'oauth.token.exchange': true,
+  'provider.oauth.token.exchange': true,
+}
+const REPLY_PUBLICATION_OPERATIONS: Readonly<Record<string, true>> = {
+  'reply.publish': true,
+  'provider.reviews.reply': true,
+}
+
+/**
+ * Whether static capability configuration and the live Google execution
+ * control authorize this scope. Property ownership remains a request-time
+ * database fact; no persisted capability snapshot participates.
+ */
+async function policyAuthorizes(
+  tx: Database,
+  capability: GoogleContentCapability,
+  organizationId: string,
+  propertyId: string | null,
+): Promise<Readonly<{ version: number; emergencyKillVersion: number }> | null> {
+  const configured = checkScopedCapability(
+    {
+      organizationId,
+      ...(propertyId ? { propertyId } : {}),
+    },
+    capability,
+  )
+  if (!configured.allowed) return null
+
+  const result = await tx.execute(sql`
+    SELECT control.emergency_kill_version
+    FROM capability_execution_control control
+    WHERE control.capability = ${capability}::google_content_capability
+      AND control.denied = false
+      AND (
+        ${propertyId}::uuid IS NULL
+        OR EXISTS (
+          SELECT 1 FROM properties property
+          WHERE property.id = ${propertyId}::uuid
+            AND property.organization_id = ${organizationId}
+            AND property.deleted_at IS NULL
+        )
+      )
+    LIMIT 1
+  `)
+  const row = result.rows[0] as { emergency_kill_version: number | string } | undefined
+  return row
+    ? {
+        version: POLICY_VERSION,
+        emergencyKillVersion: Number(row.emergency_kill_version),
+      }
+    : null
+}
+
+/**
+ * Which of the three mutually exclusive principal shapes the request takes, plus
+ * the two OAuth-credential flags derived from the capability/operation pair.
+ */
+type RequestShape = Readonly<{
+  systemReviewSync: boolean
+  systemReplyPublication: boolean
+  oauthCredentialOperation: boolean
+  oauthExchangeOperation: boolean
+}>
+
+const classifyRequest = (input: AuthorizationInput): RequestShape => {
+  const oauthCredentialOperation =
+    input.capability === 'property.import_gbp_v2' &&
+    OAUTH_CREDENTIAL_OPERATIONS[input.operationKey] === true
+  return {
+    systemReviewSync: input.capability === 'property.connect_gbp',
+    systemReplyPublication: input.capability === 'property.publish_reply',
+    oauthCredentialOperation,
+    oauthExchangeOperation:
+      oauthCredentialOperation && OAUTH_EXCHANGE_OPERATIONS[input.operationKey] === true,
+  }
+}
+
+const resolveReviewSyncPrincipal = (input: AuthorizationInput): VectorStage => {
+  const reviewOperation = REVIEW_SYNC_SYSTEM_OPERATIONS[input.operationKey] === true
+  const notificationOperation =
+    NOTIFICATION_SYSTEM_OPERATIONS[input.operationKey] === true
+  if (
+    input.scope.initiatorUserId !== null ||
+    input.scope.propertyId === null ||
+    (!reviewOperation && !notificationOperation)
+  ) {
+    return deny()
+  }
+  return stageVector(
+    Object.freeze({
+      ...googleSystemAuthorizationVector(
+        notificationOperation
+          ? GOOGLE_NOTIFICATION_SYSTEM_PRINCIPAL
+          : GOOGLE_REVIEW_SYNC_SYSTEM_PRINCIPAL,
+        notificationOperation
+          ? GOOGLE_NOTIFICATION_SYSTEM_PERMISSION_DIGEST
+          : GOOGLE_REVIEW_SYNC_SYSTEM_PERMISSION_DIGEST,
+      ),
+    }),
+  )
+}
+
+const isWellFormedPublicationScope = (
+  publication: NonNullable<GoogleContentAuthorizationScope['publication']>,
+): boolean =>
+  UUID_PATTERN.test(publication.reviewId) &&
+  UUID_PATTERN.test(publication.replyId) &&
+  isCountFrom(publication.publicationCycle, 1) &&
+  isCountFrom(publication.attemptNumber, 1) &&
+  isCountFrom(publication.sourceEpoch, 0) &&
+  isCountFrom(publication.materialReviewRevision, 1)
+
+const resolveReplyPublicationPrincipal = (input: AuthorizationInput): VectorStage => {
+  const publication = input.scope.publication
+  if (
+    input.scope.initiatorUserId !== null ||
+    input.scope.propertyId === null ||
+    REPLY_PUBLICATION_OPERATIONS[input.operationKey] !== true ||
+    !publication ||
+    !isWellFormedPublicationScope(publication)
+  ) {
+    return deny()
+  }
+  return stageVector(
+    Object.freeze({
+      ...googleSystemAuthorizationVector(
+        GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
+        GOOGLE_REPLY_PUBLICATION_SYSTEM_PERMISSION_DIGEST,
+      ),
+    }),
+  )
+}
+
+const resolveUserPrincipal = async (
+  tx: Database,
+  input: AuthorizationInput,
+  deps: GoogleContentAuthorizationCheckDeps,
+  oauthCredentialOperation: boolean,
+): Promise<VectorStage> => {
+  if (!input.scope.initiatorUserId) return deny()
+  if (
+    input.capability === 'property.read_gbp_performance' &&
+    input.scope.propertyId === null
+  ) {
+    return deny()
+  }
+
+  const memberResult = await tx.execute(sql`
+    SELECT member.role, permission.version AS permission_version
+    FROM member
+    JOIN permission_version AS permission
+      ON permission.organization_id = member."organizationId"
+    WHERE member."organizationId" = ${input.scope.organizationId}
+      AND member."userId" = ${input.scope.initiatorUserId}
+    LIMIT 1
+  `)
+  const member = memberResult.rows[0] as
+    { role: string; permission_version: number | string } | undefined
+  if (!member) return deny()
+  const permissionVersion = Number(member.permission_version)
+  if (!isCountFrom(permissionVersion, 0)) {
+    return deny('authorization_unavailable')
+  }
+
+  let actor
+  try {
+    actor = (
+      await resolveMemberAuthContextWithDatabase(tx, {
+        memberRole: member.role,
+        organizationId: input.scope.organizationId,
+        userId: input.scope.initiatorUserId,
+      })
+    ).context
+  } catch {
+    return deny('authorization_unavailable')
+  }
+  const permission = oauthCredentialOperation
+    ? ('integration.manage' as const)
+    : (input.capability as Permission)
+  if (!canForContext(actor, permission)) return deny()
+  const scope = scopeForPermission(actor, permission)
+  if (scope === 'none') return deny()
+  if (input.capability === 'property.import_gbp_v2' && scope !== 'organization') {
+    return deny()
+  }
+  if (scope === 'assigned-properties' && input.scope.propertyId) {
+    const hasGrant = await deps.hasActivePropertyGrant(tx, {
+      organizationId: input.scope.organizationId,
+      propertyId: input.scope.propertyId,
+      userId: input.scope.initiatorUserId,
+      at: deps.clock(),
+    })
+    if (!hasGrant) return deny()
+  }
+  return stageVector(
+    Object.freeze(googleUserAuthorizationVector(actor, permissionVersion)),
+  )
+}
+
+const resolvePrincipalVector = (
+  tx: Database,
+  input: AuthorizationInput,
+  deps: GoogleContentAuthorizationCheckDeps,
+  shape: RequestShape,
+): VectorStage | Promise<VectorStage> => {
+  if (shape.systemReviewSync) return resolveReviewSyncPrincipal(input)
+  if (shape.systemReplyPublication) return resolveReplyPublicationPrincipal(input)
+  return resolveUserPrincipal(tx, input, deps, shape.oauthCredentialOperation)
+}
+
+type ConnectionRow = Readonly<{
+  lifecycle_version: number
+  access_version: number
+  credential_generation: number
+  status?: string
+  credential_use_state?: string
+}>
+
+const loadConnection = async (
+  tx: Database,
+  input: AuthorizationInput,
+  oauthExchangeOperation: boolean,
+): Promise<ConnectionRow | undefined> => {
+  const connectionResult = await tx.execute(
+    oauthExchangeOperation
+      ? sql`
+          SELECT lifecycle_version, access_version, credential_generation,
+                 status, credential_use_state
+          FROM google_connections
+          WHERE id = ${input.scope.connectionId}::uuid
+            AND organization_id = ${input.scope.organizationId}
+            AND status IN ('active', 'degraded', 'reauth_required', 'disconnected')
+            AND credential_use_state IN ('active', 'none')
+          LIMIT 1
+        `
+      : sql`
+          SELECT lifecycle_version, access_version, credential_generation
+          FROM google_connections
+          WHERE id = ${input.scope.connectionId}::uuid
+            AND organization_id = ${input.scope.organizationId}
+            AND status = 'active'
+            AND credential_use_state = 'active'
+          LIMIT 1
+        `,
+  )
+  return connectionResult.rows[0] as ConnectionRow | undefined
+}
+
+const resolveOauthExchangeVector = (
+  connection: ConnectionRow | undefined,
+): VectorStage => {
+  if (!connection) {
+    return stageVector(
+      Object.freeze({
+        oauthCredentialOperation: 'exchange_new',
+        connectionLifecycleVersion: 0,
+        connectionAccessVersion: 0,
+        credentialGeneration: 0,
+      }),
+    )
+  }
+  return stageVector(
+    Object.freeze({
+      oauthCredentialOperation: 'exchange_existing',
+      connectionStatus: connection.status ?? null,
+      credentialUseState: connection.credential_use_state ?? null,
+    }),
+  )
+}
+
+const resolveOauthVector = (
+  oauthExchangeOperation: boolean,
+  connection: ConnectionRow | undefined,
+): VectorStage => {
+  if (oauthExchangeOperation) return resolveOauthExchangeVector(connection)
+  return connection ? EMPTY_VECTOR_STAGE : deny()
+}
+
+const connectionVersionVector = (
+  connection: ConnectionRow | undefined,
+): GoogleContentAuthorizationVector => ({
+  ...googleConnectionAuthorizationVector({
+    lifecycleVersion: connection ? Number(connection.lifecycle_version) : 0,
+    accessVersion: connection ? Number(connection.access_version) : 0,
+    credentialGeneration: connection ? Number(connection.credential_generation) : 0,
+  }),
+})
+
+const resolvePropertyVector = async (
+  tx: Database,
+  input: AuthorizationInput,
+): Promise<VectorStage> => {
+  const propertyResult = await tx.execute(sql`
+    SELECT
+      source_epoch,
+      profile_version,
+      google_binding_state,
+      lifecycle_state,
+      profile_source,
+      profile_confirmed_at
+    FROM properties
+    WHERE id = ${input.scope.propertyId}::uuid
+      AND organization_id = ${input.scope.organizationId}
+      AND google_connection_id = ${input.scope.connectionId}::uuid
+      AND gbp_location_id IS NOT NULL
+      AND deleted_at IS NULL
+      AND lifecycle_state = 'active'
+      AND google_binding_state = 'active'
+    LIMIT 1
+  `)
+  const property = propertyResult.rows[0] as
+    | {
+        source_epoch: number
+        profile_version: number
+        google_binding_state: string
+        lifecycle_state: string
+        profile_source: string
+        profile_confirmed_at: Date | string | null
+      }
+    | undefined
+  if (
+    !property ||
+    (input.capability === 'property.read_gbp_performance' &&
+      (property.profile_source !== 'tenant_confirmed' ||
+        property.profile_confirmed_at === null))
+  ) {
+    return deny()
+  }
+  return stageVector(
+    Object.freeze({
+      ...googlePropertyAuthorizationVector({
+        sourceEpoch: Number(property.source_epoch),
+        profileVersion: Number(property.profile_version),
+        state: property.google_binding_state,
+        lifecycleState: property.lifecycle_state,
+        profileSource: property.profile_source,
+        profileConfirmedAt: property.profile_confirmed_at,
+      }),
+    }),
+  )
+}
+
+type PublicationRow = Readonly<{
+  reply_state_revision: number | string
+  base_observation_revision: number | string
+  expected_reply_digest: string
+  authorized_by_user_id: string
+  confirming_member_role: string
+  confirming_permission_version: number | string
+}>
+
+/**
+ * The exact `sending` attempt a reply permit may be admitted for, share-locked
+ * until the permit issuer's transaction commits (google-execution-permit-issuer.ts
+ * inserts the permit in that same transaction).
+ *
+ * Why the lock: Review settles an attempt as never sent after reading that no
+ * `reviews.reply` permit exists (reply-command-store.ts
+ * settleNeverDispatchedAttempt). `start_google_execution_permit` locks only the
+ * permit row, so without this a permit admitted between that read and the
+ * settle commit could still start and reach Google, and the reply would then be
+ * offered for a second post. The settle locks this same row and re-reads the
+ * permits: either it waits here and sees the committed permit, or this statement
+ * waits for the settle and, re-checking the new row version under READ
+ * COMMITTED, finds the attempt no longer `sending` and denies. Only the attempt
+ * row is locked, never the Reply, so the lock order (Reply, then attempt) that
+ * every Review publication write uses cannot deadlock against it.
+ */
+const loadPublicationAttempt = async (
+  tx: Database,
+  input: AuthorizationInput,
+  publication: NonNullable<GoogleContentAuthorizationScope['publication']>,
+): Promise<PublicationRow | undefined> => {
+  const publicationResult = await tx.execute(sql`
+    SELECT
+      attempt.reply_state_revision,
+      attempt.base_observation_revision,
+      attempt.expected_reply_digest,
+      publication_authorization.authorized_by_user_id,
+      confirming_member.role AS confirming_member_role,
+      confirming_permission.version AS confirming_permission_version
+    FROM reply_publication_attempts AS attempt
+    INNER JOIN reply_publication_authorizations AS publication_authorization
+      ON publication_authorization.organization_id = attempt.organization_id
+     AND publication_authorization.property_id = attempt.property_id
+     AND publication_authorization.review_id = attempt.review_id
+     AND publication_authorization.reply_id = attempt.reply_id
+     AND publication_authorization.publication_cycle = attempt.publication_cycle
+     AND publication_authorization.source_epoch = attempt.source_epoch
+     AND publication_authorization.material_review_revision = attempt.material_review_revision
+     AND publication_authorization.reply_state_revision = attempt.reply_state_revision
+     AND publication_authorization.normalization_version = attempt.normalization_version
+     AND publication_authorization.expected_reply_digest = attempt.expected_reply_digest
+    INNER JOIN replies AS reply
+      ON reply.organization_id = attempt.organization_id
+     AND reply.review_id = attempt.review_id
+     AND reply.id = attempt.reply_id
+    INNER JOIN reviews AS review
+      ON review.organization_id = attempt.organization_id
+     AND review.property_id = attempt.property_id
+     AND review.id = attempt.review_id
+    INNER JOIN member AS confirming_member
+      ON confirming_member."organizationId" = publication_authorization.organization_id
+     AND confirming_member."userId" = publication_authorization.authorized_by_user_id
+    INNER JOIN permission_version AS confirming_permission
+      ON confirming_permission.organization_id = publication_authorization.organization_id
+    WHERE attempt.organization_id = ${input.scope.organizationId}
+      AND attempt.property_id = ${input.scope.propertyId}::uuid
+      AND attempt.review_id = ${publication.reviewId}::uuid
+      AND attempt.reply_id = ${publication.replyId}::uuid
+      AND attempt.publication_cycle = ${publication.publicationCycle}
+      AND attempt.attempt_number = ${publication.attemptNumber}
+      AND attempt.source_epoch = ${publication.sourceEpoch}
+      AND attempt.material_review_revision = ${publication.materialReviewRevision}
+      AND attempt.outcome = 'sending'
+      AND reply.status = 'approved'
+      AND reply.publication_state = 'sending'
+      AND reply.publication_cycle = attempt.publication_cycle
+      AND reply.publication_attempts = attempt.attempt_number
+      AND EXISTS (SELECT 1 FROM review_source_contents AS content
+        WHERE content.review_id = review.id
+          AND content.organization_id = review.organization_id
+          AND content.property_id = review.property_id
+          AND content.google_connection_id = ${input.scope.connectionId}::uuid)
+      AND review.source_content_state = 'active'
+      AND review.source_epoch = attempt.source_epoch
+      AND review.source_revision = attempt.material_review_revision
+    LIMIT 1
+    FOR SHARE OF attempt
+  `)
+  return publicationResult.rows[0] as PublicationRow | undefined
+}
+
+const resolvePublicationVector = async (
+  tx: Database,
+  input: AuthorizationInput,
+  deps: GoogleContentAuthorizationCheckDeps,
+): Promise<VectorStage> => {
+  const publication = input.scope.publication!
+  const publicationRow = await loadPublicationAttempt(tx, input, publication)
+  if (!publicationRow) return deny()
+  const permissionVersion = Number(publicationRow.confirming_permission_version)
+  const replyStateRevision = Number(publicationRow.reply_state_revision)
+  const baseObservationRevision = Number(publicationRow.base_observation_revision)
+  if (
+    !isCountFrom(permissionVersion, 0) ||
+    !isCountFrom(replyStateRevision, 1) ||
+    !isCountFrom(baseObservationRevision, 0) ||
+    !SHA256_PATTERN.test(publicationRow.expected_reply_digest)
+  ) {
+    return deny('authorization_unavailable')
+  }
+
+  let confirmingActor
+  try {
+    confirmingActor = (
+      await resolveMemberAuthContextWithDatabase(tx, {
+        memberRole: publicationRow.confirming_member_role,
+        organizationId: input.scope.organizationId,
+        userId: publicationRow.authorized_by_user_id,
+      })
+    ).context
+  } catch {
+    return deny('authorization_unavailable')
+  }
+  if (!canForContext(confirmingActor, 'reply.manage')) {
+    return deny()
+  }
+  const confirmingScope = scopeForPermission(confirmingActor, 'reply.manage')
+  if (confirmingScope === 'none') return deny()
+  if (
+    confirmingScope === 'assigned-properties' &&
+    !(await deps.hasActivePropertyGrant(tx, {
+      organizationId: input.scope.organizationId,
+      propertyId: input.scope.propertyId!,
+      userId: publicationRow.authorized_by_user_id,
+      at: deps.clock(),
+    }))
+  ) {
+    return deny()
+  }
+  return stageVector(
+    Object.freeze({
+      confirmingActorUserId: publicationRow.authorized_by_user_id,
+      confirmingActorRole: confirmingActor.role,
+      confirmingActorPermissionVersion: permissionVersion,
+      reviewId: publication.reviewId,
+      replyId: publication.replyId,
+      publicationCycle: publication.publicationCycle,
+      publicationAttemptNumber: publication.attemptNumber,
+      materialReviewRevision: publication.materialReviewRevision,
+      replyStateRevision,
+      baseObservationRevision,
+      expectedReplyDigest: publicationRow.expected_reply_digest,
+    }),
+  )
+}
+
+export const createGoogleContentAuthorizationCheck = (
+  deps: GoogleContentAuthorizationCheckDeps,
+): GoogleContentAuthorizationCheck<Database> => {
+  return async (tx, input) => {
+    if (!input.scope.connectionId) return deny()
+
+    const shape = classifyRequest(input)
+    if (shape.oauthCredentialOperation && input.scope.propertyId !== null) return deny()
+
+    const principal = await resolvePrincipalVector(tx, input, deps, shape)
+    if (!principal.allowed) return principal
+
+    const policy = await policyAuthorizes(
+      tx,
+      input.capability,
+      input.scope.organizationId,
+      input.scope.propertyId,
+    )
+    if (!policy) return deny()
+
+    const connection = await loadConnection(tx, input, shape.oauthExchangeOperation)
+    const oauth = resolveOauthVector(shape.oauthExchangeOperation, connection)
+    if (!oauth.allowed) return oauth
+
+    const property =
+      input.scope.propertyId === null
+        ? EMPTY_VECTOR_STAGE
+        : await resolvePropertyVector(tx, input)
+    if (!property.allowed) return property
+
+    const publicationStage = shape.systemReplyPublication
+      ? await resolvePublicationVector(tx, input, deps)
+      : EMPTY_VECTOR_STAGE
+    if (!publicationStage.allowed) return publicationStage
+
+    const decision = {
+      allowed: true as const,
+      vector: {
+        ...principal.value,
+        ...connectionVersionVector(connection),
+        ...oauth.value,
+        ...property.value,
+        ...publicationStage.value,
+      },
+    }
+    if (hasGoogleProviderRequestBindingKeys(decision.vector)) return deny()
+    return decision
+  }
+}

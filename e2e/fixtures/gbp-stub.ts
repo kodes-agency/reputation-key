@@ -1,8 +1,8 @@
 // BQC-6.5 — deterministic GBP (Google Business Profile) stub server.
 //
 // A small dependency-free node:http server that serves the EXACT HTTP surface
-// the app's real adapters call (google-review-api.adapter.ts, gbp-api.adapter.ts,
-// google-oauth.adapter.ts, mybusiness-notifications.adapter.ts). The app runs
+// the app's real adapters call (google-review-api.adapter.server.ts, gbp-api.adapter.ts,
+// google-oauth.adapter.server.ts, mybusiness-notifications.adapter.server.ts). The app runs
 // its production adapters against this stub through the BQC-6.5 operator
 // sandbox seam (GBP_API_BASE_URL & friends, see composition.ts
 // applyProviderEndpointOverrides) — no fake adapters are injected anywhere.

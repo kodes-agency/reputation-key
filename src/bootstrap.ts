@@ -24,20 +24,20 @@ import { createRedisAlertStateStore } from '#/shared/health/alert-state'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { readAllQueueDepths } from '#/shared/health/queue-depth'
 import { isCapabilityJobEnabled, type Capability } from '#/shared/auth/beta-capabilities'
-import { createGoogleImportItemJobHandler } from '#/contexts/integration/infrastructure/jobs/import-gbp-property-item.job'
+import { createGoogleImportItemJobHandler } from '#/contexts/integration/imports/import-gbp-property-item-job.server'
 import {
   createRetiredImportItemHandler,
   RETIRED_IMPORT_ITEM_JOB,
-} from '#/contexts/integration/infrastructure/jobs/retired-import-item.job'
+} from '#/contexts/integration/imports/retired-import-item-job.server'
 import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '#/contexts/integration/application/google-import-contract'
 import {
   createGoogleImportClaimReaperHandler,
   JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB,
-} from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
+} from '#/contexts/integration/imports/google-import-claim-reaper-job.server'
 import {
   createReconcileGbpNotificationSubscriptionsHandler,
   JOB_NAME as RECONCILE_GBP_NOTIFICATION_SUBSCRIPTIONS_JOB,
-} from '#/contexts/integration/infrastructure/jobs/reconcile-gbp-notification-subscriptions.job'
+} from '#/contexts/integration/connections/reconcile-gbp-notification-subscriptions-job.server'
 import {
   createRecoverInvitedRegistrationsHandler,
   JOB_NAME as RECOVER_INVITED_REGISTRATIONS_JOB,
@@ -271,7 +271,7 @@ export async function bootstrap(
       async (job) => {
         await importV2Handler(
           job as import('bullmq').Job<
-            import('#/contexts/integration/application/ports/gbp-queue.port').GoogleImportItemJobData
+            import('#/contexts/integration/imports/google-import-queue.port.server').GoogleImportItemJobData
           >,
         )
       },

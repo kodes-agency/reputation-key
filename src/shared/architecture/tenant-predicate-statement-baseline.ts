@@ -38,7 +38,7 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/inbox/infrastructure/inbox-escalation-history.ts#readInboxEscalationHistory': 1,
   'src/contexts/reputation/inbox/response-targets/store.server.ts#cancelResponseTargetForCycle': 1,
   'src/contexts/reputation/inbox/response-targets/store.server.ts#stopPrivateFeedbackTarget': 1,
-  'src/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository.ts#acquireDispatch': 1,
+  'src/contexts/integration/connections/google-disconnect-revoke-repository.server.ts#acquireDispatch': 1,
   'src/contexts/portal/publication/portal-command-store.server.ts#applyPortalHealthMutation': 2,
   'src/contexts/portal/infrastructure/portal-health-reconciliation-store.ts#reconcile': 2,
   'src/contexts/portal/infrastructure/portal-page-edits.ts#foldIntoOpenRow': 1,

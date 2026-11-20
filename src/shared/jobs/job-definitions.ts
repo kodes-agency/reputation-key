@@ -103,7 +103,7 @@ function defineJob(
 export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   defineJob(
     'import-gbp-property-item',
-    'src/contexts/integration/infrastructure/jobs/import-gbp-property-item.job.ts',
+    'src/contexts/integration/imports/import-gbp-property-item-job.server.ts',
     {
       queue: 'default',
       capability: 'property.import_gbp_v2',
@@ -118,7 +118,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'import-gbp-property-item-v2',
-    'src/contexts/integration/infrastructure/jobs/retired-import-item.job.ts',
+    'src/contexts/integration/imports/retired-import-item-job.server.ts',
     {
       queue: 'default',
       capability: 'none',
@@ -502,7 +502,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'google-import-claim-reaper',
-    'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
+    'src/contexts/integration/imports/google-import-claim-reaper-job.server.ts',
     {
       queue: 'background',
       capability: 'property.import_gbp_v2',
@@ -515,7 +515,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'reconcile-gbp-notification-subscriptions',
-    'src/contexts/integration/infrastructure/jobs/reconcile-gbp-notification-subscriptions.job.ts',
+    'src/contexts/integration/connections/reconcile-gbp-notification-subscriptions-job.server.ts',
     {
       queue: 'background',
       capability: 'property.connect_gbp',

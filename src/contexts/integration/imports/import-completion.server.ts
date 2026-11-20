@@ -16,7 +16,7 @@ import { lockItemParent, markTerminalParent } from './import-store-helpers.serve
 import type {
   GoogleImportOutcomeDetail,
   GoogleImportTerminalAuthority,
-} from '../application/ports/google-import-store.port'
+} from './import-store.port.server'
 
 export type GoogleImportCompletionDeps = Readonly<{
   readReceipt: PropertyGoogleBindingPublicApi['readReceipt']

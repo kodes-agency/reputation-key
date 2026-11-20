@@ -4,8 +4,8 @@ import { googleImportItems, googleImports } from '#/shared/db/schema/google-impo
 import type {
   GoogleImportClaimedItem,
   GoogleImportStore,
-} from '../application/ports/google-import-store.port'
-import { importItemAdmitsAttempt } from '../application/google-import-item-attempt'
+} from './import-store.port.server'
+import { importItemAdmitsAttempt } from './google-import-item-attempt.server'
 import {
   authorizationFromRow,
   itemScope as googleImportItemScope,

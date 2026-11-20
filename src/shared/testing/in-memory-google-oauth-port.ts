@@ -4,7 +4,7 @@
 import type {
   GoogleOAuthPort,
   GoogleOAuthResult,
-} from '#/contexts/integration/application/ports/google-oauth.port'
+} from '#/contexts/integration/connections/google-oauth.port.server'
 
 export type InMemoryGoogleOAuthPort = GoogleOAuthPort &
   Readonly<{

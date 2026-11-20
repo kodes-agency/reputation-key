@@ -8,32 +8,32 @@ import {
   type GoogleReviewApiPort,
   type TargetedGoogleReviewReferenceResolver,
 } from '#/contexts/review/application/public-api'
-import type { ActiveConnectionTokenProviderDeps } from '../application/active-connection-token-provider'
+import type { ActiveConnectionTokenProviderDeps } from '../connections/active-connection-token-provider.server'
 import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderReauthorize,
   GoogleProviderTokenAccess,
   GoogleRefreshingProviderExecutorFactory,
-} from '../application/ports/google-authorized-provider-executor.port'
-import type { GoogleReviewPushReferenceStore } from '../application/ports/google-review-push-reference.port'
-import { sameAuthorizationVectorExceptCredentialGeneration } from '../application/google-authorization-vector'
-import { createGoogleNotificationProviderAuthorizer } from '../application/google-notification-provider-authorizer'
+} from '../provider/google-client.port.server'
+import type { GoogleReviewPushReferenceStore } from './google-review-push-reference-store.port.server'
+import { sameAuthorizationVectorExceptCredentialGeneration } from '../provider/google-authorization-vector.server'
+import { createGoogleNotificationProviderAuthorizer } from '../connections/google-notification-provider-authorizer.server'
 import {
   createGoogleReplyPublicationAuthorizer,
   createReplyPublicationProviderCall,
   type GoogleReplyPublicationContentAuthorizer,
-} from '../application/google-reply-publication-authorizer'
+} from './google-reply-publication-authorizer.server'
 import {
   createGoogleReviewSyncAuthorizer,
   type GoogleReviewSyncContentAuthorizer,
-} from '../application/google-review-sync-authorizer'
-import { createGoogleReviewApiAdapter } from '../infrastructure/adapters/google-review-api.adapter'
-import { createGoogleReviewPushTargetResolver } from '../infrastructure/adapters/google-review-push-target-resolver.adapter'
+} from './google-review-sync-authorizer.server'
+import { createGoogleReviewApiAdapter } from './google-review-api.adapter.server'
+import { createGoogleReviewPushTargetResolver } from './google-review-push-target-resolver.adapter.server'
 import {
   createGoogleReviewCursorStore,
   createUnavailableGoogleReviewCursorStore,
   type GoogleReviewCursorStore,
-} from '../infrastructure/google-review-cursor-store'
+} from './google-review-cursor-store.server'
 
 export type GoogleReviewSyncRuntimeDeps = Readonly<{
   clock: () => Date

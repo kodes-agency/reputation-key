@@ -29,6 +29,7 @@ const ALLOWED_KIND_SET = new Set<string>(GOOGLE_PERFORMANCE_ALLOWED_DEPENDENCY_K
 export const FORBIDDEN_MODULE_PATHS = [
   /\/contexts\/reporting\//,
   /\/infrastructure\/(?:repositories|jobs|queues|cache)(?:\/|$)/,
+  /\/contexts\/[^/]+\/[^/]+\/[^/]*-(?:repository|job|queue|cache)(?:\.port)?\.server(?:\.ts)?$/,
   /google-performance.*(?:repository|queue|cache|job)/i,
 ] as const
 

@@ -112,7 +112,7 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
       // OAuth SCOPE identifiers (https://www.googleapis.com/auth/...) are
       // permission grant names, and OIDC issuer identifiers are validation
       // contracts: neither is an endpoint an adapter could fall back to.
-      'src/contexts/integration/application/google-provider-contract.ts',
+      'src/contexts/integration/provider/contracts.ts',
       // The egress gateway's frozen route compiler owns the exact approved
       // methods, origins, paths, and queries for every provider route key.
       'src/shared/google-provider-control/route-catalogue.ts',
@@ -159,23 +159,25 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
 })
 
 describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path', () => {
-  const adapterFiles = walkSource(join(SRC, 'contexts'))
-    .filter((f) => rel(f).includes('/infrastructure/adapters/'))
-    .filter((f) => rel(f).startsWith('src/contexts/integration/'))
+  const adapterFiles = walkSource(join(SRC, 'contexts')).filter((f) =>
+    /^src\/contexts\/integration\/(?:connections|imports|performance|provider|review-sync)\/[^/]+\.server\.ts$/u.test(
+      rel(f),
+    ),
+  )
 
   it('finds the integration adapter files (guard is not vacuous)', () => {
     const names = adapterFiles.map(rel)
     expect(names).toContain(
-      'src/contexts/integration/infrastructure/adapters/google-account-management.adapter.ts',
+      'src/contexts/integration/imports/google-account-management.adapter.server.ts',
     )
     expect(names).toContain(
-      'src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts',
+      'src/contexts/integration/review-sync/google-review-api.adapter.server.ts',
     )
     expect(names).toContain(
-      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
+      'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     )
     expect(names).toContain(
-      'src/contexts/integration/infrastructure/adapters/mybusiness-notifications.adapter.ts',
+      'src/contexts/integration/connections/mybusiness-notifications.adapter.server.ts',
     )
   })
 
@@ -218,7 +220,7 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
       .map(rel)
       .sort()
     expect(callers).toEqual([
-      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
+      'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     ])
   })
 })

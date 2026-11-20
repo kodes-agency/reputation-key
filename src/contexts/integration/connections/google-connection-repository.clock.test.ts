@@ -1,0 +1,70 @@
+import { describe, expect, it, vi } from 'vitest'
+import type { Database } from '#/shared/db'
+import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
+import { createGoogleConnectionRepository } from './google-connection-repository.server'
+
+vi.mock('#/shared/observability/trace', () => ({
+  trace: async (_name: string, run: () => Promise<unknown>) => run(),
+}))
+
+const NOW = new Date('2099-01-01T12:34:56.789Z')
+const ORG = organizationId('org-google-clock-authority')
+const CONNECTION = googleConnectionId('91000000-0000-4000-8000-000000000001')
+const ACTOR = userId('user-google-clock-authority')
+
+function mutationDatabase(updateSets: Array<Record<string, unknown>>): Database {
+  return {
+    update: vi.fn(() => ({
+      set: (values: Record<string, unknown>) => {
+        updateSets.push(values)
+        const whereResult = Object.assign(Promise.resolve([]), {
+          returning: async () => [{ id: CONNECTION }],
+        })
+        return { where: () => whereResult }
+      },
+    })),
+  } as unknown as Database
+}
+
+describe('Google connection repository time authority', () => {
+  it('uses exactly one injected timestamp for each retained mutation path', async () => {
+    const updateSets: Array<Record<string, unknown>> = []
+    const clock = vi.fn(() => NOW)
+    const repository = createGoogleConnectionRepository(
+      mutationDatabase(updateSets),
+      clock,
+    )
+    const expiresAt = new Date('2099-01-01T13:00:00.000Z')
+
+    await repository.updateTokens(
+      ORG,
+      CONNECTION,
+      { lifecycleVersion: 1, credentialGeneration: 1 },
+      'access-2',
+      'refresh-2',
+      expiresAt,
+    )
+    await repository.updateStatus(ORG, CONNECTION, 'degraded')
+    await repository.redactForDisconnect(ORG, CONNECTION)
+    await repository.updateVisibility(ORG, CONNECTION, 'organization')
+    await repository.updateReconnection(
+      ORG,
+      CONNECTION,
+      'subject-2',
+      'access-4',
+      'refresh-4',
+      expiresAt,
+      'organization',
+      ['scope-a'],
+      ACTOR,
+      new Date('2099-01-01T12:30:00.000Z'),
+      'owner@example.com',
+    )
+
+    expect(clock).toHaveBeenCalledTimes(5)
+    expect(updateSets).toHaveLength(5)
+    for (const values of updateSets) {
+      expect(values.updatedAt).toBe(NOW)
+    }
+  })
+})

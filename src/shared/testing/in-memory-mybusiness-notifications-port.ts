@@ -9,7 +9,7 @@ import type {
   MyBusinessNotificationsPort,
   SubscribeInput,
   UnsubscribeInput,
-} from '#/contexts/integration/application/ports/mybusiness-notifications.port'
+} from '#/contexts/integration/connections/mybusiness-notifications.port.server'
 
 type Setting = Readonly<{ pubsubTopic: string; notificationTypes: readonly string[] }>
 

@@ -49,9 +49,8 @@ const FORMAT_OWNERS = [
     'src',
     'contexts',
     'integration',
-    'infrastructure',
-    'adapters',
-    'token-encryption.adapter.ts',
+    'connections',
+    'token-encryption.adapter.server.ts',
   ),
   join(
     'src',

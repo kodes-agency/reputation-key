@@ -4,7 +4,7 @@
 
 import { getRequestHeaders, setResponseHeader } from '@tanstack/react-start/server'
 import { describe, expect, it } from 'vitest'
-import { createTokenEncryptionAdapter } from '#/contexts/integration/infrastructure/adapters/token-encryption.adapter'
+import { createTokenEncryptionAdapter } from '#/contexts/integration/connections/token-encryption.adapter.server'
 import { getAuth } from '#/shared/auth/auth'
 import { getEnv } from '#/shared/config/env'
 import { setupServerFunctionHarness } from './server-function-harness'

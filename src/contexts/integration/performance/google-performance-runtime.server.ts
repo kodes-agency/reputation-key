@@ -7,20 +7,20 @@ import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/applica
 import {
   createActiveConnectionTokenProvider,
   type ActiveConnectionTokenProviderDeps,
-} from '../application/active-connection-token-provider'
-import { sameAuthorizationVectorExceptCredentialGeneration } from '../application/google-authorization-vector'
+} from '../connections/active-connection-token-provider.server'
+import { sameAuthorizationVectorExceptCredentialGeneration } from '../provider/google-authorization-vector.server'
 import {
   createGooglePerformanceAuthorizer,
   type PerformanceContentAuthorizer,
-} from '../application/google-performance-authorizer'
-import { createGetPropertyGooglePerformance } from '../application/get-property-google-performance'
-import { createRenewGooglePerformanceLease } from '../application/renew-google-performance-lease'
-import { createGooglePerformanceAdapter } from '../infrastructure/adapters/google-performance.adapter'
-import type { ActiveMemberAuthResolver } from '../infrastructure/active-member-auth.adapter'
+} from './google-performance-authorizer.server'
+import { createGetPropertyGooglePerformance } from './get-property-google-performance.server'
+import { createRenewGooglePerformanceLease } from './renew-google-performance-lease.server'
+import { createGooglePerformanceAdapter } from './google-performance.adapter.server'
+import type { ActiveMemberAuthResolver } from '../provider/active-member-auth.adapter.server'
 import type {
   GoogleAuthorizedProviderExecutor,
   GoogleRefreshingProviderExecutorFactory,
-} from '../application/ports/google-authorized-provider-executor.port'
+} from '../provider/google-client.port.server'
 
 /**
  * ADR 0050 §10: the live Google Performance path may not depend on a write
@@ -48,15 +48,16 @@ export const GOOGLE_PERFORMANCE_LIVE_DEPENDENCY_DESCRIPTORS: readonly GooglePerf
     Object.freeze({
       injectedAs: 'authorize',
       kind: 'execution_policy',
-      modulePath: '#/contexts/integration/application/google-performance-authorizer',
+      modulePath:
+        '#/contexts/integration/performance/google-performance-authorizer.server',
     }),
-    // Request-lifetime provider read adapter. It is under infrastructure/ but is
-    // an adapter, not a repositories/jobs/queues/cache module.
+    // Request-lifetime provider read adapter. It is an adapter
+    // (google-performance.adapter.server.ts), not a repository/job/queue/cache
+    // module.
     Object.freeze({
       injectedAs: 'fetchReport',
       kind: 'google_performance_source',
-      modulePath:
-        '#/contexts/integration/infrastructure/adapters/google-performance.adapter',
+      modulePath: '#/contexts/integration/performance/google-performance.adapter.server',
     }),
     Object.freeze({
       injectedAs: 'issueLease',

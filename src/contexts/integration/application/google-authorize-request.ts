@@ -1,7 +1,7 @@
 // Integration context — the one Google authorize request, shared by the connect
 // flow and the deploy preflight that asks Google whether it would accept it.
 
-import { GOOGLE_BUSINESS_MANAGE_SCOPE } from './google-provider-contract'
+import { GOOGLE_BUSINESS_MANAGE_SCOPE } from '../provider/contracts'
 
 /**
  * The route Google redirects back to. The OAuth client in Google Cloud must

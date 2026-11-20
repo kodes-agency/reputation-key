@@ -1,0 +1,103 @@
+// Integration context — google connection repository port
+// Per architecture: "Ports are TypeScript types defining capability contracts."
+// Every method takes organizationId as the first parameter (tenant isolation).
+
+import type {
+  GoogleConnection,
+  GoogleConnectionId,
+  GoogleConnectionVisibility,
+  GoogleConnectionStatus,
+} from '../domain/types'
+import type { OrganizationId, UserId } from '#/shared/domain/ids'
+
+/** Tagged error thrown when a unique-constraint violation occurs on insert. */
+export type UniqueViolationError = Readonly<{
+  _tag: 'UniqueViolationError'
+  code: 'unique_violation'
+  message: string
+}>
+
+export const uniqueViolationError = (message: string): UniqueViolationError => ({
+  _tag: 'UniqueViolationError',
+  code: 'unique_violation',
+  message,
+})
+
+export const isUniqueViolationError = (e: unknown): e is UniqueViolationError =>
+  typeof e === 'object' &&
+  e !== null &&
+  (e as UniqueViolationError)._tag === 'UniqueViolationError'
+
+/** Pre-computed visibility filter — the use case decides this, not the repo. */
+export type ConnectionVisibilityFilter = Readonly<
+  { showAll: true } | { showAll: false; userId: UserId }
+>
+export type GoogleConnectionIdentityLookup = Readonly<{
+  googleSubject: string
+}>
+
+export type GoogleConnectionRepository = Readonly<{
+  findById: (
+    orgId: OrganizationId,
+    id: GoogleConnectionId,
+  ) => Promise<GoogleConnection | null>
+  findByGoogleIdentity: (
+    orgId: OrganizationId,
+    identity: GoogleConnectionIdentityLookup,
+  ) => Promise<GoogleConnection | null>
+  // Global lookup enforces the one-provider-identity/one-org invariant.
+  findByGoogleIdentityGlobal: (
+    identity: GoogleConnectionIdentityLookup,
+  ) => Promise<GoogleConnection | null>
+  listByOrganization: (
+    orgId: OrganizationId,
+    filter: ConnectionVisibilityFilter,
+  ) => Promise<ReadonlyArray<GoogleConnection>>
+  /**
+   * Tenant-cross, identifiers only: every organization holding an `active`
+   * connection (the only status that can call Google), once each. The
+   * enumeration boundary of the daily GBP push reconciliation, which
+   * re-authorizes each organization before any work.
+   */
+  listOrganizationIdsWithActiveConnections: () => Promise<ReadonlyArray<OrganizationId>>
+  insert: (connection: GoogleConnection) => Promise<void>
+  updateStatus: (
+    orgId: OrganizationId,
+    id: GoogleConnectionId,
+    status: GoogleConnectionStatus,
+  ) => Promise<void>
+  /**
+   * Remove provider identifiers and secret material on disconnect. The row
+   * remains as a content-free lifecycle fact.
+   */
+  redactForDisconnect: (orgId: OrganizationId, id: GoogleConnectionId) => Promise<void>
+  updateVisibility: (
+    orgId: OrganizationId,
+    id: GoogleConnectionId,
+    visibility: GoogleConnectionVisibility,
+  ) => Promise<void>
+  updateTokens: (
+    orgId: OrganizationId,
+    id: GoogleConnectionId,
+    expected: Readonly<{
+      lifecycleVersion: number
+      credentialGeneration: number
+    }>,
+    encryptedAccessToken: string,
+    encryptedRefreshToken: string,
+    tokenExpiresAt: Date,
+  ) => Promise<boolean>
+  updateReconnection: (
+    orgId: OrganizationId,
+    id: GoogleConnectionId,
+    googleSubject: string,
+    encryptedAccessToken: string,
+    encryptedRefreshToken: string,
+    tokenExpiresAt: Date,
+    visibility: GoogleConnectionVisibility,
+    scopes: ReadonlyArray<string>,
+    credentialAuthorizedBy: UserId,
+    credentialAuthorizedAt: Date,
+    googleAccountEmail: string | null,
+  ) => Promise<void>
+}>

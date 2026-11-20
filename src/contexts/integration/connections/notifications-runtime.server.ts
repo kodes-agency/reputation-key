@@ -9,11 +9,11 @@ import type {
   GoogleProviderReauthorize,
   GoogleProviderTokenAccess,
   GoogleRefreshingProviderExecutorFactory,
-} from '../application/ports/google-authorized-provider-executor.port'
-import type { ActiveConnectionTokenProviderDeps } from '../application/active-connection-token-provider'
-import { parseGbpNotificationSubscriptionConfig } from '../application/notification-subscription-config'
-import { createMyBusinessNotificationsAdapter } from '../infrastructure/adapters/mybusiness-notifications.adapter'
-import { createGoogleNotificationRuntime } from '../infrastructure/google-notification-runtime'
+} from '../provider/google-client.port.server'
+import type { ActiveConnectionTokenProviderDeps } from './active-connection-token-provider.server'
+import { parseGbpNotificationSubscriptionConfig } from './notification-subscription-config.server'
+import { createMyBusinessNotificationsAdapter } from './mybusiness-notifications.adapter.server'
+import { createGoogleNotificationRuntime } from './google-notification-runtime.server'
 
 type NotificationAuthority = Readonly<{
   authorizeProviderCall: Parameters<

@@ -145,7 +145,7 @@ function withoutExcludedKeys(vector: AuthorizationVector): AuthorizationVector {
  * Same shape of bug, different counter. `credentialGeneration` is the SECRET
  * MATERIAL generation: `updateTokens` bumps it — and only it — on a routine
  * expired-access-token refresh
- * (`google-connection.repository.ts`, `credential_generation + 1`), while the
+ * (`google-connection-repository.server.ts`, `credential_generation + 1`), while the
  * revocation epochs `lifecycleVersion` and `accessVersion` stay put. Only
  * disconnect, reconnect and status transitions move those.
  *
@@ -155,7 +155,7 @@ function withoutExcludedKeys(vector: AuthorizationVector): AuthorizationVector {
  * project already made exactly this exclusion for the same reason on the
  * performance path: the lease fence digest deliberately omits
  * `credentialGeneration` ("a routine token refresh moves the credential
- * generation only", `get-property-google-performance.ts`), pinned by
+ * generation only", `get-property-google-performance.server.ts`), pinned by
  * `authorization-lease.test.ts` ("renews across a routine credential-generation
  * bump").
  *

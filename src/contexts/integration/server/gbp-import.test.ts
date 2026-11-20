@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ExecutionPolicyModule from '#/shared/auth/execution-policy'
 import type * as LoggerModule from '#/shared/observability/logger'
-import { GoogleImportTransactionError } from '../application/google-import-transaction'
+import { GoogleImportTransactionError } from '../imports/google-import-transaction.server'
 
 /** The standard-schema surface consumed by TanStack Start's server-function builder. */
 type StandardValidator = Readonly<{

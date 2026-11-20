@@ -75,7 +75,7 @@ release. The stored enum contracts keep their `google_import_v2_*` names.
 
 The worker job is `import-gbp-property-item`. Deliveries still queued under
 `import-gbp-property-item-v2` are completed without effect by
-`infrastructure/jobs/retired-import-item.job.ts`.
+`imports/retired-import-item-job.server.ts`.
 
 Each active item has a durable recovery appointment. The minute sweep reserves
 at most 100 due items with `FOR UPDATE SKIP LOCKED` and advances their
@@ -179,14 +179,50 @@ neighbours to each other and assembles the public groups.
   review API, the push-target resolver and the system authority the notification
   path shares with review sync.
 
+Each feature folder holds its own ports, adapters, stores, jobs and consumers:
+
+- `connections/` — OAuth and credentials (the token provider, refresh, encryption
+  and refresh coordination); the connect, resume, disconnect, list and departure
+  commands and their stores; the callback abuse gate and quota counter; provider
+  recovery. It also holds Pub/Sub subscription management: `manage-notifications`,
+  the daily reconciliation and its job, the account store, the notification
+  authorizer and the topic config.
+- `imports/` — discovery and its authorization; the transaction, replay, lifecycle
+  and processor; the claim reaper and the item, reaper and retired-item jobs; the
+  queue; the durable discovery reference store; the dispatch and
+  authorization-invalidation consumers; the binding follow-up and category-refresh
+  consumers.
+- `performance/` — the authorizer and snapshot, the live read, the report, the
+  lease, the adapter and parser, and `contracts.ts`.
+- `provider/` — `google-client.server.ts` and its port, `contracts.ts` (the route
+  and result contract), the authorization vector, the Property authorization read,
+  the content authorizer and check, the active-member authority and the resource
+  suffix.
+- `review-sync/` — the sync and publication authorizers; the review API adapter
+  with its error, page, cursor and moderation parts; the cursor store; push intake
+  (`handle-gbp-notification`); the receipt and reference stores; the push dispatch
+  consumer.
+
+Server code is `*.server.ts`, and what the browser imports is a feature's
+`contracts.ts` or `<name>.contracts.ts`. Server functions stay under `server/`. Only these stay in
+`application/`:
+
+- `public-api.ts`.
+- `google-import-contract.ts` and `dto/google-import.dto.ts`: browser screens
+  reach them, and bootstrap or a shared test helper imports them.
+- `google-authorize-request.ts` and `use-cases/gbp-subscribe-backfill.ts`: operator
+  scripts import them.
+- `oauth-state-handle.ts` and `oauth-callback-input.ts`: the Google OAuth callback
+  API route imports them.
+
 Dispatch evidence and recovery stay in the import stores and the claim reaper:
 the dispatch consumer is registered by `build.ts` through the outbox registry, and
 the retired `import-gbp-property-item-v2` job stays registered so old deliveries
 drain.
 
-`application/google-import-command-authorizer.ts` reauthorizes import provider
+`imports/google-import-command-authorizer.server.ts` reauthorizes import provider
 calls against current membership and command authority after a credential refresh.
-`application/google-authorization-vector.ts` owns vector construction and the
+`provider/google-authorization-vector.server.ts` owns vector construction and the
 comparison that permits only the credential generation to change.
 
 Provider calls require a current connection, capability approval, execution
@@ -266,7 +302,7 @@ without resending the token.
    sends the other AccountAdmins (ADR 0046).
 4. Browser status, retry, and cancellation address the import. Partial item completion remains visible rather than being rewritten as all-or-nothing success.
 5. Every credential-bearing Google operation executes in this deployment; there is no credential home or routing directory.
-6. Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, and hands it to the Property binding effect. It is never manually entered by an administrator. Discovery also reads the location's primary category (`categories.primaryCategory.displayName`); the import item carries it, in the form `normalizeGooglePrimaryCategory` gives it, from the claimed candidate to the Property the effect creates or relinks (`google_import_items.google_primary_category`, scrubbed with the item's other provider state). It is left out of the replay digests, so a category Google moved between two attempts of one request is not a conflict. The review adapter likewise reads each review's output-only `reviewReplyUrl` and keeps it only as `https://business.google.com/n/{the review's own location}/reviews/{token}` (`normalizeGoogleReviewReplyUrl`); anything else, of any type or length, is null and counted (`reviews_reply_url_refused`, a count and the route, never a value), and never fails the page. The schema stays non-strict. It also reads each reply's output-only `reviewReplyState` and `policyViolation` (Google's moderation of the reply) as `unknown` values, maps them to a closed type in `google-review-reply-moderation.ts` (an undocumented state is `unspecified`, a code that is not an enum word is `UNKNOWN`, the code is kept only when `REJECTED`) and counts them per read (`reviews_reply_moderation`, `reviews_reply_moderation_unknown`: counts only, never a value or reply text). Nothing decides on them yet (Review CONTEXT, Model).
+6. Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, and hands it to the Property binding effect. It is never manually entered by an administrator. Discovery also reads the location's primary category (`categories.primaryCategory.displayName`); the import item carries it, in the form `normalizeGooglePrimaryCategory` gives it, from the claimed candidate to the Property the effect creates or relinks (`google_import_items.google_primary_category`, scrubbed with the item's other provider state). It is left out of the replay digests, so a category Google moved between two attempts of one request is not a conflict. The review adapter likewise reads each review's output-only `reviewReplyUrl` and keeps it only as `https://business.google.com/n/{the review's own location}/reviews/{token}` (`normalizeGoogleReviewReplyUrl`); anything else, of any type or length, is null and counted (`reviews_reply_url_refused`, a count and the route, never a value), and never fails the page. The schema stays non-strict. It also reads each reply's output-only `reviewReplyState` and `policyViolation` (Google's moderation of the reply) as `unknown` values, maps them to a closed type in `review-sync/google-review-reply-moderation.server.ts` (an undocumented state is `unspecified`, a code that is not an enum word is `UNKNOWN`, the code is kept only when `REJECTED`) and counts them per read (`reviews_reply_moderation`, `reviews_reply_moderation_unknown`: counts only, never a value or reply text). Nothing decides on them yet (Review CONTEXT, Model).
 7. Production credential-bearing Google adapters have no direct-socket escape hatch. OAuth exchange/refresh/revoke, account and location discovery, notifications, and Review fallbacks fail before network access unless a governed executor owns the route; fixed-origin JWKS retrieval is the only current non-credential direct trust read.
 8. `GOOGLE_PROVIDER_ROUTE_POLICIES` in `src/shared/google-provider-control/route-catalogue.ts` is the exhaustive executable authority for every provider route, credential class, fixed production origin, transport, owner, recovery rule, and current repository activation state. A new route cannot compile without an explicit route-policy decision.
 9. The browser can supply only the one-use code and opaque state; it never supplies PKCE verifier or token material to a general server function.
@@ -278,7 +314,7 @@ without resending the token.
 15. A `reauth_required` connection is never refreshed, and no sync, reply, import or Performance authorization admits it; only a fresh consent (reconnect) returns it to `active`. Credential refusals (the active-connection token provider and the refresh) say `reauthorization_required`, not `connection_disconnected`, and the review API adapter reports a reply refused for it the same way. The import and Performance authorizers keep their own refusal codes (`authorization_denied`, `connection_unavailable`, `reauthentication_required`). The review-sync authorizer says `connection_unusable` for a connection that is bound to the Property but not usable (status other than `active`, a credential use state other than `active`, no `business.manage` scope, or a refresh that learned Google refused the grant), and keeps `authorization_denied` for a refusal of a connection that IS usable (the permit vector changed, the content posture denied the call, or no such connection was found) and `runtime_unavailable` for a token provider failure that does not say the connection is unusable (a refresh that lost its credential fence, a transport error). The code is what lets the Review sync jobs end quietly, with no retry, dead letter or Sentry error, because the reconnect notice is already the signal (Review CONTEXT, sync-property-reviews); every other consumer of the sync authorizer's codes treats `connection_unusable` as it treated `authorization_denied` before.
 16. A local disconnect is idempotent and never takes a row from a governed revoke. A connection an overlapping disconnect already finished repeats local category cleanup and source-content purge, with no provider cleanup or second `integration.google_account.disconnected` fact. A cleanup-only retry checks its disconnected lifecycle under the command lock; a reconnect that committed first refuses that retry before cleanup or purge. Property binding publication takes a connection share lock before its Property lock and rechecks active authority; disconnect serializes with it and clears every committed category. While a `disconnecting` connection's cleanup window is open, another disconnect is refused as in progress (`invalid_transition`); once the window has closed it finishes locally. A requested disconnect is not fenced on the credential it read, so a refresh that commits meanwhile cannot make it fail. A reconnect commits only against the exact lifecycle, access and credential versions its OAuth ceremony was approved for, and otherwise fails `oauth_failed` with nothing written. The committed connection fact drives a recoverable outbox refresh of bound locations through governed Google discovery; reconnect and reauthorization callbacks succeed without awaiting it, and completed callback replay makes no provider read. Provider failures and import-capability refusals leave the refresh without a receipt for later delivery. Property restores category hints under connection lifecycle/access, binding/profile and erasure fences: a purge after the original request wins even on redelivery. Missing categories never resurrect the cleared hint.
 
-17. A review sync page token lives behind an opaque cursor ref with a replay bound of ten sends to Google (`google-review-cursor-store.ts`). The adapter redeems before the call, because the gateway admits the exact request, and releases the redemption when the call never reached Google (dispatch `not_sent`: a quota or permit refusal). A dispatched Google 429 or 5xx, or a transport failure after `fetch` (`unknown`), keeps its use. A quota wait of any length therefore spends nothing; before 2026-10-18 each refusal spent one and the sixth failed the run as `cursor_failure`.
+17. A review sync page token lives behind an opaque cursor ref with a replay bound of ten sends to Google (`review-sync/google-review-cursor-store.server.ts`). The adapter redeems before the call, because the gateway admits the exact request, and releases the redemption when the call never reached Google (dispatch `not_sent`: a quota or permit refusal). A dispatched Google 429 or 5xx, or a transport failure after `fetch` (`unknown`), keeps its use. A quota wait of any length therefore spends nothing; before 2026-10-18 each refusal spent one and the sixth failed the run as `cursor_failure`.
 18. The cursor store keeps nothing across a restart (ADR 0050), so a deploy that restarts google-provider-redis drops the cursor of every review sync run then in flight. A `cursor_not_found`, from a redeem or from publishing the next page under a parent that is gone, carries when the store started (`INFO server` uptime, `startedAtMs` on the provider-ephemeral store), and the `reviews_cursor_rejected` warning logs it as `storeStartedAt`. The snapshot run ends as `cursor_lost` when the store started after the run did, and the sync job starts a fresh run at once with no coded failure, retry or dead letter. A store up since before the run began, or one that cannot say, leaves it `cursor_failure`, which fails loudly as before.
 19. `reviews.list` has a head variant, `readReviewsHead`: page 1 only, `pageSize=50` with an explicit `orderBy=updateTime desc` (the route's one allowed ordering, a literal in the strict descriptor schema, `review-route-descriptors.ts`). It uses the same authorizer, route and `google-reviews-v1` lane as a list page but publishes and redeems no cursor and takes no run id; Google's `nextPageToken` is reduced to `hasMore` and dropped. A page whose `updateTime` values are not non-increasing, or that lacks one, comes back as `order_violation` and is never returned as reviews. The catalogue version is `2026-10-21` for it; admission refuses a permit from a different catalogue version.
 
