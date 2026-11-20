@@ -1,14 +1,13 @@
+// The one refusal mapping the request path cannot reach: the execution policy
+// admits only an AccountAdmin, whose management scope is never denied, so the
+// overview's capability_denied is injected here. Everything else these server
+// functions do is proven over PostgreSQL in merchant-ai.integration.test.ts.
+
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  enable: vi.fn(),
-  change: vi.fn(),
-  revoke: vi.fn(),
-  defer: vi.fn(),
   listOverview: vi.fn(),
-  enableForProperties: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -16,17 +15,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     identityPublicApi: {
-      requests: {
-        merchantAiAuthorization: {
-          get: mocks.get,
-          enable: mocks.enable,
-          change: mocks.change,
-          revoke: mocks.revoke,
-          defer: mocks.defer,
-          listOverview: mocks.listOverview,
-          enableForProperties: mocks.enableForProperties,
-        },
-      },
+      requests: { merchantAiAuthorization: { listOverview: mocks.listOverview } },
     },
   }),
 }))
@@ -43,259 +32,17 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
   tracedHandler: (handler: unknown) => handler,
 }))
 
-import {
-  changeMerchantAiCapabilitiesFn,
-  deferMerchantAiDecisionFn,
-  enableMerchantAiForPropertiesFn,
-  enableMerchantAiFn,
-  getMerchantAiAuthorizationFn,
-  listMerchantAiOverviewFn,
-  revokeMerchantAiFn,
-} from './merchant-ai'
+import { listMerchantAiOverviewFn } from './merchant-ai'
 import { MerchantAiAuthorizationError } from '../consent/merchant-ai-authorization.server'
-import { merchantAiDecisionError } from '../domain/merchant-ai-decision-errors'
 
-const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
-const ACKNOWLEDGEMENT = {
-  noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
-  noticeDigest: 'a'.repeat(64),
-}
-const actor = {
-  organizationId: '00000000-0000-4000-8000-000000000002',
-  userId: 'user-1',
-  role: 'AccountAdmin',
-}
-
-describe('Merchant AI server functions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveTenantContext.mockResolvedValue(actor)
-    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
-  })
-
-  it('gates and scopes authorization reads to the resolved tenant actor', async () => {
-    const authorization = { state: 'disabled', stateVersion: 3 }
-    mocks.get.mockResolvedValue(authorization)
-
-    await withStartContext(() =>
-      getMerchantAiAuthorizationFn({ data: { propertyId: PROPERTY_ID } }),
-    )
-    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
-      actor,
-      action: 'ai.manage',
-      propertyId: PROPERTY_ID,
-    })
-    expect(mocks.get).toHaveBeenCalledWith({
-      organizationId: actor.organizationId,
-      propertyId: PROPERTY_ID,
-      actorUserId: actor.userId,
-    })
-  })
-
-  it('gates notice-only reads without reading a property', async () => {
-    await withStartContext(() => getMerchantAiAuthorizationFn({ data: {} }))
-    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
-      actor,
-      action: 'ai.manage',
-    })
-    expect(mocks.get).not.toHaveBeenCalled()
-  })
-
-  it('forwards only validated capability changes with the notice acknowledgement', async () => {
-    const changed = { state: 'enabled', stateVersion: 4 }
-    mocks.change.mockResolvedValue(changed)
-
-    await withStartContext(() =>
-      changeMerchantAiCapabilitiesFn({
-        data: {
-          propertyId: PROPERTY_ID,
-          idempotencyKey: 'request-key-1',
-          expectedStateVersion: 3,
-          acknowledgement: ACKNOWLEDGEMENT,
-          capabilities: ['review_analysis', 'property_trends'],
-        },
-      }),
-    )
-    expect(mocks.change).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: actor.organizationId,
-        propertyId: PROPERTY_ID,
-        actorUserId: actor.userId,
-        idempotencyKey: 'request-key-1',
-        expectedStateVersion: 3,
-        acknowledgement: ACKNOWLEDGEMENT,
-        reasonCode: 'capabilities_changed',
-        capabilities: ['review_analysis', 'property_trends'],
-        requestHeaders: expect.any(Headers),
-      }),
-    )
-    expect(mocks.change.mock.calls[0]?.[0]).not.toHaveProperty('stepUpProof')
-  })
-
-  it('enables on an acknowledgement and revokes without one; neither takes a password', async () => {
-    mocks.enable.mockResolvedValue({ state: 'enabled', stateVersion: 1 })
-    mocks.revoke.mockResolvedValue({ state: 'revoked', stateVersion: 2 })
-
-    await withStartContext(() =>
-      enableMerchantAiFn({
-        data: {
-          propertyId: PROPERTY_ID,
-          idempotencyKey: 'request-key-2',
-          expectedStateVersion: 0,
-          acknowledgement: ACKNOWLEDGEMENT,
-        },
-      }),
-    )
-    await withStartContext(() =>
-      revokeMerchantAiFn({
-        data: {
-          propertyId: PROPERTY_ID,
-          idempotencyKey: 'request-key-3',
-          expectedStateVersion: 1,
-        },
-      }),
-    )
-
-    expect(mocks.enable).toHaveBeenCalledWith(
-      expect.objectContaining({
-        propertyId: PROPERTY_ID,
-        acknowledgement: ACKNOWLEDGEMENT,
-        reasonCode: 'merchant_enabled',
-      }),
-    )
-    const revoked = mocks.revoke.mock.calls[0]?.[0]
-    expect(revoked).toMatchObject({
-      propertyId: PROPERTY_ID,
-      expectedStateVersion: 1,
-      reasonCode: 'merchant_revoked',
-    })
-    expect(revoked).not.toHaveProperty('acknowledgement')
-    expect(revoked).not.toHaveProperty('stepUpProof')
-  })
-
-  it('reports a stale notice acknowledgement as a conflict to reload', async () => {
-    mocks.enable.mockRejectedValue(
-      new MerchantAiAuthorizationError(
-        'notice_mismatch',
-        'The AI data-use notice changed.',
-      ),
-    )
-
-    await expect(
-      withStartContext(() =>
-        enableMerchantAiFn({
-          data: {
-            propertyId: PROPERTY_ID,
-            idempotencyKey: 'request-key-5',
-            expectedStateVersion: 0,
-            acknowledgement: ACKNOWLEDGEMENT,
-          },
-        }),
-      ),
-    ).rejects.toMatchObject({ code: 'notice_mismatch', status: 409 })
-  })
-
-  it('stops mutation when the management execution gate denies the request', async () => {
-    mocks.requireExecutionAllowed.mockRejectedValue(new Error('execution denied'))
-
-    await expect(
-      withStartContext(() =>
-        changeMerchantAiCapabilitiesFn({
-          data: {
-            propertyId: PROPERTY_ID,
-            idempotencyKey: 'request-key-1',
-            expectedStateVersion: 3,
-            acknowledgement: ACKNOWLEDGEMENT,
-            capabilities: ['review_analysis'],
-          },
-        }),
-      ),
-    ).rejects.toThrow('execution denied')
-    expect(mocks.change).not.toHaveBeenCalled()
-  })
-
-  it('defers for the resolved tenant actor behind the property-scoped management gate', async () => {
-    mocks.defer.mockResolvedValue({
-      propertyId: PROPERTY_ID,
-      decisionDeferredAt: '2026-09-15T08:00:00.000Z',
-    })
-
-    // Outside the server runtime the wrapper resolves to undefined, so the
-    // contract is asserted on the gate and the forwarded command.
-    await withStartContext(() =>
-      deferMerchantAiDecisionFn({ data: { propertyId: PROPERTY_ID } }),
-    )
-    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
-      actor,
-      action: 'ai.manage',
-      propertyId: PROPERTY_ID,
-    })
-    // No step-up proof and no request headers: a deferral authorizes nothing.
-    expect(mocks.defer).toHaveBeenCalledWith({
-      organizationId: actor.organizationId,
-      propertyId: PROPERTY_ID,
-      actorUserId: actor.userId,
-    })
-  })
-
-  it('maps an already-enabled refusal to a conflict', async () => {
-    mocks.defer.mockRejectedValue(
-      merchantAiDecisionError(
-        'already_enabled',
-        'AI is already enabled for this property',
-      ),
-    )
-
-    await expect(
-      withStartContext(() =>
-        deferMerchantAiDecisionFn({ data: { propertyId: PROPERTY_ID } }),
-      ),
-    ).rejects.toMatchObject({
-      name: 'MerchantAiDecisionError',
-      code: 'already_enabled',
-      status: 409,
-    })
-  })
-
-  it('maps a Property outside the Organization to not found', async () => {
-    mocks.defer.mockRejectedValue(
-      merchantAiDecisionError('property_not_found', 'Property was not found'),
-    )
-
-    await expect(
-      withStartContext(() =>
-        deferMerchantAiDecisionFn({ data: { propertyId: PROPERTY_ID } }),
-      ),
-    ).rejects.toMatchObject({ code: 'property_not_found', status: 404 })
-  })
-
-  it('does not defer when the management execution gate denies the request', async () => {
-    mocks.requireExecutionAllowed.mockRejectedValue(new Error('execution denied'))
-
-    await expect(
-      withStartContext(() =>
-        deferMerchantAiDecisionFn({ data: { propertyId: PROPERTY_ID } }),
-      ),
-    ).rejects.toThrow('execution denied')
-    expect(mocks.defer).not.toHaveBeenCalled()
-  })
-
-  it('lists the overview for the resolved actor behind the organization-level management gate', async () => {
-    mocks.listOverview.mockResolvedValue({ properties: [] })
-
-    await withStartContext(() => listMerchantAiOverviewFn())
-
-    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
-      actor,
-      action: 'ai.manage',
-    })
-    expect(mocks.listOverview).toHaveBeenCalledWith({
-      organizationId: actor.organizationId,
-      actorUserId: actor.userId,
-    })
-  })
-
+describe('Merchant AI overview refusal', () => {
   it('maps a denied overview to forbidden', async () => {
+    mocks.resolveTenantContext.mockResolvedValue({
+      organizationId: '00000000-0000-4000-8000-000000000002',
+      userId: 'user-1',
+      role: 'AccountAdmin',
+    })
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
     mocks.listOverview.mockRejectedValue(
       new MerchantAiAuthorizationError(
         'capability_denied',
@@ -310,70 +57,5 @@ describe('Merchant AI server functions', () => {
       code: 'capability_denied',
       status: 403,
     })
-  })
-
-  it('does not read the overview when the management gate denies the request', async () => {
-    mocks.requireExecutionAllowed.mockRejectedValue(new Error('execution denied'))
-
-    await expect(withStartContext(() => listMerchantAiOverviewFn())).rejects.toThrow(
-      'execution denied',
-    )
-    expect(mocks.listOverview).not.toHaveBeenCalled()
-  })
-
-  it('gates every property of a ceremony and forwards one command for all of them', async () => {
-    const SECOND_PROPERTY_ID = '00000000-0000-4000-8000-000000000003'
-    mocks.enableForProperties.mockResolvedValue([])
-
-    await withStartContext(() =>
-      enableMerchantAiForPropertiesFn({
-        data: {
-          propertyIds: [PROPERTY_ID, SECOND_PROPERTY_ID],
-          capabilities: ['review_analysis', 'reply_drafting'],
-          acknowledgement: ACKNOWLEDGEMENT,
-          idempotencyKey: 'ceremony-key-1',
-        },
-      }),
-    )
-
-    expect(mocks.requireExecutionAllowed.mock.calls.map(([gate]) => gate)).toEqual([
-      { actor, action: 'ai.manage' },
-      { actor, action: 'ai.manage', propertyId: PROPERTY_ID },
-      { actor, action: 'ai.manage', propertyId: SECOND_PROPERTY_ID },
-    ])
-    expect(mocks.enableForProperties).toHaveBeenCalledOnce()
-    expect(mocks.enableForProperties).toHaveBeenCalledWith({
-      organizationId: actor.organizationId,
-      actorUserId: actor.userId,
-      propertyIds: [PROPERTY_ID, SECOND_PROPERTY_ID],
-      capabilities: ['review_analysis', 'reply_drafting'],
-      acknowledgement: ACKNOWLEDGEMENT,
-      idempotencyKey: 'ceremony-key-1',
-      requestHeaders: expect.any(Headers),
-      reasonCode: 'merchant_enabled',
-    })
-  })
-
-  it('stops a ceremony when the execution gate denies any one property', async () => {
-    const DENIED_PROPERTY_ID = '00000000-0000-4000-8000-000000000004'
-    mocks.requireExecutionAllowed.mockImplementation(
-      async (gate: { propertyId?: string }) => {
-        if (gate.propertyId === DENIED_PROPERTY_ID) throw new Error('execution denied')
-      },
-    )
-
-    await expect(
-      withStartContext(() =>
-        enableMerchantAiForPropertiesFn({
-          data: {
-            propertyIds: [PROPERTY_ID, DENIED_PROPERTY_ID],
-            capabilities: ['review_analysis'],
-            acknowledgement: ACKNOWLEDGEMENT,
-            idempotencyKey: 'ceremony-key-2',
-          },
-        }),
-      ),
-    ).rejects.toThrow('execution denied')
-    expect(mocks.enableForProperties).not.toHaveBeenCalled()
   })
 })
