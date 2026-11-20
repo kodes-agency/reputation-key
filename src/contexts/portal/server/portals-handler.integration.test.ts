@@ -1,221 +1,167 @@
-// Portal context — go-live and archive server functions over PostgreSQL.
-// The real createServerFn handlers run over the real scope lookups, intents and
-// command store. The session, the execution policy, the Property lifecycle and
-// the Google destination are other contexts' answers, so they are stood in for;
-// each refusal is asserted on the Portal row it leaves.
+// Portal go-live and archive server functions, called as signed-in members over
+// PostgreSQL with the real tenant resolution and execution policy. Each refusal
+// is asserted on the Portal row it leaves.
 
-import { randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
-import { getDb } from '#/shared/db'
-import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { policyDenial } from '#/shared/testing/policy-denial'
-import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { withStartContext } from '#/shared/testing/tanstack-start-als'
-import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  archivePortal as archivePortalIntent,
-  publishPortal as publishPortalIntent,
-} from '../publication/portal-intents.server'
-import { createPortalPublicationRepository } from '../infrastructure/repositories/portal-publication.repository'
-import { createPortalRepository } from '../infrastructure/repositories/portal.repository'
-import { createPortalScopeRepository } from '../infrastructure/repositories/portal-scope.repository'
-import { createPortalTokenRepository } from '../infrastructure/repositories/portal-token.repository'
-import {
-  PORTAL_CREATION_TABLES,
-  VERIFIED_GOOGLE_DESTINATION,
-  seedCreationPortal,
-  seedCreationProperty,
-  seedCreationToken,
-} from '../infrastructure/testing/portal-creation-world'
+  initCapabilityPolicyStore,
+  resetCapabilityPolicyStore,
+} from '#/shared/auth/beta-capabilities'
+import { setupServerFunctionHarness } from '#/shared/testing/server-function-harness'
+import type { TestPortal } from '#/shared/testing/server-function-harness'
 
-const handlerWorld = vi.hoisted(() => ({
-  actor: undefined as unknown,
-  requireExecutionAllowed: vi.fn(),
-  management: (): unknown => undefined,
-}))
-
-vi.mock('#/shared/auth/headers', () => ({
-  headersFromContext: vi.fn(async () => new Headers()),
-}))
-vi.mock('#/shared/auth/middleware', () => ({
-  resolveTenantContext: vi.fn(async () => handlerWorld.actor),
-}))
-vi.mock('#/shared/auth/execution-policy', () => ({
-  requireExecutionAllowed: handlerWorld.requireExecutionAllowed,
-}))
-vi.mock('#/composition', () => ({
-  getContainer: () => ({
-    clock: () => new Date('2026-10-01T12:00:00.000Z'),
-    portalPublicApi: { management: handlerWorld.management() },
-  }),
-}))
+vi.mock(
+  '@tanstack/react-start',
+  async () => (await import('#/shared/testing/compiled-server-fns')).startServerBuild,
+)
 
 import { archivePortal, publishPortal } from './portals'
 
-const ORG_A = organizationId('org-prtlhandler-0000-0000-000000000001')
-const ORG_B = organizationId('org-prtlhandler-0000-0000-000000000002')
-const PROPERTY = propertyId('c3c10000-0000-4000-8000-000000000001')
-const PROPERTY_B = propertyId('c3c10000-0000-4000-8000-00000000000b')
-const PORTAL = 'c3c20000-0000-4000-8000-000000000001'
-const PORTAL_B = 'c3c20000-0000-4000-8000-0000000000b1'
-const CLOCK = new Date('2026-10-01T12:00:00.000Z')
-
-const { getPool } = setupIntegrationDb({
-  orgA: ORG_A,
-  orgB: ORG_B,
-  tables: [
-    'goal_subject_assignments',
-    'goal_program_versions',
-    'goal_programs',
-    ...PORTAL_CREATION_TABLES,
+const harness = setupServerFunctionHarness({
+  cleanupTables: [
+    'portal_health_intervals',
+    'portal_pending_content_changes',
+    'portal_page_edits',
   ],
 })
 
-handlerWorld.management = () => {
-  const db = getDb()
-  const guard = createPortalRatingGoalGuard()
-  const deps = {
-    ratingGoalGuard: {
-      findRunningRatingGoalBlock: (org: string, property: string, portal: string) =>
-        db.transaction((tx) =>
-          guard.findPortalRatingGoalBlockInTransaction(tx, {
-            organizationId: org as never,
-            propertyId: property as never,
-            portalId: portal as never,
-            at: CLOCK,
-          }),
-        ),
-    },
-    portalRepo: createPortalRepository(db),
-    commandStore: createAtomicPortalCommandStore(db, guard),
-    publicationRepo: createPortalPublicationRepository(db),
-    portalTokenRepo: createPortalTokenRepository(db),
-    propertyGoogleReviewDestinationApi: {
-      getGoogleReviewDestination: async () => VERIFIED_GOOGLE_DESTINATION,
-    },
-    propertyLifecycleApi: { isPropertyActive: async () => true },
-    staffPublicApi: {
-      getAccessiblePropertyIds: async () => null,
-      getAssignedPortals: async () => [],
-    },
-    idGen: randomUUID,
-    clock: () => CLOCK,
-  }
-  return {
-    resolvePortalManagementScope: createPortalScopeRepository(db).resolvePortal,
-    publishPortal: publishPortalIntent(deps),
-    archivePortal: archivePortalIntent(deps),
-  }
+async function hotel() {
+  const organization = await harness.seedOrganization()
+  const admin = await harness.seedMember(organization, 'AccountAdmin')
+  const manager = await harness.seedMember(organization, 'PropertyManager')
+  const property = await harness.seedProperty(organization)
+  const portal = await harness.seedPortal(property)
+  // Commands fence on the revision they read, which a JS Date holds to the millisecond.
+  await harness
+    .pool()
+    .query(
+      `UPDATE portals SET updated_at = date_trunc('milliseconds', updated_at) WHERE id = $1`,
+      [portal.id],
+    )
+  return { organization, admin, manager, property, portal }
 }
 
-const portalRow = async (id = PORTAL) =>
+const portalRow = async (portal: TestPortal) =>
   (
-    await getPool().query<{ publication_state: string; deleted_at: Date | null }>(
-      `SELECT publication_state, deleted_at FROM portals WHERE id = $1`,
-      [id],
-    )
+    await harness
+      .pool()
+      .query<{ publication_state: string; deleted_at: Date | null }>(
+        `SELECT publication_state, deleted_at FROM portals WHERE id = $1`,
+        [portal.id],
+      )
   ).rows[0]
 
-const seedPortal = async (
-  org: typeof ORG_A | typeof ORG_B,
-  property: typeof PROPERTY,
-  id: string,
-  slug: string,
-) => {
-  await seedCreationProperty(getPool(), { organizationId: org, propertyId: property })
-  const scope = { organizationId: org, propertyId: property, portalId: id }
-  await seedCreationPortal(getPool(), {
-    ...scope,
-    slug,
-    name: 'Test Portal',
-    publicationState: 'draft',
-  })
-  await seedCreationToken({
-    ...scope,
-    tokenId: `c3c70000-0000-4000-8000-${id.slice(-12)}`,
-    identifier: `handler-${id.slice(-12)}`,
-  })
-}
+const DRAFT = { publication_state: 'draft', deleted_at: null }
 
-beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-  handlerWorld.actor = buildTestAuthContext({
-    organizationId: ORG_A,
-    userId: userId('admin-portals-handler'),
-    role: 'AccountAdmin',
-  })
-  handlerWorld.requireExecutionAllowed.mockReset()
-  handlerWorld.requireExecutionAllowed.mockResolvedValue(undefined)
-  await seedPortal(ORG_A, PROPERTY, PORTAL, 'handler-portal')
-  await seedPortal(ORG_B, PROPERTY_B, PORTAL_B, 'handler-portal-b')
-})
+afterEach(resetCapabilityPolicyStore)
 
-describe('publishPortal server function (real PostgreSQL)', () => {
+const switchOff = (capability: string) =>
+  initCapabilityPolicyStore({
+    isCapabilityKilled: (cap) => cap === capability,
+    isOrgSuspended: () => false,
+  })
+
+describe('publishPortal', () => {
   it('refuses go-live without a reviewed digest and leaves the Portal a draft', async () => {
-    const response = await withStartContext(() =>
-      publishPortal.__executeServer({ method: 'POST', data: { portalId: PORTAL } }),
-    )
-
-    expect(response).toMatchObject({
-      error: expect.objectContaining({
-        message: expect.stringContaining('"reviewedDigest"'),
-      }),
-    })
-    expect(await portalRow()).toMatchObject({ publication_state: 'draft' })
-  })
-
-  it('leaves the Portal a draft when the policy refuses the Property', async () => {
-    handlerWorld.requireExecutionAllowed.mockRejectedValue(
-      policyDenial('capability_disabled'),
-    )
+    const { admin, portal } = await hotel()
 
     await expect(
-      withStartContext(() =>
-        publishPortal({ data: { portalId: PORTAL, reviewedDigest: 'reviewed-digest' } }),
+      harness.callAs(admin, () =>
+        publishPortal({ data: { portalId: portal.id } as never }),
       ),
-    ).rejects.toMatchObject({ code: 'capability_disabled', status: 403 })
+    ).rejects.toThrow(/reviewedDigest/)
 
-    expect(await portalRow()).toMatchObject({ publication_state: 'draft' })
+    expect(await portalRow(portal)).toEqual(DRAFT)
   })
 
-  it("answers not found for another organization's Portal and leaves it untouched", async () => {
+  it('refuses a PropertyManager without a grant and leaves the Portal a draft', async () => {
+    const { organization, portal } = await hotel()
+    const outsider = await harness.seedMember(organization, 'PropertyManager')
+
     await expect(
-      withStartContext(() =>
+      harness.callAs(outsider, () =>
         publishPortal({
-          data: { portalId: PORTAL_B, reviewedDigest: 'reviewed-digest' },
+          data: { portalId: portal.id, reviewedDigest: 'reviewed-digest' },
         }),
       ),
-    ).rejects.toMatchObject({ status: 404 })
+    ).rejects.toMatchObject({ code: 'scope_denied', status: 403 })
 
-    expect(await portalRow(PORTAL_B)).toMatchObject({ publication_state: 'draft' })
-    expect(handlerWorld.requireExecutionAllowed).not.toHaveBeenCalled()
+    expect(await portalRow(portal)).toEqual(DRAFT)
+  })
+
+  it("answers not found for another Organization's Portal and leaves it untouched", async () => {
+    const { portal } = await hotel()
+    const elsewhere = await harness.seedOrganization()
+    const otherAdmin = await harness.seedMember(elsewhere, 'AccountAdmin')
+
+    await expect(
+      harness.callAs(otherAdmin, () =>
+        publishPortal({
+          data: { portalId: portal.id, reviewedDigest: 'reviewed-digest' },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'portal_not_found', status: 404 })
+
+    expect(await portalRow(portal)).toEqual(DRAFT)
   })
 })
 
-describe('archivePortal server function (real PostgreSQL)', () => {
-  it('archives the Portal recoverably: its state is archived and the row is not deleted', async () => {
-    await withStartContext(() => archivePortal({ data: { portalId: PORTAL } }))
-
-    expect(await portalRow()).toEqual({ publication_state: 'archived', deleted_at: null })
-    expect(handlerWorld.requireExecutionAllowed).toHaveBeenCalledWith(
-      expect.objectContaining({ propertyId: PROPERTY }),
-    )
-  })
-
-  it('leaves the Portal as it was when the policy refuses the Property', async () => {
-    handlerWorld.requireExecutionAllowed.mockRejectedValue(
-      policyDenial('capability_disabled'),
-    )
+describe('Portal writes switched off', () => {
+  it('refuses go-live and leaves the Portal a draft', async () => {
+    const { admin, portal } = await hotel()
+    switchOff('portal.write')
 
     await expect(
-      withStartContext(() => archivePortal({ data: { portalId: PORTAL } })),
-    ).rejects.toMatchObject({ code: 'capability_disabled', status: 403 })
+      harness.callAs(admin, () =>
+        publishPortal({
+          data: { portalId: portal.id, reviewedDigest: 'reviewed-digest' },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      name: 'AuthError',
+      code: 'capability_disabled',
+      status: 403,
+    })
 
-    expect(await portalRow()).toEqual({ publication_state: 'draft', deleted_at: null })
+    expect(await portalRow(portal)).toEqual(DRAFT)
+  })
+
+  it('refuses archiving and leaves the Portal a draft', async () => {
+    const { admin, portal } = await hotel()
+    switchOff('portal.write')
+
+    await expect(
+      harness.callAs(admin, () => archivePortal({ data: { portalId: portal.id } })),
+    ).rejects.toMatchObject({
+      name: 'AuthError',
+      code: 'capability_disabled',
+      status: 403,
+    })
+
+    expect(await portalRow(portal)).toEqual(DRAFT)
+  })
+})
+
+describe('archivePortal', () => {
+  it('archives the Portal recoverably: its state is archived and the row is not deleted', async () => {
+    const { admin, portal } = await hotel()
+
+    await harness.callAs(admin, () => archivePortal({ data: { portalId: portal.id } }))
+
+    expect(await portalRow(portal)).toEqual({
+      publication_state: 'archived',
+      deleted_at: null,
+    })
+  })
+
+  it('refuses a PropertyManager, even one with a grant, and leaves the Portal as it was', async () => {
+    const { manager, property, portal } = await hotel()
+    await harness.grantProperty(manager, property)
+
+    await expect(
+      harness.callAs(manager, () => archivePortal({ data: { portalId: portal.id } })),
+    ).rejects.toMatchObject({ code: 'permission_denied', status: 403 })
+
+    expect(await portalRow(portal)).toEqual(DRAFT)
   })
 })
