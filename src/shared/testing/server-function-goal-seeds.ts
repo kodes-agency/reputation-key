@@ -7,11 +7,6 @@
 
 import { randomUUID } from 'node:crypto'
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-import {
-  MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
-  MERCHANT_AI_REDACTION_PROFILE_FAMILY,
-  MERCHANT_AI_SOURCE_POLICY_ID,
-} from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { createMerchantAiAuthorizationStore } from '#/contexts/identity/consent/merchant-ai-authorization.repository.server'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '#/contexts/identity/consent/merchant-ai-authorization.server'
 import type { CurrentMerchantAiCapability } from '#/contexts/identity/domain/merchant-ai-authorization'
@@ -21,6 +16,9 @@ import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
 } from '#/contexts/reporting/application/public-api'
+import { AI_REDACTION_PROFILE_VERSION } from '#/shared/ai-deterministic-redactor'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-deployment-profile'
+import { AI_SOURCE_POLICY_ID_V1 } from '#/shared/ai-source-profile'
 import { getDb } from '#/shared/db'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -378,10 +376,11 @@ export function goalSeeds(context: HarnessSeedContext): GoalSeeds {
         reasonCode: 'merchant_enabled',
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-        sourcePolicyId: MERCHANT_AI_SOURCE_POLICY_ID,
+        sourcePolicyId: AI_SOURCE_POLICY_ID_V1,
         routingPolicyVersion: 1,
-        providerDeploymentProfileVersion: MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
-        redactionProfileFamily: MERCHANT_AI_REDACTION_PROFILE_FAMILY,
+        providerDeploymentProfileVersion:
+          AI_PROVIDER_DEPLOYMENT_PROFILE_V2.profileVersion,
+        redactionProfileFamily: AI_REDACTION_PROFILE_VERSION,
         now: context.clock(),
         ceremonyId: context.newId(),
       })
