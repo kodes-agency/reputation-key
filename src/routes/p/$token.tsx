@@ -15,11 +15,11 @@ import {
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
-import { ImmersivePublicPortal } from '#/components/features/guest'
-import { guestPageHead } from '#/components/features/guest/guest-page-head'
-import { PortalUnavailable } from '#/components/features/guest/portal-unavailable'
-import type { PortalUnavailableCopy } from '#/components/features/guest/portal-unavailable-copy'
-import { PortalUnavailableInBrowserLanguage } from '#/components/features/guest/portal-unavailable-in-browser-language'
+import { ImmersivePublicPortal } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-public-portal'
+import { guestPageHead } from '#/contexts/guest/page/ui/guest-page-head'
+import { PortalUnavailable } from '#/contexts/guest/page/ui/portal-unavailable'
+import type { PortalUnavailableCopy } from '#/contexts/guest/page/ui/portal-unavailable-copy'
+import { PortalUnavailableInBrowserLanguage } from '#/contexts/guest/page/ui/portal-unavailable-in-browser-language'
 import { guestKeys } from '#/shared/queries/query-keys'
 import {
   formAvailability,

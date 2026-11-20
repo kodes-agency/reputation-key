@@ -11,7 +11,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PortalPublicationState } from '#/components/features/portal/shared/types'
+import type { PortalPublicationState } from '#/contexts/portal/workspace/ui/shared/types'
 import type {
   PortalDetailPortal,
   PortalResponsibleManagerState,
@@ -29,7 +29,7 @@ const { shares, histories, permissions } = vi.hoisted(() => ({
   permissions: { canUpdate: true, hasWrite: true },
 }))
 
-vi.mock('#/components/features/portal/portal-share/portal-share', () => ({
+vi.mock('#/contexts/portal/printing/ui/portal-share/portal-share', () => ({
   PortalShare: (props: Recorded) => {
     shares.push(props)
     return null

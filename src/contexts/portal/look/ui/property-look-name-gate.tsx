@@ -8,7 +8,7 @@ import { EmptyState } from '#/components/ui/empty-state'
 import {
   PropertyPublicDisplayNameCard,
   type SavePublicDisplayNameAction,
-} from '#/components/features/property/property-public-display-name-card'
+} from '#/contexts/portal/look/ui/property-public-display-name-card'
 
 export function PropertyLookNameGate({
   propertyId,

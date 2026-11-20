@@ -9,7 +9,7 @@ import type {
   PortalGoalRunningMonth,
 } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
-import { daysLeftWords } from '../../../../components/goals/goal-live-view'
+import { daysLeftWords } from './goal-live-view'
 import {
   dayWords,
   monthName,

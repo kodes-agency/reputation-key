@@ -7,7 +7,7 @@ import type { RatingGoalSetupInputs } from '#/contexts/reporting/rating-goals/co
 import { ExplainTrigger } from '#/components/ui/explain-trigger'
 import { IconButton } from '#/components/ui/icon-button'
 import { Popover, PopoverContent } from '#/components/ui/popover'
-import { GOAL_SETUP_LINK } from '#/components/goals/goal-setup-parts'
+import { GOAL_SETUP_LINK } from '#/contexts/reporting/goals/ui/goal-setup-parts'
 import { PLAN_POLICY_LINE, UNASKED_REVIEWS_LINE } from './rating-goal-copy'
 import { workedOutParagraphs } from './rating-goal-setup-copy'
 import type { PaceUnit, SetupPlan } from './rating-goal-setup-draft'

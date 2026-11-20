@@ -27,7 +27,11 @@ import {
   parseHexColour,
   readableForegroundOn,
 } from '#/shared/domain/portal-field-colour'
-import { heroBackgroundsOf, mix as over, type Rgb } from './immersive-hero-scrim'
+import {
+  heroBackgroundsOf,
+  mix as over,
+  type Rgb,
+} from '../../../../../contexts/guest/page/ui/public-portal/immersive/immersive-hero-scrim'
 
 export { IMMERSIVE_TEXT_COLOUR, MIN_FIELD_TEXT_CONTRAST }
 

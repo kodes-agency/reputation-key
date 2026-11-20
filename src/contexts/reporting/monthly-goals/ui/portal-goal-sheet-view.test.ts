@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalGoalSheetFacts } from '#/contexts/reporting/monthly-goals/contracts'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import { goalRefusal } from '../../../../components/goals/goal-refusal'
+import { goalRefusal } from './goal-refusal'
 import { PORTAL_SHEET_REFUSALS } from './portal-goal-sheet-refusals'
 import {
   changedDraft,

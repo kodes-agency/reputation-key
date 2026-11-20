@@ -8,7 +8,7 @@ import type {
   ReviseMonthlyPortalGoalRequest,
 } from '#/contexts/reporting/monthly-goals/contracts'
 import type { PortalGoalAverageOfPage } from '#/contexts/reporting/monthly-goals/contracts'
-import { GoalSheetFrame } from '../../../../components/goals/goal-sheet-frame'
+import { GoalSheetFrame } from '../../goals/ui/goal-sheet-frame'
 import { PortalGoalAverageChangeBody } from './portal-goal-average-change-body'
 import {
   changedAverageDraft,

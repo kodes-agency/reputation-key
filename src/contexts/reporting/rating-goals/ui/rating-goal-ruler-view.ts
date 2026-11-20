@@ -2,7 +2,10 @@
 // unrounded thresholds to the manager.
 
 import type { RatingGoalCardView } from '#/contexts/reporting/rating-goals/contracts'
-import { rulerModel, type GoalRulerModel } from '#/components/goals/goal-ruler-view'
+import {
+  rulerModel,
+  type GoalRulerModel,
+} from '#/contexts/reporting/goals/ui/goal-ruler-view'
 import { reviewCountText } from './rating-goal-tracking-words'
 import { tenthsText } from './rating-goal-view'
 

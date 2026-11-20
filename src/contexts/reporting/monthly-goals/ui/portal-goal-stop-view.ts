@@ -6,7 +6,7 @@ import type {
   PortalGoalLastMonth,
   PortalGoalOfCard,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import type { GoalRefusalSentences } from '../../../../components/goals/goal-refusal'
+import type { GoalRefusalSentences } from './goal-refusal'
 import {
   PORTAL_GOAL_ALREADY_STOPPED,
   PORTAL_SHEET_REFUSALS,

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Field, FieldDescription, FieldLabel } from '#/components/ui/field'
-import { PropertyPicker } from '#/components/property/property-picker'
-import { sortPropertiesByName } from '#/components/property/property-search'
+import { PropertyPicker } from '#/components/forms/property-picker'
+import { sortPropertiesByName } from '#/components/ui/property-search'
 import { RemovableChip } from '#/components/ui/removable-chip'
 
 type PropertyOption = Readonly<{

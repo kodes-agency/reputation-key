@@ -2,7 +2,7 @@
 // Portal and group pages.
 
 import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
-import { GoalClosedCard } from '../../../../components/goals/goal-history-list'
+import { GoalClosedCard } from '../../goals/ui/goal-history-list'
 import { HOW_IT_COUNTS_TITLE, howItCountsWords } from './portal-goal-page-view'
 
 type Props = Readonly<{

@@ -16,7 +16,7 @@ import {
 } from '#/contexts/identity/server/organizations'
 import { updateNotificationUserSettingsFn } from '#/contexts/feed/server/notifications'
 import { ProfileSettingsPage } from '#/contexts/identity/members/ui/profile-settings-page'
-import { TimezoneAndFormatCard } from '#/components/features/settings'
+import { TimezoneAndFormatCard } from '#/contexts/feed/preferences/ui/timezone-and-format-card'
 import { notificationUserSettingsQuery } from '#/routes/-queries/route-queries'
 import { createKeys } from '#/shared/queries/query-keys'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'

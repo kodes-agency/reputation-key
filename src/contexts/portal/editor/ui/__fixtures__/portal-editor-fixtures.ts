@@ -8,7 +8,7 @@ import type {
   ChangePortalLanguagesVariables,
   CompleteReviewVariables,
   UpdatePortalVariables,
-} from '#/components/features/portal/shared/types'
+} from '#/contexts/portal/workspace/ui/shared/types'
 import type { PortalEditorResources } from '../portal-editor-types'
 
 export function action<TInput, TOutput = unknown>(

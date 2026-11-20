@@ -8,7 +8,7 @@ import {
   MessageCircle,
 } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
-import { CheckInSection } from '#/components/features/shared/check-in-section'
+import { CheckInSection } from '#/components/ui/check-in-section'
 
 /** Guest voice keeps its established icon vocabulary over the shared card. */
 export function GuestVoiceSection({

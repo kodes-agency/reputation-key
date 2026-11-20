@@ -7,7 +7,7 @@ import {
   overviewRow,
 } from './portal-overview/portal-overview-fixtures'
 import { PortalWritesOffDecorator } from './portal-overview/portal-writes-off-decorator'
-import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/ui/list-search-limit'
 import {
   ControlledPage,
   baseArgs,

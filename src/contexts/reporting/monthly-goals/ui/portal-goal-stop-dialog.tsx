@@ -5,10 +5,7 @@
 import type { StopMonthlyPortalGoalRequest } from '#/contexts/reporting/monthly-goals/contracts'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
-import {
-  goalRefusalCode,
-  withGoalRefusals,
-} from '../../../../components/goals/goal-refusal'
+import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
 import { PORTAL_GOAL_BEHIND } from './portal-goal-sheet-refusals'
 import { SINGLE_GOAL_WORDS } from './portal-goal-single-page-view'
 import {

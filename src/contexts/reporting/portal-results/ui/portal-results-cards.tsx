@@ -1,6 +1,6 @@
 import { QrCode, Star, Link2, Languages, Clock } from 'lucide-react'
 import type { PortalAnalyticsData } from '#/contexts/reporting/portal-results/contracts'
-import { CheckInSection } from '#/components/features/shared/check-in-section'
+import { CheckInSection } from '#/components/ui/check-in-section'
 import { InlineLink } from '#/components/ui/inline-link'
 import { portalResultsCheckIn } from './portal-results-check-in'
 import { portalResultsQuietLines } from './portal-results-quiet-lines'

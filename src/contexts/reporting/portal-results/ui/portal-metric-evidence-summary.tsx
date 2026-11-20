@@ -3,7 +3,7 @@ import {
   formatEvidenceTime,
   metricAvailabilityDetail,
   metricStateLabel,
-} from '#/components/features/dashboard/metric-availability-presentation'
+} from '#/contexts/reporting/portal-results/ui/metric-availability-presentation'
 
 type EvidenceEntry = Readonly<{
   label: string

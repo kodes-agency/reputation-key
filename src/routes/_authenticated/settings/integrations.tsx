@@ -13,7 +13,7 @@ import {
   disconnectGoogle,
   getGoogleAuthUrl,
 } from '#/contexts/integration/server/google-connections'
-import { IntegrationsSettingsPage } from '#/components/features/settings'
+import { IntegrationsSettingsPage } from '#/contexts/integration/connections/ui/integrations-settings-page'
 import { createKeys } from '#/shared/queries/query-keys'
 import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 

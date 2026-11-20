@@ -12,7 +12,7 @@ import {
   GoalSetupLinks,
   GoalSetupPanel,
   GoalSetupStatusLine,
-} from '#/components/goals/goal-setup-parts'
+} from '#/contexts/reporting/goals/ui/goal-setup-parts'
 import { RatingGoalAverageFact } from './rating-goal-average-fact'
 import { RatingGoalGoalNumeral } from './rating-goal-goal-numeral'
 import { paceText } from './rating-goal-pace-words'

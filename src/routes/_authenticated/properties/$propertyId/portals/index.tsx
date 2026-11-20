@@ -32,7 +32,7 @@ import { portalOverviewQuery } from './-portal-overview-data'
 import { useNewPortal } from './-use-new-portal'
 import { usePortalResultsControls } from './-portal-results-controls'
 import { usePortalInboxWaiting } from './-portal-inbox-waiting'
-import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
+import { portalGroupCachePolicy } from '#/contexts/portal/publication/ui/portal-group-cache-policy'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
   staticData: { page: { title: 'Portals', tier: 'dashboard', under: 'property' } },

@@ -9,7 +9,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { Button } from '#/components/ui/button'
 import { usePortalEditAccess } from '#/components/features/portal/shared/use-portal-edit-access'
 import { PortalArchiveDialog } from '#/components/features/portal/portal-overview/portal-archive-dialog'
-import { PortalReadOnlyNotice } from '#/components/features/portal/portal-workspace/portal-read-only-notice'
+import { PortalReadOnlyNotice } from '#/contexts/portal/workspace/ui/portal-workspace/portal-read-only-notice'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { portalQuery } from './-portal-detail-data'
 

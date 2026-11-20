@@ -2,7 +2,10 @@
 // region; child views supply headings without duplicating its landmark.
 
 import type { ReactNode } from 'react'
-import { GoalViewTabs, type GoalView } from '#/components/goals/goal-view-tabs'
+import {
+  GoalViewTabs,
+  type GoalView,
+} from '#/contexts/reporting/rating-goals/ui/goal-view-tabs'
 
 type Props = Readonly<{
   propertyId: string

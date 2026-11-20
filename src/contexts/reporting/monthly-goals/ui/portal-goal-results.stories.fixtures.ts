@@ -17,7 +17,7 @@ import type {
   GoalProgramBundle,
   GoalProgramVersion,
 } from '#/contexts/reporting/application/ports/goal-program.repository'
-import { goalAssignmentSubjectLabel } from '../../../../components/goals/goal-assignment-subject-label'
+import { goalAssignmentSubjectLabel } from './goal-assignment-subject-label'
 import { endedPortalGoals } from './portal-goal-results-view'
 
 export const SEAVIEW = { propertyId: 'property-seaview', name: 'Seaview Hotel' } as const

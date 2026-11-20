@@ -13,7 +13,7 @@ import { usePortalFormAutosave } from './use-portal-form-autosave'
 import type {
   PortalData,
   UpdatePortalVariables,
-} from '#/components/features/portal/shared/types'
+} from '#/contexts/portal/workspace/ui/shared/types'
 
 const nameFormSchema = updatePortalSettingsInputSchema.pick({ name: true }).required()
 

@@ -11,7 +11,7 @@ import type {
 } from '#/contexts/reporting/rating-goals/contracts'
 import type { StatusMap, StatusPresentation } from '#/components/ui/status-badge'
 import { formatNumber, formatShortDate } from '#/lib/format'
-import { GOAL_PACE_STATUS } from '#/components/goals/goal-pace-status'
+import { GOAL_PACE_STATUS } from '#/contexts/reporting/goals/ui/goal-pace-status'
 import { paceChangeText, paceText } from './rating-goal-pace-words'
 
 /** How a rating goal's status reads as a pill. The three paces are every goal's (`goal-pace-status.ts`). */

@@ -5,7 +5,7 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type {
   PortalPublicationState,
   PortalThemeDraft,
-} from '#/components/features/portal/shared/types'
+} from '#/contexts/portal/workspace/ui/shared/types'
 
 export type PortalDetailPortal = Readonly<{
   kind?: 'place' | 'personal'

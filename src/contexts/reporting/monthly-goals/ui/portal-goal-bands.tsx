@@ -6,14 +6,14 @@ import type {
   PortalGoalOfCard,
   PortalGoalRunningMonth,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { CheckInSection } from '#/components/features/shared/check-in-section'
+import { CheckInSection } from '#/components/ui/check-in-section'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   GOAL_ACTION_LINK,
   GoalActionButton,
   GoalActionRows,
   GoalActionWords,
-} from '../../../../components/goals/goal-action-row'
+} from '../../goals/ui/goal-action-row'
 import { GoalColumns } from '../../../../components/goals/goal-columns'
 import {
   changeNumberNote,

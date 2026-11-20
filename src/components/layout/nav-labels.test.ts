@@ -6,7 +6,7 @@
 // takes its names and the breadcrumbs take theirs, and the settings sections of one
 // Property name their scope, so no two destinations read the same.
 import { describe, expect, it } from 'vitest'
-import { PROPERTY_SETTINGS_SECTIONS } from '#/components/features/property/settings/property-settings-sections'
+import { PROPERTY_SETTINGS_SECTIONS } from '#/contexts/property/profile/ui/settings/property-settings-sections'
 import { NAV_LABEL } from './nav-labels'
 
 describe('NAV_LABEL', () => {

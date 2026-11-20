@@ -7,12 +7,12 @@
 // choice stays behind), and it cannot be closed while a logo is on its way.
 
 import { DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
-import { describeImageFacts } from '#/components/features/portal/portal-media/image-checks'
-import { ImageChecksList } from '#/components/features/portal/portal-media/image-checks-list'
-import { ImageFileButton } from '#/components/features/portal/portal-media/image-file-button'
-import { ImageRightsField } from '#/components/features/portal/portal-media/image-rights-field'
-import { UploadDialogFooter } from '#/components/features/portal/portal-media/upload-dialog-footer'
-import { UploadDialogShell } from '#/components/features/portal/portal-media/upload-dialog-shell'
+import { describeImageFacts } from '#/contexts/portal/look/ui/portal-media/image-checks'
+import { ImageChecksList } from '#/contexts/portal/look/ui/portal-media/image-checks-list'
+import { ImageFileButton } from '#/contexts/portal/look/ui/portal-media/image-file-button'
+import { ImageRightsField } from '#/contexts/portal/look/ui/portal-media/image-rights-field'
+import { UploadDialogFooter } from '#/contexts/portal/look/ui/portal-media/upload-dialog-footer'
+import { UploadDialogShell } from '#/contexts/portal/look/ui/portal-media/upload-dialog-shell'
 import { useLogoDialog, type LogoDialogInput } from './use-logo-dialog'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 

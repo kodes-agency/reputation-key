@@ -6,7 +6,7 @@ import type {
   PortalGoalAddOffer,
   PortalGoalAddOptions,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { goalMetricLabel } from '../../../../components/goals/goal-metric-label'
+import { goalMetricLabel } from './goal-metric-label'
 import { countsFromWords } from './portal-goal-offer-words'
 import {
   committedCount,

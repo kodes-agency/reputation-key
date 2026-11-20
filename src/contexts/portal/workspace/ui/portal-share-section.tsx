@@ -3,18 +3,18 @@
 // then draws the Share screen. The route hands in the reads and the commands;
 // nothing else of the workspace waits on them.
 
-import { resolveFixPeople } from '#/components/features/portal/portal-review/portal-review-checks'
-import { PortalShare } from '#/components/features/portal/portal-share/portal-share'
+import { resolveFixPeople } from '#/contexts/portal/publication/ui/portal-review/portal-review-checks'
+import { PortalShare } from '#/contexts/portal/printing/ui/portal-share/portal-share'
 import type {
   IssuedPortalLink,
   PortalShareMutations,
   RotatePortalLinkInput,
-} from '#/components/features/portal/portal-share/portal-share-types'
+} from '#/contexts/portal/printing/ui/portal-share/portal-share-types'
 import type {
   PortalPrintKitReader,
   PortalPrintKitResources,
-} from '#/components/features/portal/portal-share/portal-print-kit-types'
-import type { PortalLinkIssuance } from '#/components/features/portal/portal-workspace/portal-link-issuance'
+} from '#/contexts/portal/printing/ui/portal-share/portal-print-kit-types'
+import type { PortalLinkIssuance } from '#/contexts/portal/workspace/ui/portal-workspace/portal-link-issuance'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import type {

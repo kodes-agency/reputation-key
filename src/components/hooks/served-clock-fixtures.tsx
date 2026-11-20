@@ -7,9 +7,9 @@ import {
   servedAtProps,
   useServedAt,
 } from './served-clock'
-import { useNow } from '#/components/features/portal/shared/use-now'
-import { derivePortalShareViewFromProps } from '#/components/features/portal/portal-share/portal-share-state'
-import type { PortalShareProps } from '#/components/features/portal/portal-share/portal-share-types'
+import { useNow } from '#/contexts/portal/workspace/ui/shared/use-now'
+import { derivePortalShareViewFromProps } from '#/contexts/portal/printing/ui/portal-share/portal-share-state'
+import type { PortalShareProps } from '#/contexts/portal/printing/ui/portal-share/portal-share-types'
 import { presentResponseTargetChip } from '#/components/inbox/response-target-chip'
 import { formatHistoryTime } from '#/contexts/portal/workspace/ui/portal-history-time'
 import { useMinuteClock } from '#/contexts/reputation/inbox/ui/inbox-case-toolbar'

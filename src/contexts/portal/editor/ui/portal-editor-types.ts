@@ -8,7 +8,7 @@ import type {
   CompleteReviewVariables,
   ChangePortalLanguagesVariables,
   UpdatePortalVariables,
-} from '#/components/features/portal/shared/types'
+} from '#/contexts/portal/workspace/ui/shared/types'
 import type { PortalLinkTapsRead } from '../contracts'
 import type { PortalPreviewReader } from '#/components/features/portal/portal-preview/portal-preview-pane'
 import type {
@@ -18,12 +18,12 @@ import type {
 } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalLookActions } from '#/contexts/portal/look/ui/portal-look-types'
 import type { PortalGroupView } from '#/components/features/portal/portal-group/portal-group-types'
-import type { GoogleReviewDestinationStatus } from '#/components/features/portal/portal-settings/google-review-destination-status'
+import type { GoogleReviewDestinationStatus } from '#/contexts/portal/editor/ui/portal-settings/google-review-destination-status'
 import type {
   PortalApprovedDestinationList,
   PortalExperienceActions,
   PortalExperienceSettings,
-} from '#/components/features/portal/portal-settings/portal-experience-settings-types'
+} from '#/contexts/portal/editor/ui/portal-settings/portal-experience-settings-types'
 import type {
   PortalDetailPortal,
   PortalResponsibleManagerState,

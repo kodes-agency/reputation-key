@@ -1,4 +1,4 @@
-import { countryLabel } from '#/components/features/shared/country-label'
+import { countryLabel } from '#/components/forms/country-label'
 import { IMPORT_COUNTRY_CODES } from './google-import-review-model'
 
 export const IMPORT_COUNTRY_OPTIONS = IMPORT_COUNTRY_CODES.map((code) => ({

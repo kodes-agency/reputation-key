@@ -9,7 +9,7 @@ import type {
   ImmersiveResponseFailure,
   ImmersiveResponseNotice,
   ImmersiveResponseViewProps,
-} from '#/components/features/guest/public-portal/immersive/immersive-response-types'
+} from '#/contexts/guest/page/ui/public-portal/immersive/immersive-response-types'
 
 /** The part of the response view's props the session decides; the page adds the pack and the name. */
 export type ImmersiveSessionProps = Omit<

@@ -6,7 +6,7 @@ import type {
   PublishPortalsChangesResult,
 } from '#/contexts/portal/application/portal-management-contracts'
 import { PREVIEW_STORY_PHOTO } from '#/components/features/portal/portal-preview/__fixtures__/portal-preview-fixtures'
-import type { PortalImageUploader } from '#/components/features/portal/portal-media/upload-portal-image'
+import type { PortalImageUploader } from '#/contexts/portal/look/ui/portal-media/upload-portal-image'
 import type { AffectedPortalRow } from './property-look-rules'
 import type { PropertyLookProfile } from './property-look-types'
 import type { PropertyLookSaves } from './use-property-look-draft'

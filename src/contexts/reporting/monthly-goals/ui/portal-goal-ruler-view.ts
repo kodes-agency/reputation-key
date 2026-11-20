@@ -3,10 +3,7 @@
 
 import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
-import {
-  rulerModel,
-  type GoalRulerModel,
-} from '../../../../components/goals/goal-ruler-view'
+import { rulerModel, type GoalRulerModel } from '../../goals/ui/goal-ruler-view'
 import { dayWords, portalGoalUnit } from './portal-goal-words'
 
 /** Null when the month's figure cannot be read: it is never a zero. */

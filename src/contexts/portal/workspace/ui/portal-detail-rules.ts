@@ -10,7 +10,7 @@
 // on screen because the answers are derived here — the same split
 // portal-share-state.ts makes for the Share tab.
 import type { PortalPublicationHistory } from '#/contexts/portal/application/portal-management-contracts'
-import type { PortalPublicationState } from '#/components/features/portal/shared/types'
+import type { PortalPublicationState } from '#/contexts/portal/workspace/ui/shared/types'
 import {
   isPortalEditorSection,
   type PortalEditorSection,

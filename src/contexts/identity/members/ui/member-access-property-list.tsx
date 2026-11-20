@@ -8,7 +8,7 @@ import { Checkbox } from '#/components/ui/checkbox'
 import { Label } from '#/components/ui/label'
 import { SearchField } from '#/components/ui/search-field'
 import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
-import { searchMatcher } from '#/components/property/property-search'
+import { searchMatcher } from '#/components/ui/property-search'
 import type { PropertyRef } from './member-table'
 import { selectAllVisible, toggleId } from './member-access-diff'
 

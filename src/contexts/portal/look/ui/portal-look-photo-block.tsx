@@ -14,7 +14,7 @@ import type {
   PropertyLookHero,
 } from '#/contexts/portal/application/portal-management-contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
-import type { PortalImageUploader } from '#/components/features/portal/portal-media/upload-portal-image'
+import type { PortalImageUploader } from '#/contexts/portal/look/ui/portal-media/upload-portal-image'
 import { CENTRE_FOCAL, type FocalPoint } from './focal-point'
 import { LazyPropertyLookPhotoDialog } from './property-look-lazy-dialogs'
 import { PortalLookBlock } from './portal-look-block'

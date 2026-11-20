@@ -25,7 +25,7 @@ const ALLOWLIST: ReadonlyArray<
   },
   {
     match: (p) =>
-      p.startsWith('src/components/features/guest/public-portal/language-packs/') ||
+      p.startsWith('src/contexts/guest/page/ui/public-portal/language-packs/') ||
       p === 'src/components/features/guest/public-portal/guest-language-pack.ts',
     why: 'the v1 pack constants and their Bulgarian copy',
   },

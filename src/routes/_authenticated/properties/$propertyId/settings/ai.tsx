@@ -8,8 +8,8 @@ import {
   MerchantAiReadOnlyCard,
   merchantAiReadOnlyState,
 } from '#/contexts/identity/consent/ui/merchant-ai-read-only-card'
-import { propertyAiIsOn } from '#/components/features/property/settings/property-setup-steps'
-import { ReviewAnalysisProgressCard } from '#/components/features/property/settings/review-analysis-progress-card'
+import { propertyAiIsOn } from '#/components/features/property-setup/property-setup-steps'
+import { ReviewAnalysisProgressCard } from '#/contexts/ai/replay/ui/review-analysis-progress-card'
 import {
   changeMerchantAiCapabilitiesFn,
   enableMerchantAiFn,

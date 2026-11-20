@@ -10,8 +10,8 @@
 // bar is neutral (no good or bad colour, no praise), a figure that cannot be
 // read is not a zero, and an average too thin to show says why instead.
 import type { GoalProgress } from '#/contexts/reporting/application/public-api'
-import { goalMetricLabel } from '#/components/goals/goal-metric-label'
-import { goalTargetMarkerLine } from '#/components/goals/goal-target-marker'
+import { goalMetricLabel } from '#/contexts/reporting/monthly-goals/ui/goal-metric-label'
+import { goalTargetMarkerLine } from '#/contexts/reporting/monthly-goals/ui/goal-target-marker'
 import {
   formatNumber,
   formatDayKey,

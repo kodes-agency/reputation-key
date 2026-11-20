@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { ImagePlus } from 'lucide-react'
 import type { PropertyLookLogo } from '#/contexts/portal/application/portal-management-contracts'
 import { Button } from '#/components/ui/button'
-import type { PortalImageUploader } from '#/components/features/portal/portal-media/upload-portal-image'
+import type { PortalImageUploader } from '#/contexts/portal/look/ui/portal-media/upload-portal-image'
 import { LazyPropertyLookLogoDialog } from './property-look-lazy-dialogs'
 import { PropertyLookMediaActions } from './property-look-media-actions'
 

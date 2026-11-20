@@ -19,9 +19,9 @@ import {
   PropertyListPage,
   type PropertyComparison,
   type PropertySetupProgress,
-} from '#/components/features/property/property-list-page'
-import { propertyListSearchSchema } from '#/components/features/property/property-list-search-schema'
-import type { DataState } from '#/components/features/property/property-list-view'
+} from '#/contexts/property/lifecycle/ui/list/property-list-page'
+import { propertyListSearchSchema } from '#/contexts/property/lifecycle/ui/list/property-list-search-schema'
+import type { DataState } from '#/contexts/property/lifecycle/ui/list/property-list-view'
 import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
 import {
   propertiesQuery,

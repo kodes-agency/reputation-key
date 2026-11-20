@@ -6,7 +6,7 @@ import { visiblePortals } from './visible-portals'
 // rule (search, the attention filter, group order, paging across groups) is
 // tested without a table, and the table only draws what this decides.
 import { personInitials } from '#/components/inbox/person-initials'
-import { searchMatcher } from '#/components/property/property-search'
+import { searchMatcher } from '#/components/ui/property-search'
 import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import {
   GUEST_LOCALE_METADATA,
