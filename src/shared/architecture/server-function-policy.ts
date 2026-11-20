@@ -58,6 +58,7 @@ const SERVER_LAYER = /^src\/contexts\/[^/]+\/server\//u
 const COMMAND_SHELL = 'src/shared/commands/command.server.ts'
 const SOURCE_FILE = /\.tsx?$/u
 const NOT_PRODUCTION = /\.(?:test|stories)\.tsx?$|\.d\.ts$/u
+const TEST_SUPPORT = /^src\/shared\/(?:db\/)?testing\//u
 const RESOLVED_SUFFIXES = ['.ts', '.tsx', '/index.ts'] as const
 
 type ImportedName = Readonly<{ specifier: string; name: string }>
@@ -454,9 +455,9 @@ function serverFunctionFactoryUsesOf(
   }))
 }
 
-/** True for a module that ships: not a test, a story or a declaration file. */
+/** True for a module that ships: not a test, a story, a declaration file or test support. */
 export function isProductionSource(file: string): boolean {
-  return SOURCE_FILE.test(file) && !NOT_PRODUCTION.test(file)
+  return SOURCE_FILE.test(file) && !NOT_PRODUCTION.test(file) && !TEST_SUPPORT.test(file)
 }
 
 /**
