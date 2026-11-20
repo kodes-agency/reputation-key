@@ -91,9 +91,18 @@ const NOT_A_UI_SOURCE = [
   '**/*-fixtures.{ts,tsx}',
 ]
 // The guest renderer is the owner's reference experience and keeps its own CSS and colours.
+// The Guest page's other files keep the shared rules.
 const GUEST_RENDERER = [
   'src/contexts/guest/page/ui/**',
+  '!src/contexts/guest/page/ui/{contact-request.tsx,guest-page-data.ts,guest-response-actions.ts,use-guest-response.ts}',
   'src/components/features/guest/**',
+]
+// Design-system primitives own raw buttons, control sizes and fills. The shared
+// composites kept beside them are held to the rules screens follow.
+const DESIGN_SYSTEM_PRIMITIVES = [
+  'src/components/ui/**',
+  '!src/components/ui/{chart-frame,check-in-section,glossary-term,rating-distribution-chart}.tsx',
+  '!src/components/ui/{list-search-limit,property-search}.ts',
 ]
 const ROUTE_SOURCES = ['src/routes/**/*.{ts,tsx}']
 
@@ -1415,7 +1424,7 @@ export default tseslint.config(
   // primitive (on-fill ink included), not a colour typed on a button.
   {
     files: UI_SOURCES,
-    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**'],
+    ignores: [...NOT_A_UI_SOURCE, ...DESIGN_SYSTEM_PRIMITIVES],
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/destructive-class': [
@@ -1436,7 +1445,7 @@ export default tseslint.config(
   // src/components/ui/button-sources.test.ts covers Button only.
   {
     files: UI_SOURCES,
-    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**'],
+    ignores: [...NOT_A_UI_SOURCE, ...DESIGN_SYSTEM_PRIMITIVES],
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/control-size': [
@@ -1457,7 +1466,7 @@ export default tseslint.config(
   // through a documented data-slot exception, never an inline rule disable.
   {
     files: UI_SOURCES,
-    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**', ...GUEST_RENDERER],
+    ignores: [...NOT_A_UI_SOURCE, ...DESIGN_SYSTEM_PRIMITIVES, ...GUEST_RENDERER],
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/raw-button': [
@@ -1643,7 +1652,7 @@ export default tseslint.config(
     files: UI_SOURCES,
     ignores: [
       ...NOT_A_UI_SOURCE,
-      'src/components/ui/**',
+      ...DESIGN_SYSTEM_PRIMITIVES,
       'src/components/inbox/inbox-queue-strip.tsx',
       'src/components/inbox/inbox-active-filters.tsx',
     ],

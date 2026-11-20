@@ -160,7 +160,7 @@ and actions supply server state.
   URL, and the Inbox composes the same parts in its compact header. The field is
   `type="search"` with the one length limit (`MAX_LIST_SEARCH_LENGTH`, which the URL
   schemas share: a longer search is dropped from the URL, so the box stops typing
-  there), and a list matches with `searchMatcher` (`property/property-search.ts`),
+  there), and a list matches with `searchMatcher` (`ui/property-search.ts`),
   which folds case and accents, never its own `includes`. The count is "N of M" while
   the list is narrowed. Clear takes away the search and the filters and never the
   sort, and reads "Clear filters" or, while a search is in force, "Clear search and
