@@ -109,7 +109,8 @@ Observations are merged across story files and sorted by story id, state and wid
 Record mode permits repaired checks to pass; interaction, accessibility,
 console-error and other checks still fail normally. Review and commit the generated
 list only after the full run finishes successfully. Run the command without story
-filters so that the inventory covers every state.
+filters or `--shard` (CI runs the Storybook lane in two shards; record mode refuses a
+sharded run) so that the inventory covers every state.
 
 ### Local stacks
 

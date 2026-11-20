@@ -27,6 +27,19 @@ import { testEnvironment } from './src/shared/testing/test-environment'
 // runner does not work with Storybook 10 (its jest runtime cannot load the
 // Storybook 10 config), so the two flags are now separate: inclusion here,
 // enforcement left to VITEST_STORYBOOK's absence.
+// Record mode rewrites the phone-width list from what the run observed, so a
+// run that sees only one shard of the stories would drop every other entry.
+if (
+  process.env.PHONE_WIDTH_RECORD === '1' &&
+  process.argv.some(
+    (argument) => argument === '--shard' || argument.startsWith('--shard='),
+  )
+) {
+  throw new Error(
+    'PHONE_WIDTH_RECORD=1 needs the whole story suite: run it without --shard.',
+  )
+}
+
 const storybookProject: TestProjectConfiguration[] =
   process.env.REPKEY_STORYBOOK_TESTS === 'true'
     ? [
