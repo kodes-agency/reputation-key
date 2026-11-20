@@ -21,7 +21,6 @@
   "src/contexts/guest/page/ui/public-portal/immersive/immersive-response-purity.test.ts": 1,
   "src/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy.test.ts": 2,
   "src/contexts/guest/rights/guest-organization-export.adapter.test.ts": 4,
-  "src/contexts/guest/server/public.test.ts": 7,
   "src/contexts/identity/application/ports/organization-export-contributor.port.test.ts": 1,
   "src/contexts/identity/consent/merchant-ai-authorization.repository.integration.test.ts": 1,
   "src/contexts/identity/members/invitation-capability-gate.integration.test.ts": 1,

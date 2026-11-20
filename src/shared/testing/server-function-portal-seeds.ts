@@ -104,6 +104,17 @@ export type PortalSeeds = Readonly<{
     property: TestProperty,
     options?: SeedPublishedPortalOptions,
   ) => Promise<TestPublishedPortal>
+  /**
+   * Publish a new live version of the Portal's content, as the manager's
+   * "Publish" does: the earlier version is replaced and responses already given
+   * keep the version they were given on.
+   */
+  seedRepublication: (
+    portal: TestPublishedPortal,
+    change: (
+      base: ImmersivePortalPublicationConfiguration,
+    ) => ImmersivePortalPublicationConfiguration,
+  ) => Promise<string>
   seedPortalGroup: (
     property: TestProperty,
     portals: readonly TestPortal[],
@@ -373,6 +384,53 @@ export function portalSeeds(context: HarnessSeedContext): PortalSeeds {
       await seedHealthAndLink(context, portal, options.health ?? 'healthy', link.url)
       const address = await seedAddress(context, portal, options)
       return { ...portal, ...address, snapshotId, linkId: link.id, linkUrl: link.url }
+    },
+
+    seedRepublication: async (portal, change) => {
+      const { rows } = await pool().query(
+        `SELECT s.configuration, s.version, a.activation_sequence
+           FROM portal_publication_snapshots s
+           JOIN portal_publication_activations a ON a.snapshot_id = s.id
+          WHERE s.id = $1`,
+        [portal.snapshotId],
+      )
+      const [previous] = rows
+      if (!previous) throw new Error(`No live version ${portal.snapshotId}`)
+      const at = seededAt(context)
+      const configuration = change(
+        previous.configuration as ImmersivePortalPublicationConfiguration,
+      )
+      const snapshot = immersiveSnapshot(configuration, {
+        id: context.newId(),
+        organizationId: portal.organizationId,
+        propertyId: portal.propertyId,
+        portalId: portal.id,
+        version: previous.version + 1,
+        createdBy: 'harness',
+        createdAt: at,
+      })
+      await pool().query(
+        `UPDATE portal_publication_activations
+            SET deactivated_at = $2, deactivation_reason = 'replaced'
+          WHERE snapshot_id = $1`,
+        [portal.snapshotId, at],
+      )
+      const db = getDb()
+      await db
+        .insert(portalPublicationSnapshots)
+        .values(snapshotRow(snapshot, configuration))
+      await db.insert(portalPublicationActivations).values({
+        id: context.newId(),
+        organizationId: portal.organizationId,
+        propertyId: portal.propertyId,
+        portalId: portal.id,
+        snapshotId: snapshot.id,
+        activationSequence: previous.activation_sequence + 1,
+        kind: 'publish',
+        activatedBy: 'harness',
+        activatedAt: new Date(at.getTime() + 1),
+      })
+      return snapshot.id
     },
 
     seedPortalGroup: async (property, portals, options = {}) => {
