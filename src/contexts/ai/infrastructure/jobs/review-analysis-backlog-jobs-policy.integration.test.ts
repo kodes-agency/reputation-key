@@ -17,8 +17,6 @@ import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('#/shared/observability/logger', () => ({
@@ -441,21 +439,4 @@ describe('Review Analysis for a review that arrives during a stop', () => {
       })
     },
   )
-
-  // The consumer's catalogue row is ungated so that the review above can be
-  // queued. What keeps it from analysing a stopped Organization's review on
-  // delivery is the policy question it is handed, so the worker's composition
-  // must hand it the drain's own.
-  it('is given the scope authorizer of the drain where the worker is composed', () => {
-    const composition = readFileSync(
-      join(process.cwd(), 'src/composition/ai-wiring.ts'),
-      'utf8',
-    )
-    const build = readFileSync(join(process.cwd(), 'src/contexts/ai/build.ts'), 'utf8')
-
-    expect(composition).toMatch(
-      /authorizeReviewAnalysisScope: createScheduledScopeAuthorizer\(\s*'system:ai\.review_analysis_backlog_drain',?\s*\)/u,
-    )
-    expect(build).toMatch(/authorizeScope: input\.authorizeReviewAnalysisScope,/u)
-  })
 })

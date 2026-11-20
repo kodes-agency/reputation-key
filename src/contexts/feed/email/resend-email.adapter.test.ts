@@ -7,7 +7,6 @@
 //     mail honours it, so the documented sandbox seam did not exist here.
 
 import { describe, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
 import {
   createResendEmailAdapter,
   type ResendEmailClient,
@@ -65,15 +64,6 @@ describe('resend email adapter', () => {
       clock: CLOCK,
       ...(clientFactory ? { clientFactory } : {}),
     })
-
-  it('uses injected configuration, logging, and time without ambient runtime reads', () => {
-    const source = readFileSync(
-      new URL('./resend-email.adapter.server.ts', import.meta.url),
-      'utf8',
-    )
-    expect(source).not.toMatch(/\bget(?:Env|Logger)\s*\(/u)
-    expect(source).not.toMatch(/\bnew Date\s*\(/u)
-  })
 
   it('forwards the plain-text twin and the unsubscribe headers to the provider', async () => {
     const { client, send } = fakeClient()

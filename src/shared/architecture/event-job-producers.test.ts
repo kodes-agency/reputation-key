@@ -9,13 +9,13 @@ import { readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { walk } from '#/shared/testing/source-tree'
-import { PRODUCERLESS_EVENT_FAMILIES } from './producerless-event-families'
+import { PRODUCERLESS_EVENT_FAMILIES } from '#/shared/governance/producerless-event-families'
 import {
   EVENT_FAMILY_ROWS,
   JOB_FAMILY_ROWS,
   type EventFamilyRow,
   type JobFamilyRow,
-} from './event-job-catalogue'
+} from '#/shared/governance/event-job-catalogue'
 
 const ROOT = process.cwd()
 

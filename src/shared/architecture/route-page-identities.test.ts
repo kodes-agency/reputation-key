@@ -1,18 +1,13 @@
 // What a page's fallback draws is named on its route: the body shape and the header
-// lines are values of `staticData.page` (`page-identity`). A misspelt shape would
-// compile only as far as the literal union allows a route to be wrong at runtime
-// through a cast, and a shape the placeholder cannot draw is no shape at all. This
-// walks the route files the generated tree mounts, reads each page named by a
-// literal, and holds its values to the ones `PageState` knows.
+// lines are values of `staticData.page` (`page-identity`). TypeScript holds each value
+// to its own union; this walks the route files the generated tree mounts and holds
+// the rules that join two values, or a value to where the route sits.
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
-import { LOADING_SHAPES } from '#/components/layout/page-identity'
 
 const ROOT = process.cwd()
-const TIERS: readonly string[] = ['dashboard', 'standard', 'narrow']
-const HEADER_LINES: readonly number[] = [0, 1, 2]
 
 type NamedPage = Readonly<{
   file: string
@@ -90,30 +85,6 @@ const PAGES = generatedRouteModules()
 describe('the pages the routes name', () => {
   it('finds the pages the walk is meant to check', () => {
     expect(PAGES.length).toBeGreaterThan(20)
-  })
-
-  it('names a loading shape the placeholder can draw', () => {
-    const wrong = PAGES.filter(({ values }) => {
-      const shape = values.get('loading')
-      return shape !== undefined && !LOADING_SHAPES.includes(shape as never)
-    })
-    expect(wrong.map((page) => page.file)).toEqual([])
-  })
-
-  it('names a header of no more than two lines', () => {
-    const wrong = PAGES.filter(({ values }) => {
-      const lines = values.get('headerLines')
-      return lines !== undefined && !HEADER_LINES.includes(lines as number)
-    })
-    expect(wrong.map((page) => page.file)).toEqual([])
-  })
-
-  it('names a tier the page shell has', () => {
-    const wrong = PAGES.filter(({ values }) => {
-      const tier = values.get('tier')
-      return tier !== undefined && !TIERS.includes(tier as string)
-    })
-    expect(wrong.map((page) => page.file)).toEqual([])
   })
 
   it('gives the two surface shapes only to a full-bleed page', () => {

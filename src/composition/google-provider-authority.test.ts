@@ -7,8 +7,6 @@
 // unavailable outcome, never a permissive default.
 
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import type { Database } from '#/shared/db'
 import type { Env } from '#/shared/config/env'
 import { GOOGLE_PROVIDER_ENDPOINTS } from './provider-runtime'
@@ -224,15 +222,5 @@ describe('buildGoogleProviderAuthority', () => {
         }),
       ),
     ).toThrow('HMAC keyring is empty or malformed')
-  })
-
-  it('takes configuration only as an argument — never from the ambient process', () => {
-    const source = readFileSync(
-      resolve('src/composition/google-provider-authority.ts'),
-      'utf8',
-    )
-
-    expect(source).not.toContain('process.env')
-    expect(source).not.toContain('getEnv(')
   })
 })

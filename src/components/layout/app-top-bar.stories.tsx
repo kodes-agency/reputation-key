@@ -98,7 +98,13 @@ export const Default: Story = {
     // one the page's sticky elements sit under, and the bar is sticky itself. A
     // class pin.
     const bar = canvasElement.querySelector('header')
-    expect(bar).toHaveClass('sticky', 'top-0', 'h-(--app-top-bar-height)')
+    expect(bar).toHaveClass(
+      'sticky',
+      'top-0',
+      'z-20',
+      'h-(--app-top-bar-height)',
+      'bg-background',
+    )
     expect(bar).not.toHaveAttribute('data-full-bleed')
   },
 }

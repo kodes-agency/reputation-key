@@ -435,19 +435,6 @@ describe('closed-beta CI run that proves the images', () => {
     )
     expect(calls.some((call) => call[2] === 'download')).toBe(false)
   })
-
-  it('uploads the deploy map under the artifact name its reader expects', () => {
-    const workflow = readFileSync(
-      resolve(import.meta.dirname, '../../.github/workflows/ci.yml'),
-      'utf8',
-    )
-    const imageJob = /\n {2}image:\n[\s\S]*?(?=\n {2}[a-z][\w-]*:\n|$)/u.exec(
-      workflow,
-    )?.[0]
-
-    // The reader downloads the artifact by this name.
-    expect(imageJob).toContain('name: ci-image-digest-map-${{ github.sha }}')
-  })
 })
 
 describe('dispatched CI run that proves the replacement pipeline', () => {

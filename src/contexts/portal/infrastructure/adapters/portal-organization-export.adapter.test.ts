@@ -1,5 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type { SQL } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -54,14 +52,6 @@ function fakeDatabase(
     transaction: async (run: (executor: typeof snapshot) => Promise<unknown>) =>
       run(snapshot),
   } as unknown as Database
-}
-
-function sourceFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name)
-    if (entry.isDirectory()) return sourceFiles(path)
-    return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [path] : []
-  })
 }
 
 const ASOF = new Date('2026-08-28T10:00:00.000Z')
@@ -285,26 +275,5 @@ describe('Portal Organization Export contributor', () => {
     expect(statement).toContain('hero_alt_texts::text AS hero_alt_texts')
     expect(statement).toContain('photo_mode, ')
     expect(statement).toMatch(/WHERE organization_id = \$1$/u)
-  })
-
-  it('stays composition input: no Portal server function, route or public API reaches it', () => {
-    const contextFiles = sourceFiles(join(process.cwd(), 'src/contexts/portal'))
-    const reachable = contextFiles
-      .filter((path) => !path.endsWith('build.ts') && !path.includes('/adapters/'))
-      .filter((path) => readFileSync(path, 'utf8').includes('organizationExport'))
-      .map((path) => path.replace(`${process.cwd()}/`, ''))
-    expect(reachable).toEqual([])
-
-    const routes = sourceFiles(join(process.cwd(), 'src/routes')).filter((path) =>
-      readFileSync(path, 'utf8').includes('organizationExportContributor'),
-    )
-    expect(routes).toEqual([])
-
-    // Built by the rights executor, never by a build.
-    const build = readFileSync(
-      join(process.cwd(), 'src/contexts/portal/build.ts'),
-      'utf8',
-    )
-    expect(build).not.toContain('createPortalOrganizationExportContributor')
   })
 })

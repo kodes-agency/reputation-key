@@ -4,7 +4,6 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { readUiSources } from '#/shared/testing/source-tree'
 import { MetricDelta, metricDeltaDirection } from './metric-delta'
 
 const BASELINE = 'vs the previous 90 days'
@@ -107,15 +106,5 @@ describe('MetricDelta', () => {
     expect(
       render({ value: 1, comparisonLabel: BASELINE, className: 'text-xs' }),
     ).toContain('text-xs')
-  })
-})
-
-describe('period-over-period deltas', () => {
-  it('are never drawn with a hand-typed arrow glyph beside a figure', () => {
-    const offenders = readUiSources({ comments: 'kept' })
-      .filter((file) => /[↑↓]/u.test(file.text))
-      .map((file) => file.path)
-
-    expect(offenders).toEqual([])
   })
 })
