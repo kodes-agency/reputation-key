@@ -3,7 +3,7 @@ import {
   changeRatingGoalSchema,
   keepRatingGoalPaceSchema,
   setRatingGoalSchema,
-} from './rating-goal.dto'
+} from './rating-goal.contracts'
 
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000002'
 const GOAL_ID = '00000000-0000-4000-8000-000000000003'

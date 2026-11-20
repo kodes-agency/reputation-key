@@ -10,7 +10,7 @@ import {
   portalGoalSinglePageSchema,
   reviseMonthlyPortalGoalSchema,
   stopMonthlyPortalGoalSchema,
-} from './monthly-portal-goal.dto'
+} from './monthly-portal-goals.contracts'
 
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000002'
 const PORTAL_ID = '00000000-0000-4000-8000-000000000003'
