@@ -4,7 +4,7 @@ import type { PortalGoalOfCard } from '#/contexts/reporting/monthly-goals/contra
 import { Button } from '#/components/ui/button'
 import { TONE_INK } from '#/components/ui/tone'
 import { cn } from '#/lib/utils'
-import { GoalCardActions } from '../../../../components/goals/goal-card-frame'
+import { GoalCardActions } from '../../goals/ui/goal-card-frame'
 import { sameNumberWords } from './portal-goal-check-in-view'
 import type { lastMonthWords } from './portal-goal-running-view'
 import type { PortalGoalSheetIntent } from './portal-goal-sheet-intent'

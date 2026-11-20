@@ -15,16 +15,16 @@ import {
 } from '#/contexts/portal/workspace/ui/portal-detail-rules'
 import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import { PortalDraftSaveStatus } from '#/contexts/portal/editor/ui/portal-draft-save-status'
-import { PortalOpenPageControl } from '#/components/features/portal/portal-workspace/portal-open-page-control'
-import { PortalWorkspaceHeader } from '#/components/features/portal/portal-workspace/portal-workspace-header'
+import { PortalOpenPageControl } from '#/contexts/portal/workspace/ui/portal-workspace/portal-open-page-control'
+import { PortalWorkspaceHeader } from '#/contexts/portal/workspace/ui/portal-workspace/portal-workspace-header'
 import {
   workspaceBackTarget,
   type WorkspaceOriginLocation,
-} from '#/components/features/portal/portal-workspace/portal-workspace-origin'
+} from '#/contexts/portal/workspace/ui/portal-workspace/portal-workspace-origin'
 import {
   hasSomethingToPublish,
   workspaceStatus,
-} from '#/components/features/portal/portal-workspace/portal-workspace-status'
+} from '#/contexts/portal/workspace/ui/portal-workspace/portal-workspace-status'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { usePortalOpenPageReveal } from './-portal-detail-actions'
 import {

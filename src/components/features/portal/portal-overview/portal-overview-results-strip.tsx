@@ -6,7 +6,7 @@
 // offered: a lifetime figure comes from the lifetime aggregate, not from readings).
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
-import { GlossaryTerm } from '#/components/features/shared/glossary-term'
+import { GlossaryTerm } from '#/components/ui/glossary-term'
 import { buttonVariants } from '#/components/ui/button'
 import { RegionError } from '#/components/ui/region-error'
 import { RangeControl } from '#/components/ui/range-control'

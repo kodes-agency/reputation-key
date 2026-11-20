@@ -33,12 +33,15 @@ Property lookups.
 
 ## Screens
 
-Archive and restore screens sit in `lifecycle/ui/`, Responsible Manager
-selection in `responsibility/ui/` and the profile card in `profile/ui/`; routes
-import them from there. The Property list, overview, Google, reply voice and
-template screens and the setup wizard still live in
-`src/components/features/{property,property-setup}/`. Screens take other contexts' server-function signatures
-as types only.
+The Property list and archive and restore screens sit in `lifecycle/ui/`,
+Responsible Manager selection in `responsibility/ui/`, and the profile card,
+settings and reply language in `profile/ui/`; routes import them from there.
+The Google page is Integration's (`performance/ui/`), reply voice and templates
+are Reputation's (`library/ui/`), and the ratings page is Reporting's
+(`property-overview/ui/`). The setup wizard and strip are cross-area screens in
+`src/components/features/property-setup/`; a few overview files still sit in
+`src/components/features/property/`. Screens take other contexts'
+server-function signatures as types only.
 
 ## Model
 

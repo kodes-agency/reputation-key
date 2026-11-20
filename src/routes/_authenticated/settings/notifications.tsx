@@ -12,7 +12,7 @@ import {
   updateNotificationQuietHoursFn,
   resetNotificationPropertyCategoryFn,
 } from '#/contexts/feed/server/notifications'
-import { NotificationsSettingsPage } from '#/components/features/settings'
+import { NotificationsSettingsPage } from '#/contexts/feed/preferences/ui/notifications-settings-page'
 import { notificationPropertyScopeKey } from '#/contexts/feed/preferences/ui/notification-property-selection'
 import { createKeys } from '#/shared/queries/query-keys'
 import {

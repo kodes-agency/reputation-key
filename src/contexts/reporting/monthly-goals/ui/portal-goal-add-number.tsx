@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { GoalSetupPanel } from '../../../../components/goals/goal-setup-parts'
+import { GoalSetupPanel } from '../../goals/ui/goal-setup-parts'
 import { PortalGoalChoices } from './portal-goal-choices'
 import { PORTAL_SPOT_NOT_PERSON_LINE } from './portal-goal-copy'
 import type { averageModel, numberModel } from './portal-goal-add-number-view'

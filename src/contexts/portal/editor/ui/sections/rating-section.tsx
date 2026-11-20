@@ -5,8 +5,8 @@
 // should.
 
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
-import { ContentReviewCard } from '#/components/features/portal/portal-settings/content-review-card'
-import { GoogleReviewDestinationCard } from '#/components/features/portal/portal-settings/google-review-destination-card'
+import { ContentReviewCard } from '#/contexts/portal/editor/ui/portal-settings/content-review-card'
+import { GoogleReviewDestinationCard } from '#/contexts/portal/editor/ui/portal-settings/google-review-destination-card'
 import type { PortalEditorSectionProps } from '../portal-editor-types'
 
 export function RatingSection({ resources, canEdit }: PortalEditorSectionProps) {

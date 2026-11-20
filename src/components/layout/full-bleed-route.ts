@@ -4,7 +4,7 @@
 // at the icon rail) and the Property layout (gives the child full height) both ask
 // this; nothing else decides. A padded body inside one wraps in `FullBleedFrame`.
 
-import { isWorkspaceRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
+import { isWorkspaceRoute } from '#/contexts/portal/workspace/ui/portal-workspace/portal-workspace-route'
 
 const INBOX_PATH = /^\/inbox(?:\/|$)/u
 const PROPERTY_REVIEWS_PATH = /^\/properties\/[^/]+\/reviews(?:\/|$)/u

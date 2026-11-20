@@ -17,7 +17,7 @@ import type {
   PortalPreview,
   PortalPreviewExperience,
 } from '#/contexts/portal/application/portal-management-contracts'
-import type { GuestPortalCopy } from '#/components/features/guest'
+import type { GuestPortalCopy } from '#/contexts/guest/page/ui/public-portal/language-packs/guest-copy'
 import {
   ARRIVAL_STATE,
   previewStateOptions,

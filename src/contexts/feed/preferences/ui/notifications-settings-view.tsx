@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
-import { PropertyPicker } from '#/components/property/property-picker'
+import { PropertyPicker } from '#/components/forms/property-picker'
 import {
   Card,
   CardContent,

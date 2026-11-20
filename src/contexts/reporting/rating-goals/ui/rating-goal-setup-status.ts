@@ -3,7 +3,7 @@
 // messages must not displace an earlier one.
 
 import { formatNumber } from '#/lib/format'
-import type { GoalStatusPart } from '#/components/goals/goal-setup-parts'
+import type { GoalStatusPart } from '#/contexts/reporting/goals/ui/goal-setup-parts'
 import type { PaceUnit, SetupDraft, SetupPlan } from './rating-goal-setup-draft'
 import { paceText } from './rating-goal-pace-words'
 import { spanText, whenText } from './rating-goal-setup-time'

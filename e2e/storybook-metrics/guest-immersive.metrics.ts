@@ -107,9 +107,7 @@ test.describe('declared stories', () => {
   // The list in `guest-stories.ts` is hand-written, so it can drift: a renamed
   // story leaves an id that renders Storybook's "no preview" page, and a NEW
   // story is never loaded at all. `story-accounting.ts` holds the rules.
-  test('account for every story under src/components/features/guest', async ({
-    request,
-  }) => {
+  test('account for every story under the guest page folders', async ({ request }) => {
     const response = await request.get('/index.json')
     expect(response.ok(), `GET /index.json answered ${response.status()}`).toBe(true)
     const index = (await response.json()) as StorybookIndex

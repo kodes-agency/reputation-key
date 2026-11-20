@@ -9,7 +9,7 @@ import { visiblePortals } from './visible-portals'
 // groups. This module adds what only the Organization needs: Property names
 // (search matches them too), the order of the Properties, and one page count
 // across all of them.
-import { searchMatcher } from '#/components/property/property-search'
+import { searchMatcher } from '#/components/ui/property-search'
 import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { attentionRank, needsAttention, portalAttention } from './portal-attention'
 import { compareProperties } from './portal-overview-order'

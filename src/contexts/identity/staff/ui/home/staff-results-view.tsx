@@ -1,5 +1,5 @@
 import { Flag, QrCode, Star } from 'lucide-react'
-import { CheckInSection } from '#/components/features/shared/check-in-section'
+import { CheckInSection } from '#/components/ui/check-in-section'
 import { GoalColumns } from '#/components/goals/goal-columns'
 import { GoalMeter } from '#/components/goals/goal-meter'
 import { SectionTitle } from '#/components/ui/section-title'

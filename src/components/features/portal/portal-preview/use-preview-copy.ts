@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { loadGuestPortalCopy } from '#/components/features/guest'
+import { loadGuestPortalCopy } from '#/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy'
 
 /**
  * What the preview prints a language's fixed text in when that language has no

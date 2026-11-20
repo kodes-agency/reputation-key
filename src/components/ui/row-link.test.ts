@@ -1,7 +1,6 @@
 // The row link recipes (UI consistency scan: COLL-20) and where they are used.
-import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { readUiSources } from '#/shared/testing/source-tree'
 import { ROW_FIGURE_LINK, ROW_LINK_SURFACE, ROW_NAME_LINK } from './row-link'
 
 describe('row link recipes', () => {
@@ -31,21 +30,7 @@ describe('row link recipes', () => {
   })
 })
 
-const ROOT = join(import.meta.dirname, '..', '..', '..')
-
-function walk(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) return walk(path)
-    return /\.tsx$/u.test(entry.name) && !/\.(stories|test)\./u.test(entry.name)
-      ? [path]
-      : []
-  })
-}
-
-const FILES = ['src/components', 'src/routes']
-  .flatMap((source) => walk(join(ROOT, source)))
-  .map((path) => ({ path: relative(ROOT, path), text: readFileSync(path, 'utf8') }))
+const FILES = readUiSources({ comments: 'kept' })
 
 describe('the row link convention in the sources', () => {
   it('is imported, not copied: no file keeps its own FOCUS_RING for a row link', () => {

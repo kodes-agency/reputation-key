@@ -6,7 +6,7 @@
 
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
 import { PortalWelcomeForm } from '../portal-welcome-form'
-import { PortalLocalizedContentEditor } from '#/components/features/portal/portal-settings/portal-localized-content-editor'
+import { PortalLocalizedContentEditor } from '#/contexts/portal/editor/ui/portal-settings/portal-localized-content-editor'
 import { isOfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalEditorSectionProps } from '../portal-editor-types'
 

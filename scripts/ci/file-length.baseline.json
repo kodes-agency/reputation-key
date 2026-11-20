@@ -1,6 +1,5 @@
 {
   "scripts/seed-e2e-user.ts": 1208,
-  "src/components/features/guest/public-portal/immersive/immersive-response.stories.tsx": 806,
   "src/components/inbox/inbox-mobile-390.stories.tsx": 839,
   "src/components/inbox/reply-composer.stories.tsx": 1318,
   "src/components/inbox/reply-editor-compose.stories.tsx": 1382,
@@ -18,6 +17,7 @@
   "src/contexts/feed/notify/inbox-workflow.server.test.ts": 1075,
   "src/contexts/feed/preferences/ui/notifications-settings-page.stories.tsx": 1067,
   "src/contexts/feed/rights/store.integration.test.ts": 919,
+  "src/contexts/guest/page/ui/public-portal/immersive/immersive-response.stories.tsx": 806,
   "src/contexts/guest/responses/guest-response-command-store.integration.test.ts": 1320,
   "src/contexts/guest/responses/guest-response-lifecycle.integration.test.ts": 1016,
   "src/contexts/identity/consent/merchant-ai-authorization.repository.integration.test.ts": 1611,

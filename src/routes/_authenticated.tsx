@@ -45,7 +45,7 @@ import { hasRole } from '#/shared/domain/roles'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
-import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
+import { partitionWorkspaceProperties } from '#/contexts/property/lifecycle/ui/property-workspace'
 import {
   listMyBetaFeedbackFn,
   submitBetaFeedbackFn,

@@ -23,23 +23,23 @@ import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { trailCrumbs } from '#/components/layout/page-identity'
-import { AttentionBand } from './attention-band'
+import { AttentionBand } from '../../../contexts/reporting/property-overview/ui/attention-band'
 import { OverviewTile, PULSE_COMPARISON_LABEL, TileCaption } from './overview-tile'
 import {
   OverviewGuestVoice,
   type OverviewGuestVoiceServerFns,
-} from './overview-guest-voice'
-import { ReviewRow } from './property-dashboard-review-row'
+} from '../../../contexts/ai/guest-voice/ui/overview-guest-voice'
+import { ReviewRow } from '../../../contexts/reporting/property-overview/ui/property-dashboard-review-row'
 import {
   OverviewProfileViews,
   type OverviewProfileViewsServerFns,
-} from './overview-profile-views'
+} from '../../../contexts/integration/performance/ui/overview-profile-views'
 import { formatNumber, formatShortDate } from '#/lib/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 import { RatingFigure } from '#/components/ui/rating-figure'
 import type { GoogleBindingState } from '../../../contexts/property/lifecycle/ui/property-lifecycle-model'
 import { overviewRatingMissing } from './overview-rating-missing'
-import { replyTimeMissing } from './reply-time-missing'
+import { replyTimeMissing } from '../../../contexts/reporting/property-overview/ui/reply-time-missing'
 
 export interface PropertyOverviewProps {
   /**

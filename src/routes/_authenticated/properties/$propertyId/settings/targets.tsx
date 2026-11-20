@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { PrivateFeedbackTargetCard } from '#/components/features/property/private-feedback-target-card'
+import { PrivateFeedbackTargetCard } from '#/contexts/reputation/response-targets/ui/private-feedback-target-card'
 import { setResponseTargetPolicyFn } from '#/contexts/inbox/server/inbox'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { roleUnavailable } from '#/shared/auth/route-notice'

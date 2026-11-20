@@ -4,7 +4,7 @@
 // property's own Reviews page.
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
+import { partitionWorkspaceProperties } from '#/contexts/property/lifecycle/ui/property-workspace'
 import type { InboxPropertyScopeInput } from '#/components/inbox/inbox-property-scope'
 import { useInboxScopeNavigation } from '#/components/inbox/use-inbox-scope-navigation'
 import { propertiesQuery } from '#/routes/-queries/route-queries'

@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { getPropertyOverviewFn } from '#/contexts/reporting/server/dashboard'
-import { PropertyRatingsPage } from '#/components/features/property/property-ratings-page'
+import { PropertyRatingsPage } from '#/contexts/reporting/property-overview/ui/property-ratings-page'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-range'

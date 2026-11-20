@@ -34,7 +34,7 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'the slot a new link is typed into, a form and not a message',
   'src/contexts/portal/look/ui/property-look-photo-dialog.tsx':
     'the frame a photograph will fill',
-  'src/components/features/property/settings/property-setup-strip.tsx':
+  'src/components/features/property-setup/property-setup-strip.tsx':
     'a step chip that is not yet done',
   'src/components/goals/goal-columns.tsx':
     'a bar still counting, as a Portal’s Results chart draws its part week, not a message',

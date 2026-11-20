@@ -18,7 +18,10 @@ import { ROW_FIGURE_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { googleGoalCell } from './property-list-goal'
-import type { DataState, PropertyComparison } from './property-list-view'
+import type {
+  DataState,
+  PropertyComparison,
+} from '../../../contexts/property/lifecycle/ui/list/property-list-view'
 
 /** Stacked on a phone the link is the 44px target; in the table it is the text it holds. */
 const PHONE_TAP_AREA = 'max-md:min-h-(--control-touch) max-md:min-w-(--control-touch)'

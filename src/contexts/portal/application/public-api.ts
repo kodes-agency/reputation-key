@@ -6,6 +6,7 @@ export { StoredObjectTooLargeError } from './ports/storage.port'
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events.
 export type { PortalResponsibilityNeeded } from '../domain/events'
+export type { PortalPublicationState } from '../domain/portal-publication'
 export type { PortalOverviewRow } from './use-cases/list-portal-overview'
 export type { PortalDestinationApprovalFacts } from './portal-destination-approval-facts'
 

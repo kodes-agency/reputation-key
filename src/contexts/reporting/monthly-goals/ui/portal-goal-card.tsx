@@ -4,7 +4,7 @@
 
 import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { CardContent } from '#/components/ui/card'
-import { GoalCardFrame } from '../../../../components/goals/goal-card-frame'
+import { GoalCardFrame } from '../../goals/ui/goal-card-frame'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
 import { PortalGoalCardBefore } from './portal-goal-card-before'
 import { PortalGoalCardGoal } from './portal-goal-card-goal'

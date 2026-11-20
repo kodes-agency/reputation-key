@@ -13,9 +13,9 @@ import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gat
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
-import { PortalReviewPage } from '#/components/features/portal/portal-review/portal-review-page'
-import { publishReview } from '#/components/features/portal/portal-review/portal-review-publish'
-import { resolveFixPeople } from '#/components/features/portal/portal-review/portal-review-checks'
+import { PortalReviewPage } from '#/contexts/portal/publication/ui/portal-review/portal-review-page'
+import { publishReview } from '#/contexts/portal/publication/ui/portal-review/portal-review-publish'
+import { resolveFixPeople } from '#/contexts/portal/publication/ui/portal-review/portal-review-checks'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import {
   portalQuery,

@@ -7,7 +7,10 @@ import { Button } from '#/components/ui/button'
 import { CardContent } from '#/components/ui/card'
 import { formatShortDate } from '#/lib/format'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { GoalCardActions, GoalCardFrame } from '#/components/goals/goal-card-frame'
+import {
+  GoalCardActions,
+  GoalCardFrame,
+} from '#/contexts/reporting/goals/ui/goal-card-frame'
 import { RATING_GOAL_HEADING_ID, RATING_GOAL_TITLE } from './rating-goal-card-header'
 import { endedSentence, ratingText, type RatingGoalOutcomeView } from './rating-goal-view'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'

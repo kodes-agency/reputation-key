@@ -15,11 +15,8 @@ import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import {
-  goalRefusalCode,
-  withGoalRefusals,
-} from '../../../../components/goals/goal-refusal'
-import { GoalSheetFrame } from '../../../../components/goals/goal-sheet-frame'
+import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
+import { GoalSheetFrame } from '../../goals/ui/goal-sheet-frame'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalChangeSheet } from './portal-goal-change-sheet'
 import { goalSetToast } from './portal-goal-offer-words'

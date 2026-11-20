@@ -17,9 +17,9 @@ import {
   uploadPortalImage,
   validatePortalImageFile,
   type PortalImageUploader,
-} from '#/components/features/portal/portal-media/upload-portal-image'
-import { UploadDialogFooter } from '#/components/features/portal/portal-media/upload-dialog-footer'
-import { UploadDialogShell } from '#/components/features/portal/portal-media/upload-dialog-shell'
+} from '#/contexts/portal/look/ui/portal-media/upload-portal-image'
+import { UploadDialogFooter } from '#/contexts/portal/look/ui/portal-media/upload-dialog-footer'
+import { UploadDialogShell } from '#/contexts/portal/look/ui/portal-media/upload-dialog-shell'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 const SAVE_FAILED =

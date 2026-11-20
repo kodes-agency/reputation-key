@@ -67,6 +67,8 @@ describe('guest quality scope', () => {
 
   it.each([
     'src/components/features/guest/public-portal/page.tsx',
+    'src/contexts/guest/page/ui/public-portal/page.tsx',
+    'src/contexts/portal/printing/ui/portal-share/portal-share.tsx',
     'src/components/ui/button.tsx',
     'src/shared/db/schema/guest.schema.ts',
     'src/routes/p/$slug.tsx',

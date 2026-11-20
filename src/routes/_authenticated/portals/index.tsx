@@ -29,7 +29,7 @@ import {
   resultsStateOf,
 } from '#/components/features/portal/portal-overview/portal-overview-results'
 import { useOverviewRange } from '#/components/features/portal/portal-overview/use-overview-range'
-import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
+import { partitionWorkspaceProperties } from '#/contexts/property/lifecycle/ui/property-workspace'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'

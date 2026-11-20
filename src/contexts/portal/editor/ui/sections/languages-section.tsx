@@ -2,7 +2,7 @@
 // of the wording. The body is the coverage view (portal-languages/).
 
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
-import { PortalLanguagesSection } from '#/components/features/portal/portal-languages/portal-languages-section'
+import { PortalLanguagesSection } from '#/contexts/portal/editor/ui/portal-languages/portal-languages-section'
 import type { PortalEditorSectionProps } from '../portal-editor-types'
 
 export function LanguagesSection({ resources, canEdit }: PortalEditorSectionProps) {

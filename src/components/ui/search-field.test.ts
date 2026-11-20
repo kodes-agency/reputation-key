@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/ui/list-search-limit'
 import { SearchField } from './search-field'
 
 type Props = Parameters<typeof SearchField>[0]

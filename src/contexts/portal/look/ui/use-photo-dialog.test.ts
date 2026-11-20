@@ -7,7 +7,7 @@ import { act, startHookHarness, type HookHarness } from './hook-harness'
 import type { usePhotoDialog as UsePhotoDialog } from './use-photo-dialog'
 
 const picker = vi.hoisted(() => ({ chosen: null as unknown, choose: vi.fn() }))
-vi.mock('#/components/features/portal/portal-media/use-image-picker', () => ({
+vi.mock('#/contexts/portal/look/ui/portal-media/use-image-picker', () => ({
   useImagePicker: () => ({
     chosen: picker.chosen,
     checks: [],
@@ -15,7 +15,7 @@ vi.mock('#/components/features/portal/portal-media/use-image-picker', () => ({
     choose: picker.choose,
   }),
 }))
-vi.mock('#/components/features/portal/portal-media/image-checks', () => ({
+vi.mock('#/contexts/portal/look/ui/portal-media/image-checks', () => ({
   allImageChecksPass: () => true,
 }))
 

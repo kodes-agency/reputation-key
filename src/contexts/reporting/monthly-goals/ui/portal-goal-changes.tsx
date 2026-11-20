@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import type { PortalGoalChange } from '#/contexts/reporting/monthly-goals/contracts'
 import { Button } from '#/components/ui/button'
-import { GoalHistoryList } from '../../../../components/goals/goal-history-list'
+import { GoalHistoryList } from '../../goals/ui/goal-history-list'
 import {
   FIRST_HIDDEN_CHANGE,
   anyChangeInAnotherYear,

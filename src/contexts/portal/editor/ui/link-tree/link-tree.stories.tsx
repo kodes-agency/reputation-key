@@ -13,7 +13,7 @@ import type {
   PortalLinktreeView,
 } from '#/contexts/portal/application/portal-management-contracts'
 import { PortalDraftAutosaveProvider } from '../portal-draft-autosave-context'
-import type { PortalApprovedDestinationList } from '#/components/features/portal/portal-settings/portal-experience-settings-types'
+import type { PortalApprovedDestinationList } from '#/contexts/portal/editor/ui/portal-settings/portal-experience-settings-types'
 import type { LinkApprovalControls } from './link-approval-controls'
 import { LinkTree } from './link-tree'
 import type { LinktreeMutations } from './use-linktree-mutations'

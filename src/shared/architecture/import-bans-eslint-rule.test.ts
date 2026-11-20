@@ -44,6 +44,7 @@ describe('drizzle and React import bans', () => {
   it.each([
     'src/routes/import-bans-fixture.tsx',
     'src/components/import-bans-fixture.tsx',
+    'src/contexts/portal/editor/ui/import-bans-fixture.tsx',
   ])('allows React but not drizzle in %s', async (file) => {
     expect(await restrictedLines(file)).toEqual([1])
   })

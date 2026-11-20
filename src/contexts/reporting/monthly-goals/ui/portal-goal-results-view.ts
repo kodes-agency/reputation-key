@@ -7,10 +7,10 @@ import type {
 } from '#/contexts/reporting/application/public-api'
 import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { formatShortDate } from '#/lib/format'
-import { goalListSubjectText } from '../../../../components/goals/goal-assignment-subject-label'
-import { goalMetricLabel } from '../../../../components/goals/goal-metric-label'
-import { goalListTarget } from '../../../../components/goals/goal-month-target-view'
-import { GOAL_STATUS } from '../../../../components/goals/goal-status'
+import { goalListSubjectText } from './goal-assignment-subject-label'
+import { goalMetricLabel } from './goal-metric-label'
+import { goalListTarget } from './goal-month-target-view'
+import { GOAL_STATUS } from './goal-status'
 
 /** A Portal goal as the Goals list reads it: its versions, subjects and months. */
 type PortalGoal = Parameters<typeof buildGoalResultsMatrix>[0]['programs'][number]

@@ -6,14 +6,14 @@
 import { X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
-import { PortalLanguageAddMenu } from '#/components/features/portal/portal-languages/portal-language-add-menu'
+import { PortalLanguageAddMenu } from '#/contexts/portal/editor/ui/portal-languages/portal-language-add-menu'
 import {
   addableLanguages,
   applyLanguageChange,
   hasLaterLanguages,
   languageDisplayName,
   type PortalLanguageChange,
-} from '#/components/features/portal/portal-languages/portal-languages-rules'
+} from '#/contexts/portal/editor/ui/portal-languages/portal-languages-rules'
 import { PropertyLookSection } from './property-look-section'
 import { languageSetOf } from './property-look-rules'
 import { IconButton } from '#/components/ui/icon-button'

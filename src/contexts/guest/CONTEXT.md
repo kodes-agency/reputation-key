@@ -11,14 +11,14 @@ and the separately consented Contact Request, which stays off until its launch s
 
 ## Where things live
 
-| Feature                                                                    | Code                                                       |
-| -------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Response lifecycle, command store, repository, browser-safe view           | `responses/`                                               |
-| Contact Request: sealing, authority, repository, lifecycle, manager screen | `contact-requests/`                                        |
-| Guest page and response screens                                            | `page/ui/`, `src/components/features/guest/public-portal/` |
-| Public endpoints, session, rate limits                                     | `server/`                                                  |
-| Ceilings, receipts, retention, reconciliation                              | `application/`, `infrastructure/`                          |
-| Composition                                                                | `build.ts`                                                 |
+| Feature                                                                    | Code                                                        |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Response lifecycle, command store, repository, browser-safe view           | `responses/`                                                |
+| Contact Request: sealing, authority, repository, lifecycle, manager screen | `contact-requests/`                                         |
+| Guest page and response screens                                            | `page/ui/` (Immersive renderer in `page/ui/public-portal/`) |
+| Public endpoints, session, rate limits                                     | `server/`                                                   |
+| Ceilings, receipts, retention, reconciliation                              | `application/`, `infrastructure/`                           |
+| Composition                                                                | `build.ts`                                                  |
 
 ## Boundaries
 
@@ -218,8 +218,9 @@ stores, integrity, reconciliation, retention, lifecycle, and export subjects.
 PostgreSQL integration tests cover receipt atomicity, exact deadlines, replay,
 withdrawal/reveal serialization, outbox readiness, and tenant fences.
 
-Public Portal UI lives in `src/components/features/guest/public-portal/immersive/`.
-`src/components/features/guest/public-portal/language-packs/load-guest-copy.ts` loads one immutable template
+Public Portal UI lives in `page/ui/public-portal/immersive/`; the look and hero
+helpers the staff home also uses stay in `src/components/features/guest/public-portal/immersive/`.
+`src/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy.ts` loads one immutable template
 pack for the selected locale. `guest-copy.ts` in the same folder defines the browser-safe copy
 contract; locale module names are plain while stored pack IDs retain their
 versions. Frozen copy from snapshot schemas 1 and 2 lives only in test fixtures.

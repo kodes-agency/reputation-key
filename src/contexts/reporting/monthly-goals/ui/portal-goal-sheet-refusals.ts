@@ -2,7 +2,7 @@
 // state; already-set or stopped goals leave nothing to submit. Other refusals keep the
 // shared goal wording.
 
-import type { GoalRefusalSentences } from '../../../../components/goals/goal-refusal'
+import type { GoalRefusalSentences } from './goal-refusal'
 import { monthName } from './portal-goal-words'
 
 export const PORTAL_SHEET_REFUSALS: GoalRefusalSentences = {

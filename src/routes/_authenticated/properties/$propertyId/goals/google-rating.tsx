@@ -23,7 +23,7 @@ import {
 import { RatingGoalDetailActions } from '#/contexts/reporting/rating-goals/ui/rating-goal-detail-actions'
 import { withRatingGoalRefusals } from '#/contexts/reporting/rating-goals/ui/rating-goal-refusal'
 import { ratingGoalRelatedKeys } from '#/contexts/reporting/rating-goals/ui/rating-goal-query-policy'
-import { goalPersonNames } from '#/components/goals/goal-target-marker'
+import { goalPersonNames } from '#/contexts/reporting/monthly-goals/ui/goal-target-marker'
 import { ratingGoalStatusBadge } from '#/contexts/reporting/rating-goals/ui/rating-goal-view'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {

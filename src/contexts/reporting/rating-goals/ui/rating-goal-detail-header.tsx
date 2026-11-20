@@ -1,8 +1,8 @@
 // The page header supplies the only h1; the goal's figures are paragraphs.
 
 import type { RatingGoalDetailView } from '#/contexts/reporting/rating-goals/contracts'
-import { GoalWhere } from '#/components/goals/goal-detail-layout'
-import { GoalRuler } from '#/components/goals/goal-ruler'
+import { GoalWhere } from '#/contexts/reporting/goals/ui/goal-detail-layout'
+import { GoalRuler } from '#/contexts/reporting/goals/ui/goal-ruler'
 import { RatingGoalClimbHeadline } from './rating-goal-climb-headline'
 import { detailHeaderLines } from './rating-goal-detail-view'
 import { RatingGoalHeadline } from './rating-goal-headline'

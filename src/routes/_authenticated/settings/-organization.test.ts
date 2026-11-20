@@ -29,7 +29,7 @@ vi.mock('#/components/hooks/use-action-mutation', () => ({
   useActionMutation: () => Object.assign(vi.fn(), { isPending: false }),
 }))
 vi.mock('#/components/layout/page-header', () => ({ PageHeader: () => null }))
-vi.mock('#/components/features/organization', () => ({
+vi.mock('#/contexts/identity/members/ui/organization/organization-settings-page', () => ({
   OrganizationSettingsPage: ({ responseTargets }: { responseTargets: ReactNode }) =>
     createElement('main', null, 'Organization identity form', responseTargets),
 }))

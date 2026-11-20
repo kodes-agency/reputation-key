@@ -6,7 +6,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
-import type { GuestPortalCopy } from '#/components/features/guest'
+import type { GuestPortalCopy } from '#/contexts/guest/page/ui/public-portal/language-packs/guest-copy'
 import type {
   PortalPreview,
   PortalPreviewExperience,

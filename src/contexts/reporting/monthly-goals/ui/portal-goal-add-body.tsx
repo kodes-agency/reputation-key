@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { PortalGoalAddOptions } from '#/contexts/reporting/monthly-goals/contracts'
-import { GoalSheetHeader } from '../../../../components/goals/goal-sheet-frame'
+import { GoalSheetHeader } from '../../goals/ui/goal-sheet-frame'
 import { PortalGoalAddEach } from './portal-goal-add-each'
 import {
   eachModel,

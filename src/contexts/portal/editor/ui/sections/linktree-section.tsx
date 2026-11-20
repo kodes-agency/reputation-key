@@ -10,7 +10,7 @@ import { LinkTree } from '../link-tree/link-tree'
 import { linkApprovalControls } from '../link-tree/link-approval-controls'
 import { LinktreeSwitch } from '../link-tree/linktree-switch'
 import { useLinktreeMutations } from '../link-tree/use-linktree-mutations'
-import { PortalApprovedDestinationsEditor } from '#/components/features/portal/portal-settings/portal-approved-destinations-editor'
+import { PortalApprovedDestinationsEditor } from '#/contexts/portal/editor/ui/portal-settings/portal-approved-destinations-editor'
 import type { PortalEditorSectionProps } from '../portal-editor-types'
 
 export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps) {

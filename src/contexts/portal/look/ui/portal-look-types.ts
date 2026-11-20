@@ -9,7 +9,7 @@ import type {
   PortalLookPhotoInput,
   PortalLookSaved,
 } from '#/contexts/portal/application/portal-management-contracts'
-import type { PortalImageUploader } from '#/components/features/portal/portal-media/upload-portal-image'
+import type { PortalImageUploader } from '#/contexts/portal/look/ui/portal-media/upload-portal-image'
 
 /** The portal a look belongs to. The server checks the pair, so neither is trusted alone. */
 export type PortalLookTarget = Readonly<{ propertyId: string; portalId: string }>

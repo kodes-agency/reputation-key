@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { firstPropertySetupSection } from '#/components/features/property/settings/property-setup-steps'
+import { firstPropertySetupSection } from '#/components/features/property-setup/property-setup-steps'
 import { propertySetupQuery } from '#/routes/-queries/route-queries'
 
 /**

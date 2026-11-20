@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { GuestPortalCopy } from '#/components/features/guest'
+import type { GuestPortalCopy } from '#/contexts/guest/page/ui/public-portal/language-packs/guest-copy'
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { guestKeys } from '#/shared/queries/query-keys'
@@ -62,7 +62,7 @@ export const publicPortalQuery = (
         // barrel would put the whole guest page in every page's first paint.
         const pack = data.immersive
           ? await (
-              await import('#/components/features/guest/public-portal/language-packs/load-guest-copy')
+              await import('#/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy')
             ).loadGuestPortalCopy(
               data.localization.selectedLocale,
               data.localization.languagePackVersion,

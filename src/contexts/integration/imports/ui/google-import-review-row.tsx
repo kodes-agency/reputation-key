@@ -14,7 +14,7 @@ import {
   type ImportReviewField,
   type ImportReviewItem,
 } from './google-import-review-model'
-import { countryLabel } from '#/components/features/shared/country-label'
+import { countryLabel } from '#/components/forms/country-label'
 import { IMPORT_COUNTRY_OPTIONS } from './google-import-review-options'
 
 type Props = Readonly<{

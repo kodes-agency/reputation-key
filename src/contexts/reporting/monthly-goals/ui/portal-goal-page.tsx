@@ -11,10 +11,7 @@ import { PageShell } from '#/components/layout/page-shell'
 import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import { SectionTitle } from '#/components/ui/section-title'
 import { StatusBadge } from '#/components/ui/status-badge'
-import {
-  GoalDetailLayout,
-  GoalWhere,
-} from '../../../../components/goals/goal-detail-layout'
+import { GoalDetailLayout, GoalWhere } from '../../goals/ui/goal-detail-layout'
 import {
   PortalGoalCompareBand,
   PortalGoalTodoBand,

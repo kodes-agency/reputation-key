@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { PropertyGoogleSection } from '#/components/features/property/settings/property-google-section'
+import { PropertyGoogleSection } from '#/contexts/property/profile/ui/settings/property-google-section'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 
 export const Route = createFileRoute(

@@ -10,8 +10,11 @@ import type { listGoalPrograms } from '#/contexts/reporting/server/goal-programs
 import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { SectionTitle } from '#/components/ui/section-title'
-import { GoalLiveLine, GoalLiveLinePending } from '#/components/goals/goal-live-line'
-import { goalLiveShape } from '#/components/goals/goal-live-view'
+import {
+  GoalLiveLine,
+  GoalLiveLinePending,
+} from '#/contexts/reporting/monthly-goals/ui/goal-live-line'
+import { goalLiveShape } from '#/contexts/reporting/monthly-goals/ui/goal-live-view'
 import { cn } from '#/lib/utils'
 import { extrasRows, type PortalGoalExtraRow } from './portal-goal-extras-view'
 
