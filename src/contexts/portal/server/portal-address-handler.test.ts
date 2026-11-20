@@ -1,22 +1,17 @@
-// Portal context — "Download again" server function (round 4, slice 33), and the
-// two other server functions that hand an address back: issue and replace (ADR
-// 0069). Invokes the real handlers: no-store first, then authorisation, then
-// (for the reveal) the rate limit, then the use case, and nothing reaches the use
-// case on any refusal.
+// Portal context — issue and replace a Portal's address when the store refuses
+// the new print code's hash. The rest of these server functions is covered over
+// PostgreSQL in portal-address-handler.integration.test.ts.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
-import { policyDenial } from '#/shared/testing/policy-denial'
 import { portalError } from '#/contexts/portal/domain/errors'
 
 const mocks = vi.hoisted(() => ({
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
   resolvePortalManagementScope: vi.fn(),
-  revealPortalAddress: vi.fn(),
   issuePortalToken: vi.fn(),
   rotatePortalToken: vi.fn(),
-  check: vi.fn(),
   setResponseHeader: vi.fn(),
 }))
 
@@ -40,11 +35,9 @@ vi.mock('@tanstack/react-start/server', () => ({
 }))
 vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
-    rateLimiter: { check: mocks.check },
     portalPublicApi: {
       management: {
         resolvePortalManagementScope: mocks.resolvePortalManagementScope,
-        revealPortalAddress: mocks.revealPortalAddress,
         issuePortalToken: mocks.issuePortalToken,
         rotatePortalToken: mocks.rotatePortalToken,
       },
@@ -68,97 +61,9 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
   }
 })
 
-import {
-  issuePortalToken,
-  revealPortalAddress,
-  rotatePortalToken,
-} from '#/contexts/portal/server/portals'
+import { issuePortalToken, rotatePortalToken } from '#/contexts/portal/server/portals'
 
 const CTX = { userId: 'user-1', organizationId: 'org-1', role: 'AccountAdmin' } as const
-const INPUT = { portalId: 'portal-1', purpose: 'download' } as const
-const ALLOWED = {
-  allowed: true,
-  remaining: 1,
-  resetAt: new Date(),
-  backendStatus: 'available',
-}
-
-describe('revealPortalAddress handler (executable)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveTenantContext.mockResolvedValue(CTX)
-    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
-    mocks.resolvePortalManagementScope.mockResolvedValue({
-      organizationId: 'org-1',
-      propertyId: 'property-1',
-      portalId: 'portal-1',
-    })
-    mocks.check.mockResolvedValue(ALLOWED)
-  })
-
-  it('returns the address with the response marked uncacheable', async () => {
-    const revealed = { publicUrl: 'https://example.test/p/x', version: 1 }
-    mocks.revealPortalAddress.mockResolvedValue(revealed)
-
-    await withStartContext(() => revealPortalAddress({ data: INPUT }))
-
-    expect(mocks.revealPortalAddress).toHaveBeenCalledWith(INPUT, CTX)
-    expect(mocks.setResponseHeader).toHaveBeenCalledWith(
-      'Cache-Control',
-      'private, no-store, max-age=0',
-    )
-    expect(mocks.setResponseHeader).toHaveBeenCalledWith('Pragma', 'no-cache')
-  })
-
-  it('marks the response uncacheable even when the request is refused', async () => {
-    mocks.check.mockResolvedValue({ ...ALLOWED, allowed: false })
-
-    await expect(
-      withStartContext(() => revealPortalAddress({ data: INPUT })),
-    ).rejects.toMatchObject({ code: 'rate_limited', status: 429 })
-
-    expect(mocks.setResponseHeader).toHaveBeenCalledWith(
-      'Cache-Control',
-      'private, no-store, max-age=0',
-    )
-    expect(mocks.revealPortalAddress).not.toHaveBeenCalled()
-  })
-
-  it('spends the rate limit for this actor and Organization', async () => {
-    mocks.revealPortalAddress.mockResolvedValue({})
-
-    await withStartContext(() => revealPortalAddress({ data: INPUT }))
-
-    expect(mocks.check.mock.calls.map(([key]) => key)).toEqual([
-      'portal:address-reveal:actor:org-1:user-1',
-      'portal:address-reveal:organization:org-1',
-    ])
-  })
-
-  it('does not spend the rate limit or reveal when the Portal scope is denied', async () => {
-    mocks.requireExecutionAllowed.mockRejectedValue(policyDenial())
-
-    await expect(
-      withStartContext(() => revealPortalAddress({ data: INPUT })),
-    ).rejects.toMatchObject({ name: 'AuthError', code: 'scope_denied', status: 403 })
-
-    expect(mocks.check).not.toHaveBeenCalled()
-    expect(mocks.revealPortalAddress).not.toHaveBeenCalled()
-  })
-
-  it('answers an unavailable address as a 422 the page can explain', async () => {
-    mocks.revealPortalAddress.mockRejectedValue(
-      portalError('address_unavailable', 'Replace the code to get a new set.'),
-    )
-
-    await expect(
-      withStartContext(() => revealPortalAddress({ data: INPUT })),
-    ).rejects.toMatchObject({ code: 'address_unavailable', status: 422 })
-  })
-})
-
-const NO_STORE = ['Cache-Control', 'private, no-store, max-age=0'] as const
-
 type PortalCall = (input: { data: { portalId: string } }) => Promise<unknown>
 const ADDRESS_HANDLERS: readonly (readonly [
   string,
@@ -179,27 +84,6 @@ describe.each(ADDRESS_HANDLERS)('%s handler (executable)', (_name, handler, useC
       propertyId: 'property-1',
       portalId: 'portal-1',
     })
-  })
-
-  it('returns the addresses with the response marked uncacheable', async () => {
-    useCase.mockResolvedValue({ publicUrls: { qr: 'q', nfc: 'n', direct: 'd' } })
-
-    await withStartContext(() => handler({ data: { portalId: 'portal-1' } }))
-
-    expect(useCase).toHaveBeenCalledWith({ portalId: 'portal-1' }, CTX)
-    expect(mocks.setResponseHeader).toHaveBeenCalledWith(...NO_STORE)
-    expect(mocks.setResponseHeader).toHaveBeenCalledWith('Pragma', 'no-cache')
-  })
-
-  it('marks the response uncacheable first, so a refusal is not cached either', async () => {
-    mocks.requireExecutionAllowed.mockRejectedValue(policyDenial())
-
-    await expect(
-      withStartContext(() => handler({ data: { portalId: 'portal-1' } })),
-    ).rejects.toMatchObject({ code: 'scope_denied' })
-
-    expect(mocks.setResponseHeader).toHaveBeenCalledWith(...NO_STORE)
-    expect(useCase).not.toHaveBeenCalled()
   })
 
   it('answers a refused print code hash as a 409 the manager can retry', async () => {

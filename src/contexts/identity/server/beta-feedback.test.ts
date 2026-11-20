@@ -1,3 +1,7 @@
+// What the PostgreSQL suite (beta-feedback.integration.test.ts) cannot reach:
+// a permission set that disagrees with the role label, which real tenant
+// resolution never produces, and a limiter or triage store that fails.
+
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,14 +46,12 @@ import { listMyBetaFeedbackHandler, submitBetaFeedbackHandler } from './beta-fee
 import { submitBetaFeedback } from '../feedback/submit-beta-feedback.server'
 import { listMyBetaFeedback } from '../feedback/list-my-beta-feedback.server'
 import { deliverBetaFeedback } from '../feedback/beta-feedback-sentry-delivery.adapter.server'
-import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   createExecutionPolicy,
   initExecutionPolicy,
   resetExecutionPolicy,
 } from '#/shared/auth/execution-policy'
 import {
-  createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
   type CapabilityPolicyStore,
@@ -132,90 +134,6 @@ describe('submit beta feedback server function', () => {
     resetCapabilityPolicyStore()
   })
 
-  it('submits allowlisted manager feedback and returns an opaque receipt', async () => {
-    const result = await withStartContext(() => submitBetaFeedbackHandler({ data: bug }))
-
-    expect(mocks.enforceRateLimit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: actor.userId,
-        organizationId: actor.organizationId,
-        keyHmacSecret: 'feedback-secret',
-      }),
-    )
-    expect(mocks.prepareTriage).toHaveBeenCalledWith({
-      reference: FEEDBACK_REFERENCE,
-      organizationPseudonym: 'safe-telemetry-organization',
-      actorPseudonym: 'safe-telemetry-actor',
-      feedbackType: 'bug',
-      impactCode: 'cannot_complete',
-      clientErrorEventId: null,
-      routeKey: 'properties.property.reviews',
-      viewport: 'wide',
-      reporterRole: 'PropertyManager',
-      attachmentKind: 'none',
-      attachmentCapturedAt: null,
-      attachmentExpiresAt: null,
-      maskedLayout: null,
-      now: NOW,
-    })
-    expect(mocks.captureFeedback).toHaveBeenCalledWith({
-      message: expect.stringContaining('Message: The reviews page did not load.'),
-      source: 'repkey-native-beta-feedback',
-      attachments: [],
-      reporter: { name: 'Ana Admin', email: 'ana@example.com' },
-      tags: {
-        feedback_type: 'bug',
-        feedback_impact: 'cannot_complete',
-        feedback_route: 'properties.property.reviews',
-        feedback_actor: 'safe-telemetry-actor',
-        feedback_organization: 'safe-telemetry-organization',
-        feedback_viewport: 'wide',
-        feedback_role: 'PropertyManager',
-        feedback_reference: FEEDBACK_REFERENCE,
-        feedback_client_error: 'none',
-        feedback_attachment: 'none',
-        feedback_attachment_retention: 'not_applicable',
-        feedback_screenshot: 'none',
-        feedback_triage_state: 'new',
-        feedback_triage_owner: 'beta_support',
-        feedback_triage_severity: 'unclassified',
-        feedback_triage_privacy: 'pending',
-        feedback_triage_security: 'pending',
-        feedback_triage_reproduction: 'pending',
-        feedback_triage_dedupe: 'pending',
-        feedback_customer_response: 'pending',
-      },
-    })
-    expect(JSON.stringify(mocks.captureFeedback.mock.calls)).not.toContain(
-      'private-property-id',
-    )
-    expect(JSON.stringify(mocks.captureFeedback.mock.calls)).not.toContain(actor.userId)
-    expect(JSON.stringify(mocks.captureFeedback.mock.calls)).not.toContain(
-      actor.organizationId,
-    )
-    expect(mocks.markDelivered).toHaveBeenCalledWith({
-      reference: FEEDBACK_REFERENCE,
-      providerReference: 'a'.repeat(32),
-      expectedRevision: 0,
-      now: NOW,
-    })
-    expect(result).toEqual({ reference: FEEDBACK_REFERENCE })
-  })
-
-  it('rejects Member before consuming a feedback budget', async () => {
-    mocks.resolveTenantContext.mockResolvedValue({ ...actor, role: 'Member' })
-
-    await expect(
-      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
-    ).rejects.toMatchObject({
-      name: 'AuthError',
-      code: 'permission_denied',
-      status: 403,
-    })
-    expect(mocks.enforceRateLimit).not.toHaveBeenCalled()
-    expect(mocks.captureFeedback).not.toHaveBeenCalled()
-  })
-
   it('denies when current feedback permission is absent despite a PropertyManager label', async () => {
     mocks.resolveTenantContext.mockResolvedValue({
       ...actor,
@@ -249,104 +167,6 @@ describe('submit beta feedback server function', () => {
     expect(mocks.captureFeedback).toHaveBeenCalledTimes(1)
   })
 
-  it('stamps the masked layout retention from the server clock, not the browser', async () => {
-    const maskedLayout = {
-      width: 1280,
-      height: 800,
-      boxes: [{ x: 0, y: 0, w: 320, h: 48, role: 'heading' as const }],
-    }
-
-    await withStartContext(() =>
-      submitBetaFeedbackHandler({ data: { ...bug, maskedLayout } }),
-    )
-
-    expect(mocks.prepareTriage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        attachmentKind: 'masked_layout_v1',
-        attachmentCapturedAt: NOW,
-        // Exactly the accepted 30-day horizon, derived here rather than
-        // anywhere a client clock could reach.
-        attachmentExpiresAt: new Date('2026-09-27T08:00:00.000Z'),
-        maskedLayout,
-      }),
-    )
-  })
-
-  it('tells monitoring a layout exists without sending the geometry', async () => {
-    const maskedLayout = {
-      width: 1280,
-      height: 800,
-      boxes: [{ x: 0, y: 0, w: 320, h: 48, role: 'heading' as const }],
-    }
-
-    await withStartContext(() =>
-      submitBetaFeedbackHandler({ data: { ...bug, maskedLayout } }),
-    )
-
-    const captured = mocks.captureFeedback.mock.calls[0]?.[0] as {
-      message: string
-      tags: Record<string, string>
-    }
-    expect(captured.tags.feedback_attachment).toBe('masked_layout_v1')
-    expect(captured.tags.feedback_attachment_retention).toBe('expires_30d')
-    // A shape summary only; the rectangles stay first-party.
-    expect(captured.message).toContain('Masked layout: 1280x800 heading=1')
-    expect(captured.message).not.toContain('"x"')
-  })
-
-  it('accepts a report while every switch is off', async () => {
-    // Regression: reporting used to run through `feedback.respond`, which maps
-    // to the `portal.guest_response` capability. A manager whose guest pages
-    // were stopped could not report that, or anything else.
-    initCapabilityPolicyStore(
-      createEnvCapabilityPolicyStore({
-        BETA_CAPABILITIES_OFF: 'google,ai,guest_pages,optional_email',
-      }),
-    )
-
-    await expect(
-      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
-    ).resolves.toEqual({ reference: FEEDBACK_REFERENCE })
-    expect(mocks.captureFeedback).toHaveBeenCalledTimes(1)
-  })
-
-  it('still denies reporting when the capability is killed', async () => {
-    initCapabilityPolicyStore(
-      feedbackPolicyStore({
-        isCapabilityKilled: (capability) => capability === 'feedback.beta_report',
-      }),
-    )
-
-    await expect(
-      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
-    ).rejects.toMatchObject({ name: 'AuthError', status: 403 })
-    expect(mocks.enforceRateLimit).not.toHaveBeenCalled()
-    expect(mocks.captureFeedback).not.toHaveBeenCalled()
-  })
-
-  it('passes the rate-limit refusal through as its own 429', async () => {
-    // The limiter throws an already-mapped `FeedbackError`; it must not be
-    // re-mapped to the 503 a failed delivery gets.
-    mocks.enforceRateLimit.mockRejectedValue(
-      new ServerFunctionError(
-        'FeedbackError',
-        'Please wait before sending more beta feedback.',
-        'rate_limited',
-        429,
-      ),
-    )
-
-    await expect(
-      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
-    ).rejects.toMatchObject({
-      name: 'FeedbackError',
-      code: 'rate_limited',
-      status: 429,
-    })
-    expect(mocks.prepareTriage).not.toHaveBeenCalled()
-    expect(mocks.captureFeedback).not.toHaveBeenCalled()
-  })
-
   it('does not capture when the abuse budget denies the submission', async () => {
     mocks.enforceRateLimit.mockRejectedValue(new Error('limited'))
 
@@ -354,43 +174,6 @@ describe('submit beta feedback server function', () => {
       withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
     ).rejects.toMatchObject({ name: 'InternalError', status: 500 })
     expect(mocks.captureFeedback).not.toHaveBeenCalled()
-  })
-
-  it('returns a stable unavailable response when delivery is not initialized', async () => {
-    mocks.captureFeedback.mockReturnValue(undefined)
-
-    await expect(
-      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
-    ).rejects.toMatchObject({
-      name: 'FeedbackError',
-      code: 'temporarily_unavailable',
-      status: 503,
-    })
-    expect(mocks.markFailed).toHaveBeenCalledWith({
-      reference: FEEDBACK_REFERENCE,
-      failureCode: 'monitoring_unavailable',
-      expectedRevision: 0,
-      now: NOW,
-    })
-  })
-
-  it('keeps a malformed provider receipt out of durable delivered state', async () => {
-    mocks.captureFeedback.mockReturnValue('not-a-provider-event-id')
-
-    await expect(
-      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
-    ).rejects.toMatchObject({
-      name: 'FeedbackError',
-      code: 'temporarily_unavailable',
-      status: 503,
-    })
-    expect(mocks.markFailed).toHaveBeenCalledWith({
-      reference: FEEDBACK_REFERENCE,
-      failureCode: 'monitoring_invalid_reference',
-      expectedRevision: 0,
-      now: NOW,
-    })
-    expect(mocks.markDelivered).not.toHaveBeenCalled()
   })
 
   it('does not deliver when the durable triage receipt cannot be prepared', async () => {
@@ -433,26 +216,6 @@ describe('list my beta feedback server function', () => {
     resetCapabilityPolicyStore()
   })
 
-  it("scopes the read to the caller's own actor pseudonym", async () => {
-    // The scoping IS the authorization: the query cannot express another
-    // person's reports, so there is no identifier to get wrong.
-    await expect(withStartContext(() => listMyBetaFeedbackHandler())).resolves.toEqual([
-      report,
-    ])
-    expect(mocks.listForActor).toHaveBeenCalledWith('safe-telemetry-actor')
-    expect(mocks.pseudonym).toHaveBeenCalledWith(
-      'feedback-secret',
-      'telemetry-actor',
-      actor.userId,
-    )
-  })
-
-  it('returns nothing rather than failing when the reporter has no reports', async () => {
-    mocks.listForActor.mockResolvedValue([])
-
-    await expect(withStartContext(() => listMyBetaFeedbackHandler())).resolves.toEqual([])
-  })
-
   it('denies a reporter whose feedback permission is absent', async () => {
     mocks.resolveTenantContext.mockResolvedValue({
       ...actor,
@@ -460,19 +223,6 @@ describe('list my beta feedback server function', () => {
       effectivePermissions: new Set<string>(),
       scopeByPermission: new Map<string, string>(),
     })
-
-    await expect(
-      withStartContext(() => listMyBetaFeedbackHandler()),
-    ).rejects.toMatchObject({ name: 'AuthError', status: 403 })
-    expect(mocks.listForActor).not.toHaveBeenCalled()
-  })
-
-  it('still denies the read when the capability is killed', async () => {
-    initCapabilityPolicyStore(
-      feedbackPolicyStore({
-        isCapabilityKilled: (capability) => capability === 'feedback.beta_report',
-      }),
-    )
 
     await expect(
       withStartContext(() => listMyBetaFeedbackHandler()),
