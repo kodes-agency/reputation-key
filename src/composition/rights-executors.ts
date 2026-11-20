@@ -22,11 +22,11 @@ import {
   createGuestContactRequestErasureReplayer,
   createGuestFeedbackErasureReplayer,
   createGuestResponseErasureReplayer,
-} from '#/contexts/guest/infrastructure/adapters/guest-response-erasure-replayer.adapter'
+} from '#/contexts/guest/rights/guest-response-erasure-replayer.adapter.server'
 import {
   createGuestBackupErasureReplayer,
   createGuestPropertyErasureReplayer,
-} from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
+} from '#/contexts/guest/rights/guest-backup-erasure-replayer.adapter.server'
 import {
   createIdentityRightsExecutor,
   createStaffRightsExecutor,
@@ -43,7 +43,7 @@ import {
 import {
   createGuestRightsExecutor,
   type GuestRightsExecutorDeps,
-} from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
+} from '#/contexts/guest/rights/guest-rights.adapter.server'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import {
   createPortalErasureReplayers,

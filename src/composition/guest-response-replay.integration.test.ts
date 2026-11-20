@@ -10,7 +10,7 @@ import type { Database } from '#/shared/db'
 import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createGuestRightsExecutor } from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
+import { createGuestRightsExecutor } from '#/contexts/guest/rights/guest-rights.adapter.server'
 import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
 import { runRightsExecutors } from '#/shared/ops/rights/rights-executor'
 import {

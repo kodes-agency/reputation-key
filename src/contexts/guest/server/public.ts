@@ -1,5 +1,5 @@
 import { shouldCountGuestVisit } from './count-guest-visit'
-import { droppedResponseView } from '../application/use-cases/response-ceiling.server'
+import { droppedResponseView } from '../responses/response-ceiling.server'
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { getContainer } from '#/composition'
@@ -16,13 +16,13 @@ import {
   isQualifiedGuestResponse,
   type GuestResponseView,
 } from '../responses/contracts'
-import type { PublicPortalData } from '../application/dto/public-portal.dto'
+import type { PublicPortalData } from '../page/public-portal.contracts'
 import {
   guestPrivateFeedbackMutationDto,
   guestRatingMutationDto,
   guestResponseMutationDto,
   guestSecondaryLinkMutationDto,
-} from '../application/dto/guest-response-form.dto'
+} from '../responses/guest-response-form.contracts'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   denyWithoutEnumeration,
@@ -34,7 +34,7 @@ import {
   guestPublicResponseValidator,
 } from './public-response-privacy.server'
 import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/domain/ids'
-export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
+export type { PublicPortalLoaderData } from '../page/public-portal.contracts'
 
 const HONEYPOT_INTEGRITY_ASSESSMENT = {
   outcome: 'filtered_automatically',

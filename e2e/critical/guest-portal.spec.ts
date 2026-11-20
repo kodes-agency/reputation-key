@@ -83,7 +83,7 @@ test.describe('Critical: public Portal basics', () => {
     // The seeded portal is a v3 publication, so it wears the self-hosted guest
     // fonts and contacts no font CDN at all. The seed no longer publishes an
     // earlier design, so the legacy guest surface has no browser spec: its fonts
-    // are pinned in public-portal.dto.test.ts ('declares the app fonts for a
+    // are pinned in public-portal.contracts.test.ts ('declares the app fonts for a
     // portal on the legacy guest surface') and its layout by the resolver's
     // legacy tests.
     log.assertNoFontCdnRequests()

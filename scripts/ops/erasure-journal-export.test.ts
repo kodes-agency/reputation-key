@@ -42,7 +42,7 @@ it('replays an exported pre-delete intent against an earlier tenant snapshot ide
   const { applyRestoreResurrectionFence } =
     await import('../../src/shared/db/lifecycle/backup-erasure-ledger')
   const { createGuestBackupErasureReplayer } =
-    await import('../../src/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter')
+    await import('../../src/contexts/guest/rights/guest-backup-erasure-replayer.adapter.server')
   const directory = await mkdtemp(join(tmpdir(), 'erasure-replay-'))
   directories.push(directory)
   const output = join(directory, 'journal.json')

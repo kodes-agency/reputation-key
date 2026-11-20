@@ -19,8 +19,8 @@ import {
   guestResponseSessionBindings,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
-import type { GuestResponseRepository } from '../application/ports/guest-response.repository'
-import { guestResponseFromRow } from '../infrastructure/mappers/guest-response.mapper'
+import type { GuestResponseRepository } from './guest-response.repository.port.server'
+import { guestResponseFromRow } from './guest-response-mapper.server'
 import type { Clock } from '#/shared/domain/clock'
 import { guestResponseId } from '#/shared/domain/ids'
 

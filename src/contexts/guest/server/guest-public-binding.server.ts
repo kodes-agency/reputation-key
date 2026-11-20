@@ -9,8 +9,8 @@ import type {
   PublicConsent,
   PublicConsentAssertions,
 } from '#/shared/auth/execution-policy'
-import type { GuestResponseScope } from '../application/ports/guest-response.repository'
-import type { PublicPortalData } from '../application/dto/public-portal.dto'
+import type { GuestResponseScope } from '../responses/guest-response.repository.port.server'
+import type { PublicPortalData } from '../page/public-portal.contracts'
 import { guestRateLimitKey } from './guest-session'
 import { rateLimitBudgetFor, type GuestRateLimitAction } from './guest-rate-limit-budgets'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
