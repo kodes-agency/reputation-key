@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveStaff } from './staff-resolver'
 import { resolveSessionOrganization } from './session-organization'
+import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
+import { enrichSpan, runWithContext } from '#/shared/observability/request-context'
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(),
@@ -73,4 +75,25 @@ describe('staff door', () => {
       await expect(resolveStaff(new Headers())).rejects.toMatchObject({ code })
     },
   )
+
+  it('reads the membership under the session Organization and keeps it for the request', async () => {
+    mocks.member.mockImplementation(async () => {
+      expect(getDatabaseScope()).toMatchObject({ kind: 'tenant', organizationId: 'org' })
+      return { role: 'member' }
+    })
+
+    const scope = await runWithContext('request', async () => {
+      enrichSpan({ useCase: 'identity.getMyStaffHome' })
+      await resolveStaff(new Headers())
+      return getDatabaseScope()
+    })
+
+    expect(mocks.member).toHaveBeenCalledOnce()
+    expect(scope).toEqual({
+      kind: 'tenant',
+      organizationId: 'org',
+      entry: 'session',
+      name: 'identity.getMyStaffHome',
+    })
+  })
 })

@@ -9,12 +9,12 @@
 import { useRef, useState } from 'react'
 import type { PropertyLookHero } from '#/contexts/portal/application/portal-management-contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
-import { allImageChecksPass } from '#/components/features/portal/portal-media/image-checks'
-import { useImagePicker } from '#/components/features/portal/portal-media/use-image-picker'
+import { allImageChecksPass } from '#/contexts/portal/look/ui/portal-media/image-checks'
+import { useImagePicker } from '#/contexts/portal/look/ui/portal-media/use-image-picker'
 import {
   uploadPortalImage,
   type PortalImageUploader,
-} from '#/components/features/portal/portal-media/upload-portal-image'
+} from '#/contexts/portal/look/ui/portal-media/upload-portal-image'
 import { CENTRE_FOCAL, type FocalPoint } from './focal-point'
 import {
   canUsePhoto,

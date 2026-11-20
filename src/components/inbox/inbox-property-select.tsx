@@ -11,7 +11,7 @@ import {
   focusPropertyPicker,
   PropertyPickerList,
   type PropertyPickerOption,
-} from '#/components/property/property-picker'
+} from '#/components/forms/property-picker'
 import type { InboxQueue } from '#/contexts/inbox/application/public-api'
 import { cn } from '#/lib/utils'
 import { scopeCount, type InboxPropertyScope } from './inbox-property-scope'

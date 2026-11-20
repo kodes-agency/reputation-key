@@ -4,8 +4,8 @@ import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { submitHandler } from '#/components/forms/form-submit'
 import { Button } from '#/components/ui/button'
-import { ImmersiveBanner } from '#/components/features/guest/public-portal/immersive/immersive-banner'
-import { ImmersiveHoneypot } from '#/components/features/guest/public-portal/immersive/immersive-honeypot'
+import { ImmersiveBanner } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-banner'
+import { ImmersiveHoneypot } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-honeypot'
 import {
   contactRequestEmailSchema,
   contactRequestNameSchema,

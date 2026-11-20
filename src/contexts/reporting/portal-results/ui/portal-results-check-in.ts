@@ -7,7 +7,7 @@ import type { Tone } from '#/components/ui/tone'
 import {
   metricAvailabilityDetail,
   metricEvidenceLine,
-} from '#/components/features/dashboard/metric-availability-presentation'
+} from '#/contexts/reporting/portal-results/ui/metric-availability-presentation'
 import { formatNumber } from '#/lib/format'
 import { priorName } from './portal-results-cells'
 import { quietLine } from './portal-results-empty'

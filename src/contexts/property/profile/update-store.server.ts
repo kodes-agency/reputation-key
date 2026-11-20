@@ -7,14 +7,11 @@ import { properties } from '#/shared/db/schema/property.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { propertyError } from '../domain/errors'
-import {
-  buildPropertySetClause,
-  propertyFromRow,
-} from '../infrastructure/mappers/property.mapper'
+import { buildPropertySetClause, propertyFromRow } from './property-mapper.server'
 import type {
   PropertyCommandStore,
   UpdatePropertyCommand,
-} from '../application/ports/property-command-store.port'
+} from './update-store.port.server'
 
 export const createAtomicPropertyCommandStore = (db: Database): PropertyCommandStore => {
   return {

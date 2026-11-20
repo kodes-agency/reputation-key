@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { ProductUpdatePreferences } from '#/contexts/identity/updates/ui/product-update-preferences'
-import { PreferencesSettingsPage } from '#/components/features/settings'
+import { PreferencesSettingsPage } from '#/contexts/identity/members/ui/preferences-settings-page'
 
 export const Route = createFileRoute('/_authenticated/settings/preferences')({
   staticData: { page: { title: 'Preferences', tier: 'narrow', under: 'settings' } },

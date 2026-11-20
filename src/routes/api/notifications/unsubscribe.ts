@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { runServerRoute } from '#/shared/observability/request-context'
 import {
   createOneClickUnsubscribePostHandler,
   handleOneClickUnsubscribeGet,
@@ -12,14 +13,19 @@ export const Route = createFileRoute('/api/notifications/unsubscribe')({
     handlers: {
       // A browser opening the header URL gets a confirm page; it never
       // unsubscribes, because link scanners GET every URL in a message.
-      GET: ({ request }) => handleOneClickUnsubscribeGet(request),
+      GET: ({ request }) =>
+        runServerRoute('/api/notifications/unsubscribe', async () =>
+          handleOneClickUnsubscribeGet(request),
+        ),
       POST: ({ request }) =>
-        createOneClickUnsubscribePostHandler({
-          rawKeys: getEnv().NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS,
-          logger: getLogger(),
-          oneClickUnsubscribe: (target) =>
-            getContainer().feedPublicApi.oneClickUnsubscribe(target),
-        })(request),
+        runServerRoute('/api/notifications/unsubscribe', async () =>
+          createOneClickUnsubscribePostHandler({
+            rawKeys: getEnv().NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS,
+            logger: getLogger(),
+            oneClickUnsubscribe: (target) =>
+              getContainer().feedPublicApi.oneClickUnsubscribe(target),
+          })(request),
+        ),
     },
   },
 })

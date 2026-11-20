@@ -15,7 +15,7 @@ import {
   GoalSetupLinks,
   GoalSetupPanel,
   GoalSetupStatusLine,
-} from '../../../../components/goals/goal-setup-parts'
+} from '../../goals/ui/goal-setup-parts'
 import { PortalGoalChoices } from './portal-goal-choices'
 import { PORTAL_ASK_EVERY_GUEST_LINE } from './portal-goal-copy'
 import { PortalGoalNumberTile } from './portal-goal-number-tile'

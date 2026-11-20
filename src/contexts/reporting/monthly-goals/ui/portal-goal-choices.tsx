@@ -1,7 +1,7 @@
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
 import { cn } from '#/lib/utils'
-import { GoalRecommendedTag } from '../../../../components/goals/goal-setup-parts'
+import { GoalRecommendedTag } from '../../goals/ui/goal-setup-parts'
 import type { PortalGoalChoice } from './portal-goal-sheet-words'
 import { RECOMMENDED_TAG } from './portal-goal-words'
 

@@ -6,8 +6,8 @@ import {
   GoalCardActions,
   GoalCardColumns,
   GoalCardFrame,
-} from '#/components/goals/goal-card-frame'
-import { GoalRuler } from '#/components/goals/goal-ruler'
+} from '#/contexts/reporting/goals/ui/goal-card-frame'
+import { GoalRuler } from '#/contexts/reporting/goals/ui/goal-ruler'
 import { RATING_GOAL_HEADING_ID, RATING_GOAL_TITLE } from './rating-goal-card-header'
 import { RatingGoalClimbHeadline } from './rating-goal-climb-headline'
 import { PLAN_POLICY_LINE } from './rating-goal-copy'

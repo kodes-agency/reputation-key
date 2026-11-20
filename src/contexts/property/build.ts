@@ -5,9 +5,9 @@
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 
-import type { PropertyRepository } from './application/ports/property.repository'
+import type { PropertyRepository } from './profile/property-repository.port.server'
 import type { Property } from './domain/types'
-import { createPropertyResponsibilityRuntime } from './application/property-responsibility-runtime'
+import { createPropertyResponsibilityRuntime } from './responsibility/property-responsibility-runtime.server'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
 import type {
@@ -17,29 +17,29 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { updateProperty } from './application/use-cases/update-property'
-import { listProperties } from './application/use-cases/list-properties'
-import { getProperty } from './application/use-cases/get-property'
+import { updateProperty } from './profile/update-property.server'
+import { listProperties } from './profile/list-properties.server'
+import { getProperty } from './profile/get-property.server'
 import { createAtomicPropertyCommandStore } from './profile/update-store.server'
 import { createPropertyGoogleBindingStore } from './profile/google-binding-store.server'
 import { createPropertyLifecycleCommandStore } from './lifecycle/transition-store.server'
-import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
-import { registerPropertyMemberOffboardingConsumers } from './infrastructure/member-offboarding-outbox-consumers'
+import { registerPropertyRetentionConsumer } from './profile/property-retention-outbox-consumer.server'
+import { registerPropertyMemberOffboardingConsumers } from './responsibility/member-offboarding-outbox-consumers.server'
 import { createPropertyResponsibleManagerRepository } from './responsibility/manager-repository.server'
 import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,
-} from './application/use-cases/property-responsible-managers'
+} from './responsibility/property-responsible-managers.server'
 import {
   isEligiblePropertyManager,
   policyDeps as managerEligibilityPolicy,
-} from './application/property-manager-eligibility'
+} from './responsibility/property-manager-eligibility.server'
 import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager-eligibility'
 import {
   archiveProperty,
   disconnectPropertyGoogleBinding,
   restoreProperty,
-} from './application/use-cases/property-lifecycle'
+} from './lifecycle/property-lifecycle.server'
 
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 type PropertyContextDeps = Readonly<{

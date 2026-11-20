@@ -33,7 +33,7 @@ import {
   noDataDashboard,
   populatedDashboard,
   property,
-} from './property-dashboard-stories-data'
+} from '../../../contexts/reporting/property-overview/ui/property-dashboard-stories-data'
 
 // A lease that renews: `{ ok: false }` makes the hook clear the report as an
 // authorization loss, which is correct behaviour and the wrong fixture here.

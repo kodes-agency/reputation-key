@@ -3,7 +3,7 @@
 // One-off sizes stay inline to avoid growing the first-paint stylesheet.
 
 import { useState, type KeyboardEvent, type Ref } from 'react'
-import { GoalHeroStepper } from '#/components/goals/goal-setup-parts'
+import { GoalHeroStepper } from '#/contexts/reporting/goals/ui/goal-setup-parts'
 
 const WHOLE_DIGITS = Array.from({ length: 10 }, (_, digit) => digit)
 /** Five runs of 0–9: the tenths strip moves by the goal in tenths. */

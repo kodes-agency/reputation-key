@@ -47,6 +47,20 @@ export type TenantPredicateExemption = Readonly<{
 
 export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = [
   {
+    file: 'src/contexts/feed/audit/copy-audit-logs.server.ts',
+    symbol: 'readBatch',
+    reason:
+      'The operator copy lists earlier audit rows without a twin across tenants, in id order and bounded batches. Each row is written under its own Organization and the statement returns no content to the operator.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/audit/copy-audit-logs.server.ts',
+    symbol: 'uncopied',
+    reason:
+      'The operator copy matches each earlier audit row to its twin on Organization and source id; the copy runs across tenants on purpose and reports counts only.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-profile-rebuild.ts',
     symbol: 'listPendingProfileRebuilds',
     reason:
@@ -481,6 +495,27 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'OWNER-LOOKUP',
   },
   {
+    file: 'src/contexts/inbox/infrastructure/inbox-cycle-head-facts.store.ts',
+    symbol: 'parity',
+    reason:
+      'Counts, across every Organization, the Inbox rows whose Handling Cycle facts differ from their head so the operator can see whether the backfill is complete; it returns counts only.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/inbox/infrastructure/inbox-cycle-head-facts.store.ts',
+    symbol: 'scan',
+    reason:
+      'Walks the Inbox rows in id order across every Organization to count those whose Handling Cycle facts differ from their head; it returns a count and the last item id, no row content.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/inbox/infrastructure/inbox-cycle-head-facts.store.ts',
+    symbol: 'backfill',
+    reason:
+      "The operator backfill copies each Inbox row's Handling Cycle facts from its own head, matched by item id, in bounded batches across every Organization; it moves no other column.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
     symbol: 'claimCandidates',
     reason:
@@ -565,7 +600,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'OWNER-LOOKUP',
   },
   {
-    file: 'src/contexts/property/infrastructure/repositories/property.repository.ts',
+    file: 'src/contexts/property/profile/property-repository.server.ts',
     symbol: 'listByGbpLocationId',
     reason:
       "A verified Google notification names a location before any tenant is known. A location is unique only within an Organization, so the lookup answers with every Property that holds it, each with its own Organization, in a fixed order; the one caller, the notification handler, hands the notification to each Property whose binding matches the account it names, under that Property's own Organization and connection.",

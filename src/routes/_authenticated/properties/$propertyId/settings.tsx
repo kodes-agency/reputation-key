@@ -5,13 +5,13 @@ import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { PageShell } from '#/components/layout/page-shell'
 import { SectionNavLayout } from '#/components/ui/section-nav-layout'
-import { PropertySettingsNav } from '#/components/features/property/settings/property-settings-nav'
+import { PropertySettingsNav } from '#/contexts/property/profile/ui/settings/property-settings-nav'
 import {
   activePropertySettingsSection,
   propertySettingsHeader,
   visiblePropertySettingsSections,
-} from '#/components/features/property/settings/property-settings-sections'
-import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
+} from '#/contexts/property/profile/ui/settings/property-settings-sections'
+import { PropertySetupStrip } from '#/components/features/property-setup/property-setup-strip'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'

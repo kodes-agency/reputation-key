@@ -6,12 +6,11 @@ import type { Database } from '#/shared/db'
 import { and, count, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
 import { notExcludedFromResponseTargetReporting } from '#/shared/db/inbox-response-target-exclusions'
 import {
-  inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
   inboxItems,
-  inboxNotes,
   inboxResponseTargetReminders,
 } from '#/shared/db/schema/inbox.schema'
+import { inboxNotes } from '#/shared/db/schema/inbox-workspace.schema'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import {
   inboxItemId,
@@ -156,18 +155,12 @@ const findWaitingSince = async (
 ): Promise<Date | null> => {
   const rows = await db
     .select({ startAt: inboxHandlingCycleResponseTargets.startAt })
-    .from(inboxHandlingCycleHeads)
+    .from(inboxItems)
     .innerJoin(
       inboxHandlingCycleResponseTargets,
       and(
-        eq(
-          inboxHandlingCycleResponseTargets.inboxItemId,
-          inboxHandlingCycleHeads.inboxItemId,
-        ),
-        eq(
-          inboxHandlingCycleResponseTargets.cycleNumber,
-          inboxHandlingCycleHeads.currentCycleNumber,
-        ),
+        eq(inboxHandlingCycleResponseTargets.inboxItemId, inboxItems.id),
+        eq(inboxHandlingCycleResponseTargets.cycleNumber, inboxItems.currentCycleNumber),
         eq(inboxHandlingCycleResponseTargets.performanceEligibility, 'measured'),
         isNull(inboxHandlingCycleResponseTargets.completionAt),
         // A cycle left out of reporting measures no waiting time.
@@ -180,9 +173,9 @@ const findWaitingSince = async (
     )
     .where(
       and(
-        eq(inboxHandlingCycleHeads.organizationId, unbrand(orgId)),
-        eq(inboxHandlingCycleHeads.inboxItemId, unbrand(id)),
-        eq(inboxHandlingCycleHeads.status, 'open'),
+        eq(inboxItems.organizationId, unbrand(orgId)),
+        eq(inboxItems.id, unbrand(id)),
+        eq(inboxItems.status, 'open'),
       ),
     )
     .limit(1)
@@ -201,6 +194,35 @@ const findNoteAuthors = async (db: Database, id: InboxItemId, orgId: Organizatio
       ),
     )
   return rows.map((row) => userId(row.authorId))
+}
+
+/**
+ * The Inbox row's Handling Cycle facts are all present or all absent; a row
+ * without them has no current cycle to report.
+ */
+const requireCycleFacts = <
+  T extends {
+    currentCycleNumber: number | null
+    currentSourceRevision: number | null
+    stateRevision: number | null
+  },
+>(
+  row: T | undefined,
+) => {
+  if (
+    !row ||
+    row.currentCycleNumber === null ||
+    row.currentSourceRevision === null ||
+    row.stateRevision === null
+  ) {
+    return null
+  }
+  return {
+    ...row,
+    currentCycleNumber: row.currentCycleNumber,
+    currentSourceRevision: row.currentSourceRevision,
+    stateRevision: row.stateRevision,
+  }
 }
 
 export const createInboxNotificationLookup = (db: Database): InboxNotificationLookup => ({
@@ -236,25 +258,25 @@ export const createInboxNotificationLookup = (db: Database): InboxNotificationLo
   },
 
   async findHandlingCycleHead(id, orgId) {
-    const heads = await db
+    const rows = await db
       .select({
-        propertyId: inboxHandlingCycleHeads.propertyId,
-        sourceType: inboxHandlingCycleHeads.sourceType,
-        sourceId: inboxHandlingCycleHeads.sourceId,
-        currentCycleNumber: inboxHandlingCycleHeads.currentCycleNumber,
-        currentSourceRevision: inboxHandlingCycleHeads.currentSourceRevision,
-        stateRevision: inboxHandlingCycleHeads.stateRevision,
-        status: inboxHandlingCycleHeads.status,
+        propertyId: inboxItems.propertyId,
+        sourceType: inboxItems.sourceType,
+        sourceId: inboxItems.sourceId,
+        currentCycleNumber: inboxItems.currentCycleNumber,
+        currentSourceRevision: inboxItems.currentSourceRevision,
+        stateRevision: inboxItems.stateRevision,
+        status: inboxItems.status,
       })
-      .from(inboxHandlingCycleHeads)
+      .from(inboxItems)
       .where(
         and(
-          eq(inboxHandlingCycleHeads.organizationId, unbrand(orgId)),
-          eq(inboxHandlingCycleHeads.inboxItemId, unbrand(id)),
+          eq(inboxItems.organizationId, unbrand(orgId)),
+          eq(inboxItems.id, unbrand(id)),
         ),
       )
       .limit(1)
-    return heads[0] ?? null
+    return requireCycleFacts(rows[0])
   },
 
   findWaitingSince: (id, orgId) => findWaitingSince(db, id, orgId),
@@ -262,19 +284,20 @@ export const createInboxNotificationLookup = (db: Database): InboxNotificationLo
   findNoteAuthors: (id, orgId) => findNoteAuthors(db, id, orgId),
 
   async countOpenReviewItemsForProperty(property, orgId) {
-    // The Handling Cycle head is the Inbox's own answer to "is this still
-    // open": it closes when the reply is live. Counting targets instead would
+    // The Inbox row's own status is the answer to "is this still open": it
+    // closes when the reply is live. Counting targets instead would
     // have to choose a performance eligibility, and imported history is
     // exactly the eligibility that choice excludes.
     const rows = await db
       .select({ open: count() })
-      .from(inboxHandlingCycleHeads)
+      .from(inboxItems)
       .where(
         and(
-          eq(inboxHandlingCycleHeads.organizationId, unbrand(orgId)),
-          eq(inboxHandlingCycleHeads.propertyId, property),
-          eq(inboxHandlingCycleHeads.sourceType, 'review'),
-          eq(inboxHandlingCycleHeads.status, 'open'),
+          eq(inboxItems.organizationId, unbrand(orgId)),
+          eq(inboxItems.propertyId, property),
+          eq(inboxItems.sourceType, 'review'),
+          eq(inboxItems.status, 'open'),
+          isNotNull(inboxItems.currentCycleNumber),
         ),
       )
     return rows[0]?.open ?? 0
@@ -310,14 +333,14 @@ export const createInboxNotificationLookup = (db: Database): InboxNotificationLo
   async findResponseTargetReminder(input) {
     const rows = await db
       .select({
-        propertyId: inboxHandlingCycleHeads.propertyId,
+        propertyId: inboxItems.propertyId,
         reminderPropertyId: inboxResponseTargetReminders.propertyId,
-        sourceType: inboxHandlingCycleHeads.sourceType,
-        sourceId: inboxHandlingCycleHeads.sourceId,
-        currentCycleNumber: inboxHandlingCycleHeads.currentCycleNumber,
-        currentSourceRevision: inboxHandlingCycleHeads.currentSourceRevision,
-        stateRevision: inboxHandlingCycleHeads.stateRevision,
-        status: inboxHandlingCycleHeads.status,
+        sourceType: inboxItems.sourceType,
+        sourceId: inboxItems.sourceId,
+        currentCycleNumber: inboxItems.currentCycleNumber,
+        currentSourceRevision: inboxItems.currentSourceRevision,
+        stateRevision: inboxItems.stateRevision,
+        status: inboxItems.status,
         targetKind: inboxHandlingCycleResponseTargets.targetKind,
         reminderKind: inboxResponseTargetReminders.reminderKind,
         scheduledFor: inboxResponseTargetReminders.scheduledFor,
@@ -351,17 +374,11 @@ export const createInboxNotificationLookup = (db: Database): InboxNotificationLo
         ),
       )
       .innerJoin(
-        inboxHandlingCycleHeads,
+        inboxItems,
         and(
-          eq(
-            inboxHandlingCycleHeads.inboxItemId,
-            inboxResponseTargetReminders.inboxItemId,
-          ),
-          eq(
-            inboxHandlingCycleHeads.currentCycleNumber,
-            inboxResponseTargetReminders.cycleNumber,
-          ),
-          eq(inboxHandlingCycleHeads.status, 'open'),
+          eq(inboxItems.id, inboxResponseTargetReminders.inboxItemId),
+          eq(inboxItems.currentCycleNumber, inboxResponseTargetReminders.cycleNumber),
+          eq(inboxItems.status, 'open'),
         ),
       )
       .where(
@@ -377,6 +394,6 @@ export const createInboxNotificationLookup = (db: Database): InboxNotificationLo
         ),
       )
       .limit(1)
-    return rows[0] ?? null
+    return requireCycleFacts(rows[0])
   },
 })

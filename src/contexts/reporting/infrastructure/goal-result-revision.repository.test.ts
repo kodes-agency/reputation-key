@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { auditLogs } from '#/shared/db/schema/audit'
+import { auditEvents } from '#/shared/db/schema/audit-events.schema'
 import { goalMonthlyResults, goalResultRevisions } from '#/shared/db/schema/goal.schema'
 import type { ClosedGoalResultHead } from '../application/ports/goal-program.repository'
 import { createGoalProgramRepository } from './repositories/goal-program.repository'
@@ -98,10 +98,15 @@ function database(options: { outboxFails?: boolean } = {}) {
           }),
         }
       }
-      if (table === auditLogs) {
+      if (table === auditEvents) {
         return {
-          values: vi.fn(async (row: Record<string, unknown>) => {
+          values: vi.fn((row: Record<string, unknown>) => {
             auditRows.push(row)
+            return {
+              onConflictDoNothing: vi.fn(() => ({
+                returning: vi.fn(async () => [{ id: row.id }]),
+              })),
+            }
           }),
         }
       }
@@ -147,7 +152,15 @@ describe('Goal Program closed-result revision writer', () => {
       availabilityChanged: false,
     })
     expect(fake.revisionRows).toHaveLength(1)
-    expect(fake.auditRows).toHaveLength(1)
+    expect(fake.auditRows).toEqual([
+      expect.objectContaining({
+        action: 'goal.monthly_result.revised',
+        resourceType: 'goal_monthly_result',
+        actorType: 'system',
+        actorId: null,
+        sourceId: fake.revisionRows[0]?.id,
+      }),
+    ])
     expect(fake.tx).not.toHaveProperty('update')
     expect(insertOutboxRow).toHaveBeenCalledWith(
       fake.tx,

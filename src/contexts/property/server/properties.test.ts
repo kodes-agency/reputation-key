@@ -11,7 +11,7 @@ import { propertyError } from '#/contexts/property/domain/errors'
 import type { PropertyErrorCode } from '#/contexts/property/domain/errors'
 import { propertyErrorStatus } from '#/contexts/property/server/property-shared'
 import { throwContextError } from '#/shared/auth/server-errors'
-import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
+import { updatePropertyInputSchema } from '#/contexts/property/profile/contracts'
 import { z } from 'zod/v4'
 
 // ── Error → HTTP status mapping (production code) ─────────────────

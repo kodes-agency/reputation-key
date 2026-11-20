@@ -13,7 +13,7 @@
 // is that the deferral is now a named, single-assignment seam whose unresolved
 // state is a documented error rather than a mutable module-order accident.
 
-import type { PropertyResponsibilityRuntime } from '#/contexts/property/application/property-responsibility-runtime'
+import type { PropertyResponsibilityRuntime } from '#/contexts/property/responsibility/property-responsibility-runtime.server'
 import type { PortalResponsibilityRuntime } from '#/contexts/portal/application/portal-responsibility-runtime'
 import type { InboxAssignmentRuntime } from '#/contexts/inbox/application/inbox-assignment-runtime'
 import type { Clock } from '#/shared/domain/clock'

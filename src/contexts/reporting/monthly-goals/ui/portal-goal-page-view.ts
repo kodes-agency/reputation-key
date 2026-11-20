@@ -9,7 +9,7 @@ import type {
   PortalGoalQuietFact,
 } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
-import { goalFigure } from '../../../../components/goals/goal-so-far'
+import { goalFigure } from './goal-so-far'
 import {
   dayWords,
   monthName,

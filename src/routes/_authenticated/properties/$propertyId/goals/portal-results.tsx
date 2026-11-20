@@ -12,8 +12,8 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 // From its own module, not the barrel: the barrel's modules would ride along.
 import { buildGoalResultsMatrix } from '#/contexts/reporting/application/goal-results-matrix'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
-import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
-import { goalPersonNames } from '#/components/goals/goal-target-marker'
+import { goalAssignmentSubjectLabel } from '#/contexts/reporting/monthly-goals/ui/goal-assignment-subject-label'
+import { goalPersonNames } from '#/contexts/reporting/monthly-goals/ui/goal-target-marker'
 import { PortalGoalResults } from '#/contexts/reporting/monthly-goals/ui/portal-goal-results'
 import {
   endedPortalGoals,

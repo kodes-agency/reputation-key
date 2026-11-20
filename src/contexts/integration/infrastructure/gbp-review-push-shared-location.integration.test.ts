@@ -16,9 +16,9 @@ import {
   GOOGLE_PROVIDER_FIXTURES_V1,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
-import { buildGoogleImportedProperty } from '#/contexts/property/application/build-google-imported-property'
+import { buildGoogleImportedProperty } from '#/contexts/property/profile/build-google-imported-property.server'
 import { buildPropertyContext } from '#/contexts/property/build'
-import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
+import { createPropertyRepository } from '#/contexts/property/profile/property-repository.server'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import {

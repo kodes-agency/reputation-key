@@ -1,11 +1,10 @@
 // A period-over-period change is drawn one way everywhere: a direction arrow, the
 // size of the change, the baseline it is measured against, and the direction in
 // words for a reader who cannot see the colour or the arrow.
-import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { readUiSources } from '#/shared/testing/source-tree'
 import { MetricDelta, metricDeltaDirection } from './metric-delta'
 
 const BASELINE = 'vs the previous 90 days'
@@ -112,21 +111,10 @@ describe('MetricDelta', () => {
 })
 
 describe('period-over-period deltas', () => {
-  const ROOT = join(import.meta.dirname, '..', '..', '..')
-  const walk = (dir: string): string[] =>
-    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      const path = join(dir, entry.name)
-      if (entry.isDirectory()) return walk(path)
-      return /\.tsx$/u.test(entry.name) && !/\.(stories|test)\./u.test(entry.name)
-        ? [path]
-        : []
-    })
-
   it('are never drawn with a hand-typed arrow glyph beside a figure', () => {
-    const offenders = ['src/components', 'src/routes']
-      .flatMap((source) => walk(join(ROOT, source)))
-      .filter((path) => /[↑↓]/u.test(readFileSync(path, 'utf8')))
-      .map((path) => relative(ROOT, path))
+    const offenders = readUiSources({ comments: 'kept' })
+      .filter((file) => /[↑↓]/u.test(file.text))
+      .map((file) => file.path)
 
     expect(offenders).toEqual([])
   })

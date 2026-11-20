@@ -9,7 +9,7 @@ import {
   parseCanonicalReplyLanguageTag,
 } from './ai-review-language-catalogue'
 const PINNED_LANGUAGE_RUNTIME =
-  process.versions.node === '22.23.4' &&
+  process.versions.node === '22.23.5' &&
   process.versions.unicode === '17.0' &&
   process.versions.icu === '78.3'
 
@@ -157,7 +157,7 @@ describe.runIf(PINNED_LANGUAGE_RUNTIME)('AI review language catalogue', () => {
   )
 
   it('fails closed when only the Node runtime version drifts', () => {
-    vi.spyOn(process.versions, 'node', 'get').mockReturnValue('22.23.5')
+    vi.spyOn(process.versions, 'node', 'get').mockReturnValue('22.23.4')
     expect(isAiReviewLanguageRuntimeAvailable()).toBe(false)
     expect(mapReviewLanguageMetadata('en-US')).toEqual({ status: 'policy_unavailable' })
   })

@@ -6,7 +6,7 @@
 // evaluation (allow AND deny), and the per-invocation correlation id. The
 // policy evaluation is injected — these tests never touch a database; the
 // real wiring proof lives in the integration test
-// (src/shared/jobs/infrastructure/repositories/operator-command.test.ts).
+// (src/shared/jobs/infrastructure/repositories/operator-command.integration.test.ts).
 
 import { describe, it, expect, vi } from 'vitest'
 import {

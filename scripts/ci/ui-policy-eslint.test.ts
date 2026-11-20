@@ -142,13 +142,33 @@ describe('retained UI lint policies', () => {
     ).toEqual([])
   })
 
-  it('preserves the guest renderer colour and raw-button exceptions', async () => {
-    expect(
-      await violations(
-        `<button className="${palette}" />`,
-        'src/components/features/guest/policy-fixture.tsx',
-      ),
-    ).toEqual([])
+  it.each([
+    'src/components/features/guest/policy-fixture.tsx',
+    'src/contexts/guest/page/ui/public-portal/policy-fixture.tsx',
+  ])(
+    'preserves the guest renderer colour and raw-button exceptions in %s',
+    async (file) => {
+      expect(await violations(`<button className="${palette}" />`, file)).toEqual([])
+    },
+  )
+
+  it.each([
+    'src/contexts/guest/page/ui/contact-request.tsx',
+    'src/contexts/portal/workspace/ui/policy-fixture.tsx',
+  ])(
+    'holds Guest page code outside the renderer and other screens to them in %s',
+    async (file) => {
+      expect(await violations(`<button className="${palette}" />`, file)).toEqual([
+        'ui-pattern/raw-button',
+        'ui-pattern/palette-colour',
+      ])
+    },
+  )
+
+  it('holds a shared composite beside the primitives to the raw-button rule', async () => {
+    expect(await violations('<button />', 'src/components/ui/chart-frame.tsx')).toEqual([
+      'ui-pattern/raw-button',
+    ])
   })
 
   it('preserves the destructive menu glyph ink exception', async () => {

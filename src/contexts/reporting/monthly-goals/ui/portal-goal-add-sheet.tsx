@@ -15,11 +15,8 @@ import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { Button } from '#/components/ui/button'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
-import {
-  goalRefusalCode,
-  withGoalRefusals,
-} from '../../../../components/goals/goal-refusal'
-import { GoalSheetFrame } from '../../../../components/goals/goal-sheet-frame'
+import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
+import { GoalSheetFrame } from '../../goals/ui/goal-sheet-frame'
 import {
   PortalGoalAddBody,
   stepControl,

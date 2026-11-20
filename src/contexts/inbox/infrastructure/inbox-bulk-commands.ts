@@ -1,8 +1,4 @@
-import { and, eq } from 'drizzle-orm'
-import {
-  inboxAssignmentHistory,
-  inboxHandlingCycleHeads,
-} from '#/shared/db/schema/inbox.schema'
+import { inboxAssignmentHistory } from '#/shared/db/schema/inbox.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { userId, type UserId } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/types'
@@ -24,6 +20,7 @@ import {
   type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards'
+import { cycleHeadItemColumns, mirrorCycleHead } from './inbox-cycle-head'
 import { resolveBulkReopenAssignee } from './inbox-bulk-reopen-assignee'
 import { insertAssignmentFact } from './inbox-assignment-facts'
 import type { InboxCommandAuthority } from './inbox-command-authority'
@@ -182,37 +179,9 @@ export async function reopenLockedBulkItem(
     input.responseTarget,
     { bulkId: input.bulkId },
   )
-  const updatedHeads = await tx
-    .update(inboxHandlingCycleHeads)
-    .set({
-      currentCycleNumber: decision.value.head.currentCycleNumber,
-      currentSourceRevision: decision.value.head.currentSourceRevision,
-      ...(item.sourceType === 'review'
-        ? { currentMaterialReviewRevision: decision.value.head.currentSourceRevision }
-        : {}),
-      stateRevision: decision.value.head.stateRevision,
-      status: 'open',
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.currentCycleNumber, headRow.currentCycleNumber),
-        eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-        eq(inboxHandlingCycleHeads.status, 'closed'),
-      ),
-    )
-    .returning({ inboxItemId: inboxHandlingCycleHeads.inboxItemId })
-  if (!updatedHeads[0]) {
-    throw inboxError(
-      'revision_conflict',
-      'Inbox Handling Cycle changed during bulk reopen',
-    )
-  }
-
   const row = await tryUpdateItemRow(tx, itemFromRow(itemRow), {
     status: 'open',
+    ...cycleHeadItemColumns(decision.value.head),
     closedAt: null,
     assignedTo,
     updatedAt: now,
@@ -223,6 +192,13 @@ export async function reopenLockedBulkItem(
       'Inbox item changed while its bulk reopen lock was held',
     )
   }
+  await mirrorCycleHead(tx, {
+    inboxItemId: item.id,
+    organizationId: item.organizationId,
+    sourceType: item.sourceType,
+    head: decision.value.head,
+    updatedAt: now,
+  })
   if (unassignedFact) {
     await tx.insert(inboxAssignmentHistory).values({
       inboxItemId: item.id,

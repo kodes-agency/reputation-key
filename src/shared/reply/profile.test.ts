@@ -27,7 +27,7 @@ import ENGLISH from '#/shared/reply-drafting-v2-examples.json'
 import BULGARIAN from '#/shared/reply-drafting-v2-examples-bg.json'
 
 const PINS = {
-  profile: '96cc3926f0e9d0110b15e05be0233ff50270699ccee833caac0b4480c9b27642',
+  profile: '73c5cf6cef43b9a5ef202053c9ca9249c2e69a2802f8e286d51559f6f71045b5',
   prompt: '9c7c78dfc1e63b32e5916ecaceb33fca5eb0dd28a485066535df3772eb1dc805',
   schema: '2f7afcc12b767302d60d6b1f931fd7996d010dd7c24ba32246fff415c1d4dcd7',
   personalized: 'f7a7277c2a255a59284d8b17131e39a6c1a4f82c1f8490d0db1c51d6f5c7ccfe',

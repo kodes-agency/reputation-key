@@ -10,8 +10,8 @@ import { PropertyOverview } from '#/components/features/property/property-overvi
 import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
 import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
-import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
-import { ratingGoalNotNowChosen } from '#/components/features/property/settings/property-setup-steps'
+import { PropertySetupStrip } from '#/components/features/property-setup/property-setup-strip'
+import { ratingGoalNotNowChosen } from '#/components/features/property-setup/property-setup-steps'
 import { countBlockedPortals } from '#/components/features/portal/portal-overview/portal-attention'
 import {
   portalNextStepOf,

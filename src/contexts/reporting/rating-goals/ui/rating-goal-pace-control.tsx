@@ -5,7 +5,10 @@ import { Button } from '#/components/ui/button'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Slider } from '#/components/ui/slider'
 import { cn } from '#/lib/utils'
-import { GoalAside, GoalRecommendedTag } from '#/components/goals/goal-setup-parts'
+import {
+  GoalAside,
+  GoalRecommendedTag,
+} from '#/contexts/reporting/goals/ui/goal-setup-parts'
 import { HOW_TO_ASK_LINE } from './rating-goal-copy'
 import { paceText } from './rating-goal-pace-words'
 import { paceNote } from './rating-goal-setup-copy'

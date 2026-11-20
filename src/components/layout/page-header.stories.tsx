@@ -12,7 +12,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { AddActionLink } from '#/components/ui/add-action'
 import { StatusBadge } from '#/components/ui/status-badge'
-import { GOAL_STATUS } from '#/components/goals/goal-status'
+import { GOAL_STATUS } from '#/contexts/reporting/monthly-goals/ui/goal-status'
 import { PageHeader } from './page-header'
 import { trailCrumbs } from './page-identity'
 

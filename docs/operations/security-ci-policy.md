@@ -187,7 +187,9 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   moved to `node:22-trixie-slim` (Debian 13) on 2026-09-07. Node 22.23.2's
   CVE-2026-111497 (Critical, known-exploited), CVE-2026-105482 (High) and
   CVE-2026-106072 (Medium) then failed the gate with a fix available, so the
-  pin moved to `node:22.23.4-trixie-slim` on 2026-10-29 — fixed, not excepted.
+  pin moved to `node:22.23.4-trixie-slim` on 2026-10-29 and to
+  `node:22.23.5-trixie-slim` on 2026-11-19 (CVE-2026-123864, -123865, -123866
+  and -123872, all High) — fixed, not excepted.
   The one fixable class the trixie base shipped with — OpenSSL 3.5.6 (nine
   CVEs, two Critical) —
   is fixed by pinning `libssl3t64`/`openssl-provider-legacy` to
@@ -222,7 +224,7 @@ Convention since BQC-7.1, now **enforced** by `check:action-pins`: every
 `uses:` is `owner/repo@<40-hex-SHA> # vX.Y.Z`; every workflow `image:`
 (service containers: postgres, redis) is digest-pinned with a tag comment;
 both gitleaks invocations (`secrets`, `secret-history.yml`) pin `zricethezav/gitleaks:vX@sha256:…`. The Docker
-base images (`node:22.23.4-trixie-slim@sha256:…`) are digest-pinned in the Dockerfiles.
+base images (`node:22.23.5-trixie-slim@sha256:…`) are digest-pinned in the Dockerfiles.
 `uses:` under a step's `with:` (e.g. the locally-built `repkey-web:ci` handed
 to the SBOM/scan actions) is not a registry reference and is out of scope —
 the actions consuming them are themselves SHA-pinned.

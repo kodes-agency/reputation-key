@@ -7,6 +7,7 @@ export const COMMANDS: Readonly<
 > = Object.freeze({
   ai: ['scripts/ops/ai-release-orphan-sequences.ts'],
   'audit-events': ['scripts/ops/audit-events.ts'],
+  'audit-logs-copy': ['scripts/ops/audit-logs-copy.ts'],
   'ai-approve-enrollment': ['scripts/ops/ai-approve-enrollment.ts'],
   'ai-control': ['scripts/ops/ai-execution-control.ts'],
   'ai-reopen-analyses': ['scripts/ops/ai-reopen-analyses.ts'],
@@ -24,6 +25,7 @@ export const COMMANDS: Readonly<
   'feedback-sync': ['scripts/ops/feedback-sync.ts'],
   'gbp-subscribe': ['scripts/ops/gbp-subscribe.ts'],
   inbox: ['scripts/ops/inbox-exclude-restated-revision-targets.ts'],
+  'inbox-cycle-facts': ['scripts/ops/inbox-cycle-facts.ts'],
   inspect: ['scripts/ops/inspect-decision.ts'],
   jobs: ['scripts/ops/job-repair.ts'],
   purge: ['scripts/ops/enqueue-purge.ts'],

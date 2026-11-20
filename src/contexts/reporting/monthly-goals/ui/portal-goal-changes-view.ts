@@ -1,6 +1,6 @@
 import type { PortalGoalChange } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatLocalDate } from '#/lib/format'
-import { goalFigure } from '../../../../components/goals/goal-so-far'
+import { goalFigure } from './goal-so-far'
 import { dayWords, listOfNames, monthName, portalGoalUnit } from './portal-goal-words'
 
 /** How many changes the page lists before "Show all". */

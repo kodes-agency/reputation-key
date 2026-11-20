@@ -39,7 +39,7 @@ import {
   createPropertyRightsExecutor,
   propertyErasureReplayer,
   propertyOrganizationErasureReplayer,
-} from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
+} from '#/contexts/property/lifecycle/property-rights.adapter.server'
 import {
   createGuestRightsExecutor,
   type GuestRightsExecutorDeps,

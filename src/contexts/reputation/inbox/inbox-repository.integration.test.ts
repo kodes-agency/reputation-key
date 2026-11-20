@@ -405,13 +405,13 @@ describe('inbox repository — active Handling Cycle authority', () => {
     ['Review', 'review', reviewId(crypto.randomUUID())],
     ['feedback', 'feedback', feedbackId(crypto.randomUUID())],
   ] as const)(
-    'uses the %s Handling Cycle head status when the compatibility row drifts',
+    'serves the %s item from its own status when the head mirror drifts',
     async (_label, sourceType, sourceId) => {
       const item = makeInboxItem({ sourceType, sourceId, status: 'open' })
       await repo.seedItem(item)
       await pool.query(
-        `UPDATE inbox_items SET status = 'closed', closed_at = NOW()
-       WHERE id = $1 AND organization_id = $2`,
+        `UPDATE inbox_handling_cycle_heads SET status = 'closed'
+       WHERE inbox_item_id = $1 AND organization_id = $2`,
         [item.id, ORG_A],
       )
 

@@ -9,21 +9,19 @@
 // it" do nothing and nothing is recorded. With `onAction` (Try as guest) the
 // response area answers clicks by moving between the same states locally.
 
-import {
-  GuestHeader,
-  GuestTitleBlock,
-  ImmersiveResponseView,
-  ImmersiveShell,
-  InertImmersiveFooterView,
-  InertImmersiveLinktree,
-  InertLanguageChip,
-  InertLanguageSheet,
-  guestCopyText,
-  immersiveFooterCopy,
-  immersiveResponseProps,
-  previewLanguageOptions,
-} from '#/components/features/guest'
-import type { GuestPortalCopy } from '#/components/features/guest'
+import { GuestHeader } from '#/contexts/guest/page/ui/public-portal/immersive/guest-header'
+import { GuestTitleBlock } from '#/contexts/guest/page/ui/public-portal/immersive/guest-title-block'
+import { ImmersiveResponseView } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-response-view'
+import { ImmersiveShell } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-shell'
+import { InertImmersiveFooterView } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-footer'
+import { InertImmersiveLinktree } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-linktree'
+import { InertLanguageChip } from '#/contexts/guest/page/ui/public-portal/immersive/guest-language-switcher'
+import { InertLanguageSheet } from '#/contexts/guest/page/ui/public-portal/immersive/language-sheet'
+import { guestCopyText } from '#/contexts/guest/page/ui/public-portal/guest-copy-format'
+import { immersiveFooterCopy } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-footer-copy'
+import { immersiveResponseProps } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-response-preview'
+import { previewLanguageOptions } from '#/contexts/guest/page/ui/public-portal/immersive/language-options'
+import type { GuestPortalCopy } from '#/contexts/guest/page/ui/public-portal/language-packs/guest-copy'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalPreviewExperience } from '#/contexts/portal/application/portal-management-contracts'
 import {

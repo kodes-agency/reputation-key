@@ -8,7 +8,7 @@ import {
   createUseCaseCommandStore,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
-  dropInboxUseCaseTenant,
+  dropInboxOrganization,
   openFixturePool,
   readOutboxFacts,
   runScopedId,
@@ -135,7 +135,7 @@ describe.sequential('addInboxNote', () => {
 
   afterAll(async () => {
     clearEventSchemas()
-    await dropInboxUseCaseTenant(pool, ORG_ID, [PROP_1, PROP_OTHER])
+    await dropInboxOrganization(pool, ORG_ID)
     await pool.end()
   })
 

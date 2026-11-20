@@ -41,9 +41,9 @@ import { updateInboxStatus } from '#/contexts/reputation/inbox/update-inbox-stat
 
 const NOW = new Date('2026-10-13T09:00:00.000Z')
 const ORG_ID = organizationId('org-scope-order-test')
-const ITEM_ID = inboxItemId('92000000-0000-4000-8000-000000000001')
-const ITEM_PROPERTY = propertyId('92000000-0000-4000-8000-000000000002')
-const GRANTED_PROPERTY = propertyId('92000000-0000-4000-8000-000000000003')
+const ITEM_ID = inboxItemId('92500000-0000-4000-8000-000000000001')
+const ITEM_PROPERTY = propertyId('92500000-0000-4000-8000-000000000002')
+const GRANTED_PROPERTY = propertyId('92500000-0000-4000-8000-000000000003')
 const MANAGER = userId('manager-of-another-property')
 const STORED_REVISION = 5
 const STALE_REVISION = 1
@@ -72,8 +72,8 @@ const item = (sourceType: SourceType): InboxItem => ({
   sourceType,
   sourceId:
     sourceType === 'feedback'
-      ? feedbackId('92000000-0000-4000-8000-000000000004')
-      : reviewId('92000000-0000-4000-8000-000000000005'),
+      ? feedbackId('92500000-0000-4000-8000-000000000004')
+      : reviewId('92500000-0000-4000-8000-000000000005'),
   status: 'open',
   isEscalated: false,
   escalatedAt: null,

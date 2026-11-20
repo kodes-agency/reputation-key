@@ -62,6 +62,7 @@ describe('buildInboxContext', () => {
     expect(Object.keys(context.maintenance)).toEqual([
       'rebuildInboxProjection',
       'responseTargetExclusions',
+      'cycleHeadFacts',
     ])
     expect(Object.keys(context.worker)).toEqual(['registerOutboxConsumers'])
     expect(Object.isFrozen(context.lifecycle)).toBe(true)

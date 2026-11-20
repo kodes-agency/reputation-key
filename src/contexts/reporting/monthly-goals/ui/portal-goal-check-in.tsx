@@ -13,11 +13,8 @@ import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import { GoalCheckIn } from '../../../../components/goals/goal-check-in'
-import {
-  goalRefusalCode,
-  withGoalRefusals,
-} from '../../../../components/goals/goal-refusal'
+import { GoalCheckIn } from '../../goals/ui/goal-check-in'
+import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
 import { checkInWords } from './portal-goal-check-in-view'
 import { changeRefusals, PORTAL_GOAL_BEHIND } from './portal-goal-sheet-refusals'
 import type { PortalGoalSheetIntent } from './portal-goal-sheet-intent'

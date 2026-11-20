@@ -1,6 +1,6 @@
 import type { GoalMetric, GoalSubject } from '#/contexts/reporting/application/public-api'
-import { goalListSubjectText } from '#/components/goals/goal-assignment-subject-label'
-import { goalMetricLabel } from '#/components/goals/goal-metric-label'
+import { goalListSubjectText } from '#/contexts/reporting/monthly-goals/ui/goal-assignment-subject-label'
+import { goalMetricLabel } from '#/contexts/reporting/monthly-goals/ui/goal-metric-label'
 
 /** What a row needs of a listed goal. */
 type ExtraGoal = Readonly<{

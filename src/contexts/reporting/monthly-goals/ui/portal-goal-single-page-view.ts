@@ -6,9 +6,9 @@ import type {
   PortalGoalAverageOfPage,
   PortalGoalSingleSubject,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { daysLeftWords } from '../../../../components/goals/goal-live-view'
-import { goalMetricLabel } from '../../../../components/goals/goal-metric-label'
-import { goalFigure } from '../../../../components/goals/goal-so-far'
+import { daysLeftWords } from './goal-live-view'
+import { goalMetricLabel } from './goal-metric-label'
+import { goalFigure } from './goal-so-far'
 import type { PortalGoalTileWords } from './portal-goal-page-view'
 import { MONTH_FIGURE_UNREADABLE } from './portal-goal-running-view'
 import { dayWords, monthName } from './portal-goal-words'

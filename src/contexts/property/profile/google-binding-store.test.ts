@@ -9,7 +9,7 @@ import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
 import { createPropertyGoogleBindingStore } from './google-binding-store.server'
-import { buildGoogleImportedProperty } from '../application/build-google-imported-property'
+import { buildGoogleImportedProperty } from './build-google-imported-property.server'
 
 vi.mock('#/shared/outbox/commit', () => ({ insertOutboxRow: vi.fn() }))
 vi.mock('#/shared/db/ai/ai-draft-purge', () => ({

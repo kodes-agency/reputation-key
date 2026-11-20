@@ -1,18 +1,14 @@
-// `inbox_items.status` is a READ-ONLY-RETAINED compatibility mirror.
+// `inbox_items` carries the current Handling Cycle's facts (cycle number, source
+// revision, state revision) beside its status, and every serving read resolves
+// from them. `inbox_handling_cycle_heads` is still written beside the row, but
+// only as a mirror of what the Inbox row says.
 //
-// Every serving read already resolves workflow status from
-// `inbox_handling_cycle_heads` (`reputation/inbox/inbox-repository.server.ts` builds
-// `effectiveInboxStatus` from the head and joins it into every active read).
-// The column itself cannot be dropped yet: physical contraction is blocked
-// until one verified release plus a restore proof, and other contexts still
-// read the mirror directly.
-//
-// So the column stays and the WRITERS get cut. What remains is a small,
-// explicitly named set of head-fenced writers that update the mirror inside the
-// same transaction that moves the Handling Cycle head. This guard is what keeps
-// that set small: a new unfenced writer — a repair script, a milestone stamp, a
-// well-meaning `updateStatus` call from a use case — fails here rather than
-// silently desynchronising the mirror from the workflow authority.
+// So the WRITERS stay few. What remains is a small, explicitly named set of
+// writers that move the Inbox row's cycle facts inside the same transaction that
+// writes the Handling Cycle transition and the outbox fact. This guard is what
+// keeps that set small: a new unfenced writer — a repair script, a milestone
+// stamp, a well-meaning `updateStatus` call from a use case — fails here rather
+// than silently desynchronising the row from its cycle.
 //
 // It is a source guard on purpose. A runtime test can only observe the paths it
 // happens to exercise; this observes every path that exists.
@@ -26,23 +22,27 @@ const INBOX_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const REPO_SRC = join(INBOX_ROOT, '..', '..')
 
 /**
- * The complete set of modules permitted to write the mirror, each with the
+ * The complete set of modules permitted to write the Inbox row, each with the
  * reason it is fenced. Adding a file here is a deliberate architectural
  * decision, not a test fix.
  */
 const FENCED_MIRROR_WRITERS: Readonly<Record<string, string>> = {
   'contexts/reputation/inbox/assignment-commands.server.ts':
-    'Assignment, release and manual reopen commands: every mirror write co-commits with the Handling Cycle head, its transition row, and the outbox fact.',
+    'Assignment, release and manual reopen commands: every Inbox row write co-commits with the Handling Cycle facts, its transition row, and the outbox fact.',
   'contexts/reputation/inbox/source-commands.server.ts':
-    'Receipt-coordinated source commands (create, withdraw, source transition): every mirror write co-commits with the Handling Cycle head, its transition row, and the outbox fact.',
+    'Receipt-coordinated source commands (create, withdraw, source transition): every Inbox row write co-commits with the Handling Cycle facts, its transition row, and the outbox fact.',
   'contexts/inbox/infrastructure/inbox-source-projection.ts':
-    'Source-driven projection commands and the item row writers they share: item rows converge with the Handling Cycle head, its transition row and the outbox fact in one transaction.',
+    'Source-driven projection commands and the item row writers they share: item rows converge with the Handling Cycle facts, its transition row and the outbox fact in one transaction.',
   'contexts/reputation/inbox/feedback-handling-store.server.ts':
-    'Private-feedback outcome store: closes the head and mirrors the status in one locked transaction.',
+    'Private-feedback outcome store: closes the cycle and the item row in one locked transaction.',
   'contexts/inbox/infrastructure/review-reply-close.ts':
-    "Close on a reply Google shows, shared by the reply-observed consumer and the projection rebuild: closes the Handling Cycle head and mirrors the status in one transaction, inside Review's exact-current observation permit.",
+    "Close on a reply Google shows, shared by the reply-observed consumer and the projection rebuild: closes the Handling Cycle and the item row in one transaction, inside Review's exact-current observation permit.",
+  'contexts/inbox/infrastructure/review-epoch-carry-head.ts':
+    "Review-attested source-epoch carry: moves only the Inbox row's source revision, under the row lock the caller holds, and writes no status.",
+  'contexts/inbox/infrastructure/review-handling-cycle.store.ts':
+    "Opening a source's first Handling Cycle: stamps the cycle facts on the Inbox row inserted in the same transaction.",
   'contexts/reputation/inbox/inbox-repository.server.ts':
-    'Only reply milestone stamping; every read it serves resolves from the head, and the milestone seam cannot express a status.',
+    'Only reply milestone stamping; the milestone seam cannot express a status or a cycle fact.',
 }
 
 function walk(directory: string): readonly string[] {
@@ -70,8 +70,8 @@ function writesInboxItemsTable(source: string): boolean {
   return /\.(?:update|insert)\(inboxItems\)/.test(source)
 }
 
-describe('inbox_items.status is a read-only-retained compatibility mirror', () => {
-  it('is written only by the named head-fenced modules', () => {
+describe('inbox_items carries the Handling Cycle facts its readers resolve from', () => {
+  it('is written only by the named cycle-fenced modules', () => {
     const writers = productionFiles
       .filter((file) => writesInboxItemsTable(readFileSync(file, 'utf8')))
       .map(relativeToSrc)
@@ -79,12 +79,17 @@ describe('inbox_items.status is a read-only-retained compatibility mirror', () =
     expect(writers).toEqual(Object.keys(FENCED_MIRROR_WRITERS).sort())
   })
 
-  it('requires every permitted writer to also move the Handling Cycle head', () => {
+  it('requires every cycle-moving writer to move the cycle facts through one helper', () => {
+    // A writer that moves the status must also move the facts, so the helper's
+    // columns are spread into every such update; the milestone stamp is the one
+    // writer that touches neither.
+    const milestoneOnly = 'contexts/reputation/inbox/inbox-repository.server.ts'
     for (const permitted of Object.keys(FENCED_MIRROR_WRITERS)) {
+      if (permitted === milestoneOnly) continue
       const source = readFileSync(join(REPO_SRC, permitted), 'utf8')
       expect(
-        source.includes('inboxHandlingCycleHeads'),
-        `${permitted} writes inbox_items.status without referencing the Handling Cycle head`,
+        source.includes('cycleHeadItemColumns') || source.includes('mirrorCycleHead'),
+        `${permitted} writes inbox_items without moving the Handling Cycle facts`,
       ).toBe(true)
     }
   })
@@ -154,18 +159,31 @@ describe('inbox_items.status is a read-only-retained compatibility mirror', () =
     expect(offenders).toEqual([])
   })
 
-  it('resolves every serving read from the Handling Cycle head, not from the mirror', () => {
+  it('resolves every serving read from the Inbox row, not from the head table', () => {
     const repository = readFileSync(
       join(REPO_SRC, 'contexts/reputation/inbox/inbox-repository.server.ts'),
       'utf8',
     )
     expect(repository).toContain(
-      'const effectiveInboxStatus = sql<InboxStatus>`${inboxHandlingCycleHeads.status}`',
+      'const hasActiveHandlingAuthority = isNotNull(inboxItems.currentCycleNumber)',
     )
-    expect(repository).toContain('status: effectiveInboxStatus')
+    expect(repository).not.toContain('inboxHandlingCycleHeads')
   })
 
-  it('retains the physical column — contraction is blocked until a verified release plus restore proof', () => {
+  it('reads the head table only where it is mirrored', () => {
+    const readers = productionFiles
+      .filter((file) => !file.endsWith('.test-fixtures.ts'))
+      .filter((file) => /\binboxHandlingCycleHeads\b/.test(readFileSync(file, 'utf8')))
+      .map(relativeToSrc)
+      .sort()
+    expect(readers).toEqual([
+      'contexts/inbox/infrastructure/inbox-cycle-head.ts',
+      'contexts/inbox/infrastructure/review-epoch-carry-head.ts',
+      'contexts/inbox/infrastructure/review-handling-cycle.store.ts',
+    ])
+  })
+
+  it('retains the physical status column — contraction is blocked until a verified release plus restore proof', () => {
     const schema = readFileSync(
       join(REPO_SRC, 'shared', 'db', 'schema', 'inbox.schema.ts'),
       'utf8',

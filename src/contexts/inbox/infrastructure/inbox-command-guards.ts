@@ -28,7 +28,8 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 import type { Permission } from '#/shared/domain/permissions'
-import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
+import { inboxItems } from '#/shared/db/schema/inbox.schema'
+import type { PersistedHead } from './inbox-cycle-head'
 import type {
   ApplyReviewProjectionCommand,
   HandlingCycleCreationAnchor,
@@ -70,7 +71,7 @@ export const itemFromRow = (row: PersistedItem): InboxItem => ({
   propertyName: null,
 })
 
-export type PersistedHead = typeof inboxHandlingCycleHeads.$inferSelect
+export type { PersistedHead }
 
 export const handlingCycleHeadFromRow = (row: PersistedHead): HandlingCycleHead => ({
   inboxItemId: inboxItemId(row.inboxItemId),

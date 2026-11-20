@@ -66,12 +66,12 @@ import { preparableV3Request } from './review-evidence.test-fixtures'
 const PINNED_PROFILES = [
   {
     profileVersion: 'review-analysis-v3',
-    profileDigest: 'd25c3e071e309060f7d7fafa7b65d95c54d1e0cf98841b8dc9449f5e3414b943',
+    profileDigest: 'bffc63828d74c3bbe18d7ebae8ec74cb7750a3be1902b14128fa370cadc98e49',
     outputSchemaDigest:
       '8c72e79976c6b784c679f671b798c41b71e78795542c7d80571e48cebde40154',
     promptDigest: 'c912005966c45c7533a7fc9ba37f5b0fc70e7399a0555da360ce9fadab0cd1f3',
     artifactAttestationsDigest:
-      '4b381099fb1bfc3b3b743b8f8f664b3fd42aed6b2aa404e1f1625c64499e9a22',
+      '6340109d561e632e9ead48d4be44a93597a0001032dd32e0dad56b668e23d08f',
     sdkRequestShapeDigest:
       '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
     staticTokenBearingBytes: 15920,
@@ -81,12 +81,12 @@ const PINNED_PROFILES = [
   // Reply v2 attests streaming and deployment v3.
   {
     profileVersion: 'reply-suggestion-v2',
-    profileDigest: '96cc3926f0e9d0110b15e05be0233ff50270699ccee833caac0b4480c9b27642',
+    profileDigest: '73c5cf6cef43b9a5ef202053c9ca9249c2e69a2802f8e286d51559f6f71045b5',
     outputSchemaDigest:
       '2f7afcc12b767302d60d6b1f931fd7996d010dd7c24ba32246fff415c1d4dcd7',
     promptDigest: '9c7c78dfc1e63b32e5916ecaceb33fca5eb0dd28a485066535df3772eb1dc805',
     artifactAttestationsDigest:
-      '6ea0f5e0fa58086f16cbf8e69e85cc64cd2a9494c638fa2eb843e7200ffffa0a',
+      '51165a6db468b0c07a704409e706b01b1a4421cd3af88b5b297779441ab36eab',
     sdkRequestShapeDigest:
       'f67f33645f1a50218dc369daa627337738b540db44840f9faf11bc403034f9f0',
     staticTokenBearingBytes: 14764,
@@ -111,7 +111,7 @@ const PINNED_PROFILES = [
 
 const PINNED_PROVIDER_LEVEL = {
   deploymentProfileDigest:
-    '07a1b133ea2c519ed61fc18ca376cc7e4494b48bbf738d5705739293722962b3',
+    'c1167cebad528f5aaf42257901f839a1ff389654137b8b7ee0b25c5057d04da6',
   routingPolicyDigest: 'dce9ee5026db127ea4405639caa35e650aa8c6f29632220b1347f4f381e366ca',
   requestShapeDigest: '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
   normalizedClaimsDigest:
@@ -141,7 +141,7 @@ const PINNED_ROUTES = {
       outputTokens: 4096,
       costMicros: 3797,
     },
-    descriptorDigest: '6e11a41aef4253fb06e6faa4b684c2f937273ab488e3de9a9d3a96bfbd159ba0',
+    descriptorDigest: '03ed67e7f65704f49d74dc8f44252b4eddb40e4f14fb38ef229e88ac50cddd51',
     canonicalProviderBytesSha256:
       'b6f063d3da8527243da1bb8ade4597edb704afb8031fb7d162f207ae558c6dc4',
     canonicalProviderByteLength: 18090,
@@ -233,7 +233,7 @@ describe('OpenAI and the live profiles, as pinned at the switch-on', () => {
       {
         ...PINNED_ROUTES.analysis,
         descriptorDigest:
-          'f1ec50baca3f9ced754d23b3523d3d20402fb6982d2b2d3fd39874a26312084e',
+          '4bdce4b0968c8bff96264f1674906305ddb2fa42a6b51ae49d9ccff63c0fa908',
       },
     ],
   ] as const)(

@@ -2,7 +2,7 @@
 //
 // Walks the import graph from what the browser loads first — src/client.tsx,
 // src/start.ts and src/router.tsx — and from every browser route (excluding
-// src/routes/api/**) and component, then fails when a Node-only module is
+// src/routes/api/**), component and feature screen, then fails when a Node-only module is
 // reachable. The deny list is not a copy: it is read from
 // `importProtection.client` in vite.config.ts, so the build and this test
 // cannot disagree about what is denied.
@@ -156,12 +156,16 @@ function entryPoints(): string[] {
     (f) => !relOf(f).startsWith('routes/api/'),
   )
   const components = walk(join(SRC, 'components'))
+  const featureScreens = walk(join(SRC, 'contexts')).filter((f) =>
+    /^contexts\/[^/]+\/[^/]+\/ui\//u.test(relOf(f)),
+  )
   return [
     join(SRC, 'client.tsx'),
     join(SRC, 'start.ts'),
     join(SRC, 'router.tsx'),
     ...routes,
     ...components,
+    ...featureScreens,
   ]
 }
 

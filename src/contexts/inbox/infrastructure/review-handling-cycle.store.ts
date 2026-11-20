@@ -4,6 +4,7 @@ import {
   inboxHandlingCycleHeads,
   inboxHandlingCycleTransitions,
   inboxHandlingCycles,
+  inboxItems,
 } from '#/shared/db/schema/inbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import {
@@ -34,10 +35,13 @@ import {
   insertResponseTargetForHandlingCycle,
 } from '../../reputation/inbox/response-targets/store.server'
 import type { ReviewCycleTargetAnchor } from '../application/ports/review-response-target-authority.port'
+import {
+  cycleHeadItemColumns,
+  persistedHeadFromItemRow,
+  type PersistedHead,
+} from './inbox-cycle-head'
 
-type HeadRow = typeof inboxHandlingCycleHeads.$inferSelect
-
-const headFromRow = (row: HeadRow): ReviewHandlingCycleHead => {
+const headFromRow = (row: PersistedHead): ReviewHandlingCycleHead => {
   if (
     row.sourceType !== 'review' ||
     row.reviewId === null ||
@@ -60,7 +64,7 @@ const headFromRow = (row: HeadRow): ReviewHandlingCycleHead => {
   }
 }
 
-const sourceHeadFromRow = (row: HeadRow): HandlingCycleHead => ({
+const sourceHeadFromRow = (row: PersistedHead): HandlingCycleHead => ({
   inboxItemId: inboxItemId(row.inboxItemId),
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
@@ -171,6 +175,12 @@ export async function insertInitialHandlingCycle(
     updatedAt: recordedAt,
   })
   await tx
+    .update(inboxItems)
+    .set(cycleHeadItemColumns(decision.value.head))
+    .where(
+      and(eq(inboxItems.id, item.id), eq(inboxItems.organizationId, item.organizationId)),
+    )
+  await tx
     .insert(inboxHandlingCycleTransitions)
     .values(
       decision.value.transitions.map((transition) =>
@@ -187,30 +197,22 @@ export const createReviewHandlingCycleStore = (
     return trace('inbox.handlingCycle.findSourceHead', async () => {
       const rows = await db
         .select()
-        .from(inboxHandlingCycleHeads)
-        .where(
-          and(
-            eq(inboxHandlingCycleHeads.inboxItemId, itemId),
-            eq(inboxHandlingCycleHeads.organizationId, orgId),
-          ),
-        )
+        .from(inboxItems)
+        .where(and(eq(inboxItems.id, itemId), eq(inboxItems.organizationId, orgId)))
         .limit(1)
-      return rows[0] ? sourceHeadFromRow(rows[0]) : null
+      const head = rows[0] ? persistedHeadFromItemRow(rows[0]) : null
+      return head ? sourceHeadFromRow(head) : null
     })
   },
   findHead: async (itemId, orgId, tx) => {
     return trace('inbox.handlingCycle.findHead', async () => {
       const rows = await (tx ?? db)
         .select()
-        .from(inboxHandlingCycleHeads)
-        .where(
-          and(
-            eq(inboxHandlingCycleHeads.inboxItemId, itemId),
-            eq(inboxHandlingCycleHeads.organizationId, orgId),
-          ),
-        )
+        .from(inboxItems)
+        .where(and(eq(inboxItems.id, itemId), eq(inboxItems.organizationId, orgId)))
         .limit(1)
-      return rows[0] ? headFromRow(rows[0]) : null
+      const head = rows[0] ? persistedHeadFromItemRow(rows[0]) : null
+      return head ? headFromRow(head) : null
     })
   },
 })

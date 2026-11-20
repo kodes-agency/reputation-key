@@ -2,7 +2,7 @@ import { SectionTitle } from '#/components/ui/section-title'
 // "Stars given" (board 07): the five star counts of the period. The mix is held
 // back with the average (below the floor it would give the average away), and
 // the server says what the floor is.
-import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
+import { RatingDistributionChart } from '#/components/ui/rating-distribution-chart'
 import type { PortalAnalyticsData } from '#/contexts/reporting/portal-results/contracts'
 import { formatNumber } from '#/lib/format'
 

@@ -6,7 +6,7 @@ import type { RatingGoalDetailView } from '#/contexts/reporting/rating-goals/con
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
-import { GoalDetailLayout } from '#/components/goals/goal-detail-layout'
+import { GoalDetailLayout } from '#/contexts/reporting/goals/ui/goal-detail-layout'
 import { RatingGoalBands, RatingGoalKeepBand } from './rating-goal-bands'
 import { RatingGoalDetailHeader } from './rating-goal-detail-header'
 import { freshnessText } from './rating-goal-detail-view'

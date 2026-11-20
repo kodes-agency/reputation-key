@@ -5,7 +5,7 @@ import {
   getPropertyGooglePerformance,
   renewPropertyGooglePerformanceLease,
 } from '#/contexts/integration/server/google-performance'
-import { PropertyGooglePage } from '#/components/features/property/property-google-page'
+import { PropertyGooglePage } from '#/contexts/integration/performance/ui/property-google-page'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-range'
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { deCopy } from '#/components/features/guest/public-portal/language-packs/de'
+import { deCopy } from '#/contexts/guest/page/ui/public-portal/language-packs/de'
 
 const { readBrowserLanguages } = vi.hoisted(() => ({
   readBrowserLanguages: vi.fn(),

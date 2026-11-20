@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { runServerRoute } from '#/shared/observability/request-context'
 import { handleIdentityAssetServe } from '#/contexts/identity/server/identity-asset-serve'
 
 // GET one stored avatar or organization logo by its object key; see the handler
@@ -8,7 +9,9 @@ export const Route = createFileRoute('/api/public/identity-assets/$')({
   server: {
     handlers: {
       GET: ({ request, params }) =>
-        handleIdentityAssetServe(request, params._splat ?? ''),
+        runServerRoute('/api/public/identity-assets/$', async () =>
+          handleIdentityAssetServe(request, params._splat ?? ''),
+        ),
     },
   },
 })

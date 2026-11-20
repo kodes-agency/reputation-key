@@ -6,7 +6,7 @@
 // Property either way.
 
 import { useState } from 'react'
-import { PropertyPicker } from '#/components/property/property-picker'
+import { PropertyPicker } from '#/components/forms/property-picker'
 
 /** The picker's value for "no filter": never a Property id (those are UUIDs). */
 const ALL_PROPERTIES = 'all-properties'

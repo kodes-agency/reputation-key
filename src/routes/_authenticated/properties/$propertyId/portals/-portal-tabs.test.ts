@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { setupHookRoot } from '#/shared/testing/hook-root'
-import type { PortalShare } from '#/components/features/portal/portal-share/portal-share'
+import type { PortalShare } from '#/contexts/portal/printing/ui/portal-share/portal-share'
 
 const screen = vi.hoisted(() => ({
   tab: 'share' as 'share' | 'page' | 'results' | 'history',
@@ -44,10 +44,10 @@ vi.mock('#/contexts/portal/editor/ui/portal-editor', () => ({
 vi.mock('#/contexts/portal/workspace/ui/portal-unsaved-changes-prompt', () => ({
   PortalUnsavedChangesPrompt: () => null,
 }))
-vi.mock('#/components/features/portal/portal-workspace/portal-link-issuance', () => ({
+vi.mock('#/contexts/portal/workspace/ui/portal-workspace/portal-link-issuance', () => ({
   usePortalLinkIssuance: () => ({}),
 }))
-vi.mock('#/components/features/portal/portal-share/portal-share', () => ({
+vi.mock('#/contexts/portal/printing/ui/portal-share/portal-share', () => ({
   PortalShare: (props: unknown) => {
     screen.share(props)
     return screen.mounted ? null : createElement('p', null, 'Share ready')

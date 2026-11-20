@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
 import { command } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
-import { toBrowserProperty } from '../application/dto/browser-property.dto'
+import { toBrowserProperty } from '../profile/browser-property.contracts'
 import { PROPERTY_DELETION_UNAVAILABLE_MESSAGE, propertyError } from '../domain/errors'
 import { propertyCommandErrors } from './property-shared'
 

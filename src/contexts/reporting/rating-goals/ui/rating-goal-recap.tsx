@@ -10,7 +10,7 @@ import type {
 } from '#/contexts/reporting/rating-goals/contracts'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { GoalCheckIn, GoalWithCheckIn } from '#/components/goals/goal-check-in'
+import { GoalCheckIn, GoalWithCheckIn } from '#/contexts/reporting/goals/ui/goal-check-in'
 import { RatingGoalCard } from './rating-goal-card'
 import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import { withRatingGoalRefusals } from './rating-goal-refusal'

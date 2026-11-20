@@ -4,7 +4,7 @@
 // the definition, on the Results tab and on every Portals overview strip.
 import type { ReactNode } from 'react'
 import { Star } from 'lucide-react'
-import { GlossaryTerm } from '#/components/features/shared/glossary-term'
+import { GlossaryTerm } from '#/components/ui/glossary-term'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { RESULTS_LABELS, type ResultsCell } from './portal-results-cells'
 

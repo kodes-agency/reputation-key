@@ -17,7 +17,7 @@ import {
   openingOf,
   type PortalGoalAddAddress,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal-add-view'
-import { goalPersonNames } from '#/components/goals/goal-target-marker'
+import { goalPersonNames } from '#/contexts/reporting/monthly-goals/ui/goal-target-marker'
 import type { PortalGoalCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-card-ready'
 import type { PortalGoalSheetCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-sheet'
 import type { PortalGoalStopCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-stop-dialog'

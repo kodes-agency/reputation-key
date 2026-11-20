@@ -51,7 +51,7 @@ import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/comma
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import {
-  dropInboxUseCaseTenant,
+  dropInboxOrganization,
   seedInboxItem,
   seedInboxOrganization,
   seedReviewSource,
@@ -211,6 +211,10 @@ const advanceHeadRevision = async (item: InboxItem, revision: number): Promise<v
       WHERE inbox_item_id = $1`,
     [item.id, revision],
   )
+  await pool.query('UPDATE inbox_items SET current_source_revision = $2 WHERE id = $1', [
+    item.id,
+    revision,
+  ])
 }
 
 const silentLogger = createMockLogger()
@@ -286,7 +290,7 @@ beforeAll(() => {
 })
 
 afterEach(async () => {
-  await dropInboxUseCaseTenant(pool, ORG, [PROP, PROP2])
+  await dropInboxOrganization(pool, ORG)
 })
 
 afterAll(async () => {
@@ -333,6 +337,13 @@ async function makeDeps(overrides: {
     if (overrides.handlingCycleMissing === true) {
       await pool.query(
         'DELETE FROM inbox_handling_cycle_heads WHERE inbox_item_id = $1',
+        [item.id],
+      )
+      await pool.query(
+        `UPDATE inbox_items
+            SET current_cycle_number = NULL, current_source_revision = NULL,
+                state_revision = NULL
+          WHERE id = $1`,
         [item.id],
       )
     } else if (overrides.handlingCycleMaterialReviewRevision !== undefined) {

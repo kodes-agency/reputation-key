@@ -5,7 +5,10 @@
 import type { ReactNode, Ref } from 'react'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { Dialog } from '#/components/ui/dialog'
-import { GoalSheetFrame, GoalSheetHeader } from '#/components/goals/goal-sheet-frame'
+import {
+  GoalSheetFrame,
+  GoalSheetHeader,
+} from '#/contexts/reporting/goals/ui/goal-sheet-frame'
 import { RatingGoalInlineCancelLabel } from './rating-goal-wizard-cancel'
 
 type Props = Readonly<{

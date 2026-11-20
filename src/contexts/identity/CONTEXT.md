@@ -41,7 +41,7 @@ folder beside it; routes import the screens from there:
 
 Files in these folders are `*.server.ts`; server functions stay under `server/`.
 The Organization settings screens still live in
-`src/components/features/organization/`. Anything a screen, route, script or
+`src/contexts/identity/members/ui/organization/`. Anything a screen, route, script or
 another context imports, and the rights, erasure and export contributors, stay
 in the layer folders. Screens take other contexts' server-function signatures as
 types only.

@@ -84,15 +84,15 @@ const RED_ALERT_PARAGRAPH =
   /<p\b(?=[^>]*role="alert")(?=[^>]*\btext-(?:destructive|negative)\b)[^>]*>/u
 
 const RED_PARAGRAPH_ALLOWED: Readonly<Record<string, string>> = {
-  'src/components/features/portal/portal-share/portal-code-block.tsx':
+  'src/contexts/portal/printing/ui/portal-share/portal-code-block.tsx':
     'the copy fallback: it sits beside the address the person can select instead',
-  'src/components/features/portal/portal-share/portal-link-reveal.tsx':
+  'src/contexts/portal/printing/ui/portal-share/portal-link-reveal.tsx':
     'the copy fallback: it sits beside the address the person can select instead',
-  'src/components/features/portal/portal-share/print-cta-select.tsx':
+  'src/contexts/portal/printing/ui/portal-share/print-cta-select.tsx':
     'a field-level error: why the picked wording no longer fits the print, tied to its select',
-  'src/components/features/portal/portal-share/print-shop-note.tsx':
+  'src/contexts/portal/printing/ui/portal-share/print-shop-note.tsx':
     'the copy fallback: it sits beside the note the person can select instead',
-  'src/components/features/portal/portal-new/portal-new-start-from-field.tsx':
+  'src/contexts/portal/publication/ui/portal-new/portal-new-start-from-field.tsx':
     'a field-level error, not an action failure',
   'src/contexts/portal/look/ui/property-look-batch-dialog.tsx':
     'the stop reason of a batch publish, part of its result readout',

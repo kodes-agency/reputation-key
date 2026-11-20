@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
-import { GOAL_PACE_STATUS } from '../../../../components/goals/goal-pace-status'
+import { GOAL_PACE_STATUS } from '../../goals/ui/goal-pace-status'
 import { portalGoalPace } from './portal-goal-status-view'
 
 /** Nov 22: 23 of 40, 22 of 30 days gone, behind. */

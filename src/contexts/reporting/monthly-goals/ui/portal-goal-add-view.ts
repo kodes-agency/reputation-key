@@ -8,7 +8,7 @@ import type {
   PortalGoalAddOptions,
 } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
-import { goalMetricLabel } from '../../../../components/goals/goal-metric-label'
+import { goalMetricLabel } from './goal-metric-label'
 import {
   AVERAGE_METRIC,
   averageWords,

@@ -6,7 +6,7 @@
 // disclosure. Axe runs on every story (`a11y.test = 'error'`).
 import type { Decorator, Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
-import { loadGuestPortalCopy } from '#/components/features/guest'
+import { loadGuestPortalCopy } from '#/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { PREVIEW_DRAFT } from './__fixtures__/portal-preview-fixtures'
 import { ARRIVAL_STATE } from './portal-preview-states'

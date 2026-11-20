@@ -20,7 +20,7 @@ import {
   patchedBrand,
   type BrandPatches,
 } from '#/contexts/portal/look/ui/portal-look-preview-patch'
-import type { GuestPortalCopy } from '#/components/features/guest'
+import type { GuestPortalCopy } from '#/contexts/guest/page/ui/public-portal/language-packs/guest-copy'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import type {
   PortalPreviewExperience,

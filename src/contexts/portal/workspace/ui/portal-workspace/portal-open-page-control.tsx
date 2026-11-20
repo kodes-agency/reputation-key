@@ -1,0 +1,56 @@
+// The header's live-page slot ("Open live page" or "Get page link"): decides
+// what to offer (`deriveOpenPageMode`) and reads the address the manager
+// already holds from the workspace's issuance state, so a code made here opens
+// with no reveal. Rendered inside
+// `PortalLinkIssuanceProvider`, which is why the layout hands it over as an
+// element rather than reading the state itself.
+
+// The header's live-page slot ("Open live page" or "Get page link"): decides
+// what to offer (`deriveOpenPageMode`) and reads the address the manager
+// already holds from the workspace's issuance state, so a code made here opens
+// with no reveal. Rendered inside
+// `PortalLinkIssuanceProvider`, which is why the layout hands it over as an
+// element rather than reading the state itself.
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
+import type { PortalDetailTab } from '#/contexts/portal/workspace/ui/portal-detail-rules'
+import type { PortalShareMutations } from '../../../printing/ui/portal-share/portal-share-types'
+import type { PortalPublicationState } from '../shared/types'
+import { PortalOpenPageButton } from './portal-open-page-button'
+import { deriveOpenPageMode } from './portal-open-page'
+import { usePortalLinkIssuance } from './portal-link-issuance'
+
+export type PortalOpenPageControlProps = Readonly<{
+  propertyId: string
+  portalId: string
+  /** `portal.update`. */
+  canUpdate: boolean
+  /** The `portal.write` capability. */
+  portalWriteEnabled: boolean
+  publicationState: PortalPublicationState
+  tokenStatus: PortalTokenStatus
+  activeTab: PortalDetailTab
+  revealMutation: PortalShareMutations['revealMutation']
+}>
+
+export function PortalOpenPageControl(props: PortalOpenPageControlProps) {
+  const { issuedLink } = usePortalLinkIssuance()
+  const heldLink = issuedLink ?? null
+  const mode = deriveOpenPageMode({
+    canUpdate: props.canUpdate,
+    portalWriteEnabled: props.portalWriteEnabled,
+    publicationState: props.publicationState,
+    tokenStatus: props.tokenStatus,
+    activeTab: props.activeTab,
+    hasHeldAddress: heldLink !== null,
+  })
+  if (mode === 'hidden') return null
+  return (
+    <PortalOpenPageButton
+      propertyId={props.propertyId}
+      portalId={props.portalId}
+      mode={mode}
+      heldLink={heldLink}
+      revealMutation={props.revealMutation}
+    />
+  )
+}

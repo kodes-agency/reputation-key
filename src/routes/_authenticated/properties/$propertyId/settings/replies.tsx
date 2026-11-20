@@ -4,9 +4,9 @@ import {
   useActionMutation,
   actionErrorMessage,
 } from '#/components/hooks/use-action-mutation'
-import { PropertyReplyLanguageCard } from '#/components/features/settings/property-reply-language-card'
-import { ReplyVoiceCard } from '#/components/features/property/reply-voice-card'
-import { ReplyTemplateLibraryCard } from '#/components/features/property/reply-template-library-card'
+import { PropertyReplyLanguageCard } from '#/contexts/property/profile/ui/property-reply-language-card'
+import { ReplyVoiceCard } from '#/contexts/reputation/library/ui/reply-voice-card'
+import { ReplyTemplateLibraryCard } from '#/contexts/reputation/library/ui/reply-template-library-card'
 import { updateProperty } from '#/contexts/property/server/properties'
 import { propertiesQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'

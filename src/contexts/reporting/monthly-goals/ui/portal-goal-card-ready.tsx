@@ -12,10 +12,7 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import { Button } from '#/components/ui/button'
-import {
-  goalRefusalCode,
-  withGoalRefusals,
-} from '../../../../components/goals/goal-refusal'
+import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
 import type { PortalGoalCheckInCommands } from './portal-goal-check-in'
 import { PORTAL_ASK_EVERY_GUEST_LINE } from './portal-goal-copy'
 import { offerWords } from './portal-goal-offer-words'

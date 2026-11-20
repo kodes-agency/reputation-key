@@ -365,25 +365,13 @@ export async function clearInboxOrganization(
   await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [organizationId])
 }
 
-/** Removes everything a test seeded for one organization, children first, including its Review sources. */
+/** Removes everything a test seeded for one organization, children first: items, Review sources, properties and the organization. */
 export async function dropInboxOrganization(
   pool: Pool,
   organizationId: string,
 ): Promise<void> {
   await clearInboxOrganization(pool, organizationId)
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [organizationId])
-}
-
-/** Removes everything a test seeded, including its properties and organization. */
-export async function dropInboxUseCaseTenant(
-  pool: Pool,
-  organizationId: string,
-  propertyIds: ReadonlyArray<string>,
-): Promise<void> {
-  await dropInboxOrganization(pool, organizationId)
-  await pool.query('DELETE FROM properties WHERE organization_id = $1 AND id = ANY($2)', [
-    organizationId,
-    propertyIds,
-  ])
+  await pool.query('DELETE FROM properties WHERE organization_id = $1', [organizationId])
   await pool.query('DELETE FROM organization WHERE id = $1', [organizationId])
 }

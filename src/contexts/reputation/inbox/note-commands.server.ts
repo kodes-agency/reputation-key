@@ -1,4 +1,4 @@
-import { inboxNotes } from '#/shared/db/schema/inbox.schema'
+import { inboxNotes } from '#/shared/db/schema/inbox-workspace.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { inboxError } from '#/contexts/inbox/domain/errors'

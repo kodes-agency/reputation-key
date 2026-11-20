@@ -1,4 +1,5 @@
-// Inbox context — Drizzle schema for inbox_items, inbox_notes & inbox_user_views
+// Inbox context — Drizzle schema for inbox_items and the Handling Cycle tables
+// (notes and the per-user last visit: ./inbox-workspace.schema.ts)
 // Per ADR 0055: status is open/closed; escalation is an orthogonal flag.
 
 import { sql } from 'drizzle-orm'
@@ -84,6 +85,10 @@ export const inboxItems = pgTable(
     managerPriority: inboxPriorityLevelEnum('manager_priority'),
     managerPrioritySetBy: varchar('manager_priority_set_by', { length: 255 }),
     managerPrioritySetAt: timestamp('manager_priority_set_at', { withTimezone: true }),
+    // The current Handling Cycle's facts (migration 0158), all three or none.
+    currentCycleNumber: bigint('current_cycle_number', { mode: 'number' }),
+    currentSourceRevision: bigint('current_source_revision', { mode: 'number' }),
+    stateRevision: bigint('state_revision', { mode: 'number' }),
   },
   (t) => [
     index('inbox_items_org_status_idx').on(t.organizationId, t.status),
@@ -130,6 +135,10 @@ export const inboxItems = pgTable(
     check(
       'inbox_items_command_revision_safe',
       sql`${t.commandRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'inbox_items_cycle_head_facts_valid',
+      sql`(${t.currentCycleNumber} IS NULL) = (${t.currentSourceRevision} IS NULL) AND (${t.currentCycleNumber} IS NULL) = (${t.stateRevision} IS NULL) AND (${t.currentCycleNumber} IS NULL OR (${t.currentCycleNumber} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.currentSourceRevision} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.stateRevision} BETWEEN 1 AND '9007199254740991'::bigint))`,
     ),
     check(
       'inbox_items_review_source_content_free',
@@ -296,10 +305,9 @@ export const inboxHandlingCycles = pgTable(
 )
 
 /**
- * Compare-and-swap head for the one current actionable source cycle.
- * Existing `inbox_items` columns remain as the compatibility projection while
- * readers and commands migrate to this explicit head. A Review epoch carry may
- * advance the current source fence without replacing the immutable cycle.
+ * Mirror of the Inbox row's current Handling Cycle facts, still written beside
+ * it. A Review epoch carry may advance the source fence without replacing the
+ * immutable cycle.
  */
 export const inboxHandlingCycleHeads = pgTable(
   'inbox_handling_cycle_heads',
@@ -928,31 +936,3 @@ export const inboxAssignmentHistory = pgTable(
 
 // `inboxEscalationHistory` moved to ./inbox-triage-history.schema.ts beside
 // `inboxPriorityHistory` (migration 0077): the two triage decision logs.
-
-export const inboxNotes = pgTable(
-  'inbox_notes',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    inboxItemId: uuid('inbox_item_id')
-      .notNull()
-      .references(() => inboxItems.id, { onDelete: 'cascade' }),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    userId: varchar('author_user_id', { length: 255 }).notNull(),
-    text: text('text').notNull(),
-    createdAt: createdAtColumn(),
-  },
-  (t) => [index('inbox_notes_item_idx').on(t.inboxItemId)],
-)
-
-// Per-user last-visit timestamp (ADR 0057) — replaces the org-level "new" badge.
-export const inboxUserViews = pgTable(
-  'inbox_user_views',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    userId: varchar('user_id', { length: 255 }).notNull(),
-    lastInboxView: timestamp('last_inbox_view', { withTimezone: true }).notNull(),
-    updatedAt: updatedAtColumn(),
-  },
-  (t) => [uniqueIndex('inbox_user_views_org_user_unique').on(t.organizationId, t.userId)],
-)

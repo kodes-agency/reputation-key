@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
@@ -172,6 +173,7 @@ async function seedThreeCycleItem(): Promise<void> {
      ) VALUES ($1, $2, $3, 'review', $4, 2, $4, 3, 2, 5, 'open', $5, $5)`,
     [ITEM_ID, ORG_ID, PROPERTY_ID, REVIEW_ID, T0],
   )
+  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
 
   const transition = async (
     stateRevision: number,

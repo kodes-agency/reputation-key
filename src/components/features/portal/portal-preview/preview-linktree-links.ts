@@ -3,7 +3,7 @@
 // (a dashed variant of the real tile), so a manager sees why a tile they made
 // is missing from the page; every other tile is drawn exactly as guests get it.
 
-import type { ImmersiveLinktreeLink } from '#/components/features/guest'
+import type { ImmersiveLinktreeLink } from '#/contexts/guest/page/ui/public-portal/immersive/immersive-linktree'
 import type { PortalPreviewLink } from '#/contexts/portal/application/portal-management-contracts'
 import { TILE_PLACEHOLDER_NOTE } from './portal-preview-rules'
 
