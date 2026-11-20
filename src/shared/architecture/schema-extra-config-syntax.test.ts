@@ -2,7 +2,7 @@ import { globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const SCHEMA_ROOT = resolve(import.meta.dirname, 'schema')
+const SCHEMA_ROOT = resolve(import.meta.dirname, '../db/schema')
 const DEPRECATED_OBJECT_EXTRA_CONFIG = /\(t\)\s*=>\s*\(\{/u
 
 describe('Drizzle PostgreSQL schema extra config', () => {

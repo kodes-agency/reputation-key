@@ -8,15 +8,28 @@
 // Toaster hands Sonner, so the proof follows the code and not a second table.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { createElement, type ReactElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it, vi } from 'vitest'
 import {
   contrastRatio,
   readTokenBlock,
   resolveColour,
   type LinearRgb,
 } from '#/shared/testing/oklch-contrast'
-import { TOASTER_STYLE } from './sonner'
-import { TONE_INK, TONE_SURFACE } from './tone'
+import { Toaster, TOASTER_STYLE } from './sonner'
+import { TONE_ICON, TONE_INK, TONE_SURFACE } from './tone'
+
+// What the Toaster hands Sonner, captured instead of drawn.
+const sonner = vi.hoisted(() => ({
+  props: undefined as Record<string, unknown> | undefined,
+}))
+vi.mock('sonner', () => ({
+  Toaster: (props: Record<string, unknown>) => {
+    sonner.props = props
+    return null
+  },
+}))
 
 const AA = 4.5
 const TONES = ['success', 'info', 'warning', 'error'] as const
@@ -82,12 +95,13 @@ describe('the information toast', () => {
 
 describe('the Toaster icons', () => {
   it('come from the tone table, one glyph per tone wherever it is drawn', () => {
-    const source = readFileSync(resolve(__dirname, 'sonner.tsx'), 'utf8')
+    renderToStaticMarkup(createElement(Toaster))
+    const icons = sonner.props?.icons as Record<string, ReactElement> | undefined
 
-    for (const tone of ['positive', 'info', 'warn', 'negative']) {
-      expect(source).toContain(`TONE_ICON.${tone}`)
-    }
-    expect(source).not.toMatch(/Octagon/u)
+    expect(icons?.success?.type).toBe(TONE_ICON.positive)
+    expect(icons?.info?.type).toBe(TONE_ICON.info)
+    expect(icons?.warning?.type).toBe(TONE_ICON.warn)
+    expect(icons?.error?.type).toBe(TONE_ICON.negative)
   })
 })
 

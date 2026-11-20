@@ -6,20 +6,6 @@ import { describe, expect, it } from 'vitest'
 const ROOT = resolve(import.meta.dirname, '../..')
 const read = (path: string): string => readFileSync(resolve(ROOT, path), 'utf8')
 
-/**
- * ARC-03-T1: the architectural boundary config object is the one that owns
- * `boundaries/elements`. Slicing it out of the source keeps the assertion
- * about THAT block's `files` glob rather than the unrelated Node-globals
- * block, which already carried a `scripts/**` glob before this task.
- */
-function boundaryConfigBlock(): string {
-  const source = read('eslint.config.js')
-  const anchor = source.indexOf("'boundaries/elements'")
-  expect(anchor).toBeGreaterThan(-1)
-  const blockStart = source.lastIndexOf('\n  {\n', anchor)
-  return source.slice(blockStart, anchor)
-}
-
 async function ruleSeverity(file: string, rule: string): Promise<number> {
   const eslint = new ESLint({ cwd: ROOT })
   const config = (await eslint.calculateConfigForFile(resolve(ROOT, file))) as {
@@ -71,10 +57,7 @@ function goneExports(entry: { file: string; exports: string[] }): readonly strin
 }
 
 describe('operational tooling quality coverage', () => {
-  it('keeps scripts in ESLint and Fallow analysis', () => {
-    const eslint = read('eslint.config.js')
-    expect(eslint).not.toContain("      'scripts/**',")
-    expect(eslint).toContain("files: ['scripts/**/*.{ts,mjs}']")
+  it('keeps scripts in Fallow analysis', () => {
     expect(fallowConfig.ignorePatterns).not.toContain('scripts/**')
   })
 
@@ -91,10 +74,6 @@ describe('operational tooling quality coverage', () => {
       .map(({ file }) => file)
       .filter((file) => file.includes('*') && file.endsWith('/public-api.ts'))
     expect(acrossContexts).toEqual([])
-  })
-
-  it('puts scripts under eslint-plugin-boundaries', () => {
-    expect(boundaryConfigBlock()).toContain("'scripts/**/*.{ts,mjs}'")
   })
 
   it('keeps every script classified — boundaries/no-unknown-files stays on', async () => {

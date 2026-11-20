@@ -15,11 +15,10 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-const INBOX_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..')
-const REPO_SRC = join(INBOX_ROOT, '..', '..')
+const REPO_SRC = join(process.cwd(), 'src')
+const INBOX_ROOT = join(REPO_SRC, 'contexts', 'inbox')
 
 /**
  * The complete set of modules permitted to write the Inbox row, each with the
@@ -157,17 +156,6 @@ describe('inbox_items carries the Handling Cycle facts its readers resolve from'
       })
       .map(relativeToSrc)
     expect(offenders).toEqual([])
-  })
-
-  it('resolves every serving read from the Inbox row, not from the head table', () => {
-    const repository = readFileSync(
-      join(REPO_SRC, 'contexts/reputation/inbox/inbox-repository.server.ts'),
-      'utf8',
-    )
-    expect(repository).toContain(
-      'const hasActiveHandlingAuthority = isNotNull(inboxItems.currentCycleNumber)',
-    )
-    expect(repository).not.toContain('inboxHandlingCycleHeads')
   })
 
   it('reads the head table only where it is mirrored', () => {

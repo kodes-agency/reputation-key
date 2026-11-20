@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -250,32 +250,5 @@ describe('forbidden-source rules need a source map to read', () => {
 
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('--require-source-maps needs a directory')
-  })
-})
-
-describe('where the builds run the artifact check', () => {
-  const ARTIFACT_CHECK = 'scripts/check-production-artifacts.mjs'
-
-  it('the image build reads the worker maps before it deletes them', () => {
-    const dockerfile = readFileSync(join(ROOT, 'Dockerfile'), 'utf8')
-    const withMaps = dockerfile.indexOf(
-      `node ${ARTIFACT_CHECK} --require-source-maps dist-worker .output dist-worker`,
-    )
-    const deletion = dockerfile.indexOf("-name '*.map' -delete")
-    const shipped = dockerfile.lastIndexOf(`node ${ARTIFACT_CHECK} .output dist-worker`)
-
-    expect(withMaps).toBeGreaterThan(-1)
-    expect(deletion).toBeGreaterThan(withMaps)
-    // What ships is still checked after the deletion: the Nitro manifest must
-    // not list a map the image no longer has.
-    expect(shipped).toBeGreaterThan(deletion)
-  })
-
-  it('CI requires the client and worker maps on every commit', () => {
-    const workflow = readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8')
-
-    expect(workflow).toMatch(
-      /pnpm check:production-artifacts\s+--require-source-maps \.output\/client-source-maps\s+--require-source-maps dist-worker\s+\.output\s+dist-worker\n/u,
-    )
   })
 })

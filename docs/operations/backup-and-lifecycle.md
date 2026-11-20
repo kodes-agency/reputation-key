@@ -99,9 +99,7 @@ not run in.
   (`docs/BETA.md` §7).
 - **Where to check it.** In Railway under `reputation-key` → `closed-beta-v2` →
   `Postgres` → **Backups**.
-- **Held to the contract.** `docs/BETA.md` §6 and §7 carry the same finding, and
-  `src/shared/db/beta-database-documents.test.ts` fails while this paragraph and
-  those two passages disagree about whether the state has been verified.
+- **Held to the contract.** `docs/BETA.md` §6 and §7 carry the same finding.
 
 **Catastrophic-loss logical export.** Before customer data, counsel/platform
 must approve the export cadence, retention, encryption/key owner, destination

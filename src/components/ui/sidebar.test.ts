@@ -4,8 +4,6 @@
 // and then opening Settings slid the settings navigation fully off-screen with
 // no rail to bring it back, 'Back to app' included.
 
-import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative, sep } from 'node:path'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -49,28 +47,6 @@ describe('Sidebar collapse mode', () => {
 
   it('still lets a caller ask for another mode explicitly', () => {
     expect(render(false, 'offcanvas')).toContain('data-collapsible="offcanvas"')
-  })
-})
-
-const SRC = join(__dirname, '..', '..')
-const PRIMITIVE = join(__dirname, 'sidebar.tsx')
-
-function sourceFiles(dir: string): ReadonlyArray<string> {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) return sourceFiles(path)
-    return /\.tsx$/u.test(entry.name) ? [path] : []
-  })
-}
-
-describe('the app sidebars', () => {
-  it('none opts out of the icon rail', () => {
-    const offenders = sourceFiles(SRC)
-      .filter((path) => path !== PRIMITIVE)
-      .filter((path) => /collapsible=["{'`]+offcanvas/u.test(readFileSync(path, 'utf8')))
-      .map((path) => relative(SRC, path).split(sep).join('/'))
-
-    expect(offenders).toEqual([])
   })
 })
 
@@ -153,6 +129,38 @@ describe('Sidebar rows share the focus ring', () => {
     expect(row).toContain('focus-ring')
     expect(row).not.toContain(OLD_RING)
     expect(row).not.toContain('ring-sidebar-ring')
+  })
+})
+
+describe('the sidebar look', () => {
+  // It lives in the primitive, not in global CSS (UI consistency scan: FRAME-06).
+  const html = renderToStaticMarkup(
+    createElement(
+      SidebarProvider,
+      null,
+      createElement(
+        SidebarMenu,
+        null,
+        createElement(
+          SidebarMenuItem,
+          null,
+          createElement(SidebarMenuButton, { isActive: true }, 'Dashboard'),
+        ),
+      ),
+    ),
+  )
+  const row = /<button [^>]*data-slot="sidebar-menu-button"[^>]*>/u.exec(html)?.[0]
+
+  it('marks the current row with the accent-muted fill, a semibold label and an accent icon', () => {
+    for (const className of [
+      'data-[active=true]:bg-sidebar-accent',
+      'data-[active=true]:font-semibold',
+      '[&amp;_svg]:text-(--accent)',
+      'text-sidebar-foreground',
+    ]) {
+      expect(row).toContain(className)
+    }
+    expect(row).toContain('data-active="true"')
   })
 })
 

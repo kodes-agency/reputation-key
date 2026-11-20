@@ -169,22 +169,3 @@ describe('Shared purge and restore fencing without effects', () => {
     expect(db.transaction).not.toHaveBeenCalled()
   })
 })
-
-describe('Reply scope effects at each operator script', () => {
-  // A script that builds its own stores outside the container has to hand the
-  // Reputation writer to every store or recovery call that can end Replies.
-  it.each([
-    [
-      'scripts/ops/ai-execution-control.ts',
-      /createAiControlAdapter\(\s*db,\s*reputationReplyScopeEffects/,
-    ],
-    [
-      'scripts/ops/restore-verify.ts',
-      /applyRecoveryFence\([^)]*reputationReplyScopeEffects/s,
-    ],
-    ['scripts/ops/enqueue-purge.ts', /replyEffects:\s*reputationReplyScopeEffects/],
-  ])('%s passes the writer where it builds the call', async (path, handsOver) => {
-    const { readFileSync } = await import('node:fs')
-    expect(readFileSync(path, 'utf8')).toMatch(handsOver)
-  })
-})

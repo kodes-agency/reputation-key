@@ -11,7 +11,10 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { DARK_CONTEXT_CAPABILITIES, PORTAL_DARK_CAPABILITIES } from './beta-capabilities'
+import {
+  DARK_CONTEXT_CAPABILITIES,
+  PORTAL_DARK_CAPABILITIES,
+} from '#/shared/auth/beta-capabilities'
 import {
   JOB_OPERATIONAL_CONTRACTS,
   createOperationalSchedulerPlan,

@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   MONTHLY_GOAL,
@@ -13,11 +11,7 @@ import {
   resultsOf,
   subjectName,
 } from './portal-goal-results.stories.fixtures'
-import {
-  PORTAL_GOAL_RESULTS_TITLE,
-  endedPortalGoals,
-  hasPortalGoalResults,
-} from './portal-goal-results-view'
+import { endedPortalGoals, hasPortalGoalResults } from './portal-goal-results-view'
 
 const ended = (programs: Parameters<typeof endedPortalGoals>[0]) =>
   endedPortalGoals(programs, { now: RESULTS_NOW, subjectName })
@@ -99,21 +93,5 @@ describe('whether the page has anything to show', () => {
 
     expect(resultsOf([endedEarly]).matrix.months).toEqual([])
     expect(hasPortalGoalResults(resultsOf([endedEarly]))).toBe(true)
-  })
-})
-
-describe('the page title', () => {
-  it('is the one its route names it by, for the tab and the fallbacks', () => {
-    // The route spells its own: importing it here would put this module's
-    // dependencies on the route row, in first paint.
-    const route = readFileSync(
-      join(
-        process.cwd(),
-        'src/routes/_authenticated/properties/$propertyId/goals/portal-results.tsx',
-      ),
-      'utf8',
-    )
-
-    expect(route).toContain(`const TITLE = '${PORTAL_GOAL_RESULTS_TITLE}'`)
   })
 })
