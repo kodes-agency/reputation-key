@@ -840,13 +840,12 @@ export default tseslint.config(
               },
             },
             // Process entry points, composition and tooling reach feature server code as
-            // they reach infrastructure/.
+            // they reach infrastructure/. Operator scripts go through public APIs.
             {
               from: elementTypes(
                 'top-level',
                 'test-helpers',
                 'runtime-plugin',
-                'script-operator',
                 'script-tooling',
               ),
               allow: { to: fileCategory('feature-server') },

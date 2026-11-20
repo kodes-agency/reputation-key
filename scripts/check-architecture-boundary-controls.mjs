@@ -350,12 +350,6 @@ const allowedControls = [
       "import '#/contexts/reporting/portal-results/portal-analytics.repository.server'\n",
   },
   {
-    name: 'an operator script may import a feature server implementation',
-    file: 'scripts/ops/boundary-positive-control.ts',
-    source:
-      "import '../../src/contexts/reporting/portal-results/portal-analytics.repository.server'\n",
-  },
-  {
     name: 'a named contract file is a feature contract',
     file: 'src/contexts/reporting/portal-results/analytics.contracts.ts',
     source: "import '#/shared/domain/ids'\n",
