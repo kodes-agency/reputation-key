@@ -8,7 +8,8 @@ function productionFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) {
-      return entry.name === 'testing' ? [] : productionFiles(path)
+      // Screens run in the browser and read its clock; these rules hold server code.
+      return entry.name === 'testing' || entry.name === 'ui' ? [] : productionFiles(path)
     }
     return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [path] : []
   })

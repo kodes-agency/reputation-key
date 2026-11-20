@@ -10,6 +10,8 @@ import { describe, expect, it } from 'vitest'
 describe('ImmersiveResponseView purity', () => {
   const SRC = fileURLToPath(new URL('../../../../../../', import.meta.url))
   const ENTRY = fileURLToPath(new URL('./immersive-response-view.tsx', import.meta.url))
+  // The view's render tree: the Guest page's screens and the shared components.
+  const SCREENS = ['components/', 'contexts/guest/page/ui/']
   const RUNTIME_IMPORT = /^\s*(?:import|export)\s+(?!type\b)[^'"]*?from\s+'([^']+)'/gm
 
   function resolveSource(from: string, specifier: string): string | null {
@@ -35,7 +37,7 @@ describe('ImmersiveResponseView purity', () => {
       tree.set(file, source)
       for (const [, specifier] of source.matchAll(RUNTIME_IMPORT)) {
         const next = resolveSource(file, specifier ?? '')
-        if (next && next.startsWith(SRC + 'components/')) queue.push(next)
+        if (next && SCREENS.some((root) => next.startsWith(SRC + root))) queue.push(next)
       }
     }
     return tree
@@ -45,9 +47,9 @@ describe('ImmersiveResponseView purity', () => {
     const files = [...viewTree().keys()].map((file) => file.slice(SRC.length))
     expect(files).toEqual(
       expect.arrayContaining([
-        'components/features/guest/public-portal/immersive/immersive-rating-card.tsx',
-        'components/features/guest/public-portal/immersive/immersive-google-card.tsx',
-        'components/features/guest/public-portal/immersive/immersive-note-card.tsx',
+        'contexts/guest/page/ui/public-portal/immersive/immersive-rating-card.tsx',
+        'contexts/guest/page/ui/public-portal/immersive/immersive-google-card.tsx',
+        'contexts/guest/page/ui/public-portal/immersive/immersive-note-card.tsx',
       ]),
     )
   })

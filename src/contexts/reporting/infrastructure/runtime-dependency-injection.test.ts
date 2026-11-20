@@ -8,7 +8,9 @@ const REPORTING_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 function productionTypeScriptFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name)
-    if (entry.isDirectory()) return productionTypeScriptFiles(path)
+    // Screens run in the browser and read its clock; these rules hold server code.
+    if (entry.isDirectory())
+      return entry.name === 'ui' ? [] : productionTypeScriptFiles(path)
     if (!entry.isFile() || (!entry.name.endsWith('.ts') && !entry.name.endsWith('.tsx')))
       return []
     if (entry.name.endsWith('.test.ts') || entry.name.endsWith('.test.tsx')) return []
