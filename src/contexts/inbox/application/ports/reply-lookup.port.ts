@@ -16,7 +16,7 @@ import type {
   ReplyPublicationFailureClass,
   ReplyPublicationState,
   ReplyStatus,
-} from '../../domain/types'
+} from '../../../reputation/domain/inbox-types'
 import type { InboxReplyStages } from '../inbox-queues'
 
 // Self-contained copy of the review ReplySource union. ReplyEntityView remains

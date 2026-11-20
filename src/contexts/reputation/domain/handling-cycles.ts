@@ -7,7 +7,7 @@ import type {
   ReviewId,
   UserId,
 } from '#/shared/domain/ids'
-import { inboxError, type InboxError } from './errors'
+import { inboxError, type InboxError } from './inbox-errors'
 import type {
   HandlingCycle,
   HandlingCycleActorType,
@@ -15,8 +15,8 @@ import type {
   HandlingCycleHead,
   HandlingCycleTransition,
   SourceType,
-} from './types'
-import type { ManualReopenReason } from './types'
+} from './inbox-types'
+import type { ManualReopenReason } from './inbox-types'
 
 type SourceId = ReviewId | FeedbackId
 

@@ -3,7 +3,7 @@
 //
 // `markDiscoveryDeferred` now also writes the time of the failure, and
 // `findFailureState` reads it back, so the sync job can derive how long the
-// previous failure waited (domain/snapshot-failure-backoff.ts).
+// previous failure waited (reputation/domain/snapshot-failure-backoff.ts).
 // `pullLooksForward` is how the hourly refresh sweep moves a Property's next
 // discovery look up instead of enqueueing a full sync of its own.
 
@@ -14,7 +14,7 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
-import { snapshotFailureRetryMs } from '../../domain/snapshot-failure-backoff'
+import { snapshotFailureRetryMs } from '../../../reputation/domain/snapshot-failure-backoff'
 import { createReviewDiscoveryRepository } from './review-discovery.repository'
 
 const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =

@@ -30,8 +30,8 @@ import { deriveReviewProviderSubject } from '#/shared/review-provider-subject-co
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { GoogleReview } from '../domain/types'
-import { discoveryLookFor } from '../domain/discovery-reconciliation'
+import type { GoogleReview } from '../../reputation/domain/review-types'
+import { discoveryLookFor } from '../../reputation/domain/discovery-reconciliation'
 import type {
   GoogleReviewApiPort,
   GoogleReviewPage,

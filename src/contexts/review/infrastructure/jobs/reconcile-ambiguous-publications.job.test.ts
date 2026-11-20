@@ -10,11 +10,11 @@
 import { describe, expect, it, vi, type Mock } from 'vitest'
 import { createReconcileAmbiguousPublicationsHandler } from './reconcile-ambiguous-publications.job'
 import { err, ok } from '#/shared/domain'
-import { reviewError } from '../../domain/errors'
+import { reviewError } from '../../../reputation/domain/review-errors'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { ReconcileReplyPublicationInput } from '../../application/use-cases/reconcile-reply-publication'
-import type { Reply } from '../../domain/types'
-import { PROVIDER_OBSERVATION_RECONCILE_DELAY_MS } from '../../domain/reply-publication-workflow'
+import type { Reply } from '../../../reputation/domain/review-types'
+import { PROVIDER_OBSERVATION_RECONCILE_DELAY_MS } from '../../../reputation/domain/reply-publication-workflow'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),

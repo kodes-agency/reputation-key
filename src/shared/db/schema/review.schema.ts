@@ -772,7 +772,7 @@ export const replies = pgTable(
     source: replySourceEnum('source').notNull(),
     createdBy: varchar('created_by', { length: 255 }),
     // Who last submitted the reply for approval: the person a decision and a
-    // publication outcome are news to (see domain/reply-author.ts).
+    // publication outcome are news to (see reputation/domain/reply-author.ts).
     submittedBy: varchar('submitted_by', { length: 255 }),
     approvedBy: varchar('approved_by', { length: 255 }),
     rejectedBy: varchar('rejected_by', { length: 255 }),

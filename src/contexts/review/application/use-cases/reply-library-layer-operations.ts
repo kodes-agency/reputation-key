@@ -20,7 +20,7 @@ import type {
   ReplyLibrarySnapshot,
 } from '../ports/reply-library.repository'
 import { resolveReplyLibraryTemplates } from '../reply-library-resolver'
-import { reviewError } from '../../domain/errors'
+import { reviewError } from '../../../reputation/domain/review-errors'
 
 type ReplyLibraryDeps = Readonly<{
   repository: ReplyLibraryRepository

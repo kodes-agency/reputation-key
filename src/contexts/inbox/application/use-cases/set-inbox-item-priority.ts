@@ -16,11 +16,14 @@
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type { InboxItemId } from '#/shared/domain/ids'
-import type { InboxItem, InboxPriority } from '../../domain/types'
+import type { InboxItem, InboxPriority } from '../../../reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { inboxItemPriorityChanged } from '../../domain/events'
-import { inboxError, PRIORITY_CHANGED_MESSAGE } from '../../domain/errors'
+import { inboxItemPriorityChanged } from '../../../reputation/domain/inbox-events'
+import {
+  inboxError,
+  PRIORITY_CHANGED_MESSAGE,
+} from '../../../reputation/domain/inbox-errors'
 import { loadItemForCommand } from '../inbox-access'
 
 export type SetInboxItemPriorityInput = Readonly<{

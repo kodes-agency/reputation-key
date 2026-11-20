@@ -14,7 +14,7 @@ import type {
 } from '../ports/property-publication-scope.port'
 import type { ReplyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { Reply, Review } from '../../domain/types'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import {
   requireAccessibleReview,
@@ -24,14 +24,14 @@ import {
   assertReplyContentPublishable,
   assertReplyTextSendable,
 } from '../reply-content-policy'
-import { assertReplySlotsFilled } from '../../domain/rules'
-import { assertReplyCommandMayStart } from '../../domain/reply-command-preconditions'
+import { assertReplySlotsFilled } from '../../../reputation/domain/review-rules'
+import { assertReplyCommandMayStart } from '../../../reputation/domain/reply-command-preconditions'
 import {
   buildIdempotencyKey,
   nextPublicationCycle,
-} from '../../domain/reply-publication-workflow'
-import { reviewError } from '../../domain/errors'
-import { replyAuthor } from '../../domain/reply-author'
+} from '../../../reputation/domain/reply-publication-workflow'
+import { reviewError } from '../../../reputation/domain/review-errors'
+import { replyAuthor } from '../../../reputation/domain/reply-author'
 import { settleIfNeverDispatched } from './settle-never-dispatched-attempt'
 import { commitTransition, replyChangedConcurrently } from '../reply-commit'
 import {
@@ -41,7 +41,7 @@ import {
   reviewReplyRejected,
   reviewReplyUpdated,
   type ReviewReplyPublicationRequested,
-} from '../../domain/events'
+} from '../../../reputation/domain/review-events'
 
 // ── Shared ────────────────────────────────────────────────────────────
 
@@ -183,7 +183,7 @@ const STALE_AI_DRAFT = {
 /**
  * Unedited AI text moves toward Google only while everything it was generated
  * from is still current and its ten-minute adoption window is open
- * (domain/reply-ai-text.ts). Only the two commands that move it ask: submit and
+ * (reputation/domain/reply-ai-text.ts). Only the two commands that move it ask: submit and
  * Confirm & Publish. The store repeats the check in the transaction of its
  * write; this one exists to say why, and what to do next.
  */
@@ -394,7 +394,7 @@ export const draftReply =
       //
       // A save never asks whether an AI draft is still current: typing over AI
       // text, or loading a template over it, makes the reply the manager's own
-      // (domain/reply-ai-text.ts), however long ago it was generated.
+      // (reputation/domain/reply-ai-text.ts), however long ago it was generated.
       assertReplyCommandMayStart('save_draft', existing)
       const frame = storedReplyFrame(existing.text, existing.voiceChoices)
       const frameChanged =

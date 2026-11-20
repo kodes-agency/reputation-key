@@ -13,7 +13,7 @@ import {
   isSourceUnavailableCloseReason,
   managerHandlingAttributionFor,
 } from './handling-outcome-authority'
-import type { HandlingCycleHead } from './types'
+import type { HandlingCycleHead } from './inbox-types'
 
 const ITEM = inboxItemId('8a000000-0000-4000-8000-000000000001')
 const ORG = organizationId('org-handling-outcome-authority-01')

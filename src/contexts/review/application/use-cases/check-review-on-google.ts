@@ -3,7 +3,7 @@ import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
-import type { Review } from '../../domain/types'
+import type { Review } from '../../../reputation/domain/review-types'
 import {
   GOOGLE_CONNECTION_UNUSABLE_CODE,
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,

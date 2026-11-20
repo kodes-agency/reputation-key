@@ -7,8 +7,8 @@
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
 import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import { timestampFieldsForStatus } from '#/contexts/inbox/domain/rules'
-import type { InboxItem, InboxPriority } from '#/contexts/inbox/domain/types'
+import { timestampFieldsForStatus } from '#/contexts/reputation/domain/inbox-rules'
+import type { InboxItem, InboxPriority } from '#/contexts/reputation/domain/inbox-types'
 import { unbrandAll, type UserId } from '#/shared/domain/ids'
 
 type InboxFilters = Parameters<InboxRepository['findFilteredPaginated']>[0]

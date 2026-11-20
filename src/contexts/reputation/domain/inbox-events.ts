@@ -20,7 +20,7 @@ import type {
   InboxStatus,
   ManualReopenReason,
   SourceType,
-} from './types'
+} from './inbox-types'
 import type { ResponseTargetKind, ResponseTargetReminderKind } from './response-target'
 
 type InboxItemFactInput<Event> = Omit<

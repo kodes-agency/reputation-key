@@ -6,7 +6,7 @@ import {
   propertyId,
   reviewId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import type { ReviewSnippet } from '../../application/ports/review-lookup.port'
 import { feedbackItemDetail, reviewItemDetail } from './inbox-detail.mapper'
 

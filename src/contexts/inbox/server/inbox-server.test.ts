@@ -19,7 +19,11 @@ import {
   checkReviewOnGoogleDto,
   setInboxItemPriorityDto,
 } from '../application/dto/inbox.dto'
-import { inboxError, isInboxError, toInboxRevisionConflictResult } from '../domain/errors'
+import {
+  inboxError,
+  isInboxError,
+  toInboxRevisionConflictResult,
+} from '../../reputation/domain/inbox-errors'
 
 // ── DTO validation ──────────────────────────────────────────────────
 

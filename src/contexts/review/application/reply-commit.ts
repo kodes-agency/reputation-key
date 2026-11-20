@@ -9,10 +9,10 @@
 
 import type { Result } from '#/shared/domain'
 import { ok, err } from '#/shared/domain'
-import type { Reply, ReplyStatus } from '../domain/types'
-import type { ReviewError } from '../domain/errors'
-import { reviewError } from '../domain/errors'
-import { transitionReply } from '../domain/rules'
+import type { Reply, ReplyStatus } from '../../reputation/domain/review-types'
+import type { ReviewError } from '../../reputation/domain/review-errors'
+import { reviewError } from '../../reputation/domain/review-errors'
+import { transitionReply } from '../../reputation/domain/review-rules'
 
 /** A guarded store write matched no row: the reply moved after it was read. */
 export const replyChangedConcurrently = (): ReviewError =>

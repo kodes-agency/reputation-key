@@ -6,7 +6,7 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import { properties } from '#/shared/db/schema/property.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import type { Reply } from '../domain/types'
+import type { Reply } from '../../reputation/domain/review-types'
 
 export type PublicationProperty = Readonly<{
   lifecycleState: string

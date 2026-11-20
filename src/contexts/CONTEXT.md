@@ -5,8 +5,9 @@
 ## Responsibility
 
 Eleven areas own product meaning and state. Review, Inbox and Reputation are one
-bounded context: Reputation holds its feature folders and screens, while Review
-and Inbox still hold the layer code and server functions that have not moved.
+bounded context: Reputation holds its feature folders, its screens and the shared
+`domain/`, while Review and Inbox still hold the layer code and server functions
+that have not moved.
 
 - **Identity** — users, Organizations, membership, access, and People facts.
 - **Property** — Property identity, lifecycle, Google binding, and responsibility.
@@ -114,7 +115,9 @@ resolution, where the application asks the policy below the adapter.
 does neither, and on a server function declared in a shape it cannot read.
 
 Business failures are real `Error` objects with enumerable `_tag` and `code`.
-Factories live in the owning `domain/errors.ts`; server adapters narrow them with
+Factories live in the owning area's `domain/errors.ts`, or `domain/<family>-errors.ts`
+where one domain holds two families (Feed's activity and notification, Reputation's
+review and inbox); server adapters narrow them with
 `isXxxError`, map once to safe HTTP errors, and sanitize untagged failures. Ordinary
 alternatives use outcome unions rather than failure-shaped objects.
 

@@ -87,7 +87,7 @@ export type {
   ReviewReplyUpdated,
   ReviewReplyObserved,
   ReviewGoogleReputationSnapshotVerified,
-} from '#/contexts/review/domain/events'
+} from '#/contexts/reputation/domain/review-events'
 
 // Inbox context events
 export type {
@@ -103,7 +103,7 @@ export type {
   InboxHandlingCycleReopened,
   InboxResponseTargetReminderDue,
   InboxResponseTargetPolicyChanged,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 
 // Reporting Goal events
 export type {
@@ -135,8 +135,8 @@ import type { PropertyEvent } from '#/contexts/property/domain/events'
 import type { PortalEvent } from '#/contexts/portal/domain/events'
 import type { GuestEvent } from '#/contexts/guest/domain/events'
 import type { IntegrationEvent } from '#/contexts/integration/domain/events'
-import type { ReviewEvent } from '#/contexts/review/domain/events'
-import type { InboxEvent } from '#/contexts/inbox/domain/events'
+import type { ReviewEvent } from '#/contexts/reputation/domain/review-events'
+import type { InboxEvent } from '#/contexts/reputation/domain/inbox-events'
 import type { GoalEvent } from '#/contexts/reporting/domain/goal-events'
 import type { MetricEvent } from '#/contexts/reporting/domain/metric-events'
 import type { AiEvent } from '#/contexts/ai/domain/events'

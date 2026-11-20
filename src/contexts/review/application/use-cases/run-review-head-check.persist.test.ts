@@ -14,8 +14,8 @@ import type {
 } from '../ports/review-head-check.repository'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectSightings } from '../ports/review-provider-subject-sightings.port'
-import type { HeadStoredCopy } from '../../domain/head-check'
-import { HEAD_FACT_HEARTBEAT_MS } from '../../domain/head-persist'
+import type { HeadStoredCopy } from '../../../reputation/domain/head-check'
+import { HEAD_FACT_HEARTBEAT_MS } from '../../../reputation/domain/head-persist'
 import { createRunReviewHeadCheck } from './run-review-head-check'
 
 const ORG = organizationId('org-head-persist')

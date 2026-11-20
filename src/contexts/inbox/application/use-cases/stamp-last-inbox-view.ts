@@ -5,7 +5,7 @@
 import type { InboxViewRepository } from '../ports/inbox-view.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
-import { inboxError } from '../../domain/errors'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 
 export type StampLastInboxViewInput = Readonly<{
   /** Cutoff issued with the successfully loaded first Inbox page. */

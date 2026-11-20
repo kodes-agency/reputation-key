@@ -46,11 +46,14 @@ import { eraseReviewSourceContent } from '#/contexts/reputation/application/publ
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store'
 import { createAtomicReplyCommandStore } from './reply-command-store'
-import { reviewReplyApproved, reviewReplyPublicationRequested } from '../domain/events'
+import {
+  reviewReplyApproved,
+  reviewReplyPublicationRequested,
+} from '../../reputation/domain/review-events'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 import { eraseKeepingContentClock } from '#/shared/testing/review-tombstone-fixtures'
-import type { Review } from '../domain/types'
+import type { Review } from '../../reputation/domain/review-types'
 import { getPool } from '#/shared/db/pool'
 
 const NOW = new Date()

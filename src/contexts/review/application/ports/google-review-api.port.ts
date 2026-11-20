@@ -4,7 +4,7 @@
 import type { GoogleProviderErrorStatus } from '#/shared/domain/google-provider-failure'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { GoogleProviderDispatch } from '#/shared/google-provider-control/egress-gateway'
-import type { GoogleReview } from '../../domain/types'
+import type { GoogleReview } from '../../../reputation/domain/review-types'
 
 /**
  * A Google review as the provider adapter maps it.

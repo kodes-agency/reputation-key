@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { classifyPublicationFailure } from '#/contexts/review/domain/reply-publication-workflow'
+import { classifyPublicationFailure } from '#/contexts/reputation/domain/reply-publication-workflow'
 import {
   executorErrorToReviewApiError,
   reviewApiError,

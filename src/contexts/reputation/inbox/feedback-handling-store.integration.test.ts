@@ -17,9 +17,9 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
-import { isInboxError } from '#/contexts/inbox/domain/errors'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
+import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,

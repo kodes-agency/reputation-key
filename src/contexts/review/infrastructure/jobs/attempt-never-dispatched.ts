@@ -3,7 +3,7 @@
 // attempt, and the ambiguous-publication sweep.
 
 import type { ReplyPublicationDispatchEvidencePort } from '../../application/ports/reply-publication-dispatch-evidence.port'
-import type { Reply } from '../../domain/types'
+import type { Reply } from '../../../reputation/domain/review-types'
 
 /**
  * D4: true only on positive evidence that the reply's current attempt never

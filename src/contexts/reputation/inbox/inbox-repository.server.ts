@@ -34,7 +34,7 @@ import type {
 } from '#/contexts/inbox/application/ports/inbox.repository'
 import type { ReviewSnippet } from '#/contexts/inbox/application/ports/review-lookup.port'
 import type { FeedbackSnippet } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { InboxItem, SourceType } from '#/contexts/inbox/domain/types'
+import type { InboxItem, SourceType } from '#/contexts/reputation/domain/inbox-types'
 import type {
   InboxItemId,
   FeedbackId,

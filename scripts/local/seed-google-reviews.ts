@@ -25,7 +25,7 @@ import { computeAiReviewSourceProvenance } from '../../src/contexts/review/appli
 import {
   reviewGoogleReputationSnapshotVerified,
   type ReviewGoogleReputationSnapshotVerified,
-} from '../../src/contexts/review/domain/events'
+} from '../../src/contexts/reputation/domain/review-events'
 import { createGoogleRatingReads } from '../../src/contexts/review/infrastructure/google-rating-reads'
 import { displayedTenths } from '../../src/contexts/reporting/domain/rating-goal-numbers'
 import { createCurrentGoogleReputationSnapshotRepository } from '../../src/contexts/reporting/readings/current-google-reputation-snapshot-repository.server'

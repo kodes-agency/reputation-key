@@ -12,7 +12,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { isReviewError } from '../domain/errors'
+import { isReviewError } from '../../reputation/domain/review-errors'
 import { reviewErrorStatus } from './reply-read'
 
 type ReplyCommands = Container['reviewPublicApi']['reply']

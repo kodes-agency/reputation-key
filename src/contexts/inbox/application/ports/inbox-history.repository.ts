@@ -5,7 +5,7 @@
 // assembled from Inbox's own append-only tables and nothing else.
 
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
-import type { InboxHistoryEntry } from '../../domain/handling-history'
+import type { InboxHistoryEntry } from '../../../reputation/domain/handling-history'
 
 /**
  * Per-source row cap. Every underlying query carries this as an explicit LIMIT

@@ -13,8 +13,8 @@ import type {
   InboxItem,
   InboxNote,
   InboxPriority,
-} from '../../domain/types'
-import type { ManualReopenReason } from '../../domain/types'
+} from '../../../reputation/domain/inbox-types'
+import type { ManualReopenReason } from '../../../reputation/domain/inbox-types'
 import type {
   HandlingCycleExpectation,
   ReviewHandlingCycleExpectation,
@@ -29,7 +29,7 @@ import type {
   InboxItemStatusChanged,
   InboxItemUnassigned,
   InboxNoteAdded,
-} from '../../domain/events'
+} from '../../../reputation/domain/inbox-events'
 import type { CurrentReplyObservationPermit } from './reply-observation-authority.port'
 import type {
   CurrentReviewInboxProjectionPermit,

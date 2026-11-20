@@ -11,7 +11,7 @@ import type { ReviewCommandStore } from '../ports/review-command-store.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import type { ReviewProviderHistoryCutoff } from '../ports/review-provider-snapshot.repository'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
-import type { GoogleReview, Review } from '../../domain/types'
+import type { GoogleReview, Review } from '../../../reputation/domain/review-types'
 import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source-contract'
 import { computeAiReviewSourceProvenance } from '../ai-review-source'
 import {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
-import { inboxResponseTargetPolicyChanged } from '#/contexts/inbox/domain/events'
+import { inboxResponseTargetPolicyChanged } from '#/contexts/reputation/domain/inbox-events'
 import { userId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'

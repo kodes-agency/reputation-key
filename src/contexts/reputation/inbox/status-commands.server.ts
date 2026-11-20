@@ -4,11 +4,11 @@ import { persistedHeadFromItemRow } from '#/contexts/inbox/infrastructure/inbox-
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import {
   inboxBulkReopenCompleted,
   type InboxBulkReopenedCycle,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
 import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
 import {

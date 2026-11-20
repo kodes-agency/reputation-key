@@ -22,7 +22,7 @@ import {
   reviewReplyUpdated,
   reviewSourceTransitioned,
   reviewUpdated,
-} from './events'
+} from './review-events'
 
 const occurredAt = new Date('2026-08-16T12:00:00.000Z')
 const OBSERVED_REVIEW_ID = reviewId('11111111-1111-4111-8111-111111111111')

@@ -14,9 +14,13 @@ import {
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { InboxHistoryEntry } from '../../domain/handling-history'
-import { isInboxError } from '../../domain/errors'
+import type {
+  InboxItem,
+  InboxStatus,
+  SourceType,
+} from '../../../reputation/domain/inbox-types'
+import type { InboxHistoryEntry } from '../../../reputation/domain/handling-history'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 import type { InboxHistoryRepository } from '../ports/inbox-history.repository'
 import { getInboxItemHistory } from './get-inbox-item-history'
 import {

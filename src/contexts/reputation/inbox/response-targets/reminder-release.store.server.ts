@@ -21,9 +21,9 @@ import type {
   ResponseTargetStore,
   ResponseTargetView,
 } from '#/contexts/inbox/application/ports/response-target.store'
-import { inboxError } from '#/contexts/inbox/domain/errors'
-import { inboxResponseTargetReminderDue } from '#/contexts/inbox/domain/events'
-import { isSupersededReminder } from '../../../inbox/domain/response-target'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
+import { inboxResponseTargetReminderDue } from '#/contexts/reputation/domain/inbox-events'
+import { isSupersededReminder } from '../../domain/response-target'
 
 type ReminderReleaseStore = Pick<
   ResponseTargetStore,

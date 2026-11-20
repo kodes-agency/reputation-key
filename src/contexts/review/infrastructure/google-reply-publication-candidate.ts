@@ -1,5 +1,5 @@
 // The publication attempt a Google reply observation may attribute, as the
-// observation decision reads it (domain/google-reply-observation.ts). Read
+// observation decision reads it (reputation/domain/google-reply-observation.ts). Read
 // inside the observation store's transaction, under its Review-scoped lock.
 
 import { and, desc, eq, lt } from 'drizzle-orm'
@@ -9,7 +9,7 @@ import type { Tx } from '#/shared/outbox/commit'
 import {
   isOpenAttemptOutcome,
   type GoogleReplyPublicationCandidate,
-} from '../domain/google-reply-observation'
+} from '../../reputation/domain/google-reply-observation'
 
 type InternalReplyRow = typeof replies.$inferSelect
 type PublicationAttemptRow = typeof replyPublicationAttempts.$inferSelect

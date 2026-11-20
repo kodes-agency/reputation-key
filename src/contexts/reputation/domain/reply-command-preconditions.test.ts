@@ -12,7 +12,7 @@ import {
   type ReplyCommand,
   type ReplyCommandSubject,
 } from './reply-command-preconditions'
-import { isReviewError } from './errors'
+import { isReviewError } from './review-errors'
 
 const reply = (overrides: Partial<ReplyCommandSubject> = {}): ReplyCommandSubject => ({
   status: 'draft',

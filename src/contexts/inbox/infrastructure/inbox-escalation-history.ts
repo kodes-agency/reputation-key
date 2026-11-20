@@ -10,8 +10,8 @@ import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import { inboxEscalationHistory } from '#/shared/db/schema/inbox-triage-history.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import { inboxError } from '../domain/errors'
-import type { InboxItem } from '../domain/types'
+import { inboxError } from '../../reputation/domain/inbox-errors'
+import type { InboxItem } from '../../reputation/domain/inbox-types'
 
 export const INBOX_ESCALATION_HISTORY_KINDS = ['escalated', 'resolved'] as const
 

@@ -34,7 +34,7 @@ import type {
 import {
   reviewGoogleReputationSnapshotVerified,
   reviewSourceTransitioned,
-} from '../../domain/events'
+} from '../../../reputation/domain/review-events'
 import { domainError } from '#/shared/domain/errors'
 import { historyListedSince } from './review-provider-history-listed'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'

@@ -1,7 +1,7 @@
 // Review context — what a head check reads and records.
 //
 // A head check reads Google's newest page and compares it with RepKey's stored
-// copies (domain/head-check.ts). In dark mode it writes nothing about reviews;
+// copies (reputation/domain/head-check.ts). In dark mode it writes nothing about reviews;
 // the one write is a row in the bounded sync-run history so the comparison can
 // be queried for the history's 30-day retention. In persist mode (ADR 0055,
 // note of 2026-10-21 (d)) it also stores the reviews that differ, through the
@@ -14,8 +14,11 @@
 // Content-free: counts, timestamps and closed codes. The Property is named only
 // to key the history row.
 
-import type { HeadComparison, HeadStoredCopy } from '../../domain/head-check'
-import type { HeadFactNewest } from '../../domain/head-persist'
+import type {
+  HeadComparison,
+  HeadStoredCopy,
+} from '../../../reputation/domain/head-check'
+import type { HeadFactNewest } from '../../../reputation/domain/head-persist'
 
 /** How one head check ended. A closed list: logs and history rows carry these. */
 export type ReviewHeadCheckOutcome =

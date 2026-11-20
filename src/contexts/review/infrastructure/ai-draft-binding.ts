@@ -15,7 +15,7 @@ import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 // Confirm & Publish and the publish worker's claim read it
 // (reputation/replies/store.server.ts). Reject, delete, a retry and a draft save do not, and
 // a draft save or an edit of a published reply makes the text the manager's own
-// (domain/reply-ai-text.ts).
+// (reputation/domain/reply-ai-text.ts).
 //
 // The binding has two halves, and the claim tells them apart. One is time: the
 // adoption window (`ai_draft_expires_at`). The other is everything the text

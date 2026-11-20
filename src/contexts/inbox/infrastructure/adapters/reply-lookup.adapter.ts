@@ -11,7 +11,7 @@ import type {
   ReplyEntityView,
 } from '../../application/ports/reply-lookup.port'
 import type { ReplyLookupSource } from '../../application/ports/lookup-sources.port'
-import type { InboxItemReplyState } from '../../domain/types'
+import type { InboxItemReplyState } from '../../../reputation/domain/inbox-types'
 
 type ObservedGoogleReply = Awaited<
   ReturnType<ReplyLookupSource['getCurrentGoogleReplyByReviewId']>

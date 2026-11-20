@@ -10,7 +10,7 @@ import type {
   OrganizationId,
   UserId,
 } from '#/shared/domain/ids'
-import type { ReviewPlatform } from './types'
+import type { ReviewPlatform } from './review-types'
 import type { PublicationFailureCause } from './reply-publication-workflow'
 
 const DATABASE_UUID_PATTERN =

@@ -5,7 +5,7 @@
 // outbox_events rows in one PostgreSQL transaction.
 
 import type { DomainEvent } from '#/shared/events/events'
-import type { Review } from '../../domain/types'
+import type { Review } from '../../../reputation/domain/review-types'
 import type { ReviewFirstSeenVia } from '#/shared/domain/push-health'
 import type { ReviewProviderObservationOrigin } from './response-target-authority.port'
 

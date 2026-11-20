@@ -15,7 +15,7 @@ import {
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
-import { isInboxError } from '../../domain/errors'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 import {
   inboxItemId,
   organizationId,
@@ -24,7 +24,7 @@ import {
   feedbackId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'

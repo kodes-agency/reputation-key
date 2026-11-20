@@ -6,7 +6,7 @@
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
-import type { Review } from '../../domain/types'
+import type { Review } from '../../../reputation/domain/review-types'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type {
   PullLooksForwardResult,

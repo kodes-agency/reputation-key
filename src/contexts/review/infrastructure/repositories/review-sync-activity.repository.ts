@@ -1,7 +1,7 @@
 // Review context — Drizzle discovery-activity recorder.
 //
 // Writes the two ACTIVITY columns the backoff ladder reads
-// (domain/discovery-backoff.ts). Both statements are monotonic: they use
+// (reputation/domain/discovery-backoff.ts). Both statements are monotonic: they use
 // GREATEST / LEAST against the stored value so a replayed snapshot page, a
 // redelivered Pub/Sub message, or two workers racing the same property can
 // never move a property's recorded liveness backwards or park it.

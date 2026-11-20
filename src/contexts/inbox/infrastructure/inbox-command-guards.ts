@@ -9,14 +9,14 @@ import type {
   HandlingCycleHead,
   HandlingCycleTransition,
   InboxItem,
-} from '../domain/types'
-import { inboxError } from '../domain/errors'
+} from '../../reputation/domain/inbox-types'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 import {
   inboxHandlingCycleClosed,
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
   type InboxItemCreated,
-} from '../domain/events'
+} from '../../reputation/domain/inbox-events'
 import type { DomainEvent } from '#/shared/events/events'
 import { inboxItemFromRow } from './mappers/inbox.mapper'
 import {

@@ -1,5 +1,5 @@
 import type { KeyObject } from 'node:crypto'
-import type { Reply } from '../../domain/types'
+import type { Reply } from '../../../reputation/domain/review-types'
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 
 export type AiSuggestedDraftStoreInput = Readonly<{

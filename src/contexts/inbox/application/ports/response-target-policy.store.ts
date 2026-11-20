@@ -1,5 +1,5 @@
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
-import type { ResponseTargetKind } from '../../domain/response-target'
+import type { ResponseTargetKind } from '../../../reputation/domain/response-target'
 
 /**
  * The shorter Google Review target an Organization may set for its own

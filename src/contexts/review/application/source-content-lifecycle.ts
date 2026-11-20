@@ -13,7 +13,7 @@ import {
   contentRefreshDueThreshold,
   createGoogleSourceContentPolicy,
 } from '#/shared/domain/source-content-policy'
-import { computeReviewContentHash } from '../domain/rules'
+import { computeReviewContentHash } from '../../reputation/domain/review-rules'
 
 export { computeReviewContentHash, contentRefreshDueThreshold }
 

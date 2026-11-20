@@ -19,8 +19,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { canForContext } from '#/shared/domain/permissions'
-import { inboxError } from '../../domain/errors'
-import { isAnsweringGoogleReply } from '../../domain/rules'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
+import { isAnsweringGoogleReply } from '../../../reputation/domain/inbox-rules'
 import { assertInboxSourcePropertyAccessible, canReadInboxSource } from '../inbox-access'
 import type {
   GoogleCheckRateLimit,

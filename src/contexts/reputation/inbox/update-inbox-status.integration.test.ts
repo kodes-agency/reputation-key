@@ -4,9 +4,13 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { updateInboxStatus } from './update-inbox-status.server'
 import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { isInboxError } from '#/contexts/inbox/domain/errors'
+import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { InboxItem, InboxStatus, SourceType } from '#/contexts/inbox/domain/types'
+import type {
+  InboxItem,
+  InboxStatus,
+  SourceType,
+} from '#/contexts/reputation/domain/inbox-types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'

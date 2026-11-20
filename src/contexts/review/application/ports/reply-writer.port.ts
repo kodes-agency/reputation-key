@@ -1,10 +1,10 @@
 import type { Tx } from '#/shared/outbox/commit'
-import type { ReplyCommand } from '../../domain/reply-command-preconditions'
+import type { ReplyCommand } from '../../../reputation/domain/reply-command-preconditions'
 import type {
   PersistedPublicationState,
   PublicationFailureClass,
-} from '../../domain/reply-publication-workflow'
-import type { Reply } from '../../domain/types'
+} from '../../../reputation/domain/reply-publication-workflow'
+import type { Reply } from '../../../reputation/domain/review-types'
 import type { ReplyCommandStore } from './reply-command-store.port'
 import type { ConditionalReplyUpdate, ReplyRepository } from './reply.repository'
 

@@ -3,8 +3,8 @@ import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type { Permission } from '#/shared/domain/permissions'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
 import {
   sourceCommandPermission,

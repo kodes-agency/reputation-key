@@ -16,7 +16,7 @@ import {
   isInboxSourcePropertyWithinScopes,
   resolveInboxSourceScopes,
 } from '../inbox-access'
-import { inboxError } from '../../domain/errors'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 import { INBOX_BULK_LIMIT } from '../dto/inbox.dto'
 
 export type BulkAssignInboxItemInput = Readonly<{

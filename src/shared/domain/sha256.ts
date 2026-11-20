@@ -3,7 +3,7 @@
 // Why this exists: dev serves unbundled ESM to the browser, and any module in
 // the client graph that imports `node:crypto` crashes hydration with
 // "node:crypto has been externalized for browser compatibility". Domain
-// modules (e.g. review/domain/rules.ts computeReviewContentHash) are shared
+// modules (e.g. reputation/domain/review-rules.ts computeReviewContentHash) are shared
 // by server AND client graphs, so they cannot use node:crypto. This
 // implementation produces byte-identical digests to node's
 // createHash('sha256'), so stored hashes remain compatible.

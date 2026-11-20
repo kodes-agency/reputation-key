@@ -42,7 +42,7 @@ import {
   headPageOverflowed,
   type CountDropStep,
   type HeadComparison,
-} from '../../domain/head-check'
+} from '../../../reputation/domain/head-check'
 import {
   GOOGLE_CONNECTION_UNUSABLE_CODE,
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,

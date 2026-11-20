@@ -133,7 +133,7 @@ type ReviewEvent = ReviewCreated | ReviewUpdated | ReviewExpired
 
 ### 1.8 File organization
 
-One file per context: `domain/events.ts`. Monolithic. All event types, constructors, and the union in one file.
+One event module per event family in the area's `domain/`: `events.ts`, or `<family>-events.ts` where an area holds more than one (Reporting's `goal-events.ts` and `metric-events.ts`, Reputation's `review-events.ts` and `inbox-events.ts`). `src/shared/events` may import only these modules.
 
 ### 1.9 Field naming standards
 

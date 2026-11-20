@@ -10,8 +10,8 @@ import {
   type ReplyTemplateLanguageGroup,
 } from '#/shared/reply-language-catalogue'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
-import { unknownReplyTemplateSlots } from '../../domain/rules'
-import type { Reply } from '../../domain/types'
+import { unknownReplyTemplateSlots } from '../../../reputation/domain/review-rules'
+import type { Reply } from '../../../reputation/domain/review-types'
 import { checkReplyText, type Finding } from '#/shared/reply-library/reply-checks'
 
 // Google allows 4,096 bytes for the whole reply; the voice adds the greeting, closing,

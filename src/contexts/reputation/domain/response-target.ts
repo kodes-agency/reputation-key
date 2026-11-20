@@ -1,4 +1,4 @@
-import { inboxError } from './errors'
+import { inboxError } from './inbox-errors'
 
 export const DEFAULT_RESPONSE_TARGET_MINUTES = 48 * 60
 const RESPONSE_TARGET_POLICY_VERSION = 1

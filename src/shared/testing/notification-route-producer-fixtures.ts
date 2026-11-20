@@ -22,7 +22,7 @@ import {
   inboxItemEscalationResolved,
   inboxNoteAdded,
   inboxResponseTargetReminderDue,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
@@ -52,7 +52,7 @@ import {
   reviewReplyPublishFailed,
   reviewReplyRejected,
   reviewReplySubmitted,
-} from '#/contexts/review/domain/events'
+} from '#/contexts/reputation/domain/review-events'
 import {
   googleConnectionId,
   inboxItemId,

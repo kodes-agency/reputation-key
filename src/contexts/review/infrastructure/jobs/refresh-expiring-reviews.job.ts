@@ -32,7 +32,7 @@ import type { Job } from 'bullmq'
 export const JOB_NAME = 'refresh-expiring-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
-import type { Review } from '../../domain/types'
+import type { Review } from '../../../reputation/domain/review-types'
 import type {
   ReviewRefreshRunRepository,
   RefreshRunCursor,

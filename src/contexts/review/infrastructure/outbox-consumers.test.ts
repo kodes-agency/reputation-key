@@ -40,7 +40,7 @@ import {
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import type { Reply } from '../domain/types'
+import type { Reply } from '../../reputation/domain/review-types'
 import {
   handleGoogleAccountDisconnected,
   handlePropertyArchived,

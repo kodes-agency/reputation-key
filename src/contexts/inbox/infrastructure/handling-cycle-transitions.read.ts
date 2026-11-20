@@ -16,7 +16,7 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxHandlingCycleTransitions } from '#/shared/db/schema/inbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import { SOURCE_UNAVAILABLE_CLOSE_REASONS } from '../domain/handling-outcome-authority'
+import { SOURCE_UNAVAILABLE_CLOSE_REASONS } from '../../reputation/domain/handling-outcome-authority'
 
 /** Either a pooled handle or an open transaction may read the log. */
 export type TransitionReader = Pick<Database, 'select'> | Tx
@@ -63,7 +63,7 @@ export async function selectCycleCloseReason(
 /**
  * Every retention / redaction / source-unavailable closure ever recorded for
  * one Inbox Item, across every cycle. Unbounded by cycle on purpose: the rule
- * it feeds (domain/handling-outcome-authority.ts) is one-way, so a withdrawal
+ * it feeds (reputation/domain/handling-outcome-authority.ts) is one-way, so a withdrawal
  * on cycle 1 must still be visible while cycle 7 is open. The result set is
  * bounded by the two reason literals, not by row count.
  */

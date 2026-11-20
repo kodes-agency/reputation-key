@@ -2,8 +2,8 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { InboxItemId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
-import type { PrivateFeedbackHandlingOutcome } from '../../domain/feedback-handling'
-import { inboxError } from '../../domain/errors'
+import type { PrivateFeedbackHandlingOutcome } from '../../../reputation/domain/feedback-handling'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 import {
   assertExpectedCommandRevision,
   assertInboxSourcePropertyAccessible,

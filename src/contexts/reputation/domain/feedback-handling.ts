@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '#/shared/domain'
 import { feedbackId, type FeedbackId, type UserId } from '#/shared/domain/ids'
-import { inboxError, type InboxError } from './errors'
-import type { HandlingCycleHead } from './types'
+import { inboxError, type InboxError } from './inbox-errors'
+import type { HandlingCycleHead } from './inbox-types'
 
 export const PRIVATE_FEEDBACK_HANDLING_OUTCOMES = [
   'follow_up_completed',

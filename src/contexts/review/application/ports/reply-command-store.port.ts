@@ -4,20 +4,20 @@
 // The production implementation commits the state write and its outbox_events
 // rows in one PostgreSQL transaction.
 //
-// The publication state machine (domain/reply-publication-workflow.ts)
+// The publication state machine (reputation/domain/reply-publication-workflow.ts)
 // is persisted through this store. Every external-interaction transition is a
 // guarded write (status + publication_state), so a lost TOCTOU race
 // (cancellation, a racing claim, a purge) records no fact and returns null.
 //
 // Every write is a compare-and-set on what its command may start from
-// (domain/reply-command-preconditions.ts) and on the snapshot it is given: the
+// (reputation/domain/reply-command-preconditions.ts) and on the snapshot it is given: the
 // row must still have that status and publication state, in that cycle, and
 // for a publication write that exact attempt count. A command called with a
 // reply it may not start from, or with a snapshot the row has moved past,
 // returns null and records nothing. The store enforces this itself; it does
 // not rely on the use case having checked.
 //
-// The same holds for AI-assisted text (domain/reply-ai-text.ts). Submit and an
+// The same holds for AI-assisted text (reputation/domain/reply-ai-text.ts). Submit and an
 // approval return null while the reply's AI draft binding is stale. So does
 // the claim (once the text has been claimed, a closed adoption window alone
 // no longer counts), and it withdraws the reply it refuses. A rejection and a
@@ -28,8 +28,8 @@
 // was given, and not what the AI draft purge has left of it since.
 
 import type { PropertyId } from '#/shared/domain/ids'
-import type { Reply } from '../../domain/types'
-import type { PublicationFailureClass } from '../../domain/reply-publication-workflow'
+import type { Reply } from '../../../reputation/domain/review-types'
+import type { PublicationFailureClass } from '../../../reputation/domain/reply-publication-workflow'
 import type {
   ReviewReplyApproved,
   ReviewReplyPublicationCancelled,
@@ -39,7 +39,7 @@ import type {
   ReviewReplyRejected,
   ReviewReplySubmitted,
   ReviewReplyUpdated,
-} from '../../domain/events'
+} from '../../../reputation/domain/review-events'
 import type { ConditionalReplyUpdate } from './reply.repository'
 
 /** The edit-and-republish write: new text + re-authorization in one command. */

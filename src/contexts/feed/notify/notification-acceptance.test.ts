@@ -3,7 +3,7 @@ import {
   inboxHandlingCycleReopened,
   inboxItemCreated,
   inboxResponseTargetReminderDue,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import { goalRatingGoalTransitioned } from '#/contexts/reporting/domain/goal-events'
 import type { RatingGoalNotice } from '#/contexts/reporting/domain/rating-goal-notices'
 import {

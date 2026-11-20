@@ -10,9 +10,9 @@ import type {
   ReviewId,
   FeedbackId,
 } from '#/shared/domain/ids'
-import type { InboxPriority } from './priority'
+import type { InboxPriority } from './inbox-priority'
 
-export type { InboxPriority } from './priority'
+export type { InboxPriority } from './inbox-priority'
 
 export type InboxStatus = 'open' | 'closed'
 export type SourceType = 'review' | 'feedback'

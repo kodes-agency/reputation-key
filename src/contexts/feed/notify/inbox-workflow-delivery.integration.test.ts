@@ -51,7 +51,7 @@ import {
   inboxBulkReopenCompleted,
   inboxHandlingCycleReopened,
   inboxItemAssigned,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import { createRetireMovedAssignment } from './settle.server'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { createNoticeWriter } from './consumers.server'

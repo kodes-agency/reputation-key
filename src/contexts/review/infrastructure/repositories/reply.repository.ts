@@ -33,7 +33,7 @@ import type {
   ReplyStageRow,
   ReplyStateRow,
 } from '../../application/ports/reply.repository'
-import type { Reply } from '../../domain/types'
+import type { Reply } from '../../../reputation/domain/review-types'
 import {
   propertyId as toPropertyId,
   replyId as toReplyId,

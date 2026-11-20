@@ -6,7 +6,7 @@ import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/id
 import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
 import type { ReplyLibraryRepository } from '../ports/reply-library.repository'
 import type { ReviewRepository } from '../ports/review.repository'
-import type { Reply, Review } from '../../domain/types'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
 import {
   listReplyTemplates,
   loadReplyTemplate,

@@ -9,9 +9,12 @@ import type { Database } from '#/shared/db'
 import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { ReviewCycleTargetAnchor } from '../application/ports/review-response-target-authority.port'
-import type { HandlingCycleHead, ManualReopenReason } from '../domain/types'
-import { inboxItemStatusChanged } from '../domain/events'
-import { inboxError } from '../domain/errors'
+import type {
+  HandlingCycleHead,
+  ManualReopenReason,
+} from '../../reputation/domain/inbox-types'
+import { inboxItemStatusChanged } from '../../reputation/domain/inbox-events'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 import { handlingCycleHeadFromRow, itemFromRow } from './inbox-command-guards'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { catchUpProjectionRevisions } from './inbox-source-projection'

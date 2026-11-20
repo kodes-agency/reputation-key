@@ -19,7 +19,7 @@ import type {
   GoogleReplyObservationResult,
   RecordGoogleReplyObservation,
 } from '../application/ports/google-reply-observation-store.port'
-import { reviewError } from '../domain/errors'
+import { reviewError } from '../../reputation/domain/review-errors'
 
 /** The result of an overtaken sync read: the head as it stands, unchanged. */
 export function resolveSupersededReplyRead(

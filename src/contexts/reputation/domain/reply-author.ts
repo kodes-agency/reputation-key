@@ -9,7 +9,7 @@
 // while the manager waiting on the decision heard nothing.
 
 import { userId, type UserId } from '#/shared/domain/ids'
-import type { Reply } from './types'
+import type { Reply } from './review-types'
 
 /**
  * Whoever last put the reply up for approval; its creator for a reply

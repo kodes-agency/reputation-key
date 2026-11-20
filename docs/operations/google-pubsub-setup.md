@@ -4,7 +4,7 @@ Without this, the app learns about a new Google review only when the
 `discover-new-reviews` sweep next polls that property — up to about six and a
 quarter hours for a property that has been quiet: a six-hour interval, then the
 next 15-minute sweep (see the backoff ladder in
-`src/contexts/review/domain/discovery-backoff.ts`). With it, Google pushes
+`src/contexts/reputation/domain/discovery-backoff.ts`). With it, Google pushes
 within seconds, and a push reads the one review it names; a full snapshot runs
 only when that review cannot be found from the push's reference. The sweep
 keeps its 15-minute cadence and backoff ladder as the safety net. While a

@@ -63,7 +63,7 @@ import {
   propertyId,
   reviewId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type {
   FeedbackLookupPort,
   FeedbackSnippet,

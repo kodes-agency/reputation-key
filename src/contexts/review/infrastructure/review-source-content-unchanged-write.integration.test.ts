@@ -4,7 +4,7 @@ import {
 } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createReviewRepository } from './repositories/review.repository'
-import type { Review } from '../domain/types'
+import type { Review } from '../../reputation/domain/review-types'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'

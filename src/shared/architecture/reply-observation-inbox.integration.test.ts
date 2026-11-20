@@ -14,8 +14,8 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,

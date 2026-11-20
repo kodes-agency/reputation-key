@@ -16,13 +16,13 @@ import type {
   InboxItemReplyState,
   InboxStatus,
   SourceType,
-} from '../../domain/types'
+} from '../../../reputation/domain/inbox-types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import type { Role } from '#/shared/domain/roles'
-import { isInboxError } from '../../domain/errors'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 import type { ReplyLookupPort } from '../ports/reply-lookup.port'
 import type { InboxViewRepository } from '../ports/inbox-view.repository'
 import type { AiReviewInsightsPort } from '../ports/ai-review-insights.port'

@@ -6,12 +6,15 @@
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type { InboxItemId, UserId } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
-import { inboxItemAssigned, inboxItemUnassigned } from '../../domain/events'
-import { inboxError } from '../../domain/errors'
+import {
+  inboxItemAssigned,
+  inboxItemUnassigned,
+} from '../../../reputation/domain/inbox-events'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 import {
   loadInboxItemOrThrow,
   assertExpectedCommandRevision,

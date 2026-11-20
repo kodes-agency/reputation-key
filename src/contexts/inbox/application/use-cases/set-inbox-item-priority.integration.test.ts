@@ -5,7 +5,10 @@ import { getEnv } from '#/shared/config/env'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
-import { isInboxError, PRIORITY_CHANGED_MESSAGE } from '../../domain/errors'
+import {
+  isInboxError,
+  PRIORITY_CHANGED_MESSAGE,
+} from '../../../reputation/domain/inbox-errors'
 import {
   feedbackId,
   inboxItemId,
@@ -14,7 +17,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem, InboxPriority } from '../../domain/types'
+import type { InboxItem, InboxPriority } from '../../../reputation/domain/inbox-types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'

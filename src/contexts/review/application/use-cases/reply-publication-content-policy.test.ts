@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Reply, Review } from '../../domain/types'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
 import type { ReplyLibrarySnapshot } from '../ports/reply-library.repository'
 import {
   approveReply,

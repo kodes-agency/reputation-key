@@ -31,19 +31,19 @@ import {
   replyId,
   userId,
 } from '#/shared/domain/ids'
-import type { Reply, Review } from '../../domain/types'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
 import {
   reviewReplyApproved,
   reviewReplyPublicationCancelled,
   reviewReplyPublicationRequested,
   reviewReplyPublishFailed,
   type ReviewReplyPublicationCancelled,
-} from '../../domain/events'
+} from '../../../reputation/domain/review-events'
 import {
   AMBIGUOUS_RECONCILE_DELAY_MS,
   PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
   PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
-} from '../../domain/reply-publication-workflow'
+} from '../../../reputation/domain/reply-publication-workflow'
 import { createReviewRepository } from './review.repository'
 import { createReplyRepository } from './reply.repository'
 import { createAtomicReplyCommandStore } from '../reply-command-store'

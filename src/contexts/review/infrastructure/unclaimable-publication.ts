@@ -24,13 +24,13 @@
 import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
-import type { Reply } from '../domain/types'
+import type { Reply } from '../../reputation/domain/review-types'
 import {
   reviewReplyPublicationCancelled,
   type ReviewReplyPublicationCancelled,
-} from '../domain/events'
-import { cancelledPublication } from '../domain/reply-command-preconditions'
-import { replyAuthor } from '../domain/reply-author'
+} from '../../reputation/domain/review-events'
+import { cancelledPublication } from '../../reputation/domain/reply-command-preconditions'
+import { replyAuthor } from '../../reputation/domain/reply-author'
 import type { PublicationAttemptStart } from '../application/ports/reply-command-store.port'
 import type { ReplyWriter } from '../application/ports/reply-writer.port'
 

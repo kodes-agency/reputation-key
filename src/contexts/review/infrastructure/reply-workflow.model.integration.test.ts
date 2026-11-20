@@ -26,7 +26,7 @@
 // it leaves is met by every command, the worker and the sweep.
 //
 // The oracle is the workflow written out by hand
-// (domain/__fixtures__/reply-workflow-oracle.ts), never the production
+// (reputation/domain/reply-workflow-oracle.test-fixtures.ts), never the production
 // transition tables. After every step:
 //   - a manager command did exactly what the workflow says, or was refused
 //     with a tagged ReviewError and changed nothing;
@@ -44,9 +44,9 @@ import { replyId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { Reply } from '../domain/types'
-import { isReviewError } from '../domain/errors'
-import { googleReplyTextDigest } from '../domain/google-reply-observation'
+import type { Reply } from '../../reputation/domain/review-types'
+import { isReviewError } from '../../reputation/domain/review-errors'
+import { googleReplyTextDigest } from '../../reputation/domain/google-reply-observation'
 import {
   afterAiDraftPurge,
   afterPublicationEvent,
@@ -65,7 +65,7 @@ import {
   type OracleState,
   type PublicationEvent,
   type ReplyOnScreen,
-} from '../domain/__fixtures__/reply-workflow-oracle'
+} from '../../reputation/domain/reply-workflow-oracle.test-fixtures'
 import {
   createReplyWorkflowHarness,
   WORKFLOW_HOOK_TIMEOUT_MS,

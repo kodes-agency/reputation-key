@@ -29,14 +29,14 @@ import {
   googleReplyObservationInputDigest,
   type GoogleReplyPublicationCandidate,
   type RecordedGoogleReplyObservationDecision,
-} from '../domain/google-reply-observation'
-import { reviewError } from '../domain/errors'
-import { rowReplyAuthor } from '../domain/reply-author'
+} from '../../reputation/domain/google-reply-observation'
+import { reviewError } from '../../reputation/domain/review-errors'
+import { rowReplyAuthor } from '../../reputation/domain/reply-author'
 import {
   reviewReplyObserved,
   reviewReplyPublicationCancelled,
   reviewReplyPublished,
-} from '../domain/events'
+} from '../../reputation/domain/review-events'
 import {
   cancelReplyAtProviderTruth,
   confirmPublicationAttempt,

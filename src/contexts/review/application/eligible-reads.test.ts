@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createEligibleGoogleReplyReads, createEligibleReads } from './eligible-reads'
 import type { ReviewRepository } from './ports/review.repository'
-import type { Review } from '../domain/types'
+import type { Review } from '../../reputation/domain/review-types'
 import { organizationId, reviewId } from '#/shared/domain/ids'
 import type { CurrentGoogleReplyObservation } from './ports/google-reply-observation-store.port'
 

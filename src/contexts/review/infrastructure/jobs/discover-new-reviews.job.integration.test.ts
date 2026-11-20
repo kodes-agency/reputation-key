@@ -15,11 +15,14 @@ import type {
   ReviewQueuePort,
   SyncPropertyReviewsJobData,
 } from '../../application/ports/review-queue.port'
-import { headCheckJobId, type ReviewHeadChecksMode } from '../../domain/head-check'
+import {
+  headCheckJobId,
+  type ReviewHeadChecksMode,
+} from '../../../reputation/domain/head-check'
 import {
   DISCOVERY_SPREAD_WINDOW_MS,
   DISCOVERY_SWEEP_CADENCE_MS,
-} from '../../domain/discovery-spread'
+} from '../../../reputation/domain/discovery-spread'
 import {
   DISCOVERY_ORG,
   discoveryProperty,

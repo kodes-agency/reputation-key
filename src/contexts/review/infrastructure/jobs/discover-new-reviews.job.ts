@@ -16,13 +16,13 @@
 //     so progress is durable without a sweep-run table and a property is
 //     never polled more often than its interval;
 //   - that interval is not flat: each property's next due time is priced on
-//     the backoff ladder (domain/discovery-backoff.ts) from its own activity
+//     the backoff ladder (reputation/domain/discovery-backoff.ts) from its own activity
 //     evidence, so the quiet majority costs a fraction of the provider quota
 //     a flat 15-minute interval used to spend on them;
 //   - the jobs a sweep enqueues do not all start at once. Each is handed to
 //     the queue with a START DELAY drawn from a stable hash of its property
 //     id, inside DISCOVERY_SPREAD_WINDOW_MS (10 minutes: the 15-minute sweep
-//     cadence less the sweep's own 5-minute timeout; domain/discovery-spread.ts).
+//     cadence less the sweep's own 5-minute timeout; reputation/domain/discovery-spread.ts).
 //     The snapshot runs of one sweep share a per-credential reviews.list quota
 //     of 30 calls a minute, and a connection with a few dozen properties spent
 //     it in the sweep's first seconds. Only this sweep spreads: push, import
@@ -43,7 +43,7 @@
 //     push delivers new reviews in between, so a look that finds a completed
 //     reconciliation (the facts table's evaluated_at, current source epoch)
 //     inside that window writes the next look's date and enqueues nothing
-//     (domain/discovery-reconciliation.ts). It is only for the sweep's own
+//     (reputation/domain/discovery-reconciliation.ts). It is only for the sweep's own
 //     looks: push, import and failure retries enqueue as before. A
 //     property with an outstanding failure, no reconciliation yet, or no push
 //     configured (the sweep is then the only path for new reviews) runs full.
@@ -56,7 +56,7 @@
 //     only when its last reconciliation is over a day old, so that look is
 //     full too. A request runs once, when the last listing is six hours old.
 //   - a failed look is not retried at the base interval every time: the wait
-//     grows with consecutive failures (domain/snapshot-failure-backoff.ts),
+//     grows with consecutive failures (reputation/domain/snapshot-failure-backoff.ts),
 //     and next_incremental_at carries it, so this sweep reaches the property
 //     only when its backoff has passed.
 //
@@ -92,16 +92,19 @@ import {
   discoveryTierFor,
   nextDiscoveryDueAt,
   type DiscoveryBackoffTier,
-} from '../../domain/discovery-backoff'
+} from '../../../reputation/domain/discovery-backoff'
 import {
   discoveryLookFor,
   type DiscoveryFullReason,
-} from '../../domain/discovery-reconciliation'
+} from '../../../reputation/domain/discovery-reconciliation'
 import {
   discoverySpreadDelayMs,
   discoverySpreadWindowMs,
-} from '../../domain/discovery-spread'
-import { headCheckJobId, type ReviewHeadChecksMode } from '../../domain/head-check'
+} from '../../../reputation/domain/discovery-spread'
+import {
+  headCheckJobId,
+  type ReviewHeadChecksMode,
+} from '../../../reputation/domain/head-check'
 
 const DEFAULT_BATCH_SIZE = 200
 const DEFAULT_MAX_BATCHES = 10
@@ -112,7 +115,7 @@ const DEFAULT_MAX_BATCHES = 10
  * as DISCOVERY_SWEEP_CADENCE_MS); this is the shortest a property ever waits
  * before being polled again, and it is what REVIEW_DISCOVERY_INTERVAL_MINUTES
  * configures. A property with no recent activity waits a MULTIPLE of it — see
- * domain/discovery-backoff.ts.
+ * reputation/domain/discovery-backoff.ts.
  */
 export const DEFAULT_DISCOVERY_INTERVAL_MS = 15 * 60 * 1000
 

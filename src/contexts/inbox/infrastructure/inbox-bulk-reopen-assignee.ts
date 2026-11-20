@@ -8,9 +8,9 @@
 
 import { userId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import { inboxError } from '../domain/errors'
-import { inboxItemUnassigned } from '../domain/events'
-import type { InboxItem } from '../domain/types'
+import { inboxError } from '../../reputation/domain/inbox-errors'
+import { inboxItemUnassigned } from '../../reputation/domain/inbox-events'
+import type { InboxItem } from '../../reputation/domain/inbox-types'
 import type { InboxCommandAuthority } from './inbox-command-authority'
 import { sourceCommandPermission, type PersistedItem } from './inbox-command-guards'
 

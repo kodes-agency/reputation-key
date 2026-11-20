@@ -9,8 +9,8 @@
 //
 // Content-free: identifiers, timestamps, and an error class only.
 
-import type { DiscoveryActivity } from '../../domain/discovery-backoff'
-import type { PreviousSnapshotFailure } from '../../domain/snapshot-failure-backoff'
+import type { DiscoveryActivity } from '../../../reputation/domain/discovery-backoff'
+import type { PreviousSnapshotFailure } from '../../../reputation/domain/snapshot-failure-backoff'
 import type { ReviewProviderSnapshotFailureCode } from './review-provider-snapshot.repository'
 
 export type ReviewDiscoveryCandidate = Readonly<{
@@ -112,7 +112,7 @@ export type ReviewDiscoveryRepository = Readonly<{
    * The Property's recorded failure: its class, when it was recorded and the
    * retry date written with it. Null when the Property has no sync state row.
    * The snapshot job derives the wait of the next failure from it
-   * (domain/snapshot-failure-backoff.ts).
+   * (reputation/domain/snapshot-failure-backoff.ts).
    */
   findFailureState(propertyId: string): Promise<PreviousSnapshotFailure | null>
 

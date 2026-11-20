@@ -2,7 +2,7 @@
 // Per architecture: "Tagged errors with _tag field for pattern matching."
 
 import { createErrorFactory } from '#/shared/domain/errors'
-import type { InboxStatus } from './types'
+import type { InboxStatus } from './inbox-types'
 
 export type InboxErrorCode =
   | 'invalid_transition'

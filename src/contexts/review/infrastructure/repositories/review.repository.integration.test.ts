@@ -17,7 +17,7 @@ import {
   propertyId,
   reviewId,
 } from '#/shared/domain/ids'
-import type { Review } from '../../domain/types'
+import type { Review } from '../../../reputation/domain/review-types'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'

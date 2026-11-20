@@ -33,17 +33,17 @@ import {
   redactLegacyActor,
   type InboxAssignmentReason,
   type InboxHistoryEntry,
-} from '#/contexts/inbox/domain/handling-history'
+} from '#/contexts/reputation/domain/handling-history'
 import type {
   FeedbackHandlingDeadlineResult,
   PrivateFeedbackHandlingOutcome,
-} from '#/contexts/inbox/domain/feedback-handling'
+} from '#/contexts/reputation/domain/feedback-handling'
 import type {
   HandlingCycleActorType,
   HandlingCycleOpenReason,
   HandlingCycleTransitionKind,
   ManualReopenReason,
-} from '#/contexts/inbox/domain/types'
+} from '#/contexts/reputation/domain/inbox-types'
 import { selectHandlingCycleTransitions } from '#/contexts/inbox/infrastructure/handling-cycle-transitions.read'
 
 const optionalUserId = (value: string | null): UserId | null =>

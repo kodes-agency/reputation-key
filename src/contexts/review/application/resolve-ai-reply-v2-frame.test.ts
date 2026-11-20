@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import type { Review } from '../domain/types'
+import type { Review } from '../../reputation/domain/review-types'
 import { readAiReplyVoiceSnapshot } from './ai-reply-voice-snapshot'
 import type {
   ReplyLibraryRepository,

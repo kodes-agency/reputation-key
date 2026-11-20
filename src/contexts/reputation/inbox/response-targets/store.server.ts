@@ -17,7 +17,10 @@ import type {
   ResponseTargetStore,
   ResponseTargetView,
 } from '#/contexts/inbox/application/ports/response-target.store'
-import type { HandlingCycle, HandlingCycleHead } from '#/contexts/inbox/domain/types'
+import type {
+  HandlingCycle,
+  HandlingCycleHead,
+} from '#/contexts/reputation/domain/inbox-types'
 import type { ReviewCycleTargetAnchor } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
 import {
   buildResponseTargetSnapshot,
@@ -28,8 +31,8 @@ import {
   schedulableReminders,
   type ResponseTargetResult,
   type ResponseTargetSnapshot,
-} from '../../../inbox/domain/response-target'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+} from '../../domain/response-target'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { createResponseTargetAnalyticsStore } from './analytics.store.server'
 import { createReminderReleaseStore } from './reminder-release.store.server'
 

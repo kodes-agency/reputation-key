@@ -7,7 +7,7 @@
 // storing is turned on. Pure: it reads no clock; the caller passes `now`.
 
 import { COUNT_DROP_PERSISTENT_AFTER_MS } from '#/shared/domain/push-health'
-import type { GoogleReview } from './types'
+import type { GoogleReview } from './review-types'
 
 /**
  * `REVIEW_HEAD_CHECKS`: `off` runs no head check; `dark` reads and compares and

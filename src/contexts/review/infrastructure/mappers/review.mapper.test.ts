@@ -4,7 +4,7 @@ import { reviewIdentityValues } from '#/contexts/reputation/application/public-a
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect } from 'vitest'
 import { reviewFromRow, type ReviewHeadRow } from './review.mapper'
-import { isReviewError } from '../../domain/errors'
+import { isReviewError } from '../../../reputation/domain/review-errors'
 
 type ReviewRow = ReviewHeadRow
 

@@ -25,7 +25,7 @@ import { deriveReviewProviderSubject } from '#/shared/review-provider-subject-co
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { ReviewFirstSeenVia } from '#/shared/domain/push-health'
 import { classifyFirstSighting } from '#/shared/domain/push-health'
-import type { GoogleReview } from '../domain/types'
+import type { GoogleReview } from '../../reputation/domain/review-types'
 import type { GoogleReviewApiPort } from '../application/ports/google-review-api.port'
 import type { ReviewProviderSubjectKeyService } from '../application/provider-subject-keyring'
 import type { ReviewProviderObservationOrigin } from '../application/ports/response-target-authority.port'

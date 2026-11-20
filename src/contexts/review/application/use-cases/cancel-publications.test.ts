@@ -17,7 +17,7 @@ import {
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
-import type { Review, Reply } from '../../domain/types'
+import type { Review, Reply } from '../../../reputation/domain/review-types'
 import {
   googleConnectionId,
   organizationId,

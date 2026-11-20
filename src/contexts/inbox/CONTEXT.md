@@ -40,7 +40,11 @@ implementations that need Review truth live in `../reputation/inbox/`. The
 screens are in `../reputation/inbox/ui` (the page, queue, filter and row
 primitives in `page/`), `../reputation/replies/ui` and
 `src/routes/_authenticated/inbox/`; `src/components/inbox` keeps only the reply
-actions hook.
+actions hook. Its pure types, rules, events and errors are in
+`../reputation/domain/`: `inbox-types.ts`, `inbox-rules.ts`, `inbox-events.ts`,
+`inbox-errors.ts`, `inbox-constructors.ts`, `inbox-priority.ts`,
+`feedback-handling.ts`, `handling-cycles.ts`, `handling-history.ts`,
+`handling-outcome-authority.ts` and `response-target.ts`.
 
 | Feature                              | Server function (file in `server/`)                                                                                                                                       | Use case or store                                                                                                                                                |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -10,7 +10,7 @@ import { getEnv } from '#/shared/config/env'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, userId } from '#/shared/domain/ids'
-import { isInboxError } from '../../domain/errors'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 import { MAX_INBOX_ACTOR_DIRECTORY_BATCH } from '../../application/ports/inbox-actor-directory.port'
 import { createInboxActorDirectoryAdapter } from './inbox-actor-directory.adapter'
 

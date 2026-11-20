@@ -3,7 +3,7 @@
 
 import type { FeedbackSnippet } from '../../application/ports/feedback-lookup.port'
 import type { ReviewSnippetResult } from '../../application/ports/review-lookup.port'
-import type { InboxItem, InboxItemDetail } from '../../domain/types'
+import type { InboxItem, InboxItemDetail } from '../../../reputation/domain/inbox-types'
 
 /**
  * A Review item's detail. Content comes only from the

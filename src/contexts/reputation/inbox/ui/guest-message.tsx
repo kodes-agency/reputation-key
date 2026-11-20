@@ -451,7 +451,7 @@ export function GuestMessage({
            which BQC-1.2 forbids. So it is not read.
 
            `?? null` only collapses the key's absence: the type keeps it
-           optional for fixtures that omit it (`domain/types.ts`), and
+           optional for fixtures that omit it (`domain/inbox-types.ts`), and
            `getInboxItemDetail` already sends `null` rather than omit it. */
           rating={detail.reviewRating ?? null}
           sourceDate={item.sourceDate}

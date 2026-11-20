@@ -54,7 +54,7 @@ const REJECTION_REASON = 'Too generic; please name the housekeeping fix we made.
 const ADDED_TEXT = ' See you next summer.'
 
 // What the server answers each command for a reply that has left the state
-// the command starts from (review/domain/reply-command-preconditions.ts), as
+// the command starts from (reputation/domain/reply-command-preconditions.ts), as
 // `reviewErrorStatus` sends it: a 400.
 const NOT_AWAITING_APPROVAL =
   'Only a reply that is waiting for approval can be confirmed and published'

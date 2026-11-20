@@ -24,7 +24,7 @@ import type {
   GoogleReplyObservationResult,
   RecordGoogleReplyObservation,
 } from '../ports/google-reply-observation-store.port'
-import type { Reply, Review } from '../../domain/types'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
 import {
   organizationId,
   propertyId,

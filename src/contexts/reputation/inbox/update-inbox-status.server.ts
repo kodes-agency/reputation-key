@@ -15,15 +15,15 @@ import type {
   HandlingCycleHead,
   InboxItem,
   ReviewHandlingCycleHead,
-} from '#/contexts/inbox/domain/types'
+} from '#/contexts/reputation/domain/inbox-types'
 import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/ports/review-handling-cycle.store'
 import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
 import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { validateTransition } from '#/contexts/inbox/domain/rules'
-import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+import { validateTransition } from '#/contexts/reputation/domain/inbox-rules'
+import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import type {
   UpdateInboxStatus,
   UpdateInboxStatusInput,

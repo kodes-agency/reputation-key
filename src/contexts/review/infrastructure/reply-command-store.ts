@@ -9,7 +9,7 @@
 // from, and the row must still be that snapshot. The store does not trust the
 // use case to have checked, so a second entry point cannot skip the rule. The
 // same guard carries what the command means for AI-assisted text
-// (domain/reply-ai-text.ts): submit and approval need a current AI draft
+// (reputation/domain/reply-ai-text.ts): submit and approval need a current AI draft
 // binding, reject and retry never read it, an edit makes the Reply
 // human-authored. The claim is the last gate for AI text, and a claim it
 // refuses withdraws the Reply as the AI draft purge would
@@ -33,8 +33,8 @@ import {
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import type { Reply } from '../domain/types'
-import { reviewError } from '../domain/errors'
+import type { Reply } from '../../reputation/domain/review-types'
+import { reviewError } from '../../reputation/domain/review-errors'
 import {
   AMBIGUOUS_RECONCILE_DELAY_MS,
   PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
@@ -43,7 +43,7 @@ import {
   nextPublicationState,
   type PersistedPublicationState,
   type PublicationStateEvent,
-} from '../domain/reply-publication-workflow'
+} from '../../reputation/domain/reply-publication-workflow'
 import {
   UNCERTAIN_ATTEMPT_OUTCOMES,
   type ReplyWriter,
@@ -56,11 +56,11 @@ import {
   cancelledPublication,
   replyCommandMayStart,
   type ReplyCommand,
-} from '../domain/reply-command-preconditions'
+} from '../../reputation/domain/reply-command-preconditions'
 import type { ConditionalReplyUpdate } from '../application/ports/reply.repository'
 import type { ReplyCommandStore } from '../application/ports/reply-command-store.port'
 import type { PublicationAuthorizationFacts } from '../application/ports/reply-command-store.port'
-import { googleReplyTextDigest } from '../domain/google-reply-observation'
+import { googleReplyTextDigest } from '../../reputation/domain/google-reply-observation'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import { attemptMayHaveDispatched } from './reply-publication-dispatch-evidence'
 import {
@@ -572,7 +572,7 @@ export const createAtomicReplyCommandStore = (
             propertyId: attempt.propertyId,
           })
           if (!scope) return null
-          // The last gate for AI text (domain/reply-ai-text.ts): it is claimed
+          // The last gate for AI text (reputation/domain/reply-ai-text.ts): it is claimed
           // while its binding is current, or, once it was claimed before,
           // after its adoption window alone has passed. Anything else is not
           // sent, by this cycle or by a retry of it: the Reply is withdrawn,

@@ -12,9 +12,9 @@
 // Google and never authorizes or enqueues anything.
 
 import type { PropertyId } from '#/shared/domain/ids'
-import type { Reply } from '../../domain/types'
-import { reviewReplyPublishFailed } from '../../domain/events'
-import { replyAuthor } from '../../domain/reply-author'
+import type { Reply } from '../../../reputation/domain/review-types'
+import { reviewReplyPublishFailed } from '../../../reputation/domain/review-events'
+import { replyAuthor } from '../../../reputation/domain/reply-author'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type {

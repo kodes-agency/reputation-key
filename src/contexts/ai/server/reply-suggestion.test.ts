@@ -152,7 +152,7 @@ const ACTOR = {
 /**
  * A never-edited review: the property binding has never been re-generated, so
  * `sourceEpoch` sits at its floor of 0, while `sourceRevision` starts at 1 for
- * a first observation (see reviewFromSource in review/domain/types).
+ * a first observation (see reviewFromSource in reputation/domain/review-types).
  */
 const NEVER_EDITED_REVIEW_SOURCE: AiReviewCurrentSource = {
   organizationId: organizationId(ORGANIZATION_ID),

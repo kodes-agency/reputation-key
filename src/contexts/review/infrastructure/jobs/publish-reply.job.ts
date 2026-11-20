@@ -33,7 +33,7 @@
 //      cancelled (disconnect/policy) or the row is no longer claimable:
 //      the side effect must NOT run. The claim itself cancels (policy) a
 //      cycle whose Property is not active at its source epoch. One that holds
-//      AI-assisted text the last gate refuses (domain/reply-ai-text.ts) it
+//      AI-assisted text the last gate refuses (reputation/domain/reply-ai-text.ts) it
 //      withdraws, as the AI draft purge would: that reply returns to draft
 //      unsent, with the AI text removed.
 //   2. a persisted `sending` state is uncertain, and nothing on this path
@@ -101,7 +101,7 @@ import {
   readsGoogleBeforeClaim,
 } from './publish-reply-preread'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { Reply, Review } from '../../domain/types'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
@@ -112,7 +112,7 @@ import {
   publicationFailureCause,
   publicationFailureEvidence,
   UNCERTAIN_SEND_RECHECK_DELAY_MS,
-} from '../../domain/reply-publication-workflow'
+} from '../../../reputation/domain/reply-publication-workflow'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 import { reportReplyReadback } from '../../application/reply-readback-report'

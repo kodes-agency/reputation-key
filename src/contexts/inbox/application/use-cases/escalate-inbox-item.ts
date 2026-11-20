@@ -6,10 +6,10 @@
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type { InboxItemId, UserId } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { inboxItemEscalated } from '../../domain/events'
+import { inboxItemEscalated } from '../../../reputation/domain/inbox-events'
 import { loadItemForCommand } from '../inbox-access'
 
 export type EscalateInboxItemInput = Readonly<{

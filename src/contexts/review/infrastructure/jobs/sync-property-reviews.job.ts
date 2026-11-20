@@ -26,14 +26,14 @@ import type {
   RunReviewHeadCheck,
   RunReviewHeadCheckResult,
 } from '../../application/use-cases/run-review-head-check'
-import type { ReviewHeadChecksMode } from '../../domain/head-check'
+import type { ReviewHeadChecksMode } from '../../../reputation/domain/head-check'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import {
   recordsFailureOfRun,
   snapshotFailureRetryMs,
   type PreviousSnapshotFailure,
-} from '../../domain/snapshot-failure-backoff'
+} from '../../../reputation/domain/snapshot-failure-backoff'
 import { ReviewProviderSnapshotFailure } from './review-provider-snapshot-failure'
 
 export const JOB_NAME = 'sync-property-reviews' as const
@@ -58,7 +58,7 @@ type SyncHandlerDeps = Readonly<{
   /**
    * Discovery-ladder liveness stamps. A GBP push proves Google is publishing
    * for this location, so a push-initiated sync resets the property to the
-   * hot rung of the backoff ladder (domain/discovery-backoff.ts).
+   * hot rung of the backoff ladder (reputation/domain/discovery-backoff.ts).
    */
   syncActivity: ReviewSyncActivityRecorder
   discoveryRepo: Pick<
@@ -69,7 +69,7 @@ type SyncHandlerDeps = Readonly<{
   /**
    * Hot-rung interval: the push reset's next-poll clamp, and the wait after a
    * first snapshot failure (it grows with consecutive failures, see
-   * domain/snapshot-failure-backoff.ts).
+   * reputation/domain/snapshot-failure-backoff.ts).
    */
   acknowledgeImportSync?: (data: SyncPropertyReviewsJobData) => Promise<void>
   hotIntervalMs: number

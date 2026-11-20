@@ -20,9 +20,9 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { Reply, Review } from '../../domain/types'
-import { reviewReplySubmitted } from '../../domain/events'
-import { replyAuthor } from '../../domain/reply-author'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
+import { reviewReplySubmitted } from '../../../reputation/domain/review-events'
+import { replyAuthor } from '../../../reputation/domain/reply-author'
 import { createReviewRepository } from './review.repository'
 import { createReplyRepository } from './reply.repository'
 import { createAtomicReplyCommandStore } from '../reply-command-store'

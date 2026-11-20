@@ -7,8 +7,8 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { ReviewCycleTargetAnchor } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
-import type { HandlingCycle } from '#/contexts/inbox/domain/types'
-import { isInboxError } from '#/contexts/inbox/domain/errors'
+import type { HandlingCycle } from '#/contexts/reputation/domain/inbox-types'
+import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { resolveReviewCycleTargetProvenance } from './store.server'
 
 const OPENED_AT = new Date('2026-08-28T10:00:00.000Z')

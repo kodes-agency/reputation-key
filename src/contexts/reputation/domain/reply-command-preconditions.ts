@@ -1,6 +1,6 @@
 // Review context — what each reply command may start from.
 //
-// REPLY_TRANSITIONS (rules.ts) says which status may follow which. It cannot say
+// REPLY_TRANSITIONS (review-rules.ts) says which status may follow which. It cannot say
 // which command may make the move: `publish_failed → approved` is a retry and
 // never an approval, and a reply that returns from `approved` to `draft` got
 // there by a cancellation and never by a draft save. A command that trusted the
@@ -12,13 +12,13 @@
 // write, so a second entry point, or a change between the read and the write,
 // cannot get past it.
 
-import { reviewError } from './errors'
+import { reviewError } from './review-errors'
 import {
   nextPublicationState,
   type PersistedPublicationState,
   type PublicationStateInput,
 } from './reply-publication-workflow'
-import type { Reply, ReplyStatus } from './types'
+import type { Reply, ReplyStatus } from './review-types'
 
 export type ReplyCommand =
   /** Save draft and load template: rewrite the text of an unsubmitted reply. */

@@ -20,7 +20,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxNote } from '#/contexts/inbox/domain/types'
+import type { InboxNote } from '#/contexts/reputation/domain/inbox-types'
 
 const ORG_A = organizationId('org-inbox-note-aaaa-1111')
 const ORG_B = organizationId('org-inbox-note-bbbb-2222')

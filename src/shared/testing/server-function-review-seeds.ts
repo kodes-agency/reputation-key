@@ -8,9 +8,9 @@
 // a test names; AI-assisted replies need an AI operation and are out of reach.
 
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
-import type { InboxItem, InboxStatus } from '#/contexts/inbox/domain/types'
+import type { InboxItem, InboxStatus } from '#/contexts/reputation/domain/inbox-types'
 import { storedAiReviewSourceProvenance } from '#/contexts/review/application/ai-review-source'
-import type { StarRating } from '#/contexts/review/domain/types'
+import type { StarRating } from '#/contexts/reputation/domain/review-types'
 import { getDb } from '#/shared/db'
 import {
   feedbackId,

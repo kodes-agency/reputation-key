@@ -4,7 +4,7 @@ import { wireReplyUseCases, projectReviewReplyApi } from './build-reply-use-case
 import type { ResolveReplyTemplateLanguage } from './application/use-cases/layered-reply-template-operations'
 import { admitGoogleImportSync } from './infrastructure/google-import-sync-acceptance'
 import { randomUUID } from 'node:crypto'
-import { reviewError } from './domain/errors'
+import { reviewError } from '../reputation/domain/review-errors'
 import type { Database } from '#/shared/db'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
@@ -136,7 +136,7 @@ import {
   type EligibleReads,
 } from './application/eligible-reads'
 import { reviewId, replyId, organizationId, propertyId } from '#/shared/domain/ids'
-import type { ReviewHeadChecksMode } from './domain/head-check'
+import type { ReviewHeadChecksMode } from '../reputation/domain/head-check'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import { registerReplyPublicationConsumers } from './infrastructure/outbox-consumers'
@@ -408,7 +408,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   }
 
   // A head check is a sync-property-reviews job of mode 'head', with a
-  // deterministic job id per Property and interval bucket (domain/head-check.ts).
+  // deterministic job id per Property and interval bucket (reputation/domain/head-check.ts).
   const headCheckQueue: ReviewHeadCheckQueuePort = {
     addHeadCheckJob: (data, options) =>
       addSyncPropertyReviewsJob(data, 'queue:review-head', options),

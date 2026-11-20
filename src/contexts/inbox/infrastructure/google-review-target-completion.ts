@@ -12,12 +12,12 @@ import {
   inboxResponseTargetReminders,
 } from '#/shared/db/schema/inbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import type { HandlingCycleHead } from '../domain/types'
+import type { HandlingCycleHead } from '../../reputation/domain/inbox-types'
 import {
   classifyResponseTargetCompletion,
   resolveGoogleReplyCompletion,
-} from '../domain/response-target'
-import { inboxError } from '../domain/errors'
+} from '../../reputation/domain/response-target'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 
 export type GoogleReviewTargetCompletion = Readonly<{
   result: 'on_time' | 'late' | 'not_measured'

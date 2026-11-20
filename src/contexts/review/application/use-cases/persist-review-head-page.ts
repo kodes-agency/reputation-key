@@ -26,8 +26,11 @@ import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/do
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
-import { headReviewsToPersist, type HeadStoredCopy } from '../../domain/head-check'
-import { decideHeadFact } from '../../domain/head-persist'
+import {
+  headReviewsToPersist,
+  type HeadStoredCopy,
+} from '../../../reputation/domain/head-check'
+import { decideHeadFact } from '../../../reputation/domain/head-persist'
 import type { GoogleReviewRead } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type {

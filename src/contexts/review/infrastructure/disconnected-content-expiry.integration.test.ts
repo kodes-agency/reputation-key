@@ -21,7 +21,7 @@ import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   createRunReviewSourceContentLifecycle,
 } from '../application/use-cases/run-source-content-lifecycle'
-import { reviewCreated } from '../domain/events'
+import { reviewCreated } from '../../reputation/domain/review-events'
 import { createAtomicReviewCommandStore } from './review-command-store'
 import { createEligibleReads } from '../application/eligible-reads'
 import { createServingStats } from './serving-stats'

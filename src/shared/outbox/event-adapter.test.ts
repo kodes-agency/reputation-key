@@ -17,13 +17,13 @@ import {
   validateEventPayload,
 } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { reviewReplyPublicationRequested } from '#/contexts/review/domain/events'
+import { reviewReplyPublicationRequested } from '#/contexts/reputation/domain/review-events'
 import {
   inboxBulkAssignmentCompleted,
   inboxBulkReopenCompleted,
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import { goalMonthlyResultClosed } from '#/contexts/reporting/domain/goal-events'
 import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 import { z, ZodError } from 'zod/v4'

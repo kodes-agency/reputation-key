@@ -353,7 +353,7 @@ describe('sync-property-reviews snapshot handler', () => {
     )
   })
 
-  // A failure that repeats waits longer each time (domain/snapshot-failure-backoff.ts):
+  // A failure that repeats waits longer each time (reputation/domain/snapshot-failure-backoff.ts):
   // 15 minutes, then 1 hour, 4 hours, and at most 6 hours. The tests below run
   // the real handler against the in-memory repository, one failure per hop in
   // time, and read back the retry date the repository holds.
