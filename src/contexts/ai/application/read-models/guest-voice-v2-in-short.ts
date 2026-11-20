@@ -1,4 +1,4 @@
-import type { GuestVoiceIssueGroup } from './guest-voice-v2-facts'
+import type { GuestVoiceIssueGroup } from '../../guest-voice/guest-voice-v2-facts.contracts'
 import { issueTitle } from './guest-voice-v2-titles'
 // "In short": the page in up to three lines, from fixed sentence patterns filled with
 // the analysis's own numbers (decision Q9). There is no model in it, so there is no

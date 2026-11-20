@@ -9,7 +9,7 @@ import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
  */
 const COST_CRITICAL_SOURCES = [
   'src/shared/ai-provider-control/service.ts',
-  'src/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter.ts',
+  'src/contexts/ai/execution/ai-execution-admission.adapter.server.ts',
   // The fakes belong here too: both stood in for the real admission authority
   // while pricing differently from it, which is precisely how the repricing
   // shipped with green tests.

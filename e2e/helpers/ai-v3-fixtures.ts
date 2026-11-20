@@ -2,7 +2,7 @@
 // Inbox's reading of a review.
 //
 // The rows are written by the seed the integration suites use, through the product's own
-// output and aggregate stores (`ai-v3-seed.ts`), into a Property this fixture makes in the
+// output and aggregate stores (`ai-v3-seed.test-fixtures.ts`), into a Property this fixture makes in the
 // e2e Organization the way every other spec makes one. The stack's web and worker then
 // serve and notify as they would for a Property whose reviews were analysed. No provider is
 // called and no guest's words exist: only ids, stars, topics and sentence numbers.
@@ -19,7 +19,7 @@
 // and two files that use it must not run at the same moment.
 import { randomUUID } from 'node:crypto'
 import { tsImport } from 'tsx/esm/api'
-import type { SeededIds } from '../../src/contexts/ai/infrastructure/testing/ai-v3-seed'
+import type { SeededIds } from '../../src/contexts/ai/analysis/ai-v3-seed.test-fixtures'
 import { testEnvironment } from '../../src/shared/testing/test-environment'
 import type * as SeedFactory from './ai-v3-seed-factory'
 import { cleanupE2eData } from './fixture-cleanup'

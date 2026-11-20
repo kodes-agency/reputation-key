@@ -12,13 +12,13 @@ import type {
   GuestVoiceFactsRead,
   GuestVoiceFactsScope,
   GuestVoiceMentionRef,
-} from '#/contexts/ai/application/ports/ai-guest-voice-facts.port'
+} from '#/contexts/ai/guest-voice/ai-guest-voice-facts.port.server'
 import type {
   GuestVoiceIssueGroup,
   GuestVoiceMention,
   GuestVoiceReview,
   StarValue,
-} from '#/contexts/ai/application/read-models/guest-voice-v2-facts'
+} from '#/contexts/ai/guest-voice/guest-voice-v2-facts.contracts'
 import {
   createReadGuestVoiceV2,
   type GuestVoiceV2Response,

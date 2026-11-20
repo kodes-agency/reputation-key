@@ -9,7 +9,7 @@ import {
   createV3Seed,
   seededReviewId,
   type SeededIds,
-} from '../../src/contexts/ai/infrastructure/testing/ai-v3-seed'
+} from '../../src/contexts/ai/analysis/ai-v3-seed.test-fixtures'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '../../test-fixtures/generated/google-provider-identifiers-v1'
 
 export { seededReviewId }

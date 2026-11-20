@@ -7,7 +7,11 @@ import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
 import { guestVoiceTopicStatus } from '../../domain/guest-voice-topic-status'
 import type { GuestVoiceTopicAssessment } from '../../guest-voice/contracts'
 import { ratingCountsOf, type RatingCounts } from '../aspect-review-evidence'
-import { senseOf, type GuestVoiceReview, type Sense } from './guest-voice-v2-facts'
+import {
+  senseOf,
+  type GuestVoiceReview,
+  type Sense,
+} from '../../guest-voice/guest-voice-v2-facts.contracts'
 
 export function issueSenseKey(groupId: string, sense: Sense): string {
   return `${groupId}:${sense}`

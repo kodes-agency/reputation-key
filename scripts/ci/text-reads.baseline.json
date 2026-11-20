@@ -26,7 +26,7 @@
   "src/composition/google-provider-authority.test.ts": 1,
   "src/composition/reply-scope-effects.test.ts": 1,
   "src/contexts/ai/guest-voice/ui/guest-voice-check-in-sources.test.ts": 1,
-  "src/contexts/ai/infrastructure/jobs/review-analysis-backlog-jobs-policy.integration.test.ts": 2,
+  "src/contexts/ai/replay/review-analysis-backlog-jobs-policy.integration.test.ts": 2,
   "src/contexts/feed/activity-runtime-dependency-injection.test.ts": 1,
   "src/contexts/feed/audit/migration.test.ts": 1,
   "src/contexts/feed/domain/integrity-claims.test.ts": 3,

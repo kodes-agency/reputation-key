@@ -1,0 +1,74 @@
+import { sql } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
+import type {
+  AiReviewEventConsumeResult,
+  AiReviewEventStorePort,
+} from './ai-review-event-store.port.server'
+
+type AggregateHeadRow = Readonly<{
+  terminal_analysis_sequence: number | string | null
+}>
+type SettlementRow = Readonly<{ settled: boolean }>
+
+function safeInteger(value: number | string | null | undefined): number {
+  const parsed = typeof value === 'string' ? Number(value) : (value ?? 0)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error('AI aggregate head contains an invalid sequence')
+  }
+  return parsed
+}
+
+export const createAiReviewEventStoreAdapter = (db: Database): AiReviewEventStorePort => {
+  async function currentHead(input: {
+    organizationId: string
+    propertyId: string
+    sourceEpoch: number
+    reviewAnalysisEpoch: number
+  }): Promise<number> {
+    const result = await db.execute(sql<AggregateHeadRow>`
+      SELECT
+        max(terminal_analysis_sequence) AS terminal_analysis_sequence
+      FROM ai_property_aggregate_heads
+      WHERE organization_id = ${input.organizationId}
+        AND property_id = ${input.propertyId}::uuid
+        AND source_epoch = ${input.sourceEpoch}
+        AND review_analysis_epoch = ${input.reviewAnalysisEpoch}
+    `)
+    const row = result.rows[0] as AggregateHeadRow | undefined
+    return safeInteger(row?.terminal_analysis_sequence)
+  }
+
+  return Object.freeze({
+    async consumeNext(input): Promise<AiReviewEventConsumeResult> {
+      const head = await currentHead(input)
+      const terminal = Math.max(head, input.analysisStartSequence)
+      const result = await db.execute<SettlementRow>(sql`
+        SELECT EXISTS (
+          SELECT 1
+          FROM ai_property_aggregate_settlements AS settlement
+          WHERE settlement.organization_id = ${input.organizationId}
+            AND settlement.property_id = ${input.propertyId}::uuid
+            AND settlement.review_id = ${input.reviewId}::uuid
+            AND settlement.source_epoch = ${input.sourceEpoch}
+            AND settlement.review_analysis_epoch = ${input.reviewAnalysisEpoch}
+            AND settlement.analysis_sequence = ${input.analysisSequence}
+        ) AS settled
+      `)
+      if (
+        input.analysisSequence <= input.analysisStartSequence ||
+        result.rows[0]?.settled === true
+      ) {
+        return {
+          status: 'duplicate',
+          consumedSequence: input.analysisSequence,
+          terminalAnalysisSequence: terminal,
+        }
+      }
+      return {
+        status: 'accepted',
+        consumedSequence: input.analysisSequence,
+        terminalAnalysisSequence: terminal,
+      }
+    },
+  })
+}

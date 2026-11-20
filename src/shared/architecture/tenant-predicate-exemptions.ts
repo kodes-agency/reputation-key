@@ -61,28 +61,28 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-profile-rebuild.ts',
+    file: 'src/contexts/ai/analysis/ai-profile-rebuild.server.ts',
     symbol: 'listPendingProfileRebuilds',
     reason:
       'The bounded worker sweep enumerates rolled profile identifiers across tenants. Each rebuild locks its Property and rechecks the tenant, source, active profile and merchant authorization before mutation.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
+    file: 'src/contexts/ai/execution/ai-operation-store.adapter.server.ts',
     symbol: 'claim',
     reason:
       'The unique idempotency-scope digest includes organization and property identity for tenant operations while supporting explicitly tenant-free release canaries.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter.ts',
+    file: 'src/contexts/ai/execution/ai-execution-admission.adapter.server.ts',
     symbol: 'settle',
     reason:
       'The in-process gateway settles the operation its own admission granted: the settlement permit names the operation id, and the locked row must still carry the same execution permit, attempt, admission nonce and grant key before anything is charged.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
+    file: 'src/contexts/ai/execution/ai-operation-store.adapter.server.ts',
     symbol: 'listExpiredExecutions',
     reason:
       'The bounded abandoned-execution sweep intentionally scans all tenants and every candidate is rechecked by an exact operation-attempt CAS before mutation.',
@@ -628,7 +628,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-guest-voice-summary-schedule.adapter.ts',
+    file: 'src/contexts/ai/guest-voice/ai-guest-voice-summary-schedule.adapter.server.ts',
     symbol: 'listDue',
     reason:
       "The hourly Monday-email sweep intentionally lists every Property with Review Analysis enabled across tenants, in Property id order, and keeps those whose own clock reads Monday morning; it returns only each Property's id and Organization, and every one is authorized under its own Organization and Property before anything of it is read.",

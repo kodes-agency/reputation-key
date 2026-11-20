@@ -7,13 +7,13 @@ import {
   reviewNamesAPerson,
   type GuestVoiceV2Draft,
 } from '../application/read-models/guest-voice-v2-evidence'
-import { reviewVersionKey } from '../application/read-models/guest-voice-v2-join'
+import { reviewVersionKey } from './guest-voice-v2-join.server'
 import {
   textReviewsSince,
   windowStart,
   type PopulationRange,
-} from '../application/read-models/guest-voice-v2-population'
-import { withSentences } from '../application/read-models/guest-voice-v2-sentences'
+} from './guest-voice-v2-population.server'
+import { withSentences } from './guest-voice-v2-sentences.server'
 import {
   loadGuestVoiceReadContext,
   type GuestVoiceReadDependencies,

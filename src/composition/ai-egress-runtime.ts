@@ -18,7 +18,7 @@ import {
   settlementPermitOf,
   type AiExecutionAdmissionAuthority,
 } from '#/shared/ai-provider-control/execution-admission'
-import { createAiExecutionAdmissionAdapter } from '#/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter'
+import { createAiExecutionAdmissionAdapter } from '#/contexts/ai/execution/ai-execution-admission.adapter.server'
 import { createAiGatewayRoutePreparer } from '#/shared/ai-provider-control/route-preparer'
 import { createOpenAiConnector } from '#/shared/ai-provider-control/openai-connector'
 import { createOpenAiProviderAdapter } from '#/shared/ai-provider-control/openai-provider-adapter'

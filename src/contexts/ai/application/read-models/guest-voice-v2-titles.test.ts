@@ -9,7 +9,7 @@ import {
   groups,
   mention,
   review,
-} from './guest-voice-v2.test-fixtures'
+} from '../../guest-voice/guest-voice-v2.test-fixtures'
 
 describe('issue titles', () => {
   it('counts causes once per review, respects manager names, keeps polarity titles separate', () => {

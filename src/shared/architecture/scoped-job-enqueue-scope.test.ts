@@ -38,7 +38,7 @@ import {
 } from '#/shared/governance/entry-point-catalogue'
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
+import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/replay/ai-job-enqueue.server'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails-job.server'
 import { createGoogleImportQueue } from '#/contexts/integration/infrastructure/google-import-queue'
 import { buildReviewContext } from '#/contexts/review/build'

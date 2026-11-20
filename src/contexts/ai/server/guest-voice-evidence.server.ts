@@ -7,7 +7,7 @@ import {
   type PropertyId,
   type ReviewId,
 } from '#/shared/domain/ids'
-import type { DraftReviewReaders } from '../application/read-models/guest-voice-v2-resolve'
+import type { DraftReviewReaders } from '../guest-voice/guest-voice-v2-resolve.server'
 
 /**
  * The Inbox Items that open reviews for this reader, and what the reviews say now. Both

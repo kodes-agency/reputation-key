@@ -62,7 +62,7 @@ import type { Tx } from '#/shared/outbox/commit'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { createAiControlAdapter } from '#/contexts/ai/infrastructure/adapters/ai-control.adapter'
-import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastructure/adapters/property-processing-profile.adapter'
+import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/analysis/property-processing-profile.adapter.server'
 import { propertyArchived } from '#/contexts/property/domain/events'
 import { createPropertyLifecycleCommandStore } from '#/contexts/property/lifecycle/transition-store.server'
 import {

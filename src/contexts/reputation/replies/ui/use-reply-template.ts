@@ -11,7 +11,7 @@ import type { ReplyAssistScope } from './use-reply-suggestion'
  * data behind row 18's `Template · <title> · Bulgarian`.
  *
  * `LoadedReplyTemplateDraft` (the load command's result,
- * `reply-suggestion-contract.ts`) carries `templateRef` and `templateRevision`
+ * `reply-suggestion-contract.server.ts`) carries `templateRef` and `templateRevision`
  * and no title; the only titles the client holds are the list's
  * (`ReplyTemplateListItem`, `{ id, title, … }`). So the title is resolved by
  * looking the verified id up in that list — see `templateTitleIn`.

@@ -14,11 +14,11 @@ import type { GoogleReplyPublicationContentAuthorizer } from '#/contexts/integra
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
-import type { AiInferencePort } from '#/contexts/ai/application/ports/ai-inference.port'
-import type { AiSubjectHmacPort } from '#/contexts/ai/application/ports/ai-subject-hmac.port'
-import { createAiInProcessInference } from '#/contexts/ai/infrastructure/adapters/ai-inprocess.adapter'
+import type { AiInferencePort } from '#/contexts/ai/execution/ai-inprocess.port.server'
+import type { AiSubjectHmacPort } from '#/contexts/ai/analysis/ai-subject-hmac.port.server'
+import { createAiInProcessInference } from '#/contexts/ai/execution/ai-inprocess.adapter.server'
 import { createAiEgressRuntime } from './ai-egress-runtime'
-import { createAiSubjectHmacAdapter } from '#/contexts/ai/infrastructure/adapters/ai-subject-hmac.adapter'
+import { createAiSubjectHmacAdapter } from '#/contexts/ai/analysis/ai-subject-hmac.adapter.server'
 import { loadNamedEd25519PublicKeyring } from '#/shared/ed25519-key-material'
 import {
   assertAiProvenancePublicKeyringInventory,

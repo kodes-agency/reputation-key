@@ -15,7 +15,10 @@ import type {
   TopicRow,
   WatchItem,
 } from '../../guest-voice/contracts'
-import type { GuestVoiceIssueGroup, GuestVoiceReview } from './guest-voice-v2-facts'
+import type {
+  GuestVoiceIssueGroup,
+  GuestVoiceReview,
+} from '../../guest-voice/guest-voice-v2-facts.contracts'
 import { causeCounts } from './guest-voice-v2-causes'
 import {
   capitalized,

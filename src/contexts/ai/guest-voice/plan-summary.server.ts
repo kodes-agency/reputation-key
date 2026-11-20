@@ -17,23 +17,23 @@ import { guestVoicePeriod, buildGuestVoicePeriod } from './period.server'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { GuestVoiceSummaryFactLine } from '../domain/events'
-import { resolveAiReadGate } from '../application/ai-read-gate'
-import { addDays } from '../application/local-date'
-import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import { resolveAiReadGate } from '../consent/ai-read-gate.server'
+import { addDays } from './local-date.contracts'
+import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type {
   AiGuestVoiceFactsPort,
   GuestVoiceFactsRead,
-} from '../application/ports/ai-guest-voice-facts.port'
-import type { AiPropertyCalendarPort } from '../application/ports/ai-property-calendar.port'
-import type { PropertyProcessingProfilePort } from '../application/ports/property-processing-profile.port'
+} from './ai-guest-voice-facts.port.server'
+import type { AiPropertyCalendarPort } from './ai-property-calendar.port.server'
+import type { PropertyProcessingProfilePort } from '../analysis/property-processing-profile.port.server'
 import type { GuestVoiceV2Ready, Window } from './contracts'
 import { assembleGuestVoiceV2 } from '../application/read-models/guest-voice-v2-build'
 import {
   BASELINE_DAYS,
   choosePopulation,
   type PopulationChoice,
-} from '../application/read-models/guest-voice-v2-population'
-import { guestVoiceScopes } from '../application/read-models/guest-voice-v2-scopes'
+} from './guest-voice-v2-population.server'
+import { guestVoiceScopes } from './guest-voice-v2-scopes.server'
 import {
   SUMMARY_WEEK_DAYS,
   hasUrgentReviewThisWeek,
@@ -41,7 +41,7 @@ import {
   isMonday,
   isQuietWeek,
   summaryLines,
-} from '../application/read-models/guest-voice-v2-summary'
+} from './guest-voice-v2-summary.server'
 
 export type GuestVoiceSummaryPlan =
   | Readonly<{

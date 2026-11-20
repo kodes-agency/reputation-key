@@ -25,7 +25,7 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/ai/replay/enrollment-store.server.ts#applyAuthorizationLifecycle': 1,
   'src/contexts/ai/replay/enrollment-store.server.ts#approveAssistedReplay': 1,
   'src/contexts/ai/replay/enrollment-store.server.ts#catchUp': 1,
-  'src/contexts/ai/infrastructure/adapters/property-processing-profile.adapter.ts#refreshForAi': 1,
+  'src/contexts/ai/analysis/property-processing-profile.adapter.server.ts#refreshForAi': 1,
   'src/contexts/feed/audit/operational-action-history-store.server.ts#readReadiness': 1,
   'src/contexts/feed/audit/operational-action-history-store.server.ts#redactSubject': 1,
   'src/contexts/feed/rights/recent-activity-privacy-store.server.ts#redactActorLabels': 2,

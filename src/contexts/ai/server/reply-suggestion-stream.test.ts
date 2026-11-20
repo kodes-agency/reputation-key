@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateReplySuggestionStreamFn } from './reply-suggestion-stream'
 import { manageReplyDraftingRequests } from '../reply/requests.server'
-import type { GenerateReplySuggestionDependencies } from '../application/reply-suggestion-contract'
+import type { GenerateReplySuggestionDependencies } from '../reply/reply-suggestion-contract.server'
 
 const mocks = vi.hoisted(() => ({
   tenant: vi.fn(),

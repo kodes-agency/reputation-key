@@ -3,7 +3,7 @@ import type {
   GenerateReplySuggestionDependencies,
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
-} from '../application/reply-suggestion-contract'
+} from './reply-suggestion-contract.server'
 import {
   mapReviewLanguageMetadata,
   parseCanonicalReplyLanguageTag,

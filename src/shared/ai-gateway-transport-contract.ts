@@ -413,7 +413,7 @@ export type AiGatewayFailure = GatewayError<'review-analysis'> | ReplyGatewayErr
  * collapsed the gateway into the calling process, so there is no peer to
  * identify and no certificate to map — the caller is simply which process this
  * is. The route authorization itself did not go with it: it still runs, against
- * `AI_RUNTIME_CAPABILITIES_V1`, in `ai-inprocess.adapter.ts`.
+ * `AI_RUNTIME_CAPABILITIES_V1`, in `ai-inprocess.adapter.server.ts`.
  *
  * `AI_GATEWAY_PATHS_V1` went at the same time. It mapped each route to the URL
  * path the sidecar served it on, and nothing serves URLs any more.

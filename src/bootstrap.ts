@@ -57,15 +57,15 @@ import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-
 import {
   createDrainReviewAnalysisBacklogJobHandler,
   DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME,
-} from '#/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job'
+} from '#/contexts/ai/replay/drain-review-analysis-backlog-job.server'
 import {
   createGuestVoiceSummarySweepJobHandler,
   GUEST_VOICE_SUMMARY_SWEEP_JOB_NAME,
-} from '#/contexts/ai/infrastructure/jobs/guest-voice-summary-sweep.job'
+} from '#/contexts/ai/guest-voice/guest-voice-summary-sweep-job.server'
 import {
   ANALYZE_REVIEW_NOW_JOB_NAME,
   createAnalyzeReviewNowJobHandler,
-} from '#/contexts/ai/infrastructure/jobs/analyze-review-now.job'
+} from '#/contexts/ai/replay/analyze-review-now-job.server'
 import { GoalProgramError } from '#/contexts/reporting/application/public-api'
 import {
   createRevalidateApprovedDestinationsHandler,

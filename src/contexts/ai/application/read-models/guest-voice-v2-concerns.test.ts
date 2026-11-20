@@ -7,7 +7,7 @@ import {
   groups,
   mention,
   review,
-} from './guest-voice-v2.test-fixtures'
+} from '../../guest-voice/guest-voice-v2.test-fixtures'
 
 describe('serious concern membership', () => {
   it('uses urgent members only, splits reasons, retains hidden issues and reason-only reports', () => {

@@ -85,7 +85,7 @@ export const LAYOUT: Layout = {
   ],
   sourceRootFolders: ['composition', 'routes', 'worker'],
   areas: {
-    ai: ['guest-voice', 'replay', 'reply'],
+    ai: ['analysis', 'consent', 'execution', 'guest-voice', 'replay', 'reply', 'rights'],
     feed: ['audit', 'email', 'feed', 'notify', 'preferences', 'rights'],
     guest: ['contact-requests', 'page', 'responses', 'rights'],
     identity: [
