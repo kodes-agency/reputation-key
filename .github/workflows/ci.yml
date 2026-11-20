@@ -61,6 +61,10 @@ jobs:
   storybook-test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20 # longest green run ~14 min
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     # Component-test coverage: renders every story in headless Chromium and
     # runs its play function plus axe — the hard gate for BQR-5.4 a11y.
     #
@@ -122,9 +126,15 @@ jobs:
       # there, and without the guard the job waited for timeout-minutes with a
       # log that named no story. Naming any reporter drops Vitest's defaults,
       # so the two it uses on GitHub Actions are named as well.
-      - name: Run storybook tests
+      # Each shard is its own Vitest process, so the stall guard watches the
+      # files that shard runs. The phone-width list is looked up story by
+      # story and a passing entry only prints, so a shard never counts another
+      # shard's entry as fixed or missing; only a record run rewrites the list,
+      # and it refuses to run sharded.
+      - name: Run storybook tests, shard ${{ matrix.shard }}/2
         run: >-
           pnpm test:storybook
+          --shard=${{ matrix.shard }}/2
           --reporter=default
           --reporter=github-actions
           --reporter=./scripts/ci/storybook-stall-guard.ts
