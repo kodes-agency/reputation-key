@@ -18,13 +18,21 @@ removes rows older than that same occurrence cutoff in bounded batches. Its
 `audit_events` retention-run evidence uses the existing retention failure alert;
 that alert does not detect an overdue or missing sweep.
 
-The table is an additive expansion. Production consumers still write Operational
-Action History, and the new operator read will be empty until copying and writer
-cutover are completed. Existing source tables, restricted history RPCs, legal holds,
-redaction and Organization export/lifecycle contributors remain authoritative.
-No source row is deleted by this expansion.
+The consumer `activity.operational-action-history` writes each fact here, in the
+same transaction as its receipt, and no longer writes Operational Action History.
+Earlier records are copied with:
 
-Before writer cutover, verify stable identities and eligible source counts for
+```bash
+pnpm ops copy-audit-history --operator <id> [--reason <text> --apply] [--batch-size <1..5000>]
+```
+
+The copy is a dry run unless `--apply` is given with a reason, prints counts only
+and takes records from the last 365 days that have no event with the same
+Organization and provenance. A second run copies nothing. The earlier tables, their
+legal holds and the Organization export/lifecycle contributors stay in place and no
+source row is deleted.
+
+Before the earlier tables are removed, verify stable identities and eligible source counts for
 the last 365 days, cover export/redaction and legal-hold transitions, coordinate
 policy-audit writers and publish the approved notice wording. Verify PostgreSQL
 constraints, populated upgrade and the canonical schema dump through the normal

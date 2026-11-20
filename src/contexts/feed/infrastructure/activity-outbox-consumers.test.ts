@@ -3,7 +3,6 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { operationalActionHistoryRecordId } from '../domain/operational-action-history'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -35,17 +34,10 @@ const event = (
 })
 
 const dependencies = () => {
-  const appendOperationalHistoryOnce = vi.fn(async () => 'applied' as const)
+  const writeAuditOnce = vi.fn(async () => 'applied' as const)
   return {
-    deps: {
-      clock: () => new Date('2026-08-28T09:05:00.000Z'),
-      operationalHistoryDeliveryStore: {
-        applyOnce: appendOperationalHistoryOnce,
-      },
-      operationalHistoryIdGen: () =>
-        operationalActionHistoryRecordId('00000000-0000-4000-8000-000000000202'),
-    },
-    appendOperationalHistoryOnce,
+    deps: { auditDeliveryStore: { applyOnce: writeAuditOnce } },
+    writeAuditOnce,
   }
 }
 
@@ -62,9 +54,9 @@ afterEach(() => {
 
 describe('Activity durable Operational Action History consumer', () => {
   it.each(['property.archived', 'property.restored'] as const)(
-    'appends %s to Operational Action History with exact source identity and no archive reason',
+    'writes %s to the audit events with exact source identity and no archive reason',
     async (eventType) => {
-      const { deps, appendOperationalHistoryOnce } = dependencies()
+      const { deps, writeAuditOnce } = dependencies()
       const source = event(
         eventType,
         {
@@ -90,8 +82,8 @@ describe('Activity durable Operational Action History consumer', () => {
         status: 'applied',
       })
 
-      expect(appendOperationalHistoryOnce).toHaveBeenCalledWith({
-        record: expect.objectContaining({
+      expect(writeAuditOnce).toHaveBeenCalledWith({
+        event: {
           organizationId: 'org-1',
           propertyId: '00000000-0000-4000-8000-000000000311',
           actorType: 'user',
@@ -100,24 +92,18 @@ describe('Activity durable Operational Action History consumer', () => {
           outcome: 'succeeded',
           resourceType: 'property',
           resourceId: '00000000-0000-4000-8000-000000000311',
-          reasonCode: null,
-          provenance: {
-            kind: 'domain_fact',
-            id: source.eventId,
-            eventType,
-            eventVersion: 1,
-            sourceContext: 'property',
-            sourceAggregateId: '00000000-0000-4000-8000-000000000311',
-          },
+          sourceKind: 'domain_fact',
+          sourceId: source.eventId,
+          sourceEventType: eventType,
+          sourceEventVersion: 1,
+          sourceContext: 'property',
+          sourceAggregateId: '00000000-0000-4000-8000-000000000311',
           occurredAt: new Date('2026-08-28T09:00:00.000Z'),
-          recordedAt: new Date('2026-08-28T09:05:00.000Z'),
-        }),
+        },
         eventId: source.eventId,
         consumerName: ACTIVITY_OPERATIONAL_ACTION_HISTORY_CONSUMER,
       })
-      expect(JSON.stringify(appendOperationalHistoryOnce.mock.calls)).not.toContain(
-        'private archive',
-      )
+      expect(JSON.stringify(writeAuditOnce.mock.calls)).not.toContain('private archive')
     },
   )
   it.each([
@@ -372,9 +358,9 @@ describe('Activity durable Operational Action History consumer', () => {
       resourceId: '00000000-0000-4000-8000-000000000643',
     },
   ] as const)(
-    'appends the curated $eventType Operational Action History fact without copying source content',
+    'writes the curated $eventType fact to the audit events without copying source content',
     async (testCase) => {
-      const { deps, appendOperationalHistoryOnce } = dependencies()
+      const { deps, writeAuditOnce } = dependencies()
       const source = event(testCase.eventType, testCase.payload, {
         eventVersion: testCase.eventVersion,
         propertyId: testCase.propertyId,
@@ -386,8 +372,8 @@ describe('Activity durable Operational Action History consumer', () => {
         status: 'applied',
       })
 
-      expect(appendOperationalHistoryOnce).toHaveBeenCalledWith({
-        record: expect.objectContaining({
+      expect(writeAuditOnce).toHaveBeenCalledWith({
+        event: expect.objectContaining({
           organizationId: 'org-1',
           propertyId: testCase.propertyId,
           actorType: testCase.actorType,
@@ -396,20 +382,17 @@ describe('Activity durable Operational Action History consumer', () => {
           outcome: 'succeeded',
           resourceType: testCase.resourceType,
           resourceId: testCase.resourceId,
-          reasonCode: null,
-          provenance: {
-            kind: 'domain_fact',
-            id: source.eventId,
-            eventType: testCase.eventType,
-            eventVersion: testCase.eventVersion,
-            sourceContext: testCase.eventType.split('.')[0],
-            sourceAggregateId: testCase.resourceId,
-          },
+          sourceKind: 'domain_fact',
+          sourceId: source.eventId,
+          sourceEventType: testCase.eventType,
+          sourceEventVersion: testCase.eventVersion,
+          sourceContext: testCase.eventType.split('.')[0],
+          sourceAggregateId: testCase.resourceId,
         }),
         eventId: source.eventId,
         consumerName: ACTIVITY_OPERATIONAL_ACTION_HISTORY_CONSUMER,
       })
-      expect(JSON.stringify(appendOperationalHistoryOnce.mock.calls)).not.toContain(
+      expect(JSON.stringify(writeAuditOnce.mock.calls)).not.toContain(
         'snapshot-sensitive-and-excluded',
       )
     },

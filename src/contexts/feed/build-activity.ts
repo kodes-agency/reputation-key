@@ -4,6 +4,7 @@
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { createAuditDeliveryStore } from './audit/deliver.server'
 import { createRecentActivityRepository } from './infrastructure/recent-activity-repository.drizzle'
 import { registerActivityOutboxConsumers } from './infrastructure/activity-outbox-consumers'
 import type { OperationalActionHistoryRecordId } from './domain/operational-action-history'
@@ -63,9 +64,7 @@ export const buildActivityFeed = (input: ActivityBuildInput) => {
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) =>
     registerActivityOutboxConsumers(consumerRegistry, {
-      clock: input.clock,
-      operationalHistoryDeliveryStore: operationalHistoryStore,
-      operationalHistoryIdGen,
+      auditDeliveryStore: createAuditDeliveryStore(input.db),
     })
 
   return {
