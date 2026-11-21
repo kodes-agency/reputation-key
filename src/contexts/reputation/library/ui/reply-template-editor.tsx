@@ -17,7 +17,7 @@ import type {
   ReplyLibraryDto,
   ReplyLibraryTemplateDto,
   SaveReplyTemplateInput,
-} from '#/contexts/review/application/dto/reply-library.dto'
+} from '#/contexts/reputation/library/contracts'
 import { checkReplyText } from '#/shared/reply-library/reply-checks'
 import { renderReply } from '#/shared/reply-library/render-reply'
 import {

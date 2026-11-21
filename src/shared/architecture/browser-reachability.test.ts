@@ -421,7 +421,7 @@ describe('browser reachability (BQC-5.3)', () => {
     expect(denyReason('shared/email/templates/welcome.tsx')).toBe(
       "matches importProtection deny pattern '**/shared/email/**'",
     )
-    expect(denyReason('contexts/review/infrastructure/repositories/x.ts')).toBe(
+    expect(denyReason('contexts/identity/infrastructure/repositories/x.ts')).toBe(
       "matches importProtection deny pattern '**/infrastructure/**'",
     )
     for (const glob of BUILD_IMPORT_PROTECTION.files) {

@@ -7,7 +7,7 @@
 // The filter matches the EFFECTIVE level — a person's, else the suggestion — on
 // Reviews and private feedback alike (ADR 0071), so it is offered in every
 // queue.
-import type { InboxPriority } from '#/contexts/inbox/application/public-api'
+import type { InboxPriority } from '#/contexts/reputation/public-api'
 
 export type InboxPriorityFilterValue = InboxPriority | 'urgent_high'
 

@@ -7,7 +7,7 @@ import {
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '../../../../test-fixtures/generated/google-provider-identifiers-v1'
-import { translatedGoogleReviewApi } from '#/contexts/review/application/public-api'
+import { translatedGoogleReviewApi } from '#/contexts/reputation/public-api'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter.server'
 
 // The head read: reviews.list page 1, newest-updated first, no run and no cursor.

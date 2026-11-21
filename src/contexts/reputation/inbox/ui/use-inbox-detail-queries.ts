@@ -4,7 +4,7 @@
 // third read in a chain; the thread shows it (`inbox-thread.tsx`).
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { inboxHistoryQueryOptions } from './inbox-history-query'
 import { replyRefetchInterval } from '#/contexts/reputation/inbox/ui/page/inbox-cache-policy'

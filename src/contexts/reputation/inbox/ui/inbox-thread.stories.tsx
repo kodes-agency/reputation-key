@@ -43,8 +43,8 @@ import type {
   InboxNote,
   InboxNoteView,
   InboxReviewAnalysis,
-} from '#/contexts/inbox/application/public-api'
-import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
+import type { ReplyPublicationCheckResult } from '#/contexts/reputation/public-api'
 import type {
   InboxHistoryEntry,
   LedgerEntry,

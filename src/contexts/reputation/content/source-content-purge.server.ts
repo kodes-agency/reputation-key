@@ -29,7 +29,7 @@ import {
   createRunReviewSourceContentLifecycle,
   type AuthorizeReviewSourceContentLifecycleApply,
   type RunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 type PurgeDeps = Readonly<{
   db: Database

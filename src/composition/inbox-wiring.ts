@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { buildInboxContext } from '#/contexts/inbox/build'
+import { buildInboxContext } from '#/contexts/reputation/build-inbox'
 import { createInboxCommandAuthority } from '#/contexts/reputation/inbox/inbox-command-authority.adapter.server'
 import { feedbackId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
@@ -7,7 +7,7 @@ import { createInboxReviewAnalysisReader } from './get-inbox-review-analysis.ser
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildGuestContext } from '#/contexts/guest/build'
-import type { ReviewContextApi } from '#/contexts/review/build'
+import type { ReviewContextApi } from '#/contexts/reputation/build-review'
 import type { buildAiContext } from '#/contexts/ai/build'
 import type { ContextWiringInput } from './runtime'
 

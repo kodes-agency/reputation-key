@@ -5,7 +5,7 @@ import { z } from 'zod/v4'
 // is route config, so it is in first paint, and the barrel brought the Inbox
 // command DTO and its zod schemas with it (scripts/check-bundle-budget.mjs,
 // 2026-10-11).
-import { INBOX_QUEUES } from '#/contexts/inbox/application/inbox-queues'
+import { INBOX_QUEUES } from '#/contexts/reputation/inbox/inbox-queues.contracts'
 import {
   ASPECT_POLARITIES_V1,
   ASPECT_TAXONOMY_V1,

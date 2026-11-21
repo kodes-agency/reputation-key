@@ -6,7 +6,7 @@
 // binder it spreads into its result — the part that issues the commands.
 import { describe, expect, it } from 'vitest'
 import { bindEscalationShortcutCommands } from './use-inbox-escalation-shortcut'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import type { InboxDetailState } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 
 type Commands = Pick<InboxDetailState, 'escalate' | 'resolveEscalation'>

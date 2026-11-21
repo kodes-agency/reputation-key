@@ -9,11 +9,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { getInboxItemsFn } from '#/contexts/reputation/server/inbox'
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
 import type { InboxFilterValues } from '#/contexts/reputation/inbox/ui/page/inbox-filters'
-import type {
-  InboxItem,
-  Cursor,
-  InboxQueue,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, Cursor, InboxQueue } from '#/contexts/reputation/public-api'
 import { INBOX_PAGE_SIZE } from '#/contexts/reputation/inbox/ui/page/inbox-search-schema'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import {

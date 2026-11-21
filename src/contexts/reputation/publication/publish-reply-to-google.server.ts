@@ -6,14 +6,14 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   executorErrorToReviewApiError,
   isProviderCallFailure,
-} from '../../review/application/google-review-api-error'
+} from '../sync/google-review-api-error.server'
 import { withReauthorizationCause } from './reauthorization-cause.server'
 import type {
   GoogleConnectionStatusPort,
   GoogleReplyPublicationRequest,
   GoogleReplyPublicationResult,
   GoogleReviewApiPort,
-} from '../../review/application/ports/google-review-api.port'
+} from '../sync/google-review-api.port.server'
 
 export type PublishReplyToGoogleDeps = Readonly<{
   googleReviewApi: Pick<GoogleReviewApiPort, 'replyToReview'>

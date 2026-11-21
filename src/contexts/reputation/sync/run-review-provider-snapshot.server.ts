@@ -1,4 +1,4 @@
-import { translatedGoogleReviewApi } from '../../review/application/google-review-api-error'
+import { translatedGoogleReviewApi } from './google-review-api-error.server'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
 import {
@@ -11,7 +11,7 @@ import {
   type GoogleReviewApiPort,
   type GoogleReviewPage,
   type GoogleReviewRead,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type { PropertySourceEpochPort } from './property-source-epoch.port.server'
 import type { GoogleReview } from '../domain/review-types'
 import type {

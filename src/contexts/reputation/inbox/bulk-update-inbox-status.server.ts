@@ -31,7 +31,7 @@ import {
   resolveInboxSourceScopes,
 } from '#/contexts/reputation/inbox/inbox-access.server'
 import type { InboxSourceScope } from '#/contexts/reputation/inbox/inbox-repository.port.server'
-import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/dto/inbox.dto'
+import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
 

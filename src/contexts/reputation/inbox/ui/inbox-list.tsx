@@ -2,13 +2,13 @@ import { cn } from '#/shared/class-names/utils'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { InboxActiveFilters } from '#/contexts/reputation/inbox/ui/page/inbox-active-filters'
 import { InboxListHeader } from '#/contexts/reputation/inbox/ui/page/inbox-list-header'
-import {
-  INBOX_BULK_LIMIT,
-  type Cursor,
-  type InboxItem,
-  type InboxSort,
-  type InboxQueue,
-} from '#/contexts/inbox/application/public-api'
+import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
+import type {
+  Cursor,
+  InboxItem,
+  InboxSort,
+  InboxQueue,
+} from '#/contexts/reputation/public-api'
 import { InboxBulkActions } from '#/contexts/reputation/inbox/ui/page/inbox-bulk-actions'
 import { LoadMoreButton } from '#/components/ui/load-more-button'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'

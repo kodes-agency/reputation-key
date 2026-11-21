@@ -45,10 +45,8 @@ const controls = [
     source:
       "import { StoredObjectTooLargeError } from '#/contexts/portal/public-api'\nexport const control = StoredObjectTooLargeError\n",
   },
-  // An area's public API is src/contexts/<area>/public-api.ts (Review and Inbox
-  // keep application/public-api.ts until their server functions move).
-  // It keeps the bans application/ had, and a feature file named like a public
-  // API is not one.
+  // An area's public API is src/contexts/<area>/public-api.ts. It keeps the bans
+  // application/ had, and a feature file named like a public API is not one.
   {
     name: "an area's root public API cannot import UI",
     file: 'src/contexts/feed/public-api.ts',
@@ -136,12 +134,12 @@ const controls = [
   },
   {
     name: 'domain cannot import database runtime',
-    file: 'src/contexts/review/domain/boundary-negative-control.ts',
+    file: 'src/contexts/reputation/domain/boundary-negative-control.ts',
     source: "import '#/shared/db'\n",
   },
   {
     name: 'context build cannot import UI',
-    file: 'src/contexts/review/build-boundary-negative-control.ts',
+    file: 'src/contexts/reputation/build-boundary-negative-control.ts',
     source: "import '#/components/ui/button'\n",
   },
   {
@@ -211,7 +209,7 @@ const controls = [
   },
   {
     name: 'another context cannot import a feature server implementation',
-    file: 'src/contexts/review/application/boundary-negative-control.ts',
+    file: 'src/contexts/ai/application/boundary-negative-control.ts',
     source: "import '#/contexts/reporting/portal-results/get-portal-analytics.server'\n",
   },
   {
@@ -271,7 +269,7 @@ const controls = [
   },
   {
     name: 'infrastructure cannot reach outward to composition',
-    file: 'src/contexts/review/infrastructure/boundary-negative-control.ts',
+    file: 'src/contexts/identity/infrastructure/boundary-negative-control.ts',
     source: "import '#/composition'\n",
   },
   {
@@ -436,30 +434,7 @@ const allowedControls = [
     source:
       "import type { PropertyPublicApi } from '#/contexts/property/public-api'\nexport type Control = PropertyPublicApi\n",
   },
-  // Review and Inbox keep application/public-api.ts until their server functions move, so these
-  // controls keep the old path covered.
-  {
-    name: "a feature screen may import Review's application public API",
-    file: 'src/contexts/guest/page/ui/boundary-positive-control.tsx',
-    source: "import '#/contexts/review/application/public-api'\n",
-  },
-  {
-    name: "a feature server may import Review's application public API",
-    file: 'src/contexts/guest/rights/boundary-positive-control.server.ts',
-    source: "import '#/contexts/review/application/public-api'\n",
-  },
-  {
-    name: "a route may import Inbox's application public API",
-    file: 'src/routes/boundary-positive-control.ts',
-    source: "import '#/contexts/inbox/application/public-api'\n",
-  },
-  {
-    name: "an operator script may import Review's application public API",
-    file: 'scripts/ops/boundary-positive-control.ts',
-    source: "import '../../src/contexts/review/application/public-api'\n",
-  },
-  // Once an area has moved, its public API is the root file; the same seams
-  // must be open for it.
+  // An area's public API is the root file; these seams must be open for it.
   {
     name: "a feature screen may import another area's public API",
     file: 'src/contexts/guest/page/ui/boundary-positive-control.tsx',
@@ -480,11 +455,13 @@ const allowedControls = [
     file: 'scripts/ops/boundary-positive-control.ts',
     source: "import '../../src/contexts/feed/public-api'\n",
   },
+  // A contract may not import a server port of its own area, so it takes the
+  // port's types through its area's public API.
   {
-    name: "a feature contract may take types from Review's application public API until its server functions move",
-    file: 'src/contexts/guest/page/boundary-positive-control.contracts.ts',
+    name: "a feature contract may take types from its own area's public API",
+    file: 'src/contexts/reputation/inbox/boundary-positive-control.contracts.ts',
     source:
-      "import type { Review } from '#/contexts/review/application/public-api'\nexport type Control = Review\n",
+      "import type { InboxFilters } from '#/contexts/reputation/public-api'\nexport type Control = InboxFilters\n",
   },
   {
     name: 'route may import a feature browser contract',
@@ -504,13 +481,13 @@ const allowedControls = [
   },
   {
     name: 'domain may import shared domain',
-    file: 'src/contexts/review/domain/boundary-positive-control.ts',
+    file: 'src/contexts/reputation/domain/boundary-positive-control.ts',
     source: "import '#/shared/domain/ids'\n",
   },
   {
     name: 'composition may import a context build seam',
     file: 'src/composition.ts',
-    source: "import '#/contexts/review/build'\n",
+    source: "import '#/contexts/reputation/build-review'\n",
   },
   {
     name: 'router may import a UI primitive',

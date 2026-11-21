@@ -12,7 +12,7 @@ import type {
 import { googleNumbersView, ratingGoalOffered } from '../domain/google-numbers'
 import type { OrganizationId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
-import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+import type { InboxPublicApi } from '#/contexts/reputation/public-api'
 import { dashboardError } from '../domain/dashboard-errors'
 
 export type GetFleetOverviewInput = Readonly<{

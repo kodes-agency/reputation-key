@@ -41,7 +41,7 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/replay/ai-job-enqueue.server'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails-job.server'
 import { createGoogleImportQueue } from '#/contexts/integration/imports/google-import-queue.server'
-import { buildReviewContext } from '#/contexts/review/build'
+import { buildReviewContext } from '#/contexts/reputation/build-review'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => createMockLogger(),

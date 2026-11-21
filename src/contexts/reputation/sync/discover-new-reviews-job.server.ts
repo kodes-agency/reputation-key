@@ -80,7 +80,7 @@ import {
   DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
   type ReviewHeadCheckQueuePort,
   type ReviewQueuePort,
-} from '../../review/application/ports/review-queue.port'
+} from './review-queue.port.server'
 import type {
   ReviewDiscoveryCandidate,
   ReviewDiscoveryRepository,

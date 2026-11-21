@@ -22,7 +22,7 @@ import {
   runRestoreVerifyAction,
   type RestoreReviewLifecycleRuntimeTarget,
 } from '#/shared/ops/restore-verify'
-import { collectReviewSourceContentLifecycleReport } from '../../review/application/use-cases/collect-source-content-lifecycle-report'
+import { collectReviewSourceContentLifecycleReport } from './collect-source-content-lifecycle-report.server'
 import { dropTestDatabase } from '#/shared/testing/drop-test-database'
 import { ensureTestDatabase } from '#/shared/testing/test-db-setup'
 import {
@@ -34,7 +34,7 @@ import { createReviewLifecycleRecoveryAuthorityFactory } from './recovery-mainte
 import {
   createRunReviewSourceContentLifecycle,
   type RunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 import {
   createReviewLifecycleRecoveryExecutionRepository,
   createReviewLifecycleRecoveryPlanningQuery,

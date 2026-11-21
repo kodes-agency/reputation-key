@@ -13,7 +13,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { createReviewLifecycleRecoveryAuthorityFactory } from '#/contexts/reputation/content/recovery-maintenance.server'
-import { createRunReviewSourceContentLifecycle } from '#/contexts/review/application/use-cases/run-source-content-lifecycle'
+import { createRunReviewSourceContentLifecycle } from '#/contexts/reputation/content/run-source-content-lifecycle.server'
 import type { ReviewLifecycleRecoveryExecutionAuthorityInput } from '#/contexts/reputation/content/lifecycle-recovery-execution-repository.port.server'
 import type { ReviewSourceContentLifecycleInspection } from '#/contexts/reputation/content/source-content-lifecycle-store.port.server'
 import { reviewId } from '#/shared/domain/ids'

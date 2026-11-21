@@ -20,7 +20,7 @@ import { makeInboxFns } from '../../../../../../.storybook/in-memory/inbox-fns'
 import type {
   InboxNote,
   InboxRevisionConflictResult,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { buildBulkReopenCommands } from './inbox-bulk-policy'
 import { installInboxCacheHarness, type ListFilters } from './inbox-cache-test-harness'

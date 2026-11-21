@@ -1,7 +1,7 @@
 import { storedReplyFrame } from '#/shared/domain/reply-frame'
 import { mapReplyLanguageMetadata } from '#/shared/reply-language-catalogue'
 import { reviewId } from '#/shared/domain/ids'
-import type { InboxItemDetailResult } from '../../inbox/application/public-api'
+import type { InboxItemDetailResult } from '../public-api'
 // Inbox context — item detail query server functions
 
 import {
@@ -23,7 +23,7 @@ import {
   getInboxItemDetailDto,
   getInboxItemHistoryDto,
   getInboxNotesDto,
-} from '../../inbox/application/dto/inbox.dto'
+} from '../inbox/contracts'
 
 // ── getInboxItemDetail ─────────────────────────────────────────────
 

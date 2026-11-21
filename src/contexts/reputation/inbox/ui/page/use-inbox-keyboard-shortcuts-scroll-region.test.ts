@@ -10,7 +10,7 @@ import {
   type InboxShortcutEvent,
   type InboxShortcutInput,
 } from './use-inbox-keyboard-shortcuts'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 
 const ITEMS = ['a', 'b', 'c'].map(
   (id) =>

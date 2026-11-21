@@ -5,7 +5,7 @@ import type {
   InboxPropertyCounts,
   InboxQueue,
   InboxQueueCounts,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { InboxQueueRail } from './inbox-queue-rail'
 import { defaultInboxQueue, type InboxQueueViewer } from './inbox-queue-sections'
 import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'

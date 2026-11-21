@@ -13,7 +13,7 @@ import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import {
   REPLY_PRE_READ_REFUSAL_OPERATION,
   translatedGoogleReviewApi,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter.server'
 
 const ORG_ID = organizationId('0UM0PoDLJNJ3yGCeBMERaQkQyxer9BuC')

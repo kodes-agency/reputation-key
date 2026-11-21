@@ -25,7 +25,7 @@ import type {
   FeedbackHandlingCommandResult,
   InboxItem,
   InboxItemDetailResult,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 export type InboxReplyCacheChange = Readonly<{
   kind: 'draft_saved' | 'state_changed'

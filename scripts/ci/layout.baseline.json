@@ -14,13 +14,11 @@
   "src/contexts/feed/rights/fields.ts": 1,
   "src/contexts/identity/application": 5,
   "src/contexts/identity/infrastructure": 5,
-  "src/contexts/inbox/application": 3,
   "src/contexts/integration/application": 6,
   "src/contexts/integration/imports/ui/index.ts": 1,
   "src/contexts/portal/application": 5,
   "src/contexts/portal/infrastructure": 31,
   "src/contexts/reporting/application": 9,
   "src/contexts/reporting/infrastructure": 2,
-  "src/contexts/review/application": 12,
   "src/shared/*": 15
 }

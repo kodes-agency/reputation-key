@@ -11,7 +11,7 @@ import { getLogger } from '#/shared/observability/logger'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
-import type { ReviewContextApi } from '#/contexts/review/build'
+import type { ReviewContextApi } from '#/contexts/reputation/build-review'
 import type { buildGoogleProviderAuthority } from './google-provider-authority'
 import type { ContextWiringInput } from './runtime'
 

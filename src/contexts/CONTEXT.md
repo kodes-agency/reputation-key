@@ -4,21 +4,20 @@
 
 ## Responsibility
 
-Eleven areas own product meaning and state. Review, Inbox and Reputation are one
-bounded context: Reputation holds its features (content, inbox, library,
-publication, replies, response-targets, reviews, sync), its screens and the shared
-`domain/`; Review and Inbox keep their server functions, public APIs, builds and
-the few layer files their maps list.
+Nine areas own product meaning and state. Review, Inbox and Reputation are one
+bounded context, and Reputation holds all of it: its features (content, inbox,
+library, publication, replies, response-targets, reviews, sync), its screens,
+server functions, builds, public API and the shared `domain/`.
 
 - **Identity** — users, Organizations, membership, access, and People facts.
 - **Property** — Property identity, lifecycle, Google binding, and responsibility.
 - **Portal** — public review gateways, publication, groups, links, and access artifacts.
 - **Guest** — private responses, feedback, qualified actions, and integrity.
 - **Integration** — Google connection, import, provider access, and Performance I/O.
-- **Review** — stable external Reviews, source lifecycle, and manager Replies.
 - **AI** — governed Review Analysis, Reply Drafting, and Property Trends.
-- **Inbox** — triage Items, Handling Cycles, notes, and Response Targets.
-- **Reputation** — the Inbox, Reply, Review and Response Target features and screens, Review sync, Reply publication and provider content lifecycle.
+- **Reputation** — Review and Inbox: stable external Reviews, Review sync, source
+  and provider content lifecycle, manager Replies and their publication, triage
+  Items, Handling Cycles, notes and Response Targets.
 - **Reporting** — Metric, Goal, and Dashboard read/reporting models.
 - **Feed** — Operational Action History, retained Recent Activity records, and notifications.
 
@@ -45,7 +44,7 @@ An area holds its features, and three things every feature shares:
 - `server/` adapts authenticated TanStack Start calls to the built application
   API. Server-function paths are stable RPC entry points.
 - `build.ts` and `build-*.ts` are the composition seam.
-- `public-api.ts` is the one file another area may import. Review and Inbox keep `application/public-api.ts` until their server functions move.
+- `public-api.ts` is the one file another area may import.
 
 `application/`, `infrastructure/` and `ports/` are the earlier layer folders.
 They only shrink: add no production file to them (a test beside old code is
@@ -63,8 +62,7 @@ fine), and move a file out in a change that does nothing else.
    server files; another area is reached only through its public API. A feature
    that outgrows one folder becomes two features, not a folder with sub-folders.
 4. Expose a call to the browser as a server function in the area's `server/`.
-   Expose a read or command to another area through the area's `public-api.ts`
-   (Review and Inbox keep `application/public-api.ts` until their server functions move).
+   Expose a read or command to another area through the area's `public-api.ts`.
 5. Wire new dependencies in `build.ts`.
 6. Run `pnpm check:layout` and `pnpm lint`.
 
@@ -74,9 +72,8 @@ are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-cont
 
 ## Dependency rules
 
-- Cross-context code imports only an area's `public-api.ts` (Review and Inbox
-  keep `application/public-api.ts` until their server functions move) or
-  implements a consumer-owned application port. Never import a foreign `domain/`,
+- Cross-context code imports only an area's `public-api.ts` or implements a
+  consumer-owned application port. Never import a foreign `domain/`,
   `infrastructure/`, `server/`, or non-public application module. The port's
   implementation lives in `infrastructure/adapters/` or in a feature as
   `<name>.adapter.server.ts`; a feature's contracts may name another area's
@@ -92,8 +89,9 @@ Cross-context public-interface rules are enforced by `eslint-rules/cross-context
 
 ## Composition
 
-The root composes Identity → Property → Portal → Guest → Integration → Review →
-AI → Inbox, then Reporting and Feed. Later dependencies arrive through public
+The root composes Identity → Property → Portal → Guest → Integration →
+Reputation's Review build (`build-review.ts`) → AI → Reputation's Inbox build
+(`build-inbox.ts`), then Reporting and Feed. Later dependencies arrive through public
 interfaces or narrow late-bound closures; contexts never reorder construction by
 reaching into another package's internals.
 

@@ -7,7 +7,7 @@ import {
   TimelineItem,
 } from '#/components/ui/timeline'
 import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
-import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
+import type { ReplyPublicationCheckResult } from '#/contexts/reputation/public-api'
 import { cn } from '#/shared/class-names/utils'
 import { GoogleLinkedText } from '../../../inbox/ui/google-review-anchor'
 import type { GoogleReviewLink } from '../../../inbox/ui/google-review-link'
@@ -206,9 +206,7 @@ type Props = Readonly<{
   onApprove: (expectedReply: ReplyOnScreen) => Promise<unknown>
   onCheckDraft?: (
     text: string,
-  ) => Promise<
-    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
-  >
+  ) => Promise<import('#/contexts/reputation/library/contracts').ReplyDraftCheckDto>
   onReject: (reason?: string) => Promise<unknown>
   /** Resolves what the check found; see `useReplyCheckRun`. */
   onCheck: () => Promise<ReplyPublicationCheckResult>

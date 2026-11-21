@@ -47,7 +47,7 @@ import { retentionRuleCutoff } from '../../src/shared/db/retention/retention-cut
 import {
   collectReviewSourceContentLifecycleReport,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
-} from '../../src/contexts/review/application/public-api'
+} from '../../src/contexts/reputation/public-api'
 import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
 import {
   composeRightsReplayers,

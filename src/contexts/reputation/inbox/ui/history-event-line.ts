@@ -47,7 +47,7 @@ import {
   presentFeedbackHandlingOutcomeEvent,
 } from './feedback-handling-presentation'
 import type { InboxHistoryEntry } from './inbox-thread-model'
-import type { ManualReopenReason } from '#/contexts/inbox/application/public-api'
+import type { ManualReopenReason } from '#/contexts/reputation/public-api'
 import { PRIORITY_WORD } from '#/contexts/reputation/inbox/ui/page/inbox-priority-view'
 
 type InboxHistoryDetail = InboxHistoryEntry['detail']

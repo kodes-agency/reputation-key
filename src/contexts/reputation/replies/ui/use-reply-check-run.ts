@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
+import type { ReplyPublicationCheckResult } from '#/contexts/reputation/public-api'
 import {
   replyCheckFeedback,
   replyCheckLineKey,

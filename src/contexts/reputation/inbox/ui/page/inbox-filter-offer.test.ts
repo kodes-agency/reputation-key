@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { INBOX_QUEUES } from '#/contexts/inbox/application/inbox-queues'
+import { INBOX_QUEUES } from '#/contexts/reputation/inbox/inbox-queues.contracts'
 import { filtersOffered, offeredListFilters } from './inbox-filter-offer'
 import { CLEARED_INBOX_LIST_FILTERS, type InboxListFilterValues } from './inbox-filters'
 

@@ -1,6 +1,8 @@
-import type { InboxFilters } from '../../reputation/inbox/inbox-repository.port.server'
+// A contract may not import a server port, so the filter shape comes through
+// the public API, as a type.
+import type { InboxFilters } from '#/contexts/reputation/public-api'
 import type { ReviewId, UserId } from '#/shared/domain/ids'
-import { inboxError } from '../../reputation/domain/inbox-errors'
+import { inboxError } from '../domain/inbox-errors'
 import {
   replyQueueStage,
   type ReplyQueueStage as InboxReplyStage,

@@ -7,11 +7,11 @@ import {
   type ReviewProviderJobData,
   type SyncPropertyReviewsJobData,
   type TargetedGoogleReviewFetchJobData,
-} from '../../review/application/ports/review-queue.port'
+} from './review-queue.port.server'
 import type { PropertySourceEpochPort } from './property-source-epoch.port.server'
 import { historyImportFailureReason } from './historical-import-outcome.server'
 import { isParkedSnapshotFailure } from './parked-snapshot-failure.server'
-import { GOOGLE_CONNECTION_UNUSABLE_CODE } from '../../review/application/ports/google-review-api.port'
+import { GOOGLE_CONNECTION_UNUSABLE_CODE } from './google-review-api.port.server'
 import type { ReviewSyncActivityRecorder } from './review-sync-activity-repository.port.server'
 import type { ReviewDiscoveryRepository } from './review-discovery-repository.port.server'
 import type { ReviewProviderSnapshotFailureCode } from './review-provider-snapshot-repository.port.server'

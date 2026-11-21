@@ -16,13 +16,13 @@ describe('Review and Identity seams to Integration', () => {
   // Review receives an opaque cursor reference and hands the same reference
   // back, so a leaked Review value can never be replayed against Google.
   it('gives Review an opaque cursor reference, never a provider page token', () => {
-    const port = read('src/contexts/review/application/ports/google-review-api.port.ts')
+    const port = read('src/contexts/reputation/sync/google-review-api.port.server.ts')
     expect(port).not.toContain('pageToken')
     expect(port).not.toContain('nextPageToken')
   })
 
   it('reaches Integration through its seams, never through a context-private hatch', () => {
-    expect(read('src/contexts/review/build.ts')).not.toContain('.internal.')
+    expect(read('src/contexts/reputation/build-review.ts')).not.toContain('.internal.')
     expect(
       read(`${INTEGRATION}/connections/member-departure-outbox-consumers.server.ts`),
     ).not.toContain('.internal.')

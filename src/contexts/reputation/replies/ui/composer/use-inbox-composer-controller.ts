@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import type { ComposerMode } from './reply-composer'
 import type { CaretRequest, ReopenState, ReplyEditState } from './composer-policy'
 import { liveEditTarget } from './composer-policy'

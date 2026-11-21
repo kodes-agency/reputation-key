@@ -1,10 +1,7 @@
 // Who sees which queues, in which order, and where a viewer lands. The rail and
 // the phone's queue sheet draw the same sections from here (ADR 0057, amended
 // 2026-10-28), so a section can never be on one and missing from the other.
-import type {
-  InboxQueue,
-  InboxQueueCounts,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxQueue, InboxQueueCounts } from '#/contexts/reputation/public-api'
 import {
   queueCount,
   queueItem,

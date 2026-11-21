@@ -7,7 +7,7 @@ import type {
   GoogleReviewHeadContinuation,
   GoogleReviewHeadResult,
   GoogleReviewRead,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type {
   ReviewHeadCheckRepository,
   ReviewHeadPersistState,

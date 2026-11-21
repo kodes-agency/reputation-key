@@ -8,7 +8,7 @@
 // runs in node with no jsdom, so the hook is only the window binding and the
 // handler is what the tests drive.
 import { useEffect, useRef } from 'react'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { isEscalationActive } from '../inbox-case-toolbar-props'
 
 /**

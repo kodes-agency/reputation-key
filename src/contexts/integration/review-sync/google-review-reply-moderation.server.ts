@@ -13,7 +13,7 @@
 
 import { z } from 'zod/v4'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { ReplyModeration } from '#/contexts/review/application/public-api'
+import type { ReplyModeration } from '#/contexts/reputation/public-api'
 
 /** The reply object's moderation fields, for the review item schema. */
 export const replyModerationFields = {

@@ -3,14 +3,14 @@ import {
   executorErrorToReviewApiError,
   isProviderCallFailure,
   isReplyPreReadRefusal,
-} from '../../review/application/google-review-api-error'
+} from '../sync/google-review-api-error.server'
 import { withReauthorizationCause } from './reauthorization-cause.server'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
 import type {
   GoogleConnectionStatusPort,
   GoogleReviewApiPort,
-} from '../../review/application/ports/google-review-api.port'
+} from '../sync/google-review-api.port.server'
 import type { PropertySourceEpochPort } from '../sync/property-source-epoch.port.server'
 import type { ReviewProviderObservationWriter } from '../sync/sync-reviews.port.server'
 import type { ReviewProviderSubjectSightings } from '../sync/review-provider-subject-link.port.server'

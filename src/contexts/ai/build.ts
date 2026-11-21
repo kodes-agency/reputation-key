@@ -5,7 +5,7 @@ import type { OrganizationId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Database } from '#/shared/db'
 import type { Redis } from 'ioredis'
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
 import {
   createCld3ReplyLanguageDetector,

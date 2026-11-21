@@ -8,8 +8,8 @@ import {
   publicationFailureCause,
   publicationFailureEvidence,
 } from '../domain/reply-publication-workflow'
-import { googleReviewApiNotConfigured } from '../../review/application/ports/google-review-api.port'
-import type { GoogleReplyPublicationRequest } from '../../review/application/ports/google-review-api.port'
+import { googleReviewApiNotConfigured } from '../sync/google-review-api.port.server'
+import type { GoogleReplyPublicationRequest } from '../sync/google-review-api.port.server'
 import { publishReplyToGoogle } from './publish-reply-to-google.server'
 
 const REQUEST = {

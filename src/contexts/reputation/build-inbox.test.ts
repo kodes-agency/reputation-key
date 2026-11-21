@@ -3,9 +3,9 @@ import type { Database } from '#/shared/db'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import type { ReviewLookupPort } from '../reputation/inbox/review-lookup.port.server'
-import type { InboxContextBuildInput } from './build'
-import { buildInboxContext } from './build'
+import type { ReviewLookupPort } from './inbox/review-lookup.port.server'
+import type { InboxContextBuildInput } from './build-inbox'
+import { buildInboxContext } from './build-inbox'
 
 describe('buildInboxContext', () => {
   function build() {

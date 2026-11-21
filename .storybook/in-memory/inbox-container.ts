@@ -6,8 +6,11 @@
 //
 // This module lives outside src/components, so the boundary gate doesn't scan
 // it; it imports use-cases + in-memory doubles that are verified browser-safe.
-import { projectInboxRequestApi, wireUseCases } from '#/contexts/inbox/build-use-cases'
-import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+import {
+  projectInboxRequestApi,
+  wireUseCases,
+} from '#/contexts/reputation/build-inbox-use-cases'
+import type { InboxPublicApi } from '#/contexts/reputation/public-api'
 import {
   createStoryOnlyInboxCommandStore,
   createStoryOnlyInboxRepo,

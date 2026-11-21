@@ -32,7 +32,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags application → foreign domain', async () => {
     const messages = await lintSnippet(
       `import { assertRegionResolved } from '#/contexts/property/domain/processing-routing'\nexport const gate = assertRegionResolved\n`,
-      'src/contexts/review/application/use-cases/sample.ts',
+      'src/contexts/ai/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
@@ -40,7 +40,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags application → foreign non-public-api application', async () => {
     // @proof ARCHITECTURE_BOUNDARY_IMPORTS#2
     const messages = await lintSnippet(
-      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -54,9 +54,8 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
 
-  // The public API sits at the area's root; Review and Inbox keep
-  // application/public-api.ts until their server functions move. Path math
-  // only: the target need not exist.
+  // The public API sits at the area's root. Path math only: the target need
+  // not exist.
   it('flags the retired application/public-api of an area that moved', async () => {
     const messages = await lintSnippet(
       `import type { PropertyPublicApi } from '#/contexts/property/application/public-api'\nexport type { PropertyPublicApi }\n`,
@@ -64,17 +63,6 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
-
-  it.each(['review', 'inbox'])(
-    "allows %s's application/public-api until its server functions move",
-    async (area) => {
-      const messages = await lintSnippet(
-        `import '#/contexts/${area}/application/public-api'\n`,
-        'src/contexts/ai/reply/sample.server.ts',
-      )
-      expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
-    },
-  )
 
   it('allows a relative import of a foreign root public-api', async () => {
     const messages = await lintSnippet(
@@ -99,7 +87,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows infrastructure/adapters → foreign application/ports (adapter exception)', async () => {
     const messages = await lintSnippet(
-      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/infrastructure/adapters/sample.adapter.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -107,7 +95,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags infrastructure outside adapters/ → foreign application/ports', async () => {
     const messages = await lintSnippet(
-      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/infrastructure/repositories/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -115,7 +103,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows a feature adapter → foreign application/ports (adapter exception)', async () => {
     const messages = await lintSnippet(
-      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/imports/sample.adapter.server.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -123,7 +111,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags a feature server file that is not an adapter → foreign application/ports', async () => {
     const messages = await lintSnippet(
-      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/imports/sample.server.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -131,7 +119,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags a feature adapter → foreign infrastructure', async () => {
     const messages = await lintSnippet(
-      `import '#/contexts/review/infrastructure/sample'\n`,
+      `import '#/contexts/identity/infrastructure/sample'\n`,
       'src/contexts/integration/imports/sample.adapter.server.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -165,15 +153,15 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags relative imports crossing into a foreign context domain', async () => {
     const messages = await lintSnippet(
       `import { assertRegionResolved } from '../../property/domain/processing-routing'\nexport const gate = assertRegionResolved\n`,
-      'src/contexts/review/application/sample.ts',
+      'src/contexts/ai/application/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
 
   it('allows same-context imports', async () => {
     const messages = await lintSnippet(
-      `import { reviewError } from '../../domain/errors'\nimport type { ReviewRepository } from '../ports/review.repository'\nexport const make = (_repo: ReviewRepository) => reviewError\n`,
-      'src/contexts/review/application/use-cases/sample.ts',
+      `import { aiError } from '../../domain/errors'\nimport type { AiControl } from '../ports/ai-control.port'\nexport const make = (_control: AiControl) => aiError\n`,
+      'src/contexts/ai/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
@@ -198,7 +186,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags inline import types of a foreign context domain', async () => {
     const messages = await lintSnippet(
       `export type Gate = import('#/contexts/property/domain/processing-routing').ProcessingRouting\n`,
-      'src/contexts/review/application/use-cases/sample.ts',
+      'src/contexts/ai/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
@@ -206,7 +194,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags relative inline import types crossing into a foreign context', async () => {
     const messages = await lintSnippet(
       `export type Gate = import('../../property/domain/processing-routing').ProcessingRouting\n`,
-      'src/contexts/review/application/sample.ts',
+      'src/contexts/ai/application/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })

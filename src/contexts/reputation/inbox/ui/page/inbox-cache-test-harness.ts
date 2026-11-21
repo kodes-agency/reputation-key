@@ -27,10 +27,7 @@ import {
   type QueryObserverOptions,
 } from '@tanstack/react-query'
 import { afterEach, beforeEach, vi } from 'vitest'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { INBOX_PAGE_SIZE } from './inbox-search-schema'
 import type { InboxServerFns } from './types'

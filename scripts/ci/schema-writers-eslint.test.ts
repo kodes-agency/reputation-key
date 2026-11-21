@@ -29,7 +29,7 @@ function messages(code: string, filename: string, plugin: unknown, rule: string)
 
 const owner = (code: string, filename: string) =>
   messages(code, filename, schemaWriters, 'owner')
-const outsider = 'src/contexts/review/infrastructure/some-store.ts'
+const outsider = 'src/contexts/identity/infrastructure/some-store.ts'
 const replyOwner = 'src/contexts/reputation/replies/store.server.ts'
 
 describe('schema writer ownership lint rule', () => {
@@ -46,10 +46,13 @@ describe('schema writer ownership lint rule', () => {
 
   it('rejects a second writer of a Feed table', () => {
     expect(
-      owner('await db.insert(auditEvents).values(row)', 'src/contexts/review/x.ts'),
+      owner('await db.insert(auditEvents).values(row)', 'src/contexts/reputation/x.ts'),
     ).toEqual(['notOwner'])
     expect(
-      owner('await db.update(notifications).set(x)', 'src/contexts/inbox/x.ts'),
+      owner(
+        'await db.update(notifications).set(x)',
+        'src/contexts/reputation/inbox/x.ts',
+      ),
     ).toEqual(['notOwner'])
   })
 

@@ -12,7 +12,7 @@ import {
   propertyIdsForInboxSource,
   resolveInboxSourceScopes,
 } from './inbox-access.server'
-import type { InboxReplyStages } from '../../inbox/application/inbox-queues'
+import type { InboxReplyStages } from './inbox-queues.contracts'
 import type { InboxSourceScope } from './inbox-repository.port.server'
 import type { ReplyLookupPort } from './reply-lookup.port.server'
 import { resolveVisiblePropertyIds } from './visible-properties.server'

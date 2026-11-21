@@ -25,14 +25,14 @@ import {
 } from '#/contexts/reputation/inbox/ui/use-google-review-check'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { InboxPriorityMenuBox } from '#/contexts/reputation/inbox/ui/inbox-case-toolbar-props'
-import {
-  isInboxRevisionConflictResult,
-  type InboxItem,
-  type FeedbackHandlingCommandResult,
-  type InboxItemDetailResult,
-  type InboxNoteView,
-  type InboxRevisionConflictResult,
-} from '#/contexts/inbox/application/public-api'
+import { isInboxRevisionConflictResult } from '#/contexts/reputation/inbox/contracts'
+import type {
+  InboxItem,
+  FeedbackHandlingCommandResult,
+  InboxItemDetailResult,
+  InboxNoteView,
+  InboxRevisionConflictResult,
+} from '#/contexts/reputation/public-api'
 
 type RevisionedCommandInput = Readonly<{
   data: Readonly<{ expectedCommandRevision: number }>

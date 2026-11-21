@@ -1,5 +1,5 @@
 import { guestVoicePeriod, buildGuestVoicePeriod } from './period.server'
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {

@@ -19,11 +19,11 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 type AddInboxNoteFn = InboxServerFns['addInboxNote']
-import {
-  isInboxRevisionConflictResult,
-  type InboxNote,
-  type InboxRevisionConflictResult,
-} from '#/contexts/inbox/application/public-api'
+import { isInboxRevisionConflictResult } from '#/contexts/reputation/inbox/contracts'
+import type {
+  InboxNote,
+  InboxRevisionConflictResult,
+} from '#/contexts/reputation/public-api'
 import { inboxCachePolicy } from '#/contexts/reputation/inbox/ui/page/inbox-cache-policy'
 import { withFreshCommandRevision } from './use-inbox-detail'
 

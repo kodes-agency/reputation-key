@@ -5,7 +5,7 @@ import type {
   GoogleReviewApiErrorCode,
   GoogleReviewApiFailure,
   GoogleReviewApiPort,
-} from './ports/google-review-api.port'
+} from './google-review-api.port.server'
 
 // How a provider answer or a gateway refusal becomes the typed
 // `GoogleReviewApiError` the Review use cases branch on. The integration

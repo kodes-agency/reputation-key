@@ -8,7 +8,7 @@
 // What may sit INSIDE the folded span — a note, the reply, an event carrying a
 // person's words — is `inbox-thread-model-fold-span.test.ts`.
 import { describe, expect, it } from 'vitest'
-import type { InboxNoteView } from '#/contexts/inbox/application/public-api'
+import type { InboxNoteView } from '#/contexts/reputation/public-api'
 import { inboxItemId, inboxNoteId, organizationId, userId } from '#/shared/domain/ids'
 import {
   buildThread,

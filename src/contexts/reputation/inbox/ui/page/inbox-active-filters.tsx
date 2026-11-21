@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
-import type { InboxSort } from '#/contexts/inbox/application/public-api'
+import type { InboxSort } from '#/contexts/reputation/public-api'
 import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { RemovableChip } from '#/components/ui/removable-chip'
 import { stripFadeStyle } from '#/components/ui/strip-scroll'

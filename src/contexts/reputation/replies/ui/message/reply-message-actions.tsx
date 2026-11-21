@@ -10,10 +10,10 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
-import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
+import { unfilledReplySlotsMessage } from '#/contexts/reputation/replies/contracts'
 import type { ReplyMessageAction } from './reply-message-view'
 import type { ReactNode, RefObject } from 'react'
-import type { ReplyDraftCheckDto } from '#/contexts/review/application/dto/reply-library.dto'
+import type { ReplyDraftCheckDto } from '#/contexts/reputation/library/contracts'
 import {
   ReplyMessagePublishAction,
   ReplyMessagePublishFeedback,

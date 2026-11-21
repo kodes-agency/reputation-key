@@ -46,7 +46,7 @@ import { googleReplyTextDigest } from '../domain/google-reply-observation'
 import type {
   GoogleReplyPublicationRequest,
   GoogleReviewApiPort,
-} from '../../review/application/ports/google-review-api.port'
+} from '../sync/google-review-api.port.server'
 import type { PublishReplyJobData } from '../publication/reply-queue.port.server'
 import {
   approveReply,

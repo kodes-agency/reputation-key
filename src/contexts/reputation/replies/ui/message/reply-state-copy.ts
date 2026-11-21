@@ -3,7 +3,7 @@ import type {
   ReplyPublicationFailureClass,
   ReplyPublicationState,
   ReplyStatus,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { isUncertainReplyStillChecked } from '#/shared/domain/reply-queue-stage'
 import { POLLED_PUBLICATION_STATES } from '../../../inbox/ui/page/inbox-cache-policy'
 

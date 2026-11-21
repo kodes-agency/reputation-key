@@ -151,7 +151,10 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(compositionSrc).toContain('registerOutboxConsumers')
     // BQC-5.2: the inbox build module owns the registrar — the root surfaces
     // it without importing the consumer registration itself.
-    const inboxBuildSrc = readFileSync(join(ROOT, 'src/contexts/inbox/build.ts'), 'utf-8')
+    const inboxBuildSrc = readFileSync(
+      join(ROOT, 'src/contexts/reputation/build-inbox.ts'),
+      'utf-8',
+    )
     expect(inboxBuildSrc).toContain('registerInboxConsumers')
     expect(inboxBuildSrc).toContain('registerGuestFeedbackConsumer')
     expect(compositionSrc).toContain('inbox.worker.registerOutboxConsumers')
@@ -196,7 +199,7 @@ describe('BQR-2.2: outbox consumer registration', () => {
       'utf-8',
     )
     const reviewBuildSrc = readFileSync(
-      join(ROOT, 'src/contexts/review/build.ts'),
+      join(ROOT, 'src/contexts/reputation/build-review.ts'),
       'utf-8',
     )
     const consumerSrc = readFileSync(

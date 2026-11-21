@@ -18,7 +18,7 @@ import type {
   InboxItemDetailResult,
   InboxMentionV3,
   InboxReviewAnalysis,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 type GetInboxItemHistoryFn = InboxServerFns['getInboxItemHistory']

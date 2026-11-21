@@ -6,7 +6,7 @@
 // think in one story.
 // This module owns the merged record and, crucially, the ONE total order that
 // story is told in. Recent Activity is explicitly never evidence that an Inbox
-// command committed (src/contexts/inbox/CONTEXT.md), so nothing here is derived
+// command committed (src/contexts/reputation/CONTEXT.md), so nothing here is derived
 // from it.
 //
 // Everything below is pure: no clock, no locale, no I/O.

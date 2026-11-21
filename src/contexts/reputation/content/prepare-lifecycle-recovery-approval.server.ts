@@ -6,7 +6,7 @@ import {
 } from '#/shared/ops/review-lifecycle-recovery-approval'
 import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { collectReviewLifecycleRecoveryEvidence } from './collect-lifecycle-recovery-evidence.server'
-import type { RunReviewSourceContentLifecycle } from '../../review/application/use-cases/run-source-content-lifecycle'
+import type { RunReviewSourceContentLifecycle } from './run-source-content-lifecycle.server'
 
 export type ReviewLifecycleRecoveryApprovalPlan = Readonly<{
   request: ReviewLifecycleRecoveryApprovalRequest

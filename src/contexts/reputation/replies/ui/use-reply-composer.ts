@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import * as replyRules from '#/contexts/review/application/public-api'
+import * as replyRules from '#/contexts/reputation/replies/contracts'
 import {
   GOOGLE_REPLY_COMMENT_MAX_BYTES,
   replyCommentByteLength,

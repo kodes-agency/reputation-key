@@ -14,12 +14,12 @@ import type {
   SaveReplyTemplateInput,
   SaveReplyVoiceInput,
   SetReplyTemplateHiddenInput,
-} from '../../review/application/dto/reply-library.dto'
+} from './contracts'
 import type {
   ReplyLibraryRepository,
   ReplyLibrarySnapshot,
 } from './reply-library-repository.port.server'
-import { resolveReplyLibraryTemplates } from '../../review/application/reply-library-resolver'
+import { resolveReplyLibraryTemplates } from './reply-library-resolver.contracts'
 import { reviewError } from '../domain/review-errors'
 
 type ReplyLibraryDeps = Readonly<{

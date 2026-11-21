@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   REVIEW_DESTRUCTIVE_LIFECYCLE_QUARANTINE,
   isLegacyDestructiveReviewLifecycleEnabled,
-} from './review-lifecycle-safety'
+} from './review-lifecycle-safety.server'
 
 // The scans that keep Review deletion behind this authority live in
 // src/shared/architecture/single-entry-authorities.test.ts.

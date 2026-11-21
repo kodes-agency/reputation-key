@@ -26,7 +26,7 @@ import { createGoogleNotificationAccountUsageReader } from './google-notificatio
 import { createGoogleNotificationProviderAuthorizer } from './google-notification-provider-authorizer.server'
 import { manageNotifications } from './manage-notifications.server'
 import { createSourceContentPurge } from '#/contexts/reputation/content/source-content-purge.server'
-import { createRunReviewSourceContentLifecycle } from '#/contexts/review/application/use-cases/run-source-content-lifecycle'
+import { createRunReviewSourceContentLifecycle } from '#/contexts/reputation/content/run-source-content-lifecycle.server'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 

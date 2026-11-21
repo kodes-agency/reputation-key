@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import {
   handleInboxShortcut,
   type InboxShortcutEvent,

@@ -15,7 +15,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
-import type { InboxItem, InboxPriority } from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxPriority } from '#/contexts/reputation/public-api'
 import { InboxCaseToolbar } from './inbox-case-toolbar'
 
 const permissions = vi.hoisted(() => ({ canCommand: true }))

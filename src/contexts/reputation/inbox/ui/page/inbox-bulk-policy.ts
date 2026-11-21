@@ -1,4 +1,4 @@
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 
 export type BulkReopenCommand = Readonly<{
   inboxItemId: string

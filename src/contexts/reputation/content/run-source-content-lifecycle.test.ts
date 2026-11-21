@@ -4,13 +4,13 @@ import type {
   ReviewSourceContentLifecycleInspection,
   ReviewSourceContentLifecycleScope,
   ReviewSourceContentLifecycleStore,
-} from '../../../reputation/content/source-content-lifecycle-store.port.server'
+} from './source-content-lifecycle-store.port.server'
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
   createRunReviewSourceContentLifecycle,
-} from './run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 const EVALUATED_AT = new Date('2026-08-26T12:00:00.000Z')
 const EXPIRED_SCOPE = { kind: 'expired' } as const

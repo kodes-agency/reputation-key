@@ -4,7 +4,7 @@ import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
   type ReviewSourceContentLifecycleResult,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 import { createSourceContentPurge } from './source-content-purge.server'
 
 const NOW = new Date('2026-08-28T00:00:00.000Z')

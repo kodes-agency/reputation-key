@@ -28,7 +28,7 @@ import {
   resetCapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import type { AiReviewCurrentSource } from '#/contexts/review/application/public-api'
+import type { AiReviewCurrentSource } from '#/contexts/reputation/public-api'
 import type { GenerateReplySuggestionResult } from '#/contexts/ai/reply/generate-suggestion.server'
 import type * as ExecutionPolicyModule from '#/shared/auth/execution-policy'
 import type { PolicyDenyReason } from '#/shared/auth/execution-policy'

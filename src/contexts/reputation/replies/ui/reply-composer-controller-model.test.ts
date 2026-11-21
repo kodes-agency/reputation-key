@@ -3,7 +3,7 @@
 // QueryClient. Only the HTTP edge and the AI assist are faked, and the timers.
 
 import { describe, expect, it, vi } from 'vitest'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { installInboxCacheHarness } from '#/contexts/reputation/inbox/ui/page/inbox-cache-test-harness'
 import {
   createReplyComposerController,

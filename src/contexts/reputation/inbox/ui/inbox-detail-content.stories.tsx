@@ -41,7 +41,7 @@ import type {
   InboxItemDetailResult,
   InboxNote,
   InboxNoteView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { InboxDetailState } from './use-inbox-detail'
 
 const reviewItem: InboxItem = makeInboxItem({

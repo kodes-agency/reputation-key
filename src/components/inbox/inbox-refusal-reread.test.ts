@@ -24,7 +24,7 @@ import type {
   InboxItem,
   InboxItemDetailResult,
   InboxRevisionConflictResult,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { submitFeedbackHandlingDecision } from '../../contexts/reputation/inbox/ui/feedback-handling-submit'

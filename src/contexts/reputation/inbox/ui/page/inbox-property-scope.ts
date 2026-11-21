@@ -7,7 +7,7 @@
 // view. "All properties" is the organization-wide Inbox (`/inbox`), offered only
 // to roles that have one; a property is its own Reviews page.
 
-import type { InboxPropertyCounts } from '#/contexts/inbox/application/public-api'
+import type { InboxPropertyCounts } from '#/contexts/reputation/public-api'
 import { sortPropertiesByName } from '#/components/ui/property-search'
 
 export type InboxScopeProperty = Readonly<{ id: string; name: string }>

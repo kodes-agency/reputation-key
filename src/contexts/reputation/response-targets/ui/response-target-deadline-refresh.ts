@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import type { ResponseTargetView } from '#/contexts/inbox/application/public-api'
+import type { ResponseTargetView } from '#/contexts/reputation/public-api'
 
 const MAX_TIMEOUT_MS = 2_147_000_000
 

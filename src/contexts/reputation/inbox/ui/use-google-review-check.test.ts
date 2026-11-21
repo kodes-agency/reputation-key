@@ -7,10 +7,7 @@ import { act } from 'react'
 import { toast } from 'sonner'
 import { describe, expect, it, vi } from 'vitest'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
-import type {
-  InboxGoogleCheckOutcome,
-  InboxItem,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxGoogleCheckOutcome, InboxItem } from '#/contexts/reputation/public-api'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'

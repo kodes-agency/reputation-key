@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  replyQueueStage,
-  type InboxItemReplyState,
-} from '#/contexts/inbox/application/public-api'
+import { replyQueueStage } from '#/contexts/reputation/inbox/inbox-queues.contracts'
+import type { InboxItemReplyState } from '#/contexts/reputation/public-api'
 import {
   REPLY_CHIP_WORDS,
   replyStateDescription,

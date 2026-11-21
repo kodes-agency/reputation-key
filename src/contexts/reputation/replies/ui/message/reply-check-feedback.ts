@@ -18,7 +18,7 @@ import {
 import type {
   ReplyPublicationCheckOutcome,
   ReplyPublicationCheckResult,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import type { InboxReplyCacheChange } from '../../../inbox/ui/page/inbox-cache-policy'
 

@@ -4,7 +4,7 @@ import {
   inboxReadyV3Of,
 } from './get-inbox-review-analysis.server'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
 type AiReviewCurrentSourceResult = Awaited<
   ReturnType<AiReviewSourcePort['readCurrentSource']>
 >

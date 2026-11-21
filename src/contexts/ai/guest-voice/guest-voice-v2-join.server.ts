@@ -4,7 +4,7 @@
 // it: the same review, in the same revision and analysis sequence, on the same day. So an
 // analysis of a review that has since gone, or changed and awaits a new analysis, is
 // never counted as though it still stood.
-import type { AiTrendPopulationReview } from '#/contexts/review/application/public-api'
+import type { AiTrendPopulationReview } from '#/contexts/reputation/public-api'
 import { ratingCountsOf, type RatingCounts } from '../application/aspect-review-evidence'
 import type {
   GuestVoiceFactsRead,

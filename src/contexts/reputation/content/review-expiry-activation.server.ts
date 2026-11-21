@@ -1,8 +1,8 @@
-import { ReviewDestructiveLifecycleQuarantinedError } from '../../review/application/review-lifecycle-safety'
+import { ReviewDestructiveLifecycleQuarantinedError } from './review-lifecycle-safety.server'
 import type {
   AuthorizeReviewSourceContentLifecycleApply,
   ReviewSourceContentLifecycleApplyApproval,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 /** Trusted composition input, supplied only after the owner reviews the evidence.
  * No request, job payload or environment variable can supply this record. */

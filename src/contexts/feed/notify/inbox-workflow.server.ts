@@ -29,13 +29,13 @@ import type {
   InboxItemAssigned,
   InboxItemEscalated,
   InboxNoteAdded,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type {
   ReplyPublishFailureOutcome,
   ReviewReplyApproved,
   ReviewReplyPublished,
   ReviewReplySubmitted,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import {
   inboxWorkflowNotices,
   publishFailedNotices,

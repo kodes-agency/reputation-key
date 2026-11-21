@@ -29,7 +29,7 @@ import type {
   InboxItemDetailResult,
   InboxPriority,
   ResponseTargetView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { InboxAssignmentOption } from '#/contexts/reputation/inbox/ui/page/inbox-owner-view'
 import { isHeaderCommandPending } from '#/contexts/reputation/inbox/ui/page/inbox-header-command-pending'
 import { prioritySuggestion } from '#/contexts/reputation/inbox/ui/page/inbox-priority-view'

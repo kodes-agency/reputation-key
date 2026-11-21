@@ -12,12 +12,12 @@ import {
   ShieldCheck,
   Star,
 } from 'lucide-react'
-import {
-  replyQueueStage,
-  type InboxItem,
-  type InboxQueue,
-  type InboxQueueCounts,
-} from '#/contexts/inbox/application/public-api'
+import { replyQueueStage } from '#/contexts/reputation/inbox/inbox-queues.contracts'
+import type {
+  InboxItem,
+  InboxQueue,
+  InboxQueueCounts,
+} from '#/contexts/reputation/public-api'
 import type { ReplyQueueStage } from '#/shared/domain/reply-queue-stage'
 import type { LucideIcon } from 'lucide-react'
 import { STAR_FILLED_CLASS } from '../inbox-detail-helpers'

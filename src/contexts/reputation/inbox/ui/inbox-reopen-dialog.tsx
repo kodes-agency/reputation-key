@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import { Textarea } from '#/components/ui/textarea'
-import type { ManualReopenReason } from '#/contexts/inbox/application/public-api'
+import type { ManualReopenReason } from '#/contexts/reputation/public-api'
 
 export type InboxReopenDecision = Readonly<{
   reason: ManualReopenReason

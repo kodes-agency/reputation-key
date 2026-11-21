@@ -1,7 +1,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import { queueToFilters, type InboxQueue } from '../../inbox/application/inbox-queues'
+import { queueToFilters, type InboxQueue } from './inbox-queues.contracts'
 import {
   findScopeReplyStages,
   NO_REPLY_STAGES,

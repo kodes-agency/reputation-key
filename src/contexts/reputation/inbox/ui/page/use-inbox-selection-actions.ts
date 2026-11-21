@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { toggleInboxSelection } from './inbox-selection'
 
 type SelectionSetter = Dispatch<SetStateAction<ReadonlyArray<string>>>

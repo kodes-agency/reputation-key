@@ -6,10 +6,7 @@ import {
   buildInboxCaseToolbarProps,
   type InboxCaseToolbarInput,
 } from './inbox-case-toolbar-props'
-import type {
-  InboxItem,
-  InboxReviewAnalysis,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxReviewAnalysis } from '#/contexts/reputation/public-api'
 
 const idle = () =>
   Object.assign(

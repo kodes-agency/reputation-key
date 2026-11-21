@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from '#/components/ui/alert'
-import type { ReplyDraftCheckDto } from '#/contexts/review/application/dto/reply-library.dto'
+import type { ReplyDraftCheckDto } from '#/contexts/reputation/library/contracts'
 
 export function ReplyDraftCheckAlerts({
   checks,

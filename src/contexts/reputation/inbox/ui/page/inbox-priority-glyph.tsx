@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react'
 import { TONE_ICON } from '#/components/ui/tone'
-import type { InboxPriority } from '#/contexts/inbox/application/public-api'
+import type { InboxPriority } from '#/contexts/reputation/public-api'
 
 /**
  * Signal bars, low to high: x, y and height of each in a 24 px box. The shape

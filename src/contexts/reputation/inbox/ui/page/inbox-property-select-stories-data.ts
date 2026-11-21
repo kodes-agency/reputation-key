@@ -2,7 +2,7 @@
 // Needs reply counts (23 = 12 + 8 + 3, the canvas's own numbers), and the one
 // reading of an open list those stories assert.
 import { expect, waitFor, within } from 'storybook/test'
-import type { InboxPropertyCounts } from '#/contexts/inbox/application/public-api'
+import type { InboxPropertyCounts } from '#/contexts/reputation/public-api'
 import type { InboxScopeProperty } from './inbox-property-scope'
 
 export const hotels: ReadonlyArray<InboxScopeProperty> = [

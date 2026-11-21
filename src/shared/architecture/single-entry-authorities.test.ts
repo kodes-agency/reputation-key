@@ -60,15 +60,10 @@ describe('Review lifecycle authority', () => {
   it('permits storage apply only through the checkpointed application authority', () => {
     expect(
       callersOf(
-        [
-          ...productionFiles('src/contexts/review', /\.ts$/u),
-          ...productionFiles('src/contexts/reputation', /\.ts$/u),
-        ],
+        productionFiles('src/contexts/reputation', /\.ts$/u),
         '.applyLifecycleBatch(',
       ),
-    ).toEqual([
-      'src/contexts/review/application/use-cases/run-source-content-lifecycle.ts',
-    ])
+    ).toEqual(['src/contexts/reputation/content/run-source-content-lifecycle.server.ts'])
   })
 
   it('keeps Review purge/report jobs and operator adapters free of direct Review deletion', () => {

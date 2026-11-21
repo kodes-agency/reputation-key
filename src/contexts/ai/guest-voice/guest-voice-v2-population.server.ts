@@ -7,7 +7,7 @@ import type {
   AiTrendPopulationRequest,
   AiTrendPopulationResult,
   AiTrendPopulationReview,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { chooseEvidenceWindow } from '../domain/guest-voice-statistics'
 import { addDays } from './local-date.contracts'
 import type { Window } from './contracts'

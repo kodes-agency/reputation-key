@@ -5,7 +5,7 @@
 // it.
 
 import type { UserId } from '#/shared/domain/ids'
-import type { ReviewReplyPublicationCancelled } from '#/contexts/review/application/public-api'
+import type { ReviewReplyPublicationCancelled } from '#/contexts/reputation/public-api'
 import type { ResponsibleManagerLookupPort } from './responsible-manager-lookup.port.server'
 import type {
   ReplyApprovalAuthorityPort,

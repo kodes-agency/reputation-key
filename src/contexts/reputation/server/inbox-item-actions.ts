@@ -18,7 +18,7 @@ import {
   assignInboxItemDto,
   bulkAssignInboxItemsDto,
   addInboxNoteDto,
-} from '../../inbox/application/dto/inbox.dto'
+} from '../inbox/contracts'
 
 // ── assignInboxItem ────────────────────────────────────────────────
 

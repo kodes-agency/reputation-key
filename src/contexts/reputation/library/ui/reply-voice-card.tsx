@@ -13,7 +13,7 @@ import {
 import type {
   ReplyLibraryDto,
   SaveReplyVoiceInput,
-} from '#/contexts/review/application/dto/reply-library.dto'
+} from '#/contexts/reputation/library/contracts'
 import { BUILTIN_REPLY_VOICE, resolveVoice } from '#/shared/reply-library/reply-voice'
 import { ReadOnlyVoice, ReplyVoiceFields } from './reply-voice-fields'
 import {

@@ -28,7 +28,7 @@ import type {
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
   ReviewReplyRejected,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { UserLookupPort } from './notification-db-user-lookup.port.server'
 import type { InboxItemLookupPort } from './inbox-item-lookup.port.server'
 import type { ResponsibleManagerLookupPort } from './responsible-manager-lookup.port.server'

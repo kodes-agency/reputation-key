@@ -1,6 +1,6 @@
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
-import type { ReviewHeadCheckJobData } from '../../review/application/ports/review-queue.port'
+import type { ReviewHeadCheckJobData } from './review-queue.port.server'
 import type { ReviewSyncActivityRecorder } from './review-sync-activity-repository.port.server'
 import type { ReviewDiscoveryRepository } from './review-discovery-repository.port.server'
 import type { RunReviewHeadCheck } from './run-review-head-check.server'

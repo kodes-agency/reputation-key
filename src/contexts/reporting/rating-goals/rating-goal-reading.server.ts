@@ -13,7 +13,7 @@ import type {
   GoogleRatingRange,
   GoogleRatingRangeTotals,
   ReviewGoogleRatingReads,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import {
   organizationId as toOrganizationId,
   propertyId as toPropertyId,

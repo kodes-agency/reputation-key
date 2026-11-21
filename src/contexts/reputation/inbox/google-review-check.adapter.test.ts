@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import type { ReviewGoogleReviewCheck } from '#/contexts/review/application/public-api'
+import type { ReviewGoogleReviewCheck } from '#/contexts/reputation/public-api'
 import { createGoogleReviewCheckAdapter } from './google-review-check.adapter.server'
 
 const request = {

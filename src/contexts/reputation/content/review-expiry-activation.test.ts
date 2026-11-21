@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createAuthorizeReviewExpiryApply } from './review-expiry-activation.server'
-import { REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT } from '../../review/application/use-cases/run-source-content-lifecycle'
+import { REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT } from './run-source-content-lifecycle.server'
 
 const approval = {
   approvalId: 'expiry-owner-approval',

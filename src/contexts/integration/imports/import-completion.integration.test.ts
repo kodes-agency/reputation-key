@@ -23,7 +23,7 @@ import { createPortalExperienceRepository } from '#/contexts/portal/editor/porta
 import { ensureDefaultPublicDisplayName } from '#/contexts/portal/editor/manage-portal-experience.server'
 import { admitReviewSync } from '#/contexts/reputation/sync/admit-review-sync.server'
 import { createReviewDiscoveryRepository } from '#/contexts/reputation/sync/review-discovery-repository.server'
-import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'
+import type { GoogleReviewApiPort } from '#/contexts/reputation/sync/google-review-api.port.server'
 import { reviewProviderSnapshotRuns } from '#/shared/db/schema/review.schema'
 import { createReviewProviderSnapshotRepository } from '#/contexts/reputation/sync/review-provider-snapshot-repository.server'
 import { runReviewProviderSnapshot } from '#/contexts/reputation/sync/run-review-provider-snapshot.server'
@@ -32,7 +32,7 @@ import {
   acceptGoogleImportSync,
   admitGoogleImportSync,
 } from '#/contexts/reputation/sync/google-import-sync-acceptance.server'
-import type { SyncPropertyReviewsJobData } from '#/contexts/review/application/ports/review-queue.port'
+import type { SyncPropertyReviewsJobData } from '#/contexts/reputation/sync/review-queue.port.server'
 import {
   createGoogleBindingFollowUpHandlers,
   IMPORT_DISPLAY_NAME_CONSUMER,

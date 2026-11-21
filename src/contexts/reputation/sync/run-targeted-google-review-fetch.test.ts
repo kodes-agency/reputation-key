@@ -11,11 +11,11 @@ import type {
   ReviewId,
 } from '#/shared/domain/ids'
 import type { GoogleReview } from '../domain/review-types'
-import type { GoogleReviewApiPort } from '../../review/application/ports/google-review-api.port'
+import type { GoogleReviewApiPort } from './google-review-api.port.server'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import type { ReviewProviderSubjectSightings } from './review-provider-subject-link.port.server'
 import type { ReviewProviderSubjectKeyService } from './provider-subject-keyring.server'
-import type { TargetedGoogleReviewReferenceResolver } from '../../review/application/ports/targeted-google-review-reference.port'
+import type { TargetedGoogleReviewReferenceResolver } from './targeted-google-review-reference.port.server'
 import { runTargetedGoogleReviewFetch } from './run-targeted-google-review-fetch.server'
 
 /** What the integration adapter throws for a call Google answered or refused. */

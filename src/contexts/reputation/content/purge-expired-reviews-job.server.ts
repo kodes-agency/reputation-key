@@ -3,14 +3,14 @@
 import type { Job } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
-import { REVIEW_DESTRUCTIVE_LIFECYCLE_QUARANTINE } from '../../review/application/review-lifecycle-safety'
+import { REVIEW_DESTRUCTIVE_LIFECYCLE_QUARANTINE } from './review-lifecycle-safety.server'
 import type {
   ReviewSourceContentLifecycleCheckpoint,
   ReviewSourceContentLifecycleResult,
   RunReviewSourceContentLifecycle,
   RunReviewSourceContentLifecycleInput,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
-import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
+import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from './run-source-content-lifecycle.server'
 import type { ReviewSourceContentLifecycleMode } from './source-content-lifecycle-store.port.server'
 
 export const JOB_NAME = 'purge-expired-reviews' as const

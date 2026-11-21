@@ -9,7 +9,7 @@ const loadWriter = async () =>
 
 describe('Reply scope effects at each entry point', () => {
   afterEach(() => {
-    vi.doUnmock('#/contexts/review/build')
+    vi.doUnmock('#/contexts/reputation/build-review')
     vi.doUnmock('#/contexts/property/build')
     vi.doUnmock('#/contexts/ai/build')
     vi.doUnmock('#/contexts/identity/build')
@@ -18,7 +18,7 @@ describe('Reply scope effects at each entry point', () => {
 
   it('hands the Reputation writer to Review when the container wires it', async () => {
     const buildReviewContext = vi.fn(() => ({}))
-    vi.doMock('#/contexts/review/build', () => ({ buildReviewContext }))
+    vi.doMock('#/contexts/reputation/build-review', () => ({ buildReviewContext }))
     const { wireReview } = await import('./review-wiring')
     wireReview(
       { db: {}, outboxRepo: {}, clock: () => new Date(), pool: {}, infra: {} } as never,

@@ -28,7 +28,7 @@ import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
+import type { ReplyPublicationCheckResult } from '#/contexts/reputation/public-api'
 import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from '../../contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 import {
   inboxCachePolicy,
@@ -94,9 +94,7 @@ export type ReplyActions = Readonly<{
   ) => Promise<LoadedReplyTemplateDraft>
   checkDraft: (
     text: string,
-  ) => Promise<
-    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
-  >
+  ) => Promise<import('#/contexts/reputation/library/contracts').ReplyDraftCheckDto>
 }>
 
 type CommandInput = Readonly<{ data: Readonly<{ reviewId: string }> }>

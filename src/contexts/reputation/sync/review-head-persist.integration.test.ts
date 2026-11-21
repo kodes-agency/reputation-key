@@ -29,7 +29,7 @@ import { createReviewReplyObservationAuthority } from '#/contexts/reputation/rev
 import type {
   GoogleReviewHeadResult,
   GoogleReviewRead,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type { ReviewProviderSubjectKeyService } from './provider-subject-keyring.server'
 import { createReviewProviderObservationWriter } from './sync-reviews.server'
 import { createRunReviewHeadCheck } from './run-review-head-check.server'
