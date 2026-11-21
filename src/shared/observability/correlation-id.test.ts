@@ -13,8 +13,11 @@ describe('correlation-id (B2.6)', () => {
     })
 
     it('generates unique IDs', () => {
-      const ids = new Set(Array.from({ length: 1000 }, () => generateCorrelationId()))
-      expect(ids.size).toBe(1000)
+      // An ID is 32 random bits, short enough to read out as REF-XXXXXXXX. A
+      // thousand of them repeat about once in 8,600 runs, which CI hit on
+      // 2026-11-21; a hundred repeat about once in 860,000.
+      const ids = new Set(Array.from({ length: 100 }, () => generateCorrelationId()))
+      expect(ids.size).toBe(100)
     })
   })
 
