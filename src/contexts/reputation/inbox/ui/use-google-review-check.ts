@@ -6,10 +6,7 @@ import {
   GENERIC_ACTION_ERROR_MESSAGE,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import type {
-  InboxGoogleCheckOutcome,
-  InboxItem,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxGoogleCheckOutcome, InboxItem } from '#/contexts/reputation/public-api'
 import {
   GOOGLE_CHECK_COPY,
   sayGoogleCheck,

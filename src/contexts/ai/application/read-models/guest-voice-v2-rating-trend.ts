@@ -1,4 +1,4 @@
-import type { AiTrendPopulationReview } from '#/contexts/review/application/public-api'
+import type { AiTrendPopulationReview } from '#/contexts/reputation/public-api'
 import {
   GUEST_VOICE_RATING_TREND_VERSION,
   ratingTrendVerdict,

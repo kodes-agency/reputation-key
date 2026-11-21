@@ -18,10 +18,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState, type ReactNode } from 'react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import type { InboxFilterValues } from '#/contexts/reputation/inbox/ui/page/inbox-filters'
-import type {
-  InboxItemDetailResult,
-  InboxQueue,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult, InboxQueue } from '#/contexts/reputation/public-api'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { makeInboxItem } from '../../../../../../.storybook/in-memory/inbox-container'

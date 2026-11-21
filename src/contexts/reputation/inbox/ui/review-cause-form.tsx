@@ -8,7 +8,7 @@ import { SubmitButton } from '#/components/forms/submit-button'
 import { Button } from '#/components/ui/button'
 import { effectiveCause } from './review-cause-view'
 import { causeFormLabels } from './review-correction-view'
-import type { InboxMentionV3 } from '#/contexts/inbox/application/public-api'
+import type { InboxMentionV3 } from '#/contexts/reputation/public-api'
 
 /** The longest phrase either box takes; the server checks the words themselves. */
 const CAUSE_BOX_MAX_LENGTH = 80

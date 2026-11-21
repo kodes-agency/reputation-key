@@ -2,7 +2,7 @@ import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-c
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import { mapReviewLanguageMetadata } from '#/shared/ai-review-language-catalogue'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source/ai-review-source-contract'
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
 import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type { AiControlPort } from '../application/ports/ai-control.port'
 import type { AiInferencePort } from '../execution/ai-inprocess.port.server'

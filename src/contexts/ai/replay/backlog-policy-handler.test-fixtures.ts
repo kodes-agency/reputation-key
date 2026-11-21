@@ -52,7 +52,7 @@ import {
   AI_REVIEW_ANALYSIS_CONSUMER,
   registerAiConsumers,
 } from '#/contexts/ai/analysis/outbox-consumers.server'
-import { reviewCreated } from '#/contexts/review/application/public-api'
+import { reviewCreated } from '#/contexts/reputation/public-api'
 import {
   AI_REVIEW_LANGUAGE_ICU_VERSION,
   AI_REVIEW_LANGUAGE_UNICODE_VERSION,

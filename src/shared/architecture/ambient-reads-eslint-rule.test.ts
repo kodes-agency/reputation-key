@@ -34,7 +34,7 @@ describe('ambient clock and configuration reads', () => {
   it('rejects wall-clock and process.env reads in context domain code', async () => {
     const lines = await restrictedLines(
       AMBIENT_READS,
-      'src/contexts/review/domain/ambient-reads-fixture.ts',
+      'src/contexts/reputation/domain/ambient-reads-fixture.ts',
     )
 
     expect(lines).toEqual([1, 2, 3])
@@ -52,7 +52,7 @@ describe('ambient clock and configuration reads', () => {
   it('rejects only process.env reads in context application code and routes', async () => {
     const application = await restrictedLines(
       AMBIENT_READS,
-      'src/contexts/review/application/ambient-reads-fixture.ts',
+      'src/contexts/ai/application/ambient-reads-fixture.ts',
     )
     const route = await restrictedLines(
       AMBIENT_READS,
@@ -66,7 +66,7 @@ describe('ambient clock and configuration reads', () => {
   it('accepts time passed in as a parameter', async () => {
     const lines = await restrictedLines(
       'export const copy = (now: Date) => new Date(now.getTime())\n',
-      'src/contexts/review/domain/ambient-reads-fixture.ts',
+      'src/contexts/reputation/domain/ambient-reads-fixture.ts',
     )
 
     expect(lines).toEqual([])
@@ -75,7 +75,7 @@ describe('ambient clock and configuration reads', () => {
   it('exempts test files', async () => {
     const lines = await restrictedLines(
       AMBIENT_READS,
-      'src/contexts/review/domain/ambient-reads-fixture.test.ts',
+      'src/contexts/reputation/domain/ambient-reads-fixture.test.ts',
     )
 
     expect(lines).toEqual([])

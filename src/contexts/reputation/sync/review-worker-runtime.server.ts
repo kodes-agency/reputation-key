@@ -13,7 +13,7 @@ import type { ReplyCommandStore } from '../replies/reply-command-store.port.serv
 import type {
   ReviewHeadCheckQueuePort,
   ReviewQueuePort,
-} from '../../review/application/ports/review-queue.port'
+} from './review-queue.port.server'
 import type { ReviewHeadChecksMode } from '../domain/head-check'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import type { ReviewProviderSubjectSightings } from './review-provider-subject-link.port.server'
@@ -22,7 +22,7 @@ import { createRunReviewHeadCheck } from './run-review-head-check.server'
 import type {
   GoogleConnectionStatusPort,
   GoogleReviewApiPort,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type { ReplyPublicationDispatchEvidencePort } from '../publication/reply-publication-dispatch-evidence.port.server'
 import type { ReadReviewBeforePublish } from '../publication/read-review-before-publish.server'
 import {
@@ -161,9 +161,7 @@ export async function registerReviewWorkerJobs(
   })
   input.registry.register(SYNC_REVIEWS_JOB_NAME, async (job) => {
     await syncReviewsHandler(
-      job as Job<
-        import('../../review/application/ports/review-queue.port').ReviewProviderJobData
-      >,
+      job as Job<import('./review-queue.port.server').ReviewProviderJobData>,
     )
   })
   input.logger.info(

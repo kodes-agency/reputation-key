@@ -3,7 +3,7 @@ import { googleImportItems, googleImports } from '#/shared/db/schema/google-impo
 import { organizationId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
-import type { PrepareGoogleImportSync } from '#/contexts/review/application/public-api'
+import type { PrepareGoogleImportSync } from '#/contexts/reputation/public-api'
 import {
   getImportOutcomePresentation,
   isImportProfileField,

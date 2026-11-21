@@ -1,4 +1,4 @@
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
 import type {
   GenerateReplySuggestionDependencies,
   GenerateReplySuggestionInput,

@@ -21,11 +21,11 @@ import {
 } from '#/components/hooks/use-action-mutation'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import {
-  isInboxRevisionConflictResult,
-  type InboxItemDetailResult,
-  type InboxRevisionConflictResult,
-} from '#/contexts/inbox/application/public-api'
+import { isInboxRevisionConflictResult } from '#/contexts/reputation/inbox/contracts'
+import type {
+  InboxItemDetailResult,
+  InboxRevisionConflictResult,
+} from '#/contexts/reputation/public-api'
 import { withFreshCommandRevision } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 
 vi.mock('@tanstack/react-router', () => ({

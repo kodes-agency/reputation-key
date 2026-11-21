@@ -1,4 +1,4 @@
-import { reviewError } from '#/contexts/review/application/public-api'
+import { reviewError } from '../domain/review-errors'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -16,7 +16,7 @@ import {
   purgeExpiredAiDraftsForReview,
 } from '#/shared/db/ai/ai-draft-purge'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
-import type { Review } from '#/contexts/review/application/public-api'
+import type { Review } from '../domain/review-types'
 
 type ReviewSourceContentWriter = Pick<Database, 'insert' | 'select'>
 

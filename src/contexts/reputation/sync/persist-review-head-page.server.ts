@@ -28,7 +28,7 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
 import { headReviewsToPersist, type HeadStoredCopy } from '../domain/head-check'
 import { decideHeadFact } from '../domain/head-persist'
-import type { GoogleReviewRead } from '../../review/application/ports/google-review-api.port'
+import type { GoogleReviewRead } from './google-review-api.port.server'
 import type { PropertySourceEpochPort } from './property-source-epoch.port.server'
 import type {
   ReviewHeadCheckRepository,

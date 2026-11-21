@@ -1,7 +1,7 @@
 // Reuse the card read for the weekly check-in. Show an average only from ten
 // reviews, and a planned count only if last week had one plan throughout.
 
-import type { GoogleRatingRangeTotals } from '#/contexts/review/application/public-api'
+import type { GoogleRatingRangeTotals } from '#/contexts/reputation/public-api'
 import type { PropertyRatingGoal, RatingGoalStatus } from '../domain/rating-goal'
 import { ratio } from '../domain/rating-goal-numbers'
 import { weeklyPlanCount } from '../domain/rating-goal-pace'

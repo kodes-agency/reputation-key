@@ -13,7 +13,7 @@ import type { ReviewId } from '#/shared/domain/ids'
 import type {
   GoogleConnectionStatusPort,
   GoogleReviewApiPort,
-} from '../../review/application/ports/google-review-api.port'
+} from '../sync/google-review-api.port.server'
 import {
   readReviewBeforePublish,
   type ReadReviewBeforePublish,

@@ -28,7 +28,7 @@ import {
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '../../../../test-fixtures/generated/google-provider-identifiers-v1'
 import { createEligibleReads } from '../reviews/eligible-reads.server'
-import type { GoogleReviewRead } from '../../review/application/ports/google-review-api.port'
+import type { GoogleReviewRead } from './google-review-api.port.server'
 import type { ReviewProviderSubjectCandidates } from './sync-reviews.port.server'
 import { createReviewProviderObservationWriter } from './sync-reviews.server'
 import { createGoogleReplyObservationStore } from '../publication/google-reply-observation-store.server'

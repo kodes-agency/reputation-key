@@ -5,7 +5,7 @@
 import { createElement } from 'react'
 import { renderToString } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import type { Permission } from '#/shared/domain/permissions'
 import {
   handleInboxShortcut,

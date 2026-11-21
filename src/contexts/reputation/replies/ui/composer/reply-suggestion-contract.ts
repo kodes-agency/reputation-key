@@ -3,7 +3,7 @@ import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
 } from '#/contexts/ai/public-api'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
+import type { ReplyTemplateListResultDto as ReplyTemplateListResult } from '#/contexts/reputation/library/contracts'
 import {
   equivalentReplyLanguageTags,
   languageDisplayName,
@@ -92,9 +92,7 @@ export type ReplyComposerInput = Readonly<{
   ) => Promise<LoadedReplyTemplateDraft>
   onCheckDraft?: (
     text: string,
-  ) => Promise<
-    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
-  >
+  ) => Promise<import('#/contexts/reputation/library/contracts').ReplyDraftCheckDto>
 }>
 
 export type ReplySuggestionFixTarget = 'public_display_name' | 'ai_settings' | 'ai_notice'

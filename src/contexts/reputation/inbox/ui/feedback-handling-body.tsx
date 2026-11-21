@@ -1,6 +1,6 @@
 import { Button } from '#/components/ui/button'
 import { feedbackHandlingAction } from './feedback-handling-presentation'
-import type { FeedbackHandlingState } from '#/contexts/inbox/application/public-api'
+import type { FeedbackHandlingState } from '#/contexts/reputation/public-api'
 import type { ReactNode } from 'react'
 
 type CloseReason = NonNullable<FeedbackHandlingState['closeReason']>

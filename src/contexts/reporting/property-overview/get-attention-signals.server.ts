@@ -18,7 +18,7 @@ import {
   ratingComparison,
   RATING_DROP_THRESHOLD,
 } from '../portal-results/time-range.server'
-import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+import type { InboxPublicApi } from '#/contexts/reputation/public-api'
 
 export type GetAttentionSignalsInput = Readonly<{
   organizationId: OrganizationId

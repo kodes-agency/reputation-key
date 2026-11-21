@@ -22,7 +22,7 @@ import type {
   GoogleRatingYearTotals,
   GoogleShownNumber,
   ReviewGoogleRatingReads,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { PropertyRatingGoal, RatingGoalChange } from '../domain/rating-goal'
 import type { RatingGoalNotice } from '../domain/rating-goal-notices'
 import type {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { reviewId, userId } from '#/shared/domain/ids'
-import { INBOX_QUEUES, queueToFilters, type InboxQueue } from './inbox-queues'
+import { INBOX_QUEUES, queueToFilters, type InboxQueue } from './inbox-queues.contracts'
 
 const VIEWER = userId('user-1')
 const AWAITING = reviewId('10000000-0000-4000-8000-000000000001')

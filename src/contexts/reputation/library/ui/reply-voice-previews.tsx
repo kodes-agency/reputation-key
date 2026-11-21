@@ -1,7 +1,7 @@
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { SegmentedControl } from '#/components/ui/segmented-control'
-import type { ReplyLibraryDto } from '#/contexts/review/application/dto/reply-library.dto'
+import type { ReplyLibraryDto } from '#/contexts/reputation/library/contracts'
 import { renderReply } from '#/shared/reply-library/render-reply'
 import type { ResolvedReplyVoice } from '#/shared/reply-library/reply-voice'
 import type { VoiceDraft, VoiceLanguage } from './reply-voice-model'

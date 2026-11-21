@@ -12,7 +12,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
-import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
+import { unfilledReplySlotsMessage } from '#/contexts/reputation/replies/contracts'
 import {
   GOOGLE_REPLY_COMMENT_MAX_BYTES,
   replyCommentByteLength,

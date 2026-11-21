@@ -23,7 +23,7 @@ import {
   type AuthorizeReviewSourceContentLifecycleApply,
   type ReviewSourceContentLifecycleCheckpoint,
   type RunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 export type { ReviewLifecycleRecoveryRuntimeTarget } from '#/shared/ops/review-lifecycle-recovery-approval'
 

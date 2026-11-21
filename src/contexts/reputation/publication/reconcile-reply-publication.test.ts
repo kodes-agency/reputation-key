@@ -19,7 +19,7 @@ import type { ReviewRepository } from '../reviews/review-repository.port.server'
 import type {
   GoogleReviewApiPort,
   GoogleReviewRead,
-} from '../../review/application/ports/google-review-api.port'
+} from '../sync/google-review-api.port.server'
 import type {
   GoogleReplyObservationResult,
   RecordGoogleReplyObservation,

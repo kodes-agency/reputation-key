@@ -1,5 +1,5 @@
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
-import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
+import type { ReviewQueuePort } from '#/contexts/reputation/public-api'
 import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/public-api'
 import { PrerequisiteNotReadyError } from '#/shared/outbox'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'

@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
 import { Kbd } from '#/components/ui/kbd'
-import type {
-  InboxQueue,
-  InboxQueueCounts,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxQueue, InboxQueueCounts } from '#/contexts/reputation/public-api'
 import { InboxQueueList } from './inbox-queue-list'
 import { railSections, type InboxQueueViewer } from './inbox-queue-sections'
 

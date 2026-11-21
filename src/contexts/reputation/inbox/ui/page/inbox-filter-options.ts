@@ -1,4 +1,4 @@
-import type { InboxSort } from '#/contexts/inbox/application/public-api'
+import type { InboxSort } from '#/contexts/reputation/public-api'
 import { formatLocalDate } from '#/shared/format/format'
 import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/analysis/aspect-labels'
 import type { InboxListFilterValues } from './inbox-filters'

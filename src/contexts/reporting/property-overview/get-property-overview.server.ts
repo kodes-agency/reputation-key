@@ -2,7 +2,7 @@ import type { AttentionSignalsPort } from './attention-signals.port.server'
 import type { AttentionSignals, DashboardData } from '../domain/dashboard-types'
 import type { GetDashboardData, GetDashboardDataInput } from './get-dashboard-data.server'
 import { attentionSignalsFrom } from './get-attention-signals.server'
-import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+import type { InboxPublicApi } from '#/contexts/reputation/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   requirePropertyOverviewAccess,

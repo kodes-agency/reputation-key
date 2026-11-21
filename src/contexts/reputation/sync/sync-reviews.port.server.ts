@@ -6,7 +6,7 @@ import type {
 } from '#/shared/domain/ids'
 import type { ReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
 import type { ReviewFirstSeenVia } from '#/shared/domain/push-health'
-import type { GoogleReviewRead } from '../../review/application/ports/google-review-api.port'
+import type { GoogleReviewRead } from './google-review-api.port.server'
 import type { ReviewProviderObservationOrigin } from '../reviews/response-target-authority.port.server'
 
 export type ReviewProviderSubjectCandidates = readonly [

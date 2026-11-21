@@ -283,8 +283,8 @@ Install hooks after cloning: `pnpm install` (the `prepare` script registers Husk
 
 ```
 src/
-├── contexts/       # Bounded business domains (ten packages; see root CONTEXT.md)
-│   └── <name>/    # Each has: domain/, application/, infrastructure/, server/
+├── contexts/       # Bounded business domains (nine packages; see root CONTEXT.md)
+│   └── <name>/    # Features, domain/, server/, build.ts, public-api.ts
 ├── components/     # React UI
 │   ├── ui/        # shadcn primitives
 │   ├── forms/     # shared form blocks (SubmitButton, FormErrorBanner, etc.)

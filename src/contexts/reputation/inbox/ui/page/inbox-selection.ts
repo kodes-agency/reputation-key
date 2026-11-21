@@ -1,5 +1,5 @@
-import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 
 export function toggleInboxSelection(
   previous: ReadonlyArray<string>,

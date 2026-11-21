@@ -18,7 +18,7 @@ import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
 } from '../../../../test-fixtures/generated/google-provider-identifiers-v1'
-import { translatedGoogleReviewApi } from '#/contexts/review/application/public-api'
+import { translatedGoogleReviewApi } from '#/contexts/reputation/public-api'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter.server'
 
 // Closed beta, 2026-10-16..18: 126 snapshot runs failed `cursor_failure` with

@@ -11,7 +11,7 @@ import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
 } from '#/contexts/property/public-api'
-import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from '#/contexts/review/application/public-api'
+import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from '#/contexts/reputation/public-api'
 import type { GoogleProviderEndpoints } from './build'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'

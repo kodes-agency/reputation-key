@@ -17,7 +17,7 @@ import {
   makeInboxItem,
 } from '../../../../../../.storybook/in-memory/inbox-container'
 import { makeInboxFns } from '../../../../../../.storybook/in-memory/inbox-fns'
-import type { FeedbackHandlingCommandResult } from '#/contexts/inbox/application/public-api'
+import type { FeedbackHandlingCommandResult } from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { installInboxCacheHarness, type ListFilters } from './inbox-cache-test-harness'
 import { createInboxItemStatusObserver } from '../inbox-item-status-observer'

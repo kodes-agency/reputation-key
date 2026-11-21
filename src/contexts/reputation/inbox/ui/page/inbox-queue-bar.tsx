@@ -17,10 +17,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '#/components/ui/sheet'
-import type {
-  InboxQueue,
-  InboxQueueCounts,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxQueue, InboxQueueCounts } from '#/contexts/reputation/public-api'
 import { InboxQueueList } from './inbox-queue-list'
 import {
   otherKindShortcut,

@@ -20,7 +20,7 @@ import { createGoogleConnectionRepository } from '#/contexts/integration/connect
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   createRunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 import { reviewCreated } from '../domain/review-events'
 import { createAtomicReviewCommandStore } from '../reviews/review-command-store.server'
 import { createEligibleReads } from '../reviews/eligible-reads.server'

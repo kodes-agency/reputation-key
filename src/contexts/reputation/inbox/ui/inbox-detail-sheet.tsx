@@ -13,7 +13,7 @@ import {
 } from '#/components/ui/sheet'
 import { InboxDetailPending } from './inbox-detail-pending'
 import { InboxDetailContent } from './inbox-detail-content'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { InboxDetailHeader } from './inbox-detail-header'
 import { isCaseToolbarShown } from './inbox-case-toolbar-props'
 import type { InboxDetailState } from './use-inbox-detail'

@@ -18,7 +18,7 @@ import {
 import type {
   ReviewSourceContentLifecycleResult,
   RunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 const EVALUATED_AT = '2026-08-28T10:00:00.000Z'
 

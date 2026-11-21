@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
-import type { ReplyDraftCheckDto } from '#/contexts/review/application/dto/reply-library.dto'
+import type { ReplyDraftCheckDto } from '#/contexts/reputation/library/contracts'
 import { ReplyDraftCheckAlerts } from '../composer/reply-draft-check-alerts'
 import type { ReplyOnScreen } from './reply-message-actions'
 import { useReplyConfirmationHold } from '#/contexts/reputation/replies/ui/use-reply-confirmation-hold'

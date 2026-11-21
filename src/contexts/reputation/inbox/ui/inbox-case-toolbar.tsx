@@ -25,7 +25,7 @@ import type {
   FeedbackHandlingState,
   InboxItem,
   ResponseTargetView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { feedbackHandlingStatusLabel } from './feedback-handling-presentation'
 import { CASE_GROUP_CLASS } from './inbox-case-member'
 import type { InboxCaseToolbarProps } from './inbox-case-toolbar-props'

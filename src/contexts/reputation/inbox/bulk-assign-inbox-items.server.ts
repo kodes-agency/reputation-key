@@ -17,7 +17,7 @@ import {
   resolveInboxSourceScopes,
 } from './inbox-access.server'
 import { inboxError } from '../domain/inbox-errors'
-import { INBOX_BULK_LIMIT } from '../../inbox/application/dto/inbox.dto'
+import { INBOX_BULK_LIMIT } from './contracts'
 
 export type BulkAssignInboxItemInput = Readonly<{
   inboxItemId: InboxItemId

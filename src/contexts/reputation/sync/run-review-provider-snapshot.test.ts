@@ -11,7 +11,7 @@ import type {
   ReviewId,
 } from '#/shared/domain/ids'
 import type { GoogleReview } from '../domain/review-types'
-import type { GoogleReviewApiPort } from '../../review/application/ports/google-review-api.port'
+import type { GoogleReviewApiPort } from './google-review-api.port.server'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import type {
   ReviewProviderSnapshotRepository,

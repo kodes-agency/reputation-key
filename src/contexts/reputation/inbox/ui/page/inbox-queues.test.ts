@@ -3,7 +3,7 @@ import type {
   InboxItem,
   InboxItemReplyState,
   InboxQueueCounts,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import {
   canUseReplyQueues,
   inboxEmptyCopy,

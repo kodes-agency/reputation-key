@@ -2,7 +2,7 @@ import { RegionError } from '#/components/ui/region-error'
 import { InboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
 import { InboxDetailPending } from '#/contexts/reputation/inbox/ui/inbox-detail-pending'
 import { InboxDetailHeader } from '#/contexts/reputation/inbox/ui/inbox-detail-header'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import type { useInboxDetail } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 import { isCaseToolbarShown } from './inbox-case-toolbar-props'
 

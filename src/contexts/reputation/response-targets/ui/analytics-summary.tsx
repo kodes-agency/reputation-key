@@ -1,7 +1,7 @@
 import type {
   GoogleReviewTargetAnalytics,
   PrivateFeedbackTargetAnalytics,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { formatNumber } from '#/shared/format/format'
 

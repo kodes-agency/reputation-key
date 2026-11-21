@@ -6,7 +6,7 @@
 import type {
   GoogleRatingLowReview,
   GoogleRatingStarCount,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { roundHalfUpInt } from '../domain/rating-goal-numbers'
 import { whatSetYouBack, type SetbackNumbers } from '../domain/rating-goal-setback'
 import type { PropertyRatingGoal } from '../domain/rating-goal'

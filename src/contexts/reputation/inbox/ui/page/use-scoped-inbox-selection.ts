@@ -1,5 +1,5 @@
 import { useCallback, useState, type SetStateAction } from 'react'
-import type { InboxQueue } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue } from '#/contexts/reputation/public-api'
 import type { InboxFilterValues } from './inbox-filters'
 
 function selectionScope(

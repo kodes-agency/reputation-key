@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { InboxReviewAnalysis } from '#/contexts/inbox/application/public-api'
+import type { InboxReviewAnalysis } from '#/contexts/reputation/public-api'
 import { TopicChips } from './topic-chips'
 
 const ANALYSIS: InboxReviewAnalysis = {

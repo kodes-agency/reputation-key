@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import type { Permission } from '#/shared/domain/permissions'
 import { isHeaderCommandPending } from './inbox-header-command-pending'
 import { isCaseToolbarShown, itemCommandFence } from '../inbox-case-toolbar-props'

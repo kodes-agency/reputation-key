@@ -81,12 +81,12 @@ import type { ReplyCommandStore } from '../replies/reply-command-store.port.serv
 import type {
   GoogleConnectionStatusPort,
   GoogleReviewApiPort,
-} from '../../review/application/ports/google-review-api.port'
+} from '../sync/google-review-api.port.server'
 import { publishReplyToGoogle } from './publish-reply-to-google.server'
 import type { GoogleReplyObservationStore } from './google-reply-observation-store.port.server'
 import type { ReplyPublicationDispatchEvidencePort } from './reply-publication-dispatch-evidence.port.server'
 import type { ReadReviewBeforePublish } from './read-review-before-publish.server'
-import { translatedGoogleReviewApi } from '../../review/application/google-review-api-error'
+import { translatedGoogleReviewApi } from '../sync/google-review-api-error.server'
 import { attemptNeverDispatched } from './attempt-never-dispatched.server'
 import {
   buildPublishFailedEvent,

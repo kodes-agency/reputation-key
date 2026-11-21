@@ -5,7 +5,7 @@ import { prepareReviewLifecycleRecoveryApproval } from './prepare-lifecycle-reco
 import type {
   ReviewSourceContentLifecycleResult,
   RunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 const EVALUATED_AT = new Date('2026-08-28T10:00:00.000Z')
 const RUN_ID = '10000000-0000-4000-8000-000000000991'

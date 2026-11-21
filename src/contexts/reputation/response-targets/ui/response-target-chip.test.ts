@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ResponseTargetView } from '#/contexts/inbox/application/public-api'
+import type { ResponseTargetView } from '#/contexts/reputation/public-api'
 import { presentResponseTargetChip } from './response-target-chip'
 
 /** Fixed clock: the repo forbids tests that read the wall clock. */

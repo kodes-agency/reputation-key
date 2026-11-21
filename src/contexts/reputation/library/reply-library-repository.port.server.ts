@@ -8,10 +8,7 @@ import type {
   ReplyVoiceSettings,
 } from '#/shared/reply-library/reply-voice'
 import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
-import type {
-  ReplyLibraryRef,
-  ReplyLibraryScope,
-} from '../../review/application/dto/reply-library.dto'
+import type { ReplyLibraryRef, ReplyLibraryScope } from './contracts'
 import type { Tx } from '#/shared/outbox/commit'
 
 export type StoredReplyVoice = ReplyVoiceOverride &

@@ -1,10 +1,10 @@
 // Review composition: storage, provider transport, reply wiring and worker contributions.
 
 import { wireReplyUseCases, projectReviewReplyApi } from './build-reply-use-cases.server'
-import type { ResolveReplyTemplateLanguage } from './application/use-cases/layered-reply-template-operations'
-import { admitGoogleImportSync } from '../reputation/sync/google-import-sync-acceptance.server'
+import type { ResolveReplyTemplateLanguage } from './library/layered-reply-template-operations.server'
+import { admitGoogleImportSync } from './sync/google-import-sync-acceptance.server'
 import { randomUUID } from 'node:crypto'
-import { reviewError } from '../reputation/domain/review-errors'
+import { reviewError } from './domain/review-errors'
 import type { Database } from '#/shared/db'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
@@ -15,34 +15,34 @@ import type { JobRegistry } from '#/shared/jobs/registry'
 import type {
   GoogleConnectionStatusPort,
   GoogleReviewApiPort,
-} from './application/ports/google-review-api.port'
-import type { PropertySourceEpochPort } from '../reputation/sync/property-source-epoch.port.server'
+} from './sync/google-review-api.port.server'
+import type { PropertySourceEpochPort } from './sync/property-source-epoch.port.server'
 import type {
   PropertyPublicationScopePort,
   ReviewPropertyPublicationLifecycle,
-} from '../reputation/replies/property-publication-scope.port.server'
+} from './replies/property-publication-scope.port.server'
 import type {
   ReviewLookups,
   ReviewRepository,
-} from '../reputation/reviews/review-repository.port.server'
-import type { ReviewObservationRepository } from '../reputation/reviews/review-observation-repository.port.server'
+} from './reviews/review-repository.port.server'
+import type { ReviewObservationRepository } from './reviews/review-observation-repository.port.server'
 import type {
   ReplyLookups,
   ReplyRepository,
-} from '../reputation/replies/reply-repository.port.server'
-import type { FindAmbiguousPublicationReconciliationCandidates } from '../reputation/publication/publication-reconciliation-candidate-repository.port.server'
-import type { ListRestatedMaterialRevisions } from '../reputation/response-targets/restated-revision-repository.port.server'
-import type { ObservationRetention } from '../reputation/reviews/observation-retention-repository.port.server'
-import type { SnapshotRunRetention } from '../reputation/sync/snapshot-run-retention-repository.port.server'
-import type { ReplyCommandStore } from '../reputation/replies/reply-command-store.port.server'
+} from './replies/reply-repository.port.server'
+import type { FindAmbiguousPublicationReconciliationCandidates } from './publication/publication-reconciliation-candidate-repository.port.server'
+import type { ListRestatedMaterialRevisions } from './response-targets/restated-revision-repository.port.server'
+import type { ObservationRetention } from './reviews/observation-retention-repository.port.server'
+import type { SnapshotRunRetention } from './sync/snapshot-run-retention-repository.port.server'
+import type { ReplyCommandStore } from './replies/reply-command-store.port.server'
 import type {
   ReviewHeadCheckQueuePort,
   ReviewProviderJobData,
   ReviewQueuePort,
   TargetedGoogleReviewQueuePort,
-} from './application/ports/review-queue.port'
-import type { TargetedGoogleReviewReferenceResolver } from './application/ports/targeted-google-review-reference.port'
-import type { ReplyQueuePort } from '../reputation/publication/reply-queue.port.server'
+} from './sync/review-queue.port.server'
+import type { TargetedGoogleReviewReferenceResolver } from './sync/targeted-google-review-reference.port.server'
+import type { ReplyQueuePort } from './publication/reply-queue.port.server'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PropertyLifecycleState,
@@ -50,99 +50,99 @@ import type {
   PropertyPublicationScopePublicApi,
   PropertySourceEpochPublicApi,
 } from '#/contexts/property/public-api'
-import type { AiReplyProvenancePublicKeyring } from '../reputation/replies/ai-suggested-draft-store.port.server'
+import type { AiReplyProvenancePublicKeyring } from './replies/ai-suggested-draft-store.port.server'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
-import { createReviewRepository } from '../reputation/reviews/review-repository.server'
-import { createReviewObservationRepository } from '../reputation/reviews/review-observation-repository.server'
-import { createReplyRepository } from '../reputation/replies/reply-repository.server'
-import { createReviewReplyWriter } from '../reputation/replies/reply-writer.server'
-import { createReplyLibraryRepository } from '../reputation/library/reply-library-repository.server'
+import { createReviewRepository } from './reviews/review-repository.server'
+import { createReviewObservationRepository } from './reviews/review-observation-repository.server'
+import { createReplyRepository } from './replies/reply-repository.server'
+import { createReviewReplyWriter } from './replies/reply-writer.server'
+import { createReplyLibraryRepository } from './library/reply-library-repository.server'
 import {
   createAiReplyVoicePublicApi,
   type AiReplyVoicePublicApi,
-} from '../reputation/library/ai-reply-voice-frame.server'
-import { createPublicationReconciliationCandidateQuery } from '../reputation/publication/publication-reconciliation-candidate-repository.server'
-import { createRestatedRevisionQuery } from '../reputation/response-targets/restated-revision-repository.server'
-import { createObservationRetention } from '../reputation/reviews/observation-retention-repository.server'
-import { createSnapshotRunRetention } from '../reputation/sync/snapshot-run-retention-repository.server'
-import { createServingStats } from '../reputation/reviews/serving-stats.server'
-import type { ReviewServingStats } from '../reputation/reviews/serving-stats.port.server'
-import { createGoogleRatingReads } from '../reputation/reviews/google-rating-reads.server'
-import type { ReviewGoogleRatingReads } from '../reputation/reviews/google-rating-reads.port.server'
-import { createAtomicReviewCommandStore } from '../reputation/reviews/review-command-store.server'
+} from './library/ai-reply-voice-frame.server'
+import { createPublicationReconciliationCandidateQuery } from './publication/publication-reconciliation-candidate-repository.server'
+import { createRestatedRevisionQuery } from './response-targets/restated-revision-repository.server'
+import { createObservationRetention } from './reviews/observation-retention-repository.server'
+import { createSnapshotRunRetention } from './sync/snapshot-run-retention-repository.server'
+import { createServingStats } from './reviews/serving-stats.server'
+import type { ReviewServingStats } from './reviews/serving-stats.port.server'
+import { createGoogleRatingReads } from './reviews/google-rating-reads.server'
+import type { ReviewGoogleRatingReads } from './reviews/google-rating-reads.port.server'
+import { createAtomicReviewCommandStore } from './reviews/review-command-store.server'
 import {
   createAtomicReplyCommandStore,
   type ReplyPublicationActorAuthority,
-} from '../reputation/replies/reply-command-store.server'
-import { createGoogleReplyObservationStore } from '../reputation/publication/google-reply-observation-store.server'
-import { createReplyPublicationDispatchEvidence } from '../reputation/publication/reply-publication-dispatch-evidence.server'
+} from './replies/reply-command-store.server'
+import { createGoogleReplyObservationStore } from './publication/google-reply-observation-store.server'
+import { createReplyPublicationDispatchEvidence } from './publication/reply-publication-dispatch-evidence.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
-import type { ReviewReplyObservationAuthority } from '../reputation/reviews/reply-observation-authority.port.server'
+import type { ReviewReplyObservationAuthority } from './reviews/reply-observation-authority.port.server'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
-import type { ReviewSourceTransitionAuthority } from '../reputation/reviews/source-transition-authority.port.server'
-import { createReviewProviderObservationWriter } from '../reputation/sync/sync-reviews.server'
-import { createReviewProviderSubjectSightings } from '../reputation/sync/review-provider-subject-link.server'
-import { admitReviewSync } from '../reputation/sync/admit-review-sync.server'
-import { createAiReviewSource } from '../reputation/reviews/ai-review-source.server'
-import type { AiReviewSourcePort } from '../reputation/reviews/ai-review-source.port.server'
-import { createAiSuggestedDraftStore } from '../reputation/replies/ai-suggested-draft-store.server'
+import type { ReviewSourceTransitionAuthority } from './reviews/source-transition-authority.port.server'
+import { createReviewProviderObservationWriter } from './sync/sync-reviews.server'
+import { createReviewProviderSubjectSightings } from './sync/review-provider-subject-link.server'
+import { admitReviewSync } from './sync/admit-review-sync.server'
+import { createAiReviewSource } from './reviews/ai-review-source.server'
+import type { AiReviewSourcePort } from './reviews/ai-review-source.port.server'
+import { createAiSuggestedDraftStore } from './replies/ai-suggested-draft-store.server'
 import {
   createReviewProviderSubjectKeyService,
   createUnavailableReviewProviderSubjectKeyService,
   type ReviewProviderSubjectKeyService,
   type ReviewProviderSubjectSecretKeyring,
-} from '../reputation/sync/provider-subject-keyring.server'
-import { createReviewProviderSubjectKeyInventoryRepository } from '../reputation/sync/provider-subject-key-inventory-repository.server'
+} from './sync/provider-subject-keyring.server'
+import { createReviewProviderSubjectKeyInventoryRepository } from './sync/provider-subject-key-inventory-repository.server'
 import {
   createReviewProviderSnapshotRepository,
   fixHistoryCutoff,
-} from '../reputation/sync/review-provider-snapshot-repository.server'
-import { createReviewFirstSightingRecorder } from '../reputation/sync/review-first-sighting-repository.server'
-import { createReviewSyncActivityRecorder } from '../reputation/sync/review-sync-activity-repository.server'
-import { createReviewSourceContentLifecycleStore } from '../reputation/content/source-content-lifecycle-store.server'
+} from './sync/review-provider-snapshot-repository.server'
+import { createReviewFirstSightingRecorder } from './sync/review-first-sighting-repository.server'
+import { createReviewSyncActivityRecorder } from './sync/review-sync-activity-repository.server'
+import { createReviewSourceContentLifecycleStore } from './content/source-content-lifecycle-store.server'
 import {
   createAuthorizeReviewExpiryApply,
   type ReviewExpiryActivation,
-} from '../reputation/content/review-expiry-activation.server'
+} from './content/review-expiry-activation.server'
 import {
   createReviewLifecycleRecoveryExecutionRepository,
   createReviewLifecycleRecoveryPlanningQuery,
-} from '../reputation/content/lifecycle-recovery-execution-repository.server'
+} from './content/lifecycle-recovery-execution-repository.server'
 import {
   createRunReviewSourceContentLifecycle,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   type RunReviewSourceContentLifecycle,
-} from './application/use-cases/run-source-content-lifecycle'
+} from './content/run-source-content-lifecycle.server'
 import {
   createReviewLifecycleRecoveryAuthorityFactory,
   type ReviewLifecycleRecoveryAuthorityFactory,
-} from '../reputation/content/recovery-maintenance.server'
-import { runReviewProviderSnapshot } from '../reputation/sync/run-review-provider-snapshot.server'
-import { runTargetedGoogleReviewFetch } from '../reputation/sync/run-targeted-google-review-fetch.server'
-import { readReviewBeforePublish } from '../reputation/publication/read-review-before-publish.server'
+} from './content/recovery-maintenance.server'
+import { runReviewProviderSnapshot } from './sync/run-review-provider-snapshot.server'
+import { runTargetedGoogleReviewFetch } from './sync/run-targeted-google-review-fetch.server'
+import { readReviewBeforePublish } from './publication/read-review-before-publish.server'
 import {
   checkReviewOnGoogle,
   type CheckReviewOnGoogle,
-} from '../reputation/sync/check-review-on-google.server'
-import type { PropertyGoogleReadBindingPort } from '../reputation/sync/property-google-read-binding.port.server'
-import { readBindingFromPropertyScope } from '../reputation/sync/property-google-read-binding.server'
+} from './sync/check-review-on-google.server'
+import type { PropertyGoogleReadBindingPort } from './sync/property-google-read-binding.port.server'
+import { readBindingFromPropertyScope } from './sync/property-google-read-binding.server'
 import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
-import { reconcileReplyPublication } from '../reputation/publication/reconcile-reply-publication.server'
+import { reconcileReplyPublication } from './publication/reconcile-reply-publication.server'
 import {
   cancelPublicationsForConnection,
   cancelPublicationsForProperty,
-} from '../reputation/publication/cancel-publications.server'
+} from './publication/cancel-publications.server'
 import {
   createEligibleGoogleReplyReads,
   createEligibleReads,
   type EligibleReads,
-} from '../reputation/reviews/eligible-reads.server'
+} from './reviews/eligible-reads.server'
 import { reviewId, replyId, organizationId, propertyId } from '#/shared/domain/ids'
-import type { ReviewHeadChecksMode } from '../reputation/domain/head-check'
+import type { ReviewHeadChecksMode } from './domain/head-check'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
-import { registerReplyPublicationConsumers } from '../reputation/publication/publication-outbox-consumers.server'
+import { registerReplyPublicationConsumers } from './publication/publication-outbox-consumers.server'
 
 export type ReviewContextBuildInput = Readonly<{
   db: Database
@@ -205,7 +205,7 @@ export type ReviewContextApi = Readonly<{
   publicApi: EligibleReads &
     Readonly<{
       replyObservationAuthority: ReviewReplyObservationAuthority
-      responseTargetAuthority: import('../reputation/reviews/response-target-authority.port.server').ReviewResponseTargetAuthority
+      responseTargetAuthority: import('./reviews/response-target-authority.port.server').ReviewResponseTargetAuthority
       sourceTransitionAuthority: ReviewSourceTransitionAuthority
       /** Read one stored review from Google and record what it shows (Inbox's reminder pre-check). */
       checkReviewOnGoogle: CheckReviewOnGoogle
@@ -216,7 +216,7 @@ export type ReviewContextApi = Readonly<{
       /** Review-owned queue admission used by Integration import/push workflows. */
       syncAdmission: Readonly<
         Pick<ReviewQueuePort, 'addSyncJob'> & {
-          prepareImportSync: import('./application/public-api').PrepareGoogleImportSync
+          prepareImportSync: import('./public-api').PrepareGoogleImportSync
         } & Pick<TargetedGoogleReviewQueuePort, 'addTargetedFetchJob'>
       >
       /** Review-owned reply workflow presented to Review HTTP adapters. */
@@ -670,7 +670,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     reconcileWithinMs: number
   }>): Promise<void> => {
     const { registerReviewWorkerJobs } =
-      await import('../reputation/sync/review-worker-runtime.server')
+      await import('./sync/review-worker-runtime.server')
     await registerReviewWorkerJobs({
       replyEffects: input.replyEffects,
       db: input.db,

@@ -6,7 +6,7 @@ import {
   DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
   GBP_PUSH_SYNC_INITIATOR_ID,
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
-} from '../../review/application/ports/review-queue.port'
+} from './review-queue.port.server'
 import type { ReviewSyncActivityRecorder } from './review-sync-activity-repository.port.server'
 import type { ReviewDiscoveryRepository } from './review-discovery-repository.port.server'
 import {

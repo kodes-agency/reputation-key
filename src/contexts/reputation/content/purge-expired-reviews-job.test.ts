@@ -5,7 +5,7 @@ import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
   createRunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),

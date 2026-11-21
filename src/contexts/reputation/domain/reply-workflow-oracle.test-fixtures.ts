@@ -4,8 +4,8 @@
 // from REPLY_TRANSITIONS, PERSISTED_PUBLICATION_TRANSITIONS or the command
 // preconditions, and it imports nothing from them: a test that asks the
 // production tables what is allowed can only agree with them. Every move below
-// is stated from src/contexts/review/CONTEXT.md (Model, Runtime, Manager
-// publication commands, Invariants 7 to 10) and docs/BETA.md §5 (No
+// is stated from src/contexts/reputation/CONTEXT.md (Model, Runtime, Manager
+// publication commands, Review invariants 7 to 10) and docs/BETA.md §5 (No
 // auto-publish). When the product rule changes, this file changes by hand.
 //
 // Four things a verdict depends on are not part of the reply's state and are

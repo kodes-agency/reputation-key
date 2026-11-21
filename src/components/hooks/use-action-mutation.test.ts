@@ -16,7 +16,7 @@ import { inboxKeys } from '#/shared/queries/query-keys'
 import type {
   InboxItemDetailResult,
   InboxRevisionConflictResult,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { withFreshCommandRevision } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }))

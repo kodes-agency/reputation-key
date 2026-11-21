@@ -21,7 +21,7 @@ import type { VocabularyHintIdentity } from '#/shared/analysis/review-vocabulary
 import type {
   AiReviewSentence,
   AiReviewSourcePort,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { AiOperationProfile } from '#/shared/ai-operation/ai-operation-profiles'
 import type { AiMerchantAuthorizationSnapshot } from '../consent/ai-authorization.port.server'
 import type {

@@ -24,10 +24,7 @@ import {
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { GuestReviewBodyView, GuestReviewDisclosure } from './guest-message-view'
 import type { ReactNode } from 'react'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxItemDetailResult } from '#/contexts/reputation/public-api'
 
 /**
  * Finding 9: review and reply text ran the full ≈670 px pane at ≈110 characters

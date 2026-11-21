@@ -4,7 +4,7 @@ import {
   executorErrorToReviewApiError,
   reviewApiError,
   translatedGoogleReviewApi,
-} from './google-review-api-error'
+} from './google-review-api-error.server'
 
 describe('Google call errors at the Review boundary', () => {
   it.each([

@@ -7,7 +7,7 @@
 import { ratingGoalError, type PropertyRatingGoal } from '../domain/rating-goal'
 import type { RatingGoalNotice } from '../domain/rating-goal-notices'
 import { statusPaceWindow } from '../domain/rating-goal-status'
-import type { GoogleRatingRangeTotals } from '#/contexts/review/application/public-api'
+import type { GoogleRatingRangeTotals } from '#/contexts/reputation/public-api'
 import { previousWeekStartInstant, weekStartInstant } from '../domain/rating-goal-weeks'
 import type { PropertyRatingGoalRepository } from './property-rating-goal-repository.port.server'
 import {

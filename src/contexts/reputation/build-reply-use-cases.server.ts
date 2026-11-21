@@ -10,24 +10,24 @@ import {
   deleteReply,
   retryPublish,
   editPublishedReply,
-} from '../reputation/replies/reply-operations.server'
+} from './replies/reply-operations.server'
 import {
   checkReplyDraft,
   listReplyTemplates,
   loadReplyTemplate,
   type ResolveReplyTemplateLanguage,
-} from './application/use-cases/layered-reply-template-operations'
+} from './library/layered-reply-template-operations.server'
 import {
   getReplyLibrary,
   resetReplyTemplate,
   saveReplyTemplate,
   saveReplyVoice,
   setReplyTemplateHidden,
-} from '../reputation/library/reply-library-layer-operations.server'
-import { checkReplyPublication } from '../reputation/publication/check-reply-publication.server'
-import type { ReplyDeps } from '../reputation/replies/reply-operations.server'
-import type { ReplyLibraryRepository } from '../reputation/library/reply-library-repository.port.server'
-import type { ReconcileReplyPublication } from '../reputation/publication/reconcile-reply-publication.server'
+} from './library/reply-library-layer-operations.server'
+import { checkReplyPublication } from './publication/check-reply-publication.server'
+import type { ReplyDeps } from './replies/reply-operations.server'
+import type { ReplyLibraryRepository } from './library/reply-library-repository.port.server'
+import type { ReconcileReplyPublication } from './publication/reconcile-reply-publication.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export function wireReplyUseCases(

@@ -1,4 +1,4 @@
-import { translatedGoogleReviewApi } from '../../review/application/google-review-api-error'
+import { translatedGoogleReviewApi } from './google-review-api-error.server'
 import type {
   GoogleConnectionId,
   OrganizationId,
@@ -10,14 +10,14 @@ import {
   GOOGLE_CONNECTION_UNUSABLE_CODE,
   isGoogleConnectionUnusable,
   type GoogleReviewApiPort,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type { PropertySourceEpochPort } from './property-source-epoch.port.server'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import type { ReviewProviderSubjectSightings } from './review-provider-subject-link.port.server'
 import type { ReviewFirstSightingRecorder } from './review-first-sighting-repository.port.server'
-import type { GoogleReviewPushNotificationKind } from '../../review/application/ports/review-queue.port'
+import type { GoogleReviewPushNotificationKind } from './review-queue.port.server'
 import type { ReviewSyncActivityRecorder } from './review-sync-activity-repository.port.server'
-import type { TargetedGoogleReviewReferenceResolver } from '../../review/application/ports/targeted-google-review-reference.port'
+import type { TargetedGoogleReviewReferenceResolver } from './targeted-google-review-reference.port.server'
 import type { ReviewProviderSubjectKeyService } from './provider-subject-keyring.server'
 import { persistGoogleReviewObservation } from './persist-google-review-observation.server'
 

@@ -35,12 +35,12 @@ import { discoveryLookFor } from '../domain/discovery-reconciliation'
 import type {
   GoogleReviewApiPort,
   GoogleReviewPage,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type { ReviewProviderSubjectKeyService } from './provider-subject-keyring.server'
 import {
   DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
   type SyncPropertyReviewsJobData,
-} from '../../review/application/ports/review-queue.port'
+} from './review-queue.port.server'
 import { createReviewProviderObservationWriter } from './sync-reviews.server'
 import { runReviewProviderSnapshot } from './run-review-provider-snapshot.server'
 import { createRunReviewHeadCheck } from './run-review-head-check.server'

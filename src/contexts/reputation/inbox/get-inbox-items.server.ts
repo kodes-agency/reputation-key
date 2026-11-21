@@ -26,7 +26,7 @@ import {
   queueToFilters,
   type InboxQueue,
   type InboxReplyStages,
-} from '../../inbox/application/inbox-queues'
+} from './inbox-queues.contracts'
 
 export type GetInboxItemsInput = Readonly<{
   filters: InboxFilters

@@ -32,9 +32,11 @@ import { RETENTION_RULES } from '../../src/composition/retention-rules'
 import { SCHEDULED_RETENTION_ACTIVE } from '../../src/shared/db/retention/scheduled-retention-activation'
 import { buildRetentionRuleReport } from '../../src/shared/db/retention/report-retention-rules'
 import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
-import { wireReviewSourceContentLifecycle } from '../../src/contexts/review/build'
-import { collectReviewSourceContentLifecycleReport } from '../../src/contexts/review/application/use-cases/collect-source-content-lifecycle-report'
-import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../src/contexts/review/application/use-cases/run-source-content-lifecycle'
+import { wireReviewSourceContentLifecycle } from '../../src/contexts/reputation/build-review'
+import {
+  collectReviewSourceContentLifecycleReport,
+  REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+} from '../../src/contexts/reputation/public-api'
 import { exitIfHelp } from './command-help'
 import { runDatabaseOperatorCommand } from './operator-command'
 

@@ -15,7 +15,7 @@ import {
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
   type GoogleReviewApiPort,
   type GoogleReviewRead,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type { PropertyGoogleReadBindingPort } from './property-google-read-binding.port.server'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import type { ReviewProviderSubjectKeyService } from './provider-subject-keyring.server'

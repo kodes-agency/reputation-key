@@ -83,7 +83,7 @@ import {
   googleConnectionId,
 } from '#/shared/domain/ids'
 import type { Reply, Review } from '#/contexts/reputation/domain/review-types'
-import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'
+import type { GoogleReviewApiPort } from '#/contexts/reputation/sync/google-review-api.port.server'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PublishReplyJobData } from '#/contexts/reputation/publication/reply-queue.port.server'
 import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'

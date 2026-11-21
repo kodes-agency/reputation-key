@@ -157,7 +157,7 @@
       "exports": ["deleteProperty"]
     },
     {
-      "file": "src/contexts/review/application/public-api.ts",
+      "file": "src/contexts/reputation/public-api.ts",
       "exports": [
         "reviewExpired",
         "reviewReplyPublicationRequested",

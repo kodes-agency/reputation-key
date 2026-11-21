@@ -5,12 +5,12 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { hashKey, type QueryClient, type QueryState } from '@tanstack/react-query'
 import type { InboxSearchParams } from '#/contexts/reputation/inbox/ui/page/inbox-search-schema'
-import {
-  replyQueueStage,
-  type InboxItem,
-  type InboxItemDetailResult,
-  type InboxQueue,
-} from '#/contexts/inbox/application/public-api'
+import { replyQueueStage } from '#/contexts/reputation/inbox/inbox-queues.contracts'
+import type {
+  InboxItem,
+  InboxItemDetailResult,
+  InboxQueue,
+} from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { queueReplyStage } from './inbox-queues'
 

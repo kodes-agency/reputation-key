@@ -2,8 +2,7 @@
 //
 //   "Cross-context: import from the area's public-api.ts only. Never from
 //    domain/, infrastructure/, server/, or non-public-api application/."
-//   The public API sits at the area's root. Review and Inbox keep theirs in
-//   application/ until their server functions move into Reputation.
+//   The public API sits at the area's root.
 //   "Exception: Cross-context adapter implementations (infrastructure/adapters/**
 //    and a feature's *.adapter.server.ts) may import the port they implement
 //    (application/ports/**). The port IS the public interface for adapter
@@ -26,8 +25,6 @@ const IMPORTER_RE = /\/src\/contexts\/([^/]+)\//
 const ADAPTERS_RE =
   /\/src\/contexts\/[^/]+\/(?:infrastructure\/adapters\/|(?!(?:domain|application|infrastructure|server|ports|queries|ui)\/)[^/]+\/[^/]+\.adapter\.server\.ts$)/
 const TARGET_RE = /^src\/contexts\/([^/]+)\//
-// Review, Inbox and Reputation are one bounded context.
-const MERGED_CONTEXTS = new Set(['reputation', 'review', 'inbox'])
 
 const LAYER_FOLDERS = 'domain|application|infrastructure|server|ports|queries|ui'
 const BROWSER_IMPORTER_RE = new RegExp(
@@ -37,13 +34,7 @@ const TYPE_ONLY_TARGET_RE = /^src\/contexts\/[^/]+\/server\//
 
 const EXTENSION_RE = /\.(d\.ts|tsx?|jsx?|m[ct]s)$/
 
-// Areas whose public API is still application/public-api.ts (until their server functions move).
-const APPLICATION_PUBLIC_API_CONTEXTS = new Set(['review', 'inbox'])
-
-const publicApiPath = (context) =>
-  APPLICATION_PUBLIC_API_CONTEXTS.has(context)
-    ? `src/contexts/${context}/application/public-api`
-    : `src/contexts/${context}/public-api`
+const publicApiPath = (context) => `src/contexts/${context}/public-api`
 
 const stripExtension = (p) => p.replace(EXTENSION_RE, '')
 
@@ -88,13 +79,6 @@ export default {
       if (!targetMatch) return
       const targetContext = targetMatch[1]
       if (targetContext === importerContext) return
-      if (
-        MERGED_CONTEXTS.has(targetContext) &&
-        MERGED_CONTEXTS.has(importerContext) &&
-        (targetContext === 'reputation' || importerContext === 'reputation')
-      ) {
-        return
-      }
       const stripped = stripExtension(resolved)
       if (stripped === publicApiPath(targetContext)) return
       if (

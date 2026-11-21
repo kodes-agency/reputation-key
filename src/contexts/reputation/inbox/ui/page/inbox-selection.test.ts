@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
+import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
 import { inboxItemId } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import {
   reconcileInboxPageItems,
   removeInboxSelection,

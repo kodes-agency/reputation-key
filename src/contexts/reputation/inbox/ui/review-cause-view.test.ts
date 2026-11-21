@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { InboxMentionV3 } from '#/contexts/inbox/application/public-api'
+import type { InboxMentionV3 } from '#/contexts/reputation/public-api'
 import {
   causeLine,
   causeWords,

@@ -1,4 +1,4 @@
-import { templateFrameChoices } from '../../../reputation/library/template-frame-choices.server'
+import { templateFrameChoices } from './template-frame-choices.server'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ReviewId } from '#/shared/domain/ids'
@@ -35,17 +35,17 @@ import type {
   ReplyTemplateLanguageTarget as ReplyTemplateLanguageTargetDto,
   ReplyTemplateListItemDto,
   ReplyTemplateListResultDto,
-} from '../dto/reply-library.dto'
-import type { ReplyLibraryRepository } from '../../../reputation/library/reply-library-repository.port.server'
-import type { ReviewRepository } from '../../../reputation/reviews/review-repository.port.server'
-import { resolveReplyLibraryTemplates } from '../reply-library-resolver'
-import type { Review } from '../../../reputation/domain/review-types'
-import { reviewError } from '../../../reputation/domain/review-errors'
-import type { DraftReply } from '../../../reputation/replies/reply-operations.server'
+} from './contracts'
+import type { ReplyLibraryRepository } from './reply-library-repository.port.server'
+import type { ReviewRepository } from '../reviews/review-repository.port.server'
+import { resolveReplyLibraryTemplates } from './reply-library-resolver.contracts'
+import type { Review } from '../domain/review-types'
+import { reviewError } from '../domain/review-errors'
+import type { DraftReply } from '../replies/reply-operations.server'
 import {
   requireAccessibleReview,
   requireReplyManager,
-} from '../../../reputation/replies/reply-access.server'
+} from '../replies/reply-access.server'
 
 type ReplyTemplateLanguageTarget = ReplyTemplateLanguageTargetDto
 export type ReplyTemplateListItem = ReplyTemplateListItemDto

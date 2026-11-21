@@ -13,7 +13,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { FeedbackHandlingState } from '#/contexts/inbox/application/public-api'
+import type { FeedbackHandlingState } from '#/contexts/reputation/public-api'
 
 /**
  * A first completion. Every case below overrides exactly the one field it is

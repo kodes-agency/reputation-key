@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../src/contexts/review/application/use-cases/run-source-content-lifecycle'
+import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../src/contexts/reputation/content/run-source-content-lifecycle.server'
 import { main } from './enqueue-purge'
 
 const fakes = vi.hoisted(() => ({
@@ -12,7 +12,7 @@ const fakes = vi.hoisted(() => ({
   execute: vi.fn(async () => ({ rows: [{ count: 2 }] })),
 }))
 
-vi.mock('../../src/contexts/review/build', () => ({
+vi.mock('../../src/contexts/reputation/build-review', () => ({
   wireReviewSourceContentLifecycle: () => fakes.runLifecycle,
 }))
 vi.mock('../../src/shared/db', () => ({ getDb: () => ({ execute: fakes.execute }) }))

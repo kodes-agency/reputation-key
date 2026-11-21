@@ -18,7 +18,7 @@ import {
   queueToFilters,
   REPLY_STAGE_QUEUES,
   type InboxQueue,
-} from '../../inbox/application/inbox-queues'
+} from './inbox-queues.contracts'
 import type { InboxRepository } from './inbox-repository.port.server'
 import type { ReplyLookupPort } from './reply-lookup.port.server'
 

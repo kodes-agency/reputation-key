@@ -18,7 +18,7 @@ import {
   getInboxItemHistoryDto,
   checkReviewOnGoogleDto,
   setInboxItemPriorityDto,
-} from '../../inbox/application/dto/inbox.dto'
+} from '../inbox/contracts'
 import {
   inboxError,
   isInboxError,

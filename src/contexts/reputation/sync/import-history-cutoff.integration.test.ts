@@ -38,13 +38,13 @@ import type { GoogleReview } from '../domain/review-types'
 import type {
   GoogleReviewApiPort,
   GoogleReviewPage,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type { AiReviewSourceRequest } from '../reviews/ai-review-source.port.server'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import {
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
   type SyncPropertyReviewsJobData,
-} from '../../review/application/ports/review-queue.port'
+} from './review-queue.port.server'
 import type { ReviewProviderSubjectKeyService } from './provider-subject-keyring.server'
 import { admitReviewSync } from './admit-review-sync.server'
 import { createReviewProviderObservationWriter } from './sync-reviews.server'

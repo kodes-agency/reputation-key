@@ -14,7 +14,7 @@ import {
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
   type ReviewQueuePort,
   type SyncPropertyReviewsJobData,
-} from '../../review/application/ports/review-queue.port'
+} from './review-queue.port.server'
 
 export type AdmitReviewSyncDeps = Readonly<{
   queue: Pick<ReviewQueuePort, 'addSyncJob'>

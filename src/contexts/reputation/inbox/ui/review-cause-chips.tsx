@@ -20,10 +20,7 @@ import {
   type ReadyAnalysisV3,
 } from './review-cause-view'
 import type { ReactNode } from 'react'
-import type {
-  InboxMentionV3,
-  InboxPriority,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxMentionV3, InboxPriority } from '#/contexts/reputation/public-api'
 import type { MatchedIssue } from './use-matched-issue'
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { inboxRowView } from './inbox-list-row-view'
 
 const item = {

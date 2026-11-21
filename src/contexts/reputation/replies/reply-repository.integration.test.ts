@@ -30,7 +30,7 @@ import {
   type ReplyQueueStage,
 } from '#/shared/domain/reply-queue-stage'
 import { itemMatchesQueue } from '#/contexts/reputation/inbox/ui/page/inbox-queues'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
 import { getInboxQueueCounts } from '#/contexts/reputation/inbox/get-inbox-queue-counts.server'
 import { getInboxItems } from '#/contexts/reputation/inbox/get-inbox-items.server'

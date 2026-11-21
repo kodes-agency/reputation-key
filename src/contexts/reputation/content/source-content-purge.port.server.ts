@@ -14,12 +14,12 @@ export type SourcePurgeResult = Readonly<{
    * Replaying this opaque, scope-bound checkpoint resumes the frozen window.
    */
   nextCheckpoint?:
-    | import('../../review/application/use-cases/run-source-content-lifecycle').ReviewSourceContentLifecycleCheckpoint
+    | import('./run-source-content-lifecycle.server').ReviewSourceContentLifecycleCheckpoint
     | null
 }>
 
 export type SourcePurgeContinuation = Readonly<{
-  checkpoint?: import('../../review/application/use-cases/run-source-content-lifecycle').ReviewSourceContentLifecycleCheckpoint
+  checkpoint?: import('./run-source-content-lifecycle.server').ReviewSourceContentLifecycleCheckpoint
 }>
 
 export type SourceContentPurge = Readonly<{

@@ -8,7 +8,7 @@ import {
   getPrivateFeedbackTargetAnalyticsDto,
   getResponseTargetPolicySettingsDto,
   setResponseTargetPolicyDto,
-} from '../../inbox/application/dto/inbox.dto'
+} from '../inbox/contracts'
 import {
   createServerFn,
   inboxErrorStatus,

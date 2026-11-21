@@ -1,8 +1,5 @@
 import { useSearch } from '@tanstack/react-router'
-import type {
-  ReviewAspect,
-  ReviewAspectPolarity,
-} from '#/contexts/inbox/application/public-api'
+import type { ReviewAspect, ReviewAspectPolarity } from '#/contexts/reputation/public-api'
 import { inboxSearchObjectSchema } from '#/contexts/reputation/inbox/ui/page/inbox-search-schema'
 
 /** The topic (and, when the link named one, the polarity) the Inbox was opened on. */

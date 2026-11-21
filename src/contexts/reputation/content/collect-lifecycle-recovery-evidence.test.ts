@@ -3,7 +3,7 @@ import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
   type ReviewSourceContentLifecycleResult,
   type RunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 import {
   REVIEW_LIFECYCLE_RECOVERY_REPORT_VERSION,
   collectReviewLifecycleRecoveryEvidence,

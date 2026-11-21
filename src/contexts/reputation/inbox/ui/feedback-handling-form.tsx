@@ -12,11 +12,9 @@ import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { feedbackHandlingDecisionDto } from '#/contexts/inbox/application/public-api'
-import {
-  PRIVATE_FEEDBACK_HANDLING_OUTCOMES,
-  type PrivateFeedbackHandlingOutcome,
-} from '#/contexts/inbox/application/public-api'
+import { feedbackHandlingDecisionDto } from '#/contexts/reputation/inbox/contracts'
+import { PRIVATE_FEEDBACK_HANDLING_OUTCOMES } from '#/contexts/reputation/inbox/contracts'
+import type { PrivateFeedbackHandlingOutcome } from '#/contexts/reputation/public-api'
 import { feedbackHandlingOutcomeLabel } from './feedback-handling-presentation'
 
 export type FeedbackHandlingDecision = Readonly<{

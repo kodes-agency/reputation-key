@@ -7,7 +7,7 @@ import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { InboxList } from './inbox-list'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 
 // Minimal local factory — distinct names/snippets so getBy* queries are unique.
 // Mirrors the makeInboxItem field shape from .storybook/in-memory/inbox-container.

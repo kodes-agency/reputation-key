@@ -8,7 +8,7 @@ import { storedReplyFrame } from '#/shared/domain/reply-frame'
 // composer's own compose state plus the one editor an existing reply opens.
 
 import { useEffect, useRef } from 'react'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { putCaretIn } from './composer-caret'
 import { ReplyCompose, type ReplyComposeProps } from './reply-editor-compose'
 import { ReviewReplyPublishedEditor } from './reply-editor-views'

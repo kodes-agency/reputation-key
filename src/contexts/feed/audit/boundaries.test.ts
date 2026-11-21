@@ -43,7 +43,7 @@ describe.each(['event', 'fact', 'read', 'write', 'retention'])(
       'src/routes/audit-boundary-fixture.ts',
       'src/components/audit-boundary-fixture.ts',
       'src/shared/jobs/retention-sweep.job.ts',
-      'src/contexts/review/infrastructure/audit-boundary-fixture.ts',
+      'src/contexts/identity/infrastructure/audit-boundary-fixture.ts',
       'src/contexts/feed/feed/ui/audit-boundary-fixture.tsx',
       'src/contexts/feed/audit/ui/audit-boundary-fixture.tsx',
       'scripts/ops/audit-events.ts',

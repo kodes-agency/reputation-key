@@ -1,6 +1,6 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
-import type { InboxPropertyCounts } from '#/contexts/inbox/application/public-api'
+import type { InboxPropertyCounts } from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import {
   INBOX_WAITING_QUEUE,

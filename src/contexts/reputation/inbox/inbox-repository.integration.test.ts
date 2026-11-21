@@ -30,7 +30,7 @@ import {
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
 
-import { queueToFilters } from '#/contexts/inbox/application/inbox-queues'
+import { queueToFilters } from '#/contexts/reputation/inbox/inbox-queues.contracts'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'

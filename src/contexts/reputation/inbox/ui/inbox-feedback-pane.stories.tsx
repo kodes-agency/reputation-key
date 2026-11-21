@@ -43,7 +43,7 @@ import type {
   InboxItemDetailResult,
   InboxNote,
   InboxNoteView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 // ─── the copy under test ────────────────────────────────────────────────────
 
@@ -112,7 +112,7 @@ type HistoryUserId = NonNullable<InboxHistoryEntry['actorUserId']>
 type OutcomeFact = NonNullable<FeedbackHandlingState['currentOutcome']>
 /**
  * `HandlingCycleCloseReason` lives in `reputation/domain`, which components may not
- * import, and `application/public-api.ts` does not re-export it. Narrowing the
+ * import, and `reputation/public-api.ts` does not re-export it. Narrowing the
  * state's own field is the one legal spelling, and the same one
  * `feedback-handling-body.tsx` uses for its sentence map.
  */

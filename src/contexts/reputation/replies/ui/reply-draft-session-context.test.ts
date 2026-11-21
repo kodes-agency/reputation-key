@@ -8,7 +8,7 @@ import {
   useReplyDraftSession,
 } from './reply-draft-session-context'
 import { BACKGROUND_DRAFT_DWELL_MILLIS } from './reply-draft-session'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
 import { ReviewProse } from '#/contexts/reputation/inbox/ui/review-prose'
 const item = makeInboxItem({

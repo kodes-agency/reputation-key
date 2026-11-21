@@ -2,7 +2,7 @@ import type {
   FeedbackHandlingState,
   InboxItem,
   PrivateFeedbackHandlingOutcome,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 const OUTCOME_LABELS = {
   follow_up_completed: 'Follow-up completed',
@@ -172,7 +172,7 @@ export function feedbackHandlingStatusLabel(
 
 /**
  * `FeedbackHandlingDeadlineResult` lives in `reputation/domain`, which components
- * may not import, and `application/public-api.ts` does not re-export it.
+ * may not import, and `reputation/public-api.ts` does not re-export it.
  * Indexing the state's own history is the one legal spelling (precedent:
  * `feedback-handling-body.tsx:5`, which indexes the same state type for the
  * close-reason union).

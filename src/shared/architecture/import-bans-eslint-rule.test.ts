@@ -33,8 +33,8 @@ async function restrictedLines(relativePath: string) {
 
 describe('drizzle and React import bans', () => {
   it.each([
-    'src/contexts/review/domain/import-bans-fixture.ts',
-    'src/contexts/review/application/import-bans-fixture.ts',
+    'src/contexts/reputation/domain/import-bans-fixture.ts',
+    'src/contexts/ai/application/import-bans-fixture.ts',
     'src/shared/events/import-bans-fixture.ts',
     'src/contexts/reputation/server/import-bans-fixture.ts',
   ])('rejects both in %s', async (file) => {
@@ -51,13 +51,15 @@ describe('drizzle and React import bans', () => {
 
   it('allows drizzle in context infrastructure', async () => {
     expect(
-      await restrictedLines('src/contexts/review/infrastructure/import-bans-fixture.ts'),
+      await restrictedLines(
+        'src/contexts/identity/infrastructure/import-bans-fixture.ts',
+      ),
     ).toEqual([])
   })
 
   it('exempts test files', async () => {
     expect(
-      await restrictedLines('src/contexts/review/domain/import-bans-fixture.test.ts'),
+      await restrictedLines('src/contexts/reputation/domain/import-bans-fixture.test.ts'),
     ).toEqual([])
   })
 })

@@ -43,7 +43,7 @@ import type {
   FeedbackHandlingState,
   InboxItem,
   ResponseTargetView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { InboxAssignmentOption } from '#/contexts/reputation/inbox/ui/page/inbox-owner-view'
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 

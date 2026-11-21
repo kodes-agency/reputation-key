@@ -32,7 +32,7 @@
 //     with a tagged ReviewError and changed nothing;
 //   - whatever the worker, the sweep or the sync did is a move the workflow
 //     allows them;
-//   - the invariants of src/contexts/review/CONTEXT.md hold, judged against
+//   - the Review invariants of src/contexts/reputation/CONTEXT.md hold, judged against
 //     what the stand-in Google actually received.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -923,7 +923,7 @@ function createRun() {
     notePurge(pre, expected)
   }
 
-  // ── Invariants (src/contexts/review/CONTEXT.md) ────────────────────
+  // ── Review invariants (src/contexts/reputation/CONTEXT.md) ─────────────
 
   function assertInvariants(now: ReplyEvidence): void {
     const { reply, authorizations, attempts, facts } = now

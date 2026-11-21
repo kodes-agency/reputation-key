@@ -8,7 +8,7 @@ import {
   formatExactTime,
   formatRelativeTime,
 } from '#/contexts/reputation/inbox/ui/page/utils'
-import type { InboxNoteView } from '#/contexts/inbox/application/public-api'
+import type { InboxNoteView } from '#/contexts/reputation/public-api'
 
 /**
  * Never render a raw user id. The server resolves the author's

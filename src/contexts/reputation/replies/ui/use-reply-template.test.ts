@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
+import type { ReplyTemplateListResultDto as ReplyTemplateListResult } from '#/contexts/reputation/library/contracts'
 import {
   INITIAL_TEMPLATE_REQUESTS,
   isVerifiedLoadedReplyTemplate,
