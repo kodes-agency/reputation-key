@@ -144,6 +144,14 @@ const SELECTABLE_BUTTONS = [
   ['src/contexts/reputation/inbox/ui/page/inbox-list-row.tsx', 'picker-tile'],
 ]
 
+// An area's public API: what other areas may import. It is moving from
+// application/public-api.ts to the area's root; until every area has moved,
+// lint names both paths.
+const PUBLIC_API = [
+  'src/contexts/*/public-api.ts',
+  'src/contexts/*/application/public-api.ts',
+]
+
 const elementType = (type) => ({ element: { type } })
 const elementTypes = (...types) => ({ element: { types: { anyOf: types } } })
 const fileCategory = (categories) => ({ file: { categories } })
@@ -427,6 +435,7 @@ export default tseslint.config(
           category: 'context-build',
           pattern: ['src/contexts/*/build.ts', 'src/contexts/*/build-*.ts'],
         },
+        { category: 'public-api', pattern: 'src/contexts/*/public-api.ts' },
         {
           category: 'shared-outbox-runtime',
           pattern: [
@@ -508,7 +517,7 @@ export default tseslint.config(
               from: fileCategory('feature-contract'),
               allow: {
                 dependency: { kind: 'type' },
-                to: { file: { path: 'src/contexts/*/application/public-api.ts' } },
+                to: { file: { path: PUBLIC_API } },
               },
             },
             {
@@ -530,7 +539,7 @@ export default tseslint.config(
                   file: {
                     path: [
                       'src/contexts/{{from.file.captured.context}}/{domain,application,infrastructure,server,ports}/**',
-                      'src/contexts/*/application/public-api.ts',
+                      ...PUBLIC_API,
                     ],
                   },
                 },
@@ -577,6 +586,38 @@ export default tseslint.config(
             {
               from: elementType('application'),
               allow: { to: elementTypes(...CONTEXT, ...SHARED_BROWSER, 'shared-events') },
+            },
+            // An area's public API at its root imports what application/ may, and
+            // whoever may import application/ may import it.
+            {
+              from: fileCategory('public-api'),
+              allow: { to: elementTypes(...CONTEXT, ...SHARED_BROWSER, 'shared-events') },
+            },
+            {
+              from: [
+                elementTypes(
+                  'feature-ui',
+                  'application',
+                  'infrastructure',
+                  'server',
+                  'context-ui',
+                  'routes',
+                  'components',
+                  'test-helpers',
+                  'top-level',
+                  'script-ci',
+                  'script-operator',
+                  'script-tooling',
+                ),
+                fileCategory([
+                  'public-api',
+                  'feature-server',
+                  'feature-test-fixtures',
+                  'context-build',
+                  'composition-root',
+                ]),
+              ],
+              allow: { to: fileCategory('public-api') },
             },
             {
               from: elementType('infrastructure'),
@@ -892,6 +933,7 @@ export default tseslint.config(
                   path: [
                     'src/contexts/{{to.file.captured.context}}/{application,infrastructure,server}/**',
                     'src/contexts/{{to.file.captured.context}}/build{,-*}.ts',
+                    'src/contexts/{{to.file.captured.context}}/public-api.ts',
                   ],
                 },
               },
@@ -957,7 +999,8 @@ export default tseslint.config(
 
   // ─── BQC-5.1: cross-context public-api rule ────────────────────────
   // CONTEXT.md "Dependency rules": cross-context imports go through the
-  // target context's application/public-api.ts only; infrastructure/adapters/**
+  // target context's public-api.ts (at its root, or in application/ until it
+  // has moved) only; infrastructure/adapters/**
   // and feature *.adapter.server.ts files may import the foreign
   // application/ports/** contract they implement.
   {
@@ -1154,6 +1197,7 @@ export default tseslint.config(
   {
     files: [
       'src/contexts/*/application/**/*.{ts,tsx}',
+      'src/contexts/*/public-api.ts',
       FEATURE_ROOT + '/**/get-*.server.ts',
     ],
     rules: {
