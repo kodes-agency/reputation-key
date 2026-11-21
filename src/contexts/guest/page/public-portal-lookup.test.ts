@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createPublicPortalLookup } from './public-portal-lookup.server'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 
 function createPortalApiStub(
   findPublicPortalByToken: PortalPublicApi['findPublicPortalByToken'],

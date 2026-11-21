@@ -6,7 +6,7 @@ import type {
   EffectiveNotificationSettings,
   NotificationPreference,
   NotificationPropertyDeliveryWindow,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import type { Action } from '#/components/hooks/use-action'
 import { Toaster } from '#/components/ui/sonner'
 import { NotificationsSettingsPage } from './notifications-settings-page'

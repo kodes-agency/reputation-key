@@ -1,17 +1,17 @@
 import type { Tx } from '#/shared/outbox/commit'
-import type { PortalRatingGoalBlock } from '../monthly-goals/running-portal-rating-goal.server'
+import type { PortalRatingGoalBlock } from './monthly-goals/running-portal-rating-goal.server'
 // Reporting context — the single cross-context interface for metrics, goals,
 // and dashboard reads. Implementation modules inside this context import one
 // another directly through the normal layer rules rather than through this file.
 
-import type { GoalMetricCorrectionImpactLookup } from '../monthly-goals/goal-metric-correction-impact-lookup.port.server'
-import type { CurrentGoogleReputationSnapshotStore } from '../readings/current-google-reputation-snapshot-repository.port.server'
-import type { PortalAnalyticsRepository } from '../portal-results/portal-analytics.repository.port.server'
+import type { GoalMetricCorrectionImpactLookup } from './monthly-goals/goal-metric-correction-impact-lookup.port.server'
+import type { CurrentGoogleReputationSnapshotStore } from './readings/current-google-reputation-snapshot-repository.port.server'
+import type { PortalAnalyticsRepository } from './portal-results/portal-analytics.repository.port.server'
 import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
-} from '../readings/query-goal-metric.server'
-import type { GovernedMetricVersion } from '../readings/contracts'
+} from './readings/query-goal-metric.server'
+import type { GovernedMetricVersion } from './readings/contracts'
 
 // Metric contracts.
 export type { GovernedGoalMetricQuery, GovernedGoalMetricResult }
@@ -20,22 +20,22 @@ export type {
   MetricPortalMetricEvidenceSet,
   PortalMetricSumRow,
   PortalRatingBucket,
-} from '../portal-results/portal-analytics.repository.port.server'
-export type { MetricRecorded, MetricEvent } from '../domain/metric-events'
+} from './portal-results/portal-analytics.repository.port.server'
+export type { MetricRecorded, MetricEvent } from './domain/metric-events'
 export {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
   findMetricVersionById,
-} from '../readings/contracts'
+} from './readings/contracts'
 export type {
   GovernedMetricVersion,
   SeededMetricRegistryEntry,
-} from '../readings/contracts'
+} from './readings/contracts'
 
 export type {
   FindGoalMetricCorrectionImpactsInput,
   GoalMetricCorrectionImpact,
-} from '../monthly-goals/goal-metric-correction-impact-lookup.port.server'
+} from './monthly-goals/goal-metric-correction-impact-lookup.port.server'
 
 export type MetricPublicApi = Readonly<{
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
@@ -65,31 +65,34 @@ export type PortalRatingGoalReadApi = Readonly<{
     portalId: string,
   ): Promise<'portal' | 'last_collector' | 'staff_scan_target' | null>
 }>
-export type { GoalProgram, GoalSubjectAssignment } from './ports/goal-program.repository'
+export type {
+  GoalProgram,
+  GoalSubjectAssignment,
+} from './application/ports/goal-program.repository'
 export type {
   MonthlyResultNotificationFactsLookup,
   MonthlyResultRevisionNotificationFacts,
-} from '../monthly-goals/monthly-result-notification-facts-lookup.port.server'
-export type { GoalMetric, GoalSubject } from '../domain/goal-program'
-export { goalSubjectIdentity } from '../domain/goal-subject'
-export { buildGoalResultsMatrix } from './goal-results-matrix'
+} from './monthly-goals/monthly-result-notification-facts-lookup.port.server'
+export type { GoalMetric, GoalSubject } from './domain/goal-program'
+export { goalSubjectIdentity } from './domain/goal-subject'
+export { buildGoalResultsMatrix } from './application/goal-results-matrix'
 export type {
   GoalResultsMatrix,
   GoalResultsMatrixEvidence,
   GoalResultsMatrixRow,
-} from './goal-results-matrix'
-export { GoalProgramError } from './use-cases/goal-program-shared'
+} from './application/goal-results-matrix'
+export { GoalProgramError } from './application/use-cases/goal-program-shared'
 export type {
   GoalProgress,
   GoalProgressReading,
-} from '../monthly-goals/goal-progress.server'
-export type { GoalListProgress } from '../monthly-goals/goal-list-progress.server'
+} from './monthly-goals/goal-progress.server'
+export type { GoalListProgress } from './monthly-goals/goal-list-progress.server'
 export type {
   GoalMonthlyResultClosed,
   GoalMonthlyResultReconciled,
   GoalEvent,
-} from '../domain/goal-events'
-export { goalMonthlyResultClosed } from '../domain/goal-events'
+} from './domain/goal-events'
+export { goalMonthlyResultClosed } from './domain/goal-events'
 
 // Dashboard presentation contracts.
 export type {
@@ -117,13 +120,13 @@ export type {
   FleetOverviewData,
   FleetRatingGoal,
   FleetTotals,
-} from '../domain/dashboard-types'
-export type { GoogleNumbersView } from '../domain/google-numbers'
+} from './domain/dashboard-types'
+export type { GoogleNumbersView } from './domain/google-numbers'
 export type {
   PortalResultsSeries,
   PortalSeriesBucket,
   PortalVersionMarker,
-} from '../domain/portal-results-series'
+} from './domain/portal-results-series'
 export type {
   PortalResultsGroupRow,
   PortalResultsLocalDays,
@@ -136,28 +139,28 @@ export type {
   PortalResultsScope,
   PortalResultsTotalRow,
   PortalResultsUngroupedRow,
-} from '../domain/portal-results-overview'
+} from './domain/portal-results-overview'
 export type {
   GetPortalResultsOverviewInput,
   PortalResultsPropertyZone,
   PortalResultsRosterEntry,
   PortalResultsTimeRange,
-} from '../portal-results/get-portal-results-overview.server'
+} from './portal-results/get-portal-results-overview.server'
 export type {
   PropertySetup,
   PropertySetupSection,
   PropertySetupStep,
   PropertySetupStepKey,
   PropertySetupStepStatus,
-} from '../domain/property-setup'
-export type { PropertySetupSummary } from '../property-overview/list-property-setup-summaries.server'
-export type { DashboardError } from '../domain/dashboard-errors'
+} from './domain/property-setup'
+export type { PropertySetupSummary } from './property-overview/list-property-setup-summaries.server'
+export type { DashboardError } from './domain/dashboard-errors'
 export {
   GOOGLE_PERFORMANCE_ERROR_CODES,
   PROPERTY_PERFORMANCE_PRESETS,
   isGooglePerformanceErrorCode,
   isPropertyPerformancePreset,
-} from '../../../shared/google-contracts/google-performance-report-contract'
+} from '../../shared/google-contracts/google-performance-report-contract'
 export type {
   GooglePerformanceErrorCode,
   PerformanceAvailability,
@@ -166,12 +169,12 @@ export type {
   PropertyGooglePerformanceReportV1,
   PropertyGooglePerformanceResultV1,
   PropertyPerformancePreset,
-} from '../../../shared/google-contracts/google-performance-report-contract'
+} from '../../shared/google-contracts/google-performance-report-contract'
 
 export type {
   ReadPropertyGoogleNumbersInput,
   ReadPropertyGoogleNumbers,
-} from '../property-overview/read-property-google-numbers.server'
+} from './property-overview/read-property-google-numbers.server'
 
-export type { PortalLinkTaps } from '../domain/portal-link-taps'
-export type { PortalScanPatterns } from '../domain/portal-scan-patterns'
+export type { PortalLinkTaps } from './domain/portal-link-taps'
+export type { PortalScanPatterns } from './domain/portal-scan-patterns'

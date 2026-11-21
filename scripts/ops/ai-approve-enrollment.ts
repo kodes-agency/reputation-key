@@ -9,7 +9,7 @@ import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import {
   createApproveReviewAnalysisEnrollment,
   createReviewAnalysisEnrollmentAdapter,
-} from '../../src/contexts/ai/application/public-api'
+} from '../../src/contexts/ai/public-api'
 import { runCommandEntrypoint } from './command-entrypoint'
 import { runDatabaseOperatorCommand } from './operator-command'
 

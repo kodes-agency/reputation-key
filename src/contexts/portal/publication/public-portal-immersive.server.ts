@@ -14,7 +14,7 @@ import type {
   PublicImmersiveExperience,
   PublicPortalMedia,
   PublicPortalResult,
-} from '../application/public-api'
+} from '../public-api'
 
 /** Servable media URLs by asset id; an asset missing from it is not served. */
 export type ServableMediaUrls = Readonly<Record<string, string>>

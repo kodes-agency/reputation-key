@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Test-only: the reply workflow as production runs it, on PostgreSQL.
 //
 // The manager commands are the real use cases over the real reply repository,
@@ -38,7 +38,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { sha256Hex } from '#/shared/domain/sha256'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { Reply, Review, StarRating } from '../domain/review-types'
 import { reviewReplyPublicationCancelled } from '../domain/review-events'
 import { replyAuthor } from '../domain/reply-author'

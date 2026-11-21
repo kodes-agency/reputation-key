@@ -4,7 +4,7 @@ import { ChevronDown, RefreshCcw } from 'lucide-react'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { Button } from '#/components/ui/button'

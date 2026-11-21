@@ -1,7 +1,7 @@
 import {
   copyNotificationCategoryDefaults,
   countNotificationCategoryDefaultsToCopy,
-} from '../../src/contexts/feed/application/public-api'
+} from '../../src/contexts/feed/public-api'
 import { runOperatorCommand } from './operator-command'
 
 const usage =

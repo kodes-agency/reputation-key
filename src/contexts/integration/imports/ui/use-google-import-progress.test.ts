@@ -6,7 +6,7 @@ import { setupHookRoot } from '#/shared/testing/hook-root'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import type { GoogleImportFns } from './google-import-manager-contract'
 import {
   getRetryRequest,

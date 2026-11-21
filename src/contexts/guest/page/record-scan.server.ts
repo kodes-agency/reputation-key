@@ -7,7 +7,7 @@ import type {
   PortalAccessArtifactId,
   QualifiedScanId,
 } from '#/shared/domain/ids'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import { guestQualifiedScanRecorded, guestScanRecorded } from '../domain/events'
 import { buildScanEvent } from '../domain/constructors'
 import { classifyQualifiedScanRequest } from '../domain/qualified-scan'

@@ -14,7 +14,7 @@ import type {
   PublicGoogleReviewDestination,
   PublicImmersiveExperience,
   PublicPortalResult,
-} from '../application/public-api'
+} from '../public-api'
 import {
   immersiveAssetIds,
   presentImmersivePortal,
@@ -67,8 +67,8 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
     uris: readonly string[],
     validatedAfter: Date,
   ) => Promise<readonly string[]>
-  isPropertyActive: import('#/contexts/property/application/public-api').PropertyLifecyclePublicApi['isPropertyActive']
-  getGoogleReviewDestination: import('#/contexts/property/application/public-api').PropertyGoogleReviewDestinationPublicApi['getGoogleReviewDestination']
+  isPropertyActive: import('#/contexts/property/public-api').PropertyLifecyclePublicApi['isPropertyActive']
+  getGoogleReviewDestination: import('#/contexts/property/public-api').PropertyGoogleReviewDestinationPublicApi['getGoogleReviewDestination']
   decidePublic: (
     request: PublicPortalDecisionRequest,
   ) => Promise<PublicPortalExecutionDecision>

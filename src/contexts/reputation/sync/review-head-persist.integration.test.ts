@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // A persisting head check against real PostgreSQL: it stores only what differs,
 // stores Google's numbers as a fact that proves no listing, and stores nothing
 // where it must not.

@@ -4,9 +4,9 @@
  * context that must end or withdraw Replies inside its transaction uses the
  * scope effects.
  */
-export { createReplyWriter } from '../replies/store.server'
-export { replyScopeEffects } from '../replies/scope-effects.server'
-export type { ReplyWriterDeps, ReplyWriterRows } from '../replies/store.server'
+export { createReplyWriter } from './replies/store.server'
+export { replyScopeEffects } from './replies/scope-effects.server'
+export type { ReplyWriterDeps, ReplyWriterRows } from './replies/store.server'
 export {
   cancelReplyAtProviderTruth,
   confirmPublicationAttempt,
@@ -22,24 +22,24 @@ export {
   supersedeCurrentPublicationAttempt,
   supersedePublicationAttemptById,
   updateAdoptedAiDraft,
-} from '../replies/row-commands.server'
+} from './replies/row-commands.server'
 
 export {
   upsertReviewSourceContent,
   eraseReviewSourceContent,
   reviewIdentityValues,
   writeObservedReviewIdentity,
-} from '../content/store.server'
+} from './content/store.server'
 
 export {
   createInboxNotificationLookup,
   isCurrentInboxAssignee,
-} from '../inbox/notification-lookup.server'
+} from './inbox/notification-lookup.server'
 export type {
   InboxHandlingCycleHead,
   InboxItemRow,
   InboxNotificationLookup,
   InboxResponseTargetReminderLookup,
   InboxResponseTargetReminderRow,
-} from '../inbox/notification-lookup.server'
-export { historicalOnboardingItem } from '../inbox/historical-onboarding-item.server'
+} from './inbox/notification-lookup.server'
+export { historicalOnboardingItem } from './inbox/historical-onboarding-item.server'

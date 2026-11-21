@@ -1,4 +1,4 @@
-import type { GenerateReplySuggestionResult } from '../application/public-api'
+import type { GenerateReplySuggestionResult } from '../public-api'
 import { getLogger } from '#/shared/observability/logger'
 import type {
   ReplyDraftingProgress,

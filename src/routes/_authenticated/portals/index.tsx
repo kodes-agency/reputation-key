@@ -21,7 +21,7 @@ import {
   listPortalOverview,
 } from '#/contexts/portal/server/portals'
 import { getPortalResultsOverviewFn } from '#/contexts/reporting/server/portal-results-overview'
-import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
+import type { PortalResultsTimeRange } from '#/contexts/reporting/public-api'
 import { PortalAllPropertiesPage } from '#/components/features/portal/portal-all-properties-page'
 import { allPropertiesSearchSchema } from '#/components/features/portal/portal-overview/portal-overview-search-schema'
 import {

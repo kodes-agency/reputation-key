@@ -1,7 +1,7 @@
 import type {
   GoogleConnectionDto,
   ImportCandidateDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { searchMatcher } from '#/components/ui/property-search'
 import type { GoogleImportStep } from './google-import-manager-contract'
 import type { ImportReviewDraft } from './google-import-review-model'

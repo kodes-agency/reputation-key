@@ -12,7 +12,7 @@
 // preview (`earlier_design`), and the History falls back to its words. A
 // version that no longer verifies is not found, as in `getPortalVersion`.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import { portalError } from '../domain/errors'

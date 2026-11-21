@@ -27,7 +27,7 @@ import {
 import { PRINT_REFUSAL_COPY } from '#/shared/domain/portal-print-refusals'
 import { printWordsOffer } from '#/shared/domain/portal-print-warnings'
 import { printWordingToSave } from '#/shared/domain/portal-print-wording'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { portalError } from '../domain/errors'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
 import { loadPortalPrintKitContext } from './load-portal-print-kit-context.server'

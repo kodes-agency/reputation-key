@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import '#/shared/auth/permissions'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'

@@ -14,7 +14,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { createKeys } from '#/shared/queries/query-keys'
-import type { NotificationFeedCursor } from '#/contexts/feed/application/public-api'
+import type { NotificationFeedCursor } from '#/contexts/feed/public-api'
 import {
   makeNotification,
   notificationPageFixture,

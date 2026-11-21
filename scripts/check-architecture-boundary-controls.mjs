@@ -41,9 +41,10 @@ const controls = [
     name: "a feature contract cannot take a value from another area's public API",
     file: 'src/contexts/guest/page/boundary-negative-control.contracts.ts',
     source:
-      "import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-api'\nexport const control = StoredObjectTooLargeError\n",
+      "import { StoredObjectTooLargeError } from '#/contexts/portal/public-api'\nexport const control = StoredObjectTooLargeError\n",
   },
-  // An area's public API is moving to src/contexts/<area>/public-api.ts.
+  // An area's public API is src/contexts/<area>/public-api.ts (Review and Inbox
+  // keep application/public-api.ts until their server functions move).
   // It keeps the bans application/ had, and a feature file named like a public
   // API is not one.
   {
@@ -343,7 +344,7 @@ const allowedControls = [
     name: "a feature contract may take types from another area's public API",
     file: 'src/contexts/guest/page/boundary-positive-control.contracts.ts',
     source:
-      "import type { PublicPortalResult } from '#/contexts/portal/application/public-api'\nexport type Control = PublicPortalResult\n",
+      "import type { PublicPortalResult } from '#/contexts/portal/public-api'\nexport type Control = PublicPortalResult\n",
   },
   {
     name: "an area's root public API may name its own domain types",
@@ -361,10 +362,10 @@ const allowedControls = [
     name: "an area's root public API may take another area's public API",
     file: 'src/contexts/feed/public-api.ts',
     source:
-      "import type { PropertyPublicApi } from '#/contexts/property/application/public-api'\nexport type Control = PropertyPublicApi\n",
+      "import type { PropertyPublicApi } from '#/contexts/property/public-api'\nexport type Control = PropertyPublicApi\n",
   },
-  // Review and Inbox keep application/public-api.ts until REP-205, so these
-  // controls hold before and after the other areas move.
+  // Review and Inbox keep application/public-api.ts until their server functions move, so these
+  // controls keep the old path covered.
   {
     name: "a feature screen may import Review's application public API",
     file: 'src/contexts/guest/page/ui/boundary-positive-control.tsx',

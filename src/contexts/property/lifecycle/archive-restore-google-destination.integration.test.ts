@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Archive then Restore, as the product runs them, and what a Portal of the
 // Property is then told: the destination's state, whether a Portal may be
 // published, whether a guest is offered the Google review action, and the

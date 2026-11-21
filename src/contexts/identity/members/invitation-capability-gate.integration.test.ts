@@ -54,7 +54,7 @@ import {
   type InvitationId,
 } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { buildIdentityContext } from '../build'
 import { createInvitedRegistrationStore } from './invited-registration-store.server'
 import { createRecoverInvitedRegistrationsHandler } from './recover-invited-registrations-job.server'

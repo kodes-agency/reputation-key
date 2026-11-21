@@ -4,7 +4,7 @@ import { expect, fn, userEvent, within } from 'storybook/test'
 import type {
   ImportAccountDto,
   ImportCandidateDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { GoogleImportDiscoveryPanel } from './google-import-discovery-panel'
 import {
   filterLoadedCandidates,

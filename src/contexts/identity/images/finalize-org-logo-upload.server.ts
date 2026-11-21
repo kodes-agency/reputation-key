@@ -1,6 +1,6 @@
 // Identity context — finalize organization logo upload use case
 
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../domain/errors'
 import { canForContext } from '#/shared/domain/permissions'

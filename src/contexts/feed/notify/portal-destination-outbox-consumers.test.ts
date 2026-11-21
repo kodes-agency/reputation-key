@@ -8,7 +8,7 @@ import {
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { portalId, propertyId, unbrand, userId } from '#/shared/domain/ids'
-import type { PortalDestinationApprovalFacts } from '#/contexts/portal/application/public-api'
+import type { PortalDestinationApprovalFacts } from '#/contexts/portal/public-api'
 import {
   createNotificationConsumerDeps,
   NOTIF_TEST_IDS,

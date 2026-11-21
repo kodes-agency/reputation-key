@@ -1,5 +1,5 @@
 import type { Tx } from '#/shared/outbox/commit'
-import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/public-api'
 import type { UpdatePortalCommand } from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import type { PortalSettingsBefore } from './portal-settings-edits.server'

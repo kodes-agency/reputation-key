@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Review context — what readForAi answers when the database fails (S10-06).
 //
 // Review analysis settles every source status other than `available` and

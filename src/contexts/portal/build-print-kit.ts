@@ -1,7 +1,7 @@
 // Wires the print read, wording and PDF download to their repositories and renderer.
 
 import { createHash } from 'node:crypto'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalLastPrintRepository } from './printing/portal-last-print-repository.port.server'
 import type { PortalPrintWordingRepository } from './printing/portal-print-wording-repository.port.server'
 import type { PortalMediaAssetRepository } from './media/portal-media-asset-repository.port.server'

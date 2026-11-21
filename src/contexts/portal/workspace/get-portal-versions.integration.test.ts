@@ -4,7 +4,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createPortalReadsWorld } from '../infrastructure/testing/portal-reads-world'
 import { userId } from '#/shared/domain/ids'
 import type { UserId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PortalHistoryRepository,
   PortalPageEditRow,

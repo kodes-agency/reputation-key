@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Review context build wiring and queue-admission tests.
 
 import { describe, expect, it, vi } from 'vitest'
@@ -7,7 +7,7 @@ import { buildReviewContext, wireReviewSourceContentLifecycle } from './build'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from './application/use-cases/run-source-content-lifecycle'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 
 vi.mock('#/shared/observability/logger', () => ({

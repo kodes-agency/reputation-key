@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react'
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+import type { PortalOverviewRow } from '#/contexts/portal/public-api'
 import { hasUncountedScans } from '#/components/features/portal/portal-overview/portal-attention'
 import { PortalAnalyticsTab } from './portal-analytics-tab'
 

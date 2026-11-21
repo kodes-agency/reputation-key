@@ -28,7 +28,7 @@ import {
   buildReportingContext,
   type ReportingContextBuildInput,
 } from '#/contexts/reporting/build'
-import { METRIC_VERSION_IDS } from '#/contexts/reporting/application/public-api'
+import { METRIC_VERSION_IDS } from '#/contexts/reporting/public-api'
 import { createMetricRepository } from '#/contexts/reporting/readings/metric-repository.server'
 import {
   createConsumerRegistry,

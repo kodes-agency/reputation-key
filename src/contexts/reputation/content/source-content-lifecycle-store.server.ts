@@ -27,10 +27,10 @@ import type {
   ReviewSourceContentState,
 } from './source-content-lifecycle-store.port.server'
 import { reviewSourceTransitioned } from '../domain/review-events'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 import { lockReplyTruthScope } from '../reviews/reply-truth-serialization.server'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_RETENTION_POLICY_VERSION } from '../../review/application/use-cases/run-source-content-lifecycle'
-import { deleteGoogleSyncMirrors } from '#/contexts/reputation/application/public-api'
+import { deleteGoogleSyncMirrors } from '#/contexts/reputation/public-api'
 
 const MAX_INSPECTION_PAGE_SIZE = 101
 const MAX_APPLY_PAGE_SIZE = 100

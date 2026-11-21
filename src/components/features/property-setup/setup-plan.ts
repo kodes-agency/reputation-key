@@ -1,4 +1,4 @@
-import type { CurrentMerchantAiCapability } from '#/contexts/identity/application/public-api'
+import type { CurrentMerchantAiCapability } from '#/contexts/identity/public-api'
 import { suggestedReplyLanguageForCountry } from '#/shared/reply-library/country-reply-language'
 import type { ResolvedReplyVoice } from '#/shared/reply-library/reply-voice'
 

@@ -10,7 +10,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
 import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
-import type { GoogleReviewPushNotificationKind } from '#/contexts/integration/application/public-api'
+import type { GoogleReviewPushNotificationKind } from '#/contexts/integration/public-api'
 
 const MAX_ENCODED_DATA_LENGTH = 24 * 1024
 const MAX_DECODED_DATA_BYTES = 16 * 1024

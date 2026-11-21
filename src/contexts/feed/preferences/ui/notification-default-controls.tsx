@@ -1,7 +1,7 @@
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { InheritedSetting } from '#/components/forms/inherited-setting'
 import { Button } from '#/components/ui/button'
-import type { ConfigurableNotificationCategory } from '#/contexts/feed/application/public-api'
+import type { ConfigurableNotificationCategory } from '#/contexts/feed/public-api'
 import { namesInBrief, type SetDifferently } from './notification-apply-everywhere'
 import { categoryInSentence } from './notifications-type-rows'
 

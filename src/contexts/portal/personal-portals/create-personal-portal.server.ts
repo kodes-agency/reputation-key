@@ -10,7 +10,7 @@ import {
 import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { PortalResponsibleManagerRepository } from '../responsibility/portal-responsible-manager-repository.port.server'
 import type { PortalPrintWordingRepository } from '../printing/portal-print-wording-repository.port.server'
 import type { PortalLastPrintRepository } from '../printing/portal-last-print-repository.port.server'

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Review context — an erased Review (tombstone) in the repository's reads
 // (S10-01, S10-02). Real PostgreSQL.
 //
@@ -28,13 +28,13 @@ import {
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-identifiers-v1'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createEligibleReads } from './eligible-reads.server'
 import { createAiReviewSource } from './ai-review-source.server'
 import { requireAccessibleReview } from '../replies/reply-access.server'
 import { createReviewRepository } from './review-repository.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 
 const ORG = organizationId('org-review-tombstone-reads-1111111111')
 const PROPERTY = propertyId('7e100000-0000-4000-8000-000000000001')

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createAtomicReviewCommandStore } from './review-command-store.server'
 import { reviewCreated, reviewUpdated } from '../domain/review-events'

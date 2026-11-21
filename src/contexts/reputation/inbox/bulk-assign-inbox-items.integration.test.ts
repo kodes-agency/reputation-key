@@ -24,7 +24,7 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { isInboxError } from '../domain/inbox-errors'
 
 const NOW = new Date('2026-08-27T10:00:00.000Z')

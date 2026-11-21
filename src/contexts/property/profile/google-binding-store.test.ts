@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import type { SQL } from 'drizzle-orm'

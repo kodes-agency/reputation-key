@@ -1,6 +1,6 @@
 import { createGoogleBindingFollowUpHandlers } from '../imports/google-binding-follow-up-consumers.server'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import { getEnv } from '#/shared/config/env'
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'

@@ -3,7 +3,7 @@
 // never answers from its own copy while storage can answer. Storage can be
 // absent or throw (private windows, blocked site data), so a pick it could not
 // keep is held here for this page and used only when storage has nothing to say.
-import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
+import type { PortalResultsTimeRange } from '#/contexts/reporting/public-api'
 import {
   PORTAL_RESULTS_RANGE_STORAGE_KEY,
   storedOverviewRange,

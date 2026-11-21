@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { getDb } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'

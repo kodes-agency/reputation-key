@@ -1,5 +1,5 @@
 // What starting a Google authorization asks for, and what is said when it cannot start.
-import type { GoogleAuthUrlInput } from '#/contexts/integration/application/public-api'
+import type { GoogleAuthUrlInput } from '#/contexts/integration/public-api'
 
 /** A new Organization-owned connection: the request every "Connect Google" makes. */
 export const NEW_GOOGLE_CONNECTION_AUTHORIZATION = {

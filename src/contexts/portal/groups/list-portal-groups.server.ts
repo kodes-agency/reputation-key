@@ -7,7 +7,7 @@ import type { PortalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyId } from '#/shared/domain/ids'
 import { readablePropertyIds } from '../publication/load-accessible-portal.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 
 export type ListPortalGroupsDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository

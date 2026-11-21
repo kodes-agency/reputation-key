@@ -17,7 +17,7 @@ import {
   isPreferenceDisableable,
   NOTIFICATION_SETTINGS_CATEGORIES,
   type NotificationView,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import type { NotificationRowActions } from './types'
 
 type Props = Readonly<{

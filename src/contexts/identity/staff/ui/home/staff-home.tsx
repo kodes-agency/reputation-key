@@ -8,7 +8,7 @@ import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import { STAFF_NOTICE_VERSION } from '#/contexts/identity/application/public-api'
+import { STAFF_NOTICE_VERSION } from '#/contexts/identity/public-api'
 import { createKeys } from '#/shared/queries/query-keys'
 import { useStaffRefusal } from './use-staff-refusal'
 import { StaffNotice } from './staff-notice'

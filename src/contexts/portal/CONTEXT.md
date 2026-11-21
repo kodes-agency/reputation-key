@@ -11,13 +11,12 @@ assignment, and governed access artifacts.
 
 ## Entry points
 
-- `application/public-api.ts` exposes the named cross-context server capabilities
+- `public-api.ts` exposes the named cross-context server capabilities
   and facts. `application/portal-management-contracts.ts` contains the browser-safe
   management types and pure rules used by screens.
 - RPC calls stay in `server/`. None of the screens imports the context build at runtime.
 - Each port sits beside its implementation as `<impl>.port.server.ts`. What stays in
   the layer folders, and why:
-  - `application/public-api.ts`: lint names every area's public API by this path.
   - `portal-management-contracts.ts` and two DTOs: they import server modules, so they
     cannot become contracts files yet.
   - The storage port and the S3 adapter: operator scripts import the adapter.
@@ -372,7 +371,7 @@ with their texts, icons and destination approvals. `LinktreeSection` renders
 `useLinktreeMutations` calls `server/portal-links.ts`'s `reorderLinks`, which
 authorizes both the Portal and category before the command saves that category's
 order. The browser contract retains `categoryId` through the
-`application/public-api.ts` type exports.
+`public-api.ts` type exports.
 
 Creating a link without a category joins the Portal's last category or starts
 one with a neutral title. `links/create-link.server.ts` builds it only after the label, icon,

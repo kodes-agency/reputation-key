@@ -5,7 +5,7 @@ import type {
   GoalMetric,
   GoalSubject,
   MonthlyResultNotificationFactsLookup,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import {
   organizationId,
   propertyId,

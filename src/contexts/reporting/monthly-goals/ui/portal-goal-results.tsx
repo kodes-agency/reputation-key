@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import type { GoalResultsMatrix as GoalResultsMatrixModel } from '#/contexts/reporting/application/public-api'
+import type { GoalResultsMatrix as GoalResultsMatrixModel } from '#/contexts/reporting/public-api'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'

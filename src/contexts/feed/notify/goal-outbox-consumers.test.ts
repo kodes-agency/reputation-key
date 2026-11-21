@@ -10,7 +10,7 @@ import { userId, type UserId } from '#/shared/domain/ids'
 import type {
   MonthlyResultNotificationFactsLookup,
   MonthlyResultRevisionNotificationFacts,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import {
   handleNotificationGoalMonthlyResultClosed,
   handleNotificationGoalMonthlyResultRevised,

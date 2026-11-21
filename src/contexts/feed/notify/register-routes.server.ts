@@ -3,8 +3,8 @@
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
-import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/public-api'
 import type {
   ReplyApprovalAuthorityPort,
   DisplayNameLookupPort,

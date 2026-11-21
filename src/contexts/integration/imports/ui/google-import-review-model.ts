@@ -6,7 +6,7 @@ import {
 import type {
   ImportCandidateDto,
   StartPropertyImportItemInput,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import {
   GOOGLE_IMPORT_COUNTRY_CODES,
   googleImportReviewDraftSchema,

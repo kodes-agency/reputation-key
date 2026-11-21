@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // What the trend population read says when the database refuses it.
 //
 // The read answers `policy_unavailable` for any database error, on purpose: its

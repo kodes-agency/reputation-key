@@ -10,7 +10,7 @@
 // it, so the grace is longer than that. Only keys of the two shapes the upload
 // requests issue are ever deleted, and an object with no reported age is kept.
 
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { parseIdentityAssetKey } from './identity-assets.contracts'
 

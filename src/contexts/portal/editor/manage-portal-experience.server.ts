@@ -9,7 +9,7 @@ import {
   type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
 import type { PortalExperienceRepository } from './portal-experience-repository.port.server'
 import type { PortalMediaAssetRepository } from '../media/portal-media-asset-repository.port.server'

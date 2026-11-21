@@ -1,5 +1,5 @@
 import { SearchX } from 'lucide-react'
-import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import type { ImportCandidateDto } from '#/contexts/integration/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { ClearFiltersButton } from '#/components/ui/clear-filters-button'

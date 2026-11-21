@@ -9,7 +9,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { getDb } from '#/shared/db'
 import {
   organizationId,

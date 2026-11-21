@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MerchantAiOverviewEntry } from '#/contexts/identity/application/public-api'
+import type { MerchantAiOverviewEntry } from '#/contexts/identity/public-api'
 import {
   aiOverviewStatus,
   aiPauseReason,

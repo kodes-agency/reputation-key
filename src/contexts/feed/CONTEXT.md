@@ -15,8 +15,8 @@ own source review, inbox, property, portal, identity, or goal state.
 
 ## Boundaries
 
-- Cross-context consumers import only `application/public-api.ts` or a Feed
-  server function.
+- Cross-context consumers import only `public-api.ts` or a Feed server
+  function.
 - `buildFeedContext` is the sole composition module. Its `activity` and
   `notification` dependency records preserve the former independent build
   boundaries, while its `publicApi` merges both surfaces. The activity half is
@@ -57,7 +57,7 @@ The area is split into feature folders:
   and the browser contracts (`contracts.ts` for Mark all read and Clear all, plus
   `notification-list-filter`, `notification-page` and `notification-view`
   `.contracts.ts`).
-- `application/` keeps `public-api.ts`. `infrastructure/` keeps
+- `public-api.ts` sits at the area root. `infrastructure/` keeps
   the email templates and the two fixtures the shared route harness imports.
 
 ## Preferences
@@ -76,7 +76,7 @@ idempotent writer and bounded operator read. Feed owns the central
 a conflicting replay fails. Unknown fields are refused, not stripped.
 `pnpm ops audit-events --operator <id> --org <id>` reads at most 100 rows within
 the last 365 days. The operator read and daily retention rule are exposed through
-`application/public-api.ts`. Composition passes the rule to the daily sweep,
+`public-api.ts`. Composition passes the rule to the daily sweep,
 which uses occurrence time and records its result through the existing retention
 evidence and failure alert.
 

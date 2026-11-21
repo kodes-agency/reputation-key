@@ -48,7 +48,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows application → foreign application/public-api', async () => {
     const messages = await lintSnippet(
-      `import type { StaffPublicApi } from '#/contexts/identity/application/public-api'\nexport type { StaffPublicApi }\n`,
+      `import type { StaffPublicApi } from '#/contexts/identity/public-api'\nexport type { StaffPublicApi }\n`,
       'src/contexts/portal/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -135,7 +135,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows context build.ts → foreign public-api', async () => {
     const messages = await lintSnippet(
-      `import type { PropertyPublicApi } from '#/contexts/property/application/public-api'\nexport type { PropertyPublicApi }\n`,
+      `import type { PropertyPublicApi } from '#/contexts/property/public-api'\nexport type { PropertyPublicApi }\n`,
       'src/contexts/integration/build.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -209,7 +209,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows inline import types of a foreign public-api', async () => {
     const messages = await lintSnippet(
-      `export type IsActive = import('#/contexts/property/application/public-api').PropertyLifecyclePublicApi['isPropertyActive']\n`,
+      `export type IsActive = import('#/contexts/property/public-api').PropertyLifecyclePublicApi['isPropertyActive']\n`,
       'src/contexts/portal/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)

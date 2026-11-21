@@ -4,7 +4,7 @@
 // queue per property. Both must see exactly the rows the list would show, so they
 // resolve visibility here, once, and in the same order the list does.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 import { inboxError } from '../domain/inbox-errors'

@@ -18,7 +18,7 @@ import type {
   NotificationFeedHead,
   NotificationListFilter,
   NotificationView,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import { createKeys } from '#/shared/queries/query-keys'
 import type { TenantScope } from '#/shared/queries/tenant-scope'
 import { matchesNotificationFilter } from './notification-filters'

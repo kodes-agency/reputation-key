@@ -25,7 +25,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/inbox-types'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 
 const NOW = new Date('2026-08-27T12:00:00.000Z')
 const ORG_ID = organizationId('org-feedback-handling')

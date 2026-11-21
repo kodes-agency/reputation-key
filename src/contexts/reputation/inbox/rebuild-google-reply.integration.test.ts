@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The Inbox projection rebuild reads Google's reply truth, not only RepKey's
 // replies. A reply written directly on Google exists only as a Google reply
 // observation (its head says `live`): the legacy `google_sync` row in

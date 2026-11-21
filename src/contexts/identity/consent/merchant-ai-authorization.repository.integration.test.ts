@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { readFileSync } from 'node:fs'
 import { nextMerchantAiCapabilityEpochs } from '../domain/merchant-ai-capability-epochs'
 import { randomUUID } from 'node:crypto'

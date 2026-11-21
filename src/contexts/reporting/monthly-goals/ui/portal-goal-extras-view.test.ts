@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/public-api'
 import { extrasRows } from './portal-goal-extras-view'
 
 const reception: GoalSubject = { kind: 'portal', portalId: 'portal-reception' }

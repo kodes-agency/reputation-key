@@ -5,7 +5,7 @@ import type { PortalGroupRepository } from './portal-group-repository.port.serve
 import type { PortalGroupHistoryRepository } from './portal-group-history-repository.port.server'
 import type { PortalGroupHistoryEntry } from '../domain/portal-group-history'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { loadReadableGroup } from '../publication/load-accessible-portal.server'
 
 export const PORTAL_GROUP_HISTORY_PAGE = 100

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Review context — readForAi with the numbered sentences a v3 analysis reads.
 // Real PostgreSQL.
 

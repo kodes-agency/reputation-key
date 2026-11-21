@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import {
   purgeAiDraftsForAuthorization,
   purgeAiDraftsForControl,

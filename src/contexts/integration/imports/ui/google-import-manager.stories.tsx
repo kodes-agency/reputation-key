@@ -8,7 +8,7 @@ import {
 import type {
   GoogleConnectionDto,
   ImportProgressDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { GoogleImportManager } from './google-import-manager'
 import { openImportDetailsForProperty } from './google-import.stories.play'
 import type { GoogleImportFns } from './google-import-manager-contract'

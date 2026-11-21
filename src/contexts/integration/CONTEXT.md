@@ -207,7 +207,6 @@ Server code is `*.server.ts`, and what the browser imports is a feature's
 `contracts.ts` or `<name>.contracts.ts`. Server functions stay under `server/`. Only these stay in
 `application/`:
 
-- `public-api.ts`.
 - `google-import-contract.ts` and `dto/google-import.dto.ts`: browser screens
   reach them, and bootstrap or a shared test helper imports them.
 - `google-authorize-request.ts` and `use-cases/gbp-subscribe-backfill.ts`: operator

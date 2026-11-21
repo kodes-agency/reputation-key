@@ -8,7 +8,7 @@ import type { InboxCommandStore } from './command-store.port.server'
 import type { InboxItemId, UserId } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { inboxItemEscalated } from '../domain/inbox-events'
 import { loadItemForCommand } from './inbox-access.server'
 

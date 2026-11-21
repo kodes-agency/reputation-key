@@ -21,10 +21,7 @@ import { createElement } from 'react'
 import { CircleCheck } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { cn } from '#/shared/class-names/utils'
-import {
-  notificationLink,
-  type NotificationView,
-} from '#/contexts/feed/application/public-api'
+import { notificationLink, type NotificationView } from '#/contexts/feed/public-api'
 import { categoryInSentence } from '#/contexts/feed/preferences/ui/notifications-type-rows'
 import {
   DEFAULT_NOTIFICATION_FORMAT,

@@ -14,7 +14,7 @@ import {
   type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalGroup } from '../domain/types'
 import type { PortalHealthInterval } from '../domain/portal-health'
 import type { PortalResponsibleManager } from '../domain/portal-responsible-manager'

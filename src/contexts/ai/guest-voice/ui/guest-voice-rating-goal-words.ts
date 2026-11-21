@@ -1,7 +1,4 @@
-import type {
-  GoogleNumbersView,
-  FleetRatingGoal,
-} from '#/contexts/reporting/application/public-api'
+import type { GoogleNumbersView, FleetRatingGoal } from '#/contexts/reporting/public-api'
 import { formatSnapshotDate } from '#/shared/format/format-snapshot'
 type SetRatingGoal = Extract<FleetRatingGoal, { kind: 'set' }>
 export type GuestVoiceGoalFacts = Readonly<{

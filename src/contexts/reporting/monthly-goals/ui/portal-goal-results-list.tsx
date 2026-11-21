@@ -1,5 +1,5 @@
 import { Check, ChevronRight } from 'lucide-react'
-import type { GoalResultsMatrix } from '#/contexts/reporting/application/public-api'
+import type { GoalResultsMatrix } from '#/contexts/reporting/public-api'
 import { RowButton } from '#/components/ui/button-layouts'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import {

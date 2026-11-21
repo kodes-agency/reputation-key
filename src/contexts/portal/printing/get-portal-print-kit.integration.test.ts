@@ -12,7 +12,7 @@ import { createPortalReadsWorld } from '../infrastructure/testing/portal-reads-w
 import { portalMediaAssetId, propertyId, type PropertyId } from '#/shared/domain/ids'
 import type { PrintLastSettings } from '#/shared/domain/portal-print-last'
 import type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { immersiveConfiguration } from '../domain/__fixtures__/immersive-configuration'
 import { publicationSource } from '../domain/__fixtures__/publication-source'
 import type {

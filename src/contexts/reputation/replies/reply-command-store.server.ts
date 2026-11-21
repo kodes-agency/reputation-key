@@ -70,7 +70,7 @@ import {
 import {
   insertPublicationAttempt,
   insertPublicationAuthorization,
-} from '#/contexts/reputation/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 /**
  * Identity-owned, transaction-bound decision injected at composition. The

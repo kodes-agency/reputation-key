@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import type { ImportCandidateDto } from '#/contexts/integration/public-api'
 import { createImportReviewDraft } from './google-import-review-model'
 import {
   createGoogleImportDiscoveryState,

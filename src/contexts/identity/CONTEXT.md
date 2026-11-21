@@ -65,7 +65,6 @@ Server code is `*.server.ts`, and what the browser imports is
 `<name>.contracts.ts`. Server functions stay under `server/`. Only these stay in
 the layer folders:
 
-- `application/public-api.ts`.
 - `application/staff-self-context.ts` (`public-api` re-exports it to a browser
   screen).
 - `application/ports/organization-export-contributor.port.ts` (foreign export
@@ -155,7 +154,7 @@ Screens take other contexts' server-function signatures as types only.
 Identity repositories and request APIs. The composition root publishes the
 Identity context; its `people` surface supplies `StaffPublicApi` facts,
 primary attribution resolution, and participation management. Cross-context code
-imports only `#/contexts/identity/application/public-api`, which exports just
+imports only `#/contexts/identity/public-api`, which exports just
 what other contexts use.
 
 Server functions for Organizations, settings, invitations, registration, policy,

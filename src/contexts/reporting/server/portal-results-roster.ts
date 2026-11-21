@@ -10,10 +10,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyAccessLookup } from '#/shared/domain/property-access'
 import { scopeForPermission } from '#/shared/domain/permissions'
 import { createExecutionPolicy } from '#/shared/auth/execution-policy'
-import type {
-  PortalResultsPropertyZone,
-  PortalResultsRosterEntry,
-} from '../application/public-api'
+import type { PortalResultsPropertyZone, PortalResultsRosterEntry } from '../public-api'
 
 type RosterRow = Readonly<{
   portalId: string

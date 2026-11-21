@@ -6,7 +6,7 @@ import {
   type GoalMetric,
   type GoalResultsMatrix,
   type GoalResultsMatrixRow,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import {
   formatDate,
   formatMonthYear,

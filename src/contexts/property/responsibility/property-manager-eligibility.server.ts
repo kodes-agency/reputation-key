@@ -1,5 +1,5 @@
-import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import {
   isEligibleResponsibleManager,
   listEligibleResponsibleManagers,

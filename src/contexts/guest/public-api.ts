@@ -2,19 +2,19 @@
 // Other contexts (metric, inbox) and shared infrastructure consume
 // event types from this barrel. Per ADR-0001.
 
-export type { ScanEvent, Rating, Feedback } from '../domain/types'
+export type { ScanEvent, Rating, Feedback } from './domain/types'
 
 export type {
   PortalRatingLanguageBreakdown,
   PortalResponseIntegritySummary,
-} from '../responses/guest-response.repository.port.server'
+} from './responses/guest-response.repository.port.server'
 
 export {
   guestScanRecorded,
   guestRatingSubmitted,
   guestFeedbackSubmitted,
   guestFeedbackRetracted,
-} from '../domain/events'
+} from './domain/events'
 export type {
   GuestQualifiedScanRecorded,
   GuestQualifiedScanRetracted,
@@ -25,6 +25,6 @@ export type {
   GuestFeedbackRetracted,
   GuestReviewLinkClicked,
   GuestEvent,
-} from '../domain/events'
+} from './domain/events'
 
-export type { PortalScanPatternsReader } from '../page/portal-scan-patterns-reader.port.server'
+export type { PortalScanPatternsReader } from './page/portal-scan-patterns-reader.port.server'

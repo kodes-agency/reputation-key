@@ -5,7 +5,7 @@
 // the working copy was read is left off while the live address is still revealed.
 
 import { describe, expect, it } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { getDb } from '#/shared/db'
 import { portalMediaAssetId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'

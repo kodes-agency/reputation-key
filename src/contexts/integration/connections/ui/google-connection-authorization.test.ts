@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GoogleConnectionStatus } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionStatus } from '#/contexts/integration/public-api'
 import {
   accountEmailConsentForConnection,
   reauthorizationForConnection,

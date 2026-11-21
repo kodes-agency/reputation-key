@@ -3,7 +3,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import {
   assertInboxSourcePropertyAccessible,

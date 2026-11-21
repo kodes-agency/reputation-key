@@ -3,7 +3,7 @@
 // shared/domain only. They must NOT import infrastructure or server modules.
 
 import type { InboxRepository, InboxSourceScope } from './inbox-repository.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { InboxItem } from '../domain/inbox-types'
 import type { SourceType } from '../domain/inbox-types'
 import type { InboxItemId, OrganizationId, PropertyId } from '#/shared/domain/ids'

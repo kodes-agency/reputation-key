@@ -15,11 +15,11 @@ import type { PortalTokenRepository } from '../addresses/portal-token-repository
 import type { Portal, PortalTheme } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { unbrand } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import {
   assertPersonalPortalPublicText,
   withoutInheritedBrand,

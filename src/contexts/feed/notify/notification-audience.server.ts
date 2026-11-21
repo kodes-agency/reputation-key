@@ -7,7 +7,7 @@ import {
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import type { UserLookupPort } from './notification-db-user-lookup.port.server'
 import type { ResponsibleManagerLookupPort } from './responsible-manager-lookup.port.server'
 import type { InboxItemLookupPort } from './inbox-item-lookup.port.server'
@@ -22,7 +22,7 @@ import {
 } from './responsible-recipients.server'
 import { resolveEscalationResolutionRecipients } from './escalation-resolution-recipients.server'
 import { resolveResponseTargetReminderRecipients } from './response-target-reminder-recipients.server'
-import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/public-api'
 import {
   ORGANIZATION_ACCOUNT_NOTIFICATION_EVENT_TYPES,
   type OrganizationAccountNotificationAuthorityPort,

@@ -5,7 +5,7 @@
 // server function). Nothing makes a caller run this step before that one, so
 // the save makes the same checks itself (`assertOwnStoredAvatar`).
 
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../domain/errors'

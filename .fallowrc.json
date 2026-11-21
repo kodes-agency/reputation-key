@@ -113,7 +113,7 @@
       "exports": ["exportOperationalActionHistoryFn", "listOperationalActionHistoryFn"]
     },
     {
-      "file": "src/contexts/reporting/application/public-api.ts",
+      "file": "src/contexts/reporting/public-api.ts",
       "exports": [
         "findMetricVersionById",
         "GOOGLE_PERFORMANCE_ERROR_CODES",
@@ -124,7 +124,7 @@
       ]
     },
     {
-      "file": "src/contexts/guest/application/public-api.ts",
+      "file": "src/contexts/guest/public-api.ts",
       "exports": [
         "guestFeedbackRetracted",
         "guestFeedbackSubmitted",
@@ -145,7 +145,7 @@
       "exports": ["assignInboxItemFn"]
     },
     {
-      "file": "src/contexts/integration/application/public-api.ts",
+      "file": "src/contexts/integration/public-api.ts",
       "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION"]
     },
     {

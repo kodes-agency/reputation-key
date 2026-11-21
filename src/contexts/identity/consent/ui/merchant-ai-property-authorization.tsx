@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type {
   CurrentMerchantAiCapability,
   MerchantAiSnapshot,
-} from '#/contexts/identity/application/public-api'
+} from '#/contexts/identity/public-api'
 import {
   isMerchantAiNoticeInForceForCapabilities,
   type MerchantAiNoticeDto,

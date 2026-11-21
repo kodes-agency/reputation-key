@@ -1,4 +1,4 @@
-import { readAuditEvents } from '../../src/contexts/feed/application/public-api'
+import { readAuditEvents } from '../../src/contexts/feed/public-api'
 import { runOperatorCommand } from './operator-command'
 
 const usage =

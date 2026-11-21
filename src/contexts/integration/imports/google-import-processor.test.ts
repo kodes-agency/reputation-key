@@ -2,7 +2,7 @@ import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-id
 import { describe, expect, it, vi } from 'vitest'
 import type { GbpSubscribeResult } from '../connections/manage-notifications.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery.server'
 import type {
   GoogleImportClaimedItem,

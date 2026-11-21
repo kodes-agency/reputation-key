@@ -12,7 +12,7 @@ import {
 } from '../../../contexts/property/profile/ui/settings/property-settings-sections'
 import { ReviewAnalysisProgressCard } from '../../../contexts/ai/replay/ui/review-analysis-progress-card'
 import { PropertySetupStrip } from './property-setup-strip'
-import type { PropertySetup } from '#/contexts/reporting/application/public-api'
+import type { PropertySetup } from '#/contexts/reporting/public-api'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000101'

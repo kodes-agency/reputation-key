@@ -3,7 +3,7 @@ import { getExecutionPolicy } from '#/shared/auth/execution-policy'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { GooglePerformanceDependencyDescriptor } from '#/shared/architecture/google-performance-live-boundary'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import {
   createActiveConnectionTokenProvider,
   type ActiveConnectionTokenProviderDeps,

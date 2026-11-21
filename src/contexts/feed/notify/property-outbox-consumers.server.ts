@@ -1,4 +1,4 @@
-import type { PropertyResponsibilityNeeded } from '#/contexts/property/application/public-api'
+import type { PropertyResponsibilityNeeded } from '#/contexts/property/public-api'
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'

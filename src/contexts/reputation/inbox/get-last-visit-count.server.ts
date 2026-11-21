@@ -6,7 +6,7 @@
 import type { InboxRepository } from './inbox-repository.port.server'
 import type { InboxViewRepository } from './inbox-view-repository.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { resolveVisiblePropertyIds } from './visible-properties.server'
 import { resolveInboxSourceScopes } from './inbox-access.server'
 

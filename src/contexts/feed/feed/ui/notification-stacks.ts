@@ -15,7 +15,7 @@ import {
   isStillWaiting,
   type NotificationType,
   type NotificationView,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 
 type StackKind = Readonly<{
   title: (count: number) => string

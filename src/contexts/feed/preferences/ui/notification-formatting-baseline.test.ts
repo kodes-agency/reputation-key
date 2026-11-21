@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { EffectiveNotificationSettings } from '#/contexts/feed/application/public-api'
+import type { EffectiveNotificationSettings } from '#/contexts/feed/public-api'
 import { formattingBaseline } from './notification-formatting-baseline'
 
 const saved = {

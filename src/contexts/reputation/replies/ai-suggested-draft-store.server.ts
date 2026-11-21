@@ -21,7 +21,7 @@ import type {
   AiReplyProvenancePublicKeyring,
   AiSuggestedDraftStore,
 } from './ai-suggested-draft-store.port.server'
-import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { replyFromRow } from './reply-mapper.server'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding.server'
@@ -29,7 +29,7 @@ import type { AiReplyVoicePublicApi } from '../library/ai-reply-voice-frame.serv
 import {
   insertAdoptedAiDraft,
   updateAdoptedAiDraft,
-} from '#/contexts/reputation/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
 

@@ -10,7 +10,7 @@
 // src/shared/ops/retired-readings-erasure-command.ts — scripts/ sits outside
 // the unit test project, so this file is wiring only.
 
-import { writeAuditEvent } from '../../src/contexts/feed/application/public-api'
+import { writeAuditEvent } from '../../src/contexts/feed/public-api'
 import { createRetiredReadingsStore } from '../../src/contexts/reporting/infrastructure/adapters/retired-readings-erasure.adapter'
 import { getEnv } from '../../src/shared/config/env'
 import { getDb } from '../../src/shared/db'

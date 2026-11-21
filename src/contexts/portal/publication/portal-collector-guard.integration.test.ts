@@ -12,7 +12,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import type { UpdatePortalCommand } from './portal-command-store-port.server'
 import {
   portalArchived,

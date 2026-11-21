@@ -20,7 +20,7 @@ import { dirname } from 'node:path'
 import {
   runNotificationRightsRequest,
   writeAuditEvent,
-} from '../../src/contexts/feed/application/public-api'
+} from '../../src/contexts/feed/public-api'
 import { createS3StorageAdapter } from '../../src/contexts/portal/infrastructure/adapters/s3-storage.adapter'
 import { getEnv } from '../../src/shared/config/env'
 import { parseOperatorIdentities } from '../../src/shared/auth/execution-policy'

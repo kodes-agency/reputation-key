@@ -66,7 +66,7 @@ import {
   ANALYZE_REVIEW_NOW_JOB_NAME,
   createAnalyzeReviewNowJobHandler,
 } from '#/contexts/ai/replay/analyze-review-now-job.server'
-import { GoalProgramError } from '#/contexts/reporting/application/public-api'
+import { GoalProgramError } from '#/contexts/reporting/public-api'
 import {
   createRevalidateApprovedDestinationsHandler,
   JOB_NAME as PORTAL_DESTINATION_REVALIDATION_JOB,

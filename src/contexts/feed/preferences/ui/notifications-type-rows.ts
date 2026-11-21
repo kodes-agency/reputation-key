@@ -5,7 +5,7 @@ import {
   NOTIFICATION_SETTINGS_CATEGORIES,
   type ConfigurableNotificationCategory,
   type NotificationCategory,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import { REVIEW_ANALYSIS_V3_LIVE } from '#/shared/analysis/review-analysis-live'
 
 export type NotificationCategoryCopy = Readonly<{

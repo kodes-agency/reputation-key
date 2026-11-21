@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // D3/D4 — uncertain-send grace, ambiguous read ladder and never-dispatched
 // settlement on the real database.
 //

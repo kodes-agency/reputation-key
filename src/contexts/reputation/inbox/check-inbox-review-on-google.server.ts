@@ -14,7 +14,7 @@
 // no ids either, which the observability schema forbids), the rate-limit keys
 // carry ids, and none carries review or reply text.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'

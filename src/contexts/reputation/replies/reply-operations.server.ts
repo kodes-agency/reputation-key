@@ -15,7 +15,7 @@ import type {
 import type { ReplyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply, Review } from '../domain/review-types'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import {
   requireAccessibleReview,
   requireReplyManager as requireManager,

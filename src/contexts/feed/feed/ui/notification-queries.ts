@@ -58,7 +58,7 @@ import type {
   getNotificationsFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/feed/server/notifications'
-import type { NotificationListFilter } from '#/contexts/feed/application/public-api'
+import type { NotificationListFilter } from '#/contexts/feed/public-api'
 
 export function useNotifications(
   tenantScope: TenantScope,

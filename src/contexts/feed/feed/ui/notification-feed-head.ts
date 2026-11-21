@@ -1,6 +1,6 @@
 import { queryOptions, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { httpStatus } from '#/shared/security/expected-refusal'
-import type { NotificationFeedHead } from '#/contexts/feed/application/public-api'
+import type { NotificationFeedHead } from '#/contexts/feed/public-api'
 import {
   reconcileOlderNotifications,
   type FetchNotificationPage,

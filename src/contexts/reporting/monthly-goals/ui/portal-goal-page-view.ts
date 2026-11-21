@@ -2,7 +2,7 @@ import { staffPortalCounts } from './portal-goal-staff-counts'
 // The read owns eligibility, figures and dates. Share month facts between the average's
 // strip and count bars; do not derive competing results in presentation.
 import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/public-api'
 import type {
   PortalGoalPageMonth,
   PortalGoalPageRows,

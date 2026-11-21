@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Who submitted a reply, stored with it (real PostgreSQL).
 //
 // A reply's decision and publication facts are addressed to whoever put it up

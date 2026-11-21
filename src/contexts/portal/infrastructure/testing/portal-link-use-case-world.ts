@@ -20,7 +20,7 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { Portal } from '../../domain/types'
 import { portalCreated } from '../../domain/events'

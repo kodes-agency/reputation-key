@@ -38,7 +38,7 @@ import type { PortalGroupRepository } from '../groups/portal-group-repository.po
 import type { PortalLinkRepository } from '../links/portal-link-repository.port.server'
 import type { PortalLookRepository } from '../look/portal-look-repository.port.server'
 import type { PortalRepository } from './portal-repository.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 
 type SlugDeps = Readonly<{ portalRepo: Pick<PortalRepository, 'slugExists'> }>
 

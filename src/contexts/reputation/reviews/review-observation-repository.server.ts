@@ -45,7 +45,7 @@ import {
 import {
   upsertReviewSourceContent,
   writeObservedReviewIdentity,
-} from '#/contexts/reputation/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 

@@ -5,7 +5,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import {
   createGoogleImportContentLifecycle,
   type ImportCandidateDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import {
   googleImportReviewDraftSchema,
   type GoogleImportReviewDraftInput,

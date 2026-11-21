@@ -1,7 +1,7 @@
 // Keep subject labels beside the single-name helper: both routes already load it,
 // avoiding another shared chunk in the first-paint preload map.
 
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/public-api'
 
 export function goalAssignmentSubjectLabel(
   subject: GoalSubject,

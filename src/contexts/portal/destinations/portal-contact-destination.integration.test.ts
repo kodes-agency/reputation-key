@@ -17,7 +17,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { revalidatePortalApprovedDestinations } from './manage-portal-approved-destinations.server'
 import { createRevalidateApprovedDestinationsHandler } from './revalidate-approved-destinations-job.server'
 import type { PortalDestinationNetworkValidator } from './portal-destination-network-validator.port.server'

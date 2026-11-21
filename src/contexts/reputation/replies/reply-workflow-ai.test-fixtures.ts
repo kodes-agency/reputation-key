@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { recordDraftGeneration } from '#/shared/db/ai/draft-generation-measurement'
 // Test-only: everything an AI-assisted reply is bound to, for the reply
 // workflow harness.

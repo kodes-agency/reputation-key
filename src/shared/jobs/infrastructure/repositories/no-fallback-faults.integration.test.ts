@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // BQC-4.6 — no-fallback fault proof (real PostgreSQL + real Redis/BullMQ).
 //
 // fallow-ignore-file boundary-violation
@@ -84,7 +84,7 @@ import {
 } from '#/shared/domain/ids'
 import type { Reply, Review } from '#/contexts/reputation/domain/review-types'
 import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PublishReplyJobData } from '#/contexts/reputation/publication/reply-queue.port.server'
 import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
 import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'

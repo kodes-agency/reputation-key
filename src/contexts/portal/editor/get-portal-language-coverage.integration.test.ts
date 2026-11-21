@@ -7,7 +7,7 @@ import { getPortalLanguageCoverage } from './get-portal-language-coverage.server
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createPortalReadsWorld } from '../infrastructure/testing/portal-reads-world'
 import { propertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { PortalExperienceRepository } from './portal-experience-repository.port.server'
 

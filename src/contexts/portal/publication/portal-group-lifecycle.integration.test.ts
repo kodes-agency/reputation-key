@@ -5,9 +5,9 @@
 
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createPropertyRepository } from '#/contexts/property/profile/property-repository.server'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/public-api'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
 import { portals } from '#/shared/db/schema'

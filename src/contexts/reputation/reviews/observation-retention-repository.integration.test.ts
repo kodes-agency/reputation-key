@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createAtomicReviewCommandStore } from './review-command-store.server'
 import { reviewCreated, reviewUpdated } from '../domain/review-events'
@@ -12,7 +12,7 @@ import { createReviewRepository } from './review-repository.server'
 import { createReviewSourceContentLifecycleStore } from '../content/source-content-lifecycle-store.server'
 import { createRestatedRevisionQuery } from '../response-targets/restated-revision-repository.server'
 import { selectRevisionBindingComparisons } from './source-epoch-carry.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 import { createObservationRetention } from './observation-retention-repository.server'
 
 // The rows an earlier writer stored, one per read, are rebuilt here

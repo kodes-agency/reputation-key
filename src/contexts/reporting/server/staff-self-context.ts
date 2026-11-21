@@ -4,7 +4,7 @@ import { throwAuthError } from '#/shared/auth/auth-errors'
 import {
   requireOwnStaffParticipation,
   requireStaffSelfPerson,
-} from '#/contexts/identity/application/public-api'
+} from '#/contexts/identity/public-api'
 
 export async function resolveStaffSelfContext(headers: Headers) {
   const ctx = await resolveStaff(headers)

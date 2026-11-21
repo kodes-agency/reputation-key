@@ -11,7 +11,7 @@ import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createLink } from '../links/create-link.server'
 import { isPortalError } from '../domain/errors'
 import { portalCreated } from '../domain/events'

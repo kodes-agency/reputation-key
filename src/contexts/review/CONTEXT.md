@@ -91,8 +91,9 @@ script reaches it and a `*.server.ts` file in Reputation could not be imported
 there. Screen folders named below (`library/ui`, `replies/ui`) are in
 `../reputation/`.
 
-- `public-api.ts`: other areas and `scripts/ops/restore-verify.ts` import it, and lint
-  names an area's public API by this path.
+- `public-api.ts`: other areas and `scripts/ops/restore-verify.ts` import it. It stays
+  here until Review's server functions move into Reputation and it folds into
+  `reputation/public-api.ts`.
 - `dto/reply-library.dto.ts`: `library/ui` and `replies/ui` screens import it and
   the public API re-exports it; `server/reply-library.ts` and `reply-templates.ts`
   import it, so it cannot be a contract.

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Publication state machine integration tests (real Postgres).
 //
 // Migration 0015 (drizzle/0015_publication-state.sql) persists the durable

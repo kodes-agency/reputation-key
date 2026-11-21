@@ -36,7 +36,7 @@ import {
   propertyId,
   qualifiedScanId,
 } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '../application/public-api'
+import { METRIC_VERSION_IDS } from '../public-api'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository.server'
 import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
 import { createPropertyLocalDateResolver } from '../readings/property-local-date.server'

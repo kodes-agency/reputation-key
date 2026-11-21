@@ -12,7 +12,7 @@
 // consumers) are not bounded here. They hold no lock while waiting for
 // a client, so past the budget they only queue.
 
-import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/public-api'
+import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/public-api'
 import {
   BACKGROUND_QUEUE_CONCURRENCY,
   DEFAULT_QUEUE_CONCURRENCY,

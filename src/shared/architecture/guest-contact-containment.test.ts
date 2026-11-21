@@ -107,7 +107,7 @@ describe('Contact Request containment', () => {
         .map((file) => join(ROOT, file.path)),
       ...sourceFiles(join(ROOT, 'src/worker')),
       ...sourceFiles(join(ROOT, 'src/shared/jobs')),
-      join(ROOT, 'src/contexts/guest/application/public-api.ts'),
+      join(ROOT, 'src/contexts/guest/public-api.ts'),
       join(ROOT, 'src/bootstrap.ts'),
     ]
 

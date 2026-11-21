@@ -7,7 +7,7 @@
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { inboxError } from '../domain/inbox-errors'
 import {
   findScopeReplyStages,

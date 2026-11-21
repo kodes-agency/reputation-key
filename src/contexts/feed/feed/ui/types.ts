@@ -15,7 +15,7 @@ import type {
   restoreNotificationFn,
   undoNotificationCategoryMuteFn,
 } from '#/contexts/feed/server/notifications'
-import type { NotificationView } from '#/contexts/feed/application/public-api'
+import type { NotificationView } from '#/contexts/feed/public-api'
 
 export type NotificationServerFns = Readonly<{
   /** Atomic feed-head authority used by the bell and full feed. */

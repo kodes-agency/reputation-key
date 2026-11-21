@@ -8,7 +8,7 @@ import type {
   PortalResultsPortalRow,
   PortalResultsPropertyRow,
   PortalResultsUngroupedRow,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { portalGroupId, portalId, propertyId, type PropertyId } from '#/shared/domain/ids'
 import {
   resultsCount,

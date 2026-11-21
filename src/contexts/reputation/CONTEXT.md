@@ -97,7 +97,7 @@ cannot authorize stale text and delayed responses cannot revive a deleted draft.
 transaction: the provider mirror refresh and removal, cancellation and
 confirmation at an observation, source-change and guest-edit returns to draft,
 and AI adoption. Review's stores call them through
-`application/public-api.ts` under the Review lock they already hold; the source,
+`public-api.ts` under the Review lock they already hold; the source,
 attempt and measurement fences stay in those stores. Nothing outside
 `replies/` writes the `replies` table, and `shared/architecture/reply-single-writer.test.ts`
 fails on a new writer. Shared code reaches the effects only through the port.

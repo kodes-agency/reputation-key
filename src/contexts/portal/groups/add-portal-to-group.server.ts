@@ -6,7 +6,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
 import { portalError } from '../domain/errors'
 import { portalAddedToGroup } from '../domain/events'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import {
   loadGroupAndPortalForMembership,
   loadPortalOfGroupProperty,

@@ -1,4 +1,4 @@
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleImportReferenceStore } from './durable-import-reference-store.port.server'
 import { EXPIRED_ITEM_WRITE } from '../application/google-import-contract'

@@ -20,7 +20,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { InboxRepository } from './inbox-repository.port.server'
 import type { InboxItem, SourceType } from '../domain/inbox-types'
 import { isInboxError } from '../domain/inbox-errors'

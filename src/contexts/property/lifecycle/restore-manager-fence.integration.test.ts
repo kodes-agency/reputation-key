@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Restore and a release of the Property's last Responsible Manager, at the same
 // moment, against real PostgreSQL and through the built Property context.
 //

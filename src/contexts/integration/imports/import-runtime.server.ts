@@ -1,8 +1,8 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { getExecutionPolicy, type DecisionRequest } from '#/shared/auth/execution-policy'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/public-api'
 import type { ActiveConnectionTokenProvider } from '../connections/active-connection-token-provider.server'
 import {
   createGoogleImportCommandAuthorizer,

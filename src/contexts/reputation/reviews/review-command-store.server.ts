@@ -35,7 +35,7 @@ import {
   reviewUpdated,
 } from '../domain/review-events'
 import { replyFromRow } from '../replies/reply-mapper.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 import { organizationId, propertyId, replyId, reviewId } from '#/shared/domain/ids'
 import {
   persistReviewObservation,
@@ -50,7 +50,7 @@ import {
   returnReplyAfterGuestEdit,
   returnReplyToDraftForSourceChange,
   supersedeCurrentPublicationAttempt,
-} from '#/contexts/reputation/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 const SOURCE_ACTIVE_PUBLICATION_STATES = [
   'requested',

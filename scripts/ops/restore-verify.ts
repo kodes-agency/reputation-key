@@ -54,7 +54,7 @@ import {
   rightsReplayRefusal,
 } from '../../src/composition/rights-executors'
 import { applyRestoreResurrectionFence } from '../../src/shared/db/lifecycle/backup-erasure-ledger'
-import { loadNotificationRightsReplayers } from '../../src/contexts/feed/application/public-api'
+import { loadNotificationRightsReplayers } from '../../src/contexts/feed/public-api'
 import { runOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {

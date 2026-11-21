@@ -2,7 +2,7 @@ import { SectionTitle } from '#/components/ui/section-title'
 import type {
   CurrentMerchantAiCapability,
   MerchantAiState,
-} from '#/contexts/identity/application/public-api'
+} from '#/contexts/identity/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { CardContent } from '#/components/ui/card'

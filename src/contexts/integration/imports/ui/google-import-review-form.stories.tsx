@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import type { ImportCandidateDto } from '#/contexts/integration/public-api'
 import { Button } from '#/components/ui/button'
 import { GoogleImportReviewForm } from './google-import-review-form'
 import {

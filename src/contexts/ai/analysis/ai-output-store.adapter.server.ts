@@ -8,7 +8,7 @@ import {
 } from '../execution/ai-review-source-fence.server'
 import { and, eq, gt, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
 import {
   aiOperations,
   aiPropertyProcessingProfiles,

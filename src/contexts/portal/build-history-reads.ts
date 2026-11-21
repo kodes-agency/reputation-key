@@ -5,11 +5,11 @@
 // version, and Review & publish are wired here from the repositories
 // buildPortalContext already made.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { PortalRepository } from './publication/portal-repository.port.server'
 import type { PortalLinkRepository } from './links/portal-link-repository.port.server'
 import type { PortalExperienceRepository } from './editor/portal-experience-repository.port.server'

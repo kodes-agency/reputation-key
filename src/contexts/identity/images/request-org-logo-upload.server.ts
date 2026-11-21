@@ -1,6 +1,6 @@
 // Identity context — request organization logo upload URL use case
 
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { assertUploadAllowed, MAX_UPLOAD_BYTES } from './upload-policy.server'
 

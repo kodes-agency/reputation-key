@@ -4,7 +4,7 @@
 // account imported stays until Google's 30-day limit.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor } from 'storybook/test'
-import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionDto } from '#/contexts/integration/public-api'
 import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.open'
 import { GoogleConnectionSettingsRow } from './google-connection-settings-row'
 

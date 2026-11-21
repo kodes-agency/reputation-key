@@ -9,7 +9,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { auditEvents } from '#/shared/db/schema/audit-events.schema'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { writeAuditEvent } from './write.server'
-import { readAuditEvents } from '../application/public-api'
+import { readAuditEvents } from '../public-api'
 import { AUDIT_EVENT_RETENTION_RULE, auditEventCutoff } from './retention.server'
 
 let lease: TestLease

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { replyProgressResponse } from './reply-progress-stream.server'
-import type { GenerateReplySuggestionResult } from '../application/public-api'
+import type { GenerateReplySuggestionResult } from '../public-api'
 
 const logs = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn() }))
 vi.mock('#/shared/observability/logger', () => ({ getLogger: () => logs }))

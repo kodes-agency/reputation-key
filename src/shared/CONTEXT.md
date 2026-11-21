@@ -280,7 +280,8 @@ roles, calendars, timezones, encodings, and small eligibility rules. A type with
 owner belongs with that owner. No I/O or framework code enters this area.
 
 Cross-context product behavior remains behind each context's
-`application/public-api.ts` or a consumer-owned port. Shared events aggregate the
+`public-api.ts` at its root (Review and Inbox keep `application/public-api.ts`)
+or a consumer-owned port. Shared events aggregate the
 master event union but do not gain permission to construct another context's fact.
 
 Cross-context public-interface boundaries are enforced by `eslint-rules/cross-context-public-api.mjs` and `src/shared/architecture/cross-context-public-api.test.ts`.

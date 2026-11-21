@@ -1,22 +1,22 @@
 // Identity context — public API surface for cross-context consumers.
 // Other contexts consume only what is exported here. Per ADR-0001.
 
-import type { ManagerMembership } from '../members/auth-identity.port.server'
+import type { ManagerMembership } from './members/auth-identity.port.server'
 
-export { STAFF_NOTICE_VERSION } from '../domain/staff-account'
+export { STAFF_NOTICE_VERSION } from './domain/staff-account'
 
 export {
   type CurrentMerchantAiCapability,
   type MerchantAiSnapshot,
   type MerchantAiState,
-} from '../domain/merchant-ai-authorization'
+} from './domain/merchant-ai-authorization'
 
-export type { ManagerMembership } from '../members/auth-identity.port.server'
-export type { StaffPublicApi } from '../staff/people-public-api.server'
+export type { ManagerMembership } from './members/auth-identity.port.server'
+export type { StaffPublicApi } from './staff/people-public-api.server'
 export type {
   MerchantAiOverview,
   MerchantAiOverviewEntry,
-} from '../consent/merchant-ai-overview.server'
+} from './consent/merchant-ai-overview.server'
 
 /** Current manager membership facts. This facade carries no mutation authority. */
 export type IdentityManagerFactsPublicApi = Readonly<{
@@ -36,4 +36,4 @@ export type IdentityAccountAdminAuthorityPublicApi = Readonly<{
 export {
   requireOwnStaffParticipation,
   requireStaffSelfPerson,
-} from './staff-self-context'
+} from './application/staff-self-context'

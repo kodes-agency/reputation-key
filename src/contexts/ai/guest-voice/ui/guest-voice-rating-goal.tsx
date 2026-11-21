@@ -1,5 +1,5 @@
 import { TouchInlineLink as InlineLink } from '#/components/ui/inline-touch-link'
-import type { GoogleNumbersView } from '#/contexts/reporting/application/public-api'
+import type { GoogleNumbersView } from '#/contexts/reporting/public-api'
 import {
   googleRatingLine,
   goalTargetWords,

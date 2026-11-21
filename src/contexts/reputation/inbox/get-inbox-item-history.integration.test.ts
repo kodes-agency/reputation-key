@@ -13,7 +13,7 @@ import {
 } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { InboxItem, InboxStatus, SourceType } from '../domain/inbox-types'
 import type { InboxHistoryEntry } from '../domain/handling-history'
 import { isInboxError } from '../domain/inbox-errors'

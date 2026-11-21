@@ -1,6 +1,6 @@
 // Who a goal is for, by name: never a count of subjects.
 import { describe, expect, it } from 'vitest'
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/public-api'
 import { goalListSubjectText } from './goal-assignment-subject-label'
 
 describe('who a row says its goal is for', () => {

@@ -8,8 +8,8 @@ import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import type { PropertyRepository } from './profile/property-repository.port.server'
 import type { Property } from './domain/types'
 import { createPropertyResponsibilityRuntime } from './responsibility/property-responsibility-runtime.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/public-api'
 import type {
   GoogleConnectionId,
   OrganizationId,

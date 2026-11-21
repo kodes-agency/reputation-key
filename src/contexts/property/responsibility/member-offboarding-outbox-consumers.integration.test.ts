@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // A Responsible Manager assigned in the gap of their own offboarding, against
 // real PostgreSQL and through the Property context as the worker wires it.
 //

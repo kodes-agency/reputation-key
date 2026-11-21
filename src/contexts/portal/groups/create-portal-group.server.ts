@@ -6,7 +6,7 @@
 
 import type { PortalGroupRepository } from './portal-group-repository.port.server'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/public-api'
 import type { PortalGroup, PortalGroupId } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalGroupInput } from './create-portal-group.contracts'
@@ -18,7 +18,7 @@ import {
   portalRemovedFromGroup,
 } from '../domain/events'
 import { portalId, type PortalId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { assertNewPortalPropertyAccess } from '../publication/load-accessible-portal.server'
 import type {
   CreatePortalGroupCommand,

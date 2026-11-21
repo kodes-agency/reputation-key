@@ -12,7 +12,7 @@ import {
   feedbackId,
 } from '#/shared/domain/ids'
 import type { InboxNote, InboxItem, InboxStatus, SourceType } from '../domain/inbox-types'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'

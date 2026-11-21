@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { fixHistoryCutoff } from '#/contexts/reputation/sync/review-provider-snapshot-repository.server'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'

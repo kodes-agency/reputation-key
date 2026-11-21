@@ -94,7 +94,8 @@ Storybook containers alike.
 
 Three files stay, each reached by the browser, so none can be a `*.server.ts`:
 
-- `public-api.ts`: other areas import it, and lint names an area's public API by this path.
+- `public-api.ts`: other areas import it. It stays here until Inbox's server functions
+  move into Reputation and it folds into `reputation/public-api.ts`.
 - `dto/inbox.dto.ts`: `response-targets/ui` (the settings card and the
   private-feedback target card) import it as a value and the public API
   re-exports it as a value. All eight `server/` files import it, and no lint

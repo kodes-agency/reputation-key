@@ -31,7 +31,7 @@ import type { ResponseTargetStore } from '#/contexts/reputation/response-targets
 import type { ResponseTargetPolicyStore } from '#/contexts/reputation/response-targets/policy.store.port.server'
 import type { InboxHistoryRepository } from '#/contexts/reputation/inbox/inbox-history-repository.port.server'
 import type { InboxActorDirectory } from '#/contexts/reputation/inbox/inbox-actor-directory.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItem, InboxNote } from '#/contexts/reputation/domain/inbox-types'
 

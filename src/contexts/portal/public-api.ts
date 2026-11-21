@@ -1,14 +1,14 @@
-import type { createPortalRatingFacts } from '../publication/portal-rating-facts.server'
-export type { PortalRatingFact } from '../publication/portal-rating-facts.server'
+import type { createPortalRatingFacts } from './publication/portal-rating-facts.server'
+export type { PortalRatingFact } from './publication/portal-rating-facts.server'
 /** Named server capabilities and facts consumed by other contexts. */
-export type { StoragePort } from './ports/storage.port'
-export { StoredObjectTooLargeError } from './ports/storage.port'
+export type { StoragePort } from './application/ports/storage.port'
+export { StoredObjectTooLargeError } from './application/ports/storage.port'
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events.
-export type { PortalResponsibilityNeeded } from '../domain/events'
-export type { PortalPublicationState } from '../domain/portal-publication'
-export type { PortalOverviewRow } from '../workspace/list-portal-overview.server'
-export type { PortalDestinationApprovalFacts } from '../destinations/portal-destination-approval-facts-reader.port.server'
+export type { PortalResponsibilityNeeded } from './domain/events'
+export type { PortalPublicationState } from './domain/portal-publication'
+export type { PortalOverviewRow } from './workspace/list-portal-overview.server'
+export type { PortalDestinationApprovalFacts } from './destinations/portal-destination-approval-facts-reader.port.server'
 
 import type {
   OrganizationId,
@@ -17,14 +17,14 @@ import type {
   PortalId,
   PortalGroupId,
 } from '#/shared/domain/ids'
-import type { GuestSurface } from '../domain/portal-publication-snapshot'
-import type { PortalAccessArtifactChannel } from '../domain/portal-access-artifact'
-import type { PortalHealthReason, PortalHealthStatus } from '../domain/portal-health'
-import type { PortalContactRequestManagerAuthorityFacts } from '../publication/contact-request-authority.server'
-import type { GoalReadinessFacts } from '../publication/goal-readiness-facts.server'
+import type { GuestSurface } from './domain/portal-publication-snapshot'
+import type { PortalAccessArtifactChannel } from './domain/portal-access-artifact'
+import type { PortalHealthReason, PortalHealthStatus } from './domain/portal-health'
+import type { PortalContactRequestManagerAuthorityFacts } from './publication/contact-request-authority.server'
+import type { GoalReadinessFacts } from './publication/goal-readiness-facts.server'
 import type { AiReplyBrandProfile } from '#/shared/reply/ai-reply-brand-profile'
 import type { Tx } from '#/shared/outbox/commit'
-import type { FindDestinationApprovalFacts } from '../destinations/portal-destination-approval-facts-reader.port.server'
+import type { FindDestinationApprovalFacts } from './destinations/portal-destination-approval-facts-reader.port.server'
 
 /** Result of resolving a portal's context (org + property) by portal ID. */
 type PortalContextResult = Readonly<{

@@ -43,15 +43,15 @@ import type {
 } from './application/ports/review-queue.port'
 import type { TargetedGoogleReviewReferenceResolver } from './application/ports/targeted-google-review-reference.port'
 import type { ReplyQueuePort } from '../reputation/publication/reply-queue.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PropertyLifecycleState,
   PropertyGoogleReadScopePublicApi,
   PropertyPublicationScopePublicApi,
   PropertySourceEpochPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { AiReplyProvenancePublicKeyring } from '../reputation/replies/ai-suggested-draft-store.port.server'
-import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
 import { createReviewRepository } from '../reputation/reviews/review-repository.server'
 import { createReviewObservationRepository } from '../reputation/reviews/review-observation-repository.server'
 import { createReplyRepository } from '../reputation/replies/reply-repository.server'

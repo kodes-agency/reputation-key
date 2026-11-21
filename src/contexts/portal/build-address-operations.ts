@@ -1,4 +1,4 @@
-import type { PropertyLifecyclePublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyLifecyclePublicApi } from '#/contexts/property/public-api'
 import {
   ensurePersonalPortalToken,
   issuePortalToken,

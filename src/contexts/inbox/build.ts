@@ -15,7 +15,7 @@ import {
   type InboxAssignmentRuntime,
 } from '../reputation/inbox/inbox-assignment-runtime.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   ReviewReplyObservationAuthority,
   ReviewSourceTransitionAuthority,

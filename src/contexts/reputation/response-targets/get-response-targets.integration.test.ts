@@ -22,7 +22,7 @@ import {
 } from '../inbox/inbox-database.test-fixtures'
 import { createResponseTargetStore } from './store.server'
 import { createResponseTargetPolicyStore } from './policy.store.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { InboxItem } from '../domain/inbox-types'
 import {
   getGoogleReviewTargetAnalytics,

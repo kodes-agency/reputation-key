@@ -5,7 +5,7 @@ import { buildPortalPublicationSnapshot } from '../publication/portal-publicatio
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createPortalReadsWorld } from '../infrastructure/testing/portal-reads-world'
 import type { PortalPublicationRepository } from '../publication/portal-publication-repository.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalActorDirectory } from './portal-actor-directory.port.server'
 import { userId, type PropertyId, type UserId } from '#/shared/domain/ids'
 

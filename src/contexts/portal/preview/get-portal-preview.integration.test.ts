@@ -19,7 +19,7 @@ import {
   userId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import {
   PORTAL_DESTINATION_VALIDATION_VERSION,
   type PortalApprovedDestination,

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The policy diagnostic as the build wires it, against real PostgreSQL.
 //
 // `explainPolicyDecisionFn` is served to any AccountAdmin (`policy.admin`), so

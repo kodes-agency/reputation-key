@@ -1,4 +1,4 @@
-import type { GoalMetric, GoalSubject } from '#/contexts/reporting/application/public-api'
+import type { GoalMetric, GoalSubject } from '#/contexts/reporting/public-api'
 import { goalListSubjectText } from '#/contexts/reporting/monthly-goals/ui/goal-assignment-subject-label'
 import { goalMetricLabel } from '#/contexts/reporting/monthly-goals/ui/goal-metric-label'
 

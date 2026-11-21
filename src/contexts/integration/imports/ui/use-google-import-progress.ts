@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { propertyKeys } from '#/shared/queries/query-keys'
 import type { TenantScope } from '#/shared/queries/tenant-scope'
 import type {

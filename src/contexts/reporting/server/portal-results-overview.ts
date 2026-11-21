@@ -23,10 +23,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { getPortalResultsOverviewDto } from '../property-overview/contracts'
-import type {
-  PortalResultsRosterEntry,
-  PortalResultsTimeRange,
-} from '../application/public-api'
+import type { PortalResultsRosterEntry, PortalResultsTimeRange } from '../public-api'
 import { isDashboardError } from '../domain/dashboard-errors'
 import {
   organizationRoster,

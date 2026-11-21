@@ -1,4 +1,4 @@
-import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalGroupPublicApi } from '#/contexts/portal/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   organizationId as toOrganizationId,

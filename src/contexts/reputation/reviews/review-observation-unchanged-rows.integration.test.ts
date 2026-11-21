@@ -2,7 +2,7 @@ import {
   eraseReviewSourceContent,
   replyScopeEffects,
   writeObservedReviewIdentity,
-} from '#/contexts/reputation/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'

@@ -4,7 +4,7 @@ import type {
   NotificationCategoryDefault,
   NotificationPreference,
   NotificationPropertyDeliveryWindow,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import { NotificationsSettingsView } from './notifications-settings-view'
 import type { EmailAvailability } from './email-availability-notice'
 import { describeInheritedDefault } from './notification-inherited-defaults'

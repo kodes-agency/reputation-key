@@ -18,7 +18,7 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { Skeleton } from '#/components/ui/skeleton'
-import type { EffectiveNotificationSettings } from '#/contexts/feed/application/public-api'
+import type { EffectiveNotificationSettings } from '#/contexts/feed/public-api'
 import {
   NotificationFormattingForm,
   type NotificationSettingsUpdate,

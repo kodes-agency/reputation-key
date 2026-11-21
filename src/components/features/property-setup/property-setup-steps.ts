@@ -3,7 +3,7 @@ import type {
   PropertySetupSection,
   PropertySetupStep,
   PropertySetupStepKey,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { RATING_GOAL_ARRIVAL_SEARCH } from '#/contexts/reporting/rating-goals/ui/rating-goal-arrival-search'
 import type { PropertySettingsSectionKey } from '../../../contexts/property/profile/ui/settings/property-settings-sections'
 

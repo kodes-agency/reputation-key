@@ -25,7 +25,7 @@ import {
   type NotificationFeedHead,
   type NotificationPage,
   type NotificationView,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 
 /** The server's largest page: a re-read covers loaded depth in as few reads as it can. */
 const LARGEST_PAGE = 100

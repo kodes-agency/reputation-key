@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
-import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
+import type { PublicGoogleReviewDestination } from '#/contexts/portal/public-api'
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 
 export type GuestResponseAction<TInput, TResult> = ((input: {

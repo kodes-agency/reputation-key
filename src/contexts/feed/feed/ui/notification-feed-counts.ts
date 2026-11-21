@@ -12,7 +12,7 @@ import {
   type NotificationFeedHead,
   type NotificationListFilter,
   type NotificationView,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import { matchesNotificationFilter } from './notification-filters'
 
 /** `null` removes the row. Returning the row unchanged is a no-op. */

@@ -237,7 +237,7 @@ type ContextApi<T> = Readonly<{
     what admits it;
   - the request surface is not a cross-context API. Another context's
     application code is typed against a narrow `…PublicApi` type from
-    `application/public-api.ts`, or against a port the composition root fills,
+    the area's `public-api.ts`, or against a port the composition root fills,
     and neither names it. A server adapter reads the whole container, so only
     this rule keeps one from calling another context's surface. The named
     exceptions: Reporting's Portal results adapter calls two reads on Portal's
@@ -289,7 +289,7 @@ Re-affirming from `src/contexts/CONTEXT.md`:
 | `infrastructure/` | `domain/`, `application/`, `shared/`, external libs | Business rules, HTTP routing     |
 | `server/`         | `application/`, `shared/`, TanStack Start           | Business logic, direct DB access |
 
-Cross-context: import ONLY from `application/public-api.ts`. Never from `domain/`, `infrastructure/`, `server/`.
+Cross-context: import ONLY from the area's `public-api.ts` at its root (Review and Inbox keep `application/public-api.ts` until their server functions move). Never from `domain/`, `infrastructure/`, `server/`.
 
 ---
 
@@ -317,7 +317,7 @@ inception.
 | Domain                        | camelCase, single file per concept                | `constructors.ts`, `events.ts`, `types.ts`, `rules.ts`, `errors.ts` |
 | Application ports             | kebab + `.port.ts` suffix                         | `review.repository.ts`, `attention-signals.port.ts`                 |
 | Application use-cases         | kebab-case (mirrors use case name)                | `get-dashboard-data.ts`, `submit-reply.ts`                          |
-| Application public API        | always `public-api.ts`                            | `public-api.ts`                                                     |
+| Area public API               | always `public-api.ts`, at the area root          | `public-api.ts`                                                     |
 | Infrastructure repos          | kebab + `.repository.ts`                          | `review.repository.ts`                                              |
 | Infrastructure adapters       | kebab + `.adapter.ts`                             | `attention-signals.adapter.ts`, `db-user-lookup.adapter.ts`         |
 | Infrastructure mappers        | kebab + `.mapper.ts`                              | `goal.mapper.ts`                                                    |

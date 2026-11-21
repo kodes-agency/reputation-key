@@ -15,7 +15,7 @@ import {
   renderNotification,
   waitingAge,
   type NotificationView,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 
 /**
  * What the row asks of its reader, carried by its icon: red when it is on a

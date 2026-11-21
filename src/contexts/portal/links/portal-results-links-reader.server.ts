@@ -6,7 +6,7 @@ import {
   portalLinkCategories,
 } from '#/shared/db/schema/portal.schema'
 import { portalLinkTexts } from '#/shared/db/schema/portal-localization.schema'
-import type { PortalPublicApi } from '../application/public-api'
+import type { PortalPublicApi } from '../public-api'
 
 /** Current links in guest order, labelled in the Portal’s primary language. */
 export const createPortalResultsLinksReader =

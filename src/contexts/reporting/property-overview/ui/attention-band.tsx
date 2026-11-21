@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Clock, Globe, Inbox, Target, TrendingDown, TriangleAlert } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
-import type { AttentionSignals } from '#/contexts/reporting/application/public-api'
+import type { AttentionSignals } from '#/contexts/reporting/public-api'
 
 export interface AttentionBandProps {
   readonly signals: AttentionSignals

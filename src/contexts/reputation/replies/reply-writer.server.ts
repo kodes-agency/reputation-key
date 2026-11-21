@@ -1,8 +1,5 @@
 import type { Database } from '#/shared/db'
-import {
-  createReplyWriter,
-  type ReplyWriterRows,
-} from '#/contexts/reputation/application/public-api'
+import { createReplyWriter, type ReplyWriterRows } from '#/contexts/reputation/public-api'
 import type { ReplyWriter } from '#/contexts/review/application/public-api'
 import {
   aiDraftInputsAreCurrent,

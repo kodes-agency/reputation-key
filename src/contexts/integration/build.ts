@@ -32,7 +32,7 @@ import type { GoogleImportReferenceStore } from './imports/durable-import-refere
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import {
   type GoogleConnectionStatusPort,
   type GoogleReviewApiPort,
@@ -83,7 +83,7 @@ import type { PerformanceContentAuthorizer } from './performance/google-performa
 import type { GoogleReviewSyncContentAuthorizer } from './review-sync/google-review-sync-authorizer.server'
 import type { GoogleReplyPublicationContentAuthorizer } from './review-sync/google-reply-publication-authorizer.server'
 import { createActiveMemberAuthResolver } from './provider/active-member-auth.adapter.server'
-import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/public-api'
 import {
   reconcileGoogleProviderRecovery,
   type ReconcileGoogleProviderRecovery,

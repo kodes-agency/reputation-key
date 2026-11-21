@@ -3,7 +3,7 @@
 // A new epoch with Review Analysis still enabled keeps stable issue identities.
 // Every row is invented; no guest's words exist here.
 import { randomUUID } from 'node:crypto'
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'

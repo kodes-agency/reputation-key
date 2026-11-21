@@ -10,7 +10,7 @@ import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-stor
 import { reviewId } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { validateTransition } from '#/contexts/reputation/domain/inbox-rules'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import type {

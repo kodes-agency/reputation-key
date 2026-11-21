@@ -3,7 +3,7 @@ import {
   assertPortalCollectorChange,
   assertPortalCollectorAvailable,
 } from './portal-collector-guard.server'
-import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/public-api'
 import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
 // Atomic Portal command store (ARC-01).
 //

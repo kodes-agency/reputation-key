@@ -16,7 +16,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { propertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { LookBackgroundMode } from '#/shared/domain/portal-look-readout'
 import { portalError } from '../domain/errors'
 import { normaliseWordmark } from '../domain/property-look'

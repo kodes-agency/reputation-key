@@ -7,10 +7,7 @@ import {
   type ChartConfig,
 } from '#/components/ui/chart'
 import { ChartFrame, ChartTooThin } from '#/components/ui/chart-frame'
-import type {
-  RatingTrendPoint,
-  ReviewVolumePoint,
-} from '#/contexts/reporting/application/public-api'
+import type { RatingTrendPoint, ReviewVolumePoint } from '#/contexts/reporting/public-api'
 import { axisTicks, hasEnoughEvidence } from '#/shared/dashboard/chart-buckets'
 import {
   bucketUnitForRange,

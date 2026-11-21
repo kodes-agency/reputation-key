@@ -27,7 +27,7 @@ import {
   notificationUserSettingsFixture,
 } from './notification.stories.fixtures'
 import type { ReactNode } from 'react'
-import type { NotificationView } from '#/contexts/feed/application/public-api'
+import type { NotificationView } from '#/contexts/feed/public-api'
 
 const user = { id: 'manager', name: 'Manager', email: 'manager@example.com', image: null }
 const scope = { userId: user.id, organizationId: 'org' }
