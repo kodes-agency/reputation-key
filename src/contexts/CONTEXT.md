@@ -33,7 +33,10 @@ An area holds its features, and three things every feature shares:
   `publication`, `monthly-goals`):
   - `contracts.ts` holds the types and schemas the browser may import.
   - `*.server.ts` files hold commands, reads, stores, adapters, jobs and
-    consumers. In a feature, only these may import Drizzle.
+    consumers. In a feature, only these may import Drizzle. No area file
+    builds a queue or Redis client: `shared/jobs` and the composition root
+    build them and pass them in, so area code imports `bullmq` and `ioredis`
+    types only (tests may build real clients).
   - `ui/` holds screens, components, hooks and their stories. It has no index
     file and no `*.server.ts`.
   - Tests sit beside what they test; `*.test-fixtures.ts` holds shared test data.
