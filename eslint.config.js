@@ -146,12 +146,8 @@ const SELECTABLE_BUTTONS = [
   ['src/contexts/reputation/inbox/ui/page/inbox-list-row.tsx', 'picker-tile'],
 ]
 
-// An area's public API: what other areas may import, at the area's root. Review
-// and Inbox keep theirs in application/ until their server functions move into Reputation.
-const PUBLIC_API = [
-  'src/contexts/*/public-api.ts',
-  'src/contexts/{review,inbox}/application/public-api.ts',
-]
+// An area's public API: what other areas may import, at the area's root.
+const PUBLIC_API = ['src/contexts/*/public-api.ts']
 
 const elementType = (type) => ({ element: { type } })
 const elementTypes = (...types) => ({ element: { types: { anyOf: types } } })
@@ -553,23 +549,6 @@ export default tseslint.config(
               },
               allow: { to: { file: { path: 'src/contexts/*/application/ports/**' } } },
             },
-            // Review, Inbox and Reputation form one bounded context: Reputation's
-            // feature servers may use Review and Inbox internals.
-            {
-              from: {
-                file: {
-                  categories: 'feature-server',
-                  path: 'src/contexts/reputation/**',
-                },
-              },
-              allow: {
-                to: {
-                  file: {
-                    path: 'src/contexts/{review,inbox}/{application,server}/**',
-                  },
-                },
-              },
-            },
             {
               from: fileCategory('feature-test-fixtures'),
               allow: { to: elementTypes(...CONTEXT, ...SHARED_ALL, 'test-helpers') },
@@ -924,24 +903,6 @@ export default tseslint.config(
               },
               allow: { to: fileCategory('feature-server') },
             },
-            {
-              from: {
-                file: {
-                  path: [
-                    'src/contexts/{review,inbox}/{application,server}/**',
-                    'src/contexts/{review,inbox}/build{,-*}.ts',
-                  ],
-                },
-              },
-              allow: {
-                to: {
-                  file: {
-                    categories: 'feature-server',
-                    path: 'src/contexts/reputation/**',
-                  },
-                },
-              },
-            },
           ],
         },
       ],
@@ -983,8 +944,7 @@ export default tseslint.config(
 
   // ─── BQC-5.1: cross-context public-api rule ────────────────────────
   // CONTEXT.md "Dependency rules": cross-context imports go through the
-  // target context's root public-api.ts only (Review and Inbox: application/
-  // until their server functions move); infrastructure/adapters/**
+  // target context's root public-api.ts only; infrastructure/adapters/**
   // and feature *.adapter.server.ts files may import the foreign
   // application/ports/** contract they implement.
   {
