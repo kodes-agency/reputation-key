@@ -4,8 +4,8 @@
 // revisions and Inbox finds and writes the cycles they opened; neither context
 // reads the other's tables.
 
-import type { InboxContextApi } from '#/contexts/inbox/build'
-import type { ReviewContextApi } from '#/contexts/review/build'
+import type { InboxContextApi } from '#/contexts/reputation/build-inbox'
+import type { ReviewContextApi } from '#/contexts/reputation/build-review'
 import { inboxItemId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { ExclusionPorts } from '#/shared/ops/inbox-exclude-restated-revision-targets-command'
 

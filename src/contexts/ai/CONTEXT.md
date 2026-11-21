@@ -660,7 +660,7 @@ row: topics, polarity, strength, the optional cause and the names flag, never a 
 sentence. The Inbox reads it: `composition/inbox-ai-insights.ts` turns it into the Inbox's own
 `ready_v3` (the numbers of the cited sentences, the Property issue each mention belongs to now, a
 manager's correction beside it), which the pane draws as cause chips and underlines in the guest's
-own words (`src/contexts/inbox/CONTEXT.md`).
+own words (`src/contexts/reputation/CONTEXT.md`).
 
 The unused daily star-count projection remains declared only for schema contraction.
 Guest voice counts from the live review population (`readTrendPopulation`). Legacy

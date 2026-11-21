@@ -14,7 +14,7 @@ import type {
   InboxReviewAnalysis,
   ReviewAnalysisAspect,
   ReviewAspectPolarity,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { MatchedIssue } from './use-matched-issue'
 import type { MatchedTopic } from './use-matched-topic'
 

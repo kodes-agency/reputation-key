@@ -22,9 +22,9 @@ import {
   stampLastInboxViewDto,
   getInboxQueueCountsDto,
   getInboxPropertyCountsDto,
-} from '../../inbox/application/dto/inbox.dto'
+} from '../inbox/contracts'
 import { decodeInboxCursor } from '../inbox/inbox-cursor.server'
-import { REPLY_STAGE_QUEUES, type InboxQueue } from '../../inbox/application/inbox-queues'
+import { REPLY_STAGE_QUEUES, type InboxQueue } from '../inbox/inbox-queues.contracts'
 import { sourceDateWindow } from '../inbox/source-date-window.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 

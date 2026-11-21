@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
-import { collectReviewSourceContentLifecycleReport } from '../../review/application/use-cases/collect-source-content-lifecycle-report'
+import { collectReviewSourceContentLifecycleReport } from './collect-source-content-lifecycle-report.server'
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_RETENTION_POLICY_VERSION,
   type RunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 export const REVIEW_LIFECYCLE_RECOVERY_REPORT_VERSION =
   'review-lifecycle-recovery-report-v1' as const

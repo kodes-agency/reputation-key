@@ -17,7 +17,7 @@ import type {
   InboxItem,
   InboxItemDetailResult,
   InboxRevisionConflictResult,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { InboxServerFns } from './types'
 import {
   useInboxDetail,

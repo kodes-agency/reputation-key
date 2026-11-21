@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { ReviewCorrectionDialog } from './review-correction-dialog'
-import type {
-  InboxItem,
-  InboxReviewAnalysis,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxReviewAnalysis } from '#/contexts/reputation/public-api'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 
 /**

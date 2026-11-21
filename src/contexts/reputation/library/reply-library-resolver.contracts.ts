@@ -2,11 +2,13 @@ import {
   BUILTIN_REPLY_LIBRARY_VERSION_NUMBER,
   type BuiltinReplyLibrary,
 } from '#/shared/reply-library/builtin-library'
-import type { ReplyLibraryRef, ReplyLibraryTemplateDto } from './dto/reply-library.dto'
+import type { ReplyLibraryRef, ReplyLibraryTemplateDto } from './contracts'
+// A contract may not import a server port, so the stored shapes come through
+// the public API, as types.
 import type {
   StoredReplyTemplate,
   StoredReplyTemplateVisibility,
-} from '../../reputation/library/reply-library-repository.port.server'
+} from '#/contexts/reputation/public-api'
 
 type ResolveInput = Readonly<{
   builtin: BuiltinReplyLibrary

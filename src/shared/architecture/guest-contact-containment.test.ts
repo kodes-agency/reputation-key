@@ -189,10 +189,8 @@ describe('Contact Request containment', () => {
     const consumers = [
       'src/contexts/feed',
       'src/contexts/ai',
-      'src/contexts/inbox',
       'src/contexts/reporting',
       'src/contexts/reputation',
-      'src/contexts/review',
       'src/shared/email',
       'src/shared/events',
       'src/shared/observability',

@@ -1,7 +1,7 @@
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { ReviewFirstSeenVia } from '#/shared/domain/push-health'
 import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
-import type { GoogleReviewRead } from '../../review/application/ports/google-review-api.port'
+import type { GoogleReviewRead } from './google-review-api.port.server'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import type { ReviewProviderSubjectSightings } from './review-provider-subject-link.port.server'
 import type { ReviewProviderSubjectKeyService } from './provider-subject-keyring.server'

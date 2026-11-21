@@ -38,7 +38,7 @@ import type {
   AmbiguousPublicationReconciliationCandidate,
   FindAmbiguousPublicationReconciliationCandidates,
   ReconcileReplyPublication,
-} from '../../src/contexts/review/application/public-api'
+} from '../../src/contexts/reputation/public-api'
 import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
 

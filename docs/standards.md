@@ -289,7 +289,7 @@ Re-affirming from `src/contexts/CONTEXT.md`:
 | `infrastructure/` | `domain/`, `application/`, `shared/`, external libs | Business rules, HTTP routing     |
 | `server/`         | `application/`, `shared/`, TanStack Start           | Business logic, direct DB access |
 
-Cross-context: import ONLY from the area's `public-api.ts` at its root (Review and Inbox keep `application/public-api.ts` until their server functions move). Never from `domain/`, `infrastructure/`, `server/`.
+Cross-context: import ONLY from the area's `public-api.ts` at its root. Never from `domain/`, `infrastructure/`, `server/`.
 
 ---
 

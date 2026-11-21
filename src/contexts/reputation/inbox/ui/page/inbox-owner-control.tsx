@@ -11,7 +11,7 @@ import {
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { ReactNode } from 'react'
 import type { Permission } from '#/shared/domain/permissions'
-import type { SourceType } from '#/contexts/inbox/application/public-api'
+import type { SourceType } from '#/contexts/reputation/public-api'
 import {
   resolveInboxOwner,
   type InboxAssignmentOption,

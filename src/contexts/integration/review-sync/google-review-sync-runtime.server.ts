@@ -7,7 +7,7 @@ import {
   type GoogleConnectionStatusPort,
   type GoogleReviewApiPort,
   type TargetedGoogleReviewReferenceResolver,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { ActiveConnectionTokenProviderDeps } from '../connections/active-connection-token-provider.server'
 import type {
   GoogleAuthorizedProviderExecutor,

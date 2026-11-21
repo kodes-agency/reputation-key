@@ -1,10 +1,10 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleConnectionId, OrganizationId } from '#/shared/domain/ids'
-import { reviewApiError } from '../../review/application/google-review-api-error'
+import { reviewApiError } from '../sync/google-review-api-error.server'
 import type {
   GoogleConnectionStatusPort,
   GoogleReviewApiError,
-} from '../../review/application/ports/google-review-api.port'
+} from '../sync/google-review-api.port.server'
 
 /**
  * A Google call refused while its connection waits for an AccountAdmin to

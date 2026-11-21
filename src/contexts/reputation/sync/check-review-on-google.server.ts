@@ -1,4 +1,4 @@
-import { translatedGoogleReviewApi } from '../../review/application/google-review-api-error'
+import { translatedGoogleReviewApi } from './google-review-api-error.server'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { sha256Hex } from '#/shared/domain/sha256'
@@ -8,7 +8,7 @@ import {
   GOOGLE_CONNECTION_UNUSABLE_CODE,
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
   type GoogleReviewApiPort,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type {
   PropertyGoogleReadBindingPort,
   ReviewPropertyGoogleReadBinding,

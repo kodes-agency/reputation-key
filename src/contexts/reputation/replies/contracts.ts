@@ -5,6 +5,8 @@ import {
 } from '#/shared/reply/reply-revision'
 
 export { matchesExpectedReply, replyRevisionSchema, type ReplyRevision }
+// The composer checks a draft for unfilled template slots in the browser.
+export { unfilledReplySlotsMessage } from '../domain/review-rules'
 
 /** A Google observation is displayed as a reply but has no internal draft row. */
 export function replyRevisionOnScreen(

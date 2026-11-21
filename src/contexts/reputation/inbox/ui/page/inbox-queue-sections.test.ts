@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { InboxQueueCounts } from '#/contexts/inbox/application/public-api'
+import type { InboxQueueCounts } from '#/contexts/reputation/public-api'
 import { resolveReplyStages } from './inbox-queues'
 import {
   defaultInboxQueue,

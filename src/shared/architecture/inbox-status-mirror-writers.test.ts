@@ -18,7 +18,7 @@ import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const REPO_SRC = join(process.cwd(), 'src')
-const INBOX_ROOT = join(REPO_SRC, 'contexts', 'inbox')
+const REPUTATION_ROOT = join(REPO_SRC, 'contexts', 'reputation')
 
 /**
  * The complete set of modules permitted to write the Inbox row, each with the
@@ -52,6 +52,18 @@ function walk(directory: string): readonly string[] {
   })
 }
 
+/** The files at the area's root: its builds and its public API. */
+function rootFiles(directory: string): readonly string[] {
+  return readdirSync(directory)
+    .map((entry) => join(directory, entry))
+    .filter(
+      (absolute) =>
+        statSync(absolute).isFile() &&
+        absolute.endsWith('.ts') &&
+        !absolute.endsWith('.test.ts'),
+    )
+}
+
 const REPUTATION_INBOX_ROOT = join(REPO_SRC, 'contexts', 'reputation', 'inbox')
 const REPUTATION_DOMAIN_ROOT = join(REPO_SRC, 'contexts', 'reputation', 'domain')
 const REPUTATION_RESPONSE_TARGETS_ROOT = join(
@@ -63,7 +75,7 @@ const REPUTATION_RESPONSE_TARGETS_ROOT = join(
 const REPUTATION_SERVER_ROOT = join(REPO_SRC, 'contexts', 'reputation', 'server')
 
 const productionFiles = [
-  ...walk(INBOX_ROOT),
+  ...rootFiles(REPUTATION_ROOT),
   ...walk(REPUTATION_INBOX_ROOT),
   ...walk(REPUTATION_DOMAIN_ROOT),
   ...walk(REPUTATION_RESPONSE_TARGETS_ROOT),
@@ -151,7 +163,7 @@ describe('inbox_items carries the Handling Cycle facts its readers resolve from'
     const layered = productionFiles.filter((file) => {
       const path = relativeToSrc(file)
       return (
-        path.startsWith('contexts/inbox/application/') ||
+        path === 'contexts/reputation/public-api.ts' ||
         path.startsWith('contexts/reputation/server/') ||
         path.startsWith('contexts/reputation/domain/')
       )

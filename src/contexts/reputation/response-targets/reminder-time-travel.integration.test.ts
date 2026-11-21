@@ -35,7 +35,10 @@ import { propertyArchived, propertyRestored } from '#/contexts/property/domain/e
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { buildInboxContext, type InboxContextBuildInput } from '#/contexts/inbox/build'
+import {
+  buildInboxContext,
+  type InboxContextBuildInput,
+} from '#/contexts/reputation/build-inbox'
 import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
 import { releaseDueResponseTargetReminders } from './release-reminders.server'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'

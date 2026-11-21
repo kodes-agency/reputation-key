@@ -13,21 +13,23 @@ import {
 } from '#/shared/db/schema/review.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
+import { aiTextRuleOf } from '../domain/reply-ai-text'
+import { googleReplyTextDigest } from '../domain/google-reply-observation'
 import {
-  aiTextRuleOf,
-  googleReplyTextDigest,
   hasPublicationRecord,
   replyCommandMayStart,
-  reviewError,
-  UNCERTAIN_ATTEMPT_OUTCOMES,
-  type Reply,
-  type PersistedPublicationState,
   type ReplyCommand,
-  type ReplyCommandStore,
+} from '../domain/reply-command-preconditions'
+import type { PersistedPublicationState } from '../domain/reply-publication-workflow'
+import { reviewError } from '../domain/review-errors'
+import type { Reply } from '../domain/review-types'
+import type { ReplyCommandStore } from './reply-command-store.port.server'
+import type { ConditionalReplyUpdate } from './reply-repository.port.server'
+import {
+  UNCERTAIN_ATTEMPT_OUTCOMES,
   type ReplyWriter,
-  type ConditionalReplyUpdate,
   type UncertainSendSnapshot,
-} from '#/contexts/review/application/public-api'
+} from './reply-writer.port.server'
 
 /**
  * The commands whose write puts the reply's text forward: submit hands it to

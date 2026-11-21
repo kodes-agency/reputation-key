@@ -2,7 +2,7 @@ import {
   isGoogleReviewApiError,
   reviewApiError,
   type GoogleReviewApiError,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { cursorFailureCode } from './google-review-api-errors.adapter.server'
 import { isGoogleCallError } from '../domain/google-call-error'

@@ -7,7 +7,7 @@
 // came back from Google and is told "no reply yet" three times in ten minutes,
 // for a check they did not ask for, is being nagged.
 
-import type { InboxGoogleCheckOutcome } from '#/contexts/inbox/application/public-api'
+import type { InboxGoogleCheckOutcome } from '#/contexts/reputation/public-api'
 
 export const GOOGLE_CHECK_COPY = {
   action: 'Check on Google',

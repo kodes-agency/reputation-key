@@ -13,7 +13,7 @@ import type { PortalShareProps } from '#/contexts/portal/printing/ui/portal-shar
 import { presentResponseTargetChip } from '#/contexts/reputation/response-targets/ui/response-target-chip'
 import { formatHistoryTime } from '#/contexts/portal/workspace/ui/portal-history-time'
 import { useMinuteClock } from '#/contexts/reputation/inbox/ui/inbox-case-toolbar'
-import type { ResponseTargetView } from '#/contexts/inbox/application/public-api'
+import type { ResponseTargetView } from '#/contexts/reputation/public-api'
 
 export const PROPERTY_ZONE = 'America/Los_Angeles'
 

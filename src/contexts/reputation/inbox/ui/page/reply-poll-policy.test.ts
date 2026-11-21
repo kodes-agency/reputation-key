@@ -10,7 +10,7 @@ import {
   UNCERTAIN_REPLY_LIST_DUE_SLACK_MS,
   UNCERTAIN_REPLY_POLL_INTERVAL_MS,
 } from './inbox-cache-policy'
-import type { InboxItemReplyState } from '#/contexts/inbox/application/public-api'
+import type { InboxItemReplyState } from '#/contexts/reputation/public-api'
 
 describe('replyRefetchInterval', () => {
   const nowMs = Date.parse('2025-06-01T12:30:00.000Z')

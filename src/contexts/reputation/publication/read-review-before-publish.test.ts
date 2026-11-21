@@ -13,10 +13,10 @@ import type {
 import type {
   GoogleReviewApiPort,
   GoogleReviewRead,
-} from '../../review/application/ports/google-review-api.port'
+} from '../sync/google-review-api.port.server'
 import type { ReviewProviderObservationWriter } from '../sync/sync-reviews.port.server'
 import type { ReviewProviderSubjectKeyService } from '../sync/provider-subject-keyring.server'
-import { REPLY_PRE_READ_REFUSAL_OPERATION } from '../../review/application/google-review-api-error'
+import { REPLY_PRE_READ_REFUSAL_OPERATION } from '../sync/google-review-api-error.server'
 import { readReviewBeforePublish } from './read-review-before-publish.server'
 
 /** What the integration adapter throws for a call Google answered or refused. */

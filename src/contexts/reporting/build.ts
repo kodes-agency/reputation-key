@@ -24,8 +24,8 @@ import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   ReviewGoogleRatingReads,
   ReviewServingStats,
-} from '#/contexts/review/application/public-api'
-import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
+import type { InboxPublicApi } from '#/contexts/reputation/public-api'
 import type { MetricPublicApi, PortalRatingGoalReadApi } from './public-api'
 
 import { createPropertyLocalDateResolver } from './readings/property-local-date.server'

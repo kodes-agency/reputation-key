@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { buildReviewContext } from '#/contexts/review/build'
+import { buildReviewContext } from '#/contexts/reputation/build-review'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
 import { getLogger } from '#/shared/observability/logger'
 import type { buildIdentityContext } from '#/contexts/identity/build'

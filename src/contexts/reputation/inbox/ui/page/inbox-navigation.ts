@@ -1,4 +1,4 @@
-import type { InboxQueue } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue } from '#/contexts/reputation/public-api'
 import { offeredListFilters } from './inbox-filter-offer'
 import type { InboxPageNav } from './use-inbox-page'
 

@@ -3,7 +3,7 @@ import type {
   InboxItem,
   InboxItemDetailResult,
   InboxNoteView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { hasPendingComposerWork } from '#/contexts/reputation/replies/ui/composer/composer-policy'
 import type {
   NoteDraft,

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, mocked, userEvent, within } from 'storybook/test'
-import type { InboxSort } from '#/contexts/inbox/application/public-api'
+import type { InboxSort } from '#/contexts/reputation/public-api'
 import { Button } from '#/components/ui/button'
 import { InboxActiveFilters } from './inbox-active-filters'
 import { CLEARED_INBOX_LIST_FILTERS, type InboxListFilterValues } from './inbox-filters'

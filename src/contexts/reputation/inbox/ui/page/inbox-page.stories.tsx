@@ -19,10 +19,7 @@ import type { InboxCtx } from './inbox-types'
 import type { InboxPageNav } from './use-inbox-page'
 import type { InboxServerFns } from './types'
 import type { InboxSearchParams } from './inbox-search-schema'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { propertyId, replyId, reviewId, userId } from '#/shared/domain/ids'
 
 const container = createInboxContainer()

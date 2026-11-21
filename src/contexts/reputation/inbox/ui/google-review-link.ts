@@ -9,7 +9,7 @@
 // (`#/shared/domain/google-review-links`), this is the last check before an
 // `href`.
 
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 
 export type GoogleReviewLink = Readonly<{
   /**

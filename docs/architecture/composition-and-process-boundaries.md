@@ -86,8 +86,7 @@ root:
   replaced the ambient-read authority module and its test in WP1.2);
 - consumes **named capability groups** from each context, never a context's
   private wiring (`docs/standards.md` §3.1);
-- connects contexts only through the target's `public-api.ts` (Review and Inbox
-  keep theirs in `application/` until their server functions move) or a
+- connects contexts only through the target's `public-api.ts` or a
   consumer-owned application port (ESLint `local/cross-context-public-api`,
   exercised by
   [`src/shared/architecture/cross-context-public-api.test.ts`](../../src/shared/architecture/cross-context-public-api.test.ts));

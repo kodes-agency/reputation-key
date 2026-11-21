@@ -3,8 +3,8 @@ import type {
   ReviewSourceContentLifecycleCheckpoint,
   ReviewSourceContentLifecycleResult,
   RunReviewSourceContentLifecycle,
-} from './run-source-content-lifecycle'
-import { collectReviewSourceContentLifecycleReport } from './collect-source-content-lifecycle-report'
+} from './run-source-content-lifecycle.server'
+import { collectReviewSourceContentLifecycleReport } from './collect-source-content-lifecycle-report.server'
 
 const CHECKPOINT: ReviewSourceContentLifecycleCheckpoint = {
   contract: 'review-source-content-lifecycle-v1',

@@ -18,7 +18,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { setInboxItemPriorityDto } from '../../inbox/application/dto/inbox.dto'
+import { setInboxItemPriorityDto } from '../inbox/contracts'
 
 export const setInboxItemPriorityFn = createServerFn({ method: 'POST' })
   .validator(setInboxItemPriorityDto)

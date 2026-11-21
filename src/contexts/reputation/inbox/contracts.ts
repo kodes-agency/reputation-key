@@ -9,9 +9,15 @@ import {
   ASPECT_TAXONOMY_V1,
 } from '#/shared/analysis/aspect-taxonomy'
 import { SAFE_OPAQUE_IDENTIFIER_PATTERN } from '#/shared/domain/safe-identifier'
-import { PRIVATE_FEEDBACK_HANDLING_OUTCOMES } from '../../../reputation/domain/feedback-handling'
-import { INBOX_PRIORITY_LEVELS } from '../../../reputation/domain/inbox-priority'
-import { INBOX_QUEUES } from '../inbox-queues'
+import { PRIVATE_FEEDBACK_HANDLING_OUTCOMES } from '../domain/feedback-handling'
+import { INBOX_PRIORITY_LEVELS } from '../domain/inbox-priority'
+import { INBOX_QUEUES } from './inbox-queues.contracts'
+
+// The Inbox rules the screens run in the browser. A screen may not import
+// domain/, and the public API is server code, so this contract hands them on.
+export { PRIVATE_FEEDBACK_HANDLING_OUTCOMES, INBOX_PRIORITY_LEVELS }
+export { effectiveInboxPriority } from '../domain/inbox-priority'
+export { isInboxRevisionConflictResult } from '../domain/inbox-errors'
 
 export const INBOX_BULK_LIMIT = 100
 const commandRevisionSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
@@ -355,7 +361,6 @@ export type BulkUpdateStatusInput = z.infer<typeof bulkUpdateStatusDto>
 export type EscalateInboxItemInput = z.infer<typeof escalateInboxItemDto>
 export type ResolveEscalationInput = z.infer<typeof resolveEscalationDto>
 export type AssignInboxItemInput = z.infer<typeof assignInboxItemDto>
-export type AddInboxNoteInput = z.infer<typeof addInboxNoteDto>
 export type MarkFeedbackHandledDtoInput = z.infer<typeof markFeedbackHandledDto>
 export type CorrectFeedbackHandlingOutcomeDtoInput = z.infer<
   typeof correctFeedbackHandlingOutcomeDto

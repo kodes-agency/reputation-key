@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
-import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from '../../review/application/ports/google-review-api.port'
-import type { GoogleReviewHeadResult } from '../../review/application/ports/google-review-api.port'
+import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from './google-review-api.port.server'
+import type { GoogleReviewHeadResult } from './google-review-api.port.server'
 import type {
   ReviewHeadBaseline,
   ReviewHeadCheckRepository,
 } from './review-head-check-repository.port.server'
 import type { HeadStoredCopy } from '../domain/head-check'
-import type { GoogleReviewRead } from '../../review/application/ports/google-review-api.port'
+import type { GoogleReviewRead } from './google-review-api.port.server'
 import { createRunReviewHeadCheck } from './run-review-head-check.server'
 
 /** What the integration adapter throws for a call Google answered or refused. */

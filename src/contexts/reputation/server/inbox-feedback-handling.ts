@@ -9,7 +9,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   correctFeedbackHandlingOutcomeDto,
   markFeedbackHandledDto,
-} from '../../inbox/application/dto/inbox.dto'
+} from '../inbox/contracts'
 import {
   createServerFn,
   inboxErrorStatus,

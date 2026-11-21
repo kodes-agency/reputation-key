@@ -2,7 +2,7 @@ import type {
   InboxItemDetailResult,
   InboxNoteView,
   GetInboxItemHistoryResult,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { historyEventLine } from './history-event-line'
 
 /**

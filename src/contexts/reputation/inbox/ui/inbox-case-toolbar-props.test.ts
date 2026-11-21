@@ -17,7 +17,7 @@ import type {
   FeedbackHandlingState,
   InboxItem,
   ResponseTargetView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 // Only the fields the selector reads — the same partial-fixture shape
 // `use-inbox-keyboard-shortcuts.test.ts` uses. Overrides are spelled with plain

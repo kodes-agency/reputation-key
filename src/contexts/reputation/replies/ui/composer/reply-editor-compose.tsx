@@ -70,9 +70,7 @@ export type ReplyComposeProps = Readonly<{
   ) => Promise<LoadedReplyTemplateDraft>
   onCheckDraft?: (
     text: string,
-  ) => Promise<
-    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
-  >
+  ) => Promise<import('#/contexts/reputation/library/contracts').ReplyDraftCheckDto>
 }>
 
 const PRIMARY_EXPLANATIONS: Readonly<Record<ReviewLanguageReadiness, string>> = {

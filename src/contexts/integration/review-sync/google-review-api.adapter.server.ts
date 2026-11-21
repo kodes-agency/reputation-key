@@ -1,12 +1,10 @@
 import {
   reviewApiError,
   type GoogleReviewApiPort,
+  type GoogleReviewHeadContinuation,
+  type GoogleReviewHeadRequest,
   type GoogleReviewPageRequest,
-} from '#/contexts/review/application/public-api'
-import type {
-  GoogleReviewHeadContinuation,
-  GoogleReviewHeadRequest,
-} from '#/contexts/review/application/ports/google-review-api.port'
+} from '#/contexts/reputation/public-api'
 import { REVIEW_LIST_NEWEST_UPDATED_FIRST } from '#/shared/google-provider-control/review-route-descriptors'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { LoggerPort } from '#/shared/domain/logger.port'

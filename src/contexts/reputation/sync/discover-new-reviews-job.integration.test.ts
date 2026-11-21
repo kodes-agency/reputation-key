@@ -14,7 +14,7 @@ import type {
   ReviewHeadCheckQueuePort,
   ReviewQueuePort,
   SyncPropertyReviewsJobData,
-} from '../../review/application/ports/review-queue.port'
+} from './review-queue.port.server'
 import { headCheckJobId, type ReviewHeadChecksMode } from '../domain/head-check'
 import {
   DISCOVERY_SPREAD_WINDOW_MS,

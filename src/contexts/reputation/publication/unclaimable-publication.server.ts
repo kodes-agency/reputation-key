@@ -32,7 +32,7 @@ import {
 import { cancelledPublication } from '../domain/reply-command-preconditions'
 import { replyAuthor } from '../domain/reply-author'
 import type { PublicationAttemptStart } from '../replies/reply-command-store.port.server'
-import type { ReplyWriter } from '../../review/application/ports/reply-writer.port'
+import type { ReplyWriter } from '../replies/reply-writer.port.server'
 
 /** Why the claim ends the cycle instead of taking it. */
 export type UnclaimableCause = Extract<

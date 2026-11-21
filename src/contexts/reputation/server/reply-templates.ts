@@ -11,7 +11,7 @@ import {
   loadReplyTemplateInputSchema,
   replyLibraryRefSchema,
   type ReplyLibraryRef,
-} from '../../review/application/dto/reply-library.dto'
+} from '../library/contracts'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { isReviewError } from '../domain/review-errors'
 import { reviewErrorStatus } from './reply-read'

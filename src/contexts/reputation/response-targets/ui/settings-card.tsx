@@ -19,11 +19,11 @@ import { Badge } from '#/components/ui/badge'
 import {
   organizationResponseTargetFormDto,
   type SetResponseTargetPolicyDtoInput,
-} from '#/contexts/inbox/application/dto/inbox.dto'
+} from '#/contexts/reputation/inbox/contracts'
 import type {
   ResponseTargetPolicySettings,
   ResponseTargetPolicyWriteResult,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 type UpdatePolicyAction = Action<
   Readonly<{ data: SetResponseTargetPolicyDtoInput }>,

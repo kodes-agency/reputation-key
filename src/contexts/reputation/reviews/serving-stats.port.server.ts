@@ -8,7 +8,7 @@
 // is not servable either (the review side of the join is eligibility-gated).
 //
 // Composition wires the review-infrastructure implementation into foreign
-// consumers (dashboard); they depend on this type via application/public-api.
+// consumers (dashboard); they depend on this type via reputation/public-api.
 
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 

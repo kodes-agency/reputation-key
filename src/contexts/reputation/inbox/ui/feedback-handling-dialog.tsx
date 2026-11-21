@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#/components/ui/dialog'
-import type { PrivateFeedbackHandlingOutcome } from '#/contexts/inbox/application/public-api'
+import type { PrivateFeedbackHandlingOutcome } from '#/contexts/reputation/public-api'
 import {
   FeedbackHandlingForm,
   type FeedbackHandlingDecision,

@@ -2,10 +2,10 @@
 // read is recorded through the single observation authority, which alone may
 // confirm an exact current attempted reply as published.
 
-import { translatedGoogleReviewApi } from '../../review/application/google-review-api-error'
+import { translatedGoogleReviewApi } from '../sync/google-review-api-error.server'
 import type { ReplyRepository } from '../replies/reply-repository.port.server'
 import type { ReviewRepository } from '../reviews/review-repository.port.server'
-import type { GoogleReviewApiPort } from '../../review/application/ports/google-review-api.port'
+import type { GoogleReviewApiPort } from '../sync/google-review-api.port.server'
 import type { GoogleReplyObservationStore } from './google-reply-observation-store.port.server'
 import type { OrganizationId, ReplyId } from '#/shared/domain/ids'
 import type { ReviewError } from '../domain/review-errors'

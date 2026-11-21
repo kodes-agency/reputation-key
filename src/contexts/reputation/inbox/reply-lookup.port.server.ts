@@ -17,7 +17,7 @@ import type {
   ReplyPublicationState,
   ReplyStatus,
 } from '../domain/inbox-types'
-import type { InboxReplyStages } from '../../inbox/application/inbox-queues'
+import type { InboxReplyStages } from './inbox-queues.contracts'
 
 // Self-contained copy of the review ReplySource union. ReplyEntityView remains
 // structurally identical to review's Reply apart from its Inbox-owned

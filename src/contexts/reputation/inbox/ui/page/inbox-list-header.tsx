@@ -9,7 +9,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from '#/components/ui/select'
-import type { InboxQueue, InboxSort } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue, InboxSort } from '#/contexts/reputation/public-api'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { InboxFilterPopover } from './inbox-filter-popover'
 import { InboxFilterSheet } from './inbox-filter-sheet'

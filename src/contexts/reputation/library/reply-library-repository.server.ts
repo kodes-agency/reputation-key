@@ -42,10 +42,7 @@ import type {
   StoredReplyTemplateVisibility,
   StoredReplyVoice,
 } from './reply-library-repository.port.server'
-import type {
-  ReplyLibraryRef,
-  ReplyLibraryScope,
-} from '../../review/application/dto/reply-library.dto'
+import type { ReplyLibraryRef, ReplyLibraryScope } from './contracts'
 import { reviewError } from '../domain/review-errors'
 
 type VoiceRow =

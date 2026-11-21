@@ -66,7 +66,7 @@ import {
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
   createRunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from '../content/run-source-content-lifecycle.server'
 
 const ACTIVE_STATES = ['scanning', 'confirming', 'deleting'] as const
 const TERMINAL_RECORD_RETENTION = sql`interval '30 days'`

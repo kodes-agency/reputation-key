@@ -8,43 +8,43 @@
 //     before the worker begins processing outbox jobs.
 
 import type { Database } from '#/shared/db'
-import { registerInboxMemberOffboardingConsumers } from '../reputation/inbox/member-offboarding-outbox-consumers.server'
+import { registerInboxMemberOffboardingConsumers } from './inbox/member-offboarding-outbox-consumers.server'
 import type { ConsumerRegistry } from '#/shared/outbox'
 import {
   createInboxAssignmentRuntime,
   type InboxAssignmentRuntime,
-} from '../reputation/inbox/inbox-assignment-runtime.server'
+} from './inbox/inbox-assignment-runtime.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   ReviewReplyObservationAuthority,
   ReviewSourceTransitionAuthority,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { inboxItemId } from '#/shared/domain/ids'
-import type { InboxRepository } from '../reputation/inbox/inbox-repository.port.server'
-import type { InboxNoteRepository } from '../reputation/inbox/inbox-note-repository.port.server'
-import type { InboxViewRepository } from '../reputation/inbox/inbox-view-repository.port.server'
-import type { InboxCommandStore } from '../reputation/inbox/command-store.port.server'
-import type { ReviewHandlingCycleStore } from '../reputation/inbox/review-handling-cycle-store.port.server'
-import type { FeedbackHandlingStore } from '../reputation/inbox/feedback-handling-store.port.server'
-import type { ResponseTargetStore } from '../reputation/response-targets/store.port.server'
-import type { ResponseTargetPolicyStore } from '../reputation/response-targets/policy.store.port.server'
-import type { RestatedRevisionTargetExclusions } from '../reputation/response-targets/restated-revision-target-exclusion-store.port.server'
-import type { ReviewLookupPort } from '../reputation/inbox/review-lookup.port.server'
-import type { AiReviewInsightsPort } from '../reputation/inbox/ai-review-insights.port.server'
+import type { InboxRepository } from './inbox/inbox-repository.port.server'
+import type { InboxNoteRepository } from './inbox/inbox-note-repository.port.server'
+import type { InboxViewRepository } from './inbox/inbox-view-repository.port.server'
+import type { InboxCommandStore } from './inbox/command-store.port.server'
+import type { ReviewHandlingCycleStore } from './inbox/review-handling-cycle-store.port.server'
+import type { FeedbackHandlingStore } from './inbox/feedback-handling-store.port.server'
+import type { ResponseTargetStore } from './response-targets/store.port.server'
+import type { ResponseTargetPolicyStore } from './response-targets/policy.store.port.server'
+import type { RestatedRevisionTargetExclusions } from './response-targets/restated-revision-target-exclusion-store.port.server'
+import type { ReviewLookupPort } from './inbox/review-lookup.port.server'
+import type { AiReviewInsightsPort } from './inbox/ai-review-insights.port.server'
 import type {
   FeedbackLookupSource,
   PropertyLookupSource,
   ReplyLookupSource,
   ReviewSourceLookupSource,
-} from '../reputation/inbox/lookup-sources.port.server'
-import type { InboxPublicApi } from './application/public-api'
-import type { GetInboxResponseTarget } from '../reputation/response-targets/get-response-targets.server'
+} from './inbox/lookup-sources.port.server'
+import type { InboxPublicApi } from './public-api'
+import type { GetInboxResponseTarget } from './response-targets/get-response-targets.server'
 import type { RebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import {
   createReleaseResponseTargetRemindersHandler,
   JOB_NAME as RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
-} from '../reputation/response-targets/release-reminders.job.server'
+} from './response-targets/release-reminders.job.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createInboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.server'
 import { createInboxHistoryRepository } from '#/contexts/reputation/inbox/inbox-history-repository.server'
@@ -53,31 +53,31 @@ import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { createReviewHandlingCycleStore } from '../reputation/inbox/review-handling-cycle-store.server'
+import { createReviewHandlingCycleStore } from './inbox/review-handling-cycle-store.server'
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
-import { createResponseTargetStore } from '../reputation/response-targets/store.server'
-import { createRestatedRevisionTargetExclusionStore } from '../reputation/response-targets/restated-revision-target-exclusion-store.server'
+import { createResponseTargetStore } from './response-targets/store.server'
+import { createRestatedRevisionTargetExclusionStore } from './response-targets/restated-revision-target-exclusion-store.server'
 import {
   createCycleHeadFactsStore,
   type CycleHeadFactsStore,
-} from '../reputation/inbox/inbox-cycle-head-facts-store.server'
-import { createResponseTargetPolicyStore } from '../reputation/response-targets/policy.store.server'
+} from './inbox/inbox-cycle-head-facts-store.server'
+import { createResponseTargetPolicyStore } from './response-targets/policy.store.server'
 import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
-import { registerInboxPropertyLifecycleConsumers } from '../reputation/response-targets/property-lifecycle-outbox-consumers.server'
-import { registerGuestFeedbackConsumer } from '../reputation/inbox/guest-feedback-outbox-consumers.server'
-import { createFeedbackLookupAdapter } from '../reputation/inbox/feedback-lookup.adapter.server'
-import { createPropertyLookupAdapter } from '../reputation/inbox/property-lookup.adapter.server'
-import { createReplyLookupAdapter } from '../reputation/inbox/reply-lookup.adapter.server'
-import { createReviewSourceLookupAdapter } from '../reputation/inbox/review-source-lookup.adapter.server'
+import { registerInboxPropertyLifecycleConsumers } from './response-targets/property-lifecycle-outbox-consumers.server'
+import { registerGuestFeedbackConsumer } from './inbox/guest-feedback-outbox-consumers.server'
+import { createFeedbackLookupAdapter } from './inbox/feedback-lookup.adapter.server'
+import { createPropertyLookupAdapter } from './inbox/property-lookup.adapter.server'
+import { createReplyLookupAdapter } from './inbox/reply-lookup.adapter.server'
+import { createReviewSourceLookupAdapter } from './inbox/review-source-lookup.adapter.server'
 import type {
   ReviewGoogleReviewCheck,
   ReviewResponseTargetAuthority,
-} from '#/contexts/review/application/public-api'
-import { createGoogleReviewCheckAdapter } from '../reputation/inbox/google-review-check.adapter.server'
-import { createGoogleCheckRateLimitAdapter } from '../reputation/inbox/google-check-rate-limit.adapter.server'
+} from '#/contexts/reputation/public-api'
+import { createGoogleReviewCheckAdapter } from './inbox/google-review-check.adapter.server'
+import { createGoogleCheckRateLimitAdapter } from './inbox/google-check-rate-limit.adapter.server'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
-import { createInboxActorDirectoryAdapter } from '../reputation/inbox/inbox-actor-directory.adapter.server'
-import { projectInboxRequestApi, wireUseCases } from './build-use-cases'
+import { createInboxActorDirectoryAdapter } from './inbox/inbox-actor-directory.adapter.server'
+import { projectInboxRequestApi, wireUseCases } from './build-inbox-use-cases'
 
 export type InboxContextBuildInput = Readonly<{
   db: Database

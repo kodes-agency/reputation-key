@@ -100,10 +100,6 @@ export const LAYOUT: Layout = {
       'staff',
       'updates',
     ],
-    // Review and Inbox are one bounded context with Reputation (rule 7). Their
-    // code moves into Reputation's features; neither gains features of its own.
-    // Their `domain/` folders are already merged into Reputation's `domain/`.
-    inbox: [],
     integration: ['connections', 'imports', 'performance', 'provider', 'review-sync'],
     portal: [
       'addresses',
@@ -142,7 +138,6 @@ export const LAYOUT: Layout = {
       'reviews',
       'sync',
     ],
-    review: [],
   },
   areaFolders: ['domain', 'server'],
   designSystemFolders: ['forms', 'hooks', 'layout', 'ui'],

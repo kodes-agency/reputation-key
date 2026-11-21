@@ -14,7 +14,7 @@
 //     the e2e seed's, and a continuation job reads this spec's. The job is
 //     report-only: a Review keeps its identity after its content expires
 //     (docs/BETA.md §3), and the destructive purge has no active producer
-//     (src/contexts/review/CONTEXT.md).
+//     (src/contexts/reputation/CONTEXT.md).
 
 import { test, expect } from '../../helpers/error-detection'
 import { expectPhoneLayout } from '../../helpers/phone-layout'
@@ -147,7 +147,7 @@ test.describe('Critical workflow: review expiry and the report-only purge', () =
     // reports and deletes nothing. The schema was changed to match — replies,
     // provider observations, publication authorisations and attempts all
     // restrict deletion — so an observed Review is now structurally
-    // undeletable, on purpose (src/contexts/review/CONTEXT.md: "destructive
+    // undeletable, on purpose (src/contexts/reputation/CONTEXT.md: "destructive
     // Review purge has no active producer").
     //
     // What the product guarantees today is stable identity with read-side

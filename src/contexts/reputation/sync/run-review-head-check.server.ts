@@ -33,7 +33,7 @@
 // or latch the job family's repair state. It also never records or clears the
 // Property's sync failure: the full retry owns that.
 
-import { translatedGoogleReviewApi } from '../../review/application/google-review-api-error'
+import { translatedGoogleReviewApi } from './google-review-api-error.server'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
@@ -48,7 +48,7 @@ import {
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
   type GoogleReviewApiPort,
   type GoogleReviewHeadContinuation,
-} from '../../review/application/ports/google-review-api.port'
+} from './google-review-api.port.server'
 import type {
   ReviewHeadCheckOutcome,
   ReviewHeadCheckRepository,

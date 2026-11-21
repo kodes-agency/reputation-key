@@ -4,7 +4,7 @@ import { languageDisplayName } from '#/contexts/reputation/replies/ui/composer/r
 // runtime import from a `.tsx` module so its unit test never loads the editor
 // tree. Both value imports are pure — `reply-language-options.ts` itself reaches
 // no further than `#/shared/reply-language-catalogue`, the first import here.
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 
 /** `'available' | 'expired' | 'not_found' | null`, read from its owner. */
 type ReviewContentStatus = InboxItemDetailResult['reviewContentStatus']

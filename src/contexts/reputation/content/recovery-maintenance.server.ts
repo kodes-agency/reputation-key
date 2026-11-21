@@ -17,7 +17,7 @@ import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
   type AuthorizeReviewSourceContentLifecycleApply,
   type RunReviewSourceContentLifecycle,
-} from '../../review/application/use-cases/run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 export type ReviewLifecycleRecoveryAuthorityFactory = Readonly<{
   createAuthority: (

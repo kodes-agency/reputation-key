@@ -18,10 +18,7 @@ import {
   submitFeedbackHandlingDecision,
   type FeedbackHandlingDialogMode,
 } from './feedback-handling-submit'
-import type {
-  FeedbackHandlingState,
-  InboxItem,
-} from '#/contexts/inbox/application/public-api'
+import type { FeedbackHandlingState, InboxItem } from '#/contexts/reputation/public-api'
 import type { InboxDetailState } from './use-inbox-detail'
 import type { ReactNode } from 'react'
 

@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 
 import { createReviewReplyWriter } from './reply-writer.server'
-import type { ReplyWriter } from '../../review/application/ports/reply-writer.port'
+import type { ReplyWriter } from './reply-writer.port.server'
 import {
   and,
   getTableColumns,

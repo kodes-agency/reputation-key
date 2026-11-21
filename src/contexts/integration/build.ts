@@ -39,7 +39,7 @@ import {
   type TargetedGoogleReviewReferenceResolver,
   type ReviewQueuePort,
   type TargetedGoogleReviewQueuePort,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { connectGoogleAccount } from './connections/connect-google-account.server'
 import { disconnectGoogleAccount } from './connections/disconnect-google-account.server'
 import { listGoogleConnections } from './connections/list-google-connections.server'
@@ -130,7 +130,7 @@ type IntegrationContextDeps = Readonly<{
   propertyApi: PropertyPublicApi
   propertyBindingApi?: PropertyGoogleBindingPublicApi
   enqueueReviewSync?: ReviewQueuePort['addSyncJob']
-  prepareImportSync: import('#/contexts/review/application/public-api').PrepareGoogleImportSync
+  prepareImportSync: import('#/contexts/reputation/public-api').PrepareGoogleImportSync
   enqueueTargetedReviewFetch?: TargetedGoogleReviewQueuePort['addTargetedFetchJob']
   /** Starts an imported Property's public display name as its confirmed name. */
   defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']

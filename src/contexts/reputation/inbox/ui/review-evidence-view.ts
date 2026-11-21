@@ -7,7 +7,7 @@
 import type {
   InboxMentionV3,
   InboxReviewAnalysis,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { locateReviewSentences } from '#/shared/ai-review-source/review-sentences'
 import {
   isRemoved,

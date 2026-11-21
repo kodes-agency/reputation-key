@@ -30,7 +30,7 @@ import {
 } from './reply-editor.stories.play'
 import type { ReplyLanguageTarget } from './reply-language-options'
 import { withRole } from '../../../../../../.storybook/AuthedRouterDecorator'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
+import type { ReplyTemplateListResultDto as ReplyTemplateListResult } from '#/contexts/reputation/library/contracts'
 
 const onSaveDraft = fn(async (_text: string) => undefined)
 const onSubmit = fn(async () => undefined)

@@ -2,11 +2,11 @@ import type {
   ReviewSourceContentLifecycleInspectionMode,
   ReviewSourceContentLifecycleScope,
   ReviewSourceContentShadowFinding,
-} from '../../../reputation/content/source-content-lifecycle-store.port.server'
+} from './source-content-lifecycle-store.port.server'
 import type {
   ReviewSourceContentLifecycleCheckpoint,
   RunReviewSourceContentLifecycle,
-} from './run-source-content-lifecycle'
+} from './run-source-content-lifecycle.server'
 
 export type ReviewSourceContentLifecycleReportSummary = Readonly<{
   mode: ReviewSourceContentLifecycleInspectionMode

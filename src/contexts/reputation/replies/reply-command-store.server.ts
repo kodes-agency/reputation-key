@@ -48,7 +48,7 @@ import {
   UNCERTAIN_ATTEMPT_OUTCOMES,
   type ReplyWriter,
   type UncertainSendSnapshot,
-} from '../../review/application/ports/reply-writer.port'
+} from './reply-writer.port.server'
 import { createReviewReplyWriter } from './reply-writer.server'
 import { cancelUnclaimablePublication } from '../publication/unclaimable-publication.server'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'

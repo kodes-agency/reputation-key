@@ -4,7 +4,7 @@ import {
   saveReplyTemplateInputSchema,
   type ReplyLibraryDto,
   type SaveReplyTemplateInput,
-} from '#/contexts/review/application/dto/reply-library.dto'
+} from '#/contexts/reputation/library/contracts'
 
 export type ReplyTemplateSaveAction = Action<
   { data: SaveReplyTemplateInput },

@@ -99,8 +99,8 @@ import type {
   ReplyLanguageTarget,
   ReviewLanguageReadiness,
 } from './reply-language-options'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
-import type { FeedbackHandlingState } from '#/contexts/inbox/application/public-api'
+import type { ReplyTemplateListResultDto as ReplyTemplateListResult } from '#/contexts/reputation/library/contracts'
+import type { FeedbackHandlingState } from '#/contexts/reputation/public-api'
 import type { addInboxNoteFn } from '#/contexts/reputation/server/inbox'
 
 type Reply = Exclude<NonNullable<ReplyData>, { kind: 'google_observation' }>

@@ -44,7 +44,7 @@ import {
   reviewReplyApproved,
   reviewReplyPublicationRequested,
 } from '../domain/review-events'
-import { buildReviewContext } from '../../review/build'
+import { buildReviewContext } from '../build-review'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createReplyRepository } from '../replies/reply-repository.server'
 import { createAtomicReplyCommandStore } from '../replies/reply-command-store.server'

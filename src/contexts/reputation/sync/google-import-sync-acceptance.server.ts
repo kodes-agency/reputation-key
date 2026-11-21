@@ -9,7 +9,7 @@ import {
   outboxEvents,
   idempotencyReceipts,
 } from '#/shared/db/schema/outbox.schema'
-import type { SyncPropertyReviewsJobData } from '../../review/application/ports/review-queue.port'
+import type { SyncPropertyReviewsJobData } from './review-queue.port.server'
 
 /** Called after the worker commits progress or records the terminal retry schedule. The
  * binding event remains owed across queue loss before this point. */

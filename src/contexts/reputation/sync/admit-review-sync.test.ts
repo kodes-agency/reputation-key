@@ -4,7 +4,7 @@ import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provid
 import {
   DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
-} from '../../review/application/ports/review-queue.port'
+} from './review-queue.port.server'
 import { admitReviewSync } from './admit-review-sync.server'
 
 const ORG = 'org-review-sync-admission'

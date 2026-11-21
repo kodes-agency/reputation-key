@@ -1,4 +1,4 @@
-import type { ReviewGoogleReviewCheck } from '#/contexts/review/application/public-api'
+import type { ReviewGoogleReviewCheck } from '#/contexts/reputation/public-api'
 import type { GoogleReviewCheckPort } from './google-review-check.port.server'
 
 /**

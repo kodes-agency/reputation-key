@@ -5,8 +5,8 @@
 import { MutationObserver, QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { ReplyPublicationCheckResult } from '#/contexts/reputation/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import {
   BULLMQ_ACTIVITY_LAG_MS,

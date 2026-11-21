@@ -26,7 +26,7 @@ import { reviewError } from '../domain/review-errors'
 import type { ReplyRepository } from '../replies/reply-repository.port.server'
 import type { ReviewRepository } from '../reviews/review-repository.port.server'
 import type { ReplyCommandStore } from '../replies/reply-command-store.port.server'
-import type { GoogleReviewApiPort } from '../../review/application/ports/google-review-api.port'
+import type { GoogleReviewApiPort } from '../sync/google-review-api.port.server'
 import type { ReplyDispatchEvidence } from './reply-publication-dispatch-evidence.port.server'
 import {
   reconcileReplyPublication,

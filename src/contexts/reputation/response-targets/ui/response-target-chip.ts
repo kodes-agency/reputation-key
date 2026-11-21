@@ -1,4 +1,4 @@
-import type { ResponseTargetView } from '#/contexts/inbox/application/public-api'
+import type { ResponseTargetView } from '#/contexts/reputation/public-api'
 import { formatTimestamp } from '#/shared/format/format'
 
 export type ResponseTargetChipTone =

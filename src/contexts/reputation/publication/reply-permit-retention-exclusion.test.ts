@@ -2,7 +2,7 @@
 // lists of states that may have dispatched. This fails when they drift apart.
 
 import { describe, expect, it } from 'vitest'
-import { UNCERTAIN_ATTEMPT_OUTCOMES } from '../../review/application/ports/reply-writer.port'
+import { UNCERTAIN_ATTEMPT_OUTCOMES } from '../replies/reply-writer.port.server'
 import { UNSETTLED_REPLY_PERMIT_EXCLUSION } from '#/shared/jobs/retention-sweep.job'
 import { NEVER_DISPATCHED_SETTLEABLE } from '../replies/reply-command-store.server'
 

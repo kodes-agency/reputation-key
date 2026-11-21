@@ -3,7 +3,7 @@ import { Flag, FlagOff } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Fact } from '#/components/ui/fact'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { SourceType } from '#/contexts/inbox/application/public-api'
+import type { SourceType } from '#/contexts/reputation/public-api'
 import { INBOX_SOURCE_HANDLE_PERMISSION } from '#/contexts/reputation/inbox/ui/page/inbox-owner-control'
 
 type Props = Readonly<{

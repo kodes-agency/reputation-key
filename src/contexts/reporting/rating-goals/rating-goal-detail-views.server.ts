@@ -5,7 +5,7 @@
 import type {
   GoogleRatingHistory,
   GoogleShownNumber,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { initialPlan, perMonthOf28Days } from '../domain/rating-goal-climb'
 import {
   displayedTenths,

@@ -1,8 +1,5 @@
 import type { ReactNode } from 'react'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { FeedbackHandlingPrimary } from './feedback-handling-primary'
 import { feedbackHandlingAction } from './feedback-handling-presentation'
 import type { InboxDetailState } from './use-inbox-detail'

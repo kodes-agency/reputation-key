@@ -10,7 +10,7 @@ import {
   buildInboxCaseToolbarProps,
   type InboxCaseToolbarInput,
 } from './inbox-case-toolbar-props'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 
 const idle = () =>
   Object.assign(async () => undefined, {

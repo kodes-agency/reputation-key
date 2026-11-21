@@ -5,7 +5,7 @@ import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextarea, type BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Send } from 'lucide-react'
-import { addInboxNoteFormDto } from '#/contexts/inbox/application/public-api'
+import { addInboxNoteFormDto } from '#/contexts/reputation/inbox/contracts'
 import {
   DOCK_FOOT_ROW_CLASS,
   DOCK_SURFACE_CLASS,

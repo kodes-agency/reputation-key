@@ -6,10 +6,7 @@
 // are not Portal results and are not counted. Pure, so the wording, the zero rule
 // and the permission gate are tested apart from the strip.
 import { queryOptions } from '@tanstack/react-query'
-import type {
-  InboxPropertyCounts,
-  InboxQueue,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxPropertyCounts, InboxQueue } from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 
 /** The queue counted and opened; `feedback` needs `inbox.read` only, not `reply.manage`. */

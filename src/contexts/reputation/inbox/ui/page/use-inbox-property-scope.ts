@@ -3,10 +3,7 @@
 // otherwise, and each queue has its own.
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type {
-  InboxPropertyCounts,
-  InboxQueue,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxPropertyCounts, InboxQueue } from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import {
   offersPropertyScope,

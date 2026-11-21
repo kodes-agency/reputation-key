@@ -1,15 +1,15 @@
 import type { Tx } from '#/shared/outbox/commit'
-import type { ReplyCommand } from '../../../reputation/domain/reply-command-preconditions'
+import type { ReplyCommand } from '../domain/reply-command-preconditions'
 import type {
   PersistedPublicationState,
   PublicationFailureClass,
-} from '../../../reputation/domain/reply-publication-workflow'
-import type { Reply } from '../../../reputation/domain/review-types'
-import type { ReplyCommandStore } from '../../../reputation/replies/reply-command-store.port.server'
+} from '../domain/reply-publication-workflow'
+import type { Reply } from '../domain/review-types'
+import type { ReplyCommandStore } from './reply-command-store.port.server'
 import type {
   ConditionalReplyUpdate,
   ReplyRepository,
-} from '../../../reputation/replies/reply-repository.port.server'
+} from './reply-repository.port.server'
 
 /** Outcomes an uncertain attempt row can still carry. */
 export const UNCERTAIN_ATTEMPT_OUTCOMES = ['sending', 'ambiguous'] as const

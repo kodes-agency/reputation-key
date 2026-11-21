@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   ReplyPublicationCheckOutcome,
   ReplyPublicationCheckResult,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { organizationId, replyId, reviewId } from '#/shared/domain/ids'
 import { GENERIC_ACTION_ERROR_MESSAGE } from '#/components/hooks/use-action-mutation'
