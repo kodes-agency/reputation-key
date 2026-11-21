@@ -5,9 +5,10 @@
 ## Responsibility
 
 Eleven areas own product meaning and state. Review, Inbox and Reputation are one
-bounded context: Reputation holds its feature folders, its screens and the shared
-`domain/`, while Review and Inbox still hold the layer code and server functions
-that have not moved.
+bounded context: Reputation holds its features (content, inbox, library,
+publication, replies, response-targets, reviews, sync), its screens and the shared
+`domain/`; Review and Inbox keep their server functions, public APIs, builds and
+the few layer files their maps list.
 
 - **Identity** — users, Organizations, membership, access, and People facts.
 - **Property** — Property identity, lifecycle, Google binding, and responsibility.
@@ -17,7 +18,7 @@ that have not moved.
 - **Review** — stable external Reviews, source lifecycle, and manager Replies.
 - **AI** — governed Review Analysis, Reply Drafting, and Property Trends.
 - **Inbox** — triage Items, Handling Cycles, notes, and Response Targets.
-- **Reputation** — the Inbox, Reply, Review and Response Target features and screens.
+- **Reputation** — the Inbox, Reply, Review and Response Target features and screens, Review sync, Reply publication and provider content lifecycle.
 - **Reporting** — Metric, Goal, and Dashboard read/reporting models.
 - **Feed** — Operational Action History, retained Recent Activity records, and notifications.
 

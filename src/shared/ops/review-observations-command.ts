@@ -8,7 +8,7 @@
 // the beta held 3,425,776 rows for 12,599 Reviews, 3,400,389 of them a repeat of
 // the row before. What a repeat is, and why deleting it changes no reader's
 // answer, lives in the Review repository
-// (src/contexts/review/infrastructure/repositories/observation-retention.repository.ts).
+// (src/contexts/reputation/reviews/observation-retention-repository.server.ts).
 // This module is the invocation: the spec, the walk over the Reviews in batches,
 // the evidence record and what it prints. It sits here, not in `scripts/ops/`,
 // because `scripts/**` is wiring only.

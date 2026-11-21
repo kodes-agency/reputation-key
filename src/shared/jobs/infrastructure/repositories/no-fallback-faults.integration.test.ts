@@ -85,13 +85,13 @@ import {
 import type { Reply, Review } from '#/contexts/reputation/domain/review-types'
 import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PublishReplyJobData } from '#/contexts/review/application/ports/reply-queue.port'
-import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
-import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
-import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
-import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
-import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
-import { createReplyPreReadForTests } from '#/contexts/review/infrastructure/testing/reply-pre-read-fixture'
+import type { PublishReplyJobData } from '#/contexts/reputation/publication/reply-queue.port.server'
+import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
+import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'
+import { createAtomicReplyCommandStore } from '#/contexts/reputation/replies/reply-command-store.server'
+import { createGoogleReplyObservationStore } from '#/contexts/reputation/publication/google-reply-observation-store.server'
+import { createPublishReplyHandler } from '#/contexts/reputation/publication/publish-reply-job.server'
+import { createReplyPreReadForTests } from '#/contexts/reputation/publication/reply-pre-read.test-fixtures'
 import {
   reviewReplyApproved,
   reviewReplyPublicationRequested,

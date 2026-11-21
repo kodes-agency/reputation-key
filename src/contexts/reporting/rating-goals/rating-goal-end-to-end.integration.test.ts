@@ -11,7 +11,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createGoogleRatingReads } from '#/contexts/review/infrastructure/google-rating-reads'
+import { createGoogleRatingReads } from '#/contexts/reputation/reviews/google-rating-reads.server'
 import {
   holdTransaction,
   type HeldTransaction,

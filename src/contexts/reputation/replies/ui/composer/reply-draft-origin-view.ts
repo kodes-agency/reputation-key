@@ -17,8 +17,8 @@ import {
  * it — the template library is filtered by the target's `templateGroup`
  * (`reply-template-operations.ts:137`) and a loaded template stamps
  * `replyLanguageTag` on the draft (`:304`); an accepted AI draft is stamped the
- * same way (`ai-suggested-draft-store.ts:360`); a hand-typed draft only RECORDS
- * the tag (`reply-operations.ts:325`) and nothing reads it at publish. So once
+ * same way (`ai-suggested-draft-store.server.ts:360`); a hand-typed draft only RECORDS
+ * the tag (`reply-operations.server.ts:325`) and nothing reads it at publish. So once
  * the select is gone, the one place a manager still needs to SEE the language
  * is on text an assist action produced — and that is exactly what this tag
  * sits on, and nothing else.

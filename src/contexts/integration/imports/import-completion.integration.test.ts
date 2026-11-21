@@ -21,17 +21,17 @@ import { workItems } from '#/shared/db/schema/work-items.schema'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createPortalExperienceRepository } from '#/contexts/portal/editor/portal-experience-repository.server'
 import { ensureDefaultPublicDisplayName } from '#/contexts/portal/editor/manage-portal-experience.server'
-import { admitReviewSync } from '#/contexts/review/application/use-cases/admit-review-sync'
-import { createReviewDiscoveryRepository } from '#/contexts/review/infrastructure/repositories/review-discovery.repository'
+import { admitReviewSync } from '#/contexts/reputation/sync/admit-review-sync.server'
+import { createReviewDiscoveryRepository } from '#/contexts/reputation/sync/review-discovery-repository.server'
 import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'
 import { reviewProviderSnapshotRuns } from '#/shared/db/schema/review.schema'
-import { createReviewProviderSnapshotRepository } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
-import { runReviewProviderSnapshot } from '#/contexts/review/application/use-cases/run-review-provider-snapshot'
-import { createSyncPropertyReviewsHandler } from '#/contexts/review/infrastructure/jobs/sync-property-reviews.job'
+import { createReviewProviderSnapshotRepository } from '#/contexts/reputation/sync/review-provider-snapshot-repository.server'
+import { runReviewProviderSnapshot } from '#/contexts/reputation/sync/run-review-provider-snapshot.server'
+import { createSyncPropertyReviewsHandler } from '#/contexts/reputation/sync/sync-property-reviews-job.server'
 import {
   acceptGoogleImportSync,
   admitGoogleImportSync,
-} from '#/contexts/review/infrastructure/google-import-sync-acceptance'
+} from '#/contexts/reputation/sync/google-import-sync-acceptance.server'
 import type { SyncPropertyReviewsJobData } from '#/contexts/review/application/ports/review-queue.port'
 import {
   createGoogleBindingFollowUpHandlers,
@@ -40,7 +40,7 @@ import {
   IMPORT_REVIEW_SYNC_CONSUMER,
 } from './google-binding-follow-up-consumers.server'
 import { completeImportsForRestore } from './import-completion.server'
-import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
+import { fixHistoryCutoff } from '#/contexts/reputation/sync/review-provider-snapshot-repository.server'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
 import { randomUUID } from 'node:crypto'

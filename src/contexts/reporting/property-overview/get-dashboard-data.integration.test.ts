@@ -7,7 +7,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { getDb } from '#/shared/db'
-import { createServingStats } from '#/contexts/review/infrastructure/serving-stats'
+import { createServingStats } from '#/contexts/reputation/reviews/serving-stats.server'
 import {
   recordedDashboardRepo,
   seedDashboardMetricReading,

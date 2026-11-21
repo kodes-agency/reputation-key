@@ -1215,7 +1215,7 @@ export const FeedbackInternalNoteWithheld: Story = {
  * A restricted reader: `inbox.read` and `inbox.write`, no `feedback.handle`.
  *
  * The server withholds `feedbackHandling` entirely for this caller
- * (`get-inbox-item-detail.ts:133-155`), so the pane is handed `null` — and the
+ * (`get-inbox-item-detail.server.ts:133-155`), so the pane is handed `null` — and the
  * chip's open/handled word has to come from `item.status` instead. That is the
  * fallback the strip states, and the reason it reads a bare `Handled` rather
  * than `Handled · undefined`.

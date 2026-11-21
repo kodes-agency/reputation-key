@@ -3,11 +3,11 @@ import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createInMemoryProviderEphemeralStore } from '#/shared/provider-ephemeral/in-memory-store'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import { runReviewProviderSnapshot } from '#/contexts/review/application/use-cases/run-review-provider-snapshot'
+import { runReviewProviderSnapshot } from '#/contexts/reputation/sync/run-review-provider-snapshot.server'
 import type {
   ReviewProviderSnapshotRepository,
   ReviewProviderSnapshotRun,
-} from '#/contexts/review/application/ports/review-provider-snapshot.repository'
+} from '#/contexts/reputation/sync/review-provider-snapshot-repository.port.server'
 import type { ReviewId } from '#/shared/domain/ids'
 import type { GoogleProviderCallAuthorization } from '../provider/contracts'
 import {

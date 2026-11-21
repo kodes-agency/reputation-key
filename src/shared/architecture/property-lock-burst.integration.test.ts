@@ -33,7 +33,7 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { reviewCreated } from '#/contexts/reputation/domain/review-events'
 import type { Review, StarRating } from '#/contexts/reputation/domain/review-types'
-import { createAtomicReviewCommandStore } from '#/contexts/review/infrastructure/review-command-store'
+import { createAtomicReviewCommandStore } from '#/contexts/reputation/reviews/review-command-store.server'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import {
   createAtomicInboxCommandStore,
@@ -44,11 +44,11 @@ import {
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
-import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
+import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
+import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 
 const ORG = organizationId('org-property-lock-burst')
 const PROPERTY = propertyId('af300000-0000-4000-8000-000000000001')

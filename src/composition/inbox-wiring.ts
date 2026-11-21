@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { buildInboxContext } from '#/contexts/inbox/build'
-import { createInboxCommandAuthority } from '#/contexts/inbox/infrastructure/adapters/inbox-command-authority.adapter'
+import { createInboxCommandAuthority } from '#/contexts/reputation/inbox/inbox-command-authority.adapter.server'
 import { feedbackId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import { createInboxReviewAnalysisReader } from './get-inbox-review-analysis.server'

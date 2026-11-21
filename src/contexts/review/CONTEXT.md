@@ -19,11 +19,11 @@ never the identity or history authority.
 ## Boundaries
 
 - Property supplies only current source-epoch facts; Integration invokes Review's
-  sync admission (`application/use-cases/admit-review-sync.ts`). All
+  sync admission (`../reputation/sync/admit-review-sync.server.ts`). All
   credential-bearing provider work stays in this deployment.
 - Inbox receives content-free exact-current reply and Response Target authority
-  (`application/ports/reply-observation-authority.port.ts`,
-  `application/ports/response-target-authority.port.ts`); Metric may project a
+  (`../reputation/reviews/reply-observation-authority.port.server.ts`,
+  `../reputation/reviews/response-target-authority.port.server.ts`); Metric may project a
   verified reputation fact but cannot infer provider truth.
 - The source fence is the Property row locked `FOR NO KEY UPDATE`, always before
   Reply truth and the Review (ADR 0060). An exact-current authority runs its
@@ -36,19 +36,32 @@ never the identity or history authority.
 - Google-controlled content, provider identifiers, observations and reputation
   material are never exported as manager-authored data.
 - Reporting reads the cache only through ports: `ReviewGoogleRatingReads`
-  (`application/ports/google-rating-reads.port.ts`; counts and star sums of
-  servable Google reviews, no window sum under ten reviews, weekly history in
-  `application/google-rating-week-history.ts`) and `ReviewServingStats`
-  (`application/ports/serving-stats.port.ts`; reply rate and reply time from the
+  (`../reputation/reviews/google-rating-reads.port.server.ts`; counts and star
+  sums of servable Google reviews, no window sum under ten reviews, weekly history
+  in `../reputation/reviews/google-rating-week-history.server.ts`) and
+  `ReviewServingStats` (`../reputation/reviews/serving-stats.port.server.ts`; reply
+  rate and reply time from the
   head's state and Google's time, never reply text). A review is replied once
   when its Google reply observation head is `live` or RepKey published a reply.
 
 ## Feature map
 
-Server functions live in `server/`; use cases in `application/use-cases/`;
-stores, jobs and consumers in `infrastructure/`. `build.ts` assembles provider
-transport, source authorities, consumer registration and the
-`registerWorkerJobs` contribution; `build-reply-use-cases.server.ts` builds the
+Server functions live in `server/`. The code behind them lives in Reputation:
+
+- `../reputation/sync/`: discovery, snapshots, head checks, targeted reads, the
+  refresh sweep, provider subject keys and `review-worker-runtime.server.ts`.
+- `../reputation/publication/`: the publish job and its pre-read, reconciliation,
+  dispatch evidence, the Google reply observation store, cancellations and
+  `publication-outbox-consumers.server.ts`.
+- `../reputation/replies/`: Reply commands, command store, repository, writer and
+  AI drafts.
+- `../reputation/library/`: voice, templates and AI frames.
+- `../reputation/reviews/`: repository, Review writer, observations, authorities,
+  eligible, serving and rating reads, and the AI source.
+- `../reputation/content/`: content lifecycle, purge and recovery.
+
+`build.ts` assembles provider transport, source authorities, consumer
+registration and the `registerWorkerJobs` contribution; `build-reply-use-cases.server.ts` builds the
 Reply workflow and library commands and keeps worker and maintenance
 capabilities out of `publicApi.reply`. The Reply commands that need Inbox and
 Review truth together are in `../reputation/replies/`; the observation, source
@@ -58,41 +71,83 @@ pure types, rules, events and errors are in `../reputation/domain/`:
 the `reply-*`, `discovery-*`, `head-*`, `google-reply-observation`,
 `material-review-revision` and `snapshot-failure-backoff` modules.
 
-| Feature                          | Server function (file in `server/`)                                                                                                     | Use case or store                                                                                        |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Draft, submit, confirm, edit     | `draftReplyFn`, `submitReplyFn`, `approveReplyFn`, `editPublishedReplyFn` (`reply-draft.ts`)                                            | `reply-operations.ts`, `reply-command-store.ts`, `reply-writer.ts`                                       |
-| Reject, delete, try again        | `rejectReplyFn`, `deleteReplyFn`, `retryPublishFn` (`reply.ts`)                                                                         | `reply-operations.ts`, `reply-command-store.ts`                                                          |
-| Check Google again               | `checkReplyPublicationFn` (`reply.ts`)                                                                                                  | `check-reply-publication.ts`, `reconcile-reply-publication.ts`                                           |
-| Reply library (voice, templates) | `getReplyLibraryFn`, `saveReplyVoiceFn`, `saveReplyTemplateFn`, `setReplyTemplateHiddenFn`, `resetReplyTemplateFn` (`reply-library.ts`) | `reply-library-layer-operations.ts`, `layered-reply-template-operations.ts`, `reply-library-resolver.ts` |
-| Template picker and draft check  | `listReplyTemplatesFn`, `loadReplyTemplateFn`, `checkReplyDraftFn` (`reply-templates.ts`)                                               | `template-frame-choices.ts`, `reply-content-policy.ts`                                                   |
-| Check a review on Google (Inbox) | none (public API `ReviewGoogleReviewCheck`)                                                                                             | `check-review-on-google.ts`                                                                              |
+| Feature                          | Server function (file in `server/`)                                                                                                     | Use case or store (in `../reputation/`)                                                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Draft, submit, confirm, edit     | `draftReplyFn`, `submitReplyFn`, `approveReplyFn`, `editPublishedReplyFn` (`reply-draft.ts`)                                            | `replies/reply-operations.server.ts`, `replies/reply-command-store.server.ts`, `replies/reply-writer.server.ts`                                   |
+| Reject, delete, try again        | `rejectReplyFn`, `deleteReplyFn`, `retryPublishFn` (`reply.ts`)                                                                         | `replies/reply-operations.server.ts`, `replies/reply-command-store.server.ts`                                                                     |
+| Check Google again               | `checkReplyPublicationFn` (`reply.ts`)                                                                                                  | `publication/check-reply-publication.server.ts`, `publication/reconcile-reply-publication.server.ts`                                              |
+| Reply library (voice, templates) | `getReplyLibraryFn`, `saveReplyVoiceFn`, `saveReplyTemplateFn`, `setReplyTemplateHiddenFn`, `resetReplyTemplateFn` (`reply-library.ts`) | `library/reply-library-layer-operations.server.ts`; `layered-reply-template-operations.ts` and `reply-library-resolver.ts` stay in `application/` |
+| Template picker and draft check  | `listReplyTemplatesFn`, `loadReplyTemplateFn`, `checkReplyDraftFn` (`reply-templates.ts`)                                               | `library/template-frame-choices.server.ts`, `replies/reply-content-policy.server.ts`                                                              |
+| Check a review on Google (Inbox) | none (public API `ReviewGoogleReviewCheck`)                                                                                             | `sync/check-review-on-google.server.ts`                                                                                                           |
 
 Reads for the Review screens go through `application/public-api.ts` and the
-eligible-read helpers in `application/eligible-reads.ts`; no server function in
-this context lists Reviews.
+eligible-read helpers in `../reputation/reviews/eligible-reads.server.ts`; no
+server function in this context lists Reviews.
+
+### Still in `application/`
+
+Twelve files stay, each because the browser, a foreign adapter or an operator
+script reaches it and a `*.server.ts` file in Reputation could not be imported
+there. Screen folders named below (`library/ui`, `replies/ui`) are in
+`../reputation/`.
+
+- `public-api.ts`: other areas and `scripts/ops/restore-verify.ts` import it, and lint
+  names an area's public API by this path.
+- `dto/reply-library.dto.ts`: `library/ui` and `replies/ui` screens import it and
+  the public API re-exports it; `server/reply-library.ts` and `reply-templates.ts`
+  import it, so it cannot be a contract.
+- `reply-library-resolver.ts`: the `library/ui` stories fixture is a browser entry
+  point and runs it; it imports the DTO and the library port.
+- `google-review-api-error.ts`: the public API re-exports its functions as values,
+  and `replies/ui/use-reply-composer.ts` reaches it through the public API.
+- `ports/google-review-api.port.ts`: the public API re-exports values from it,
+  Integration's review-sync adapters implement it, and a foreign adapter may import
+  only `application/ports/`. `google-provider-seams.test.ts` reads it by path.
+- `ports/reply-writer.port.ts`: the public API re-exports
+  `UNCERTAIN_ATTEMPT_OUTCOMES` as a value, which makes it browser-reachable.
+- `ports/review-queue.port.ts`: the public API re-exports
+  `GBP_PUSH_SYNC_INITIATOR_ID` as a value; Integration enqueues through it.
+- `ports/targeted-google-review-reference.port.ts`: Integration's push target
+  resolver adapter implements it, and a foreign adapter may import only
+  `application/ports/`.
+- `review-lifecycle-safety.ts`: browser-reachable through
+  `run-source-content-lifecycle.ts`, which the public API re-exports as a value.
+- `use-cases/run-source-content-lifecycle.ts`: the public API re-exports
+  `REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE` as a value;
+  `scripts/ops/enqueue-purge.ts` imports it, and operator scripts may not import
+  feature `*.server.ts` files. `single-entry-authorities.test.ts` names it as the
+  only `applyLifecycleBatch` caller.
+- `use-cases/collect-source-content-lifecycle-report.ts`: the public API
+  re-exports it as a value and `scripts/ops/enqueue-purge.ts` imports it.
+- `use-cases/layered-reply-template-operations.ts`: `replies/ui/composer` files
+  type-import `ReplyTemplateListResult` from it, and feature UI may not import a
+  `*.server.ts`, even for types. Its dependencies moved, which lint allows for an
+  application file.
 
 ## Jobs and consumers
 
-Registered by `registerReviewWorkerJobs` (`infrastructure/worker-runtime.ts`)
-and `infrastructure/outbox-consumers.ts`. Each is named once here.
+Registered by `registerReviewWorkerJobs`
+(`../reputation/sync/review-worker-runtime.server.ts`) and
+`../reputation/publication/publication-outbox-consumers.server.ts`. Each is named
+once here.
 
-| Name                                    | Entry point (`infrastructure/jobs/` unless noted) | Does                                                                                                                                                                                                              |
-| --------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `discover-new-reviews`                  | `discover-new-reviews.job.ts`                     | 15-minute sweep: per due connected Property enqueue a sync, or write only a later `next_incremental_at` when a completed reconciliation is inside the window (`../reputation/domain/discovery-reconciliation.ts`) |
-| `sync-property-reviews`                 | `sync-property-reviews.job.ts`                    | Full snapshot, targeted read of one pushed review, or head check (`run-review-provider-snapshot.ts`, `run-targeted-google-review-fetch.ts`, `run-review-head-check.ts`)                                           |
-| `refresh-expiring-reviews`              | `refresh-expiring-reviews.job.ts`                 | Hourly: pull a Property's next discovery look forward when its reviews near expiry and it was last reconciled over a day ago; enqueues no sync itself                                                             |
-| `purge-expired-reviews`                 | `purge-expired-reviews.job.ts`                    | Checkpointed source-content lifecycle (`run-source-content-lifecycle.ts`); defaults to read-only `report`, `shadow` compares provider copies                                                                      |
-| `expire-review-provider-source`         | `review-provider-lifecycle-sweeps.job.ts`         | Expire provider source content past its clock                                                                                                                                                                     |
-| `sweep-review-provider-tombstones`      | `review-provider-lifecycle-sweeps.job.ts`         | Sweep tombstoned provider subjects                                                                                                                                                                                |
-| `publish-reply`                         | `publish-reply.job.ts`                            | One guarded provider write for an approved current cycle, after a Google read recorded through the observation writer (`publish-reply-preread.ts`)                                                                |
-| `reconcile-ambiguous-publications`      | `reconcile-ambiguous-publications.job.ts`         | Single-flight sweep (PostgreSQL session advisory lease) that settles uncertain attempts with provider reads only                                                                                                  |
-| `review.on-reply-publication-requested` | `outbox-consumers.ts`                             | Re-admits the exact active cycle to the queue after a request-process interruption                                                                                                                                |
-| `review.on-google-account-disconnected` | `outbox-consumers.ts`                             | Cancels undispatched publication cycles for the disconnected account                                                                                                                                              |
-| `review.on-property-archived`           | `outbox-consumers.ts`                             | Cancels undispatched cycles of an archived Property or an older source epoch; each Reply returns to draft with one `review.reply.publication_cancelled` fact                                                      |
+| Name                                    | Entry point (in `../reputation/`)                            | Does                                                                                                                                                                                                              |
+| --------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `discover-new-reviews`                  | `sync/discover-new-reviews-job.server.ts`                    | 15-minute sweep: per due connected Property enqueue a sync, or write only a later `next_incremental_at` when a completed reconciliation is inside the window (`../reputation/domain/discovery-reconciliation.ts`) |
+| `sync-property-reviews`                 | `sync/sync-property-reviews-job.server.ts`                   | Full snapshot, targeted read of one pushed review, or head check (`sync/run-review-provider-snapshot.server.ts`, `sync/run-targeted-google-review-fetch.server.ts`, `sync/run-review-head-check.server.ts`)       |
+| `refresh-expiring-reviews`              | `sync/refresh-expiring-reviews-job.server.ts`                | Hourly: pull a Property's next discovery look forward when its reviews near expiry and it was last reconciled over a day ago; enqueues no sync itself                                                             |
+| `purge-expired-reviews`                 | `content/purge-expired-reviews-job.server.ts`                | Checkpointed source-content lifecycle (`application/use-cases/run-source-content-lifecycle.ts`); defaults to read-only `report`, `shadow` compares provider copies                                                |
+| `expire-review-provider-source`         | `content/review-provider-lifecycle-sweeps-job.server.ts`     | Expire provider source content past its clock                                                                                                                                                                     |
+| `sweep-review-provider-tombstones`      | `content/review-provider-lifecycle-sweeps-job.server.ts`     | Sweep tombstoned provider subjects                                                                                                                                                                                |
+| `publish-reply`                         | `publication/publish-reply-job.server.ts`                    | One guarded provider write for an approved current cycle, after a Google read recorded through the observation writer (`publication/publish-reply-preread.server.ts`)                                             |
+| `reconcile-ambiguous-publications`      | `publication/reconcile-ambiguous-publications-job.server.ts` | Single-flight sweep (PostgreSQL session advisory lease) that settles uncertain attempts with provider reads only                                                                                                  |
+| `review.on-reply-publication-requested` | `publication/publication-outbox-consumers.server.ts`         | Re-admits the exact active cycle to the queue after a request-process interruption                                                                                                                                |
+| `review.on-google-account-disconnected` | `publication/publication-outbox-consumers.server.ts`         | Cancels undispatched publication cycles for the disconnected account                                                                                                                                              |
+| `review.on-property-archived`           | `publication/publication-outbox-consumers.server.ts`         | Cancels undispatched cycles of an archived Property or an older source epoch; each Reply returns to draft with one `review.reply.publication_cancelled` fact                                                      |
 
-Lifecycle recovery (`collect-lifecycle-recovery-evidence.ts`,
-`prepare-lifecycle-recovery-approval.ts`, `run-lifecycle-recovery-executor.ts`)
-is operator-driven and has no schedule. Operator commands (`scripts/ops/`):
+Lifecycle recovery
+(`content/{collect-lifecycle-recovery-evidence,prepare-lifecycle-recovery-approval,run-lifecycle-recovery-executor}.server.ts`
+in `../reputation/`) is operator-driven and has no schedule. Operator commands (`scripts/ops/`):
 `pnpm ops purge reviews-shadow --operator <id>` and `pnpm ops purge reviews`
 (`enqueue-purge.ts`), `pnpm ops refresh reviews` (`enqueue-refresh.ts`),
 `pnpm ops review-observations prune` (`review-observations.ts`; deletes repeated
@@ -115,7 +170,7 @@ and, 15 minutes later, requests a full read; `sync.count-drop-persistent` counts
 Properties whose drop outlasted 72 hours of requested reads.
 
 A full read is a provider snapshot run (`review_provider_snapshot_runs` and its
-members; store in `infrastructure/repositories/review-provider-snapshot*.ts`). A
+members; store in `../reputation/sync/review-provider-snapshot*.server.ts`). A
 review Google no longer lists keeps a counted hold on its provider mapping and a
 first-miss time; removal needs two listings. A completed listing asks for a
 confirming full read when a stored Review has a first miss it cannot confirm
@@ -126,8 +181,8 @@ ask to the run that completes next, and a later listing that misses the same
 Review again does not ask twice. Nothing is written for a Property the sweep
 has never looked at. A listing whose
 Google total or average moved mid-scan restarts without a failure
-(`application/snapshot-listing-change.ts`) unless the Property's runs keep
-changing. The retention sweep (`infrastructure/repositories/snapshot-run-retention.repository.ts`,
+(`../reputation/sync/snapshot-listing-change.server.ts`) unless the Property's runs keep
+changing. The retention sweep (`../reputation/sync/snapshot-run-retention-repository.server.ts`,
 called from `src/shared/jobs/retention-sweep.job.ts`) deletes runs and members
 no reader needs: it keeps the active run, the latest completed run of each
 source epoch and the latest three runs of each Property.
@@ -201,11 +256,11 @@ source epoch and the latest three runs of each Property.
 ## Verification
 
 Unit tests sit beside the code. PostgreSQL integration tests
-(`*.integration.test.ts` in `infrastructure/`) cover immutable authorization,
+(`*.integration.test.ts`, beside the code in `../reputation/<feature>/`) cover immutable authorization,
 claim and revocation races, observation confirmation, replay, erasure and
 verified snapshots. The Reply workflow has a model-based suite whose oracle is
 written by hand (`../reputation/domain/reply-workflow-oracle.test-fixtures.ts`), never taken
 from the production transition tables: `../reputation/domain/reply-workflow.property.test.ts`
-and `infrastructure/reply-workflow.model.integration.test.ts` (invariants 7 to
+and `../reputation/replies/reply-workflow.model.integration.test.ts` (invariants 7 to
 10), with `../reputation/domain/reply-publication-workflow.property.test.ts` checking every
 cell of the persisted publication machine.

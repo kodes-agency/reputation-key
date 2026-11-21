@@ -5,17 +5,17 @@ import { trace } from '#/shared/observability/trace'
 import type { Permission } from '#/shared/domain/permissions'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
-import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
+import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
 import {
   sourceCommandPermission,
   webActorId,
-} from '#/contexts/inbox/infrastructure/inbox-command-guards'
+} from '#/contexts/reputation/inbox/inbox-command-guards.server'
 import type {
   InboxCommandAuthority,
   InboxCommandAuthorityPrincipal,
   InboxCommandAuthorityRequirement,
-} from '#/contexts/inbox/infrastructure/inbox-command-authority'
-import { updateItemRow } from '#/contexts/inbox/infrastructure/inbox-source-projection'
+} from '#/contexts/reputation/inbox/inbox-command-authority.server'
+import { updateItemRow } from '#/contexts/reputation/inbox/inbox-source-projection.server'
 
 export type CommandRuntime = Readonly<{
   db: Database

@@ -1112,14 +1112,14 @@ provenance, rewrite uniqueness and reservation schema without rewriting historic
 
 Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current implementation anchors):
 
-| Map item                                   | Authority                                                                                                                                                                                                      |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply/schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                                                     |
-| 2 — numbered input/options/binding         | `src/shared/reply/request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                                    |
-| 3 — effort/output/reservation bounds       | `src/shared/reply/profile.ts:25`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                                           |
-| 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/execution/reply-rewrite-parent.server.ts:16`                                                    |
-| 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |
-| 6 — frame choice/usage/adoption            | `src/contexts/review/application/ai-reply-v2-frame.ts:21`, `src/contexts/review/infrastructure/repositories/ai-frame-reservation.ts:156`, `src/contexts/review/infrastructure/ai-suggested-draft-store.ts:481` |
+| Map item                                   | Authority                                                                                                                                                                                                        |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply/schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                                                       |
+| 2 — numbered input/options/binding         | `src/shared/reply/request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                                      |
+| 3 — effort/output/reservation bounds       | `src/shared/reply/profile.ts:25`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                                             |
+| 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/execution/reply-rewrite-parent.server.ts:16`                                                      |
+| 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                   |
+| 6 — frame choice/usage/adoption            | `src/contexts/reputation/library/ai-reply-v2-frame.server.ts:21`, `src/contexts/reputation/library/ai-frame-reservation.server.ts:156`, `src/contexts/reputation/replies/ai-suggested-draft-store.server.ts:481` |
 
 ## Reply drafting progress and background intent — dark (B2, 2026-10-31)
 
@@ -1191,7 +1191,7 @@ Re-verified map items 7–8 against origin/main `cf1e33c66` (B1 merged):
 | 7 — safe incremental metadata / bounded provider stream | `src/shared/ai-provider-control/reply-progress-parser.ts:15`, `src/shared/ai-provider-control/bounded-event-stream.ts:2`, `src/shared/ai-provider-control/openai-stream-response.ts:7` |
 | 7 — v2-only request attestation / deployment            | `src/shared/ai-openai-stream-profile.ts:32`, `src/shared/reply/profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                                            |
 | 8 — lane / active actor ownership / identity            | `src/contexts/ai/reply/requests.server.ts:20`, `src/contexts/ai/execution/ai-operation-store.adapter.server.ts:854`                                                                    |
-| 8 — authoritative local/Google reply eligibility        | `src/contexts/review/infrastructure/repositories/unanswered-review.ts:11`                                                                                                              |
+| 8 — authoritative local/Google reply eligibility        | `src/contexts/reputation/reviews/unanswered-review.server.ts:11`                                                                                                                       |
 
 ## Invariants
 
@@ -1232,11 +1232,11 @@ Profile, binding, Review revisions and execution controls retain measurement met
 They grant no authorization and are never evidence of AI authorship.
 
 Map item 10 was re-verified on stacked base `2add7d844`: adoption is at
-`ai-suggested-draft-store.ts:378–513` (binary receipt 495–511); first save is at
-`reply.repository.ts:580–597`; provenance clearing remains
-`../reputation/replies/store.server.ts` and `reply-set-clause.ts:30–47`; submission is
-`reply-operations.ts:529–568`; confirmed observation is
-`google-reply-observation-store.ts:510–565`. The map itself starts item 10 at
+`ai-suggested-draft-store.server.ts:378–513` (binary receipt 495–511); first save is at
+`reply-repository.server.ts:580–597`; provenance clearing remains
+`../reputation/replies/store.server.ts` and `reply-set-clause.server.ts:30–47`; submission is
+`reply-operations.server.ts:529–568`; confirmed observation is
+`google-reply-observation-store.server.ts:510–565`. The map itself starts item 10 at
 line 383. Those are base references; this change adds measurement alongside them.
 
 Other map-10 base references: the adoption columns in `ai.schema.ts` are now

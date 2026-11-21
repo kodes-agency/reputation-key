@@ -52,7 +52,8 @@ const controls = [
   {
     name: 'notification route harness cannot import another context infrastructure',
     file: 'src/shared/testing/notification-route-test-harness.ts',
-    source: "import '#/contexts/review/infrastructure/review-command-store'\n",
+    source:
+      "import '#/contexts/identity/infrastructure/beta-feedback-triage.repository'\n",
   },
   {
     name: 'Feed infrastructure cannot import the test route harness',
@@ -228,7 +229,8 @@ const controls = [
   {
     name: 'CI script cannot import context infrastructure',
     file: 'scripts/ci/boundary-negative-control.ts',
-    source: "import '../../src/contexts/review/infrastructure/review-command-store'\n",
+    source:
+      "import '../../src/contexts/identity/infrastructure/beta-feedback-triage.repository'\n",
   },
   {
     name: 'CI script cannot resolve the composition root',

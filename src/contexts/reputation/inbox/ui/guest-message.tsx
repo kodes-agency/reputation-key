@@ -394,7 +394,7 @@ export function GuestMessage({
   const reviewerName = resolveReviewerName(detail)
   /**
    * The review's language as a CANONICAL tag (`tr-TR` → `tr-Latn-TR`), which
-   * `get-inbox-item-detail.ts:184-188` derived from `item.reviewLanguageCode`.
+   * `get-inbox-item-detail.server.ts:184-188` derived from `item.reviewLanguageCode`.
    * `InboxThread` passes the payload's own value down as a prop today; reading
    * the payload when a caller omits it keeps the two spellings from drifting,
    * and costs one `??`. It matters twice below — the header names the language
@@ -405,7 +405,7 @@ export function GuestMessage({
   /**
    * The body rule, decided outside React so it can be tested without one
    * (`guest-message-view.ts`). The property's default reply language is already
-   * on the payload this component holds (`get-inbox-item-detail.ts:178-182`),
+   * on the payload this component holds (`get-inbox-item-detail.server.ts:178-182`),
    * so it is READ rather than threaded through `inbox-thread.tsx` as a prop.
    */
   const body = presentGuestReviewBody({

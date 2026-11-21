@@ -312,7 +312,7 @@ function assignmentLine(
   // A null display name means the member left the Organization OR simply has no
   // name set, so the placeholder must not claim either one — it stays opaque.
   // 'Unknown user' is the established copy (note-message.tsx,
-  // inbox-actor-directory.port.ts:16), and the same unresolved person must not
+  // inbox-actor-directory.port.server.ts:16), and the same unresolved person must not
   // read one way on their note and another way on their assignment row. The raw
   // id is never a fallback.
   return {

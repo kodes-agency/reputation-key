@@ -226,7 +226,7 @@ function decodeCanonicalBase64Url(value: string): Buffer {
  * adoption is state-based, not time-based: single-use `replyAdoptionDisposition`
  * CAS, the rendered-suggestion digest, and the source/reply/profile revisions
  * checked inside the accepting transaction (see
- * `src/contexts/review/infrastructure/ai-suggested-draft-store.ts`), which turn
+ * `src/contexts/reputation/replies/ai-suggested-draft-store.server.ts`), which turn
  * a genuinely stale suggestion into `stale`, not `expired`. The window is
  * therefore free to be generous, and is bounded by the operation row's own
  * 15-minute `expires_at` where the attempt is admitted.

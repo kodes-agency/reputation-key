@@ -15,8 +15,8 @@
 //   records the receipt but NO fact; redelivery converges, rebuild heals.
 
 import type { Database } from '#/shared/db'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import type { InboxCommandAuthority } from '#/contexts/inbox/infrastructure/inbox-command-authority'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
+import type { InboxCommandAuthority } from '#/contexts/reputation/inbox/inbox-command-authority.server'
 import { createCommandRuntime } from './command-runtime.server'
 import { createAssignmentCommands } from './assignment-commands.server'
 import { createNoteCommands } from './note-commands.server'
@@ -27,7 +27,7 @@ export type {
   InboxCommandAuthority,
   InboxCommandAuthorityPrincipal,
   InboxCommandAuthorityRequirement,
-} from '#/contexts/inbox/infrastructure/inbox-command-authority'
+} from '#/contexts/reputation/inbox/inbox-command-authority.server'
 
 export const createAtomicInboxCommandStore = (
   db: Database,

@@ -45,8 +45,8 @@ const MODULE_BANS: ReadonlyArray<readonly [string, readonly RegExp[]]> = [
     'src/contexts/reputation/inbox/status-commands.server.ts',
     'src/contexts/reputation/inbox/note-commands.server.ts',
     'src/contexts/reputation/inbox/source-commands.server.ts',
-    'src/contexts/inbox/infrastructure/inbox-command-guards.ts',
-    'src/contexts/inbox/infrastructure/inbox-escalation-history.ts',
+    'src/contexts/reputation/inbox/inbox-command-guards.server.ts',
+    'src/contexts/reputation/inbox/inbox-escalation-history.server.ts',
     'src/contexts/reputation/inbox/inbox-view-repository.server.ts',
     'src/contexts/reputation/inbox/inbox-repository.server.ts',
     'src/contexts/integration/imports/import-store.server.ts',
@@ -127,10 +127,15 @@ describe('injected runtime in Inbox, Integration, Portal, Reporting and Review',
   })
 
   it('keeps Review production code on injected time and identifiers', () => {
+    // Review's code lives in Reputation's features. Inbox's database fixture
+    // seeds rows with fresh ids and was never part of this guard.
     const files = [
       ...productionFiles('src/contexts/review'),
-      ...productionFiles('src/contexts/reputation/domain'),
-    ].filter((file) => file.endsWith('.ts'))
+      ...productionFiles('src/contexts/reputation', ['ui']),
+    ].filter(
+      (file) =>
+        file.endsWith('.ts') && !file.endsWith('/inbox/inbox-database.test-fixtures.ts'),
+    )
     expect(offences(files, REVIEW_BANS)).toEqual([])
   })
 

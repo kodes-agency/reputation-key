@@ -21,7 +21,7 @@ import {
   createPropertyRatingGoalRepository,
   createRatingGoalPropertyFactsReader,
 } from '#/contexts/reporting/rating-goals/property-rating-goal-repository.server'
-import { createGoogleRatingReads } from '#/contexts/review/infrastructure/google-rating-reads'
+import { createGoogleRatingReads } from '#/contexts/reputation/reviews/google-rating-reads.server'
 import {
   holdTransaction,
   type HeldTransaction,

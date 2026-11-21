@@ -15,18 +15,18 @@
 
 import { PrerequisiteNotReadyError } from '#/shared/outbox'
 import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
-import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/ports/review-handling-cycle.store'
-import type { ReplyObservationAuthorityPort } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
-import type { SourceTransitionAuthorityPort } from '#/contexts/inbox/application/ports/source-transition-authority.port'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
+import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
+import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
+import type { ReplyObservationAuthorityPort } from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
+import type { SourceTransitionAuthorityPort } from '#/contexts/reputation/inbox/review-source-transition-authority.port.server'
+import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
 import {
   borrowReviewTransaction,
   lentTransactionArgs,
-} from '#/contexts/inbox/application/ports/review-open-transaction'
+} from '#/contexts/reputation/inbox/review-open-transaction.port.server'
 import type { InboxItemId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'

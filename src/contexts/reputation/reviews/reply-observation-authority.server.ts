@@ -12,14 +12,14 @@ import type {
   ReviewCurrentReplyObservationPermit,
   ReviewReplyObservationAuthority,
   ReviewReplyObservationExpectation,
-} from '#/contexts/review/application/ports/reply-observation-authority.port'
-import type { ReviewOpenTransaction } from '#/contexts/review/application/ports/open-transaction'
-import { lendReviewTransaction } from '#/contexts/review/infrastructure/open-transaction'
-import { lockReplyTruthScope } from '#/contexts/review/infrastructure/reply-truth-serialization'
+} from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
+import type { ReviewOpenTransaction } from '#/contexts/reputation/reviews/open-transaction.port.server'
+import { lendReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
+import { lockReplyTruthScope } from '#/contexts/reputation/reviews/reply-truth-serialization.server'
 import {
   isSourceEpochCarry,
   selectRevisionBindingComparisons,
-} from '#/contexts/review/infrastructure/source-epoch-carry'
+} from '#/contexts/reputation/reviews/source-epoch-carry.server'
 
 const sameInstant = (left: Date, right: Date): boolean =>
   left.getTime() === right.getTime()

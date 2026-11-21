@@ -1,5 +1,5 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-import { openNextReviewCycleForTest } from '#/contexts/inbox/infrastructure/review-cycle-reopen.test-fixtures'
+import { openNextReviewCycleForTest } from '#/contexts/reputation/inbox/review-cycle-reopen.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
@@ -24,23 +24,23 @@ import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-reposit
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
-import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
+import { createGoogleReplyObservationStore } from '#/contexts/reputation/publication/google-reply-observation-store.server'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
-import type { CurrentReplyObservationPermit } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
+import type { CurrentReplyObservationPermit } from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
 import {
   handleInboxReplyObserved,
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import type { ConsumerEvent } from '#/shared/outbox'
-import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
+import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
-import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
-import { createResponseTargetStore } from '#/contexts/reputation/inbox/response-targets/store.server'
-import { releaseDueResponseTargetReminders } from '#/contexts/reputation/inbox/response-targets/release-reminders.server'
+import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'
+import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
+import { createResponseTargetStore } from '#/contexts/reputation/response-targets/store.server'
+import { releaseDueResponseTargetReminders } from '#/contexts/reputation/response-targets/release-reminders.server'
 
 const ORG = organizationId('org-inbox-reply-observation')
 const PROPERTY = propertyId('b2000000-0000-0000-0000-000000000001')

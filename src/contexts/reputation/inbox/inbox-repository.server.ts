@@ -31,9 +31,9 @@ import type {
   InboxSourceScope,
   Cursor,
   PaginatedResult,
-} from '#/contexts/inbox/application/ports/inbox.repository'
-import type { ReviewSnippet } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { FeedbackSnippet } from '#/contexts/inbox/application/ports/feedback-lookup.port'
+} from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { ReviewSnippet } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { FeedbackSnippet } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
 import type { InboxItem, SourceType } from '#/contexts/reputation/domain/inbox-types'
 import type {
   InboxItemId,
@@ -43,7 +43,7 @@ import type {
   ReviewId,
 } from '#/shared/domain/ids'
 import { reviewId, feedbackId, inboxItemId, propertyId } from '#/shared/domain/ids'
-import { inboxItemFromRow } from '#/contexts/inbox/infrastructure/mappers/inbox.mapper'
+import { inboxItemFromRow } from '#/contexts/reputation/inbox/inbox-mapper.server'
 import {
   findSuggestedRowLevels,
   inboxSourceIdMatchesAny,
@@ -54,7 +54,7 @@ import {
 import {
   feedbackItemDetail,
   reviewItemDetail,
-} from '#/contexts/inbox/infrastructure/mappers/inbox-detail.mapper'
+} from '#/contexts/reputation/inbox/inbox-detail-mapper.server'
 import { trace } from '#/shared/observability/trace'
 
 type InboxItemRow = Parameters<typeof inboxItemFromRow>[0]

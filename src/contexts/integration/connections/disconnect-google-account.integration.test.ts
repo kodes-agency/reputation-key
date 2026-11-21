@@ -25,7 +25,7 @@ import { createInMemoryMyBusinessNotificationsPort } from '#/shared/testing/in-m
 import { createGoogleNotificationAccountUsageReader } from './google-notification-account-usage.server'
 import { createGoogleNotificationProviderAuthorizer } from './google-notification-provider-authorizer.server'
 import { manageNotifications } from './manage-notifications.server'
-import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
+import { createSourceContentPurge } from '#/contexts/reputation/content/source-content-purge.server'
 import { createRunReviewSourceContentLifecycle } from '#/contexts/review/application/use-cases/run-source-content-lifecycle'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')

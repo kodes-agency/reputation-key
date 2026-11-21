@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import type { ReviewDiscoveryRepository } from '#/contexts/review/application/ports/review-discovery.repository'
+import type { ReviewDiscoveryRepository } from '#/contexts/reputation/sync/review-discovery-repository.port.server'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 

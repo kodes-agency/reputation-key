@@ -19,7 +19,7 @@ import type {
   FeedbackHandlingExpectation,
   FeedbackHandlingState,
   FeedbackHandlingStore,
-} from '#/contexts/inbox/application/ports/feedback-handling.store'
+} from '#/contexts/reputation/inbox/feedback-handling-store.port.server'
 import {
   correctFeedbackHandlingOutcomeFact,
   recordFeedbackHandlingOutcome,
@@ -40,17 +40,17 @@ import {
   selectCycleCloseReason,
   selectSourceUnavailableCloseReasons,
   type TransitionReader,
-} from '#/contexts/inbox/infrastructure/handling-cycle-transitions.read'
+} from '#/contexts/reputation/inbox/handling-cycle-transitions-read.server'
 import { assertManagerHandlingPermitted } from '#/contexts/reputation/domain/handling-outcome-authority'
-import { inboxItemFromRow } from '#/contexts/inbox/infrastructure/mappers/inbox.mapper'
+import { inboxItemFromRow } from '#/contexts/reputation/inbox/inbox-mapper.server'
 import {
   cycleHeadItemColumns,
   mirrorCycleHead,
   persistedHeadFromItemRow,
   type PersistedHead,
-} from '#/contexts/inbox/infrastructure/inbox-cycle-head'
-import { transitionInsert } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { completePrivateFeedbackTarget } from '#/contexts/reputation/inbox/response-targets/store.server'
+} from '#/contexts/reputation/inbox/inbox-cycle-head.server'
+import { transitionInsert } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
+import { completePrivateFeedbackTarget } from '#/contexts/reputation/response-targets/store.server'
 
 type OutcomeRow = typeof inboxFeedbackHandlingOutcomes.$inferSelect
 type HeadRow = PersistedHead
@@ -113,7 +113,7 @@ const toState = (
 
 /**
  * The transitions log has exactly one reader
- * (`handling-cycle-transitions.read.ts`), shared with the Handling History read
+ * (`handling-cycle-transitions-read.server.ts`), shared with the Handling History read
  * model, so both agree on `state_revision` as the ordering key.
  */
 async function closeReasonFor(

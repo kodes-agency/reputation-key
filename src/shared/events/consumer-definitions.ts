@@ -229,19 +229,22 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ],
     ],
   ),
-  ...consumersIn('src/contexts/review/infrastructure/outbox-consumers.ts', [
+  ...consumersIn(
+    'src/contexts/reputation/publication/publication-outbox-consumers.server.ts',
     [
-      'review.on-reply-publication-requested',
-      'review.outbox-consumers',
-      ['review.reply.publication_requested'],
+      [
+        'review.on-reply-publication-requested',
+        'review.outbox-consumers',
+        ['review.reply.publication_requested'],
+      ],
+      ['review.on-property-archived', 'review.property-lifecycle', ['property.archived']],
+      [
+        'review.on-google-account-disconnected',
+        'review.connection-lifecycle',
+        ['integration.google_account.disconnected'],
+      ],
     ],
-    ['review.on-property-archived', 'review.property-lifecycle', ['property.archived']],
-    [
-      'review.on-google-account-disconnected',
-      'review.connection-lifecycle',
-      ['integration.google_account.disconnected'],
-    ],
-  ]),
+  ),
   ...consumersIn('src/contexts/feed/audit/activity-outbox-consumers.server.ts', [
     [
       'activity.operational-action-history',
@@ -360,7 +363,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ),
   ...consumersIn(
-    'src/contexts/inbox/infrastructure/member-offboarding-outbox-consumers.ts',
+    'src/contexts/reputation/inbox/member-offboarding-outbox-consumers.server.ts',
     [
       [
         'inbox.on-member-removed',
@@ -406,7 +409,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
     ],
   ]),
   ...consumersIn(
-    'src/contexts/inbox/infrastructure/property-lifecycle-outbox-consumers.ts',
+    'src/contexts/reputation/response-targets/property-lifecycle-outbox-consumers.server.ts',
     [['inbox.on-property-archived', 'inbox.property-lifecycle', ['property.archived']]],
   ),
   ...consumersIn(
@@ -499,18 +502,21 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       ],
     ],
   ]),
-  ...consumersIn('src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts', [
+  ...consumersIn(
+    'src/contexts/reputation/inbox/guest-feedback-outbox-consumers.server.ts',
     [
-      'inbox.on-guest-feedback-submitted',
-      'inbox.guest-feedback',
-      ['guest.feedback.submitted'],
+      [
+        'inbox.on-guest-feedback-submitted',
+        'inbox.guest-feedback',
+        ['guest.feedback.submitted'],
+      ],
+      [
+        'inbox.on-guest-feedback-retracted',
+        'inbox.guest-feedback',
+        ['guest.feedback.retracted'],
+      ],
     ],
-    [
-      'inbox.on-guest-feedback-retracted',
-      'inbox.guest-feedback',
-      ['guest.feedback.retracted'],
-    ],
-  ]),
+  ),
   ...consumersIn(
     'src/contexts/integration/imports/google-category-refresh-outbox-consumers.server.ts',
     [

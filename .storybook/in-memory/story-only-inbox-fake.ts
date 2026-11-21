@@ -4,9 +4,9 @@
 // PostgreSQL (`*.integration.test.ts`). It carries only the filtering, counting
 // and manager commands a story drives from the screen. Source-event consumers
 // and the receipt fence run on the server, so those methods refuse here.
-import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
-import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { InboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.port.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import { timestampFieldsForStatus } from '#/contexts/reputation/domain/inbox-rules'
 import type { InboxItem, InboxPriority } from '#/contexts/reputation/domain/inbox-types'
 import { unbrandAll, type UserId } from '#/shared/domain/ids'

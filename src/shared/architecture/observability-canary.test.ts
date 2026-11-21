@@ -5,7 +5,7 @@
 // snapshot has no approved correlation fields at all, so any
 // identifier-shaped value is a leak. The log-side pin (seeded canary through
 // the sync job's old jobData dump path) lives next to the job:
-// contexts/review/infrastructure/jobs/sync-property-reviews.canary.test.ts.
+// contexts/reputation/sync/sync-property-reviews-job.canary.test.ts.
 
 import { describe, it, expect, vi } from 'vitest'
 import { createOperationsSnapshot } from '#/shared/health/operations-snapshot'

@@ -1,0 +1,157 @@
+// Inbox context — cross-context lookup SOURCES.
+//
+// Narrow structural types for the foreign-owned read pieces the inbox build
+// adapts into its lookup ports. The composition root supplies the owning
+// contexts' repos / public APIs; inbox never imports their infrastructure —
+// this structural contract is the whole interface.
+
+import type {
+  FeedbackId,
+  OrganizationId,
+  PropertyId,
+  ReplyId,
+  ReviewId,
+} from '#/shared/domain/ids'
+import type {
+  GoogleReplyHead,
+  ReplyEntityView,
+  ReplyMilestones,
+} from './reply-lookup.port.server'
+import type { FeedbackContentFilter } from './feedback-lookup.port.server'
+import type { InboxItemReplyState } from '../domain/inbox-types'
+
+/**
+ * Guest-owned feedback/rating reads. `findResponseSnippetsByIds` reads the
+ * `guest_responses` aggregate, which holds the rating and the text on one row.
+ */
+export type FeedbackLookupSource = Readonly<{
+  findResponseSnippetsByIds: (
+    ids: ReadonlyArray<FeedbackId>,
+    orgId: OrganizationId,
+  ) => Promise<
+    ReadonlyArray<
+      Readonly<{
+        id: FeedbackId
+        comment: string | null
+        ratingValue: number | null
+        feedbackSubmissionRevision?: number | null
+      }>
+    >
+  >
+  findEligibleResponseIds: (
+    orgId: OrganizationId,
+    filter: FeedbackContentFilter,
+  ) => Promise<ReadonlyArray<FeedbackId>>
+}>
+
+/** Property-owned name reads (satisfied by the property public API). */
+export type PropertyLookupSource = Readonly<{
+  getPropertyName: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
+  getPropertyNames: (
+    orgId: OrganizationId,
+    propertyIds: ReadonlyArray<PropertyId>,
+  ) => Promise<ReadonlyArray<Readonly<{ id: string; name: string | null }>>>
+  /** Optional for legacy source fixtures; the adapter normalizes absence to null. */
+  getPropertyReplyLanguage?: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
+  /**
+   * The Property's Google review destination as Property holds it. Only a
+   * `verified` one may be rendered (Property CONTEXT, invariant 2); the adapter
+   * decides that. Optional for legacy source fixtures, as above.
+   */
+  getGoogleReviewDestination?: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<Readonly<{ state: string; uri: string | null }> | null>
+}>
+
+/** Review-owned reply reads (satisfied by the reply repository). */
+export type ReplyLookupSource = Readonly<{
+  /** Returns ALL replies for a review (internal + google_sync). */
+  findByReviewId: (
+    id: ReviewId,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<Omit<ReplyEntityView, 'kind'>>>
+  /** Governed current Google observation; null when absent or ineligible. */
+  getCurrentGoogleReplyByReviewId: (
+    id: ReviewId,
+    orgId: OrganizationId,
+  ) => Promise<Readonly<{
+    id: string
+    reviewId: ReviewId
+    organizationId: OrganizationId
+    text: string
+    observationRevision: number
+    provenance: 'repkey_confirmed' | 'external_or_unknown'
+    matchedReplyId: ReplyId | null
+    providerUpdatedAt: Date | null
+    observedAt: Date
+  }> | null>
+  /** Content-free, one-query lifecycle aggregation for projection repair. */
+  findMilestonesByReviewIds: (
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<Readonly<{ reviewId: ReviewId } & ReplyMilestones>>>
+  /** Content-free current Google reply observation heads for projection repair. */
+  findCurrentGoogleReplyHeadsByReviewIds: (
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<GoogleReplyHead>>
+  /** Content-free state candidates for effective-reply selection. */
+  findStatesByReviewIds: (
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ) => Promise<
+    ReadonlyArray<
+      Readonly<
+        {
+          reviewId: ReviewId
+          source: ReplyEntityView['source']
+        } & InboxItemReplyState
+      >
+    >
+  >
+  /** Content-free reply state candidates for queue-stage partitioning. */
+  findReviewIdsByReplyStage: (
+    orgId: OrganizationId,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ) => Promise<
+    ReadonlyArray<
+      Readonly<{
+        reviewId: ReviewId
+        source: ReplyEntityView['source']
+        stage: 'needs_reply' | 'awaiting' | 'waiting'
+      }>
+    >
+  >
+}>
+
+/** Structural shape the review repository rows satisfy (metadata only). */
+export type ReviewSourceRow = Readonly<{
+  id: ReviewId
+  propertyId: PropertyId
+  platform: string
+  sourceEpoch: number
+  reviewedAt: Date
+  contentExpiresAt: Date | null
+  sourceRevision?: number
+}>
+
+/** Review-owned review-metadata reads (satisfied by the review repository). */
+export type ReviewSourceLookupSource = Readonly<{
+  findById: (id: ReviewId, orgId: OrganizationId) => Promise<ReviewSourceRow | null>
+  findByIds: (
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<ReviewSourceRow>>
+  findByOrganizationId: (orgId: OrganizationId) => Promise<ReadonlyArray<ReviewSourceRow>>
+  findByPropertyId: (
+    propertyId: PropertyId,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<ReviewSourceRow>>
+}>

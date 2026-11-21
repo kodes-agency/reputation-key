@@ -4,9 +4,9 @@
 // Each candidate is checked against its owning source permission; escalation
 // remains orthogonal and is handled separately.
 
-import { lentTransactionArgs } from '#/contexts/inbox/application/ports/review-open-transaction'
-import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import { lentTransactionArgs } from '#/contexts/reputation/inbox/review-open-transaction.port.server'
+import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import { reviewId } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -18,7 +18,7 @@ import type {
   BulkReopenItemResult,
   BulkUpdateInboxStatus,
   BulkUpdateInboxStatusInput,
-} from '#/contexts/inbox/application/inbox-status-commands'
+} from '#/contexts/reputation/inbox/inbox-status-commands.server'
 import {
   inboxItemBulkStatusChanged,
   type InboxItemBulkStatusChanged,
@@ -29,11 +29,11 @@ import {
   canHandleInboxSource,
   isInboxSourcePropertyWithinScopes,
   resolveInboxSourceScopes,
-} from '#/contexts/inbox/application/inbox-access'
-import type { InboxSourceScope } from '#/contexts/inbox/application/ports/inbox.repository'
+} from '#/contexts/reputation/inbox/inbox-access.server'
+import type { InboxSourceScope } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/dto/inbox.dto'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
 
 export type BulkUpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository

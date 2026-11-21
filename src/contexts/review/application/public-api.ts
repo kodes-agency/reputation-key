@@ -34,8 +34,11 @@ export type {
   PersistedPublicationState,
   PublicationFailureClass,
 } from '../../reputation/domain/reply-publication-workflow'
-export type { ReplyCommandStore } from './ports/reply-command-store.port'
-export type { ConditionalReplyUpdate, ReplyRepository } from './ports/reply.repository'
+export type { ReplyCommandStore } from '../../reputation/replies/reply-command-store.port.server'
+export type {
+  ConditionalReplyUpdate,
+  ReplyRepository,
+} from '../../reputation/replies/reply-repository.port.server'
 export type { ReplyWriter, UncertainSendSnapshot } from './ports/reply-writer.port'
 export { UNCERTAIN_ATTEMPT_OUTCOMES } from './ports/reply-writer.port'
 
@@ -107,43 +110,43 @@ export {
 export { collectReviewSourceContentLifecycleReport } from './use-cases/collect-source-content-lifecycle-report'
 export { REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE } from './use-cases/run-source-content-lifecycle'
 // Lifecycle purge port consumed by integration + property use cases.
-export type { SourceContentPurge } from './ports/source-content-purge.port'
-export type { ReviewReplyObservationAuthority } from './ports/reply-observation-authority.port'
+export type { SourceContentPurge } from '../../reputation/content/source-content-purge.port.server'
+export type { ReviewReplyObservationAuthority } from '../../reputation/reviews/reply-observation-authority.port.server'
 export type {
   ReviewInboxProjectionExpectation,
   ReviewInboxProjectionRevisionPermit,
   ReviewResponseTargetAuthority,
   ReviewResponseTargetAuthorityResult,
   ReviewResponseTargetExpectation,
-} from './ports/response-target-authority.port'
-export type { ReviewSourceTransitionAuthority } from './ports/source-transition-authority.port'
+} from '../../reputation/reviews/response-target-authority.port.server'
+export type { ReviewSourceTransitionAuthority } from '../../reputation/reviews/source-transition-authority.port.server'
 // Inbox reads one review from Google before it releases a Response Target
 // reminder for it; the result is content-free.
 export type {
   CheckReviewOnGoogle as ReviewGoogleReviewCheck,
   CheckReviewOnGoogleInput,
   CheckReviewOnGoogleResult,
-} from './use-cases/check-review-on-google'
+} from '../../reputation/sync/check-review-on-google.server'
 export type {
   AmbiguousPublicationReconciliationCandidate,
   FindAmbiguousPublicationReconciliationCandidates,
-} from './ports/publication-reconciliation-maintenance.port'
+} from '../../reputation/publication/publication-reconciliation-candidate-repository.port.server'
 export type {
   ReconcileReplyPublication,
   ReconcileReplyPublicationInput,
-} from './use-cases/reconcile-reply-publication'
+} from '../../reputation/publication/reconcile-reply-publication.server'
 // D5: what "Check Google again" found. The inbox reply actions render these
 // outcomes, so the result shape is part of the public surface.
 export type {
   CheckReplyPublication,
   ReplyPublicationCheckOutcome,
   ReplyPublicationCheckResult,
-} from './use-cases/check-reply-publication'
+} from '../../reputation/publication/check-reply-publication.server'
 
 // Review-owned governed aggregate serving reads (ADR 0031
 // eligibility enforced at the owner, clock-injected). The dashboard build
 // depends on this type; composition wires the infrastructure implementation.
-export type { ReviewServingStats } from './ports/serving-stats.port'
+export type { ReviewServingStats } from '../../reputation/reviews/serving-stats.port.server'
 // Reporting's Property Google rating goal reads current Google review counts
 // and star sums through this Review-owned port (eligibility enforced here).
 export type {
@@ -161,7 +164,7 @@ export type {
   GoogleRatingYearTotals,
   GoogleShownNumber,
   ReviewGoogleRatingReads,
-} from './ports/google-rating-reads.port'
+} from '../../reputation/reviews/google-rating-reads.port.server'
 export type {
   AiReviewSourcePort,
   AiReviewSentence,
@@ -170,7 +173,7 @@ export type {
   AiTrendPopulationReview,
   AiTrendPopulationRequest,
   AiTrendPopulationResult,
-} from './ports/ai-review-source.port'
+} from '../../reputation/reviews/ai-review-source.port.server'
 
 /** Fixes onboarding history before Integration commits receipt-backed success. */
 export type PrepareGoogleImportSync = (

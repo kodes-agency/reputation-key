@@ -62,29 +62,29 @@ import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/
 import type { PolicyStoreHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import { reviewCreated } from '#/contexts/reputation/domain/review-events'
 import type { Review } from '#/contexts/reputation/domain/review-types'
-import { createAtomicReviewCommandStore } from '#/contexts/review/infrastructure/review-command-store'
-import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
+import { createAtomicReviewCommandStore } from '#/contexts/reputation/reviews/review-command-store.server'
+import { createGoogleReplyObservationStore } from '#/contexts/reputation/publication/google-reply-observation-store.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
-import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
-import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
+import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
+import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
-import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
+import { createReviewSourceLookupAdapter } from '#/contexts/reputation/inbox/review-source-lookup.adapter.server'
+import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
 import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,
-} from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
+} from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()

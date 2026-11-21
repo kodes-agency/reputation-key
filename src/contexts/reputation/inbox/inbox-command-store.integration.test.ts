@@ -55,25 +55,25 @@ import {
 } from '#/contexts/reputation/domain/review-events'
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
 import { createInboxRepository } from './inbox-repository.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
-import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
+import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
+import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { readInboxEscalationHistory } from '#/contexts/inbox/infrastructure/inbox-escalation-history'
+import { readInboxEscalationHistory } from '#/contexts/reputation/inbox/inbox-escalation-history.server'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
-import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
-import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { createReviewSourceLookupAdapter } from '#/contexts/reputation/inbox/review-source-lookup.adapter.server'
+import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,
-} from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
+} from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 const ORG_A = organizationId('org-inbox-cmd-aaaa-1111111111111111')

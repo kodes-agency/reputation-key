@@ -44,7 +44,7 @@
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '../../test-fixtures/generated/google-provider-identifiers-v1'
 import { randomUUID } from 'node:crypto'
 import { hashPassword } from 'better-auth/crypto'
-import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
+import { computeAiReviewSourceProvenance } from '../../src/contexts/reputation/reviews/ai-review-source.server'
 import { seedGoogleConnection as seedSharedGoogleConnection } from '../../src/shared/testing/google-connection-seed'
 import { dbQuery, encryptToken } from './fixture-db'
 

@@ -68,7 +68,7 @@ function meta(label: string, at: Date | string | null): ReplyMessageView['meta']
 /**
  * A publish failure that is safe to send again. Retry and Delete reply are its
  * only actions: no server path edits the text of a `publish_failed` reply.
- * `editPublishedReply` refuses anything but `published` (`reply-operations.ts`),
+ * `editPublishedReply` refuses anything but `published` (`reply-operations.server.ts`),
  * so an Edit reply here would open an editor headed "Edit published reply" whose
  * every save fails into a toast. Delete reply clears the reply in its row, and
  * the manager writes a new one in the empty composer.
@@ -93,7 +93,7 @@ function failedRetryView(reply: ReplyEntity): ReplyMessageView {
 /**
  * A publication RepKey cannot confirm. Check is its ONLY action in both
  * readings: `retryPublish` refuses a reply descended from an uncertain attempt
- * unless dispatch evidence proves it never left (`reply-operations.ts`), so a
+ * unless dispatch evidence proves it never left (`reply-operations.server.ts`), so a
  * resend offered here could only fail.
  *
  * What differs is whether a person is needed. While the automatic read ladder

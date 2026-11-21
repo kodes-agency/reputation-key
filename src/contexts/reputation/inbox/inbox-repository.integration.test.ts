@@ -9,10 +9,10 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,
-} from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
-import type { AiReviewInsightsPort } from '#/contexts/inbox/application/ports/ai-review-insights.port'
+} from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
+import type { AiReviewInsightsPort } from '#/contexts/reputation/inbox/ai-review-insights.port.server'
 import { getDb } from '#/shared/db'
 import {
   inboxItemId,

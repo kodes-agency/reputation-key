@@ -34,22 +34,22 @@
 // deletes items. Feedback-sourced items are OUT of scope: the guest context
 // is dark for beta (BQC-2.6), so its canonical data is not a rebuild source.
 
-import { lentTransactionArgs } from '#/contexts/inbox/application/ports/review-open-transaction'
-import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import { lentTransactionArgs } from '#/contexts/reputation/inbox/review-open-transaction.port.server'
+import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
-} from '#/contexts/inbox/application/ports/review-source-lookup.port'
+} from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type {
   GoogleReplyHead,
   ReplyLookupPort,
   ReplyMilestones,
-} from '#/contexts/inbox/application/ports/reply-lookup.port'
+} from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type {
   ReplyObservationAuthorityPort,
   ReplyObservationExpectation,
-} from '#/contexts/inbox/application/ports/reply-observation-authority.port'
+} from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   InboxItemId,

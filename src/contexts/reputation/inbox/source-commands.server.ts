@@ -8,36 +8,36 @@ import {
   cycleHeadItemColumns,
   mirrorCycleHead,
   persistedHeadFromItemRow,
-} from '#/contexts/inbox/infrastructure/inbox-cycle-head'
+} from '#/contexts/reputation/inbox/inbox-cycle-head.server'
 import {
   insertReceiptRow,
   reserveReceiptRow,
   restateReceiptRow,
   settleSupersededDeliveryRow,
-} from '#/contexts/inbox/infrastructure/consumer-receipt-rows'
+} from '#/contexts/reputation/inbox/consumer-receipt-rows.server'
 import { trace } from '#/shared/observability/trace'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { isAnsweringGoogleReply } from '#/contexts/reputation/domain/inbox-rules'
 import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
-import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
-import { transitionInsert } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
+import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
+import { transitionInsert } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import { closeHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
 import type {
   HandlingCycleCreationAnchor,
   InboxCommandStore,
-} from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import { cancelPrivateFeedbackTarget } from '#/contexts/reputation/inbox/response-targets/store.server'
+} from '#/contexts/reputation/inbox/command-store.port.server'
+import { cancelPrivateFeedbackTarget } from '#/contexts/reputation/response-targets/store.server'
 import {
   assertObservationMatchesItem,
   assertReviewProjectionCommand,
   handlingCycleHeadFromRow,
   lifecycleFactFor,
   projectionTargetAnchor,
-} from '#/contexts/inbox/infrastructure/inbox-command-guards'
+} from '#/contexts/reputation/inbox/inbox-command-guards.server'
 import {
   insertReviewItemAnsweredOnGoogle,
   lockReviewRowsForObservation,
-} from '#/contexts/inbox/infrastructure/review-reply-close'
+} from '#/contexts/reputation/inbox/review-reply-close.server'
 import {
   insertItemIdempotent,
   lockReviewProjectionRows,
@@ -49,7 +49,7 @@ import {
   openNextFeedbackCycleOnResubmission,
   closeCycleForSourceTransition,
   scrubTransitionedItemRow,
-} from '#/contexts/inbox/infrastructure/inbox-source-projection'
+} from '#/contexts/reputation/inbox/inbox-source-projection.server'
 import type { CommandRuntime } from './command-runtime.server'
 
 export const createSourceCommands = (

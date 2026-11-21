@@ -27,7 +27,7 @@ import {
   INBOX_HISTORY_SOURCE_LIMIT,
   type InboxHistoryPage,
   type InboxHistoryRepository,
-} from '#/contexts/inbox/application/ports/inbox-history.repository'
+} from '#/contexts/reputation/inbox/inbox-history-repository.port.server'
 import {
   orderInboxHistory,
   redactLegacyActor,
@@ -44,7 +44,7 @@ import type {
   HandlingCycleTransitionKind,
   ManualReopenReason,
 } from '#/contexts/reputation/domain/inbox-types'
-import { selectHandlingCycleTransitions } from '#/contexts/inbox/infrastructure/handling-cycle-transitions.read'
+import { selectHandlingCycleTransitions } from '#/contexts/reputation/inbox/handling-cycle-transitions-read.server'
 
 const optionalUserId = (value: string | null): UserId | null =>
   value === null ? null : toUserId(value)

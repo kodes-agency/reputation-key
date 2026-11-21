@@ -15,7 +15,7 @@ Unified triage for Reviews and private feedback: open/closed workflow state,
 assignment, escalation, manager priority, internal notes, Handling Cycles,
 Response Targets and new-item counts. An Inbox Item points to exactly one Review
 or feedback source and carries only triage state; Review and Guest content is
-read through context-owned lookup ports (`application/ports/`), never
+read through context-owned lookup ports (`../reputation/inbox/*-lookup.port.server.ts`), never
 cross-context SQL, and the handling stores stay content-free.
 
 ## Boundaries
@@ -34,10 +34,10 @@ cross-context SQL, and the handling stores stay content-free.
 
 ## Feature map
 
-Server functions live in `server/`; use cases in `application/use-cases/`;
-stores and read models in `infrastructure/`. The command, consumer and rebuild
-implementations that need Review truth live in `../reputation/inbox/`. The
-screens are in `../reputation/inbox/ui` (the page, queue, filter and row
+Server functions live in `server/`; the use cases, stores, read models,
+lookups, consumers and projection rebuild live in `../reputation/inbox/` (each
+port beside its implementation as `*.port.server.ts`), and Response Target code
+in `../reputation/response-targets/`. The screens are in `../reputation/inbox/ui` (the page, queue, filter and row
 primitives in `page/`), `../reputation/replies/ui` and
 `src/routes/_authenticated/inbox/`; `src/components/inbox` keeps only the reply
 actions hook. Its pure types, rules, events and errors are in
@@ -46,18 +46,18 @@ actions hook. Its pure types, rules, events and errors are in
 `feedback-handling.ts`, `handling-cycles.ts`, `handling-history.ts`,
 `handling-outcome-authority.ts` and `response-target.ts`.
 
-| Feature                              | Server function (file in `server/`)                                                                                                                                       | Use case or store                                                                                                                                                |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| List, filters, cursors               | `getInboxItemsFn` (`inbox-queries.ts`)                                                                                                                                    | `get-inbox-items.ts`, `inbox-view.repository.ts`                                                                                                                 |
-| Queue and property counts            | `getInboxQueueCountsFn`, `getInboxPropertyCountsFn` (`inbox-queries.ts`)                                                                                                  | `get-inbox-queue-counts.ts`, `get-inbox-property-counts.ts`, `inbox-queues.ts`                                                                                   |
-| New-item count since last visit      | `getLastVisitCountFn`, `stampLastInboxViewFn` (`inbox-queries.ts`)                                                                                                        | `get-last-visit-count.ts`, `stamp-last-inbox-view.ts`                                                                                                            |
-| Item detail, notes, Handling History | `getInboxItemDetailFn`, `getInboxNotesFn`, `getInboxItemHistoryFn` (`inbox-item-queries.ts`)                                                                              | `get-inbox-item-detail.ts`, `get-inbox-notes.ts`, `get-inbox-item-history.ts`, `inbox-history.repository.ts`                                                     |
-| Assignment and notes                 | `assignInboxItemFn`, `bulkAssignInboxItemsFn`, `addInboxNoteFn` (`inbox-item-actions.ts`)                                                                                 | `assign-inbox-item.ts`, `bulk-assign-inbox-items.ts`, `add-inbox-note.ts`                                                                                        |
-| Status, escalation                   | `updateInboxStatusFn`, `bulkUpdateInboxStatusFn`, `escalateInboxItemFn`, `resolveEscalationFn` (`inbox-status.ts`)                                                        | `../reputation/inbox/update-inbox-status.server.ts`, `../reputation/inbox/bulk-update-inbox-status.server.ts`, `escalate-inbox-item.ts`, `resolve-escalation.ts` |
-| Manager priority                     | `setInboxItemPriorityFn` (`inbox-priority.ts`)                                                                                                                            | `set-inbox-item-priority.ts`, `inbox-priority-history.ts`                                                                                                        |
-| Private feedback outcome             | `markFeedbackHandledFn`, `correctFeedbackHandlingOutcomeFn` (`inbox-feedback-handling.ts`)                                                                                | `mark-feedback-handled.ts`, `correct-feedback-handling-outcome.ts`, `feedback-handling.store.ts`                                                                 |
-| Check a review on Google             | `checkReviewOnGoogleFn` (`inbox-google-check.ts`)                                                                                                                         | `check-inbox-review-on-google.ts` over `GoogleReviewCheckPort`                                                                                                   |
-| Response Target policy and analytics | `getResponseTargetPolicySettingsFn`, `setResponseTargetPolicyFn`, `getPrivateFeedbackTargetAnalyticsFn`, `getGoogleReviewTargetAnalyticsFn` (`inbox-response-targets.ts`) | `set-response-target-policy.ts`, `response-target-policy.store.ts`, `response-target-analytics.store.ts`                                                         |
+| Feature                              | Server function (file in `server/`)                                                                                                                                       | Use case or store                                                                                                                                                                                                        |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| List, filters, cursors               | `getInboxItemsFn` (`inbox-queries.ts`)                                                                                                                                    | `../reputation/inbox/get-inbox-items.server.ts`, `../reputation/inbox/inbox-view-repository.server.ts`                                                                                                                   |
+| Queue and property counts            | `getInboxQueueCountsFn`, `getInboxPropertyCountsFn` (`inbox-queries.ts`)                                                                                                  | `../reputation/inbox/get-inbox-queue-counts.server.ts`, `../reputation/inbox/get-inbox-property-counts.server.ts`, `application/inbox-queues.ts`                                                                         |
+| New-item count since last visit      | `getLastVisitCountFn`, `stampLastInboxViewFn` (`inbox-queries.ts`)                                                                                                        | `../reputation/inbox/get-last-visit-count.server.ts`, `../reputation/inbox/stamp-last-inbox-view.server.ts`                                                                                                              |
+| Item detail, notes, Handling History | `getInboxItemDetailFn`, `getInboxNotesFn`, `getInboxItemHistoryFn` (`inbox-item-queries.ts`)                                                                              | `../reputation/inbox/get-inbox-item-detail.server.ts`, `../reputation/inbox/get-inbox-notes.server.ts`, `../reputation/inbox/get-inbox-item-history.server.ts`, `../reputation/inbox/inbox-history-repository.server.ts` |
+| Assignment and notes                 | `assignInboxItemFn`, `bulkAssignInboxItemsFn`, `addInboxNoteFn` (`inbox-item-actions.ts`)                                                                                 | `../reputation/inbox/assign-inbox-item.server.ts`, `../reputation/inbox/bulk-assign-inbox-items.server.ts`, `../reputation/inbox/add-inbox-note.server.ts`                                                               |
+| Status, escalation                   | `updateInboxStatusFn`, `bulkUpdateInboxStatusFn`, `escalateInboxItemFn`, `resolveEscalationFn` (`inbox-status.ts`)                                                        | `../reputation/inbox/update-inbox-status.server.ts`, `../reputation/inbox/bulk-update-inbox-status.server.ts`, `../reputation/inbox/escalate-inbox-item.server.ts`, `../reputation/inbox/resolve-escalation.server.ts`   |
+| Manager priority                     | `setInboxItemPriorityFn` (`inbox-priority.ts`)                                                                                                                            | `../reputation/inbox/set-inbox-item-priority.server.ts`, `../reputation/inbox/inbox-priority-history.server.ts`                                                                                                          |
+| Private feedback outcome             | `markFeedbackHandledFn`, `correctFeedbackHandlingOutcomeFn` (`inbox-feedback-handling.ts`)                                                                                | `../reputation/inbox/mark-feedback-handled.server.ts`, `../reputation/inbox/correct-feedback-handling-outcome.server.ts`, `../reputation/inbox/feedback-handling-store.server.ts`                                        |
+| Check a review on Google             | `checkReviewOnGoogleFn` (`inbox-google-check.ts`)                                                                                                                         | `../reputation/inbox/check-inbox-review-on-google.server.ts` over `google-review-check.port.server.ts`                                                                                                                   |
+| Response Target policy and analytics | `getResponseTargetPolicySettingsFn`, `setResponseTargetPolicyFn`, `getPrivateFeedbackTargetAnalyticsFn`, `getGoogleReviewTargetAnalyticsFn` (`inbox-response-targets.ts`) | `../reputation/response-targets/{set-response-target-policy,get-response-targets,policy.store,analytics.store}.server.ts`                                                                                                |
 
 AI reading of a Review item (`aiInsights`, "Not right?" correction) is bound to
 Review's current source epoch in `src/composition/get-inbox-review-analysis.server.ts`;
@@ -65,8 +65,9 @@ Inbox stores nothing of it.
 
 ## Jobs and consumers
 
-- **Job:** `release-response-target-reminders` (`infrastructure/jobs/release-response-target-reminders.job.ts`,
-  use case `release-response-target-reminders.ts`), every five minutes. A
+- **Job:** `release-response-target-reminders`
+  (`../reputation/response-targets/release-reminders.job.server.ts`, use case
+  `release-reminders.server.ts`), every five minutes. A
   Google-review reminder is checked against Google first and held while Review
   shows a live reply that answers the cycle; private-feedback slots are never
   checked; no transaction is held across the Google read.
@@ -76,18 +77,32 @@ Inbox stores nothing of it.
   `inbox.on-reply-published`, `inbox.on-reply-observed`, `inbox.on-reply-submitted`
   (`../reputation/inbox/outbox-consumers.server.ts`);
   `inbox.on-guest-feedback-submitted`, `inbox.on-guest-feedback-retracted`
-  (`infrastructure/guest-feedback-outbox-consumers.ts`); `inbox.on-member-removed`
-  (`infrastructure/member-offboarding-outbox-consumers.ts`);
-  `inbox.on-property-archived` (`infrastructure/property-lifecycle-outbox-consumers.ts`).
+  (`../reputation/inbox/guest-feedback-outbox-consumers.server.ts`); `inbox.on-member-removed`
+  (`../reputation/inbox/member-offboarding-outbox-consumers.server.ts`);
+  `inbox.on-property-archived` (`../reputation/response-targets/property-lifecycle-outbox-consumers.server.ts`).
 - **Maintenance:** `rebuildInboxProjection` (`../reputation/inbox/rebuild-inbox-projection.server.ts`,
   `pnpm ops rebuild-projection`) repairs from canonical data and records no
   facts; `pnpm ops inbox exclude-restated-revision-targets <propertyId>`
-  (`infrastructure/restated-revision-target-exclusion.store.ts`) writes
+  (`../reputation/response-targets/restated-revision-target-exclusion-store.server.ts`) writes
   `inbox_response_target_exclusions`.
 
 `build.ts` assembles adapters and durable registrations; `build-use-cases.ts`
 constructs the use cases and projects `InboxPublicApi` for the production and
 Storybook containers alike.
+
+### Still in `application/`
+
+Three files stay, each reached by the browser, so none can be a `*.server.ts`:
+
+- `public-api.ts`: other areas import it, and lint names an area's public API by this path.
+- `dto/inbox.dto.ts`: `response-targets/ui` (the settings card and the
+  private-feedback target card) import it as a value and the public API
+  re-exports it as a value. All eight `server/` files import it, and no lint
+  policy lets a Review or Inbox layer file import a Reputation `contracts.ts`, so
+  it is not a contract either.
+- `inbox-queues.ts` (with its test): `inbox/ui/page/inbox-search-schema.ts` in
+  Reputation imports it as a value, and the public API and `inbox.dto.ts`
+  re-export it. `server/inbox-queries.ts` imports it, so it is not a contract.
 
 ## Queues
 

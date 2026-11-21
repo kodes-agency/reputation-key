@@ -782,7 +782,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     // after the attempt exists, as a real send's does. A sync that met the
     // reply before any attempt could only record it as Google-authored, and
     // the inbox shows such a reply in place of RepKey's uncertain one
-    // (reply-lookup.adapter.ts) — with no "Check Google again" to press.
+    // (reply-lookup.adapter.server.ts) — with no "Check Google again" to press.
     await putScenarioScope('ambig', {
       reviews: [
         {

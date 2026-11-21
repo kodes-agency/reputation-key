@@ -508,7 +508,7 @@ export const FeedbackClosedNoOutcome390: Story = {
 
 /**
  * The same private-feedback item read by someone the server withholds
- * `feedbackHandling` from (`get-inbox-item-detail.ts:132`). The item kind must
+ * `feedbackHandling` from (`get-inbox-item-detail.server.ts:132`). The item kind must
  * still come from `item.sourceType`: a toolbar that inferred it from the
  * handling state would label private feedback `Open` / `Closed` for exactly
  * the audience least equipped to know what that means.

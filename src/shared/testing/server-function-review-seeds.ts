@@ -9,7 +9,7 @@
 
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import type { InboxItem, InboxStatus } from '#/contexts/reputation/domain/inbox-types'
-import { storedAiReviewSourceProvenance } from '#/contexts/review/application/ai-review-source'
+import { storedAiReviewSourceProvenance } from '#/contexts/reputation/reviews/ai-review-source.server'
 import type { StarRating } from '#/contexts/reputation/domain/review-types'
 import { getDb } from '#/shared/db'
 import {

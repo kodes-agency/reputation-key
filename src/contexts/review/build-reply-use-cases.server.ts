@@ -10,7 +10,7 @@ import {
   deleteReply,
   retryPublish,
   editPublishedReply,
-} from './application/use-cases/reply-operations'
+} from '../reputation/replies/reply-operations.server'
 import {
   checkReplyDraft,
   listReplyTemplates,
@@ -23,11 +23,11 @@ import {
   saveReplyTemplate,
   saveReplyVoice,
   setReplyTemplateHidden,
-} from './application/use-cases/reply-library-layer-operations'
-import { checkReplyPublication } from './application/use-cases/check-reply-publication'
-import type { ReplyDeps } from './application/use-cases/reply-operations'
-import type { ReplyLibraryRepository } from './application/ports/reply-library.repository'
-import type { ReconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
+} from '../reputation/library/reply-library-layer-operations.server'
+import { checkReplyPublication } from '../reputation/publication/check-reply-publication.server'
+import type { ReplyDeps } from '../reputation/replies/reply-operations.server'
+import type { ReplyLibraryRepository } from '../reputation/library/reply-library-repository.port.server'
+import type { ReconcileReplyPublication } from '../reputation/publication/reconcile-reply-publication.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export function wireReplyUseCases(

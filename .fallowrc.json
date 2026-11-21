@@ -77,7 +77,7 @@
   ],
   "ignoreExports": [
     {
-      "file": "src/contexts/inbox/infrastructure/inbox-escalation-history.ts",
+      "file": "src/contexts/reputation/inbox/inbox-escalation-history.server.ts",
       "exports": ["INBOX_ESCALATION_HISTORY_KINDS"]
     },
     {
@@ -89,7 +89,7 @@
       "exports": ["GOOGLE_REVIEW_DESTINATION_STATES"]
     },
     {
-      "file": "src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.ts",
+      "file": "src/contexts/reputation/content/purge-expired-reviews-job.server.ts",
       "exports": ["DEFAULT_BATCH_SIZE", "DEFAULT_MAX_BATCHES"]
     },
     {
@@ -168,10 +168,6 @@
     {
       "file": "src/routes/api/auth/$.ts",
       "exports": ["handleAuthRequest"]
-    },
-    {
-      "file": "src/contexts/*/infrastructure/jobs/*.job.ts",
-      "exports": ["JOB_NAME"]
     },
     {
       "file": "src/shared/jobs/*.job.ts",

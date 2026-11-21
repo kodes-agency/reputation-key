@@ -191,7 +191,7 @@ describe('Contact Request containment', () => {
       'src/contexts/ai',
       'src/contexts/inbox',
       'src/contexts/reporting',
-      'src/contexts/reputation/domain',
+      'src/contexts/reputation',
       'src/contexts/review',
       'src/shared/email',
       'src/shared/events',

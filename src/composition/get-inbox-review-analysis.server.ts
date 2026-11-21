@@ -1,4 +1,4 @@
-import type { AiReviewInsightsPort } from '#/contexts/inbox/application/ports/ai-review-insights.port'
+import type { AiReviewInsightsPort } from '#/contexts/reputation/inbox/ai-review-insights.port.server'
 import type { ReviewContextApi } from '#/contexts/review/build'
 import type { buildAiContext } from '#/contexts/ai/build'
 import type {

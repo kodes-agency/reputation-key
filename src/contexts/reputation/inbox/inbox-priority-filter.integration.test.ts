@@ -15,7 +15,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { AiReviewInsightsPort } from '#/contexts/inbox/application/ports/ai-review-insights.port'
+import type { AiReviewInsightsPort } from '#/contexts/reputation/inbox/ai-review-insights.port.server'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import {
   clearInboxOrganization,
@@ -23,7 +23,7 @@ import {
   dropInboxOrganization,
   seedInboxOrganization,
   setStoredManagerPriority,
-} from '#/contexts/inbox/infrastructure/inbox-database-fixtures'
+} from '#/contexts/reputation/inbox/inbox-database.test-fixtures'
 
 const ORG = organizationId('org-priority-fixture')
 const PROP = propertyId('94b10000-0000-4000-8000-0000000000a1')

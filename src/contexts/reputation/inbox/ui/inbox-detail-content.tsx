@@ -176,7 +176,7 @@ export function InboxDetailContent({ currentItem, detailState }: DetailContentPr
    * its own accent beside it. The real fix is a server field.
    *
    * The permission pair is `inbox.write ∧ feedback.handle` —
-   * `canHandleInboxSource`'s own conjunction (inbox-access.ts:36). Read here
+   * `canHandleInboxSource`'s own conjunction (inbox-access.server.ts:36). Read here
    * as well as inside `FeedbackHandlingPrimary` because only the pane can see
    * both controls, and it cannot place the accent without knowing whether the
    * action is there to take it.
