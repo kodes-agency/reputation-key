@@ -1,7 +1,7 @@
 // BQC-5.1: Cross-context public-api architecture test.
 //
 // src/contexts/CONTEXT.md "Dependency rules":
-//   "Cross-context: import from application/public-api.ts only. Never from
+//   "Cross-context: import from the area's public-api.ts only. Never from
 //    domain/, infrastructure/, server/, or non-public-api application/."
 //   "Exception: Cross-context adapter implementations ... may import the port
 //    they implement. The port IS the public interface for adapter contracts."
@@ -46,7 +46,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
 
-  it('allows application → foreign application/public-api', async () => {
+  it('allows application → foreign public-api', async () => {
     const messages = await lintSnippet(
       `import type { StaffPublicApi } from '#/contexts/identity/public-api'\nexport type { StaffPublicApi }\n`,
       'src/contexts/portal/application/use-cases/sample.ts',
@@ -54,15 +54,27 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
 
-  // The public API is moving to the area's root; lint accepts both paths
-  // until every area has moved. Path math only: the target need not exist.
-  it('allows application → foreign root public-api', async () => {
+  // The public API sits at the area's root; Review and Inbox keep
+  // application/public-api.ts until their server functions move. Path math
+  // only: the target need not exist.
+  it('flags the retired application/public-api of an area that moved', async () => {
     const messages = await lintSnippet(
-      `import type { StaffPublicApi } from '#/contexts/identity/public-api'\nexport type { StaffPublicApi }\n`,
-      'src/contexts/portal/application/use-cases/sample.ts',
+      `import type { PropertyPublicApi } from '#/contexts/property/application/public-api'\nexport type { PropertyPublicApi }\n`,
+      'src/contexts/portal/editor/sample.server.ts',
     )
-    expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
+
+  it.each(['review', 'inbox'])(
+    "allows %s's application/public-api until its server functions move",
+    async (area) => {
+      const messages = await lintSnippet(
+        `import '#/contexts/${area}/application/public-api'\n`,
+        'src/contexts/ai/reply/sample.server.ts',
+      )
+      expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
+    },
+  )
 
   it('allows a relative import of a foreign root public-api', async () => {
     const messages = await lintSnippet(

@@ -75,6 +75,29 @@ const controls = [
     expect: ['no-restricted-imports'],
   },
   {
+    name: "a feature contract cannot take types from another area's application/ outside its public API",
+    file: 'src/contexts/guest/page/boundary-negative-control.contracts.ts',
+    source:
+      "import type { aiRequestFingerprint } from '#/contexts/ai/application/ai-workflow-support'\nexport type Control = typeof aiRequestFingerprint\n",
+  },
+  {
+    name: "a feature server cannot import another area's application/ outside its public API",
+    file: 'src/contexts/guest/rights/boundary-negative-control.server.ts',
+    source: "import '#/contexts/identity/application/staff-self-context'\n",
+  },
+  {
+    name: "a domain cannot import another area's public API",
+    file: 'src/contexts/guest/domain/boundary-negative-control.ts',
+    source:
+      "import type { PortalPublicApi } from '#/contexts/portal/public-api'\nexport type Control = PortalPublicApi\n",
+  },
+  {
+    name: "shared code cannot import an area's public API",
+    file: 'src/shared/boundary-negative-control.ts',
+    source:
+      "import type { PortalPublicApi } from '#/contexts/portal/public-api'\nexport type Control = PortalPublicApi\n",
+  },
+  {
     name: "a feature contract cannot take types from another area's feature file named like a public API",
     file: 'src/contexts/guest/page/boundary-negative-control.contracts.ts',
     source:
@@ -234,7 +257,7 @@ const controls = [
     source: "import React from 'react'\n",
     expect: ['no-restricted-imports'],
   },
-  ...['domain', 'application', 'infrastructure', 'server', 'ports'].map((layer) => ({
+  ...['domain', 'application', 'infrastructure', 'server'].map((layer) => ({
     name: `nested UI in ${layer} keeps its layer boundary`,
     file: `src/contexts/reporting/${layer}/boundary-control/ui/read.tsx`,
     source: "import '#/components/ui/button'\n",
@@ -386,6 +409,34 @@ const allowedControls = [
     file: 'scripts/ops/boundary-positive-control.ts',
     source: "import '../../src/contexts/review/application/public-api'\n",
   },
+  // Once an area has moved, its public API is the root file; the same seams
+  // must be open for it.
+  {
+    name: "a feature screen may import another area's public API",
+    file: 'src/contexts/guest/page/ui/boundary-positive-control.tsx',
+    source: "import '#/contexts/portal/public-api'\n",
+  },
+  {
+    name: "a feature server may import another area's public API",
+    file: 'src/contexts/guest/rights/boundary-positive-control.server.ts',
+    source: "import '#/contexts/portal/public-api'\n",
+  },
+  {
+    name: "a route may import an area's public API",
+    file: 'src/routes/boundary-positive-control.ts',
+    source: "import '#/contexts/property/public-api'\n",
+  },
+  {
+    name: "an operator script may import an area's public API",
+    file: 'scripts/ops/boundary-positive-control.ts',
+    source: "import '../../src/contexts/feed/public-api'\n",
+  },
+  {
+    name: "a feature contract may take types from Review's application public API until its server functions move",
+    file: 'src/contexts/guest/page/boundary-positive-control.contracts.ts',
+    source:
+      "import type { Review } from '#/contexts/review/application/public-api'\nexport type Control = Review\n",
+  },
   {
     name: 'route may import a feature browser contract',
     file: 'src/routes/boundary-positive-control.ts',
@@ -512,6 +563,14 @@ const allowedControls = [
   },
 ]
 
+// Moving the public APIs retired ports/, queries/ and ui/ at an area's root: no element
+// claims them, so a file there is unclassified and fails the lint.
+const retiredFolderControls = ['ports', 'queries', 'ui'].map((folder) => ({
+  name: `${folder}/ at an area's root is retired`,
+  file: `src/contexts/reporting/${folder}/boundary-negative-control.ts`,
+  source: 'export {}\n',
+}))
+
 async function boundaryMessages(control) {
   const [result] = await eslint.lintText(control.source, {
     filePath: resolve(cwd, control.file),
@@ -535,6 +594,13 @@ for (const control of controls) {
   }
 }
 
+for (const control of retiredFolderControls) {
+  const messages = await boundaryMessages(control)
+  if (!messages.some(({ ruleId }) => ruleId === 'boundaries/no-unknown-files')) {
+    failures.push(`${control.name}: a file there was classified`)
+  }
+}
+
 for (const control of allowedControls) {
   const messages = await boundaryMessages(control)
   if (messages.length > 0) {
@@ -553,5 +619,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `[architecture-boundaries] OK — ${controls.length} invalid imports rejected; ${allowedControls.length} valid seams accepted.`,
+  `[architecture-boundaries] OK — ${controls.length} invalid imports rejected; ${allowedControls.length} valid seams accepted; ${retiredFolderControls.length} retired folders refused.`,
 )
