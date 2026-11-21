@@ -32,8 +32,8 @@ import type {
   ReplyCommandStore,
 } from '../ports/reply-command-store.port'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
-import { reviewReplyPublicationCancelled } from '../../domain/events'
-import { replyAuthor } from '../../domain/reply-author'
+import { reviewReplyPublicationCancelled } from '../../../reputation/domain/review-events'
+import { replyAuthor } from '../../../reputation/domain/reply-author'
 
 export type CancelPublicationsForConnectionDeps = Readonly<{
   reviewRepo: ReviewRepository

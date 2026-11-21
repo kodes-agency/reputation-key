@@ -24,7 +24,7 @@
 // source epoch among the facts that prove a completed listing (`listing_complete`;
 // a head fact does not) (one probe of the scope index per candidate), and whether a coded
 // failure is still recorded. The sweep skips a look whose reconciliation is
-// recent (domain/discovery-reconciliation.ts).
+// recent (reputation/domain/discovery-reconciliation.ts).
 //
 // The batch also carries each property's ACTIVITY evidence (migration 0071's
 // `last_new_review_at`, the existing `last_notification_at`, and the

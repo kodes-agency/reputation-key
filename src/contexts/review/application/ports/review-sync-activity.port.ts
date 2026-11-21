@@ -1,6 +1,6 @@
 // Review context — durable discovery-activity recorder port.
 //
-// The discovery backoff ladder (domain/discovery-backoff.ts) can only shed
+// The discovery backoff ladder (reputation/domain/discovery-backoff.ts) can only shed
 // provider quota if it can tell a live property from a quiet one, and the
 // only processes that KNOW are the ones running the sync path:
 //

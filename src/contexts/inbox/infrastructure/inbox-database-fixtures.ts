@@ -20,7 +20,11 @@ import type { AiReviewInsightsPort } from '../application/ports/ai-review-insigh
 import type { InboxCommandStore } from '../application/ports/inbox-command-store.port'
 import type { InboxNoteRepository } from '../application/ports/inbox-note.repository'
 import type { InboxRepository } from '../application/ports/inbox.repository'
-import type { InboxItem, InboxStatus, SourceType } from '../domain/types'
+import type {
+  InboxItem,
+  InboxStatus,
+  SourceType,
+} from '../../reputation/domain/inbox-types'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,

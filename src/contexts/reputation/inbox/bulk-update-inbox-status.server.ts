@@ -8,11 +8,11 @@ import { lentTransactionArgs } from '#/contexts/inbox/application/ports/review-o
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
 import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
 import { reviewId } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { validateTransition } from '#/contexts/inbox/domain/rules'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+import { validateTransition } from '#/contexts/reputation/domain/inbox-rules'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import type {
   BulkReopenItemInput,
   BulkReopenItemResult,
@@ -22,7 +22,7 @@ import type {
 import {
   inboxItemBulkStatusChanged,
   type InboxItemBulkStatusChanged,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import { canForContext } from '#/shared/domain/permissions'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {

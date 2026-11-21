@@ -2,7 +2,7 @@
 // Per architecture: pure functions, the only place where both row and domain shapes are known.
 
 import type { replies } from '#/shared/db/schema/review.schema'
-import type { Reply } from '../../domain/types'
+import type { Reply } from '../../../reputation/domain/review-types'
 import { unbrand, replyId, reviewId, organizationId, userId } from '#/shared/domain/ids'
 
 type ReplyRow = Omit<

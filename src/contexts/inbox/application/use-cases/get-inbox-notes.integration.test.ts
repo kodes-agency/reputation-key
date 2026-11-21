@@ -11,12 +11,17 @@ import {
   reviewId,
   feedbackId,
 } from '#/shared/domain/ids'
-import type { InboxNote, InboxItem, InboxStatus, SourceType } from '../../domain/types'
+import type {
+  InboxNote,
+  InboxItem,
+  InboxStatus,
+  SourceType,
+} from '../../../reputation/domain/inbox-types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
-import { isInboxError } from '../../domain/errors'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import {

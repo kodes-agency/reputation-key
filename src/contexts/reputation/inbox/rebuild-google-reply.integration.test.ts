@@ -37,11 +37,11 @@ import {
   type ReviewId,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { Review } from '#/contexts/review/domain/types'
+import type { Review } from '#/contexts/reputation/domain/review-types'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import { createInboxRepository } from './inbox-repository.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'

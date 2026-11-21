@@ -24,12 +24,12 @@ import type {
   HandlingCycleTransition,
   InboxItem,
   ReviewHandlingCycleHead,
-} from '../domain/types'
+} from '../../reputation/domain/inbox-types'
 import {
   createInitialHandlingCycle,
   type HandlingCycleDecision,
-} from '../domain/handling-cycles'
-import { inboxError } from '../domain/errors'
+} from '../../reputation/domain/handling-cycles'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 import {
   assertReviewResponseTargetAuthorityMatchesCycle,
   insertResponseTargetForHandlingCycle,

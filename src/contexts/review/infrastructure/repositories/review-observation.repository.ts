@@ -29,9 +29,9 @@ import {
   type MaterialReviewComparisonResult,
   type ProviderUpdateTimes,
   type ReviewMaterialComparison,
-} from '../../domain/material-review-revision'
-import { reviewError } from '../../domain/errors'
-import type { Review, StarRating } from '../../domain/types'
+} from '../../../reputation/domain/material-review-revision'
+import { reviewError } from '../../../reputation/domain/review-errors'
+import type { Review, StarRating } from '../../../reputation/domain/review-types'
 import type {
   ReviewProviderObservationOrigin,
   ReviewResponseTargetEligibility,

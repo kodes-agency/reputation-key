@@ -10,7 +10,7 @@ import {
   propertyId,
   reviewId,
 } from '#/shared/domain/ids'
-import type { Review } from '../../domain/types'
+import type { Review } from '../../../reputation/domain/review-types'
 import {
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
   type GoogleReviewApiPort,

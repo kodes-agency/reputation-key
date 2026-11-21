@@ -20,11 +20,11 @@ import {
   reviews,
 } from '#/shared/db/schema/review.schema'
 import { trace } from '#/shared/observability/trace'
-import type { Review } from '../domain/types'
-import { reviewError } from '../domain/errors'
-import { isGuestEdit } from '../domain/material-review-revision'
-import { rowReplyAuthor } from '../domain/reply-author'
-import { takenBackByGuestEdit } from '../domain/reply-command-preconditions'
+import type { Review } from '../../reputation/domain/review-types'
+import { reviewError } from '../../reputation/domain/review-errors'
+import { isGuestEdit } from '../../reputation/domain/material-review-revision'
+import { rowReplyAuthor } from '../../reputation/domain/reply-author'
+import { takenBackByGuestEdit } from '../../reputation/domain/reply-command-preconditions'
 import type {
   ReviewCommandStore,
   ReviewFirstSighting,
@@ -33,7 +33,7 @@ import {
   reviewReplyPublicationCancelled,
   reviewSourceTransitioned,
   reviewUpdated,
-} from '../domain/events'
+} from '../../reputation/domain/review-events'
 import { replyFromRow } from './mappers/reply.mapper'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { organizationId, propertyId, replyId, reviewId } from '#/shared/domain/ids'

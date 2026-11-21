@@ -1,8 +1,8 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
-import type { ResponseTargetKind } from '../../domain/response-target'
-import { inboxError } from '../../domain/errors'
+import type { ResponseTargetKind } from '../../../reputation/domain/response-target'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 import type {
   LowRatingResponseTarget,
   ResponseTargetPolicyStore,

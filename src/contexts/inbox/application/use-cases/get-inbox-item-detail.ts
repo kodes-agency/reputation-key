@@ -10,7 +10,7 @@ import type {
   InboxReviewAnalysis,
 } from '../ports/ai-review-insights.port'
 import type { InboxItemId, ReviewId } from '#/shared/domain/ids'
-import type { InboxItemDetail } from '../../domain/types'
+import type { InboxItemDetail } from '../../../reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type {
@@ -22,7 +22,7 @@ import type {
   ResponseTargetView,
 } from '../ports/response-target.store'
 import { canForContext } from '#/shared/domain/permissions'
-import { inboxError } from '../../domain/errors'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 import {
   assertInboxSourcePropertyAccessible,
   canHandleInboxSource,
@@ -59,7 +59,7 @@ export type GetInboxItemDetailDeps = Readonly<{
  *
  *  `reviewRating` is one of those repo-enriched fields and is inherited from
  *  `InboxItemDetail` rather than re-declared here, so the eligibility rule it
- *  obeys is documented in exactly one place (`domain/types.ts`). What this use
+ *  obeys is documented in exactly one place (`reputation/domain/inbox-types.ts`). What this use
  *  case adds is a wire guarantee: the returned payload always carries the key
  *  with a `number | null` value, never `undefined`, whatever the repository
  *  implementation handed it. The pane reads `detail.reviewRating` as its only

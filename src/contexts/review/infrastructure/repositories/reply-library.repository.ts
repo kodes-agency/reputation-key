@@ -46,7 +46,7 @@ import type {
   ReplyLibraryRef,
   ReplyLibraryScope,
 } from '../../application/dto/reply-library.dto'
-import { reviewError } from '../../domain/errors'
+import { reviewError } from '../../../reputation/domain/review-errors'
 
 type VoiceRow =
   typeof organizationReplyVoices.$inferSelect | typeof propertyReplyVoices.$inferSelect

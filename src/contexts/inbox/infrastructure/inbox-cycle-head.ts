@@ -1,8 +1,8 @@
 import { and, eq, type SQL } from 'drizzle-orm'
 import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import type { HandlingCycleHead } from '../domain/types'
-import { inboxError } from '../domain/errors'
+import type { HandlingCycleHead } from '../../reputation/domain/inbox-types'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 
 type ItemRow = typeof inboxItems.$inferSelect
 

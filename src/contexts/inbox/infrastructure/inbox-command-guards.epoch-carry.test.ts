@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { inboxItemCreated } from '../domain/events'
-import type { InboxItem } from '../domain/types'
+import { inboxItemCreated } from '../../reputation/domain/inbox-events'
+import type { InboxItem } from '../../reputation/domain/inbox-types'
 import type {
   CurrentReviewInboxProjectionPermit,
   ReviewInboxProjectionRevisionPermit,

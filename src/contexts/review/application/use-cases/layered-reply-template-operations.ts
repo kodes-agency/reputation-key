@@ -39,8 +39,8 @@ import type {
 import type { ReplyLibraryRepository } from '../ports/reply-library.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import { resolveReplyLibraryTemplates } from '../reply-library-resolver'
-import type { Review } from '../../domain/types'
-import { reviewError } from '../../domain/errors'
+import type { Review } from '../../../reputation/domain/review-types'
+import { reviewError } from '../../../reputation/domain/review-errors'
 import type { DraftReply } from './reply-operations'
 import { requireAccessibleReview, requireReplyManager } from './reply-access'
 

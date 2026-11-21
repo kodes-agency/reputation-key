@@ -7,7 +7,7 @@ import type {
   InboxItemDetail,
   InboxStatus,
   SourceType,
-} from '../../domain/types'
+} from '../../../reputation/domain/inbox-types'
 import type {
   InboxItemId,
   OrganizationId,

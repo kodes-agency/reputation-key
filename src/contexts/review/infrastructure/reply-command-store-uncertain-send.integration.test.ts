@@ -28,13 +28,13 @@ import {
   replyId,
   userId,
 } from '#/shared/domain/ids'
-import type { Reply, Review } from '../domain/types'
+import type { Reply, Review } from '../../reputation/domain/review-types'
 import {
   reviewReplyApproved,
   reviewReplyPublicationRequested,
   reviewReplyPublishFailed,
-} from '../domain/events'
-import { AMBIGUOUS_RECONCILE_DELAY_MS } from '../domain/reply-publication-workflow'
+} from '../../reputation/domain/review-events'
+import { AMBIGUOUS_RECONCILE_DELAY_MS } from '../../reputation/domain/reply-publication-workflow'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAtomicReplyCommandStore } from './reply-command-store'

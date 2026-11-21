@@ -1,5 +1,28 @@
 # Reputation — Context
 
+## Domain
+
+`domain/` holds the pure types, rules, constructors, events and errors of Review
+and Inbox. They are one bounded context (rule 7). It imports no I/O, no framework
+and no clock.
+
+Where both had a module for the same job, the name says whose it is:
+`review-types.ts`/`inbox-types.ts`, `review-errors.ts`/`inbox-errors.ts`,
+`review-rules.ts`/`inbox-rules.ts` and `review-events.ts`/`inbox-events.ts`.
+Inbox's constructors and manager priority are `inbox-constructors.ts` and
+`inbox-priority.ts`.
+
+Event modules end in `-events.ts`: they are the only domain modules
+`src/shared/events` may import.
+
+The Reply workflow's hand-written oracle is `reply-workflow-oracle.test-fixtures.ts`.
+`reply-workflow.property.test.ts` here and Review's
+`infrastructure/reply-workflow.model.integration.test.ts` use it.
+
+Review's and Inbox's layer code imports these files directly. Other areas reach
+them only through `review/application/public-api.ts` and
+`inbox/application/public-api.ts`, and feature screens may not import them.
+
 ## Feature layout
 
 `inbox/ui/inbox-list.tsx` owns the Inbox list panel, its loading/error/empty
@@ -35,11 +58,10 @@ their area maps. Server functions remain at their existing `server/` paths.
 Settings: the target, policy, analytics and reminder-release stores (`*.store.server.ts`),
 the reminder release decision and tick (`reminder-release.server.ts`,
 `release-reminders.server.ts`), and its scheduler job. The Organization settings card and analytics summary stay
-in `response-targets/ui/`. The target rules themselves stay in
-`inbox/domain/response-target.ts`, which Inbox's domain and ports import; moving
-them under Reputation would make Inbox's domain depend on Reputation. These stores
-still read Inbox's ports and errors, and Inbox's build wires the stores and the
-job, so the two contexts depend on each other here until Inbox's ports move.
+in `response-targets/ui/`. The target rules themselves are in
+`domain/response-target.ts`. These stores still read Inbox's ports, and Inbox's
+build wires the stores and the job, so the two contexts depend on each other here
+until Inbox's ports move.
 The server files sit under `inbox/` so `inbox/*.server.ts` commands can use them
 without a cross-feature import; the UI sits at the feature level because a deeper
 `inbox/response-targets/ui/` is not classified by lint.

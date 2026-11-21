@@ -16,13 +16,13 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { decideCurrentManagerPropertyAuthorities } from '#/contexts/identity/members/member-property-authority.server'
-import type { InboxItem } from '../domain/types'
+import type { InboxItem } from '../../reputation/domain/inbox-types'
 import {
   inboxItemAssigned,
   inboxItemBulkStatusChanged,
   inboxNoteAdded,
-} from '../domain/events'
-import { isInboxError } from '../domain/errors'
+} from '../../reputation/domain/inbox-events'
+import { isInboxError } from '../../reputation/domain/inbox-errors'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,

@@ -27,7 +27,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deriveReviewProviderSubject } from '#/shared/review-provider-subject-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { GoogleReview } from '../domain/types'
+import type { GoogleReview } from '../../reputation/domain/review-types'
 import type {
   GoogleReviewApiPort,
   GoogleReviewPage,

@@ -16,7 +16,7 @@ import {
   MAX_INBOX_ACTOR_DIRECTORY_BATCH,
   type InboxActorDirectory,
 } from '../../application/ports/inbox-actor-directory.port'
-import { inboxError } from '../../domain/errors'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 
 export const createInboxActorDirectoryAdapter = (db: Database): InboxActorDirectory =>
   Object.freeze({

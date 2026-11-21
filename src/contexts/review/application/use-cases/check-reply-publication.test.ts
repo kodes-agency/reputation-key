@@ -21,8 +21,8 @@ import {
   userId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { Reply, Review } from '../../domain/types'
-import { reviewError } from '../../domain/errors'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
+import { reviewError } from '../../../reputation/domain/review-errors'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'

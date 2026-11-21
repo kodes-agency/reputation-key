@@ -16,15 +16,15 @@ import {
 } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
-import type { Reply, Review } from '../domain/types'
-import { compareObservedGoogleReply } from '../domain/google-reply-observation'
+import type { Reply, Review } from '../../reputation/domain/review-types'
+import { compareObservedGoogleReply } from '../../reputation/domain/google-reply-observation'
 import {
   reviewReplyApproved,
   reviewReplyPublicationCancelled,
   reviewReplyPublicationRequested,
   reviewReplySubmitted,
   reviewUpdated,
-} from '../domain/events'
+} from '../../reputation/domain/review-events'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAtomicReplyCommandStore } from './reply-command-store'

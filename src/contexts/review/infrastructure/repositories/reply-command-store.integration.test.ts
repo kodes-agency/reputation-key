@@ -25,12 +25,12 @@ import {
   replyId,
   userId,
 } from '#/shared/domain/ids'
-import type { Reply, Review } from '../../domain/types'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
 import {
   reviewReplyApproved,
   reviewReplyPublicationRequested,
   reviewReplySubmitted,
-} from '../../domain/events'
+} from '../../../reputation/domain/review-events'
 import { createReviewRepository } from './review.repository'
 import { createReplyRepository } from './reply.repository'
 import { createAtomicReplyCommandStore } from '../reply-command-store'

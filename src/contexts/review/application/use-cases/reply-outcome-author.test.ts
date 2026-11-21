@@ -17,7 +17,7 @@ import {
   userId,
   type UserId,
 } from '#/shared/domain/ids'
-import type { Reply, Review } from '../../domain/types'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
 import type { ConditionalReplyUpdate } from '../ports/reply.repository'
 import {
   approveReply,

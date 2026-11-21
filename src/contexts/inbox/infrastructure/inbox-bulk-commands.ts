@@ -1,17 +1,17 @@
 import { inboxAssignmentHistory } from '#/shared/db/schema/inbox.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { userId, type UserId } from '#/shared/domain/ids'
-import type { InboxItem } from '../domain/types'
-import { inboxError } from '../domain/errors'
+import type { InboxItem } from '../../reputation/domain/inbox-types'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 import {
   inboxItemAssigned,
   inboxItemUnassigned,
   type InboxBulkReopenedCycle,
-} from '../domain/events'
-import { createNextHandlingCycle } from '../domain/handling-cycles'
+} from '../../reputation/domain/inbox-events'
+import { createNextHandlingCycle } from '../../reputation/domain/handling-cycles'
 import type { BulkReopenGovernance } from '../application/ports/inbox-command-store.port'
 import type { ReviewCycleTargetAnchor } from '../application/ports/review-response-target-authority.port'
-import type { InboxItemBulkStatusChanged } from '../domain/events'
+import type { InboxItemBulkStatusChanged } from '../../reputation/domain/inbox-events'
 import {
   bulkAssignmentReason,
   handlingCycleHeadFromRow,

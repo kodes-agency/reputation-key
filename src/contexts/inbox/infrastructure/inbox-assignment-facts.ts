@@ -1,7 +1,10 @@
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
-import { inboxError } from '../domain/errors'
-import type { InboxItemAssigned, InboxItemUnassigned } from '../domain/events'
-import type { InboxItem } from '../domain/types'
+import { inboxError } from '../../reputation/domain/inbox-errors'
+import type {
+  InboxItemAssigned,
+  InboxItemUnassigned,
+} from '../../reputation/domain/inbox-events'
+import type { InboxItem } from '../../reputation/domain/inbox-types'
 import { readCurrentCycleNumber } from './inbox-escalation-history'
 
 /** The CAS result, never the caller's clock or proposed revision, orders assignments. */

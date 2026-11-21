@@ -13,7 +13,7 @@ import {
   type ReplyLibraryRef,
 } from '../application/dto/reply-library.dto'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { isReviewError } from '../domain/errors'
+import { isReviewError } from '../../reputation/domain/review-errors'
 import { reviewErrorStatus } from './reply-read'
 
 export const listReplyTemplatesFn = createServerFn({ method: 'POST' })

@@ -44,12 +44,16 @@ import type { Database, Tx } from '#/shared/db'
 import { reviews, reviewProviderSubjects } from '#/shared/db/schema/review.schema'
 import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
-import type { Review, ReviewPlatform, StarRating } from '../../domain/types'
+import type {
+  Review,
+  ReviewPlatform,
+  StarRating,
+} from '../../../reputation/domain/review-types'
 import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { reviewFromRows } from '../mappers/review.mapper'
-import { reviewError } from '../../domain/errors'
+import { reviewError } from '../../../reputation/domain/review-errors'
 import { escapeLikePattern } from '#/shared/db/like-pattern'
 import { trace } from '#/shared/observability/trace'
 import type {

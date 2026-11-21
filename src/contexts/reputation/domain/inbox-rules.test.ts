@@ -6,9 +6,9 @@ import {
   isAnsweringGoogleReply,
   validateTransition,
   timestampFieldsForStatus,
-} from './rules'
-import { isInboxError } from './errors'
-import type { InboxStatus } from './types'
+} from './inbox-rules'
+import { isInboxError } from './inbox-errors'
+import type { InboxStatus } from './inbox-types'
 
 // ─── canTransition ──────────────────────────────────────────────────
 

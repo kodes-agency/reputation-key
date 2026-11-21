@@ -16,7 +16,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { AiReviewInsightsPort } from '#/contexts/inbox/application/ports/ai-review-insights.port'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,

@@ -8,7 +8,7 @@ import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxItemId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { inboxError } from '../../domain/errors'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 import {
   isInboxSourcePropertyWithinScopes,
   resolveInboxSourceScopes,

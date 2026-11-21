@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import type { HandlingCycleHead, InboxItem } from '../domain/types'
+import type { HandlingCycleHead, InboxItem } from '../../reputation/domain/inbox-types'
 import {
   mirrorCycleHead,
   persistedHeadFromItemRow,

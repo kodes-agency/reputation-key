@@ -16,12 +16,12 @@ import {
   settleSupersededDeliveryRow,
 } from '#/contexts/inbox/infrastructure/consumer-receipt-rows'
 import { trace } from '#/shared/observability/trace'
-import { inboxError } from '#/contexts/inbox/domain/errors'
-import { isAnsweringGoogleReply } from '#/contexts/inbox/domain/rules'
-import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
+import { isAnsweringGoogleReply } from '#/contexts/reputation/domain/inbox-rules'
+import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
 import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
 import { transitionInsert } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { closeHandlingCycle } from '#/contexts/inbox/domain/handling-cycles'
+import { closeHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
 import type {
   HandlingCycleCreationAnchor,
   InboxCommandStore,

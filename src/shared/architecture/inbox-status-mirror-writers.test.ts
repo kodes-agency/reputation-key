@@ -53,8 +53,13 @@ function walk(directory: string): readonly string[] {
 }
 
 const REPUTATION_INBOX_ROOT = join(REPO_SRC, 'contexts', 'reputation', 'inbox')
+const REPUTATION_DOMAIN_ROOT = join(REPO_SRC, 'contexts', 'reputation', 'domain')
 
-const productionFiles = [...walk(INBOX_ROOT), ...walk(REPUTATION_INBOX_ROOT)]
+const productionFiles = [
+  ...walk(INBOX_ROOT),
+  ...walk(REPUTATION_INBOX_ROOT),
+  ...walk(REPUTATION_DOMAIN_ROOT),
+]
 
 const relativeToSrc = (absolute: string): string =>
   relative(REPO_SRC, absolute).split(sep).join('/')
@@ -135,7 +140,7 @@ describe('inbox_items carries the Handling Cycle facts its readers resolve from'
       return (
         path.startsWith('contexts/inbox/application/') ||
         path.startsWith('contexts/inbox/server/') ||
-        path.startsWith('contexts/inbox/domain/')
+        path.startsWith('contexts/reputation/domain/')
       )
     })
     const offenders = layered

@@ -10,7 +10,7 @@ import {
 } from '#/shared/domain/google-provider-failure'
 import type { ReviewProviderSnapshotFailureCode } from '../../application/ports/review-provider-snapshot.repository'
 import { historyImportFailureReason } from '../../application/historical-import-outcome'
-import { reviewPropertyHistoryImportFinished } from '../../domain/events'
+import { reviewPropertyHistoryImportFinished } from '../../../reputation/domain/review-events'
 
 type RunRow = typeof reviewProviderSnapshotRuns.$inferSelect
 

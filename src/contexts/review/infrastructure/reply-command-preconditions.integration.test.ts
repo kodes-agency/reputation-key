@@ -16,7 +16,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { replyQueueStage } from '#/shared/domain/reply-queue-stage'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
-import type { Reply } from '../domain/types'
+import type { Reply } from '../../reputation/domain/review-types'
 import { createReplyLibraryRepository } from './repositories/reply-library.repository'
 import {
   reviewReplyApproved,
@@ -24,8 +24,8 @@ import {
   reviewReplyPublicationRequested,
   reviewReplyPublished,
   reviewReplyPublishFailed,
-} from '../domain/events'
-import { PUBLICATION_RECOVERY_RECONCILE_DELAY_MS } from '../domain/reply-publication-workflow'
+} from '../../reputation/domain/review-events'
+import { PUBLICATION_RECOVERY_RECONCILE_DELAY_MS } from '../../reputation/domain/reply-publication-workflow'
 import {
   createReplyWorkflowHarness,
   WORKFLOW_HOOK_TIMEOUT_MS,

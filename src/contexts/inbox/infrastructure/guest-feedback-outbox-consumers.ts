@@ -4,8 +4,11 @@ import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/o
 import type { FeedbackLookupPort } from '../application/ports/feedback-lookup.port'
 import type { InboxCommandStore } from '../application/ports/inbox-command-store.port'
 import type { InboxRepository } from '../application/ports/inbox.repository'
-import { createInboxItem as buildInboxItem } from '../domain/constructors'
-import { inboxItemCreated, inboxItemStatusChanged } from '../domain/events'
+import { createInboxItem as buildInboxItem } from '../../reputation/domain/inbox-constructors'
+import {
+  inboxItemCreated,
+  inboxItemStatusChanged,
+} from '../../reputation/domain/inbox-events'
 
 export type GuestFeedbackConsumerDeps = Readonly<{
   commandStore: InboxCommandStore

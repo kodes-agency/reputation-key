@@ -13,7 +13,7 @@ import { getInboxQueueCounts } from './get-inbox-queue-counts'
 import { getEnv } from '#/shared/config/env'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { ReplyLookupPort } from '../ports/reply-lookup.port'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   inboxItemId,

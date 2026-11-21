@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
-import { defaultReviewLifecycle } from './types'
+import { defaultReviewLifecycle } from './review-types'
 
 const REVIEWED_AT = new Date('2026-08-01T09:00:00.000Z')
 const FIRST_FETCH = new Date('2026-08-20T10:00:00.000Z')

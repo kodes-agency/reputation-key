@@ -33,7 +33,7 @@ import type { InboxHistoryRepository } from '#/contexts/inbox/application/ports/
 import type { InboxActorDirectory } from '#/contexts/inbox/application/ports/inbox-actor-directory.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { InboxItem, InboxNote } from '#/contexts/inbox/domain/types'
+import type { InboxItem, InboxNote } from '#/contexts/reputation/domain/inbox-types'
 
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const USER = userId('user-00000000-0000-0000-0000-000000000001')

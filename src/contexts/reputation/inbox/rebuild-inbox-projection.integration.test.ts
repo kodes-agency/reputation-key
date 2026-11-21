@@ -42,7 +42,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 
 const NOW = new Date('2026-06-15T12:00:00Z')
 const SCOPE = 'rebuild-inbox-projection'

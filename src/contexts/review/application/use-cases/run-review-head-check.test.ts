@@ -7,7 +7,7 @@ import type {
   ReviewHeadBaseline,
   ReviewHeadCheckRepository,
 } from '../ports/review-head-check.repository'
-import type { HeadStoredCopy } from '../../domain/head-check'
+import type { HeadStoredCopy } from '../../../reputation/domain/head-check'
 import type { GoogleReviewRead } from '../ports/google-review-api.port'
 import { createRunReviewHeadCheck } from './run-review-head-check'
 

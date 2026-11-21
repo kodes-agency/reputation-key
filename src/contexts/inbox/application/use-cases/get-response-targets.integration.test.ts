@@ -23,7 +23,7 @@ import {
 import { createResponseTargetStore } from '../../../reputation/inbox/response-targets/store.server'
 import { createResponseTargetPolicyStore } from '../../../reputation/inbox/response-targets/policy.store.server'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import {
   getGoogleReviewTargetAnalytics,
   getInboxResponseTarget,

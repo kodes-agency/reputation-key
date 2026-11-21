@@ -2,8 +2,8 @@
 // the reply workflow harness (reply-workflow-harness.ts).
 
 import { sha256Hex } from '#/shared/domain/sha256'
-import type { Review } from '../../domain/types'
-import { reviewUpdated } from '../../domain/events'
+import type { Review } from '../../../reputation/domain/review-types'
+import { reviewUpdated } from '../../../reputation/domain/review-events'
 import type { ReviewCommandStore } from '../../application/ports/review-command-store.port'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 

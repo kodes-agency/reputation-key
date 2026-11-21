@@ -22,10 +22,10 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { isInboxError } from '../../domain/errors'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 
 const NOW = new Date('2026-08-27T10:00:00.000Z')
 const ORG = organizationId('org-bulk-assign-inbox-items-test')

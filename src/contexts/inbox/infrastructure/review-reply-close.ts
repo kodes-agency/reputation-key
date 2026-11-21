@@ -13,10 +13,10 @@ import {
 } from '#/shared/db/schema/inbox.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import type { Tx } from '#/shared/outbox/commit'
-import type { InboxItem } from '../domain/types'
-import { inboxError } from '../domain/errors'
-import { closeHandlingCycle } from '../domain/handling-cycles'
-import { isAnsweringGoogleReply } from '../domain/rules'
+import type { InboxItem } from '../../reputation/domain/inbox-types'
+import { inboxError } from '../../reputation/domain/inbox-errors'
+import { closeHandlingCycle } from '../../reputation/domain/handling-cycles'
+import { isAnsweringGoogleReply } from '../../reputation/domain/inbox-rules'
 import type {
   HandlingCycleCreationAnchor,
   ReviewCycleCreationAnchor,

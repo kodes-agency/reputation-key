@@ -111,7 +111,7 @@ const ADA_ID = 'user-ada-1111'
 type HistoryUserId = NonNullable<InboxHistoryEntry['actorUserId']>
 type OutcomeFact = NonNullable<FeedbackHandlingState['currentOutcome']>
 /**
- * `HandlingCycleCloseReason` lives in `inbox/domain`, which components may not
+ * `HandlingCycleCloseReason` lives in `reputation/domain`, which components may not
  * import, and `application/public-api.ts` does not re-export it. Narrowing the
  * state's own field is the one legal spelling, and the same one
  * `feedback-handling-body.tsx` uses for its sentence map.

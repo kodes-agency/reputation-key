@@ -28,12 +28,12 @@ import type { PublishReplyJobData } from '../../application/ports/reply-queue.po
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { GoogleReplyObservationStore } from '../../application/ports/google-reply-observation-store.port'
 import type { ReadReviewBeforePublish } from '../../application/use-cases/read-review-before-publish'
-import type { Reply, Review } from '../../domain/types'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
 import {
   classifyPublicationFailure,
   publicationFailureCause,
   publicationFailureEvidence,
-} from '../../domain/reply-publication-workflow'
+} from '../../../reputation/domain/reply-publication-workflow'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
   buildPublishFailedEvent,

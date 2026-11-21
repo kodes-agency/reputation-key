@@ -25,7 +25,7 @@ import type {
   CancelPublicationsForConnection,
   CancelPublicationsForProperty,
 } from '../application/use-cases/cancel-publications'
-import { buildIdempotencyKey } from '../domain/reply-publication-workflow'
+import { buildIdempotencyKey } from '../../reputation/domain/reply-publication-workflow'
 
 const EVENT_TYPE = 'review.reply.publication_requested' as const
 export const ON_REPLY_PUBLICATION_REQUESTED_CONSUMER =

@@ -5,9 +5,12 @@ import {
   mapReplyLanguageMetadata,
   parseCanonicalReplyLanguageTag,
 } from '#/shared/reply-language-catalogue'
-import type { Reply, Review } from '../domain/types'
-import { reviewError } from '../domain/errors'
-import { assertReplySlotsFilled, replyTextProblemMessage } from '../domain/rules'
+import type { Reply, Review } from '../../reputation/domain/review-types'
+import { reviewError } from '../../reputation/domain/review-errors'
+import {
+  assertReplySlotsFilled,
+  replyTextProblemMessage,
+} from '../../reputation/domain/review-rules'
 import type { ReplyLibraryRepository } from './ports/reply-library.repository'
 
 /** The same byte and character rules the Google reply route enforces. */

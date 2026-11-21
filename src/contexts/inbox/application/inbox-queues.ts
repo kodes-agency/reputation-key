@@ -1,6 +1,6 @@
 import type { InboxFilters } from './ports/inbox.repository'
 import type { ReviewId, UserId } from '#/shared/domain/ids'
-import { inboxError } from '../domain/errors'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 import {
   replyQueueStage,
   type ReplyQueueStage as InboxReplyStage,

@@ -75,7 +75,7 @@ export type AddSyncJobOptions = Readonly<{
    *    cursor, so an undelayed continuation repeats the denied call at queue
    *    speed;
    *  - the discover-new-reviews sweep, which staggers the starts of one sweep's
-   *    jobs over a bounded window (domain/discovery-spread.ts).
+   *    jobs over a bounded window (reputation/domain/discovery-spread.ts).
    * Push, import and user-initiated syncs enqueue with no delay.
    */
   delayMs?: number
@@ -106,7 +106,7 @@ export type ReviewHeadCheckQueuePort = Readonly<{
   addHeadCheckJob(
     data: ReviewHeadCheckJobData,
     options: Readonly<{
-      /** One per Property and time bucket (domain/head-check.ts `headCheckJobId`). */
+      /** One per Property and time bucket (reputation/domain/head-check.ts `headCheckJobId`). */
       jobId: string
       /** The sweep's stable per-Property start delay, so a sweep's heads do not all start at once. */
       delayMs?: number

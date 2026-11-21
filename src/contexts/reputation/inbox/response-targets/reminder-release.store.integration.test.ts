@@ -13,7 +13,7 @@ import {
   propertyId,
   reviewId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { GoogleReplyHead } from '#/contexts/inbox/application/ports/reply-lookup.port'
 import type { ReminderSlotKey } from '#/contexts/inbox/application/ports/response-target.store'
 import { releaseDueResponseTargetReminders } from './release-reminders.server'

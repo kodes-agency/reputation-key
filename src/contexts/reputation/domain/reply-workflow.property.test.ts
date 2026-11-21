@@ -1,6 +1,6 @@
 // Model tests for the reply workflow's domain rules (fast-check).
 //
-// The oracle is `__fixtures__/reply-workflow-oracle.ts`: the workflow written
+// The oracle is `reply-workflow-oracle.test-fixtures.ts`: the workflow written
 // out by hand from the Review CONTEXT, importing nothing from the production
 // tables. These tests hold the three production authorities to it:
 //
@@ -37,14 +37,14 @@ import {
   type ReplyCommandSubject,
 } from './reply-command-preconditions'
 import { aiTextRuleOf } from './reply-ai-text'
-import { canTransitionReply } from './rules'
+import { canTransitionReply } from './review-rules'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import {
   nextPublicationState,
   type PersistedPublicationState,
   type PublicationStateEvent,
 } from './reply-publication-workflow'
-import type { ReplyStatus } from './types'
+import type { ReplyStatus } from './review-types'
 import {
   afterAiDraftPurge,
   afterGuestEdit,
@@ -67,7 +67,7 @@ import {
   type OracleState,
   type PublicationEvent,
   type ReplyOnScreen,
-} from './__fixtures__/reply-workflow-oracle'
+} from './reply-workflow-oracle.test-fixtures'
 
 const STATUSES: ReadonlyArray<ReplyStatus> = [
   'draft',

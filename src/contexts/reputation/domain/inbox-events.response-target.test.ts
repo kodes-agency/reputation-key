@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { inboxResponseTargetPolicyChanged } from './events'
+import { inboxResponseTargetPolicyChanged } from './inbox-events'
 
 const ORGANIZATION = organizationId('org-response-target-event')
 const PROPERTY = propertyId('7b000000-0000-4000-8000-000000000001')

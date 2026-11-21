@@ -45,7 +45,7 @@ import {
   reviews,
 } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
-import type { Reply } from '../../domain/types'
+import type { Reply } from '../../../reputation/domain/review-types'
 import { digestRenderedReply, signAiReplyProvenance } from '#/shared/ai-reply-provenance'
 import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/ai-reply-template-catalogue'
 import {

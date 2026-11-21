@@ -1,8 +1,14 @@
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReviewId } from '#/shared/domain/ids'
-import { defaultReviewLifecycle, type Review } from '../../domain/types'
-import { reviewCreated, reviewUpdated } from '../../domain/events'
-import { calculateExpiresAt, computeReviewContentHash } from '../../domain/rules'
+import {
+  defaultReviewLifecycle,
+  type Review,
+} from '../../../reputation/domain/review-types'
+import { reviewCreated, reviewUpdated } from '../../../reputation/domain/review-events'
+import {
+  calculateExpiresAt,
+  computeReviewContentHash,
+} from '../../../reputation/domain/review-rules'
 import type {
   ReviewCommandStore,
   ReviewFirstSighting,

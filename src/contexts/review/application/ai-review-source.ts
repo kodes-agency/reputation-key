@@ -8,7 +8,7 @@ import {
   canonicalizeRawAiReviewSourcePreviousRevision,
   type CanonicalAiReviewSource,
 } from '#/shared/ai-review-source-contract'
-import type { StarRating } from '../domain/types'
+import type { StarRating } from '../../reputation/domain/review-types'
 import type { ReviewRepository } from './ports/review.repository'
 import type { AiReviewSentence, AiReviewSourcePort } from './ports/ai-review-source.port'
 

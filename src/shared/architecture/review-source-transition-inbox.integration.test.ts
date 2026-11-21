@@ -5,7 +5,7 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { reviewSourceTransitioned } from '#/contexts/review/domain/events'
+import { reviewSourceTransitioned } from '#/contexts/reputation/domain/review-events'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
@@ -14,7 +14,7 @@ import {
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { handleInboxReviewSourceTransitioned } from '#/contexts/reputation/inbox/outbox-consumers.server'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
 import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'

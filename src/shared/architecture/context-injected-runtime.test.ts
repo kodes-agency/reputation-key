@@ -127,9 +127,10 @@ describe('injected runtime in Inbox, Integration, Portal, Reporting and Review',
   })
 
   it('keeps Review production code on injected time and identifiers', () => {
-    const files = productionFiles('src/contexts/review').filter((file) =>
-      file.endsWith('.ts'),
-    )
+    const files = [
+      ...productionFiles('src/contexts/review'),
+      ...productionFiles('src/contexts/reputation/domain'),
+    ].filter((file) => file.endsWith('.ts'))
     expect(offences(files, REVIEW_BANS)).toEqual([])
   })
 

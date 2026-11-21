@@ -8,7 +8,7 @@ import {
 } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { InboxViewRepository } from '../ports/inbox-view.repository'
-import { isInboxError } from '../../domain/errors'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 
 const NOW = new Date('2026-08-27T12:00:10.000Z')
 const CUTOFF = new Date('2026-08-27T12:00:00.000Z')

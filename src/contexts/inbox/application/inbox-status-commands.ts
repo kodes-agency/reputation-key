@@ -1,6 +1,10 @@
 import type { InboxItemId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { InboxItem, InboxStatus, ManualReopenReason } from '../domain/types'
+import type {
+  InboxItem,
+  InboxStatus,
+  ManualReopenReason,
+} from '../../reputation/domain/inbox-types'
 
 export type UpdateInboxStatusInput = Readonly<{
   inboxItemId: InboxItemId

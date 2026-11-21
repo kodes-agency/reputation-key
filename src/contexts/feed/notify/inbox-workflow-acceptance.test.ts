@@ -13,7 +13,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   inboxHandlingCycleReopened,
   inboxItemAssigned,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import {
   currentRouteDeps,
   deliveredEnvelope,

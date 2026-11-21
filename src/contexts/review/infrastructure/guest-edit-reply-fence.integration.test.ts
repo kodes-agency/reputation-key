@@ -19,7 +19,7 @@ import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { Reply } from '../domain/types'
+import type { Reply } from '../../reputation/domain/review-types'
 import {
   createReplyWorkflowHarness,
   WORKFLOW_HOOK_TIMEOUT_MS,

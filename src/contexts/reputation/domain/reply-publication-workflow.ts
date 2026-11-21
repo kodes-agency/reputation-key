@@ -1,7 +1,7 @@
 // Reply publication workflow: the persisted publication state on replies, its
 // transitions, reconcile timing, and provider-failure classification.
 
-import { reviewError } from './errors'
+import { reviewError } from './review-errors'
 
 /**
  * Get the idempotency key for a reply publication.

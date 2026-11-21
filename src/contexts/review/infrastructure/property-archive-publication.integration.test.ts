@@ -39,8 +39,11 @@ import {
 } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { propertyArchived } from '#/contexts/property/domain/events'
-import type { Reply, Review } from '../domain/types'
-import { reviewReplyApproved, reviewReplyPublicationRequested } from '../domain/events'
+import type { Reply, Review } from '../../reputation/domain/review-types'
+import {
+  reviewReplyApproved,
+  reviewReplyPublicationRequested,
+} from '../../reputation/domain/review-events'
 import { buildReviewContext } from '../build'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReplyRepository } from './repositories/reply.repository'

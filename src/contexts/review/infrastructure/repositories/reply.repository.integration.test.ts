@@ -19,7 +19,7 @@ import {
   replyId,
   userId,
 } from '#/shared/domain/ids'
-import type { Review, Reply } from '../../domain/types'
+import type { Review, Reply } from '../../../reputation/domain/review-types'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -1086,7 +1086,7 @@ describe.sequential('replyRepository (integration)', () => {
   })
 
   // The draft writes carry their command's precondition as the guard of the
-  // SQL statement (domain/reply-command-preconditions.ts), so a caller that
+  // SQL statement (reputation/domain/reply-command-preconditions.ts), so a caller that
   // skipped the use case, or read the reply before it moved, changes nothing.
   const internalDraft = (overrides: Parameters<typeof makeReply>[0] = {}) =>
     makeReply({

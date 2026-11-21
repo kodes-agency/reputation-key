@@ -3,7 +3,7 @@ import {
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
   inboxItemAssigned,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import {
   portalHealthChanged,
   portalResponsibleManagersUpdated,
@@ -13,7 +13,7 @@ import {
   goalMonthlyResultClosed,
   goalMonthlyResultRevised,
 } from '#/contexts/reporting/domain/goal-events'
-import { reviewPropertyHistoryImportFinished } from '#/contexts/review/domain/events'
+import { reviewPropertyHistoryImportFinished } from '#/contexts/reputation/domain/review-events'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,

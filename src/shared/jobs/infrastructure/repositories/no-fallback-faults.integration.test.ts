@@ -82,7 +82,7 @@ import {
   userId,
   googleConnectionId,
 } from '#/shared/domain/ids'
-import type { Reply, Review } from '#/contexts/review/domain/types'
+import type { Reply, Review } from '#/contexts/reputation/domain/review-types'
 import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PublishReplyJobData } from '#/contexts/review/application/ports/reply-queue.port'
@@ -95,8 +95,8 @@ import { createReplyPreReadForTests } from '#/contexts/review/infrastructure/tes
 import {
   reviewReplyApproved,
   reviewReplyPublicationRequested,
-} from '#/contexts/review/domain/events'
-import { AMBIGUOUS_RECONCILE_DELAY_MS } from '#/contexts/review/domain/reply-publication-workflow'
+} from '#/contexts/reputation/domain/review-events'
+import { AMBIGUOUS_RECONCILE_DELAY_MS } from '#/contexts/reputation/domain/reply-publication-workflow'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 

@@ -4,14 +4,17 @@
 
 import type { InboxRepository, InboxSourceScope } from './ports/inbox.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { InboxItem } from '../domain/types'
-import type { SourceType } from '../domain/types'
+import type { InboxItem } from '../../reputation/domain/inbox-types'
+import type { SourceType } from '../../reputation/domain/inbox-types'
 import type { InboxItemId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext, type Permission } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
-import { inboxError, REVISION_CONFLICT_MESSAGE } from '../domain/errors'
+import {
+  inboxError,
+  REVISION_CONFLICT_MESSAGE,
+} from '../../reputation/domain/inbox-errors'
 
 const SOURCE_READ_PERMISSION = {
   review: 'review.read',

@@ -7,7 +7,7 @@ import {
   classifyPublicationFailure,
   publicationFailureCause,
   publicationFailureEvidence,
-} from '../../domain/reply-publication-workflow'
+} from '../../../reputation/domain/reply-publication-workflow'
 import { googleReviewApiNotConfigured } from '../ports/google-review-api.port'
 import type { GoogleReplyPublicationRequest } from '../ports/google-review-api.port'
 import { publishReplyToGoogle } from './publish-reply-to-google'

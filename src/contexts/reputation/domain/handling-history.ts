@@ -22,7 +22,7 @@ import type {
   HandlingCycleTransitionKind,
   InboxPriority,
   ManualReopenReason,
-} from './types'
+} from './inbox-types'
 
 export const INBOX_HISTORY_KINDS = [
   'cycle_opened',

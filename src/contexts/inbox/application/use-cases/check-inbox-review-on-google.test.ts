@@ -12,8 +12,8 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
-import { isInboxError } from '../../domain/errors'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type {
   GoogleReviewCheckOutcome,

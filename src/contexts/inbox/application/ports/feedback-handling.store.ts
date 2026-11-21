@@ -1,9 +1,12 @@
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
-import type { HandlingCycleCloseReason, InboxItem } from '../../domain/types'
+import type {
+  HandlingCycleCloseReason,
+  InboxItem,
+} from '../../../reputation/domain/inbox-types'
 import type {
   FeedbackHandlingOutcomeFact,
   PrivateFeedbackHandlingOutcome,
-} from '../../domain/feedback-handling'
+} from '../../../reputation/domain/feedback-handling'
 
 export type FeedbackHandlingExpectation = Readonly<{
   commandRevision: number

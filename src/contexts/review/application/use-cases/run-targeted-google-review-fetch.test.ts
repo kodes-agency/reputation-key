@@ -10,7 +10,7 @@ import type {
   PropertyId,
   ReviewId,
 } from '#/shared/domain/ids'
-import type { GoogleReview } from '../../domain/types'
+import type { GoogleReview } from '../../../reputation/domain/review-types'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectSightings } from '../ports/review-provider-subject-sightings.port'

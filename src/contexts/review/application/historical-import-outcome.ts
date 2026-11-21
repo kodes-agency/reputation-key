@@ -6,7 +6,7 @@
 // the answer that changes what they do next, so the codes collapse to the
 // closed set the durable fact carries (ADR 0046, amended 2026-09-24).
 
-import type { ReviewHistoryImportFailureReason } from '../domain/events'
+import type { ReviewHistoryImportFailureReason } from '../../reputation/domain/review-events'
 import type { ReviewProviderSnapshotFailureCode } from './ports/review-provider-snapshot.repository'
 
 /**

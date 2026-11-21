@@ -1,4 +1,4 @@
-import { classifyPublicationFailure } from '#/contexts/review/domain/reply-publication-workflow'
+import { classifyPublicationFailure } from '#/contexts/reputation/domain/reply-publication-workflow'
 import { publishReplyToGoogle } from '#/contexts/review/application/use-cases/publish-reply-to-google'
 import { describe, expect, it, vi, type Mock } from 'vitest'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'

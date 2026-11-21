@@ -3,17 +3,17 @@
 // with, and the content-free way a failure is logged.
 
 import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
-import type { Reply, Review } from '../../domain/types'
-import { replyAuthor } from '../../domain/reply-author'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
+import { replyAuthor } from '../../../reputation/domain/reply-author'
 import {
   publicationFailureEvidence,
   type PublicationFailureCause,
-} from '../../domain/reply-publication-workflow'
+} from '../../../reputation/domain/reply-publication-workflow'
 import {
   reviewReplyPublicationCancelled,
   reviewReplyPublishFailed,
   type ReplyPublishFailureOutcome,
-} from '../../domain/events'
+} from '../../../reputation/domain/review-events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 /** BullMQ's execution budget for one publish (job-definitions.ts). */

@@ -1,6 +1,9 @@
 import type { Tx } from '#/shared/outbox/commit'
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
-import type { HandlingCycleHead, ReviewHandlingCycleHead } from '../../domain/types'
+import type {
+  HandlingCycleHead,
+  ReviewHandlingCycleHead,
+} from '../../../reputation/domain/inbox-types'
 
 export type ReviewHandlingCycleExpectation = Readonly<{
   cycleNumber: number

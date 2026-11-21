@@ -17,7 +17,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
-import { inboxError } from '../domain/errors'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 
 export type VisibleProperties = 'all' | 'none' | ReadonlyArray<PropertyId>
 

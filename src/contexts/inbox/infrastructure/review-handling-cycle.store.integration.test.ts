@@ -11,7 +11,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../domain/types'
+import type { InboxItem } from '../../reputation/domain/inbox-types'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,

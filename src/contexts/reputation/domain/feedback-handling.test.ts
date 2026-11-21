@@ -11,7 +11,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { HandlingCycleHead } from './types'
+import type { HandlingCycleHead } from './inbox-types'
 
 const RECORDED_AT = new Date('2026-08-27T12:00:00.000Z')
 const CORRECTED_AT = new Date('2026-08-27T13:00:00.000Z')

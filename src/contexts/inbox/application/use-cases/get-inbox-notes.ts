@@ -5,11 +5,11 @@
 import type { InboxNoteRepository } from '../ports/inbox-note.repository'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxItemId } from '#/shared/domain/ids'
-import type { InboxNote } from '../../domain/types'
+import type { InboxNote } from '../../../reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
-import { inboxError } from '../../domain/errors'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 import { assertInboxSourcePropertyAccessible, canReadInboxSource } from '../inbox-access'
 import type { InboxActorDirectory } from '../ports/inbox-actor-directory.port'
 

@@ -2,7 +2,7 @@
 // Per architecture: pure functions, the only place where both row and domain shapes are known.
 
 import type { inboxNotes } from '#/shared/db/schema/inbox-workspace.schema'
-import type { InboxNote } from '../../domain/types'
+import type { InboxNote } from '../../../reputation/domain/inbox-types'
 import {
   unbrand,
   inboxNoteId,

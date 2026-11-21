@@ -1,5 +1,5 @@
 import { sha256Hex } from '#/shared/domain/sha256'
-import type { StarRating } from './types'
+import type { StarRating } from './review-types'
 
 export const REVIEW_MATERIAL_NORMALIZATION_VERSION = 'review-material-v1' as const
 

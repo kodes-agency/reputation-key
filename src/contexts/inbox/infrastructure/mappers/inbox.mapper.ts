@@ -2,7 +2,7 @@
 // Per architecture: pure functions, the only place where both row and domain shapes are known.
 
 import type { inboxItems } from '#/shared/db/schema/inbox.schema'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import {
   inboxItemId,
   organizationId,

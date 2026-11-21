@@ -6,8 +6,8 @@ import {
 } from '#/shared/db/schema/inbox.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
-import type { HandlingCycleHead, InboxItem } from '../domain/types'
-import { inboxError } from '../domain/errors'
+import type { HandlingCycleHead, InboxItem } from '../../reputation/domain/inbox-types'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 import {
   cycleInsert,
   insertInitialHandlingCycle,
@@ -17,7 +17,7 @@ import {
   closeHandlingCycle,
   createNextHandlingCycle,
   type HandlingCycleDecision,
-} from '../domain/handling-cycles'
+} from '../../reputation/domain/handling-cycles'
 import type {
   ApplyReplyObservedCommand,
   ApplyReviewSourceTransitionedCommand,
@@ -50,7 +50,7 @@ import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head'
 import { closeReviewCycleOnGoogleReply } from './review-reply-close'
 
 import { inboxItemToInsertRow } from './mappers/inbox.mapper'
-import { assertManualReopenPermitted } from '../domain/handling-outcome-authority'
+import { assertManualReopenPermitted } from '../../reputation/domain/handling-outcome-authority'
 import { selectSourceUnavailableCloseReasons } from './handling-cycle-transitions.read'
 
 /**

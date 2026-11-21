@@ -10,21 +10,21 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import {
   inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
   inboxItemUnassigned,
   type InboxAssignmentRelease,
   type InboxAssignmentReleaseReason,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
 import {
   cycleHeadItemColumns,
   mirrorCycleHead,
   persistedHeadFromItemRow,
 } from '#/contexts/inbox/infrastructure/inbox-cycle-head'
-import { createNextHandlingCycle } from '#/contexts/inbox/domain/handling-cycles'
+import { createNextHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
 import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
 import {
   assignmentAuthorityKey,

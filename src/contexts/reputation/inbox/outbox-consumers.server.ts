@@ -29,9 +29,12 @@ import {
 } from '#/contexts/inbox/application/ports/review-open-transaction'
 import type { InboxItemId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { createInboxItem as buildInboxItem } from '#/contexts/inbox/domain/constructors'
-import { inboxError } from '#/contexts/inbox/domain/errors'
-import { inboxItemCreated, inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
+import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
+import {
+  inboxItemCreated,
+  inboxItemStatusChanged,
+} from '#/contexts/reputation/domain/inbox-events'
 import { organizationId, propertyId, reviewId, unbrand } from '#/shared/domain/ids'
 
 export type InboxConsumerDeps = Readonly<{

@@ -14,7 +14,7 @@ import {
   inboxNoteAdded,
   inboxItemBulkStatusChanged,
   inboxItemStatusChanged,
-} from './events'
+} from './inbox-events'
 import {
   feedbackId,
   inboxItemId,

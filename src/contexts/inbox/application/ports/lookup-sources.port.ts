@@ -18,7 +18,7 @@ import type {
   ReplyMilestones,
 } from './reply-lookup.port'
 import type { FeedbackContentFilter } from './feedback-lookup.port'
-import type { InboxItemReplyState } from '../../domain/types'
+import type { InboxItemReplyState } from '../../../reputation/domain/inbox-types'
 
 /**
  * Guest-owned feedback/rating reads. `findResponseSnippetsByIds` reads the

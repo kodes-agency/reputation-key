@@ -34,8 +34,11 @@ import type {
   ReviewHeadPersistence,
   ReviewHeadRunRecord,
 } from '../../application/ports/review-head-check.repository'
-import type { HeadComparison, HeadStoredCopy } from '../../domain/head-check'
-import { reviewGoogleReputationSnapshotVerified } from '../../domain/events'
+import type {
+  HeadComparison,
+  HeadStoredCopy,
+} from '../../../reputation/domain/head-check'
+import { reviewGoogleReputationSnapshotVerified } from '../../../reputation/domain/review-events'
 
 /** Snapshot run states in which a run still reads or changes the Property's reviews. */
 const ACTIVE_RUN_STATES = ['scanning', 'confirming', 'deleting'] as const

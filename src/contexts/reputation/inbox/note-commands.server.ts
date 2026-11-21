@@ -1,7 +1,7 @@
 import { inboxNotes } from '#/shared/db/schema/inbox-workspace.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
 import {
   inboxNoteFromRow,

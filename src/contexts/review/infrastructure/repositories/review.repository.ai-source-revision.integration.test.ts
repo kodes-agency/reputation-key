@@ -15,7 +15,7 @@ import {
   storedAiReviewSourceProvenance,
 } from '../../application/ai-review-source'
 import type { AiReviewSourceRequest } from '../../application/ports/ai-review-source.port'
-import type { Review } from '../../domain/types'
+import type { Review } from '../../../reputation/domain/review-types'
 import { createReviewRepository } from './review.repository'
 
 const ORG = organizationId('org-ai-source-rev-aaaa-1111111111111111')

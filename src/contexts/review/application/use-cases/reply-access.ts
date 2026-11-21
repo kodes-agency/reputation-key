@@ -3,8 +3,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId, ReviewId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
-import type { Review } from '../../domain/types'
-import { reviewError } from '../../domain/errors'
+import type { Review } from '../../../reputation/domain/review-types'
+import { reviewError } from '../../../reputation/domain/review-errors'
 import type { ReviewRepository } from '../ports/review.repository'
 
 export type ReplyAccessDeps = Readonly<{

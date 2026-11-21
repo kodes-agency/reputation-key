@@ -17,9 +17,9 @@ import type {
 import {
   DEFAULT_RESPONSE_TARGET_MINUTES,
   type ResponseTargetKind,
-} from '../../../inbox/domain/response-target'
-import { inboxResponseTargetPolicyChanged } from '#/contexts/inbox/domain/events'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+} from '../../domain/response-target'
+import { inboxResponseTargetPolicyChanged } from '#/contexts/reputation/domain/inbox-events'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 
 const assertDuration = (durationMinutes: number | null, allowDisabled: boolean): void => {
   if (

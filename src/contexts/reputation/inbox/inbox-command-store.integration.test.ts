@@ -34,8 +34,8 @@ import {
   replyId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem, InboxPriority } from '#/contexts/inbox/domain/types'
-import type { Reply, Review } from '#/contexts/review/domain/types'
+import type { InboxItem, InboxPriority } from '#/contexts/reputation/domain/inbox-types'
+import type { Reply, Review } from '#/contexts/reputation/domain/review-types'
 import {
   inboxItemAssigned,
   inboxItemUnassigned,
@@ -45,14 +45,14 @@ import {
   inboxItemEscalationResolved,
   inboxItemPriorityChanged,
   inboxItemStatusChanged,
-} from '#/contexts/inbox/domain/events'
-import { isInboxError } from '#/contexts/inbox/domain/errors'
+} from '#/contexts/reputation/domain/inbox-events'
+import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
 import {
   reviewCreated,
   reviewExpired,
   reviewSourceTransitioned,
   reviewUpdated,
-} from '#/contexts/review/domain/events'
+} from '#/contexts/reputation/domain/review-events'
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
 import { createInboxRepository } from './inbox-repository.server'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'

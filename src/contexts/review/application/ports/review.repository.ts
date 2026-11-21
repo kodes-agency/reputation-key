@@ -1,7 +1,7 @@
 // Review context — review repository port
 // Per architecture: "Repository ports for all data access."
 
-import type { Review, ReviewPlatform } from '../../domain/types'
+import type { Review, ReviewPlatform } from '../../../reputation/domain/review-types'
 import type {
   OrganizationId,
   PropertyId,

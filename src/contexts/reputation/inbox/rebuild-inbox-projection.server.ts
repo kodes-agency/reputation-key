@@ -57,9 +57,9 @@ import type {
   PropertyId,
   ReviewId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { createInboxItem as buildInboxItem } from '#/contexts/inbox/domain/constructors'
-import { isAnsweringGoogleReply } from '#/contexts/inbox/domain/rules'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
+import { isAnsweringGoogleReply } from '#/contexts/reputation/domain/inbox-rules'
 
 export type RebuildInboxProjectionInput = Readonly<{
   organizationId: OrganizationId

@@ -22,7 +22,7 @@ import { unbrand } from '#/shared/domain/ids'
 import {
   reviewReplyPublishFailed,
   reviewReplyRejected,
-} from '#/contexts/review/domain/events'
+} from '#/contexts/reputation/domain/review-events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { parseNotificationPayload } from '../domain/notification-payload'

@@ -1,11 +1,11 @@
 // Review context — domain rules
 
 import { sha256Hex } from '#/shared/domain/sha256'
-import type { StarRating, ReplyStatus, Reply } from './types'
+import type { StarRating, ReplyStatus, Reply } from './review-types'
 import { ok, err } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
-import type { ReviewError } from './errors'
-import { reviewError } from './errors'
+import type { ReviewError } from './review-errors'
+import { reviewError } from './review-errors'
 
 const VALID_RATINGS = new Set([1, 2, 3, 4, 5] as const)
 

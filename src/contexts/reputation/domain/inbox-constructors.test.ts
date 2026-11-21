@@ -1,7 +1,7 @@
 // Inbox context — entity constructors tests
 
 import { describe, it, expect } from 'vitest'
-import { createInboxItem, createInboxNote } from './constructors'
+import { createInboxItem, createInboxNote } from './inbox-constructors'
 import {
   inboxItemId,
   inboxNoteId,
@@ -12,8 +12,8 @@ import {
   feedbackId,
 } from '#/shared/domain/ids'
 import type { Result } from '#/shared/domain'
-import type { InboxItem } from './types'
-import type { InboxError } from './errors'
+import type { InboxItem } from './inbox-types'
+import type { InboxError } from './inbox-errors'
 
 const ORG_ID = organizationId('org-1')
 const PROP_ID = propertyId('prop-1')

@@ -22,8 +22,8 @@ import {
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { InboxItem, SourceType } from '../../domain/types'
-import { isInboxError } from '../../domain/errors'
+import type { InboxItem, SourceType } from '../../../reputation/domain/inbox-types'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,

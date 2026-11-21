@@ -6,7 +6,7 @@ import type {
   ResponseTargetKind,
   ResponseTargetPolicySource,
   ResponseTargetResult,
-} from '../../domain/response-target'
+} from '../../../reputation/domain/response-target'
 
 export type ResponseTargetView = Readonly<{
   inboxItemId: InboxItemId

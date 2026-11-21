@@ -9,7 +9,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { Reply } from '../../domain/types'
+import type { Reply } from '../../../reputation/domain/review-types'
 import type { ReplyDispatchEvidence } from '../ports/reply-publication-dispatch-evidence.port'
 import {
   isUncertainPublicationAttempt,

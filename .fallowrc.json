@@ -137,7 +137,7 @@
       "exports": ["setActiveOrganization"]
     },
     {
-      "file": "src/contexts/inbox/domain/handling-history.ts",
+      "file": "src/contexts/reputation/domain/handling-history.ts",
       "exports": ["INBOX_HISTORY_KINDS"]
     },
     {
@@ -188,7 +188,7 @@
       ]
     },
     {
-      "file": "src/contexts/inbox/domain/constructors.ts",
+      "file": "src/contexts/reputation/domain/inbox-constructors.ts",
       "exports": ["createInboxItem", "CreateInboxItemInput"]
     },
     {

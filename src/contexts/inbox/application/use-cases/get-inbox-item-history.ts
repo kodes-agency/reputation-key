@@ -18,8 +18,11 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { InboxItemId, UserId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
-import { inboxError } from '../../domain/errors'
-import { orderInboxHistory, type InboxHistoryEntry } from '../../domain/handling-history'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
+import {
+  orderInboxHistory,
+  type InboxHistoryEntry,
+} from '../../../reputation/domain/handling-history'
 import {
   assertInboxSourcePropertyAccessible,
   canHandleInboxSource,

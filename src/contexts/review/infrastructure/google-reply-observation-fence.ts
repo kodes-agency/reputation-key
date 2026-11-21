@@ -3,7 +3,7 @@
 // lives apart from the transaction that records the observation.
 
 import type { RecordGoogleReplyObservation } from '../application/ports/google-reply-observation-store.port'
-import { reviewError } from '../domain/errors'
+import { reviewError } from '../../reputation/domain/review-errors'
 
 /** Payload fence for one observation command: a well-formed idempotency key,
  * usable clocks, an expiry after the observation, in-range source counters, and

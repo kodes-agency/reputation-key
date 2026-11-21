@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { reviewSourceObservations } from '#/shared/db/schema/review.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import type { ReviewMaterialComparison } from '../domain/material-review-revision'
+import type { ReviewMaterialComparison } from '../../reputation/domain/material-review-revision'
 
 /** What Review compares to decide whether a Material Revision was only carried. */
 export type SourceEpochCarryEvidence = Readonly<{

@@ -112,7 +112,7 @@ const closedItem: InboxItem = { ...reviewItem, status: 'closed' }
 const escalatedItem: InboxItem = { ...reviewItem, isEscalated: true }
 
 /**
- * `isEscalated` stays set once acknowledged (`domain/types.ts:164-169`, ADR
+ * `isEscalated` stays set once acknowledged (`domain/inbox-types.ts:164-169`, ADR
  * 0023), so a resolved escalation is the flag AND a resolution instant. The
  * toolbar is handed `isEscalationActive` already derived by
  * `inbox-case-toolbar-props.ts` — its unit test proves this item derives

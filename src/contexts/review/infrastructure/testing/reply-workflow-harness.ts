@@ -39,10 +39,10 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { Reply, Review, StarRating } from '../../domain/types'
-import { reviewReplyPublicationCancelled } from '../../domain/events'
-import { replyAuthor } from '../../domain/reply-author'
-import { googleReplyTextDigest } from '../../domain/google-reply-observation'
+import type { Reply, Review, StarRating } from '../../../reputation/domain/review-types'
+import { reviewReplyPublicationCancelled } from '../../../reputation/domain/review-events'
+import { replyAuthor } from '../../../reputation/domain/reply-author'
+import { googleReplyTextDigest } from '../../../reputation/domain/google-reply-observation'
 import type {
   GoogleReplyPublicationRequest,
   GoogleReviewApiPort,

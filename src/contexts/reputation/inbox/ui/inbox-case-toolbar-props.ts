@@ -139,7 +139,7 @@ export type InboxCaseToolbarProps = Readonly<{
   /**
    * A raised escalation not yet resolved. `isEscalated` alone is not enough:
    * the flag is orthogonal to status and stays set once acknowledged
-   * (`domain/types.ts:164-169`, ADR 0055), so a resolved item must offer
+   * (`domain/inbox-types.ts:164-169`, ADR 0055), so a resolved item must offer
    * Escalate again rather than Resolve.
    */
   isEscalationActive: boolean

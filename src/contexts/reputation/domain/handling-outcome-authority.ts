@@ -17,8 +17,8 @@
 // handled.
 
 import { err, ok, type Result } from '#/shared/domain'
-import { inboxError, type InboxError } from './errors'
-import type { HandlingCycleCloseReason, HandlingCycleHead } from './types'
+import { inboxError, type InboxError } from './inbox-errors'
+import type { HandlingCycleCloseReason, HandlingCycleHead } from './inbox-types'
 
 /**
  * Closures caused by the source ceasing to be available: a guest withdrawal or

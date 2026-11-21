@@ -2,9 +2,9 @@
 
 import { ok, err } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
-import type { InboxStatus } from './types'
-import type { InboxError } from './errors'
-import { inboxError } from './errors'
+import type { InboxStatus } from './inbox-types'
+import type { InboxError } from './inbox-errors'
+import { inboxError } from './inbox-errors'
 const VALID_TRANSITIONS: Readonly<Record<InboxStatus, readonly InboxStatus[]>> = {
   open: ['closed'],
   closed: ['open'],

@@ -24,21 +24,24 @@ import {
   correctFeedbackHandlingOutcomeFact,
   recordFeedbackHandlingOutcome,
   type FeedbackHandlingOutcomeFact,
-} from '#/contexts/inbox/domain/feedback-handling'
-import { closeHandlingCycle } from '#/contexts/inbox/domain/handling-cycles'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+} from '#/contexts/reputation/domain/feedback-handling'
+import { closeHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import {
   inboxHandlingCycleClosed,
   inboxItemStatusChanged,
-} from '#/contexts/inbox/domain/events'
-import type { HandlingCycleHead, InboxItem } from '#/contexts/inbox/domain/types'
+} from '#/contexts/reputation/domain/inbox-events'
+import type {
+  HandlingCycleHead,
+  InboxItem,
+} from '#/contexts/reputation/domain/inbox-types'
 import type { InboxCommandAuthority } from '#/contexts/reputation/inbox/command-store.server'
 import {
   selectCycleCloseReason,
   selectSourceUnavailableCloseReasons,
   type TransitionReader,
 } from '#/contexts/inbox/infrastructure/handling-cycle-transitions.read'
-import { assertManagerHandlingPermitted } from '#/contexts/inbox/domain/handling-outcome-authority'
+import { assertManagerHandlingPermitted } from '#/contexts/reputation/domain/handling-outcome-authority'
 import { inboxItemFromRow } from '#/contexts/inbox/infrastructure/mappers/inbox.mapper'
 import {
   cycleHeadItemColumns,

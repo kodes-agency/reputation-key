@@ -1,8 +1,8 @@
 // Inbox context — entity constructors
 
 import { ok, err, type Result } from '#/shared/domain'
-import type { InboxItem, InboxNote, InboxStatus, SourceType } from './types'
-import { inboxError, type InboxError } from './errors'
+import type { InboxItem, InboxNote, InboxStatus, SourceType } from './inbox-types'
+import { inboxError, type InboxError } from './inbox-errors'
 import type {
   InboxItemId,
   InboxNoteId,

@@ -4,12 +4,12 @@
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type { InboxItemId, InboxNoteId } from '#/shared/domain/ids'
-import type { InboxNote } from '../../domain/types'
+import type { InboxNote } from '../../../reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { createInboxNote } from '../../domain/constructors'
+import { createInboxNote } from '../../../reputation/domain/inbox-constructors'
 import { loadItemForCommand } from '../inbox-access'
-import { inboxNoteAdded } from '../../domain/events'
+import { inboxNoteAdded } from '../../../reputation/domain/inbox-events'
 
 export type AddInboxNoteInput = Readonly<{
   inboxItemId: InboxItemId

@@ -1,6 +1,6 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
-import type { StarRating } from '../../domain/types'
-import type { ReviewMaterialComparison } from '../../domain/material-review-revision'
+import type { StarRating } from '../../../reputation/domain/review-types'
+import type { ReviewMaterialComparison } from '../../../reputation/domain/material-review-revision'
 
 export type ReviewObservationComparison =
   'backfilled_unverified' | ReviewMaterialComparison | 'out_of_order_ignored'

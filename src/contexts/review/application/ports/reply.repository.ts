@@ -1,11 +1,15 @@
 // Review context — reply repository port
 // Per architecture: "Repository ports for all data access."
 
-import type { Reply, ReplySource, ReplyStatus } from '../../domain/types'
+import type {
+  Reply,
+  ReplySource,
+  ReplyStatus,
+} from '../../../reputation/domain/review-types'
 import type {
   PersistedPublicationState,
   PublicationFailureClass,
-} from '../../domain/reply-publication-workflow'
+} from '../../../reputation/domain/reply-publication-workflow'
 import type { OrganizationId, PropertyId, ReplyId, ReviewId } from '#/shared/domain/ids'
 
 /** Content-free reply lifecycle projection used by foreign read models. */
@@ -218,7 +222,7 @@ export type ReplyRepository = Readonly<{
   /**
    * Rewrite a draft or a rejected reply as a human-authored draft. The write
    * is a compare-and-set on the `save_draft` precondition
-   * (domain/reply-command-preconditions.ts): `reply` must be a draft or a
+   * (reputation/domain/reply-command-preconditions.ts): `reply` must be a draft or a
    * rejected reply with no open publication, and the row must still have its
    * status, publication state and cycle (and its state revision, when the
    * content asks for that fence). Null otherwise, with nothing written.
@@ -226,7 +230,7 @@ export type ReplyRepository = Readonly<{
    * An AI-assisted reply is saved over like any other, whether or not its AI
    * draft binding is still current: a manager typing over AI text makes the
    * reply theirs, and the save clears its AI provenance
-   * (domain/reply-ai-text.ts).
+   * (reputation/domain/reply-ai-text.ts).
    */
   saveDraft(reply: Reply, content: DraftReplyContent, now?: Date): Promise<Reply | null>
   /**

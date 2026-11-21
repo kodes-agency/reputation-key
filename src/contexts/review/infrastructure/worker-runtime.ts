@@ -14,7 +14,7 @@ import type {
   ReviewHeadCheckQueuePort,
   ReviewQueuePort,
 } from '../application/ports/review-queue.port'
-import type { ReviewHeadChecksMode } from '../domain/head-check'
+import type { ReviewHeadChecksMode } from '../../reputation/domain/head-check'
 import type { ReviewProviderObservationWriter } from '../application/ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectSightings } from '../application/ports/review-provider-subject-sightings.port'
 import type { ReviewProviderSubjectKeyService } from '../application/provider-subject-keyring'

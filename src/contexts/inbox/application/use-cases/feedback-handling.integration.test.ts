@@ -24,7 +24,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 const NOW = new Date('2026-08-27T12:00:00.000Z')

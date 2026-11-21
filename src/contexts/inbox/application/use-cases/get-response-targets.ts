@@ -11,7 +11,7 @@ import {
   loadInboxItemOrThrow,
   resolveInboxSourceScopes,
 } from '../inbox-access'
-import { inboxError } from '../../domain/errors'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 
 type SharedDeps = Readonly<{
   targetStore: ResponseTargetStore

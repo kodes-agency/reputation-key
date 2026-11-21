@@ -38,8 +38,8 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildInboxContext, type InboxContextBuildInput } from '#/contexts/inbox/build'
 import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
 import { releaseDueResponseTargetReminders } from './release-reminders.server'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,

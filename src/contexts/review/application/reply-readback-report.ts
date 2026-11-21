@@ -5,7 +5,10 @@
 // docs/operations/runbooks.md ("Reply moderation read-back lines").
 
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { replyReadbackFacts, type ReplyModeration } from '../domain/reply-moderation'
+import {
+  replyReadbackFacts,
+  type ReplyModeration,
+} from '../../reputation/domain/reply-moderation'
 
 type ReadbackReply = Readonly<{
   /** The text the attempt sent; compared, never logged. */

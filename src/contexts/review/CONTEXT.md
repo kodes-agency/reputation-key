@@ -52,7 +52,11 @@ transport, source authorities, consumer registration and the
 Reply workflow and library commands and keeps worker and maintenance
 capabilities out of `publicApi.reply`. The Reply commands that need Inbox and
 Review truth together are in `../reputation/replies/`; the observation, source
-transition and Response Target authorities are in `../reputation/reviews/`.
+transition and Response Target authorities are in `../reputation/reviews/`. Its
+pure types, rules, events and errors are in `../reputation/domain/`:
+`review-types.ts`, `review-rules.ts`, `review-events.ts`, `review-errors.ts`, and
+the `reply-*`, `discovery-*`, `head-*`, `google-reply-observation`,
+`material-review-revision` and `snapshot-failure-backoff` modules.
 
 | Feature                          | Server function (file in `server/`)                                                                                                     | Use case or store                                                                                        |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -72,19 +76,19 @@ this context lists Reviews.
 Registered by `registerReviewWorkerJobs` (`infrastructure/worker-runtime.ts`)
 and `infrastructure/outbox-consumers.ts`. Each is named once here.
 
-| Name                                    | Entry point (`infrastructure/jobs/` unless noted) | Does                                                                                                                                                                                                |
-| --------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `discover-new-reviews`                  | `discover-new-reviews.job.ts`                     | 15-minute sweep: per due connected Property enqueue a sync, or write only a later `next_incremental_at` when a completed reconciliation is inside the window (`domain/discovery-reconciliation.ts`) |
-| `sync-property-reviews`                 | `sync-property-reviews.job.ts`                    | Full snapshot, targeted read of one pushed review, or head check (`run-review-provider-snapshot.ts`, `run-targeted-google-review-fetch.ts`, `run-review-head-check.ts`)                             |
-| `refresh-expiring-reviews`              | `refresh-expiring-reviews.job.ts`                 | Hourly: pull a Property's next discovery look forward when its reviews near expiry and it was last reconciled over a day ago; enqueues no sync itself                                               |
-| `purge-expired-reviews`                 | `purge-expired-reviews.job.ts`                    | Checkpointed source-content lifecycle (`run-source-content-lifecycle.ts`); defaults to read-only `report`, `shadow` compares provider copies                                                        |
-| `expire-review-provider-source`         | `review-provider-lifecycle-sweeps.job.ts`         | Expire provider source content past its clock                                                                                                                                                       |
-| `sweep-review-provider-tombstones`      | `review-provider-lifecycle-sweeps.job.ts`         | Sweep tombstoned provider subjects                                                                                                                                                                  |
-| `publish-reply`                         | `publish-reply.job.ts`                            | One guarded provider write for an approved current cycle, after a Google read recorded through the observation writer (`publish-reply-preread.ts`)                                                  |
-| `reconcile-ambiguous-publications`      | `reconcile-ambiguous-publications.job.ts`         | Single-flight sweep (PostgreSQL session advisory lease) that settles uncertain attempts with provider reads only                                                                                    |
-| `review.on-reply-publication-requested` | `outbox-consumers.ts`                             | Re-admits the exact active cycle to the queue after a request-process interruption                                                                                                                  |
-| `review.on-google-account-disconnected` | `outbox-consumers.ts`                             | Cancels undispatched publication cycles for the disconnected account                                                                                                                                |
-| `review.on-property-archived`           | `outbox-consumers.ts`                             | Cancels undispatched cycles of an archived Property or an older source epoch; each Reply returns to draft with one `review.reply.publication_cancelled` fact                                        |
+| Name                                    | Entry point (`infrastructure/jobs/` unless noted) | Does                                                                                                                                                                                                              |
+| --------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `discover-new-reviews`                  | `discover-new-reviews.job.ts`                     | 15-minute sweep: per due connected Property enqueue a sync, or write only a later `next_incremental_at` when a completed reconciliation is inside the window (`../reputation/domain/discovery-reconciliation.ts`) |
+| `sync-property-reviews`                 | `sync-property-reviews.job.ts`                    | Full snapshot, targeted read of one pushed review, or head check (`run-review-provider-snapshot.ts`, `run-targeted-google-review-fetch.ts`, `run-review-head-check.ts`)                                           |
+| `refresh-expiring-reviews`              | `refresh-expiring-reviews.job.ts`                 | Hourly: pull a Property's next discovery look forward when its reviews near expiry and it was last reconciled over a day ago; enqueues no sync itself                                                             |
+| `purge-expired-reviews`                 | `purge-expired-reviews.job.ts`                    | Checkpointed source-content lifecycle (`run-source-content-lifecycle.ts`); defaults to read-only `report`, `shadow` compares provider copies                                                                      |
+| `expire-review-provider-source`         | `review-provider-lifecycle-sweeps.job.ts`         | Expire provider source content past its clock                                                                                                                                                                     |
+| `sweep-review-provider-tombstones`      | `review-provider-lifecycle-sweeps.job.ts`         | Sweep tombstoned provider subjects                                                                                                                                                                                |
+| `publish-reply`                         | `publish-reply.job.ts`                            | One guarded provider write for an approved current cycle, after a Google read recorded through the observation writer (`publish-reply-preread.ts`)                                                                |
+| `reconcile-ambiguous-publications`      | `reconcile-ambiguous-publications.job.ts`         | Single-flight sweep (PostgreSQL session advisory lease) that settles uncertain attempts with provider reads only                                                                                                  |
+| `review.on-reply-publication-requested` | `outbox-consumers.ts`                             | Re-admits the exact active cycle to the queue after a request-process interruption                                                                                                                                |
+| `review.on-google-account-disconnected` | `outbox-consumers.ts`                             | Cancels undispatched publication cycles for the disconnected account                                                                                                                                              |
+| `review.on-property-archived`           | `outbox-consumers.ts`                             | Cancels undispatched cycles of an archived Property or an older source epoch; each Reply returns to draft with one `review.reply.publication_cancelled` fact                                                      |
 
 Lifecycle recovery (`collect-lifecycle-recovery-evidence.ts`,
 `prepare-lifecycle-recovery-approval.ts`, `run-lifecycle-recovery-executor.ts`)
@@ -200,8 +204,8 @@ Unit tests sit beside the code. PostgreSQL integration tests
 (`*.integration.test.ts` in `infrastructure/`) cover immutable authorization,
 claim and revocation races, observation confirmation, replay, erasure and
 verified snapshots. The Reply workflow has a model-based suite whose oracle is
-written by hand (`domain/__fixtures__/reply-workflow-oracle.ts`), never taken
-from the production transition tables: `domain/reply-workflow.property.test.ts`
+written by hand (`../reputation/domain/reply-workflow-oracle.test-fixtures.ts`), never taken
+from the production transition tables: `../reputation/domain/reply-workflow.property.test.ts`
 and `infrastructure/reply-workflow.model.integration.test.ts` (invariants 7 to
-10), with `domain/reply-publication-workflow.property.test.ts` checking every
+10), with `../reputation/domain/reply-publication-workflow.property.test.ts` checking every
 cell of the persisted publication machine.

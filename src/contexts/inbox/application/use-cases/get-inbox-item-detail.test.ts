@@ -14,7 +14,7 @@ import type {
   InboxItemDetail,
   InboxStatus,
   SourceType,
-} from '../../domain/types'
+} from '../../../reputation/domain/inbox-types'
 import type { ReplyLookupPort, ReplyView } from '../ports/reply-lookup.port'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { AiReviewInsightsPort } from '../ports/ai-review-insights.port'
@@ -24,7 +24,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
-import { isInboxError } from '../../domain/errors'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')

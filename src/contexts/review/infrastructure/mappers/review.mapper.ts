@@ -3,14 +3,14 @@
 
 import type { reviews } from '#/shared/db/schema/review.schema'
 import type { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
-import type { Review } from '../../domain/types'
+import type { Review } from '../../../reputation/domain/review-types'
 import {
   reviewId,
   organizationId,
   propertyId,
   googleConnectionId,
 } from '#/shared/domain/ids'
-import { reviewError } from '../../domain/errors'
+import { reviewError } from '../../../reputation/domain/review-errors'
 
 type ReviewRow = typeof reviews.$inferSelect
 type ReviewContentRow = typeof reviewSourceContents.$inferSelect

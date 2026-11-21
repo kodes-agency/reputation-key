@@ -60,8 +60,8 @@ import {
 } from '#/shared/auth/process-policy-binding'
 import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import type { PolicyStoreHandle } from '#/contexts/identity/infrastructure/policy-store-init'
-import { reviewCreated } from '#/contexts/review/domain/events'
-import type { Review } from '#/contexts/review/domain/types'
+import { reviewCreated } from '#/contexts/reputation/domain/review-events'
+import type { Review } from '#/contexts/reputation/domain/review-types'
 import { createAtomicReviewCommandStore } from '#/contexts/review/infrastructure/review-command-store'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
@@ -79,7 +79,7 @@ import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
 import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
-import { createInboxItem as buildInboxItem } from '#/contexts/inbox/domain/constructors'
+import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,

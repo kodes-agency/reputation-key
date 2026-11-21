@@ -1,7 +1,7 @@
 // Inbox context — inbox note repository port
 // Per architecture: "Repository ports for all data access."
 
-import type { InboxNote } from '../../domain/types'
+import type { InboxNote } from '../../../reputation/domain/inbox-types'
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
 
 export type InboxNoteRepository = Readonly<{

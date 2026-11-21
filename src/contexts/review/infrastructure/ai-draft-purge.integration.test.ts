@@ -71,8 +71,8 @@ import {
   reviewReplyPublicationRequested,
   reviewReplySubmitted,
   reviewUpdated,
-} from '../domain/events'
-import type { Reply, Review } from '../domain/types'
+} from '../../reputation/domain/review-events'
+import type { Reply, Review } from '../../reputation/domain/review-types'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store'
 import { createAtomicReplyCommandStore } from './reply-command-store'
 import { createReplyRepository } from './repositories/reply.repository'

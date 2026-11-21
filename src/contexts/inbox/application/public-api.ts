@@ -16,7 +16,7 @@ export type {
   ReplyStatus,
   ReplyPublicationState,
   ReplyPublicationFailureClass,
-} from '../domain/types'
+} from '../../reputation/domain/inbox-types'
 export type {
   FeedbackHandlingCommandResult,
   FeedbackHandlingState,
@@ -33,17 +33,17 @@ export type {
 export {
   PRIVATE_FEEDBACK_HANDLING_OUTCOMES,
   type PrivateFeedbackHandlingOutcome,
-} from '../domain/feedback-handling'
+} from '../../reputation/domain/feedback-handling'
 export {
   INBOX_PRIORITY_LEVELS,
   effectiveInboxPriority,
   type EffectiveInboxPriority,
   type InboxPriority,
-} from '../domain/priority'
+} from '../../reputation/domain/inbox-priority'
 export {
   isInboxRevisionConflictResult,
   type InboxRevisionConflictResult,
-} from '../domain/errors'
+} from '../../reputation/domain/inbox-errors'
 
 // Application-layer detail result (includes the review reply) — used by the
 // client detail state. See get-inbox-item-detail use case.
@@ -53,7 +53,7 @@ export type {
   InboxGoogleCheckOutcome,
 } from './use-cases/check-inbox-review-on-google'
 export type { InboxNoteView } from './use-cases/get-inbox-notes'
-export type { InboxError } from '../domain/errors'
+export type { InboxError } from '../../reputation/domain/inbox-errors'
 export {
   INBOX_BULK_LIMIT,
   addInboxNoteFormDto,
@@ -102,7 +102,7 @@ export type InboxPublicApi = Readonly<{
   setResponseTargetPolicy: import('./use-cases/set-response-target-policy').SetResponseTargetPolicy
 }>
 
-// Event re-exports — cross-context consumers must import event types from public-api, not domain/events
+// Event re-exports — cross-context consumers must import event types from public-api, not reputation/domain/inbox-events
 export type {
   InboxItemCreated,
   InboxItemStatusChanged,
@@ -122,4 +122,4 @@ export type {
   InboxResponseTargetReminderDue,
   InboxResponseTargetPolicyChanged,
   InboxEvent,
-} from '../domain/events'
+} from '../../reputation/domain/inbox-events'

@@ -1,5 +1,5 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
-import type { StarRating } from '../../domain/types'
+import type { StarRating } from '../../../reputation/domain/review-types'
 
 /**
  * One sentence of the review as a v3 analysis reads it. `number` is its place in

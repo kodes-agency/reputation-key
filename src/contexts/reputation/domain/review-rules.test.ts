@@ -13,8 +13,8 @@ import {
   unfilledReplySlots,
   unknownReplyTemplateSlots,
   unfilledReplySlotsMessage,
-} from './rules'
-import type { Reply, ReplyStatus } from './types'
+} from './review-rules'
+import type { Reply, ReplyStatus } from './review-types'
 import { organizationId, replyId, reviewId } from '#/shared/domain/ids'
 
 describe('isValidRating', () => {

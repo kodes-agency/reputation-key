@@ -26,7 +26,7 @@ import type {
   ReviewSourceContentShadowFinding,
   ReviewSourceContentState,
 } from '../../application/ports/source-content-lifecycle-store.port'
-import { reviewSourceTransitioned } from '../../domain/events'
+import { reviewSourceTransitioned } from '../../../reputation/domain/review-events'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { lockReplyTruthScope } from '../reply-truth-serialization'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_RETENTION_POLICY_VERSION } from '../../application/use-cases/run-source-content-lifecycle'

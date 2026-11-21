@@ -11,9 +11,9 @@
 import { inboxPriorityHistory } from '#/shared/db/schema/inbox-triage-history.schema'
 import type { UserId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import { inboxError } from '../domain/errors'
-import type { InboxItemPriorityChanged } from '../domain/events'
-import type { InboxItem, InboxPriority } from '../domain/types'
+import { inboxError } from '../../reputation/domain/inbox-errors'
+import type { InboxItemPriorityChanged } from '../../reputation/domain/inbox-events'
+import type { InboxItem, InboxPriority } from '../../reputation/domain/inbox-types'
 import { webActorId } from './inbox-command-guards'
 import { readCurrentCycleNumber } from './inbox-escalation-history'
 

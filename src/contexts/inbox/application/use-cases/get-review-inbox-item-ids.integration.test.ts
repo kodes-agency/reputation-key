@@ -20,7 +20,7 @@ import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '../../../reputation/domain/inbox-types'
 import {
   inboxItemId,
   organizationId,

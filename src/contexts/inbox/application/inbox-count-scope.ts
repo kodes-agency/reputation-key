@@ -7,7 +7,7 @@
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
-import { inboxError } from '../domain/errors'
+import { inboxError } from '../../reputation/domain/inbox-errors'
 import { propertyIdsForInboxSource, resolveInboxSourceScopes } from './inbox-access'
 import type { InboxReplyStages } from './inbox-queues'
 import type { InboxSourceScope } from './ports/inbox.repository'

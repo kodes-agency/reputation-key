@@ -12,7 +12,7 @@ import type {
 import type { PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { inboxError } from '../../domain/errors'
+import { inboxError } from '../../../reputation/domain/inbox-errors'
 import { resolveVisiblePropertyIds } from '../visible-properties'
 import { propertyIdsForInboxSource, resolveInboxSourceScopes } from '../inbox-access'
 import { canForContext } from '#/shared/domain/permissions'

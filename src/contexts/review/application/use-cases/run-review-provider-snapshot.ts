@@ -13,7 +13,7 @@ import {
   type GoogleReviewRead,
 } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
-import type { GoogleReview } from '../../domain/types'
+import type { GoogleReview } from '../../../reputation/domain/review-types'
 import type {
   ReviewProviderSubjectDeriver,
   ReviewProviderSubjectKeyService,

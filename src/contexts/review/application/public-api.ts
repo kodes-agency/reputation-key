@@ -9,32 +9,37 @@
  */
 import type { Tx } from '#/shared/outbox/commit'
 
-export type { GoogleReview, Review, Reply, StarRating } from '../domain/types'
-export type { ReplyModeration } from '../domain/reply-moderation'
+export type {
+  GoogleReview,
+  Review,
+  Reply,
+  StarRating,
+} from '../../reputation/domain/review-types'
+export type { ReplyModeration } from '../../reputation/domain/reply-moderation'
 export type { ReplyDraftCheckDto } from './dto/reply-library.dto'
 
-export { unfilledReplySlotsMessage } from '../domain/rules'
+export { unfilledReplySlotsMessage } from '../../reputation/domain/review-rules'
 
 // What the Reputation reply writer needs to decide a Reply write. Review keeps
 // the rules; the writer applies them inside its own transactions.
-export { reviewError } from '../domain/errors'
-export { aiTextRuleOf } from '../domain/reply-ai-text'
-export { googleReplyTextDigest } from '../domain/google-reply-observation'
+export { reviewError } from '../../reputation/domain/review-errors'
+export { aiTextRuleOf } from '../../reputation/domain/reply-ai-text'
+export { googleReplyTextDigest } from '../../reputation/domain/google-reply-observation'
 export {
   hasPublicationRecord,
   replyCommandMayStart,
-} from '../domain/reply-command-preconditions'
-export type { ReplyCommand } from '../domain/reply-command-preconditions'
+} from '../../reputation/domain/reply-command-preconditions'
+export type { ReplyCommand } from '../../reputation/domain/reply-command-preconditions'
 export type {
   PersistedPublicationState,
   PublicationFailureClass,
-} from '../domain/reply-publication-workflow'
+} from '../../reputation/domain/reply-publication-workflow'
 export type { ReplyCommandStore } from './ports/reply-command-store.port'
 export type { ConditionalReplyUpdate, ReplyRepository } from './ports/reply.repository'
 export type { ReplyWriter, UncertainSendSnapshot } from './ports/reply-writer.port'
 export { UNCERTAIN_ATTEMPT_OUTCOMES } from './ports/reply-writer.port'
 
-// Event re-exports — cross-context consumers must import events from public-api, not domain/events
+// Event re-exports — cross-context consumers must import events from public-api, not reputation/domain/review-events
 export type {
   ReviewCreated,
   ReviewUpdated,
@@ -52,14 +57,14 @@ export type {
   ReviewReplyUpdated,
   ReviewReplyPublicationCancelled,
   ReviewEvent,
-} from '../domain/events'
+} from '../../reputation/domain/review-events'
 export {
   reviewCreated,
   reviewUpdated,
   reviewExpired,
   reviewReplyPublished,
   reviewReplyPublicationRequested,
-} from '../domain/events'
+} from '../../reputation/domain/review-events'
 
 // Port types needed by cross-context consumers (e.g., integration context)
 export type {

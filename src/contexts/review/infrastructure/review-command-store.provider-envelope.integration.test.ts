@@ -4,8 +4,8 @@ import {
   createAtomicReviewCommandStore,
   type ProviderRestatement,
 } from './review-command-store'
-import { reviewCreated, reviewUpdated } from '../domain/events'
-import type { Review } from '../domain/types'
+import { reviewCreated, reviewUpdated } from '../../reputation/domain/review-events'
+import type { Review } from '../../reputation/domain/review-types'
 import { getDb } from '#/shared/db'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'

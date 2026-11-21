@@ -20,14 +20,14 @@ import {
   type RecordedOutbox,
 } from '#/shared/testing/recorded-outbox'
 import type { DomainEvent } from '#/shared/events/events'
-import type { Reply, Review } from '../../domain/types'
-import { isReviewError } from '../../domain/errors'
-import { MAX_REPLY_LENGTH } from '../../domain/rules'
+import type { Reply, Review } from '../../../reputation/domain/review-types'
+import { isReviewError } from '../../../reputation/domain/review-errors'
+import { MAX_REPLY_LENGTH } from '../../../reputation/domain/review-rules'
 import {
   buildIdempotencyKey,
   nextPublicationState,
   PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
-} from '../../domain/reply-publication-workflow'
+} from '../../../reputation/domain/reply-publication-workflow'
 import type { ReplyDispatchEvidence } from '../ports/reply-publication-dispatch-evidence.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'

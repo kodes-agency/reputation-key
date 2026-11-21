@@ -25,8 +25,8 @@ import {
   feedbackId,
   userId,
 } from '#/shared/domain/ids'
-import { isInboxError } from '../../domain/errors'
-import type { InboxItem, SourceType } from '../../domain/types'
+import { isInboxError } from '../../../reputation/domain/inbox-errors'
+import type { InboxItem, SourceType } from '../../../reputation/domain/inbox-types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
