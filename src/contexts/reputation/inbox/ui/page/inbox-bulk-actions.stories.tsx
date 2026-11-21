@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import type {
   bulkAssignInboxItemsFn,
   bulkUpdateInboxStatusFn,
-} from '#/contexts/inbox/server/inbox'
+} from '#/contexts/reputation/server/inbox'
 import { expect, fn, userEvent, within, waitFor } from 'storybook/test'
 import { InboxBulkActions } from './inbox-bulk-actions'
 import { ToasterDecorator } from '../../../../../../.storybook/ToasterDecorator'

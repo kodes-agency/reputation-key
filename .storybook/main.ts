@@ -24,13 +24,13 @@ import type { StorybookConfig } from '@storybook/react-vite'
 import { fileURLToPath } from 'node:url'
 // Polyfill for node:async_hooks (better-auth) — aliased in viteFinal.
 const asyncHooksStub = fileURLToPath(new URL('./stubs/async-hooks.ts', import.meta.url))
-// Stub for #/contexts/review/server/reply — the real module leaks
+// Stub for #/contexts/reputation/server/reply — the real module leaks
 // @tanstack/start-server-core via #/composition + createServerFn. See
 // ./stubs/review-reply-server.ts for the full rationale.
 const reviewReplyStub = fileURLToPath(
   new URL('./stubs/review-reply-server.ts', import.meta.url),
 )
-// Stub for #/contexts/review/server/reply-templates, loaded lazily by
+// Stub for #/contexts/reputation/server/reply-templates, loaded lazily by
 // use-reply-actions; it leaks the same server runtime. See the stub file.
 const reviewReplyTemplatesStub = fileURLToPath(
   new URL('./stubs/review-reply-templates-server.ts', import.meta.url),
@@ -88,10 +88,10 @@ const config: StorybookConfig = {
       { find: 'node:async_hooks', replacement: asyncHooksStub },
       { find: 'async_hooks', replacement: asyncHooksStub },
       {
-        find: '#/contexts/review/server/reply-templates',
+        find: '#/contexts/reputation/server/reply-templates',
         replacement: reviewReplyTemplatesStub,
       },
-      { find: '#/contexts/review/server/reply', replacement: reviewReplyStub },
+      { find: '#/contexts/reputation/server/reply', replacement: reviewReplyStub },
       {
         find: '#/contexts/ai/server/draft-measurement',
         replacement: aiDraftMeasurementStub,

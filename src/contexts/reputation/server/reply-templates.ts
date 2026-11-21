@@ -11,9 +11,9 @@ import {
   loadReplyTemplateInputSchema,
   replyLibraryRefSchema,
   type ReplyLibraryRef,
-} from '../application/dto/reply-library.dto'
+} from '../../review/application/dto/reply-library.dto'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { isReviewError } from '../../reputation/domain/review-errors'
+import { isReviewError } from '../domain/review-errors'
 import { reviewErrorStatus } from './reply-read'
 
 export const listReplyTemplatesFn = createServerFn({ method: 'POST' })

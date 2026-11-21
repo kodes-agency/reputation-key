@@ -17,7 +17,7 @@ import {
   correctFeedbackHandlingOutcomeFn,
   checkReviewOnGoogleFn,
   setInboxItemPriorityFn,
-} from '#/contexts/inbox/server/inbox'
+} from '#/contexts/reputation/server/inbox'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
 import { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'

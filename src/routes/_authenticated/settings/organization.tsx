@@ -30,7 +30,7 @@ import {
   getPrivateFeedbackTargetAnalyticsFn,
   getResponseTargetPolicySettingsFn,
   setResponseTargetPolicyFn,
-} from '#/contexts/inbox/server/inbox'
+} from '#/contexts/reputation/server/inbox'
 import { OrganizationSettingsPage } from '#/contexts/identity/members/ui/organization/organization-settings-page'
 import { organizationCachePolicy } from '#/contexts/identity/members/ui/organization/organization-cache-policy'
 import { inboxKeys, createKeys } from '#/shared/queries/query-keys'

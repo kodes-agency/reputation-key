@@ -47,7 +47,7 @@ import type {
   bulkAssignInboxItemsFn,
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
-} from '#/contexts/inbox/server/inbox'
+} from '#/contexts/reputation/server/inbox'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { InboxQueue } from '#/contexts/inbox/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'

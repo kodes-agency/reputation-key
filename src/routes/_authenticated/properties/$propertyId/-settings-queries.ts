@@ -2,7 +2,7 @@ import { type TenantScope } from '#/shared/queries/tenant-scope'
 import { queryOptions } from '@tanstack/react-query'
 import { getMerchantAiAuthorizationFn } from '#/contexts/identity/server/merchant-ai'
 import { listPropertyResponsibleManagers } from '#/contexts/property/server/property-responsible-managers'
-import { getResponseTargetPolicySettingsFn } from '#/contexts/inbox/server/inbox'
+import { getResponseTargetPolicySettingsFn } from '#/contexts/reputation/server/inbox'
 import { getPropertyPortalExperience } from '#/contexts/portal/server/portals'
 import {
   inboxKeys,

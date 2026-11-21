@@ -36,7 +36,7 @@ describe('drizzle and React import bans', () => {
     'src/contexts/review/domain/import-bans-fixture.ts',
     'src/contexts/review/application/import-bans-fixture.ts',
     'src/shared/events/import-bans-fixture.ts',
-    'src/contexts/review/server/import-bans-fixture.ts',
+    'src/contexts/reputation/server/import-bans-fixture.ts',
   ])('rejects both in %s', async (file) => {
     expect(await restrictedLines(file)).toEqual([1, 2])
   })

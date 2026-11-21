@@ -4,7 +4,7 @@
 // Stories drive the mock fn to hit each render branch.
 import type { Meta, StoryObj } from '@storybook/react'
 import { InboxVisitBadge } from './inbox-visit-badge'
-import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
+import type { getLastVisitCountFn } from '#/contexts/reputation/server/inbox'
 import { mockServerFn } from '../../../../../../.storybook/mocks/mock-action'
 
 // mockServerFn returns a plain callable; the prop type is `typeof getLastVisitCountFn`

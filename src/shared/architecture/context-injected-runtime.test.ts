@@ -37,7 +37,7 @@ const REVIEW_BANS = [WALL_CLOCK, EPOCH_NOW, RANDOM_ID, MATH_RANDOM] as const
 const MODULE_BANS: ReadonlyArray<readonly [string, readonly RegExp[]]> = [
   ['src/contexts/reputation/inbox/outbox-consumers.server.ts', [LOGGER]],
   ['src/contexts/reputation/inbox/inbox-repository.server.ts', [LOGGER]],
-  ['src/contexts/inbox/server/inbox-queries.ts', [LOGGER]],
+  ['src/contexts/reputation/server/inbox-queries.ts', [LOGGER]],
   ...[
     'src/contexts/reputation/inbox/command-store.server.ts',
     'src/contexts/reputation/inbox/command-runtime.server.ts',

@@ -66,7 +66,7 @@ import type {
   addInboxNoteFn,
   getInboxItemDetailFn,
   getInboxItemHistoryFn,
-} from '#/contexts/inbox/server/inbox'
+} from '#/contexts/reputation/server/inbox'
 import type {
   FeedbackHandlingState,
   InboxItem,

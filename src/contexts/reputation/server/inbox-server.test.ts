@@ -18,12 +18,12 @@ import {
   getInboxItemHistoryDto,
   checkReviewOnGoogleDto,
   setInboxItemPriorityDto,
-} from '../application/dto/inbox.dto'
+} from '../../inbox/application/dto/inbox.dto'
 import {
   inboxError,
   isInboxError,
   toInboxRevisionConflictResult,
-} from '../../reputation/domain/inbox-errors'
+} from '../domain/inbox-errors'
 
 // ── DTO validation ──────────────────────────────────────────────────
 

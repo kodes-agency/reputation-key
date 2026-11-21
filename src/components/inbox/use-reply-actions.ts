@@ -22,7 +22,7 @@ import {
   retryPublishFn,
   checkReplyPublicationFn,
   editPublishedReplyFn,
-} from '#/contexts/review/server/reply'
+} from '#/contexts/reputation/server/reply'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   actionErrorMessage,
@@ -39,22 +39,26 @@ import type { ReplyLanguageTarget } from '../../contexts/reputation/replies/ui/c
 import type { ReplyOnScreen } from '../../contexts/reputation/replies/ui/message/reply-message-actions'
 import type { LoadedReplyTemplateDraft } from '../../contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 
-type ReplyTemplateServer = typeof import('#/contexts/review/server/reply-templates')
+type ReplyTemplateServer = typeof import('#/contexts/reputation/server/reply-templates')
 
 const listReplyTemplatesLazily = async (
   input: Parameters<ReplyTemplateServer['listReplyTemplatesFn']>[0],
 ): Promise<Awaited<ReturnType<ReplyTemplateServer['listReplyTemplatesFn']>>> =>
-  (await import('#/contexts/review/server/reply-templates')).listReplyTemplatesFn(input)
+  (await import('#/contexts/reputation/server/reply-templates')).listReplyTemplatesFn(
+    input,
+  )
 
 const loadReplyTemplateLazily = async (
   input: Parameters<ReplyTemplateServer['loadReplyTemplateFn']>[0],
 ): Promise<Awaited<ReturnType<ReplyTemplateServer['loadReplyTemplateFn']>>> =>
-  (await import('#/contexts/review/server/reply-templates')).loadReplyTemplateFn(input)
+  (await import('#/contexts/reputation/server/reply-templates')).loadReplyTemplateFn(
+    input,
+  )
 
 const checkReplyDraftLazily = async (
   input: Parameters<ReplyTemplateServer['checkReplyDraftFn']>[0],
 ): Promise<Awaited<ReturnType<ReplyTemplateServer['checkReplyDraftFn']>>> =>
-  (await import('#/contexts/review/server/reply-templates')).checkReplyDraftFn(input)
+  (await import('#/contexts/reputation/server/reply-templates')).checkReplyDraftFn(input)
 
 export type ReplyActions = Readonly<{
   isSaving: boolean

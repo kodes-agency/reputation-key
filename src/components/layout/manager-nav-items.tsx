@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { SidebarMenu, SidebarMenuBadge } from '#/components/ui/sidebar'
 import { InboxVisitBadge } from '#/contexts/reputation/inbox/ui/page/inbox-visit-badge'
-import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
+import type { getLastVisitCountFn } from '#/contexts/reputation/server/inbox'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import type { Capabilities } from '#/shared/hooks/useCapabilities'
 import {

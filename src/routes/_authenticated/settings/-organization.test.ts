@@ -16,7 +16,7 @@ vi.mock('#/contexts/identity/server/organizations', () => ({
   requestOrgLogoUpload: vi.fn(),
   finalizeOrgLogoUpload: vi.fn(),
 }))
-vi.mock('#/contexts/inbox/server/inbox', () => ({
+vi.mock('#/contexts/reputation/server/inbox', () => ({
   getResponseTargetPolicySettingsFn: server.policy,
   getGoogleReviewTargetAnalyticsFn: server.google,
   getPrivateFeedbackTargetAnalyticsFn: server.feedback,

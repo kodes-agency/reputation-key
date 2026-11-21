@@ -8,7 +8,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { reviewId } from '#/shared/domain/ids'
-import { checkReviewOnGoogleDto } from '../application/dto/inbox.dto'
+import { checkReviewOnGoogleDto } from '../../inbox/application/dto/inbox.dto'
 
 /**
  * Read one review from Google now and say what it shows. Authorized as viewing

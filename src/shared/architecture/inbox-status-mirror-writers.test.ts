@@ -60,12 +60,14 @@ const REPUTATION_RESPONSE_TARGETS_ROOT = join(
   'reputation',
   'response-targets',
 )
+const REPUTATION_SERVER_ROOT = join(REPO_SRC, 'contexts', 'reputation', 'server')
 
 const productionFiles = [
   ...walk(INBOX_ROOT),
   ...walk(REPUTATION_INBOX_ROOT),
   ...walk(REPUTATION_DOMAIN_ROOT),
   ...walk(REPUTATION_RESPONSE_TARGETS_ROOT),
+  ...walk(REPUTATION_SERVER_ROOT),
 ]
 
 const relativeToSrc = (absolute: string): string =>
@@ -150,7 +152,7 @@ describe('inbox_items carries the Handling Cycle facts its readers resolve from'
       const path = relativeToSrc(file)
       return (
         path.startsWith('contexts/inbox/application/') ||
-        path.startsWith('contexts/inbox/server/') ||
+        path.startsWith('contexts/reputation/server/') ||
         path.startsWith('contexts/reputation/domain/')
       )
     })

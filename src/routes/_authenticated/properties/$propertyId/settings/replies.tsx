@@ -13,27 +13,29 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { inboxKeys, propertyKeys, reviewKeys } from '#/shared/queries/query-keys'
 import { propertyReplyLibraryQuery } from './-reply-library-query'
 
-type ReplyLibraryServer = typeof import('#/contexts/review/server/reply-library')
+type ReplyLibraryServer = typeof import('#/contexts/reputation/server/reply-library')
 
 const saveReplyVoiceLazily = async (
   input: Parameters<ReplyLibraryServer['saveReplyVoiceFn']>[0],
 ): Promise<Awaited<ReturnType<ReplyLibraryServer['saveReplyVoiceFn']>>> =>
-  (await import('#/contexts/review/server/reply-library')).saveReplyVoiceFn(input)
+  (await import('#/contexts/reputation/server/reply-library')).saveReplyVoiceFn(input)
 
 const saveReplyTemplateLazily = async (
   input: Parameters<ReplyLibraryServer['saveReplyTemplateFn']>[0],
 ): Promise<Awaited<ReturnType<ReplyLibraryServer['saveReplyTemplateFn']>>> =>
-  (await import('#/contexts/review/server/reply-library')).saveReplyTemplateFn(input)
+  (await import('#/contexts/reputation/server/reply-library')).saveReplyTemplateFn(input)
 
 const setReplyTemplateHiddenLazily = async (
   input: Parameters<ReplyLibraryServer['setReplyTemplateHiddenFn']>[0],
 ): Promise<Awaited<ReturnType<ReplyLibraryServer['setReplyTemplateHiddenFn']>>> =>
-  (await import('#/contexts/review/server/reply-library')).setReplyTemplateHiddenFn(input)
+  (await import('#/contexts/reputation/server/reply-library')).setReplyTemplateHiddenFn(
+    input,
+  )
 
 const resetReplyTemplateLazily = async (
   input: Parameters<ReplyLibraryServer['resetReplyTemplateFn']>[0],
 ): Promise<Awaited<ReturnType<ReplyLibraryServer['resetReplyTemplateFn']>>> =>
-  (await import('#/contexts/review/server/reply-library')).resetReplyTemplateFn(input)
+  (await import('#/contexts/reputation/server/reply-library')).resetReplyTemplateFn(input)
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/replies',

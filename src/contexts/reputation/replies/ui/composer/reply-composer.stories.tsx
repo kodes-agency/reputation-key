@@ -101,7 +101,7 @@ import type {
 } from './reply-language-options'
 import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
 import type { FeedbackHandlingState } from '#/contexts/inbox/application/public-api'
-import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
+import type { addInboxNoteFn } from '#/contexts/reputation/server/inbox'
 
 type Reply = Exclude<NonNullable<ReplyData>, { kind: 'google_observation' }>
 

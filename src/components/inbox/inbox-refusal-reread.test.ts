@@ -61,8 +61,8 @@ const replyServer = vi.hoisted(() => ({
   listReplyTemplatesFn: vi.fn(),
   loadReplyTemplateFn: vi.fn(),
 }))
-vi.mock('#/contexts/review/server/reply', () => replyServer)
-vi.mock('#/contexts/review/server/reply-templates', () => replyServer)
+vi.mock('#/contexts/reputation/server/reply', () => replyServer)
+vi.mock('#/contexts/reputation/server/reply-templates', () => replyServer)
 
 type Requests = { detail: number; list: number; counts: number }
 
@@ -109,7 +109,7 @@ describe('a refused reply command', () => {
       status,
       text: 'Thank you for staying.',
     }) as unknown as NonNullable<InboxItemDetailResult['reply']>
-  /** What `reviewErrorStatus` makes of `invalid_transition` (review/server/reply-read.ts). */
+  /** What `reviewErrorStatus` makes of `invalid_transition` (reputation/server/reply-read.ts). */
   const refusal = new ServerFunctionError(
     'ReviewError',
     'This reply is no longer waiting for approval.',
