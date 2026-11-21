@@ -117,7 +117,7 @@ FROM deps AS build
 # version `base` already carries.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates=20250419 \
+        ca-certificates=20250419+deb13u1 \
         openssl=3.5.7-1~deb13u3 \
     && rm -rf /var/lib/apt/lists/*
 ARG SOURCE_REVISION
