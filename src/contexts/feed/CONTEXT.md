@@ -57,7 +57,7 @@ The area is split into feature folders:
   and the browser contracts (`contracts.ts` for Mark all read and Clear all, plus
   `notification-list-filter`, `notification-page` and `notification-view`
   `.contracts.ts`).
-- `application/` keeps `public-api.ts` and its two halves. `infrastructure/` keeps
+- `application/` keeps `public-api.ts`. `infrastructure/` keeps
   the email templates and the two fixtures the shared route harness imports.
 
 ## Preferences
