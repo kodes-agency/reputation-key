@@ -170,7 +170,10 @@ export function GuestContactRequest({
       <form.Field name="consent">
         {(field) => (
           <>
-            <label className="ih-note__label" htmlFor={`${idPrefix}-consent`}>
+            <label
+              className="ih-note__label ih-note__label--check"
+              htmlFor={`${idPrefix}-consent`}
+            >
               <input
                 id={`${idPrefix}-consent`}
                 name={field.name}
@@ -179,7 +182,7 @@ export function GuestContactRequest({
                 disabled={pending}
                 aria-invalid={!field.state.meta.isValid}
                 onChange={(event) => field.handleChange(event.target.checked)}
-              />{' '}
+              />
               {CONTACT_REQUEST_COPY.consentLabel}
             </label>
             {!field.state.meta.isValid && (

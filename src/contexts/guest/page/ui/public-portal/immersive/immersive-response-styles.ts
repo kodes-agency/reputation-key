@@ -273,6 +273,7 @@ export const IMMERSIVE_RESPONSE_CSS = `
 .ih-note__hint svg { flex: none; }
 .ih-note__form { display: flex; flex-direction: column; gap: 8px; }
 .ih-note__label { font-size: 15px; font-weight: 600; }
+.ih-note__label--check { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .ih-note__field {
   box-sizing: border-box;
   width: 100%;

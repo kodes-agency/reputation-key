@@ -53,7 +53,7 @@ const FLAG_ROOM = 28
 function partStyle(
   box: Box,
   scale: number,
-): CSSProperties & Record<'--part-gap' | '--part-pad', string> {
+): CSSProperties & Record<'--part-gap' | '--part-pad' | '--part-w' | '--part-h', string> {
   return {
     position: 'absolute',
     pointerEvents: 'auto',
@@ -61,10 +61,10 @@ function partStyle(
     left: box.left,
     width: box.width,
     height: box.height,
-    outlineStyle: 'solid',
-    outlineWidth: LINE_WIDTH / scale,
     '--part-gap': `${FOCUS_GAP / scale}px`,
     '--part-pad': `${TOUCH_PAD / scale}px`,
+    '--part-w': `${box.width}px`,
+    '--part-h': `${box.height}px`,
   }
 }
 
@@ -126,40 +126,48 @@ export function PreviewPartFrame({
               aria-current={isActive ? 'true' : undefined}
               onClick={() => selection.onSelect(section)}
               className={cn(
-                'cursor-pointer rounded-[28px] bg-transparent p-0',
+                'group cursor-pointer rounded-[28px] bg-transparent p-0 outline-none',
                 // A small part (the language chip) is still a thumb's target on a phone:
-                // a pad drawn around its centre, 44px on screen whatever the scale.
-                "max-md:after:absolute max-md:after:top-1/2 max-md:after:left-1/2 max-md:after:size-(--part-pad) max-md:after:-translate-1/2 max-md:after:content-['']",
-                'transition-[outline-color] duration-150',
-                // Focus is its own mark: a gap and the ring colour, so it is not
-                // taken for the outline of the part being edited.
-                '[outline-offset:0] focus-visible:[outline-offset:var(--part-gap)] focus-visible:outline-ring',
-                isActive
-                  ? 'outline-primary'
-                  : 'outline-transparent hover:outline-primary/45',
+                // the button grows to 44px on screen, whatever the scale, around the
+                // part's centre. The part's own outline is drawn by the span inside.
+                'max-md:ml-[calc((var(--part-w)_-_max(var(--part-w),var(--part-pad)))_/_2)] max-md:min-h-(--part-pad) max-md:min-w-(--part-pad)',
+                'max-md:mt-[calc((var(--part-h)_-_max(var(--part-h),var(--part-pad)))_/_2)]',
               )}
               style={partStyle(box, scale)}
             >
-              {isActive ? (
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'flex items-center gap-1 bg-primary px-2 py-1 text-xs leading-none font-medium whitespace-nowrap text-primary-foreground',
-                    isNearTop ? 'rounded-b-md' : 'rounded-t-md',
-                  )}
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    ...(isNearTop ? { top: '100%' } : { bottom: '100%' }),
-                    transformOrigin: isNearTop ? 'top left' : 'bottom left',
-                    transform: `scale(${1 / scale})`,
-                    marginLeft: -(LINE_WIDTH / scale),
-                  }}
-                >
-                  <Icon className="size-3" aria-hidden="true" />
-                  {label}
-                </span>
-              ) : null}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'absolute top-1/2 left-1/2 h-(--part-h) w-(--part-w) -translate-1/2 rounded-[28px] transition-[outline-color] duration-150',
+                  // Focus is its own mark: a gap and the ring colour, so it is not
+                  // taken for the outline of the part being edited.
+                  '[outline-offset:0] group-focus-visible:[outline-offset:var(--part-gap)] group-focus-visible:outline-ring',
+                  isActive
+                    ? 'outline-primary'
+                    : 'outline-transparent group-hover:outline-primary/45',
+                )}
+                style={{ outlineStyle: 'solid', outlineWidth: LINE_WIDTH / scale }}
+              >
+                {isActive ? (
+                  <span
+                    className={cn(
+                      'flex items-center gap-1 bg-primary px-2 py-1 text-xs leading-none font-medium whitespace-nowrap text-primary-foreground',
+                      isNearTop ? 'rounded-b-md' : 'rounded-t-md',
+                    )}
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      ...(isNearTop ? { top: '100%' } : { bottom: '100%' }),
+                      transformOrigin: isNearTop ? 'top left' : 'bottom left',
+                      transform: `scale(${1 / scale})`,
+                      marginLeft: -(LINE_WIDTH / scale),
+                    }}
+                  >
+                    <Icon className="size-3" aria-hidden="true" />
+                    {label}
+                  </span>
+                ) : null}
+              </span>
             </button>
           )
         })}

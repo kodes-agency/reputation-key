@@ -1,6 +1,6 @@
 import { Ban, Eye, Star, UsersRound } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 type Props = Readonly<{ pending: boolean; error: unknown; onAccept: () => void }>
@@ -47,7 +47,7 @@ export function StaffNoticeContent({ pending, error, onAccept }: Props) {
         <Button pending={pending} pendingLabel="Saving…" onClick={onAccept}>
           Got it
         </Button>
-        <InlineLink to="/privacy">Privacy notice</InlineLink>
+        <TouchInlineLink to="/privacy">Privacy notice</TouchInlineLink>
       </div>
     </section>
   )
