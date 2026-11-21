@@ -86,7 +86,7 @@ vi.mock('#/contexts/feed/server/notifications', () => ({
   getNotificationUserSettingsFn: server.getNotificationUserSettings,
   updateNotificationUserSettingsFn: vi.fn(),
 }))
-vi.mock('#/contexts/inbox/server/inbox', () => ({ getLastVisitCountFn: vi.fn() }))
+vi.mock('#/contexts/reputation/server/inbox', () => ({ getLastVisitCountFn: vi.fn() }))
 vi.mock('#/routes/-notification-fns', () => ({ notificationFns: {} }))
 vi.mock('#/routes/-viewport-hint', () => ({ readViewportHint: () => undefined }))
 vi.mock('#/shared/auth/capability-set', async (importOriginal) => {

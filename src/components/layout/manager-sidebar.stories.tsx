@@ -30,7 +30,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, useSidebar } from '#/components/ui/sidebar'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
-import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
+import type { getLastVisitCountFn } from '#/contexts/reputation/server/inbox'
 import { ManagerSidebar } from './manager-sidebar'
 
 const organizationName = 'Avela Hospitality'

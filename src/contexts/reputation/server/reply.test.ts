@@ -10,8 +10,8 @@ import {
   draftReplyDto,
   rejectReplyDto,
 } from './reply-read'
-import { reviewError, isReviewError } from '../../reputation/domain/review-errors'
-import { MAX_REPLY_LENGTH } from '../../reputation/domain/review-rules'
+import { reviewError, isReviewError } from '../domain/review-errors'
+import { MAX_REPLY_LENGTH } from '../domain/review-rules'
 
 // ── DTO validation ──────────────────────────────────────────────────
 

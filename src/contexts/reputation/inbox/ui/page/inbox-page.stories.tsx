@@ -6,7 +6,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { useState } from 'react'
-import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
+import type { getInboxItemsFn } from '#/contexts/reputation/server/inbox'
 import { InboxPageV2 } from './inbox-page-v2'
 import {
   createInboxContainer,

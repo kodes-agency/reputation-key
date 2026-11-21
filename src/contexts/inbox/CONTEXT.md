@@ -34,7 +34,7 @@ cross-context SQL, and the handling stores stay content-free.
 
 ## Feature map
 
-Server functions live in `server/`; the use cases, stores, read models,
+Server functions live in `../reputation/server/` (the `inbox-*.ts` files); the use cases, stores, read models,
 lookups, consumers and projection rebuild live in `../reputation/inbox/` (each
 port beside its implementation as `*.port.server.ts`), and Response Target code
 in `../reputation/response-targets/`. The screens are in `../reputation/inbox/ui` (the page, queue, filter and row
@@ -46,7 +46,7 @@ actions hook. Its pure types, rules, events and errors are in
 `feedback-handling.ts`, `handling-cycles.ts`, `handling-history.ts`,
 `handling-outcome-authority.ts` and `response-target.ts`.
 
-| Feature                              | Server function (file in `server/`)                                                                                                                                       | Use case or store                                                                                                                                                                                                        |
+| Feature                              | Server function (file in `../reputation/server/`)                                                                                                                         | Use case or store                                                                                                                                                                                                        |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | List, filters, cursors               | `getInboxItemsFn` (`inbox-queries.ts`)                                                                                                                                    | `../reputation/inbox/get-inbox-items.server.ts`, `../reputation/inbox/inbox-view-repository.server.ts`                                                                                                                   |
 | Queue and property counts            | `getInboxQueueCountsFn`, `getInboxPropertyCountsFn` (`inbox-queries.ts`)                                                                                                  | `../reputation/inbox/get-inbox-queue-counts.server.ts`, `../reputation/inbox/get-inbox-property-counts.server.ts`, `application/inbox-queues.ts`                                                                         |
@@ -94,16 +94,16 @@ Storybook containers alike.
 
 Three files stay, each reached by the browser, so none can be a `*.server.ts`:
 
-- `public-api.ts`: other areas import it. It stays here until Inbox's server functions
-  move into Reputation and it folds into `reputation/public-api.ts`.
+- `public-api.ts`: other areas import it. It stays here until it folds into
+  `reputation/public-api.ts`.
 - `dto/inbox.dto.ts`: `response-targets/ui` (the settings card and the
   private-feedback target card) import it as a value and the public API
-  re-exports it as a value. All eight `server/` files import it, and no lint
+  re-exports it as a value. The Inbox server functions in `../reputation/server/` import it, and no lint
   policy lets a Review or Inbox layer file import a Reputation `contracts.ts`, so
   it is not a contract either.
 - `inbox-queues.ts` (with its test): `inbox/ui/page/inbox-search-schema.ts` in
   Reputation imports it as a value, and the public API and `inbox.dto.ts`
-  re-export it. `server/inbox-queries.ts` imports it, so it is not a contract.
+  re-export it. `../reputation/server/inbox-queries.ts` imports it, so it is not a contract.
 
 ## Queues
 

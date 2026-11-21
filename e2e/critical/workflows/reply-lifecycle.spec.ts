@@ -57,8 +57,8 @@ const ACCOUNT_NAME = `accounts/${ACCOUNT}`
 // collide with the surviving row on properties_org_gbp_location_id_unique.
 const locationId = (name: string) => `${name}-loc-${e2eRunId}`
 
-const REPLY_FILE = 'src/contexts/review/server/reply-draft.ts'
-const REPLY_FILE_OPS = 'src/contexts/review/server/reply.ts'
+const REPLY_FILE = 'src/contexts/reputation/server/reply-draft.ts'
+const REPLY_FILE_OPS = 'src/contexts/reputation/server/reply.ts'
 const PROPERTY_FILE = 'src/contexts/property/server/properties.ts'
 
 type Scenario = Readonly<{

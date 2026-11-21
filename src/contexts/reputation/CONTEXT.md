@@ -50,10 +50,10 @@ The Inbox page, queue, filter, row, selection, shortcut and cache primitives are
 in `inbox/ui/page/`, with their tests and stories. The Response Target chip and
 the deadline refresh that reloads the detail are in `response-targets/ui/`. The
 panel receives commands as props and reads browser-safe Inbox types through
-`src/contexts/inbox/application/public-api.ts`. Review and Inbox keep their
-server functions, builds, public APIs and the few browser-reached files their
-maps list; the rest of their code is in the features below. Server functions
-remain at their existing `server/` paths.
+`src/contexts/inbox/application/public-api.ts`. Review's and Inbox's server functions are in `server/` (`reply*.ts` and
+`inbox-*.ts`). Review and Inbox keep their builds, public APIs and the few
+browser-reached files their maps list; the rest of their code is in the
+features below.
 
 Each port sits beside its implementation as `<impl>.port.server.ts`. A port
 implemented in a build or in composition sits with its callers. Inbox's copies of
@@ -68,8 +68,8 @@ Review's authority ports are `inbox/review-*.port.server.ts`.
 and the archive consumer; the restated-revision exclusion store and its Review
 read; and, in `ui/`, the Organization settings card and analytics summary. The
 target rules stay in `domain/response-target.ts`. Inbox's command and projection
-code imports these server files directly. Server functions stay in
-`src/contexts/inbox/server/`.
+code imports these server files directly. Its server functions are in
+`server/inbox-response-targets.ts`.
 
 ## Reply writes
 

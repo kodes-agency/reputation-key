@@ -12,8 +12,8 @@ import {
   saveReplyTemplateInputSchema,
   saveReplyVoiceInputSchema,
   setReplyTemplateHiddenInputSchema,
-} from '../application/dto/reply-library.dto'
-import { isReviewError } from '../../reputation/domain/review-errors'
+} from '../../review/application/dto/reply-library.dto'
+import { isReviewError } from '../domain/review-errors'
 import { reviewErrorStatus } from './reply-read'
 
 async function authorizeReplyLibrary(

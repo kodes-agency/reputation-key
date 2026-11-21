@@ -11,7 +11,7 @@ import {
   inboxWaitingFor,
   inboxWaitingQuery,
 } from '#/components/features/portal/portal-overview/portal-overview-inbox'
-import { getInboxPropertyCountsFn } from '#/contexts/inbox/server/inbox'
+import { getInboxPropertyCountsFn } from '#/contexts/reputation/server/inbox'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 
 /** Null until read, and for a reader who cannot open the Inbox (`inbox.manage`). */

@@ -22,7 +22,7 @@ import type { getPropertySetupFn } from '#/contexts/reporting/server/property-se
 import type {
   getReplyLibraryFn,
   saveReplyVoiceFn,
-} from '#/contexts/review/server/reply-library'
+} from '#/contexts/reputation/server/reply-library'
 
 type ServerCall<T> = T extends (...args: infer Args) => infer Result
   ? (...args: Args) => Result

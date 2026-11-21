@@ -15,7 +15,7 @@ import {
   isInboxError,
   toInboxRevisionConflictResult,
   type InboxErrorCode,
-} from '../../reputation/domain/inbox-errors'
+} from '../domain/inbox-errors'
 import { inboxItemId, propertyId } from '#/shared/domain/ids'
 import { userId as toUserId } from '#/shared/domain/ids'
 

@@ -282,7 +282,7 @@ const controls = [
   {
     name: 'UI support cannot import a context server adapter',
     file: 'src/shared/format/boundary-negative-control.ts',
-    source: "import '#/contexts/review/server/reply'\n",
+    source: "import '#/contexts/reputation/server/reply'\n",
   },
   // ARC-03-T1: scripts/ is a mandated control category. Operator commands
   // are admin entry points, not browsers — a context's server layer is an
@@ -290,12 +290,12 @@ const controls = [
   {
     name: 'operator script cannot import a context server adapter',
     file: 'scripts/ops/boundary-negative-control.ts',
-    source: "import '../../src/contexts/review/server/reply'\n",
+    source: "import '../../src/contexts/reputation/server/reply'\n",
   },
   {
     name: 'CI script cannot import a context server adapter',
     file: 'scripts/ci/boundary-negative-control.ts',
-    source: "import '../../src/contexts/review/server/reply'\n",
+    source: "import '../../src/contexts/reputation/server/reply'\n",
   },
   // A repository verifier is static analysis. If it can construct a
   // repository or resolve the container it is no longer a check, it is a
@@ -519,7 +519,7 @@ const allowedControls = [
   },
   {
     name: 'context server adapter may resolve the application container',
-    file: 'src/contexts/review/server/boundary-positive-control.ts',
+    file: 'src/contexts/reputation/server/boundary-positive-control.ts',
     source: "import '#/composition'\n",
   },
   {

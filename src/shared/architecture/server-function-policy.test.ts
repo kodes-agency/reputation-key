@@ -470,12 +470,11 @@ describe('server functions and the execution policy', () => {
       'feed',
       'guest',
       'identity',
-      'inbox',
       'integration',
       'portal',
       'property',
       'reporting',
-      'review',
+      'reputation',
     ])
     expect(reaches.length).toBeGreaterThan(SERVER_FUNCTION_POLICY_EXEMPTIONS.length)
   })
