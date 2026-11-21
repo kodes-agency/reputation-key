@@ -16,7 +16,7 @@ import {
 import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
-} from '#/shared/ai-review-source-contract'
+} from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   createMerchantAiAuthorizationStore,
   hasActiveMerchantAiConsent,
@@ -34,12 +34,12 @@ import {
   executeWithLastOwnerGuardDisabled,
   withLastOwnerGuardDisabled,
 } from '#/shared/db/disable-guard-triggers'
-import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
+import { createAiAdvisoryScope } from '#/shared/ai-operation/ai-lock-order-v1'
 import { holdTransaction } from '#/shared/db/testing/held-transaction'
 import {
   getAiRuntimeCapability,
   isExecutionCompatibleWithConsent,
-} from '#/shared/ai-runtime-capability-contract'
+} from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 

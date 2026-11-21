@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db/index'
-import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '#/shared/merchant-ai-notice-announcements'
+import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import type { MerchantAiNoticeUpdateStore } from './merchant-ai-notice-updates.server'
 
 type UpdateRow = { notice_version: string; notice_digest: string; renewed_at: Date }

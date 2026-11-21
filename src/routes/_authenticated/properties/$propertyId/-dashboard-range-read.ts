@@ -14,7 +14,7 @@ import {
   guestVoiceRangeSearch,
   type DashboardRange,
   type GuestVoiceRange,
-} from '#/shared/dashboard-range'
+} from '#/shared/dashboard/dashboard-range'
 
 function rangeOfSearch(location: Readonly<{ search: unknown }>): unknown {
   const search = location.search

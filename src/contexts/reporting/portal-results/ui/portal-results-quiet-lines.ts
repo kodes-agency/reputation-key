@@ -1,6 +1,6 @@
 import type { PortalAnalyticsData } from '#/contexts/reporting/portal-results/contracts'
 import { GUEST_LOCALE_METADATA, matchGuestLocale } from '#/shared/domain/guest-locale'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { languageRows, languagesAreHeldBack } from './portal-results-languages'
 
 function scansWord(total: number): string {

@@ -3,7 +3,7 @@ import { getLogger } from '#/shared/observability/logger'
 import type {
   ReplyDraftingProgress,
   ReplyDraftingProgressSink,
-} from '#/shared/reply-drafting-progress'
+} from '#/shared/reply/reply-drafting-progress'
 
 type Delivered = Extract<GenerateReplySuggestionResult, { status: 'ready' | 'fallback' }>
 type Event =

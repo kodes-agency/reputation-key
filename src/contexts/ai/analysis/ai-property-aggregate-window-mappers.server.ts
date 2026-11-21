@@ -2,8 +2,8 @@
 // correlated invariant is an error, never a partial answer.
 
 import { reviewId } from '#/shared/domain/ids'
-import { isAspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
-import { isAiIssueLabel } from '#/shared/ai-issue-label'
+import { isAspectTaxonomyV1Id } from '#/shared/analysis/aspect-taxonomy'
+import { isAiIssueLabel } from '#/shared/analysis/ai-issue-label'
 import type {
   AiPropertyAnalyzedReview,
   AiPropertyDailyAggregate,

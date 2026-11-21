@@ -1,6 +1,6 @@
 import type * as React from 'react'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /**
  * The one row a list's search, filter, sort and count sit in: `SearchField`,

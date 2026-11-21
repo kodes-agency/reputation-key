@@ -8,7 +8,7 @@ import type {
   InboxMentionV3,
   InboxReviewAnalysis,
 } from '#/contexts/inbox/application/public-api'
-import { locateReviewSentences } from '#/shared/review-sentences'
+import { locateReviewSentences } from '#/shared/ai-review-source/review-sentences'
 import {
   isRemoved,
   matchedMentionOrdinals,

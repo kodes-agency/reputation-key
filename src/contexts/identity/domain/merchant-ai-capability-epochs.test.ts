@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '#/shared/domain/merchant-ai-capability'
-import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice-change'
+import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice/merchant-ai-notice-change'
 import { MERCHANT_AI_NOTICE_CHANGES } from '#/shared/merchant-ai-notice-contract'
 import { nextMerchantAiCapabilityEpochs } from './merchant-ai-capability-epochs'
 import type { MerchantAiSnapshot } from './merchant-ai-authorization'

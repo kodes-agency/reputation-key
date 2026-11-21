@@ -1,4 +1,4 @@
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 // The AI draft binding: an AI-assisted reply is only publishable while every
 // input its draft was generated from is still the current one. WP3.3-B moved
 // this from assert_current_ai_draft_binding_v1 (PL/pgSQL) into the same

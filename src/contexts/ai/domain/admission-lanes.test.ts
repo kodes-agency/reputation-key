@@ -9,7 +9,7 @@ import {
   AI_PROVIDER_ACCOUNT_LIMITS_PER_MINUTE,
   isAiAdmissionLane,
 } from './admission-lanes'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
 import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/analysis/profile'
 
 // What the provider counts against its token limit for one analysis is what the

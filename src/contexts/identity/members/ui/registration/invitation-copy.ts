@@ -4,7 +4,7 @@
  */
 
 import type { InvitationRole } from './shared-types'
-import { formatDate } from '#/lib/format'
+import { formatDate } from '#/shared/format/format'
 
 export type InvitationUnusableState =
   'expired' | 'canceled' | 'accepted' | 'unavailable' | 'rate_limited'

@@ -6,7 +6,7 @@ import type {
   InboxMentionV3,
   InboxReviewAnalysis,
 } from '#/contexts/inbox/application/public-api'
-import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 
 export type ReadyAnalysisV3 = Extract<InboxReviewAnalysis, { status: 'ready_v3' }>
 

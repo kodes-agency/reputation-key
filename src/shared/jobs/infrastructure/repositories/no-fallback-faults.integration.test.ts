@@ -34,7 +34,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // shared Redis is never killed or restarted. Skips cleanly when Redis is
 // unreachable (same convention as the BQC-3.6 quarantine suite).
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import {
   describe,
   it,

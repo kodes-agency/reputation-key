@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 const STAR_BUCKETS = [5, 4, 3, 2, 1] as const
 

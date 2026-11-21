@@ -1,6 +1,6 @@
 import { TouchInlineLink as InlineLink } from '#/components/ui/inline-touch-link'
 import type { LiveEvidence } from '../contracts'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { quoteSegments } from './guest-voice-quote-segments'
 import { reviewDay } from './guest-voice-words'
 import type { ChangeSense } from './guest-voice-words'

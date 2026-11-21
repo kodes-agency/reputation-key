@@ -5,7 +5,7 @@ import type {
   RatingGoalDetailView,
   RatingGoalLowReviewView,
 } from '#/contexts/reporting/rating-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import type { GoalColumn, GoalColumnsPlan } from '#/components/goals/goal-columns-view'
 import { dateOf, type BandContext, type BandWords } from './rating-goal-bands-view'
 import { paceText, weeklyTarget } from './rating-goal-pace-words'

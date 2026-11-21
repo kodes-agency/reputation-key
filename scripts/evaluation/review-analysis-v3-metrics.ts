@@ -13,8 +13,11 @@ import {
   type ReviewAnalysisV3Stored,
   type ReviewSentimentV3,
   type ReviewUrgentReasonV3,
-} from '#/shared/review-analysis-v3'
-import { REVIEW_TOPICS_V3, type ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/review-analysis-v3'
+import {
+  REVIEW_TOPICS_V3,
+  type ReviewTopicV3,
+} from '#/shared/analysis/review-topic-taxonomy'
 import type { ItemRunResult, ItemRunStatus } from './review-analysis-v3-provider'
 import {
   scoreMentions,

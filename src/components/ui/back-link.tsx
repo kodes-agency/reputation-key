@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react'
 import { createLink } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Button, type ButtonProps } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 // The one way back. A page that has breadcrumbs goes up through them; a surface
 // with no room for them (a full-bleed workspace header, a wizard step) and a step

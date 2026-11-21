@@ -8,7 +8,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //   3. quarantines the legacy purge command before it can erase the
 //      stable Review row or RepKey-owned Reply history.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { sql } from 'drizzle-orm'

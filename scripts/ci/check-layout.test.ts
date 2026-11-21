@@ -104,8 +104,8 @@ describe('layout: folders that only shrink', () => {
 
   it('counts loose files and undeclared folders in src/shared', () => {
     const files = [
-      'src/shared/reply-revision.ts',
-      'src/shared/ai-digest.ts',
+      'src/shared/reply-language-catalogue.ts',
+      'src/shared/merchant-ai-notice-contract.ts',
       'src/shared/reply-library/builtin-library.ts',
       'src/shared/domain/money.ts',
     ]

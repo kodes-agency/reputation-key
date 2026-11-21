@@ -2,7 +2,7 @@ import { replyDraftingV2OutputSchema } from '#/shared/reply/schema'
 import {
   reportReplyProgress,
   type ReplyDraftingProgressSink,
-} from '#/shared/reply-drafting-progress'
+} from '#/shared/reply/reply-drafting-progress'
 
 const FIELDS = ['languageCode', 'case', 'mainPoint', 'avoidTerms', 'replyText'] as const
 

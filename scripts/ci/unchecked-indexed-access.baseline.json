@@ -64,7 +64,6 @@
   "src/contexts/reputation/sync/provider-subject-keyring.test.ts": 2,
   "src/contexts/reputation/sync/refresh-expiring-reviews-job.server.ts": 2,
   "src/contexts/reputation/sync/refresh-expiring-reviews-job.test.ts": 11,
-  "src/shared/ai-runtime-capability-contract.ts": 3,
   "src/shared/architecture/browser-reachability.test.ts": 4,
   "src/shared/architecture/cross-context-public-api.test.ts": 1,
   "src/shared/architecture/observability-schema.test.ts": 3,
@@ -85,6 +84,7 @@
   "src/shared/jobs/infrastructure/repositories/quarantine-ttl-sweep.integration.test.ts": 2,
   "src/shared/jobs/queue.test.ts": 18,
   "src/shared/jobs/retention-sweep.job.test.ts": 1,
+  "src/shared/merchant-ai-notice/ai-runtime-capability-contract.ts": 3,
   "src/shared/ops/operator-command.test.ts": 5,
   "src/shared/outbox/dispatcher-gate.test.ts": 1,
   "src/start.ts": 1

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AI_PROVIDER_IDS } from '#/shared/ai-provider-ids'
+import { AI_PROVIDER_IDS } from '#/shared/ai-provider-profile/ai-provider-ids'
 import { OPERATOR_PROVIDER_SELECTION } from './operator-provider-selection'
 import { createAiProviderRegistry, selectAiProvider } from './provider-selection'
 

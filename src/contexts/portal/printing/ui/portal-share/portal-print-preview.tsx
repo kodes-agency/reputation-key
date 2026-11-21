@@ -25,7 +25,7 @@ import {
   printPhotoDpi,
   printPhotoPixelsFor,
 } from '#/shared/domain/portal-print-photo'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { PrintDrawnBackArt } from './print-back-art'
 import { PrintDrawnFaceArt } from './print-face-art'
 import { PrintPhotoNotice } from './print-photo-notice'

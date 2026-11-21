@@ -4,8 +4,8 @@
 // this one stops working. Pure, so each sentence is tested once.
 
 import type { PortalPublicationState } from '../../../workspace/ui/shared/types'
-import { formatTimestamp, toInstant } from '#/lib/format'
-import { describeTimezone } from '#/shared/timezone-display'
+import { formatTimestamp, toInstant } from '#/shared/format/format'
+import { describeTimezone } from '#/shared/format/timezone-display'
 import { printAddressShape } from '#/shared/domain/portal-print-address'
 import { joinPeopleNames } from '../../../publication/ui/portal-review/portal-review-checks'
 

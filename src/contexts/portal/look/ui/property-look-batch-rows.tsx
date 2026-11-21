@@ -3,7 +3,7 @@
 // when cleared), and, once the batch has run, what came of each.
 import { Check, CircleAlert, Minus, TriangleAlert } from 'lucide-react'
 import { Checkbox } from '#/components/ui/checkbox'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { PublishPortalsChangesResult } from '#/contexts/portal/application/portal-management-contracts'
 import type { BatchRow } from './use-property-look-batch'
 import {

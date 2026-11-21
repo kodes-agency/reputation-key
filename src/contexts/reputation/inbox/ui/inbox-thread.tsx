@@ -10,7 +10,7 @@ import {
   TimelineIndicator,
   TimelineItem,
 } from '#/components/ui/timeline'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { GuestMessage } from './guest-message'
 import { inboxHistoryQueryOptions } from './inbox-history-query'

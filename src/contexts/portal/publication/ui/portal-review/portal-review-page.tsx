@@ -11,7 +11,7 @@
 import { useRef, useState } from 'react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import type { PortalReview } from '#/contexts/portal/application/portal-management-contracts'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalDetailTab } from '#/contexts/portal/workspace/ui/portal-detail-rules'
 import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'

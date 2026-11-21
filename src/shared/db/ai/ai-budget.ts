@@ -6,11 +6,14 @@ import {
   aiOperations,
   aiOrganizationCostWindows,
 } from '#/shared/db/schema'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { operationProviderPairing } from '#/shared/ai-operation-provider-pairings'
-import { AI_PROVIDER_IDS, type AiProviderId } from '#/shared/ai-provider-ids'
-import { maximumCostMicrosWith } from '#/shared/ai-provider-pricing'
-import { priceCatalogueOfProvider } from '#/shared/ai-provider-pricing-registry'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
+import { operationProviderPairing } from '#/shared/ai-operation/ai-operation-provider-pairings'
+import {
+  AI_PROVIDER_IDS,
+  type AiProviderId,
+} from '#/shared/ai-provider-profile/ai-provider-ids'
+import { maximumCostMicrosWith } from '#/shared/ai-provider-profile/ai-provider-pricing'
+import { priceCatalogueOfProvider } from '#/shared/ai-provider-profile/ai-provider-pricing-registry'
 
 export type AiBudgetTx = Parameters<Parameters<Database['transaction']>[0]>[0]
 

@@ -5,8 +5,8 @@
 // quiet count; praise is protected; a move is reported only when the engine calls it
 // likely. Every figure is `issueStatistics`' (the engine's), so a page cannot print a
 // number the engine would not.
-import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '#/shared/analysis/review-topic-taxonomy'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import type {
   ChangedItem,
   FixFirstItem,

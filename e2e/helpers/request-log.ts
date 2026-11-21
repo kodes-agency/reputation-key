@@ -14,7 +14,7 @@
 // events — page.request APIRequestContext calls (signIn's auth API posts) are
 // never recorded here. WebSockets are separate page events and not recorded.
 //
-// Font CDNs: the app and guest fonts are self-hosted (src/shared/font-sets.ts),
+// Font CDNs: the app and guest fonts are self-hosted (src/shared/fonts/font-sets.ts),
 // so any font CDN request is a regression. The Google font hosts stay
 // default-allowed in assertNoExternalHosts as static assets, not service calls;
 // Fontshare is no longer allowed and fails it like any other external host.

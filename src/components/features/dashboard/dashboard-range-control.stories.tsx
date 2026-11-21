@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { DashboardRangeControl, RangeLimitNote } from './dashboard-range-control'
-import type { DashboardRange } from '#/shared/dashboard-range'
+import type { DashboardRange } from '#/shared/dashboard/dashboard-range'
 
 function ControlledRange({
   initial,

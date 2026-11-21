@@ -15,7 +15,7 @@ import {
   GOOGLE_PERFORMANCE_RANGE_LIMIT,
   toPerformancePreset,
   type DashboardRange,
-} from '#/shared/dashboard-range'
+} from '#/shared/dashboard/dashboard-range'
 import { GooglePerformanceSection } from './google-performance-section'
 import type { GooglePerformanceServerFns } from './use-google-performance'
 

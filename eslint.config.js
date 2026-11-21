@@ -380,7 +380,7 @@ export default tseslint.config(
         { type: 'routes', pattern: 'src/routes/**' },
         { type: 'components', pattern: 'src/components/**' },
         { type: 'ui-support', pattern: 'src/hooks/**' },
-        { type: 'ui-support', pattern: 'src/lib/**' },
+        { type: 'ui-support', pattern: 'src/shared/{class-names,clipboard,format}/**' },
         { type: 'shared-domain', pattern: 'src/shared/domain/**' },
         { type: 'shared-db', pattern: 'src/shared/db/**' },
         { type: 'shared-auth', pattern: 'src/shared/auth/**' },

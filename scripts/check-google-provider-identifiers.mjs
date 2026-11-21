@@ -51,7 +51,7 @@ function isTestOnlyConsumer(path) {
   return (
     path.startsWith('e2e/') ||
     path.startsWith('scripts/') ||
-    path.startsWith('src/test-fixtures/') ||
+    path === 'src/shared/testing/google-provider-identifiers-v1.ts' ||
     path.startsWith('test-fixtures/') ||
     /(?:^|\/)__tests__\//u.test(path) ||
     /\.(?:spec|test)\.[cm]?[jt]sx?$/u.test(path)

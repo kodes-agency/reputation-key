@@ -4,7 +4,7 @@ import {
   isEligibleResponsibleManager,
   listEligibleResponsibleManagers,
   listIneligibleResponsibleManagers,
-} from '#/shared/responsible-manager-eligibility'
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 export type PropertyManagerEligibilityDeps = Readonly<{

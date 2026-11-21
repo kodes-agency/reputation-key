@@ -10,7 +10,7 @@ import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi, type Mock } from 'vitest'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/review-sync/google-review-api.adapter.server'
 import { readReviewBeforePublish } from './read-review-before-publish.server'

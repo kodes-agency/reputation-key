@@ -28,7 +28,7 @@ import type pino from 'pino'
 import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
-} from '#/shared/ai-review-source-contract'
+} from '#/shared/ai-review-source/ai-review-source-contract'
 import type { Database } from '#/shared/db'
 import { releasedAwaitingSequenceCountSql } from '#/shared/db/review-analysis-released-sequences'
 import { betaFeedbackTriage } from '#/shared/db/schema/beta-feedback-triage.schema'

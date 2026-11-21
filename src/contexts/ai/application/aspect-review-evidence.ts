@@ -9,8 +9,11 @@
 // read (30 days) share them so the two pages cannot disagree.
 //
 // Pure functions of an analysed-review list: no I/O, no clock.
-import { isAiIssueLabel } from '#/shared/ai-issue-label'
-import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
+import { isAiIssueLabel } from '#/shared/analysis/ai-issue-label'
+import type {
+  AspectPolarityV1,
+  AspectTaxonomyV1Id,
+} from '#/shared/analysis/aspect-taxonomy'
 import { likelyChange, starsWhenMentioned } from '../domain/guest-voice-statistics'
 import type { AiPropertyAnalyzedReview } from '../analysis/ai-property-aggregate-store.port.server'
 

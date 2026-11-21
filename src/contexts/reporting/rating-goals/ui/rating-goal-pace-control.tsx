@@ -4,7 +4,7 @@
 import { Button } from '#/components/ui/button'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Slider } from '#/components/ui/slider'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   GoalAside,
   GoalRecommendedTag,

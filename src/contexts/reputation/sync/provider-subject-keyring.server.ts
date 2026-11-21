@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import {
   deriveReviewProviderSubject,
   type ReviewProviderSubject,
-} from '#/shared/review-provider-subject-contract'
+} from '#/shared/google-contracts/review-provider-subject-contract'
 
 const KEY_ENTRY = /^([a-z0-9][a-z0-9._-]{0,31}):([a-f0-9]{64})$/u
 const KEY_DIGEST_DOMAIN = Buffer.from(

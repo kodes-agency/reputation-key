@@ -7,7 +7,7 @@
 import type { ReactNode } from 'react'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { describedByOf, descriptionIdOf, errorIdOf } from './form-field-frame'
 
 /** The id of the hidden sentence that reads the list out, first in `aria-describedby`. */

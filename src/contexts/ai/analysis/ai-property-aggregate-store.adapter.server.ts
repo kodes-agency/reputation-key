@@ -7,9 +7,9 @@ import {
   aiReviewAnalyses,
   reviews,
 } from '#/shared/db/schema'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
-import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-openai-request-contract'
-import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-profile'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
+import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-provider-profile/ai-openai-request-contract'
+import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-operation/ai-property-calendar-profile'
 import type {
   AiPropertyAnalyzedReview,
   AiPropertyAggregateStorePort,

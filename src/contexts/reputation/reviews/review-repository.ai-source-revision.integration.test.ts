@@ -8,7 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source-contract'
+import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source/ai-review-source-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   computeAiReviewSourceProvenance,

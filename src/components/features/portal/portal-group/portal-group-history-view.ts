@@ -21,7 +21,7 @@
 // people and portals are looked up now, and one that cannot be resolved is a
 // plain word ("Someone", "A portal"), never an identifier.
 import type { PortalGroupHistoryEntry } from '#/contexts/portal/application/portal-management-contracts'
-import { formatDate, formatDayKey, formatMonthDay } from '#/lib/format'
+import { formatDate, formatDayKey, formatMonthDay } from '#/shared/format/format'
 
 export type HistoryNames = Readonly<{
   actor: (userId: string) => string | null

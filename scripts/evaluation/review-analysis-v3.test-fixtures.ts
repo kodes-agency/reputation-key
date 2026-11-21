@@ -4,7 +4,7 @@
 import type {
   ReviewAnalysisV3Stored,
   ReviewAnalysisV3StoredMention,
-} from '#/shared/review-analysis-v3'
+} from '#/shared/analysis/review-analysis-v3'
 import type { CauseKey } from './review-analysis-v3-mention-metrics'
 import type { ScoredRun } from './review-analysis-v3-metrics'
 import type { ItemRunResult } from './review-analysis-v3-provider'

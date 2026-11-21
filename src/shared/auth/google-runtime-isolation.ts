@@ -46,7 +46,7 @@ export type GoogleContentRuntimeIsolationProfile = Readonly<{
  *
  * This moved here when `google-content-approval.ts` was deleted in WP2.2 step 3,
  * and it is a copy of that module's own local implementation rather than an
- * import of `#/shared/canonical-json`. `shared/auth` may not reach across that
+ * import of `#/shared/json/canonical-json`. `shared/auth` may not reach across that
  * boundary — the eslint dependency rule rejects it — and the honest response is
  * to keep the twenty lines local as the deleted module did, not to widen an
  * allowlist so one import can cross.

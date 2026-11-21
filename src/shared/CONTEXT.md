@@ -55,14 +55,14 @@ Shared-area dependency and production/test fences are enforced by `eslint.config
 
 ## Root contracts
 
-The shared root is not a general placement target. Its retained files are narrow multi-owner contracts: AI/provider schemas and pinned vectors, canonical JSON, closed JSON validation, merchant-AI notices, Reply language, responsible-manager eligibility, Google Review/Performance wire normalization, and provider-subject bindings. New workflow orchestration belongs in an owning context.
+The shared root is not a general placement target. Its loose files are the attested AI language wrappers, their pinned manifests and vectors, the merchant-AI notice contract and the Reply language catalogue, each kept at the root because a digest, manifest or script names its path. Everything else sits in a topic folder: `ai-gateway/`, `ai-operation/`, `ai-provider-profile/`, `ai-redaction/` and `ai-review-source/` (AI contracts, profiles and the deterministic redactor), `analysis/`, `reply/` and `reply-library/` (the Review analysis and Reply contracts and the built-in library), `beta-feedback/`, `merchant-ai-notice/`, `google-contracts/` (Google Review/Performance wire normalization and provider-subject bindings), `json/` (canonical, closed and strict AI JSON), `responsible-manager/`, `routing/`, `whats-new/`, `dashboard/` and `domain-schemas/`, and the browser-side helpers `format/` (number, date and time wording), `class-names/` (`cn`), `clipboard/` and `fonts/`. Each folder is declared in `LAYOUT.sharedFolders` (`scripts/ci/check-layout.ts`), and `pnpm check:layout` counts the loose files that remain. New workflow orchestration belongs in an owning context.
 
 Responsible-manager eligibility has two owners, Property and Portal, and its
 contract includes the one rule both follow when a member is removed: release,
 from `identity.member.removed`, what the member still holds and may no
 longer hold (`releaseRemovedMemberResponsibilities`), through the one handler
 that reads the fact and records the receipt after the release
-(`removed-member-consumer.ts`). The root holds only that rule and that handler.
+(`responsible-manager/removed-member-consumer.ts`). `responsible-manager/` holds only that rule and that handler.
 Each owner registers the consumer under its own name and catalogue row and binds
 the rule to its own store, and the check an assignment makes after it commits
 stays in the owner's use case.
@@ -74,7 +74,7 @@ not belong in shared contract records.
 
 Browser/server reachability is enforced by `src/shared/architecture/browser-reachability.test.ts` and `eslint.config.js`.
 
-Strict AI JSON parsing lives in `ai-json.ts`, independently of admission and
+Strict AI JSON parsing lives in `json/ai-json.ts`, independently of admission and
 gateway schemas. It accepts a typed `parse` function and preserves byte, UTF-8,
 duplicate-key, Unicode, depth, node and number-policy checks for provider bodies
 and key material. Parsing and diagnostics share their parsed-value checks; the

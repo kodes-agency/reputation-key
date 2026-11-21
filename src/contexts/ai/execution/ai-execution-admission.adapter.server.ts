@@ -1,18 +1,18 @@
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { randomUUID } from 'node:crypto'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Pool } from 'pg'
 import { createDatabase, type Database } from '#/shared/db'
 import { aiExecutionControlHeads, aiOperations } from '#/shared/db/schema'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
-import { settledCostMicrosWith } from '#/shared/ai-provider-pricing'
-import { priceCatalogueOfProvider } from '#/shared/ai-provider-pricing-registry'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
+import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/reply/ai-reply-provenance'
+import { settledCostMicrosWith } from '#/shared/ai-provider-profile/ai-provider-pricing'
+import { priceCatalogueOfProvider } from '#/shared/ai-provider-profile/ai-provider-pricing-registry'
 import {
   aiSettlementRequestSchema,
   type AiAdmissionDescriptorV1,
   type AiSettlementRequestV1,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import {
   mintAiExecutionAdmission,
   type AiAdmissionDenialCode,

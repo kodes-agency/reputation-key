@@ -5,7 +5,7 @@ import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
 } from './reply-suggestion-contract.server'
-import type { ReplyDraftingProgressSink } from '#/shared/reply-drafting-progress'
+import type { ReplyDraftingProgressSink } from '#/shared/reply/reply-drafting-progress'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 
 const input: GenerateReplySuggestionInput = {

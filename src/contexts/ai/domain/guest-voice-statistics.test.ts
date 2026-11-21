@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DASHBOARD_GLOSSARY } from '#/shared/dashboard-glossary'
+import { DASHBOARD_GLOSSARY } from '#/shared/dashboard/dashboard-glossary'
 import {
   CHANGE_BASELINE_MIN_REVIEWS,
   GUEST_VOICE_STATISTICS_VERSION,

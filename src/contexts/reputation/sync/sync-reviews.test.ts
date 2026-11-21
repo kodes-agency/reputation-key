@@ -12,13 +12,13 @@ import type { GoogleReplyObservationStore } from '../publication/google-reply-ob
 import type { ReviewProviderHistoryCutoff } from './review-provider-snapshot-repository.port.server'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import type { GoogleReview, Review } from '../domain/review-types'
-import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source-contract'
+import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source/ai-review-source-contract'
 import { computeAiReviewSourceProvenance } from '../reviews/ai-review-source.server'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import {
   createReviewProviderObservationWriter,
   providerReplyObservationKey,

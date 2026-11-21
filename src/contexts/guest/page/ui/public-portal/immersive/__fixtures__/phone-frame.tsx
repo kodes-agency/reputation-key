@@ -3,7 +3,7 @@
 // as the public route links them.
 
 import type { Decorator } from '@storybook/react'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 
 export const PHONE_WIDTH = 390
 export const PHONE_HEIGHT = 844

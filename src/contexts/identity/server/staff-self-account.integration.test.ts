@@ -5,7 +5,7 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { betaFeedbackPseudonym } from '#/contexts/identity/application/beta-feedback-pseudonym'
-import type { BetaFeedbackInput } from '#/shared/beta-feedback-contract'
+import type { BetaFeedbackInput } from '#/shared/beta-feedback/beta-feedback-contract'
 import { getAuth } from '#/shared/auth/auth'
 import { getEnv } from '#/shared/config/env'
 import {

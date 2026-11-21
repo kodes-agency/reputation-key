@@ -21,7 +21,7 @@
 // Pure unit tests — no database.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { REPLY_TONES } from '#/shared/ai-reply-template-catalogue'
+import { REPLY_TONES } from '#/shared/reply/ai-reply-template-catalogue'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,

@@ -7,7 +7,7 @@ import type {
 } from '#/contexts/reporting/portal-results/contracts'
 import { markerLabel } from './portal-results-trend-model'
 import { formatDayRange } from './portal-results-window'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 function averageText(week: PortalResultsSeries['buckets'][number]): string {
   if (week.average !== null) return week.average.toFixed(1)

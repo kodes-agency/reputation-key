@@ -7,7 +7,7 @@
 // .test.ts (getRecentReviews case) and extended to the aggregate reads that
 // previously read review content without the eligibility predicate.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'

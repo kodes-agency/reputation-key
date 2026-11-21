@@ -3,7 +3,7 @@
 // or empty reads yield no line.
 
 import type { PortalGoalLineView } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
 
 type PortalGoalResultsLineWords = Readonly<{

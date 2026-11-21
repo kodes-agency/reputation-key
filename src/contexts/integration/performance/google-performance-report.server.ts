@@ -9,7 +9,7 @@ import type {
   PerformanceSeries,
   PropertyGooglePerformanceReportV1,
   PropertyPerformancePreset,
-} from '#/shared/google-performance-report-contract'
+} from '#/shared/google-contracts/google-performance-report-contract'
 import type { ProviderContentLeaseDto } from '#/shared/domain/provider-content-lease'
 
 const PRESET_DAYS: Readonly<Record<PropertyPerformancePreset, number>> = Object.freeze({

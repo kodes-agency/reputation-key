@@ -15,7 +15,7 @@ import {
   GoalLiveLinePending,
 } from '#/contexts/reporting/monthly-goals/ui/goal-live-line'
 import { goalLiveShape } from '#/contexts/reporting/monthly-goals/ui/goal-live-view'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { extrasRows, type PortalGoalExtraRow } from './portal-goal-extras-view'
 
 type ListedGoal = Awaited<ReturnType<typeof listGoalPrograms>>['programs'][number]

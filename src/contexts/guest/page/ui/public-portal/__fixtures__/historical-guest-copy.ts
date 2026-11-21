@@ -1,6 +1,6 @@
 // Frozen copy evidence for snapshot schemas 1 and 2; no guest page reads it.
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
-import { formatDateTime } from '#/lib/format-date-time'
+import { formatDateTime } from '#/shared/format/format-date-time'
 import {
   currentGuestLanguagePack,
   guestLocaleFormatTag,

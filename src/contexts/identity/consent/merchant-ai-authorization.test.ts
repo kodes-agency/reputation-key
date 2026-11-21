@@ -3,7 +3,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-contract'
+import { resolveAiRuntimeCapabilitySet } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { planMerchantAiConsentTransition } from '../domain/merchant-ai-authorization'
 import {
   createMerchantAiAuthorization,

@@ -24,7 +24,7 @@ import {
   CommandList,
 } from '#/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { matchesPropertySearch, offersPropertySearch } from '../ui/property-search'
 
 export type PropertyPickerOption = Readonly<{

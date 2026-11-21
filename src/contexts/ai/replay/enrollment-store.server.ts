@@ -4,7 +4,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiReviewAnalysisEnrollments, eventConsumerReceipts } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import type {
   AiAuthorizationLifecycleApplyResult,
   AiAuthorizationLifecycleTrigger,

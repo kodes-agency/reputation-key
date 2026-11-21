@@ -4,7 +4,7 @@
 // oldest-due alerting, and that the sweep enqueues no sync of its own: it
 // moves the discovery schedule (the 2026-10-21 (e) note of ADR 0055).
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import type { Review } from '../domain/review-types'
 import type { ReviewRepository } from '../reviews/review-repository.port.server'

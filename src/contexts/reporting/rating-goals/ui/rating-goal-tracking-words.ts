@@ -2,7 +2,7 @@
 // every review count with about.
 
 import type { RatingGoalCardView } from '#/contexts/reporting/rating-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { actualPaceText, newReviewsAim, weeklyTarget } from './rating-goal-pace-words'
 import { tenthsText } from './rating-goal-view'
 

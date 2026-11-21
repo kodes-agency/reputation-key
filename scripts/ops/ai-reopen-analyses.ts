@@ -10,7 +10,7 @@
 // Requires DATABASE_URL.
 
 import { getDb } from '../../src/shared/db'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation/ai-operation-profiles'
 import { resolveAiExecutionStopFence } from '../../src/contexts/ai/application/ai-workflow-support'
 import { createAiControlAdapter } from '../../src/contexts/ai/infrastructure/adapters/ai-control.adapter'
 import {

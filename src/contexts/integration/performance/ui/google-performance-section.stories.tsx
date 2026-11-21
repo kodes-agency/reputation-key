@@ -14,7 +14,7 @@ import type {
   PerformanceSeries,
   PropertyGooglePerformanceReportV1,
   PropertyPerformancePreset,
-} from '#/shared/google-performance-report-contract'
+} from '#/shared/google-contracts/google-performance-report-contract'
 import { GooglePerformanceSection } from './google-performance-section'
 
 const PROPERTY_ID = '11111111-1111-4111-8111-111111111111'

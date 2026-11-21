@@ -8,7 +8,7 @@ import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { PHONE_LINK_TOUCH, ROW_NAME_LINK } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { PortalGoalResultsList } from './portal-goal-results-list'
 import {
   ENDED_PORTAL_GOALS_ID,

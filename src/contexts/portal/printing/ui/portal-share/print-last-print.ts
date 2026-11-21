@@ -8,7 +8,11 @@
 // last printed and what the print was, and, for an Immersive print, what became
 // of the photo since. Copy only, in one place, so each line is tested as written.
 import type { PortalPrintKitLastPrint } from '#/contexts/portal/application/portal-management-contracts'
-import { formatShortDate, type DisplayZone, type InstantInput } from '#/lib/format'
+import {
+  formatShortDate,
+  type DisplayZone,
+  type InstantInput,
+} from '#/shared/format/format'
 import { PRINT_PAPER_NAMES } from '#/shared/domain/portal-print-share'
 import { printLanguageNames } from '#/shared/domain/portal-print-how-to'
 import type { PrintLastSettings } from '#/shared/domain/portal-print-last'

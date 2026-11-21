@@ -21,12 +21,12 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
-import { AI_PROVIDER_IDS } from '../../ai-provider-ids'
+import { AI_PROVIDER_IDS } from '../../ai-provider-profile/ai-provider-ids'
 import {
   REVIEW_ANALYSIS_V3_MAX_MENTIONS,
   REVIEW_ATTENTION_LEVELS_V2,
   REVIEW_URGENT_REASONS_V3,
-} from '../../review-analysis-v3'
+} from '../../analysis/review-analysis-v3'
 import { NORMALIZATION_FLAGS } from './ai-normalization-flags'
 import { materialReviewRevisions, reviews } from './review.schema'
 import { merchantAiConsentEvidence } from './merchant-ai-authorization.schema'

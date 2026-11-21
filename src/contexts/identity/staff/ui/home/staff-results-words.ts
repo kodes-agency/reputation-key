@@ -1,6 +1,6 @@
 // My results' plain answers (pure): the check-in pattern's question, answer and
 // evidence, in a receptionist's words. Nothing here compares a person with anyone.
-import { formatMonthDay, formatNumber } from '#/lib/format'
+import { formatMonthDay, formatNumber } from '#/shared/format/format'
 import type { GoalColumn } from '#/components/goals/goal-columns-view'
 import type { StaffGoal, StaffPeriod, StaffResults } from './types'
 

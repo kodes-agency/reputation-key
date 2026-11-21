@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { PROPERTY_PERFORMANCE_PRESETS } from '#/shared/google-performance-report-contract'
+import { PROPERTY_PERFORMANCE_PRESETS } from '#/shared/google-contracts/google-performance-report-contract'
 
 export const getPropertyGooglePerformanceInputSchema = z
   .object({

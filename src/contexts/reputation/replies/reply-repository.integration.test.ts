@@ -3,7 +3,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { createReplyRepository } from './reply-repository.server'

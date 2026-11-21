@@ -35,8 +35,8 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { ASPECT_TAXONOMY_V1 } from '#/shared/analysis/aspect-taxonomy'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import type { AiOperationId } from '../domain/types'
 import { createAiOperationExecutionReaper } from './ai-operation-execution-reaper.server'

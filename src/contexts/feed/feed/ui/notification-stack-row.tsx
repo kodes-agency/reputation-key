@@ -13,7 +13,7 @@ import { Link } from '@tanstack/react-router'
 import { Check, Trash2 } from 'lucide-react'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   isStillWaiting,
   type NotificationView,

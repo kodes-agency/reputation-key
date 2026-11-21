@@ -33,8 +33,8 @@ import {
   REVIEW_NAMES_PERSON_V3,
   REVIEW_POLARITIES_V3,
   REVIEW_STRENGTHS_V3,
-} from '../../review-analysis-v3'
-import { REVIEW_TOPICS_V3 } from '../../review-topic-taxonomy'
+} from '../../analysis/review-analysis-v3'
+import { REVIEW_TOPICS_V3 } from '../../analysis/review-topic-taxonomy'
 import { aiPropertyAggregateContributions, aiReviewAnalyses } from './ai.schema'
 import { aiPropertyIssueGroups } from './ai-property-issue-groups.schema'
 import { sqlPatternLiteral, sqlStringList } from './ai-schema-helpers'

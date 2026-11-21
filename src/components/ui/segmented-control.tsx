@@ -5,7 +5,7 @@
 // nothing here swaps a panel.
 import type { ReactNode } from 'react'
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { SEGMENT_CLASS, SEGMENTED_CONTROL_CLASS } from './segmented-control-styles'
 
 export type SegmentedControlOption = Readonly<{

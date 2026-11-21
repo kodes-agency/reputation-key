@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import {
   GATE_IDS,
   GATING_SLICES,

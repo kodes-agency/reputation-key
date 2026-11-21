@@ -6,7 +6,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_PROVIDER_FIXTURES_V1,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { createReviewRepository } from './review-repository.server'

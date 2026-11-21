@@ -7,7 +7,10 @@ import { PropertyGuestVoicePage } from '#/contexts/ai/guest-voice/ui/property-gu
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { guestVoiceRangeSearch, type GuestVoiceRange } from '#/shared/dashboard-range'
+import {
+  guestVoiceRangeSearch,
+  type GuestVoiceRange,
+} from '#/shared/dashboard/dashboard-range'
 import { guestVoiceRangeOfLocation, keptData } from './-dashboard-range-read'
 import {
   guestVoiceGoalOf,

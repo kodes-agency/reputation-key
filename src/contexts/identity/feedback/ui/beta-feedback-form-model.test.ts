@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { betaFeedbackInputSchema } from '#/shared/beta-feedback-contract'
+import { betaFeedbackInputSchema } from '#/shared/beta-feedback/beta-feedback-contract'
 import {
   betaFeedbackFormSchema,
   emptyBetaFeedbackForm,

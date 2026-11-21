@@ -2,7 +2,7 @@ import {
   type BetaFeedbackInput,
   type BetaFeedbackReportView,
   classifyBetaFeedbackViewport,
-} from '#/shared/beta-feedback-contract'
+} from '#/shared/beta-feedback/beta-feedback-contract'
 
 export type SubmitBetaFeedback = (
   input: Readonly<{ data: BetaFeedbackInput }>,

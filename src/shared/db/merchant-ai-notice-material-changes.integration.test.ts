@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { MERCHANT_AI_NOTICE_CHANGES } from '#/shared/merchant-ai-notice-contract'
-import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice-change'
+import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice/merchant-ai-notice-change'
 
 const current = MERCHANT_AI_NOTICE_CHANGES[0]!
 const previous = current.replaces!

@@ -1,6 +1,6 @@
 // Whether a stored analysis still stands under the grant's notice. Split out of the
 // output store adapter, which is past the file-length ratchet.
-import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice-change'
+import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice/merchant-ai-notice-change'
 import type { MerchantAiNoticeReference } from '#/shared/merchant-ai-notice-contract'
 
 /**

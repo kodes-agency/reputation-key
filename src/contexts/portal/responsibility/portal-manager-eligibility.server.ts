@@ -8,7 +8,7 @@ import {
   isEligibleResponsibleManager,
   listEligibleResponsibleManagers,
   listIneligibleResponsibleManagers,
-} from '#/shared/responsible-manager-eligibility'
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 
 export type PortalManagerEligibilityDeps = Readonly<{
   identityPublicApi: IdentityManagerFactsPublicApi

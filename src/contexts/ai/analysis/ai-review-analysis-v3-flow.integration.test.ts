@@ -36,7 +36,7 @@ import {
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,

@@ -3,7 +3,7 @@
 
 import type { RatingGoalDetailView } from '#/contexts/reporting/rating-goals/contracts'
 import type { Tone } from '#/components/ui/tone'
-import { formatNumber, formatShortDate } from '#/lib/format'
+import { formatNumber, formatShortDate } from '#/shared/format/format'
 import { PLAN_POLICY_LINE } from './rating-goal-copy'
 import { reviewCountText, weekdayName } from './rating-goal-tracking-words'
 import {

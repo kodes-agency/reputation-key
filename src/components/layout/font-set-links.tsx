@@ -1,4 +1,4 @@
-import { fontSetLinks, type FontSet } from '#/shared/font-sets'
+import { fontSetLinks, type FontSet } from '#/shared/fonts/font-sets'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 
 type FontSetLinksProps = Readonly<{

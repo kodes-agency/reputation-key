@@ -4,7 +4,7 @@ import type {
   PortalVersionMarker,
 } from '#/contexts/reporting/portal-results/contracts'
 import { useBarSelection } from '#/components/hooks/use-bar-selection'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   COLUMNS_THAT_ALL_PRINT_THEIR_COUNT,
   trendModel,

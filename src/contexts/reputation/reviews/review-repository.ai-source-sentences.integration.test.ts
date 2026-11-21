@@ -11,9 +11,9 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   MAX_AI_REVIEW_SENTENCES_V1,
   canonicalizeRawAiReviewSourcePreviousRevision,
-} from '#/shared/ai-review-source-contract'
-import { reviewSentencesMatchText } from '#/shared/review-analysis-v3-request'
-import { locateReviewSentences } from '#/shared/review-sentences'
+} from '#/shared/ai-review-source/ai-review-source-contract'
+import { reviewSentencesMatchText } from '#/shared/analysis/review-analysis-v3-request'
+import { locateReviewSentences } from '#/shared/ai-review-source/review-sentences'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { storedAiReviewSourceProvenance } from './ai-review-source.server'
 import type { AiReviewSourceReadRequest } from './ai-review-source.port.server'

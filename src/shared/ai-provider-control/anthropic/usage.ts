@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { operationProviderPairing } from '#/shared/ai-operation-provider-pairings'
+import { operationProviderPairing } from '#/shared/ai-operation/ai-operation-provider-pairings'
 import { providerUsageOfDecodedBody } from '../connector-boundary'
 import type { AiProviderUsage } from '../provider-contracts'
 import type { PreparedAnthropicInvocation } from './prepared-invocation'

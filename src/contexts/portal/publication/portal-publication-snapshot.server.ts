@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { GUEST_LOCALE_METADATA } from '#/shared/domain/guest-locale'
 import { portalError } from '../domain/errors'
 import {

@@ -78,7 +78,7 @@ description = "Detector test fixtures"
 condition = "AND"
 regexTarget = "secret"
 paths = [
-  '''^src/shared/ai-structured-marker-detectors(-v1\.vectors\.json|\.test\.ts)$''',
+  '''^src/shared/ai-redaction/ai-structured-marker-detectors(-v1\.vectors\.json|\.test\.ts)$''',
 ]
 regexes = [
   '''^sk_test_1234567890abcdefghijklmnop$''',

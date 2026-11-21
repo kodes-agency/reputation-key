@@ -16,13 +16,13 @@
 // which every build does since the switch-on (2026-10-30).
 
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
-import type { ReviewPropertyContext } from '#/shared/review-vocabulary-hints'
-import type { VocabularyHintIdentity } from '#/shared/review-vocabulary-hints'
+import type { ReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
+import type { VocabularyHintIdentity } from '#/shared/analysis/review-vocabulary-hints'
 import type {
   AiReviewSentence,
   AiReviewSourcePort,
 } from '#/contexts/review/application/public-api'
-import type { AiOperationProfile } from '#/shared/ai-operation-profiles'
+import type { AiOperationProfile } from '#/shared/ai-operation/ai-operation-profiles'
 import type { AiMerchantAuthorizationSnapshot } from '../consent/ai-authorization.port.server'
 import type {
   AiOperationNormalizationLineage,

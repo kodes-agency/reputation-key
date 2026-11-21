@@ -3,7 +3,10 @@
 // A Popover rather than a hover Tooltip on purpose: the definition has to be
 // reachable by keyboard and on a phone, where there is no hover. The trigger is
 // the shared `ExplainTrigger`: a real button with a dotted underline.
-import { DASHBOARD_GLOSSARY, type GlossaryTermKey } from '#/shared/dashboard-glossary'
+import {
+  DASHBOARD_GLOSSARY,
+  type GlossaryTermKey,
+} from '#/shared/dashboard/dashboard-glossary'
 import { ExplainTrigger } from '#/components/ui/explain-trigger'
 import { Popover, PopoverContent } from '#/components/ui/popover'
 

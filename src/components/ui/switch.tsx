@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Switch as SwitchPrimitive } from 'radix-ui'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 // A switch that is on and cannot change ("Always on") must still read as on, so a
 // lit track is not halved in opacity. A disabled switch that is off keeps the full

@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover'
 import { useServedNow } from '#/components/hooks/served-clock'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
   FeedbackHandlingState,

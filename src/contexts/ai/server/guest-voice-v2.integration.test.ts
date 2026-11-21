@@ -1,7 +1,7 @@
 // Guest voice 2.0 page, read as signed-in members over PostgreSQL with the real
 // tenant resolution, execution policy, analysis stores and Inbox reads.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   setupServerFunctionHarness,

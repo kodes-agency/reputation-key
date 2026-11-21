@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import type { AiReasoningEffortV1 } from '#/shared/ai-openai-request-contract'
-import { assertClosedJsonAndFreeze } from '#/shared/closed-json-contract'
+import type { AiReasoningEffortV1 } from '#/shared/ai-provider-profile/ai-openai-request-contract'
+import { assertClosedJsonAndFreeze } from '#/shared/json/closed-json-contract'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import {
   ANTHROPIC_MODEL_SNAPSHOT,

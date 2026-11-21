@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import type { ReviewAnalysisProgress } from '#/contexts/ai/application/public-api'
-import { formatNumber, formatTimestamp } from '#/lib/format'
+import { formatNumber, formatTimestamp } from '#/shared/format/format'
 
 type Props = Readonly<{
   progress: ReviewAnalysisProgress | undefined

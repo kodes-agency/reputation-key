@@ -133,7 +133,7 @@ import {
   formatLocalDate,
   formatMonthName,
   formatMonthYear,
-} from '../../../src/lib/format'
+} from '../../../src/shared/format/format'
 
 /**
  * The pill the card wears for what `goalPace` says (U-1): none for a month the

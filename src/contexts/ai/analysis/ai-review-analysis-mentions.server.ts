@@ -19,13 +19,13 @@ import {
   REVIEW_NAMES_PERSON_V3,
   REVIEW_POLARITIES_V3,
   REVIEW_STRENGTHS_V3,
-} from '#/shared/review-analysis-v3'
-import { isReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/review-analysis-v3'
+import { isReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import {
   REVIEW_ATTENTION_LEVELS_V2,
   REVIEW_SENTIMENTS_V3,
   REVIEW_URGENT_REASONS_V3,
-} from '#/shared/review-analysis-v3'
+} from '#/shared/analysis/review-analysis-v3'
 import type {
   ReviewAnalysisCurrentnessV1,
   ReviewAnalysisMentionCorrectionV3,

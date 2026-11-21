@@ -5,10 +5,10 @@
 import type { ReactNode } from 'react'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { RatingFigure } from '#/components/ui/rating-figure'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { PropertyListShow } from './property-list-search-schema'
 import type { DataState, PropertyListSummary } from './property-list-view'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 type Props = Readonly<{
   summary: PropertyListSummary

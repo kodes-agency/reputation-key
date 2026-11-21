@@ -1,4 +1,4 @@
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it } from 'vitest'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { buildGoogleImportedProperty } from './build-google-imported-property.server'

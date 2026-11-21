@@ -2,13 +2,13 @@ import type { z } from 'zod/v4'
 import type {
   AiAdmissionDescriptorV1,
   AiSettlementRequestV1,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import type {
   AiGatewayRoute,
   AiReasoningEffortV1,
-} from '#/shared/ai-openai-request-contract'
-import type { AiProviderId } from '#/shared/ai-provider-ids'
-import type { AiProviderPriceCatalogue } from '#/shared/ai-provider-pricing'
+} from '#/shared/ai-provider-profile/ai-openai-request-contract'
+import type { AiProviderId } from '#/shared/ai-provider-profile/ai-provider-ids'
+import type { AiProviderPriceCatalogue } from '#/shared/ai-provider-profile/ai-provider-pricing'
 import type { AiExecutionAdmission } from './execution-admission'
 import type { DerivedDescriptorFacts } from './prepared-invocation'
 

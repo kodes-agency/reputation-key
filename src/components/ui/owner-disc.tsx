@@ -3,7 +3,7 @@
 // (`person-initials.ts`), which returns `null`, never a placeholder letter,
 // when a name has none.
 import { UserRound, UserRoundCheck } from 'lucide-react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { ReactNode } from 'react'
 
 /**

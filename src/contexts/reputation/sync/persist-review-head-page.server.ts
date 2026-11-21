@@ -25,7 +25,7 @@
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { sha256Hex } from '#/shared/domain/sha256'
-import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
+import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
 import { headReviewsToPersist, type HeadStoredCopy } from '../domain/head-check'
 import { decideHeadFact } from '../domain/head-persist'
 import type { GoogleReviewRead } from '../../review/application/ports/google-review-api.port'

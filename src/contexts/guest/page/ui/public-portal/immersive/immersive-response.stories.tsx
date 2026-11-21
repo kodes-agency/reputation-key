@@ -8,7 +8,7 @@
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
 import { expect, fn, userEvent, within } from 'storybook/test'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import type { GuestPagePreviewState } from '../guest-page-preview-state'
 import { bgCopy } from '../language-packs/bg'
 import { enCopy } from '../language-packs/en'

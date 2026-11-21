@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { bgCopy } from '../language-packs/bg'
 import { deCopy } from '../language-packs/de'
 import { enCopy } from '../language-packs/en'

@@ -1,6 +1,6 @@
 import type { GuestVoiceWindowContext } from '../contracts'
-import type { GuestVoiceRange } from '#/shared/dashboard-range'
-import { formatLocalDate } from '#/lib/format'
+import type { GuestVoiceRange } from '#/shared/dashboard/dashboard-range'
+import { formatLocalDate } from '#/shared/format/format'
 import { windowDates, windowSentence } from './guest-voice-words'
 
 /**

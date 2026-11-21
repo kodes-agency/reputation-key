@@ -1,5 +1,5 @@
 import { MerchantAiNoticeUpdateLine } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-line'
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, BrainCircuit } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
@@ -10,7 +10,7 @@ import type {
   AiOrganizationMonthSpend,
   ReviewAnalysisProgress,
 } from '#/contexts/ai/application/public-api'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
 import {

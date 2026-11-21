@@ -502,7 +502,7 @@ the token count of OpenAI's wrapper. It is now two things, defined once in
 `ai-operation-profile.ts`. Every profile and attested-artifact digest (profiles, deployment,
 routing policy, runtime capabilities, normalizer, reply lint, examples, leakage, markers,
 redactor, template catalogue, request shape) follows one rule, `digestOf` in
-`src/shared/ai-digest.ts`: SHA-256 over a domain and the RFC 8785 form of a value. Stored
+`src/shared/ai-operation/ai-digest.ts`: SHA-256 over a domain and the RFC 8785 form of a value. Stored
 operations and provenance carry these digests, so `ai-digest.test.ts` pins their values. The logical profile is the operation in no provider's terms: prompt, answer
 schema, the artifacts it reads (taxonomy, sentence rules, normalizer, attention formula, source
 rules) and limits, with a `logicalDigest` that moves for those and for nothing a provider does.
@@ -725,7 +725,7 @@ The reference is the gold as the production normalizer accepts it, so a label th
 cannot hold (an `issue` such as "30 minutes") does not count against a provider; the report names
 the labels that changed (none in gold v1.1, which words the three that changed in v1 so the contract
 holds them). The loader refuses a gold label whose `thing` is a generic word (annotation guide v3.3,
-rule 3: place, staff, team, welcome, price, location...; `src/shared/review-generic-things.ts`, the
+rule 3: place, staff, team, welcome, price, location...; `src/shared/analysis/review-generic-things.ts`, the
 list the prompt gives the model). The report also names the reviews the redactor
 changed (`cl-0041`, `cl-0138`, `cl-0184`: it reads "oil.For" and "working.Not", a missing space
 after a full stop, as web addresses) and any review the live path would not send. Causes are
@@ -1114,11 +1114,11 @@ Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current im
 
 | Map item                                   | Authority                                                                                                                                                                                                        |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply/schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                                                       |
+| 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply/schema.ts:24`, `src/shared/reply/ai-reply-provenance.ts:151`                                                                                                 |
 | 2 — numbered input/options/binding         | `src/shared/reply/request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                                      |
 | 3 — effort/output/reservation bounds       | `src/shared/reply/profile.ts:25`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                                             |
-| 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/execution/reply-rewrite-parent.server.ts:16`                                                      |
-| 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                   |
+| 4 — lint/one independently charged rewrite | `src/shared/reply/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/execution/reply-rewrite-parent.server.ts:16`                                                |
+| 5 — Spanish/historical readers/schema      | `src/shared/reply/reply-drafting-v2-contract.ts:89`, `src/shared/reply/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`       |
 | 6 — frame choice/usage/adoption            | `src/contexts/reputation/library/ai-reply-v2-frame.server.ts:21`, `src/contexts/reputation/library/ai-frame-reservation.server.ts:156`, `src/contexts/reputation/replies/ai-suggested-draft-store.server.ts:481` |
 
 ## Reply drafting progress and background intent — dark (B2, 2026-10-31)
@@ -1189,7 +1189,7 @@ Re-verified map items 7–8 against origin/main `cf1e33c66` (B1 merged):
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 7 — authenticated POST / cancellation                   | `src/contexts/ai/server/reply-suggestion-stream.ts:32`, `src/contexts/ai/server/reply-progress-stream.server.ts:16`                                                                    |
 | 7 — safe incremental metadata / bounded provider stream | `src/shared/ai-provider-control/reply-progress-parser.ts:15`, `src/shared/ai-provider-control/bounded-event-stream.ts:2`, `src/shared/ai-provider-control/openai-stream-response.ts:7` |
-| 7 — v2-only request attestation / deployment            | `src/shared/ai-openai-stream-profile.ts:32`, `src/shared/reply/profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                                            |
+| 7 — v2-only request attestation / deployment            | `src/shared/ai-provider-profile/ai-openai-stream-profile.ts:32`, `src/shared/reply/profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                        |
 | 8 — lane / active actor ownership / identity            | `src/contexts/ai/reply/requests.server.ts:20`, `src/contexts/ai/execution/ai-operation-store.adapter.server.ts:854`                                                                    |
 | 8 — authoritative local/Google reply eligibility        | `src/contexts/reputation/reviews/unanswered-review.server.ts:11`                                                                                                                       |
 

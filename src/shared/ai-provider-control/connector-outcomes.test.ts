@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
+import type { AiAdmissionDescriptorV1 } from '#/shared/ai-gateway/ai-internal-transport-contract'
 import {
   type OneShotProviderFetchState,
   type ProviderBoundaryInvocation,

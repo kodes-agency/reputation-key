@@ -2,7 +2,7 @@ import type {
   ProductUpdatesClientGetter,
   ProductUpdatesView,
 } from '#/shared/whats-new/types'
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import {
   lazy,
   Suspense,

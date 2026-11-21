@@ -8,7 +8,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // open them (the page falls back to today's). Every value is invented.
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { getDb, type Database } from '#/shared/db'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'

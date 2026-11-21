@@ -2,12 +2,15 @@
 // `/inbox?aspect=<aspect>&polarity=<positive|neutral|negative>`.
 
 import { describe, expect, it } from 'vitest'
-import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
+import {
+  ASPECT_POLARITIES_V1,
+  ASPECT_TAXONOMY_V1,
+} from '#/shared/analysis/aspect-taxonomy'
 import {
   ASPECT_LABELS,
   ASPECT_OPTIONS,
   ASPECT_POLARITY_OPTIONS,
-} from '#/shared/aspect-labels'
+} from '#/shared/analysis/aspect-labels'
 import { inboxSearchSchema } from './inbox-search-schema'
 
 describe('inboxSearchSchema aspect and polarity params', () => {

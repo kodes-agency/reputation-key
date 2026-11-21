@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { REVIEW_TOPICS_V3 } from '../review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '../analysis/review-topic-taxonomy'
 import {
   BUILTIN_REPLY_LIBRARY_VERSION,
   type BuiltinReplyLibrary,

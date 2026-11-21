@@ -1,7 +1,7 @@
 import type * as React from 'react'
 import { createLink } from '@tanstack/react-router'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 type InlineLinkOptions = Readonly<{
   /** Underlined on hover (the default), or always, for a link inside a sentence. */

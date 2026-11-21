@@ -4,7 +4,7 @@ import type {
   PropertyId,
   ReviewId,
 } from '#/shared/domain/ids'
-import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
+import type { ReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
 import type { ReviewFirstSeenVia } from '#/shared/domain/push-health'
 import type { GoogleReviewRead } from '../../review/application/ports/google-review-api.port'
 import type { ReviewProviderObservationOrigin } from '../reviews/response-target-authority.port.server'

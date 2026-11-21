@@ -5,7 +5,7 @@
 // The lifecycle vocabulary is redeclared here rather than imported from the
 // Property domain, matching the component boundary the rest of this folder keeps.
 
-import { formatDate } from '#/lib/format'
+import { formatDate } from '#/shared/format/format'
 import type { StatusMap } from '#/components/ui/status-badge'
 
 export type PropertyLifecycleState =

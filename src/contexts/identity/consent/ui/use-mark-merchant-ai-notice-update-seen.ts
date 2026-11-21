@@ -7,7 +7,7 @@ import { createKeys } from '#/shared/queries/query-keys'
 import type {
   MerchantAiNoticeUpdate,
   MerchantAiNoticeUpdateClientGetter,
-} from '#/shared/merchant-ai-notice-announcements'
+} from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import {
   merchantAiNoticeUpdateKey,
   type MerchantAiNoticeUpdateScope,

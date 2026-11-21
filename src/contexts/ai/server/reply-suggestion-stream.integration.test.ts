@@ -4,7 +4,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import type * as RuntimeCapabilityModule from '#/shared/ai-runtime-capability-contract'
+import type * as RuntimeCapabilityModule from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import {
   setupServerFunctionHarness,
   type TestMember,
@@ -22,20 +22,26 @@ vi.mock(
 )
 // The catalogue serves one reply profile, so the other selection is only
 // reachable by changing what the module answers for the length of one call.
-vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
-  const actual = await importOriginal<typeof RuntimeCapabilityModule>()
-  return {
-    ...actual,
-    getAiRuntimeCapability: ((
-      capability: Parameters<typeof actual.getAiRuntimeCapability>[0],
-    ) => {
-      const served = actual.getAiRuntimeCapability(capability)
-      return capability === 'reply_drafting' && servedSelection.operationProfileVersion
-        ? { ...served, operationProfileVersion: servedSelection.operationProfileVersion }
-        : served
-    }) as typeof actual.getAiRuntimeCapability,
-  }
-})
+vi.mock(
+  '#/shared/merchant-ai-notice/ai-runtime-capability-contract',
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof RuntimeCapabilityModule>()
+    return {
+      ...actual,
+      getAiRuntimeCapability: ((
+        capability: Parameters<typeof actual.getAiRuntimeCapability>[0],
+      ) => {
+        const served = actual.getAiRuntimeCapability(capability)
+        return capability === 'reply_drafting' && servedSelection.operationProfileVersion
+          ? {
+              ...served,
+              operationProfileVersion: servedSelection.operationProfileVersion,
+            }
+          : served
+      }) as typeof actual.getAiRuntimeCapability,
+    }
+  },
+)
 import { generateReplySuggestionStreamFn } from './reply-suggestion-stream'
 
 const harness = setupServerFunctionHarness({ cleanupTables: REVIEW_SEED_TABLES })

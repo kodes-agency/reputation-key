@@ -13,7 +13,7 @@ import type {
 import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import type { DeclaredCapabilityPosture } from '#/shared/release/declared-capability-posture'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { clearEventSchemas, isEventRegistered } from '#/shared/events/schema-registry'
 import {
   applyDeclaredCapabilityPosture,

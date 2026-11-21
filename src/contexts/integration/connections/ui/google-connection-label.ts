@@ -1,5 +1,5 @@
 import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
-import { formatDate } from '#/lib/format'
+import { formatDate } from '#/shared/format/format'
 
 /**
  * What people call a Google connection: the address of the Google account it

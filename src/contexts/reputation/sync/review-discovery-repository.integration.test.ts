@@ -14,7 +14,7 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { createReviewDiscoveryRepository } from './review-discovery-repository.server'
-import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-identifiers-v1'
 
 // Provider resource literals may only live in the generated fixture catalogue
 // (scripts/check-google-provider-identifiers.mjs). These synthetic segments are

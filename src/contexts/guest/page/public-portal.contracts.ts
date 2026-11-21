@@ -1,6 +1,6 @@
 import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import type { PublicPortalResult } from '#/contexts/portal/application/public-api'
-import { fontSetForGuestSurface, type FontSet } from '#/shared/font-sets'
+import { fontSetForGuestSurface, type FontSet } from '#/shared/fonts/font-sets'
 
 // F066: Re-export ScanSource from domain/types instead of duplicating the union
 export type { ScanSource } from '../domain/types'

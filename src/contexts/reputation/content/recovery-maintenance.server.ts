@@ -7,7 +7,7 @@ import {
   createReviewLifecycleRecoveryApprovalRequest,
   REVIEW_LIFECYCLE_RECOVERY_APPROVAL_VERSION,
 } from '#/shared/ops/review-lifecycle-recovery-approval'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME } from '#/shared/release/railway-deployment-profile'
 import type { ReviewLifecycleRecoveryExecutionStore } from './lifecycle-recovery-execution-repository.port.server'
 import { createRunReviewLifecycleRecoveryExecutor } from './run-lifecycle-recovery-executor.server'

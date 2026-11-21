@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { operationProviderPairing } from '#/shared/ai-operation-provider-pairings'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
+import { operationProviderPairing } from '#/shared/ai-operation/ai-operation-provider-pairings'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import {
   REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,

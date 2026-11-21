@@ -1,4 +1,4 @@
-import { isReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import { isReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import type { GuestVoiceDetailTarget } from '#/contexts/ai/application/public-api'
 import type { GuestVoiceDetailSearch as Search } from './-guest-voice-search'
 

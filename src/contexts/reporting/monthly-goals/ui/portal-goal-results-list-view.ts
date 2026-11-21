@@ -7,7 +7,12 @@ import {
   type GoalResultsMatrix,
   type GoalResultsMatrixRow,
 } from '#/contexts/reporting/application/public-api'
-import { formatDate, formatMonthYear, formatNumber, formatShortDate } from '#/lib/format'
+import {
+  formatDate,
+  formatMonthYear,
+  formatNumber,
+  formatShortDate,
+} from '#/shared/format/format'
 import type { GoalColumn } from '../../../../components/goals/goal-columns-view'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalTargetMarkerLine } from './goal-target-marker'

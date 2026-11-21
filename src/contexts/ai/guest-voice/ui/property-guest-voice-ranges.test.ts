@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GUEST_VOICE_RANGES } from '#/shared/dashboard-range'
+import { GUEST_VOICE_RANGES } from '#/shared/dashboard/dashboard-range'
 import {
   GUEST_VOICE_RANGE_LABELS,
   GUEST_VOICE_RANGE_OPTIONS,

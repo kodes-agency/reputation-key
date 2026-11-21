@@ -4,7 +4,7 @@
 import { useServedNow } from '#/components/hooks/served-clock'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FullBleedFrame } from '#/components/layout/page-shell'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { usePortalAccess } from '../../../../../components/features/portal/portal-overview/use-portal-access'
 import { PortalCodeBlock } from './portal-code-block'

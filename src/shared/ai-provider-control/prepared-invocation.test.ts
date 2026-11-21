@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
-import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-openai-request-contract'
+import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-provider-profile/ai-openai-request-contract'
 import { describe, expect, it, vi } from 'vitest'
-import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
+import type { AiAdmissionDescriptorV1 } from '#/shared/ai-gateway/ai-internal-transport-contract'
 import {
   buildClosedOpenAiRequest,
   computePromptCacheShard,

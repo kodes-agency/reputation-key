@@ -1,4 +1,4 @@
-import { deepFreezeProviderContract } from '#/shared/ai-provider-attestations'
+import { deepFreezeProviderContract } from '#/shared/ai-provider-profile/ai-provider-attestations'
 import { ANTHROPIC_STRUCTURED_OUTPUT_LIMITS } from './request-profile'
 
 export const ANTHROPIC_SCHEMA_TRANSFORM_VERSION =

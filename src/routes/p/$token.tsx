@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { z } from 'zod/v4'
-import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { guestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
   correctGuestResponseFn,

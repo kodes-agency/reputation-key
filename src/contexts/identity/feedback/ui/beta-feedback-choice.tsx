@@ -1,6 +1,6 @@
 // The radio cards keep their roving focus and card geometry rather than action-button styling.
 import { useRef, type ReactNode } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 export type BetaFeedbackChoice<TValue extends string> = Readonly<{
   value: TValue

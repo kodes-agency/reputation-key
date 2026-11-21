@@ -8,7 +8,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { SegmentedControl } from '#/components/ui/segmented-control'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   GOAL_SETUP_LINK,
   GoalAside,

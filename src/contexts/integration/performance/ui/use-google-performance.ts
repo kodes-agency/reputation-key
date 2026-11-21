@@ -9,7 +9,7 @@ import {
   GOOGLE_PERFORMANCE_CATALOG_VERSION,
   type PropertyGooglePerformanceResultV1,
   type PropertyPerformancePreset,
-} from '#/shared/google-performance-report-contract'
+} from '#/shared/google-contracts/google-performance-report-contract'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { staleTab } from '#/shared/stale-tab/stale-tab'
 import {

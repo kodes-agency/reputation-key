@@ -1,6 +1,6 @@
 import type { InboxSort } from '#/contexts/inbox/application/public-api'
-import { formatLocalDate } from '#/lib/format'
-import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
+import { formatLocalDate } from '#/shared/format/format'
+import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/analysis/aspect-labels'
 import type { InboxListFilterValues } from './inbox-filters'
 
 /** One choice of a filter group: what the URL holds, and what the chip says. */

@@ -1,4 +1,4 @@
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
 import {
   type ReviewLifecycleRecoveryApprovalRequest,

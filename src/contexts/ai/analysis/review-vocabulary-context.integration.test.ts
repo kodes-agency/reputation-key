@@ -22,7 +22,7 @@ import {
 import {
   propertyContextMatchesHintIdentity,
   resolveReviewPropertyContext,
-} from '#/shared/review-vocabulary-hints'
+} from '#/shared/analysis/review-vocabulary-hints'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,

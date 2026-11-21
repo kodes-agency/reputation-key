@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react'
 import { Check, Loader2, TriangleAlert } from 'lucide-react'
 import { RetryButton } from '#/components/ui/region-error'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { LookStatus } from './property-look-rules'
 
 type Props = Readonly<{

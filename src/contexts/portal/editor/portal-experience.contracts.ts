@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { offeredGuestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import { validatePortalDestinationUri } from '../domain/approved-destination'
 import { contrastRatio, MIN_TEXT_CONTRAST } from '#/shared/domain/portal-field-colour'
 

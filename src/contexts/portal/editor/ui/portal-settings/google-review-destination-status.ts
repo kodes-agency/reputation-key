@@ -1,5 +1,5 @@
 import type { StatusTone } from '#/components/ui/status-badge'
-import { formatDate } from '#/lib/format'
+import { formatDate } from '#/shared/format/format'
 
 export type GoogleReviewDestinationStatus = Readonly<{
   state: 'verified' | 'awaiting_refresh' | 'unavailable'

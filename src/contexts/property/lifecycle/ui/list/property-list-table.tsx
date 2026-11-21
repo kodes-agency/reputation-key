@@ -19,7 +19,7 @@ import {
   DataTableRow,
   DataTableSortHead,
 } from '#/components/ui/data-table'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { googleGoalCell } from '../../../../../components/features/property/property-list-goal'

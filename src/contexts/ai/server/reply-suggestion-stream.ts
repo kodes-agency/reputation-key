@@ -7,7 +7,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { reviewId } from '#/shared/domain/ids'
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { replyProgressResponse } from './reply-progress-stream.server'
 

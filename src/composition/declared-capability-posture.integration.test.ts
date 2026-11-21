@@ -21,7 +21,7 @@ import {
 } from '#/shared/db/testing/held-transaction'
 import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/domain/google-content-capability'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-deployment-profile'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-profile/ai-provider-deployment-profile'
 import type { DeclaredCapabilityPosture } from '#/shared/release/declared-capability-posture'
 import {
   applyDeclaredCapabilityPosture,

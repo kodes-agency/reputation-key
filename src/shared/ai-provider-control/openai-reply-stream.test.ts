@@ -1,4 +1,4 @@
-import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import { replyRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
 import OpenAI from 'openai'
 import { readOpenAiReplyStream } from './openai-stream-response'
 import { openAiRequestOf } from './review-evidence.test-fixtures'
@@ -11,14 +11,14 @@ import { createAiGatewayRoutePreparer } from './route-preparer'
 import { createSensitiveSourceLease } from './source-lease'
 import type { AiAdmissionClient } from './contracts'
 import { admitForTest } from './execution-admission.test-fixtures'
-import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
+import { settledCostMicros } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 import { boundedProviderEventStream } from './bounded-event-stream'
 import {
   OPENAI_REPLY_STREAM_ATTESTATION,
   OPENAI_REPLY_STREAM_SHAPE_DIGEST,
   REPLY_STREAM_DEPLOYMENT,
-} from '#/shared/ai-openai-stream-profile'
-import type { ReplyDraftingProgress } from '#/shared/reply-drafting-progress'
+} from '#/shared/ai-provider-profile/ai-openai-stream-profile'
+import type { ReplyDraftingProgress } from '#/shared/reply/reply-drafting-progress'
 
 const NOW = 1_780_000_000_000
 const KEYS = generateKeyPairSync('ed25519')

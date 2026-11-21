@@ -4,7 +4,7 @@ import type { Database } from '#/shared/db'
 import { portalPrintWordings } from '#/shared/db/schema/portal-print-wording.schema'
 import { unbrand } from '#/shared/domain/ids'
 import { PRINT_CALLS_TO_ACTION } from '#/shared/domain/portal-print-copy'
-import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { guestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import { trace } from '#/shared/observability/trace'
 import type { PortalPrintWordingRepository } from './portal-print-wording-repository.port.server'
 

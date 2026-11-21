@@ -1,7 +1,7 @@
 // One row of the Property look page (board 09): the title and a line of help on
 // the left, the controls on the right. Stacked on a phone.
 import type { ReactNode } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 type Props = Readonly<{
   /** Names the section for assistive technology and is its visible title. */

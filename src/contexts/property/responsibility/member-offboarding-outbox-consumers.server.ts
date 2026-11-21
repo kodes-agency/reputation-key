@@ -6,7 +6,7 @@ import type { ConsumerRegistry } from '#/shared/outbox'
 import {
   removedMemberConsumerHandler,
   type RemovedMemberConsumerDeps,
-} from '#/shared/removed-member-consumer'
+} from '#/shared/responsible-manager/removed-member-consumer'
 
 export type PropertyMemberOffboardingConsumerDeps = Pick<
   RemovedMemberConsumerDeps,

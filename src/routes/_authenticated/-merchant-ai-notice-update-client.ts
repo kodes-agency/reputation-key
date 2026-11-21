@@ -1,4 +1,4 @@
-import type { MerchantAiNoticeUpdateClient } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdateClient } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 
 // The AI notice update's two calls, for the settings banner and for What's new
 // (which leads with the same update). Both are lazy chunks, and the server module

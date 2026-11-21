@@ -2,8 +2,8 @@ import * as React from 'react'
 import * as RechartsPrimitive from 'recharts'
 import type { TooltipValueType } from 'recharts'
 
-import { cn } from '#/lib/utils.ts'
-import { formatNumber } from '#/lib/format'
+import { cn } from '#/shared/class-names/utils.ts'
+import { formatNumber } from '#/shared/format/format'
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: '', dark: '.dark' } as const

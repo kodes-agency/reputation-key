@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /** A trailing figure: tabular, muted, red only when it is urgent. */
 export function NavCount({

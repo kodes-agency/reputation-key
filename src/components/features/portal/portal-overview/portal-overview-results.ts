@@ -28,7 +28,7 @@ import {
   totalStripOf,
   type OverviewStrip,
 } from './portal-overview-results-strips'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 /** `missing`: no figure (still processing, or cannot be counted). `withheld`: too small to show. */
 export type MeasureTone = 'figure' | 'withheld' | 'missing'

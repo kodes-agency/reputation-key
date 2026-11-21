@@ -1,11 +1,11 @@
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 // AI context — the identity and execution binding an AI operation is claimed
 // and fenced on. Both feed the RFC 8785 request fingerprint that makes a claim
 // idempotent (ai-workflow-support.ts), so a changed field, key or null is a
 // different operation. Pure: every value arrives from the calling use case.
 
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
-import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation-profiles'
+import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation/ai-operation-profiles'
 import {
   LANGUAGE_CATALOGUE_DIGEST,
   type ConcreteReplyLanguage,
@@ -15,12 +15,12 @@ import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '#/shared/ai-reply-lan
 import {
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-} from '#/shared/ai-reply-output-leakage'
+} from '#/shared/reply/ai-reply-output-leakage'
 import {
   AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
   AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
   type ReplyTone,
-} from '#/shared/ai-reply-template-catalogue'
+} from '#/shared/reply/ai-reply-template-catalogue'
 import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '#/shared/ai-zh-orthography-verifier'
 import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type {

@@ -1,6 +1,6 @@
 import type { OpenAiStreamClient, OpenAiTerminalResponse } from './openai-connector'
 import type { z } from 'zod/v4'
-import { parseAiProviderJsonBytes } from '#/shared/ai-json'
+import { parseAiProviderJsonBytes } from '#/shared/json/ai-json'
 import type { PreparedAiInvocation } from './prepared-invocation'
 
 /** The SDK decodes SSE; only the terminal response supplies billed usage and final output. */

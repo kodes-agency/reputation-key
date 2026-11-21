@@ -30,8 +30,8 @@ export type {
 } from '../guest-voice/contracts'
 // The vocabulary is the v3 analysis's own (`src/shared`); the page speaks of an Urgent
 // "reason", not of a review-analysis one.
-export type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
-export type { ReviewUrgentReasonV3 as UrgentReasonV3 } from '#/shared/review-analysis-v3'
+export type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
+export type { ReviewUrgentReasonV3 as UrgentReasonV3 } from '#/shared/analysis/review-analysis-v3'
 
 export type {
   GenerateReplySuggestionInput,

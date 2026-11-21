@@ -6,20 +6,20 @@ import {
   AI_REDACTION_PROFILE_DIGEST,
   AI_REDACTION_PROFILE_VERSION,
   redactAiReviewSentences,
-} from '#/shared/ai-deterministic-redactor'
+} from '#/shared/ai-redaction/ai-deterministic-redactor'
 import {
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
   AI_STRUCTURED_MARKER_DETECTORS_VERSION,
-} from '#/shared/ai-structured-marker-detectors'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
+} from '#/shared/ai-redaction/ai-structured-marker-detectors'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-operation/ai-route-output-schemas'
 import {
   AiReviewSourceRefusal,
   canonicalizeRawAiReviewSentences,
-} from '#/shared/ai-review-source-contract'
-import type { ReviewAnalysisV3Stored } from '#/shared/review-analysis-v3'
+} from '#/shared/ai-review-source/ai-review-source-contract'
+import type { ReviewAnalysisV3Stored } from '#/shared/analysis/review-analysis-v3'
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/analysis/prompt'
-import { buildReviewAnalysisV3ProviderPayload } from '#/shared/review-analysis-v3-request'
-import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { buildReviewAnalysisV3ProviderPayload } from '#/shared/analysis/review-analysis-v3-request'
+import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import type { EvaluationItem } from './review-analysis-v3-testset'
 
 /** The country the deterministic redactor reads phone numbers and addresses for. */

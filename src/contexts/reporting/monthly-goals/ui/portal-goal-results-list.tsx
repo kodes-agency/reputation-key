@@ -8,7 +8,7 @@ import {
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
 import { TONE_INK } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { GoalColumns } from '../../../../components/goals/goal-columns'
 import {
   resultGoals,

@@ -7,7 +7,7 @@ import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
 import { SectionTitle } from '#/components/ui/section-title'
 import { TONE_INK } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { PortalGoalStripChip } from './portal-goal-page-view'
 
 /** The popover's width on a desktop; a phone takes the screen less its gutters. */

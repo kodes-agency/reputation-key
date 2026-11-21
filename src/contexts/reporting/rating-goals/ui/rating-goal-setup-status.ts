@@ -2,7 +2,7 @@
 // for a goal beyond six months, then recommendation or return-to-recommendation. Later
 // messages must not displace an earlier one.
 
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import type { GoalStatusPart } from '#/contexts/reporting/goals/ui/goal-setup-parts'
 import type { PaceUnit, SetupDraft, SetupPlan } from './rating-goal-setup-draft'
 import { paceText } from './rating-goal-pace-words'

@@ -20,7 +20,7 @@
    the nearest weight. Where no local Arial exists (stock Android) the face is
    skipped and the next family in the stack is used, unadjusted.
 
-   Loaded only by the 'app' font set (see src/shared/font-sets.ts). Kept outside
+   Loaded only by the 'app' font set (see src/shared/fonts/font-sets.ts). Kept outside
    the Vite pipeline on purpose: the bundle budget counts every emitted
    stylesheet, and the fonts need no processing. */
 

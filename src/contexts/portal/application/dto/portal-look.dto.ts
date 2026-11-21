@@ -9,7 +9,7 @@
 import { z } from 'zod/v4'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { MAX_ADDITIONAL_GUEST_LOCALES } from '#/shared/domain/guest-locale'
-import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { offeredGuestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import type { PortalLookSources } from '../../domain/portal-look'
 import { BACKGROUND_MODES, type BackgroundMode } from '../../domain/property-look'
 import type {

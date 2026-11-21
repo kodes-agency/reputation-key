@@ -13,7 +13,7 @@ import {
   GUEST_LANGUAGE_PACK_SQL_PATTERN,
   GUEST_LOCALE_JSONB_LITERAL,
   GUEST_LOCALE_SQL_LIST,
-} from '#/shared/guest-locale-schemas'
+} from '#/shared/domain-schemas/guest-locale-schemas'
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..')
 const MIGRATION = readFileSync(

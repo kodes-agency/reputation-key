@@ -1,4 +1,4 @@
-import { GOOGLE_REVIEW_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_REVIEW_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import {
   configureReviewProviderSubjectWriterKeys,

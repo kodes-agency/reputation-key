@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
+import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 
 /**
  * PostgreSQL owns the charge. Keep rates in the provider catalogue so repricing

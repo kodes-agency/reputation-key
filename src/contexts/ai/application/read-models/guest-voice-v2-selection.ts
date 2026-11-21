@@ -1,4 +1,4 @@
-import { REVIEW_STRENGTH_RANK_V3 } from '#/shared/review-analysis-v3'
+import { REVIEW_STRENGTH_RANK_V3 } from '#/shared/analysis/review-analysis-v3'
 import type {
   GuestVoiceMention,
   GuestVoiceReview,

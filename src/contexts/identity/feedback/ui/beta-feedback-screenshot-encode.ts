@@ -9,7 +9,7 @@ import {
   BETA_FEEDBACK_SCREENSHOT_MAX_BYTES,
   type BetaFeedbackScreenshot,
   type BetaFeedbackScreenshotType,
-} from '#/shared/beta-feedback-screenshot'
+} from '#/shared/beta-feedback/beta-feedback-screenshot'
 
 /** Decoding a larger file costs more memory than any screenshot needs. */
 export const SCREENSHOT_MAX_INPUT_BYTES = 40 * 1024 * 1024

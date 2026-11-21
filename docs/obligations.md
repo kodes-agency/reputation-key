@@ -95,7 +95,7 @@ The current notice wording follows these code paths:
   in `src/contexts/identity/consent/merchant-ai-transition.server.ts`; its outbox event later purges stored results
   through `src/contexts/ai/replay/enrollment-store.server.ts`.
 - The category is AI context as well as a vocabulary selector
-  (`src/shared/review-vocabulary-hints.ts`,
+  (`src/shared/analysis/review-vocabulary-hints.ts`,
   `resolveReviewPropertyContext`), and is displayed during Google import
   (`src/contexts/integration/imports/ui/google-import-candidate-list.tsx`). It is excepted from AI-result cleanup.
 - Reporting can retain legacy per-review star values awaiting removal

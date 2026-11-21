@@ -1,5 +1,5 @@
-import { formatNumber } from '#/lib/format'
-import { cn } from '#/lib/utils'
+import { formatNumber } from '#/shared/format/format'
+import { cn } from '#/shared/class-names/utils'
 import type { Tone } from './tone'
 
 /**

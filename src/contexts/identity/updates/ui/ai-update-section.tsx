@@ -1,10 +1,10 @@
 import { useId } from 'react'
 import { Sparkles } from 'lucide-react'
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { MerchantAiNoticeUpdateDetails } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-details'
 import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
 import { SectionTitle } from '#/components/ui/section-title'
-import { formatDayMonthYear } from '#/lib/format'
+import { formatDayMonthYear } from '#/shared/format/format'
 
 /**
  * The AI notice update that leads What's new for an AccountAdmin: the same words

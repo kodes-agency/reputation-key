@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within, waitFor } from 'storybook/test'
 import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
-import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '#/shared/merchant-ai-notice-announcements'
+import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { MerchantAiNoticeUpdateBanner } from './merchant-ai-notice-update-banner'
 
 const update = {

@@ -12,7 +12,7 @@
 import { TriangleAlert, Check, Loader2 } from 'lucide-react'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { RetryButton } from '#/components/ui/region-error'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   usePortalDraftAutosave,
   usePortalDraftAutosaveState,

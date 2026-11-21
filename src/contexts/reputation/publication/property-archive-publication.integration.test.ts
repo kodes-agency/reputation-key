@@ -14,7 +14,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //     Property and refuses a cycle whose Property is not active at its epoch,
 //     whichever of the two runs first.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Queue } from 'bullmq'
 import { Pool } from 'pg'

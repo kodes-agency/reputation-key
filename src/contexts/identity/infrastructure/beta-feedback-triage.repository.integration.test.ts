@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import type { Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { maskedLayoutExpiry } from '#/shared/beta-feedback-layout'
+import { maskedLayoutExpiry } from '#/shared/beta-feedback/beta-feedback-layout'
 import { BetaFeedbackTriageRepository } from './beta-feedback-triage.repository'
 
 const NOW = new Date('2026-08-28T08:00:00.000Z')

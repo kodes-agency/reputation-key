@@ -1,4 +1,4 @@
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 // Organization AI overview — every manageable Property's Merchant AI standing.
 //
 // Read-only. It lists, for each Property the actor may manage AI for, the

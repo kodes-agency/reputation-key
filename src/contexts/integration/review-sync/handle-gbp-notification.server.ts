@@ -1,7 +1,7 @@
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
+import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
 import {
   integrationGoogleReviewPushAccepted,
   type GoogleReviewPushNotificationKind,

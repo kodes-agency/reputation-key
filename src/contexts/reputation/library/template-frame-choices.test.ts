@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import * as catalogue from '#/shared/ai-runtime-capability-contract'
+import * as catalogue from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { templateFrameChoices } from './template-frame-choices.server'
 const CHOICES = {
   closing: 0,

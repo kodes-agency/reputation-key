@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Badge, type BadgeVariant } from '#/components/ui/badge'
-import { cn } from '#/lib/utils'
-import { ASPECT_LABELS } from '#/shared/aspect-labels'
+import { cn } from '#/shared/class-names/utils'
+import { ASPECT_LABELS } from '#/shared/analysis/aspect-labels'
 import { INBOX_CHIP_STATIC_CLASS } from '#/contexts/reputation/inbox/ui/page/inbox-chip'
 import {
   prioritySuggestion,

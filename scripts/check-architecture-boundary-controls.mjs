@@ -207,7 +207,7 @@ const controls = [
   },
   {
     name: 'UI support cannot import a context server adapter',
-    file: 'src/lib/boundary-negative-control.ts',
+    file: 'src/shared/format/boundary-negative-control.ts',
     source: "import '#/contexts/review/server/reply'\n",
   },
   // ARC-03-T1: scripts/ is a mandated control category. Operator commands
@@ -341,7 +341,7 @@ const allowedControls = [
   {
     name: 'component may import shared UI support',
     file: 'src/components/boundary-positive-control.ts',
-    source: "import '#/lib/utils'\n",
+    source: "import '#/shared/class-names/utils'\n",
   },
   {
     name: 'Portal results UI may import its browser contract and UI primitives',

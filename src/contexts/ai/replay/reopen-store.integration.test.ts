@@ -3,7 +3,7 @@ import { seedReviewContent } from '../analysis/review-content.test-fixtures'
 // An enrollment cannot catch up while any of its reviews still waits for one.
 // These suites prove that recovery against PostgreSQL, including its limits.
 
-import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
@@ -32,7 +32,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import {
   analysisExecutionBinding,
   analysisOperationIdentity,

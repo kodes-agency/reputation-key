@@ -1,6 +1,9 @@
-import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
+import type {
+  AspectPolarityV1,
+  AspectTaxonomyV1Id,
+} from '#/shared/analysis/aspect-taxonomy'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 
 export type ReviewAttention = 'urgent' | 'high' | 'medium' | 'low'

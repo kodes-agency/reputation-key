@@ -1,6 +1,6 @@
 import { Star } from 'lucide-react'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /**
  * Glyph size per scale. `xs` (12 px) is the default so stars sit level with the

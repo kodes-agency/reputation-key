@@ -10,7 +10,7 @@ import { Link } from '@tanstack/react-router'
 import { Badge } from '#/components/ui/badge'
 import { OwnerDisc } from '#/components/ui/owner-disc'
 import { PHONE_LINK_TOUCH, ROW_NAME_LINK } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type {
   PortalLocalesView,
   PortalManagersView,

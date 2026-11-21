@@ -10,7 +10,7 @@ import type {
   PortalGoalSheetFacts,
 } from '#/contexts/reporting/monthly-goals/contracts'
 import { goalPace } from '#/contexts/reporting/monthly-goals/goal-pace.contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import {
   changeSubmissionOf,
   type PortalGoalChangeSubmission,

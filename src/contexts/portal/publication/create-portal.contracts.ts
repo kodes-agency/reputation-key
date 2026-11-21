@@ -3,7 +3,7 @@
 
 import { z } from 'zod/v4'
 import { MAX_ADDITIONAL_GUEST_LOCALES } from '#/shared/domain/guest-locale'
-import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { offeredGuestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 
 /** What a new Portal starts from: the Property's wording, or a copy of another Portal. */
 const newPortalStartFromSchema = z.discriminatedUnion('kind', [

@@ -3,12 +3,12 @@ import type {
   AiAdmissionDescriptorV1,
   AiSettlementReceiptV1,
   AiSettlementOutcome,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import type { AiExecutionAdmission } from './execution-admission'
 import type {
   AiGatewayRouteRequestV1,
   AiGatewayRouteResponseV1,
-} from '#/shared/ai-gateway-transport-contract'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import type { PreparedAiInvocation } from './prepared-invocation'
 import type {
   AiProviderId,
@@ -24,7 +24,7 @@ export {
   type AiGatewayRoute,
   type ClosedJsonSchemaFormat,
   type ClosedOpenAiRequest,
-} from '#/shared/ai-openai-request-contract'
+} from '#/shared/ai-provider-profile/ai-openai-request-contract'
 
 export const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses' as const
 export const OPENAI_USER_AGENT = 'repkey-ai-egress-gateway/1.0' as const
@@ -105,7 +105,7 @@ export type PreparedGatewayRouteExecution = Readonly<{
   acceptProviderResult(result: unknown): AcceptedGatewayResult | null
   observeProviderText?(
     text: string,
-    sink: import('#/shared/reply-drafting-progress').ReplyDraftingProgressSink,
+    sink: import('#/shared/reply/reply-drafting-progress').ReplyDraftingProgressSink,
   ): void
   repairIssues?(): readonly ReplyBodyIssueCode[]
 }>

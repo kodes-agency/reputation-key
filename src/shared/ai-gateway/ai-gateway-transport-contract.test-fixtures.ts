@@ -1,0 +1,330 @@
+// Shared fixtures for the AI gateway transport contract.
+//
+// Extracted from `ai-gateway-transport-contract.test.ts` in WP2.3 because a
+// second suite needs schema-VALID requests: the in-process adapter parses with
+// the same strict schema before it authorizes a caller, so a hand-rolled
+// partial object cannot exercise it. Duplicating ~200 lines of fixture into that
+// suite would have guaranteed the two drift apart.
+//
+// `.test-fixtures.ts` is the established suffix here — `provider-client-singleton`
+// and the production-artifact walkers already exclude it from production trees.
+
+import {
+  type ReplySuggestionGatewayRequestV1,
+  type ReviewAnalysisGatewayRequestV1,
+} from './ai-gateway-transport-contract'
+import {
+  canonicalizeRawAiReviewSentences,
+  canonicalizeRawAiReviewSource,
+} from '../ai-review-source/ai-review-source-contract'
+import { LANGUAGE_CATALOGUE_DIGEST } from '../ai-review-language-catalogue'
+import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '../ai-reply-language-verifier'
+import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '../ai-language-script-consistency'
+import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '../ai-zh-orthography-verifier'
+import { AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST } from '../reply/ai-reply-output-leakage'
+import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '../reply/ai-reply-template-catalogue'
+import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
+import type { ReviewAnalysisV3GatewayResult } from '../analysis/review-analysis-v3-request'
+import {
+  REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
+  REVIEW_ANALYSIS_NORMALIZATION_VERSION,
+} from '#/shared/analysis/normalizer'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from '../ai-provider-profile/ai-openai-provider-attestation'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 as AI_PROVIDER_DEPLOYMENT_PROFILE } from '../ai-provider-profile/ai-provider-deployment-profile'
+import { providerRequestProfileOf } from '../ai-provider-profile/ai-provider-attestations'
+import { resolveReviewPropertyContext } from '../analysis/review-vocabulary-hints'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '../merchant-ai-notice-contract'
+
+const UUIDS = {
+  operation: '10000000-0000-4000-8000-000000000001',
+  permit: '10000000-0000-4000-8000-000000000002',
+  organization: '10000000-0000-4000-8000-000000000003',
+  property: '10000000-0000-4000-8000-000000000004',
+  lineage: '10000000-0000-4000-8000-000000000005',
+  globalControl: '10000000-0000-4000-8000-000000000006',
+  providerControl: '10000000-0000-4000-8000-000000000007',
+  capabilityControl: '10000000-0000-4000-8000-000000000008',
+} as const
+const SHA = 'a'.repeat(64)
+
+/**
+ * The v2-form review-analysis request, with the binding the live catalogue serves for
+ * the routes that did not change at the switch-on. Reply requests are built
+ * on its binding (the deployment profile, the notice) and overwrite what is theirs;
+ * review analysis itself is no longer served in this form (`analysisRequest` is), so
+ * the live transport refuses it as cross-wired: it is the retired form.
+ */
+export function v2FormAnalysisRequest(): ReviewAnalysisGatewayRequestV1 {
+  return {
+    route: 'review-analysis',
+    operationId: UUIDS.operation,
+    permitId: UUIDS.permit,
+    attemptNumber: 1,
+    organizationId: 'better-auth-org_01',
+    propertyId: UUIDS.property,
+    internalSubjectId: 'review_subject_01',
+    actorId: null,
+    binding: {
+      authorizationLineageId: UUIDS.lineage,
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
+      sourceEpoch: 1,
+      evaluatedLanguage: 'en-Latn',
+      concreteReplyLanguage: null,
+      languageCatalogueDigest: SHA,
+      replyLanguageVerifierDigest: null,
+      languageScriptConsistencyDigest: null,
+      zhOrthographyVerifierDigest: null,
+      sourceRevision: 1,
+      reviewedAtEpochMillis: 1_780_000_000_000,
+      propertyProfileVersion: 1,
+      routingPolicyVersion: 1,
+      sourcePolicyId: 'ai-source-v1',
+      sourceCanonicalizerDigest: SHA,
+      redactionProfileVersion: 'gbp-review-global-v1',
+      outputLeakageProfileVersion: null,
+      outputLeakageProfileDigest: null,
+      replyTemplateCatalogueVersion: null,
+      replyTemplateCatalogueDigest: null,
+      providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+      operationProfileVersion: 'review-analysis-v2',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+      aiSubjectHmacKeyVersion: 'v1',
+      stopFence: {
+        globalControlId: UUIDS.globalControl,
+        globalGeneration: 1,
+        providerControlId: UUIDS.providerControl,
+        providerGeneration: 1,
+        capabilityControlId: UUIDS.capabilityControl,
+        capabilityGeneration: 1,
+      },
+    },
+    deadlineEpochMillis: 1_780_000_070_000,
+    redactionCountry: 'US',
+    observedContentExpiresAtEpochMillis: 1_780_000_600_000,
+    source: {
+      kind: 'review',
+      text: 'A bounded synthetic review.',
+      rating: 5,
+      languageCode: 'en-Latn',
+      reviewedAtEpochMillis: 1_780_000_000_000,
+    },
+  }
+}
+
+/** The provider identity an operation claimed under OpenAI records. */
+function claimedProvider() {
+  const profile = providerRequestProfileOf(OPENAI_PROVIDER_ATTESTATION_V1)
+  return {
+    id: 'openai',
+    model: profile.model,
+    requestProfileVersion: profile.version,
+    requestProfileDigest: profile.digest,
+  } as const
+}
+
+/**
+ * A review-analysis request in the v3 evidence form, the one the live catalogue
+ * serves: the raw text is cut into numbered sentences before it is canonicalized, as
+ * the Review context does it, and the property context is the catalogue's for the
+ * category. The binding names the v3 profiles.
+ */
+export function analysisV3Request(
+  input: Readonly<{
+    rawText?: string
+    reviewerDisplayName?: string | null
+    googlePrimaryCategory?: string | null
+  }> = {},
+): ReviewAnalysisGatewayRequestV1 {
+  const base = v2FormAnalysisRequest()
+  const raw = {
+    text:
+      input.rawText ??
+      'The room was lovely.\nCheck-in took an hour. Nobody answered the phone!',
+    rating: 2,
+    languageCode: 'en-Latn',
+    reviewedAtEpochMillis: base.source.reviewedAtEpochMillis,
+    reviewerDisplayName: input.reviewerDisplayName ?? null,
+  } as const
+  return {
+    ...base,
+    binding: {
+      ...base.binding,
+      operationProfileVersion: 'review-analysis-v3',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
+    },
+    source: {
+      kind: 'review',
+      text: canonicalizeRawAiReviewSource(raw).text,
+      rating: 2,
+      languageCode: raw.languageCode,
+      reviewedAtEpochMillis: raw.reviewedAtEpochMillis,
+      sentences: canonicalizeRawAiReviewSentences(raw).map((sentence) => ({
+        number: sentence.number,
+        text: sentence.text,
+      })),
+    },
+    propertyContext: resolveReviewPropertyContext(
+      input.googlePrimaryCategory === undefined ? 'Hotel' : input.googlePrimaryCategory,
+    ).propertyContext,
+    provider: claimedProvider(),
+  }
+}
+
+/** The generic review-analysis request: the live form, with its default review. */
+export function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
+  return analysisV3Request()
+}
+
+function replyBaseRequest(): ReplySuggestionGatewayRequestV1 {
+  const analysis = v2FormAnalysisRequest()
+  return {
+    ...analysis,
+    route: 'reply-suggestion',
+    actorId: 'better-auth-user_01',
+    replyProfileVersion: 'reply-draft-v4',
+    brandProfile: { displayName: 'Example Hotel' },
+    tone: 'professional',
+    binding: {
+      ...analysis.binding,
+      capabilityFence: {
+        capability: 'reply_drafting',
+        replyDraftingEpoch: 1,
+        baseReplyStateRevision: 0,
+      },
+      concreteReplyLanguage: { tag: 'en-Latn', templateGroup: 'en-Latn' },
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest:
+        '030c644bf71ad1d7570dc9ab6131f5209ac02fa65e930e2910778e024fc643bf',
+      replyLanguageVerifierDigest: SHA,
+      languageScriptConsistencyDigest: SHA,
+      zhOrthographyVerifierDigest: SHA,
+      outputLeakageProfileVersion: 'gbp-reply-output-leakage-v1',
+      outputLeakageProfileDigest: SHA,
+      replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
+      replyTemplateCatalogueDigest: SHA,
+      operationProfileVersion: 'reply-suggestion-v1',
+      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
+      aiSubjectHmacKeyVersion: null,
+    },
+  }
+}
+
+/** The reply request the live catalogue serves: numbered source, options and frame. */
+export function replyRequest(
+  text = 'We waited a long time. The room was quiet.',
+  languageCode = 'en-Latn',
+): ReplySuggestionGatewayRequestV1 {
+  const base = replyBaseRequest()
+  const raw = {
+    text,
+    languageCode,
+    rating: 2 as const,
+    reviewedAtEpochMillis: base.source.reviewedAtEpochMillis,
+    reviewerDisplayName: null,
+  }
+  return {
+    ...base,
+    replyProfileVersion: 'reply-draft-v4',
+    binding: {
+      ...base.binding,
+      languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
+      operationProfileVersion: 'reply-suggestion-v2',
+      providerDeploymentProfileVersion: 'private-beta-global-v3',
+      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v2',
+      evaluatedLanguage: languageCode,
+      concreteReplyLanguage: { tag: languageCode, templateGroup: languageCode },
+      replyLanguageVerifierDigest: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
+      languageScriptConsistencyDigest: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
+      zhOrthographyVerifierDigest: AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
+      outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
+      replyDraftingV2: {
+        options: resolveReplyDraftingV2Options({ languageCode, variation: 1 }),
+        voiceDigest: 'a'.repeat(64),
+        generationSeed: 'b'.repeat(64),
+        parentOperationId: null,
+        rewriteOrdinal: 0,
+        rewriteIssues: [],
+      },
+    },
+    source: {
+      ...base.source,
+      text: canonicalizeRawAiReviewSource(raw).text,
+      rating: raw.rating,
+      languageCode: raw.languageCode,
+      kind: 'review',
+      sentences: [...canonicalizeRawAiReviewSentences(raw)],
+    },
+    replyV2Frame: {
+      voiceDigest: 'a'.repeat(64),
+      reviewerDisplayName: 'Jane',
+      businessName: 'Example Hotel',
+      contact: 'private@example.test',
+      signerName: 'Manager',
+      signerTitle: 'Owner',
+      candidates: [
+        {
+          prefix: '',
+          suffix: '',
+          thanks: false,
+          choices: {
+            closing: -1,
+            signOff: 0,
+            contactSentence: 0,
+            emoji: 0,
+            includeContact: true,
+          },
+        },
+      ],
+    },
+  }
+}
+
+/** What the gateway answers a v3 request with: one normalized mention and what normalizing it did. */
+export const analysisV3Result: ReviewAnalysisV3GatewayResult = {
+  contract: 'review-analysis-v3',
+  answer: {
+    sentiment: 'negative',
+    mentions: [
+      {
+        topic: 'speed_waiting',
+        polarity: 'negative',
+        strength: 'clear',
+        thing: 'check-in',
+        issue: 'slow',
+        sentences: [2],
+        names_person: null,
+      },
+    ],
+    urgent: null,
+  },
+  normalization: {
+    version: REVIEW_ANALYSIS_NORMALIZATION_VERSION,
+    digest: REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
+    flags: ['sentence_refs_repaired'],
+    droppedMentionCount: 1,
+  },
+}
+
+export const receipt = {
+  version: 'ai-settlement-receipt-v1',
+  operationId: UUIDS.operation,
+  permitId: UUIDS.permit,
+  attemptNumber: 1,
+  disposition: 'success',
+  reportedDisposition: 'success',
+  providerRetryable: false,
+  usageKnown: true,
+  inputTokens: 100,
+  cachedInputTokens: 20,
+  outputTokens: 20,
+  reasoningTokens: 5,
+  costMicros: 42,
+  settledAtEpochMillis: 1_780_000_001_000,
+  settlementState: 'settled',
+} as const

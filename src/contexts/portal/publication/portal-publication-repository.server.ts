@@ -38,7 +38,7 @@ import type {
   PortalPublicationConfiguration,
   PortalPublicationSnapshot,
 } from '../domain/portal-publication-snapshot'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { isLocalizedConfiguration } from '../domain/portal-publication-snapshot'

@@ -15,7 +15,7 @@
 import type { Database } from '#/shared/db'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-deployment-profile'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-profile/ai-provider-deployment-profile'
 import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import {

@@ -4,12 +4,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 import { Agent } from 'undici'
 import { zodTextFormat } from 'openai/helpers/zod'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
 import {
   REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA,
   REVIEW_ANALYSIS_V3_STORED_SCHEMA,
-} from '#/shared/review-analysis-v3'
-import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
+} from '#/shared/analysis/review-analysis-v3'
+import type { AiAdmissionDescriptorV1 } from '#/shared/ai-gateway/ai-internal-transport-contract'
 import { admitForTest } from './execution-admission.test-fixtures'
 import { evaluateProviderDispatchGate } from './connector-boundary'
 import {

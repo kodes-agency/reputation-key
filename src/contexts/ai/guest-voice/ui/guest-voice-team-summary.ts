@@ -1,5 +1,5 @@
 import type { GuestVoiceV2Ready, ReviewTopicV3 } from '../contracts'
-import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 import { reviewsPhrase, windowDates } from './guest-voice-words'
 
 /** Only fixed product labels and unique topic counts can enter the clipboard. */

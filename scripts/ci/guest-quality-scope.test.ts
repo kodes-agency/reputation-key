@@ -94,7 +94,7 @@ describe('guest quality scope', () => {
   })
 
   it('judges a push from the commits it adds', () => {
-    const head = commitFile('src/lib/format.ts')
+    const head = commitFile('src/shared/format/format.ts')
     expect(
       scope({ GITHUB_EVENT_NAME: 'push', GITHUB_SHA: head, PUSH_BEFORE: base }),
     ).toBe('true')

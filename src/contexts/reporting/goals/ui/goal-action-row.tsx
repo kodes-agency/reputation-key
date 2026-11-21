@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { RowButton } from '#/components/ui/button-layouts'
 import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 const INNER = 'flex w-full items-center gap-3 py-3 text-left'
 

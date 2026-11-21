@@ -8,7 +8,7 @@ import {
 import { lockAggregateHead } from './ai-property-aggregate-head.server'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import type { AiPropertyProfileResult } from '../domain/types'
 import { resolveAiProcessingCell } from '../domain/rules'
 import type { PropertyProcessingProfilePort } from './property-processing-profile.port.server'

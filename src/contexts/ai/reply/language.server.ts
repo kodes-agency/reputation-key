@@ -10,7 +10,7 @@ import {
   type ConcreteReplyLanguage,
   type EvaluatedReviewLanguage,
 } from '#/shared/ai-review-language-catalogue'
-import { resolveAiReplyTemplate } from '#/shared/ai-reply-template-catalogue'
+import { resolveAiReplyTemplate } from '#/shared/reply/ai-reply-template-catalogue'
 import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply/schema'
 import { replyUnavailable as unavailable } from './requests.server'
 

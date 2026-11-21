@@ -3,7 +3,7 @@
 //
 // Pure on purpose (no zod, no I/O) so domain code may import it; the SQL
 // rendering for the Drizzle model and the hand-written migration lives in
-// `src/shared/portal-media-schemas.ts`.
+// `src/shared/domain-schemas/portal-media-schemas.ts`.
 
 /** A Property's photograph, its logo, or the picture on one link tile. */
 export const PORTAL_MEDIA_PURPOSES = Object.freeze([

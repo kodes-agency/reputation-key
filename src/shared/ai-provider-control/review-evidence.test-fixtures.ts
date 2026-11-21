@@ -5,17 +5,17 @@
 // as a second attested provider.
 
 import { generateKeyPairSync } from 'node:crypto'
-import { operationProfileForCatalogue } from '#/shared/ai-operation-profile'
+import { operationProfileForCatalogue } from '#/shared/ai-operation/ai-operation-profile'
 import { LANGUAGE_CATALOGUE_DIGEST } from '#/shared/ai-review-language-catalogue'
 import {
   analysisV3Request,
   receipt,
-} from '#/shared/ai-gateway-transport-contract.test-fixtures'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
 import type {
   AiGatewayRouteResponseV1,
   ReviewAnalysisGatewayRequestV1,
-} from '#/shared/ai-gateway-transport-contract'
-import { reviewAnalysisV3GatewayResultSchema } from '#/shared/review-analysis-v3-request'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract'
+import { reviewAnalysisV3GatewayResultSchema } from '#/shared/analysis/review-analysis-v3-request'
 import {
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
   REVIEW_ANALYSIS_V3_OPENAI_PAIRING,

@@ -8,7 +8,7 @@ import {
   metricAvailabilityDetail,
   metricEvidenceLine,
 } from '#/contexts/reporting/portal-results/ui/metric-availability-presentation'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { priorName } from './portal-results-cells'
 import { quietLine } from './portal-results-empty'
 import type { PortalResultsPlace } from './portal-results-place'

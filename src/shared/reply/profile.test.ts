@@ -2,7 +2,7 @@ import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply/schema'
 import { z } from 'zod/v4'
 import { describe, expect, it } from 'vitest'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE as profile } from './profile'
-import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply-drafting-v2-contract'
+import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply/reply-drafting-v2-contract'
 import { REPLY_BODY_LINT_DIGEST, lintReplyDraftingV2Body } from '#/shared/reply/lint'
 import { REPLY_DRAFTING_V2_APOLOGIES } from '#/shared/domain/reply-drafting-v2'
 import {
@@ -18,13 +18,13 @@ import {
   AI_RUNTIME_CAPABILITY_CATALOGUE,
   getAiRuntimeCapability,
   isExecutionCompatibleWithConsent,
-} from '#/shared/ai-runtime-capability-contract'
+} from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import {
   MERCHANT_AI_NOTICE_VERSION,
   MERCHANT_AI_NOTICE_DIGEST,
 } from '#/shared/merchant-ai-notice-contract'
-import ENGLISH from '#/shared/reply-drafting-v2-examples.json'
-import BULGARIAN from '#/shared/reply-drafting-v2-examples-bg.json'
+import ENGLISH from '#/shared/reply/reply-drafting-v2-examples.json'
+import BULGARIAN from '#/shared/reply/reply-drafting-v2-examples-bg.json'
 
 const PINS = {
   profile: '73c5cf6cef43b9a5ef202053c9ca9249c2e69a2802f8e286d51559f6f71045b5',

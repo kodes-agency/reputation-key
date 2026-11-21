@@ -1,5 +1,5 @@
 import type { Capability } from '#/shared/governance/capability-fate'
-import type { MerchantAiNoticeUpdateClient } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdateClient } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 
 // Deliberately finite: copy validation checks these against Lucide and the router.
 export const PRODUCT_UPDATE_ICONS = [

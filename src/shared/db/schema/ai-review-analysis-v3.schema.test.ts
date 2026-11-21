@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { getTableColumns, getTableName } from 'drizzle-orm'
 import { PgDialect, getTableConfig, type PgTable } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
-import { AI_PROVIDER_IDS } from '#/shared/ai-provider-ids'
+import { AI_PROVIDER_IDS } from '#/shared/ai-provider-profile/ai-provider-ids'
 import {
   REVIEW_ANALYSIS_V3_MAX_MENTIONS,
   REVIEW_ANALYSIS_V3_MAX_SENTENCE_NUMBER,
@@ -20,9 +20,9 @@ import {
   REVIEW_POLARITIES_V3,
   REVIEW_STRENGTHS_V3,
   REVIEW_URGENT_REASONS_V3,
-} from '#/shared/review-analysis-v3'
+} from '#/shared/analysis/review-analysis-v3'
 import { REVIEW_ANALYSIS_NORMALIZATION_FLAGS } from '#/shared/analysis/normalizer'
-import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 import {
   aiExecutionControlHeads,
   aiExecutionControlTransitions,

@@ -1,6 +1,9 @@
 import { z } from 'zod/v4'
 import type { EventDescriptor } from './descriptor'
-import { additionalGuestLocalesSchema, guestLocaleSchema } from '../guest-locale-schemas'
+import {
+  additionalGuestLocalesSchema,
+  guestLocaleSchema,
+} from '../domain-schemas/guest-locale-schemas'
 import {
   portalApprovedDestinationRatioRecordedV1Schema,
   portalApprovedDestinationRatioRecordedV2Schema,

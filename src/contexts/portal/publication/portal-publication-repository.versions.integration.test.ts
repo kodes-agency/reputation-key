@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import {

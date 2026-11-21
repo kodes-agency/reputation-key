@@ -1,8 +1,8 @@
 import { z } from 'zod/v4'
 import { zodTextFormat } from 'openai/helpers/zod'
-import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
-import { providerRequestProfileOf } from '#/shared/ai-provider-attestations'
-import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
+import { providerRequestProfileOf } from '#/shared/ai-provider-profile/ai-provider-attestations'
+import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 import {
   OPENAI_PROMPT_VERSIONS,
   type ClosedJsonSchemaFormat,

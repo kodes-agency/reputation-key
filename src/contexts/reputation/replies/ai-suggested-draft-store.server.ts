@@ -1,7 +1,7 @@
 import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import { adoptDraftMeasurement } from '#/shared/db/ai/draft-measurement-lineage'
 import { replyAiFrameReservations } from '#/shared/db/schema'
-import { isExecutionCompatibleWithConsent } from '#/shared/ai-runtime-capability-contract'
+import { isExecutionCompatibleWithConsent } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -16,13 +16,13 @@ import {
   digestRenderedReply,
   verifyAiReplyProvenance,
   type AiReplyProvenancePayload,
-} from '#/shared/ai-reply-provenance'
+} from '#/shared/reply/ai-reply-provenance'
 import type {
   AiReplyProvenancePublicKeyring,
   AiSuggestedDraftStore,
 } from './ai-suggested-draft-store.port.server'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { replyFromRow } from './reply-mapper.server'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding.server'
 import type { AiReplyVoicePublicApi } from '../library/ai-reply-voice-frame.server'

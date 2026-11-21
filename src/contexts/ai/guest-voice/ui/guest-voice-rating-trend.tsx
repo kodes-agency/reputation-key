@@ -11,7 +11,7 @@ import type { GuestVoiceRatingTrend as Trend } from '../contracts'
 import { GuestVoiceSection } from './guest-voice-section'
 import { GuestVoiceRatingChart } from './guest-voice-rating-chart'
 import { ratingComparisonLabels, trendAnswer } from './guest-voice-check-in-words'
-import { formatLocalDate } from '#/lib/format'
+import { formatLocalDate } from '#/shared/format/format'
 import { starsText } from './guest-voice-words'
 
 export function GuestVoiceRatingTrend({ trend }: Readonly<{ trend: Trend }>) {

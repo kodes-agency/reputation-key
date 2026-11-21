@@ -50,7 +50,7 @@ updates:
         # `openai` is an EXACT pin (no range) because its version is part of the
         # provider request contract, not merely a dependency. It appears in
         # `OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1.sdkVersion`
-        # (src/shared/ai-openai-provider-profile.ts) and in the exact-header
+        # (src/shared/ai-provider-profile/ai-openai-provider-profile.ts) and in the exact-header
         # allowlist `expectedPinnedSdkHeaders`
         # (src/shared/ai-provider-control/openai-connector.ts). Dispatch is
         # refused unless the SDK's own `user-agent: OpenAI/JS <v>` and

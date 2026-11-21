@@ -20,7 +20,7 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { IconButton, type IconButtonProps } from '#/components/ui/icon-button'
 import { Spinner } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 const ELLIPSIS = '…'
 

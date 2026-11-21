@@ -17,7 +17,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 import { createdAtColumn, updatedAtColumn } from '../columns'
-import { GUEST_LOCALE_SQL_LIST } from '../../guest-locale-schemas'
+import { GUEST_LOCALE_SQL_LIST } from '../../domain-schemas/guest-locale-schemas'
 import { portalLinks, portals } from './portal.schema'
 
 // ── portal_link_texts ──────────────────────────────────────────────

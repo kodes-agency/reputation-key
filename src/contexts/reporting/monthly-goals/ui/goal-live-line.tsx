@@ -6,7 +6,7 @@
 import { ProgressBar } from '#/components/ui/progress-bar'
 import { Skeleton } from '#/components/ui/skeleton'
 import { StatusBadge } from '#/components/ui/status-badge'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
 import { goalLiveView, type GoalLiveShape } from './goal-live-view'
 

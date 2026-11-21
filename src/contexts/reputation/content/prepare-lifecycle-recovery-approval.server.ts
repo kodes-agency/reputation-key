@@ -4,7 +4,7 @@ import {
   type ReviewLifecycleRecoveryApprovalRequest,
   type ReviewLifecycleRecoveryRuntimeTarget,
 } from '#/shared/ops/review-lifecycle-recovery-approval'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { collectReviewLifecycleRecoveryEvidence } from './collect-lifecycle-recovery-evidence.server'
 import type { RunReviewSourceContentLifecycle } from '../../review/application/use-cases/run-source-content-lifecycle'
 

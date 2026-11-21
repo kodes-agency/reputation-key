@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { TONE_INK } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   INBOX_PRIORITY_LEVELS,

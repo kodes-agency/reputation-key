@@ -4,7 +4,7 @@ import { SectionTitle } from '#/components/ui/section-title'
 // the server says what the floor is.
 import { RatingDistributionChart } from '#/components/ui/rating-distribution-chart'
 import type { PortalAnalyticsData } from '#/contexts/reporting/portal-results/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 export function PortalResultsRatingMix({
   data,

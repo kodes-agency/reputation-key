@@ -8,7 +8,7 @@
 // Every control in the line is a tap target on a phone (`portal-line-link`).
 import { Link } from '@tanstack/react-router'
 import { CircleDashed, History, PencilLine, TriangleAlert } from 'lucide-react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   attentionLine,
   issuesTone,

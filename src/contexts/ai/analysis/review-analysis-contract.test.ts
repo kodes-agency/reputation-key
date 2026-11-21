@@ -3,7 +3,7 @@
 // contract states are the ones the v3 profile and versions state.
 
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -16,8 +16,8 @@ import {
   type ReviewSentimentV3,
   type ReviewStrengthV3,
   type ReviewUrgentReasonV3,
-} from '#/shared/review-analysis-v3'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/review-analysis-v3'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import type { ReviewAnalysisMentionV3, ReviewAnalysisReadV1 } from '../domain/types'
 import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/analysis/profile'
 import { createReviewAnalysisContractV3 } from './review-analysis-contract-v3.server'

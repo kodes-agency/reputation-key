@@ -1,12 +1,12 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply-drafting-v2-contract'
+import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply/reply-drafting-v2-contract'
 import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
-import { verifyAiReplyProvenance } from '#/shared/ai-reply-provenance'
+import { verifyAiReplyProvenance } from '#/shared/reply/ai-reply-provenance'
 import { replyAiFrameReservations } from '#/shared/db/schema'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding.server'
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/ai-reply-template-catalogue'
+import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/reply/ai-reply-template-catalogue'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -33,9 +33,9 @@ import {
   type AiReplyProvenancePayloadV1,
   type AiReplyProvenancePayloadV2,
   type AiReplyProvenancePayloadV3,
-} from '#/shared/ai-reply-provenance'
-import { AI_PERSONALIZED_REPLY_PROFILE_DIGEST } from '#/shared/ai-personalized-reply-contract'
-import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
+} from '#/shared/reply/ai-reply-provenance'
+import { AI_PERSONALIZED_REPLY_PROFILE_DIGEST } from '#/shared/reply/ai-personalized-reply-contract'
+import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/reply/ai-personalized-reply-profile'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -50,8 +50,8 @@ import {
   reviewReplyApproved,
   reviewReplyPublicationRequested,
 } from '../domain/review-events'
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
-import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
+import { digestAiReplyBrandDisplayName } from '#/shared/reply/ai-reply-brand-profile.server'
 import { eraseKeepingContentClock } from '#/shared/testing/review-tombstone-fixtures'
 import type { Review } from '../domain/review-types'
 import { getPool } from '#/shared/db/pool'

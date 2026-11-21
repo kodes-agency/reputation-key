@@ -1,4 +1,4 @@
-import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'

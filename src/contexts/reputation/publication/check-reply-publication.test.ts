@@ -8,7 +8,7 @@ import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import { err, ok } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'

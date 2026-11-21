@@ -26,7 +26,7 @@ import { useId, useState } from 'react'
 import { PenLine } from 'lucide-react'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { Tabs, TabsContent } from '#/components/ui/tabs'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   ComposerCollapsedRow,
   ComposerModeRow,

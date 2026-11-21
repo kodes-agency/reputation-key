@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/analysis/review-analysis-v3'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_FLAGS,

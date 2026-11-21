@@ -1,17 +1,17 @@
 import '@tanstack/react-start/server-only'
-import { defineLogicalOperationProfile } from '#/shared/ai-operation-profile'
-import { openAiPairingOf } from '#/shared/ai-openai-provider-attestation'
+import { defineLogicalOperationProfile } from '#/shared/ai-operation/ai-operation-profile'
+import { openAiPairingOf } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
 import { anthropicPairingOf } from '#/shared/ai-provider-control/anthropic/attestation'
 import {
   PROPERTY_CALENDAR_ATTESTATION,
   REVIEW_SOURCE_ATTESTATION,
-} from '#/shared/ai-operation-profile'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
-import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source-contract'
-import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/review-analysis-v3'
+} from '#/shared/ai-operation/ai-operation-profile'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-operation/ai-route-output-schemas'
+import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source/ai-review-source-contract'
+import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/analysis/review-analysis-v3'
 import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from '#/shared/analysis/artifacts'
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/analysis/prompt'
-import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
+import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/analysis/review-analysis-v3-request'
 
 // The v3 operation profile, in no provider's terms. Activation (slice 3.10, the
 // switch-on) registers it: `ai-operation-profiles.ts` carries it as the catalogue

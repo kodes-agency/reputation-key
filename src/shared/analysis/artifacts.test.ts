@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import { describe, expect, it } from 'vitest'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-operation/ai-route-output-schemas'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/analysis/review-analysis-v3'
 import {
   REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS,
   REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS_DIGEST,

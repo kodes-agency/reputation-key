@@ -16,7 +16,7 @@ import type {
   AiTrendPopulationRequest,
   AiTrendPopulationResult,
 } from './ai-review-source.port.server'
-import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
+import type { ReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
 import type { ReviewProviderObservationOrigin } from './response-target-authority.port.server'
 
 export type StableReviewSourceIdentity = Readonly<{

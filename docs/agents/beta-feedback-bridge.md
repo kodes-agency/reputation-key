@@ -109,7 +109,7 @@ may paste, drop or choose one image on a Bug or a Suggestion. The browser
 shrinks and re-encodes it to at most 640 KiB so the report fits the default
 request limit (`beta-feedback-screenshot-encode.ts`); the contract refuses
 bytes that do not start the way the declared PNG, JPEG or WebP type does
-(`src/shared/beta-feedback-screenshot.ts`); and the delivery adapter hands it
+(`src/shared/beta-feedback/beta-feedback-screenshot.ts`); and the delivery adapter hands it
 to Sentry as an attachment of the feedback event, through the capture hint,
 so the scope clearing and the `attachments` scrub above stay as they are.
 Open it from the feedback event in Sentry, whose text carries a

@@ -1,4 +1,4 @@
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { MerchantAiAuthorizationError } from './merchant-ai-authorization.server'
 
 export type MerchantAiUpdateReaderInput = Readonly<{

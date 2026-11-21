@@ -34,7 +34,7 @@ import { createEligibleGoogleReplyReads } from '../reviews/eligible-reads.server
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import type { RecordGoogleReplyObservation } from './google-reply-observation-store.port.server'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 
 const ORG = organizationId('org-rpl-observation-integration')
 const PROP_A = propertyId('a1000000-0000-0000-0000-000000000001')

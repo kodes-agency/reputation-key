@@ -17,7 +17,7 @@ separate table keyed by review ID that holds no text (ADR 0031, amendment "Guest
 
 An item is `{ id, business, rating, language, text, sentences, tags }`. `business` is a Google
 primary category, `language` is `en`, `bg`, `es`, `de` or `mixed`, `sentences` is the text cut by
-the production splitter (`src/shared/review-sentences.ts`), and `tags` record what the item was
+the production splitter (`src/shared/ai-review-source/review-sentences.ts`), and `tags` record what the item was
 written to test (urgent cases, near misses, names, sarcasm, rating conflicts, content-free
 text). A gold label is `{ id, sentiment, mentions, urgent, gold_source }`; `gold_source` says
 which round settled it, and a `+v1.1` suffix says the label was reworded for gold v1.1.
@@ -36,7 +36,7 @@ object the guest names, null otherwise"). Guide v3.3 states that rule, with the 
 check found, and gold v1.1 applies it:
 
 - 297 generic `thing` values became null in 175 labels (the issue stays). The words are the
-  list in `src/shared/review-generic-things.ts`, the same list the prompt gives the model. The
+  list in `src/shared/analysis/review-generic-things.ts`, the same list the prompt gives the model. The
   loader refuses any gold label that names one, so the rule cannot drift back in. Four mentions
   that became identical (same topic, null thing, same polarity) were merged the way the
   production normalizer merges them.

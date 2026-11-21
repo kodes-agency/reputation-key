@@ -66,7 +66,7 @@ export type LoadReplyTemplate = (
     reviewId: ReviewId
     ref: ReplyLibraryRef
     targetLanguage: ReplyTemplateLanguageTarget
-    expectedReply?: import('#/shared/reply-revision').ReplyRevision | null
+    expectedReply?: import('#/shared/reply/reply-revision').ReplyRevision | null
     excludeWordingKeys?: readonly string[]
   }>,
   ctx: AuthContext,

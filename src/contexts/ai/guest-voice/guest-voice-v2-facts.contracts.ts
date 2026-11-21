@@ -11,8 +11,8 @@ import type {
   ReviewPolarityV3,
   ReviewStrengthV3,
   ReviewUrgentReasonV3,
-} from '#/shared/review-analysis-v3'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/review-analysis-v3'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 
 export type StarValue = 1 | 2 | 3 | 4 | 5
 

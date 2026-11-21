@@ -80,7 +80,7 @@ export type ResolveSavedReplyFrameInput = Readonly<{
   reviewId: ReviewId
   languageGroup: string
   voiceDigest: string
-  choices: import('#/shared/reply-drafting-v2-binding').ReplyVoiceChoices
+  choices: import('#/shared/reply/reply-drafting-v2-binding').ReplyVoiceChoices
   text: string
 }>
 

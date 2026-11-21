@@ -7,12 +7,12 @@ import { createCld3ReplyLanguageDetector } from '#/shared/ai-reply-language-veri
 import {
   assertAiProvenancePrivateKeyInventory,
   resolveAiGatewayRuntimeKeyInventory,
-} from '#/shared/ai-gateway-key-inventory'
+} from '#/shared/ai-gateway/ai-gateway-key-inventory'
 import {
   createAiEgressGatewayService,
   type AiEgressGatewayService,
 } from '#/shared/ai-provider-control/service'
-import { aiAdmissionDescriptorSchema } from '#/shared/ai-internal-transport-contract'
+import { aiAdmissionDescriptorSchema } from '#/shared/ai-gateway/ai-internal-transport-contract'
 import {
   isMintedAiExecutionAdmission,
   settlementPermitOf,

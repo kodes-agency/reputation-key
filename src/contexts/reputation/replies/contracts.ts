@@ -2,7 +2,7 @@ import {
   matchesExpectedReply,
   replyRevisionSchema,
   type ReplyRevision,
-} from '#/shared/reply-revision'
+} from '#/shared/reply/reply-revision'
 
 export { matchesExpectedReply, replyRevisionSchema, type ReplyRevision }
 

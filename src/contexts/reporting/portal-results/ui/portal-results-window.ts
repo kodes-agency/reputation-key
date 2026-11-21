@@ -11,8 +11,8 @@ import {
   type TimeRangePreset,
 } from '#/contexts/reporting/portal-results/contracts'
 import type { PortalResultsTimeRange } from '#/contexts/reporting/portal-results/contracts'
-import { RANGE_PRESET_LABELS } from '#/shared/dashboard-range'
-import { describeTimezone } from '#/shared/timezone-display'
+import { RANGE_PRESET_LABELS } from '#/shared/dashboard/dashboard-range'
+import { describeTimezone } from '#/shared/format/timezone-display'
 
 type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 

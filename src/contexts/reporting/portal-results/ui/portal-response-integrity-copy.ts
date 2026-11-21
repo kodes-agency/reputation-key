@@ -1,4 +1,4 @@
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 export type PortalResponseIntegritySummaryView = Readonly<{
   accepted: number
   filteredAutomatically: number

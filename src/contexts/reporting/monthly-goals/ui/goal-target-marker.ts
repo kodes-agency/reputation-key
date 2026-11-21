@@ -4,7 +4,7 @@
 
 import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import type { GoalMonthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
-import { formatShortDate } from '#/lib/format'
+import { formatShortDate } from '#/shared/format/format'
 import { goalFigure } from './goal-so-far'
 
 export type GoalMarkerFrame = Readonly<{

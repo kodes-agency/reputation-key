@@ -4,7 +4,7 @@ import {
   defineProviderAttestation,
   providerDeploymentAttestationFacts,
   type AiOperationProviderPairing,
-} from '#/shared/ai-provider-attestations'
+} from '#/shared/ai-provider-profile/ai-provider-attestations'
 import { renderAnthropicStaticTokenBearingMaterial } from './request-builder'
 import {
   ANTHROPIC_MODEL_SNAPSHOT,

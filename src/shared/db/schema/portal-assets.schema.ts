@@ -25,7 +25,7 @@ import {
   PORTAL_MEDIA_PURPOSE_SQL_LIST,
   PORTAL_MEDIA_SOURCE_FORMAT_SQL_LIST,
   PORTAL_MEDIA_STATUS_SQL_LIST,
-} from '../../portal-media-schemas'
+} from '../../domain-schemas/portal-media-schemas'
 import { properties } from './property.schema'
 
 export const portalMediaAssets = pgTable(

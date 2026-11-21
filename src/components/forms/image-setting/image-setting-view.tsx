@@ -5,7 +5,7 @@
 import type { ChangeEvent, DragEvent, ReactNode, Ref } from 'react'
 import { ImageIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { imageSettingLabels } from './image-setting-copy'
 
 export type ImageSettingStatus = 'idle' | 'uploading' | 'removing'

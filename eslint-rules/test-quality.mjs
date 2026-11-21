@@ -63,7 +63,7 @@ const SKIP_REGISTER = [
     skippedTests: 7,
   },
   {
-    file: 'src/shared/ai-reply-template-catalogue.test.ts',
+    file: 'src/shared/reply/ai-reply-template-catalogue.test.ts',
     owner: 'engineering',
     reason:
       'single it.runIf(isAiReviewLanguageRuntimeAvailable()) — the whole-catalogue leakage/language/script/orthography validation needs the pinned ICU; the rest of the file runs unconditionally',

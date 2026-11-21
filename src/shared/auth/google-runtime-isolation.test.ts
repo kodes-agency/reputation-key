@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 
 import {
   GoogleRuntimeIsolationError,

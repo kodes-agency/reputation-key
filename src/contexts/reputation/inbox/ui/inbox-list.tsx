@@ -1,4 +1,4 @@
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { InboxActiveFilters } from '#/contexts/reputation/inbox/ui/page/inbox-active-filters'
 import { InboxListHeader } from '#/contexts/reputation/inbox/ui/page/inbox-list-header'

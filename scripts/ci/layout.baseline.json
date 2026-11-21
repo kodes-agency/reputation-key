@@ -26,11 +26,5 @@
   "src/contexts/reporting/infrastructure": 2,
   "src/contexts/reputation/application": 1,
   "src/contexts/review/application": 12,
-  "src/lib": 5,
-  "src/shared/*": 116,
-  "src/shared/analysis": 4,
-  "src/shared/reply": 5,
-  "src/shared/reply-library": 10,
-  "src/shared/whats-new": 4,
-  "src/test-fixtures": 1
+  "src/shared/*": 15
 }

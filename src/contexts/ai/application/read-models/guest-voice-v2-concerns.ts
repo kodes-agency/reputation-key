@@ -1,5 +1,5 @@
 import { MAX_URGENT } from './guest-voice-v2-limits'
-import type { ReviewUrgentReasonV3 } from '#/shared/review-analysis-v3'
+import type { ReviewUrgentReasonV3 } from '#/shared/analysis/review-analysis-v3'
 import type {
   GuestVoiceSeriousConcerns,
   UrgentConcernItem,

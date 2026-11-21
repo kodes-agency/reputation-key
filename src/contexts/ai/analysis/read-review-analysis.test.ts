@@ -9,7 +9,7 @@ import {
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
 import type { AiMerchantAuthorizationSnapshot } from '../consent/ai-authorization.port.server'
 import type { AiOutputStorePort } from './ai-output-store.port.server'
 import type { AiPropertyProfileResult, ReviewAnalysisReadV1 } from '../domain/types'

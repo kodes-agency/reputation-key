@@ -4,7 +4,7 @@ import type {
   ReviewAnalysisProgress,
 } from '#/contexts/ai/application/public-api'
 import type { StatusMap } from '#/components/ui/status-badge'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 export type AiOverviewStatus = 'on' | 'paused' | 'not_now' | 'turned_off' | 'off'
 

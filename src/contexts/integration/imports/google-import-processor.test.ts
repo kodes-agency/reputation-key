@@ -1,4 +1,4 @@
-import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { GbpSubscribeResult } from '../connections/manage-notifications.server'
 import type { AuthContext } from '#/shared/domain/auth-context'

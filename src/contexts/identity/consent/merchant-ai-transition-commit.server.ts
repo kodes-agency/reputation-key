@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { nextMerchantAiCapabilityEpochs } from '../domain/merchant-ai-capability-epochs'
-import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice-change'
+import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice/merchant-ai-notice-change'
 import type {
   CapabilityRuntimeProfileVersions,
   MerchantAiCapability,

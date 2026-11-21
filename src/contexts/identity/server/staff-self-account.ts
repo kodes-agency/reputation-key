@@ -9,7 +9,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   betaFeedbackInputSchema,
   type BetaFeedbackInput,
-} from '#/shared/beta-feedback-contract'
+} from '#/shared/beta-feedback/beta-feedback-contract'
 import { changePasswordCommandSchema } from '../members/change-password.contracts'
 import { isBetaFeedbackError } from '../domain/errors'
 import { resolveStaffSelfContext } from './staff-self-context'

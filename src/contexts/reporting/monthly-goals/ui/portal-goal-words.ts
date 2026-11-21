@@ -8,7 +8,7 @@ import type {
   PortalGoalSoFar,
   PortalReadinessRow,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatLocalDate, formatMonthName, formatNumber } from '#/lib/format'
+import { formatLocalDate, formatMonthName, formatNumber } from '#/shared/format/format'
 import { PORTAL_NO_SCAN_HINT } from './portal-goal-copy'
 
 /** Each measure's unit, one and many. */

@@ -1,6 +1,6 @@
 import { translatedGoogleReviewApi } from '../../review/application/google-review-api-error'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
-import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
+import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
 import {
   googleProviderFailure,
   type GoogleProviderFailure,

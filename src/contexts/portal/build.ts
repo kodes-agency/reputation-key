@@ -37,7 +37,7 @@ import {
 import { registerPortalPropertyLifecycleConsumers } from './responsibility/property-lifecycle-outbox-consumers.server'
 import { registerPortalMemberOffboardingConsumers } from './responsibility/member-offboarding-outbox-consumers.server'
 import { policyDeps as managerEligibilityPolicy } from './responsibility/portal-manager-eligibility.server'
-import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager-eligibility'
+import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import { createPortalAccessArtifactRepository } from './addresses/portal-access-artifact-repository.server'
 import { createPortalApprovedDestinationRepository } from './destinations/portal-approved-destination-repository.server'
 import { createPortalExperienceRepository } from './editor/portal-experience-repository.server'

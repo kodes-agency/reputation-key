@@ -6,7 +6,7 @@ import type {
   GoalMetric,
   GoalProgressReading,
 } from '#/contexts/reporting/application/public-api'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 /** A count as a whole number, an average to one decimal. */
 export function goalFigure(metric: GoalMetric, value: number): string {

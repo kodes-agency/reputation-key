@@ -14,7 +14,7 @@ import {
 } from '#/components/features/portal/link-tree/link-icons'
 import { portalLinkName } from './portal-results-check-in'
 import { RESULTS_LINK_CLASS, type PortalResultsPlace } from './portal-results-place'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 const tapsText = (taps: number) =>
   taps === 0 ? 'No taps yet' : `${formatNumber(taps)} ${taps === 1 ? 'tap' : 'taps'}`

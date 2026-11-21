@@ -5,7 +5,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type {
   AiGuestVoiceFactsPort,

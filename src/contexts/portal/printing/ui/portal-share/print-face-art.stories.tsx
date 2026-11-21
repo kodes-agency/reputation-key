@@ -16,7 +16,7 @@ import {
 } from '#/shared/domain/portal-print'
 import { choosePrintTile, type PrintTile } from '#/shared/domain/portal-print-code'
 import { printLiveArea } from '#/shared/domain/portal-print-measures'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { PrintDrawnFaceArt } from './print-face-art'
 import {
   BADGE_LOGO,
