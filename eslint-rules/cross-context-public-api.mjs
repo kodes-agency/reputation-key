@@ -1,7 +1,9 @@
 // BQC-5.1: local eslint rule enforcing src/contexts/CONTEXT.md "Dependency rules":
 //
-//   "Cross-context: import from application/public-api.ts only. Never from
+//   "Cross-context: import from the area's public-api.ts only. Never from
 //    domain/, infrastructure/, server/, or non-public-api application/."
+//   The public API sits at the area's root. While it moves there from
+//   application/public-api.ts, both paths are the public API.
 //   "Exception: Cross-context adapter implementations (infrastructure/adapters/**
 //    and a feature's *.adapter.server.ts) may import the port they implement
 //    (application/ports/**). The port IS the public interface for adapter
@@ -35,6 +37,12 @@ const TYPE_ONLY_TARGET_RE = /^src\/contexts\/[^/]+\/server\//
 
 const EXTENSION_RE = /\.(d\.ts|tsx?|jsx?|m[ct]s)$/
 
+// The area's public API, at its root or, until it has moved there, in application/.
+const publicApiPaths = (context) => [
+  `src/contexts/${context}/public-api`,
+  `src/contexts/${context}/application/public-api`,
+]
+
 const stripExtension = (p) => p.replace(EXTENSION_RE, '')
 
 export default {
@@ -42,11 +50,11 @@ export default {
     type: 'problem',
     docs: {
       description:
-        'Enforce the CONTEXT.md cross-context rule: a foreign context may only be imported through its application/public-api (adapter port exception).',
+        'Enforce the CONTEXT.md cross-context rule: a foreign context may only be imported through its public-api (adapter port exception).',
     },
     messages: {
       publicApiOnly:
-        "Cross-context import '{{source}}' violates src/contexts/CONTEXT.md \"Dependency rules\": import from the target context's application/public-api.ts only — never domain/, infrastructure/, server/, or non-public-api application/. Exception: infrastructure/adapters/** and a feature's *.adapter.server.ts may import the foreign application/ports/** contract they implement.",
+        "Cross-context import '{{source}}' violates src/contexts/CONTEXT.md \"Dependency rules\": import from the target context's public-api.ts only — never domain/, infrastructure/, server/, or non-public-api application/. Exception: infrastructure/adapters/** and a feature's *.adapter.server.ts may import the foreign application/ports/** contract they implement.",
     },
     schema: [],
   },
@@ -86,7 +94,7 @@ export default {
         return
       }
       const stripped = stripExtension(resolved)
-      if (stripped === `src/contexts/${targetContext}/application/public-api`) return
+      if (publicApiPaths(targetContext).includes(stripped)) return
       if (
         isAdapterImporter &&
         stripped.startsWith(`src/contexts/${targetContext}/application/ports/`)

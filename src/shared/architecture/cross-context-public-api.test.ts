@@ -54,6 +54,37 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
 
+  // The public API is moving to the area's root; lint accepts both paths
+  // until every area has moved. Path math only: the target need not exist.
+  it('allows application → foreign root public-api', async () => {
+    const messages = await lintSnippet(
+      `import type { StaffPublicApi } from '#/contexts/identity/public-api'\nexport type { StaffPublicApi }\n`,
+      'src/contexts/portal/application/use-cases/sample.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
+  })
+
+  it('allows a relative import of a foreign root public-api', async () => {
+    const messages = await lintSnippet(
+      `import type { PropertyPublicApi } from '../../property/public-api'\nexport type { PropertyPublicApi }\n`,
+      'src/contexts/portal/editor/sample.server.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
+  })
+
+  it.each([
+    '#/contexts/property/lifecycle/public-api',
+    '#/contexts/property/domain/public-api',
+    '#/contexts/identity/staff/people-public-api.server',
+    '#/contexts/portal/groups/portal-group-public-api.server',
+  ])('flags %s, which is not the area public API', async (source) => {
+    const messages = await lintSnippet(
+      `import '${source}'\n`,
+      'src/contexts/integration/imports/sample.server.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+  })
+
   it('allows infrastructure/adapters → foreign application/ports (adapter exception)', async () => {
     const messages = await lintSnippet(
       `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,

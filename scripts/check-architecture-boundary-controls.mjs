@@ -43,6 +43,54 @@ const controls = [
     source:
       "import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-api'\nexport const control = StoredObjectTooLargeError\n",
   },
+  // An area's public API is moving to src/contexts/<area>/public-api.ts.
+  // It keeps the bans application/ had, and a feature file named like a public
+  // API is not one.
+  {
+    name: "an area's root public API cannot import UI",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import '#/components/ui/button'\n",
+  },
+  {
+    name: "an area's root public API cannot import another area's feature server",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import '#/contexts/reporting/portal-results/get-portal-analytics.server'\n",
+  },
+  {
+    name: "an area's root public API cannot resolve the composition root",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import '#/composition'\n",
+  },
+  {
+    name: "an area's root public API cannot import the outbox relay",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import '#/shared/outbox/relay'\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: "an area's root public API cannot construct queue transport",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import { Queue } from 'bullmq'\nexport const control = Queue\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: "a feature contract cannot take types from another area's feature file named like a public API",
+    file: 'src/contexts/guest/page/boundary-negative-control.contracts.ts',
+    source:
+      "import type { createPortalGroupPublicApi } from '#/contexts/portal/groups/portal-group-public-api.server'\nexport type Control = typeof createPortalGroupPublicApi\n",
+  },
+  // The public API is the one file at an area's root another area may import;
+  // the build seam beside it stays closed to feature code.
+  {
+    name: "a feature server cannot import another area's build seam at the area root",
+    file: 'src/contexts/guest/rights/boundary-negative-control.server.ts',
+    source: "import '#/contexts/portal/build'\n",
+  },
+  {
+    name: "a feature screen cannot import another area's build seam at the area root",
+    file: 'src/contexts/guest/page/ui/boundary-negative-control.tsx',
+    source: "import '#/contexts/portal/build'\n",
+  },
   {
     name: 'ordinary test helpers cannot import Feed infrastructure',
     file: 'src/shared/testing/boundary-negative-control.ts',
@@ -296,6 +344,46 @@ const allowedControls = [
     file: 'src/contexts/guest/page/boundary-positive-control.contracts.ts',
     source:
       "import type { PublicPortalResult } from '#/contexts/portal/application/public-api'\nexport type Control = PublicPortalResult\n",
+  },
+  {
+    name: "an area's root public API may name its own domain types",
+    file: 'src/contexts/feed/public-api.ts',
+    source:
+      "import type { NotificationType } from './domain/notification-types'\nexport type { NotificationType }\n",
+  },
+  {
+    name: "an area's root public API may wrap its own feature server code",
+    file: 'src/contexts/feed/public-api.ts',
+    source:
+      "import { queryAuditEvents } from './audit/read.server'\nexport const control = queryAuditEvents\n",
+  },
+  {
+    name: "an area's root public API may take another area's public API",
+    file: 'src/contexts/feed/public-api.ts',
+    source:
+      "import type { PropertyPublicApi } from '#/contexts/property/application/public-api'\nexport type Control = PropertyPublicApi\n",
+  },
+  // Review and Inbox keep application/public-api.ts until REP-205, so these
+  // controls hold before and after the other areas move.
+  {
+    name: "a feature screen may import Review's application public API",
+    file: 'src/contexts/guest/page/ui/boundary-positive-control.tsx',
+    source: "import '#/contexts/review/application/public-api'\n",
+  },
+  {
+    name: "a feature server may import Review's application public API",
+    file: 'src/contexts/guest/rights/boundary-positive-control.server.ts',
+    source: "import '#/contexts/review/application/public-api'\n",
+  },
+  {
+    name: "a route may import Inbox's application public API",
+    file: 'src/routes/boundary-positive-control.ts',
+    source: "import '#/contexts/inbox/application/public-api'\n",
+  },
+  {
+    name: "an operator script may import Review's application public API",
+    file: 'scripts/ops/boundary-positive-control.ts',
+    source: "import '../../src/contexts/review/application/public-api'\n",
   },
   {
     name: 'route may import a feature browser contract',
