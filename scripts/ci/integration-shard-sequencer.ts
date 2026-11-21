@@ -10,6 +10,7 @@ import { shardOf } from './integration-shards'
 import { DURATIONS_PATH } from './record-integration-durations'
 
 export class IntegrationShardSequencer extends BaseSequencer {
+  // fallow-ignore-next-line unused-class-member -- Vitest calls it through sequence.sequencer
   override async shard(specs: TestSpecification[]): Promise<TestSpecification[]> {
     const { shard, root } = this.ctx.config
     if (
