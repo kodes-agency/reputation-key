@@ -3,6 +3,7 @@ import { resolve } from 'path'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
 import tailwindcss from '@tailwindcss/vite'
+import { IntegrationShardSequencer } from './scripts/ci/integration-shard-sequencer'
 import { storybookStoryStarts } from './scripts/ci/storybook-story-starts'
 import { createPhoneWidthRecorder } from './.storybook/phone-width-recorder'
 import { testEnvironment } from './src/shared/testing/test-environment'
@@ -129,6 +130,10 @@ export default defineConfig({
       reporter: ['text', 'json-summary'],
       reportsDirectory: 'coverage',
     },
+    // A sharded integration run splits its files by recorded duration
+    // (scripts/ci/integration-shard-sequencer.ts); every other run keeps
+    // Vitest's own split.
+    sequence: { sequencer: IntegrationShardSequencer },
     // Two isolated projects: `unit` (node integration tests, scoped via
     // `pnpm test` → `vitest run --project=unit`) and `storybook` (browser
     // component tests via @storybook/addon-vitest, scoped by the addon when
