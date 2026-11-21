@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BUILTIN_REPLY_VOICE, resolveVoice } from '#/shared/reply-library/reply-voice'
-import { frameReplyDraftingV2 } from '#/shared/reply-drafting-v2-frame'
+import { frameReplyDraftingV2 } from '#/shared/reply/reply-drafting-v2-frame'
 import { buildAiReplyV2Frame } from './ai-reply-v2-frame.server'
 import { digestResolvedReplyVoice } from '#/shared/reply-library/render-reply'
 

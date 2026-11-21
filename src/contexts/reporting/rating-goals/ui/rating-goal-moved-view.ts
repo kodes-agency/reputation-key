@@ -8,7 +8,7 @@ import type {
   RatingGoalDetailView,
   RatingGoalThisWeekView,
 } from '#/contexts/reporting/rating-goals/contracts'
-import { formatNumber, formatShortDate } from '#/lib/format'
+import { formatNumber, formatShortDate } from '#/shared/format/format'
 import { paceText } from './rating-goal-pace-words'
 import { reviewCountText } from './rating-goal-tracking-words'
 import { changeText, tenthsText } from './rating-goal-view'

@@ -19,7 +19,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { FieldDescription } from '#/components/ui/field'
 import { Label } from '#/components/ui/label'
 import { Switch } from '#/components/ui/switch'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 type Props = Readonly<{
   id: string

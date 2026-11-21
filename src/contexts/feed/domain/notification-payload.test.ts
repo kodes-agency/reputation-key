@@ -697,7 +697,7 @@ describe('the topics a Guest voice summary states', () => {
     // Feed's domain restates the taxonomy (it reads nothing outside shared/domain), so
     // this is what keeps the two from drifting apart.
     const { REVIEW_TOPICS_V3, REVIEW_TOPIC_LABELS_V3 } =
-      await import('#/shared/review-topic-taxonomy')
+      await import('#/shared/analysis/review-topic-taxonomy')
     const { NOTIFICATION_GUEST_VOICE_TOPICS } = await import('./notification-payload')
     const { GUEST_VOICE_TOPIC_LABELS } =
       await import('./notification-templates-guest-voice')

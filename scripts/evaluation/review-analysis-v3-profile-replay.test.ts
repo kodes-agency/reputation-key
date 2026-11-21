@@ -4,9 +4,11 @@ import { prepareEvaluationItem } from './review-analysis-v3-provider'
 import { answer, item, mention } from './review-analysis-v3.test-fixtures'
 
 // Keep the real redactor, but make the caller expect a different profile digest.
-vi.mock('#/shared/ai-deterministic-redactor', async (importOriginal) => {
+vi.mock('#/shared/ai-redaction/ai-deterministic-redactor', async (importOriginal) => {
   const original =
-    await importOriginal<typeof import('#/shared/ai-deterministic-redactor')>()
+    await importOriginal<
+      typeof import('#/shared/ai-redaction/ai-deterministic-redactor')
+    >()
   return { ...original, AI_REDACTION_PROFILE_DIGEST: 'stale-profile-digest' }
 })
 

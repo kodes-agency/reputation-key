@@ -12,7 +12,7 @@ import {
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'

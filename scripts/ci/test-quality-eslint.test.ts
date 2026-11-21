@@ -60,7 +60,7 @@ describe('test quality ESLint gate', () => {
   })
 
   it('keeps the registered runtime fence count and rejects an extra skip', () => {
-    const filename = 'src/shared/ai-reply-template-catalogue.test.ts'
+    const filename = 'src/shared/reply/ai-reply-template-catalogue.test.ts'
     const source = `${['it', 'runIf'].join('.')}(ready)('case', () => {})`
     expect(messages(source, filename)).toEqual([])
     expect(messages(`${source}\n${source}`, filename)).toEqual([

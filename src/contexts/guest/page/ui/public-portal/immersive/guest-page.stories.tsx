@@ -8,7 +8,7 @@
 // real header, rating card, Linktree and footer composed the way the route will.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, waitFor, within } from 'storybook/test'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { deCopy } from '../language-packs/de'
 import { enCopy } from '../language-packs/en'
 import { GuestPageComposition } from './__fixtures__/guest-page-composition'

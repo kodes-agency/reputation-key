@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 import { assembleGuestVoiceV2 } from './guest-voice-v2-build'
 import { tallyTopics } from './guest-voice-v2-tally'
 import { input, mention, review } from '../../guest-voice/guest-voice-v2.test-fixtures'

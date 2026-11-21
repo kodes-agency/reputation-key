@@ -157,7 +157,7 @@ export {
   PROPERTY_PERFORMANCE_PRESETS,
   isGooglePerformanceErrorCode,
   isPropertyPerformancePreset,
-} from '../../../shared/google-performance-report-contract'
+} from '../../../shared/google-contracts/google-performance-report-contract'
 export type {
   GooglePerformanceErrorCode,
   PerformanceAvailability,
@@ -166,7 +166,7 @@ export type {
   PropertyGooglePerformanceReportV1,
   PropertyGooglePerformanceResultV1,
   PropertyPerformancePreset,
-} from '../../../shared/google-performance-report-contract'
+} from '../../../shared/google-contracts/google-performance-report-contract'
 
 export type {
   ReadPropertyGoogleNumbersInput,

@@ -1,6 +1,6 @@
 // Inbox shared formatting utilities
 //
-// The date text itself comes from `#/lib/format` (one locale, and formatters
+// The date text itself comes from `#/shared/format/format` (one locale, and formatters
 // built once: the rail formats a date for every row). This file keeps what is
 // Inbox-specific: the relative clocks, and the one zone the Inbox prints its
 // own stamps in.
@@ -10,9 +10,9 @@
 // week, the review's date, a hover title) are read on the same clock, and a
 // clock time names its zone. The Inbox list and detail are read after mount,
 // never on the server, so the reader's zone cannot be a hydration mismatch
-// (see `'viewer'` in `#/lib/format`). The Response Target is the exception: it
+// (see `'viewer'` in `#/shared/format/format`). The Response Target is the exception: it
 // is due on the Property's clock, and its chip names that zone.
-import { formatDate, formatMonthDay, formatZonedTimestamp } from '#/lib/format'
+import { formatDate, formatMonthDay, formatZonedTimestamp } from '#/shared/format/format'
 
 const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
 

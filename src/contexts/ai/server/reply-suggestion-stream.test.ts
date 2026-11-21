@@ -54,7 +54,7 @@ vi.mock('#/shared/auth/middleware', () => ({ resolveTenantContext: mocks.tenant 
 vi.mock('#/shared/auth/execution-policy', () => ({
   requireExecutionAllowed: mocks.policy,
 }))
-vi.mock('#/shared/ai-runtime-capability-contract', () => ({
+vi.mock('#/shared/merchant-ai-notice/ai-runtime-capability-contract', () => ({
   getAiRuntimeCapability: mocks.runtime,
 }))
 

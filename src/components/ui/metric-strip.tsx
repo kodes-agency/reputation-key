@@ -16,7 +16,7 @@
 // (`tiles` wrap instead).
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Skeleton } from '#/components/ui/skeleton'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { createContext, use, type ReactNode } from 'react'
 
 const metricStripVariants = cva('m-0 grid grid-cols-2', {

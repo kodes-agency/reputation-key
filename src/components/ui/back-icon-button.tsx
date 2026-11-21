@@ -1,6 +1,6 @@
 import { ArrowLeft } from 'lucide-react'
 import { IconButton, type IconButtonProps } from '#/components/ui/icon-button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 // The back control when the row has no room for words: the arrow alone, the label its
 // name and its tooltip. Same arrow and ghost Button as `BackLink` and `BackButton`

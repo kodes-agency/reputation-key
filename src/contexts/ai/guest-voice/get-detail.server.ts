@@ -1,5 +1,5 @@
-import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
-import { REVIEW_URGENT_REASONS_V3 } from '#/shared/review-analysis-v3'
+import { REVIEW_TOPICS_V3 } from '#/shared/analysis/review-topic-taxonomy'
+import { REVIEW_URGENT_REASONS_V3 } from '#/shared/analysis/review-analysis-v3'
 import { addDays } from './local-date.contracts'
 import {
   loadGuestVoiceReadContext,

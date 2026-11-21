@@ -2,8 +2,8 @@ import {
   type BetaFeedbackInput,
   classifyBetaFeedbackRoute,
   formatBetaFeedbackMessage,
-} from '#/shared/beta-feedback-contract'
-import type { BetaFeedbackScreenshotType } from '#/shared/beta-feedback-screenshot'
+} from '#/shared/beta-feedback/beta-feedback-contract'
+import type { BetaFeedbackScreenshotType } from '#/shared/beta-feedback/beta-feedback-screenshot'
 import {
   captureObservabilityFeedback,
   type FeedbackAttachment,

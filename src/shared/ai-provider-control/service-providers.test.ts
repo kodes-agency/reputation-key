@@ -13,22 +13,22 @@ import type {
   AiSettlementPermit,
   AiSettlementReceiptV1,
   AiSettlementRequestV1,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import { settlementPermitOf, type AiExecutionAdmission } from './execution-admission'
 import { admitForTest } from './execution-admission.test-fixtures'
 import {
   parseAiGatewayRouteRequest,
   type AiGatewayRouteRequestV1,
-} from '#/shared/ai-gateway-transport-contract'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   analysisRequest,
   analysisV3Result,
-} from '#/shared/ai-gateway-transport-contract.test-fixtures'
-import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
+import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 import {
   settledCostMicrosWith,
   type AiProviderPriceCatalogue,
-} from '#/shared/ai-provider-pricing'
+} from '#/shared/ai-provider-profile/ai-provider-pricing'
 import type {
   AiAdmissionClient,
   AiGatewayRoutePreparer,

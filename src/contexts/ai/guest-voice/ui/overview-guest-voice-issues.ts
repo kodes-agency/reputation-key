@@ -2,7 +2,7 @@
 // (the v3 analysis): the problem to fix first and the thing guests love most, and how it
 // counts them. A count is a count of reviews with text: "Cleanliness, 9 of 128 reviews".
 import type { GuestVoiceV2Read } from '#/contexts/ai/application/public-api'
-import type { GuestVoiceRange } from '#/shared/dashboard-range'
+import type { GuestVoiceRange } from '#/shared/dashboard/dashboard-range'
 
 /** The window the row reads: the automatic one, as the page opens on. */
 export const OVERVIEW_GUEST_VOICE_RANGE: GuestVoiceRange = 'auto'

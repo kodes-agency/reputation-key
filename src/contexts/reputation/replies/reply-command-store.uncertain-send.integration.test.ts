@@ -13,7 +13,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //      publish_failed fact recorded once per failure a manager can see;
 //   4. every stale snapshot loses the CAS without a write or a fact.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool, type PoolClient } from 'pg'
 import { getDb } from '#/shared/db'

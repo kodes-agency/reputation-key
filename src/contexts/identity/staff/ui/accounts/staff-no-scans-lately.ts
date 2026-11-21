@@ -1,4 +1,4 @@
-import { formatDayKey } from '#/lib/format'
+import { formatDayKey } from '#/shared/format/format'
 
 /** Calendar days at the Property, including through daylight-saving changes. */
 export function staffDaysSince(

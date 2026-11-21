@@ -42,9 +42,9 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   betaFeedbackInputSchema,
   formatBetaFeedbackMessage,
-} from '#/shared/beta-feedback-contract'
-import { maskedLayoutExpiry } from '#/shared/beta-feedback-layout'
-import { BETA_FEEDBACK_SCREENSHOT_MAX_BYTES } from '#/shared/beta-feedback-screenshot'
+} from '#/shared/beta-feedback/beta-feedback-contract'
+import { maskedLayoutExpiry } from '#/shared/beta-feedback/beta-feedback-layout'
+import { BETA_FEEDBACK_SCREENSHOT_MAX_BYTES } from '#/shared/beta-feedback/beta-feedback-screenshot'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import {
   captureBrowserException,

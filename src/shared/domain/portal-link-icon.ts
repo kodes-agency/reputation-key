@@ -10,7 +10,7 @@
 // renderer entry.
 //
 // Pure on purpose (no zod, no I/O) so domain code may import it; the zod schema
-// and the SQL rendering live in `src/shared/portal-link-icon-schemas.ts`.
+// and the SQL rendering live in `src/shared/domain-schemas/portal-link-icon-schemas.ts`.
 
 export const PORTAL_LINK_ICON_KEYS = Object.freeze([
   'link',

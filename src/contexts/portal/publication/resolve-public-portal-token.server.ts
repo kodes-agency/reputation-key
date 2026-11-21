@@ -24,7 +24,7 @@ import type {
   PortalTokenCodec,
   PresentedAddressDigest,
 } from '../addresses/portal-token-codec.port.server'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type {
   PortalPublicationRepository,
   ResolvedPortalPublication,

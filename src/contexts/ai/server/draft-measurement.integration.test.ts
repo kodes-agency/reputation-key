@@ -2,7 +2,7 @@
 // the real tenant resolution and execution policy. The function answers
 // nothing, so each test reads the measurement rows it leaves behind.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import {
   setupServerFunctionHarness,

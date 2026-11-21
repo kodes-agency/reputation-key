@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
 import type { OpenAiUsageV1, PreparedAiInvocation } from './contracts'
 import { providerUsageOfDecodedBody } from './connector-boundary'
 

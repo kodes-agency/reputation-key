@@ -7,9 +7,9 @@ import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 import {
   GUEST_LOCALE_JSONB_LITERAL,
   GUEST_LOCALE_SQL_LIST,
-} from '../../guest-locale-schemas'
+} from '../../domain-schemas/guest-locale-schemas'
 import { GUEST_LOCALES } from '../../domain/guest-locale'
-import { PORTAL_LINK_ICON_SQL_LIST } from '../../portal-link-icon-schemas'
+import { PORTAL_LINK_ICON_SQL_LIST } from '../../domain-schemas/portal-link-icon-schemas'
 import { properties } from './property.schema'
 import { portalMediaAssets } from './portal-assets.schema'
 export { portalGroups } from './portal-group.schema'

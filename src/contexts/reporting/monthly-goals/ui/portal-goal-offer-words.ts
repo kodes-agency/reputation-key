@@ -6,7 +6,7 @@ import type {
   PortalGoalOffer,
 } from '#/contexts/reporting/monthly-goals/contracts'
 import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import {
   dayWords,
   listOfNames,

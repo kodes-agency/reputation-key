@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import {
   Dialog,
   DialogCancel,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#/components/ui/dialog'
-import { formatDayMonthYear } from '#/lib/format'
+import { formatDayMonthYear } from '#/shared/format/format'
 import { MerchantAiNoticeUpdateDetails } from './merchant-ai-notice-update-details'
 
 export function focusAfterAiUpdate(trigger?: HTMLButtonElement | null) {

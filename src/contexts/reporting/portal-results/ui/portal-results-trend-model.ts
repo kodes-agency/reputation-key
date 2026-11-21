@@ -2,7 +2,7 @@ import type {
   PortalResultsSeries,
   PortalVersionMarker,
 } from '#/contexts/reporting/portal-results/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { formatDayRange, weekdayName } from './portal-results-window'
 
 /** Update names are kept below the plot, never positioned against a bar. */

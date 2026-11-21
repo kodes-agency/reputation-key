@@ -1,5 +1,5 @@
 import { use, useId, useRef, type ReactNode } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { NavCount } from './nav-count'
 import { NavLink } from './nav-link'
 import { SectionNavFrameContext } from './section-nav-layout'

@@ -65,7 +65,7 @@ import {
   AiReviewSourceRefusal,
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
-} from '#/shared/ai-review-source-contract'
+} from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   aiSourceLookupSql,
   expectationDenial,

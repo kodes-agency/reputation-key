@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto'
-import { digestOf } from '#/shared/ai-digest'
+import { digestOf } from '#/shared/ai-operation/ai-digest'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
-import { AI_REVIEW_SOURCE_CONTRACT_VERSION } from '#/shared/ai-review-source-contract'
+import { AI_REVIEW_SOURCE_CONTRACT_VERSION } from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   AI_RUNTIME_CAPABILITIES_V1,
   isExecutionCompatibleWithConsent,
-} from '#/shared/ai-runtime-capability-contract'
+} from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import type { AiMerchantAuthorizationSnapshot } from '../consent/ai-authorization.port.server'
 import type { AiControlPort } from './ports/ai-control.port'
 import type { AiOperationRecord } from '../execution/ai-operation-store.port.server'

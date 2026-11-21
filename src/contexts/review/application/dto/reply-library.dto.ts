@@ -1,10 +1,13 @@
-import { replyRevisionSchema } from '#/shared/reply-revision'
+import { replyRevisionSchema } from '#/shared/reply/reply-revision'
 import { z } from 'zod/v4'
 import {
   type ReplyVoiceField,
   type ResolvedReplyVoice,
 } from '#/shared/reply-library/reply-voice'
-import { REVIEW_TOPICS_V3, type ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import {
+  REVIEW_TOPICS_V3,
+  type ReviewTopicV3,
+} from '#/shared/analysis/review-topic-taxonomy'
 import {
   REPLY_TEMPLATE_LANGUAGE_GROUPS,
   type ReplyTemplateLanguageGroup,

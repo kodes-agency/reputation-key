@@ -28,7 +28,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // assertions are scoped to this suite's marker org, and evidence counts are
 // lower bounds.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { encodeErasureJournalExport } from '#/shared/db/lifecycle/erasure-journal.server'

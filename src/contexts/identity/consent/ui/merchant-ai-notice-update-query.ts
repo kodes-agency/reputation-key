@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { createKeys } from '#/shared/queries/query-keys'
-import type { MerchantAiNoticeUpdateClientGetter } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdateClientGetter } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 
 /** Whose update it is: the cache is kept per person and Organization. */
 export type MerchantAiNoticeUpdateScope = Readonly<{

@@ -3,7 +3,7 @@
 // chip that switches on and off; languages the Property does not start with are
 // added from a menu. The first language chosen is the fallback.
 import { Check, ChevronDown, Plus } from 'lucide-react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { AddAction } from '#/components/ui/add-action'
 import {
   DropdownMenu,

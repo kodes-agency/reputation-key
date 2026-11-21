@@ -11,7 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '#/components/ui/sheet'
-import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
+import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/analysis/aspect-labels'
 import { InboxChoiceChips } from './inbox-choice-chips'
 import { filtersOffered } from './inbox-filter-offer'
 import {

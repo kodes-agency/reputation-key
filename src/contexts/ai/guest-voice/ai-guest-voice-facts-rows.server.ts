@@ -7,8 +7,8 @@ import {
   REVIEW_POLARITIES_V3,
   REVIEW_STRENGTHS_V3,
   REVIEW_URGENT_REASONS_V3,
-} from '#/shared/review-analysis-v3'
-import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/review-analysis-v3'
+import { REVIEW_TOPICS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 import type {
   GuestVoiceIssueGroup,
   GuestVoiceReview,

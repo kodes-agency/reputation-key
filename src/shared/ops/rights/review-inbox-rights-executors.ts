@@ -7,7 +7,7 @@
 // adapt them to the executor contract. Closure never calls Google: a reply
 // already sent to the provider blocks the purge until it is reconciled.
 
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { Database } from '#/shared/db'
 import type {
   BackupErasureLedgerEntry,

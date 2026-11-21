@@ -1,6 +1,9 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { AiReviewAnalysisTerminalDisposition } from './ai-review-event-store.port.server'
-import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
+import type {
+  AspectPolarityV1,
+  AspectTaxonomyV1Id,
+} from '#/shared/analysis/aspect-taxonomy'
 
 export type AiPropertyAggregateHead = Readonly<{
   organizationId: OrganizationId

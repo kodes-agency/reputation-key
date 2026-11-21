@@ -89,7 +89,7 @@ so they take them as a port type declared in `shared/db/reply-scope-effects.ts`
 and every entry point that can reach them is handed the writer where it is built.
 
 `replies/contracts.ts` is the browser contract: the revision identity (from
-`shared/reply-revision.ts`, also used by Review) and the editor fence that keeps
+`shared/reply/reply-revision.ts`, also used by Review) and the editor fence that keeps
 an active editor bound to it and sequences its own mutations, so background reads
 cannot authorize stale text and delayed responses cannot revive a deleted draft.
 

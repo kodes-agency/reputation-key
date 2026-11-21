@@ -1,4 +1,4 @@
-import { canonicalizeRfc8785 } from '../canonical-json'
+import { canonicalizeRfc8785 } from '../json/canonical-json'
 import { createErrorFactory } from '../domain/errors'
 import { sha256Hex } from '../domain/sha256'
 import { replyCommentProblem } from '../google-provider-control/reply-comment'

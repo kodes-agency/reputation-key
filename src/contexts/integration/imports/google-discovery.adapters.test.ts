@@ -1,7 +1,7 @@
 import {
   GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
   GOOGLE_PROVIDER_FIXTURES_V1,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import { isGoogleCallError } from '../domain/google-call-error'
 import type { GoogleAuthorizedProviderExecutor } from '../provider/google-client.port.server'

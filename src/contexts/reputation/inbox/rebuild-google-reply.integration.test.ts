@@ -23,7 +23,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //
 // Real PostgreSQL, real Review authority, fixed clock.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'

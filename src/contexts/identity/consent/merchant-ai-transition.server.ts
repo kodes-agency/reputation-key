@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
-import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-contract'
+import { resolveAiRuntimeCapabilitySet } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import {
   RECORDED_RUNTIME_PROFILE_VERSIONS,
   type CapabilityRuntimeProfileVersions,
   type MerchantAiCapability,
 } from '#/shared/domain/merchant-ai-capability'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
+import { createAiAdvisoryScope } from '#/shared/ai-operation/ai-lock-order-v1'
 import type { Tx } from '#/shared/outbox/commit'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { STANDING_RENEWAL_REASON } from '../domain/merchant-ai-standing-renewal'

@@ -1,5 +1,5 @@
 import { SheetTitle } from './sheet'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { ReactNode, ComponentProps } from 'react'
 export type SheetLayout = Readonly<{ className: string; decoration?: ReactNode }>
 /** Side on desktop, bottom on phones. Imported by the lazy detail sheet, never the shell. */

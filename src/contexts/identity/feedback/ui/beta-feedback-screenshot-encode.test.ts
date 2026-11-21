@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { BETA_FEEDBACK_SCREENSHOT_MAX_BYTES } from '#/shared/beta-feedback-screenshot'
+import { BETA_FEEDBACK_SCREENSHOT_MAX_BYTES } from '#/shared/beta-feedback/beta-feedback-screenshot'
 import {
   ENCODE_ATTEMPTS,
   fitWithin,

@@ -11,7 +11,7 @@ import {
   type MaskedLayout,
   type MaskedLayoutBox,
   type MaskedLayoutRole,
-} from '#/shared/beta-feedback-layout'
+} from '#/shared/beta-feedback/beta-feedback-layout'
 
 /** Anything inside the feedback dialog is the reporter's own draft, not the bug. */
 const EXCLUDE_SELECTOR = '[data-beta-feedback-capture-exclude]'

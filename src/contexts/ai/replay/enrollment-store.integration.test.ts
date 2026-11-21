@@ -28,7 +28,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import {
   AI_EXECUTION_ABANDONED_AFTER_MILLIS,

@@ -13,7 +13,7 @@ import {
   type ReviewId,
 } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
-import { parseGoogleReviewComment } from '#/shared/google-review-comment'
+import { parseGoogleReviewComment } from '#/shared/google-contracts/google-review-comment'
 import type { Tx } from '#/shared/outbox/commit'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeExpiredAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'

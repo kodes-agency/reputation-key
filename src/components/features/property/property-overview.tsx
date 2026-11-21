@@ -34,7 +34,7 @@ import {
   OverviewProfileViews,
   type OverviewProfileViewsServerFns,
 } from '../../../contexts/integration/performance/ui/overview-profile-views'
-import { formatNumber, formatShortDate } from '#/lib/format'
+import { formatNumber, formatShortDate } from '#/shared/format/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 import { RatingFigure } from '#/components/ui/rating-figure'
 import type { GoogleBindingState } from '../../../contexts/property/lifecycle/ui/property-lifecycle-model'

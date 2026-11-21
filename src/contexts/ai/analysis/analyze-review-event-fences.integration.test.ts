@@ -11,9 +11,9 @@ import {
   SHA,
   withPinnedLanguageRuntime,
 } from '#/contexts/ai/analysis/review-analysis-handler.test-fixtures'
-import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation-profiles'
+import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation/ai-operation-profiles'
 import { LANGUAGE_CATALOGUE_DIGEST } from '#/shared/ai-review-language-catalogue'
-import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
+import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,

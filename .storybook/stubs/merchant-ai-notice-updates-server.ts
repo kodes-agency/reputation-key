@@ -1,8 +1,8 @@
 // In-memory stand-in for the AI-announcement server functions, handed to the
 // shell stories as a client. The shapes are the real server functions': `get` answers the AccountAdmin's
 // unseen update or null, `markSeen` takes `{ data: { noticeVersion, noticeDigest } }`.
-import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '../../src/shared/merchant-ai-notice-announcements'
-import type { MerchantAiNoticeUpdate } from '../../src/shared/merchant-ai-notice-announcements'
+import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '../../src/shared/merchant-ai-notice/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '../../src/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 
 const VERSION = 'merchant-ai-notice-2026-10-30.v1'
 

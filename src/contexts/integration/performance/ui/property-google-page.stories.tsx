@@ -12,7 +12,7 @@ import type {
   PerformanceMetricValue,
   PerformanceSeries,
   PropertyGooglePerformanceReportV1,
-} from '#/shared/google-performance-report-contract'
+} from '#/shared/google-contracts/google-performance-report-contract'
 import { PropertyGooglePage } from './property-google-page'
 
 const property = { id: '11111111-1111-4111-8111-111111111111', name: 'Harborline Suites' }

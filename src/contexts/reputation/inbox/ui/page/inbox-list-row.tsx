@@ -2,7 +2,7 @@
 import { Star, UserRoundCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Checkbox } from '#/components/ui/checkbox'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { INBOX_BULK_LIMIT, type InboxItem } from '#/contexts/inbox/application/public-api'
 import type { InboxCurrentUser } from '../inbox-case-toolbar-props'
 import type { InboxAssignmentOption } from './inbox-owner-view'

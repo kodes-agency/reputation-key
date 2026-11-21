@@ -1,6 +1,6 @@
 // The radio pills keep their wrapping layout and roving keyboard selection.
 import { useId, type KeyboardEvent } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { InboxFilterOption } from './inbox-filter-options'
 
 /** Where an arrow, Home or End key moves the choice; null for any other key. */

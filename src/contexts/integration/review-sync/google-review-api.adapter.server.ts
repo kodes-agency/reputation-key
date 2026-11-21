@@ -20,7 +20,7 @@ import type {
   GoogleReviewSyncProviderCallAuthorization,
 } from '../provider/contracts'
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
-import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
+import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import {
   createGoogleCallError,

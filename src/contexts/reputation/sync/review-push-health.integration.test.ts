@@ -21,7 +21,7 @@ import {
 } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { deriveReviewProviderSubject } from '#/shared/review-provider-subject-contract'
+import { deriveReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { ReviewFirstSeenVia } from '#/shared/domain/push-health'
 import { classifyFirstSighting } from '#/shared/domain/push-health'

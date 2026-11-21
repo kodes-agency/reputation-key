@@ -8,7 +8,7 @@ import type {
   PortalGoalPageRows,
   PortalGoalQuietFact,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { goalFigure } from './goal-so-far'
 import {
   dayWords,

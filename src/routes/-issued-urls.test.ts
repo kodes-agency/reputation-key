@@ -18,7 +18,7 @@ import { answerPrintHost, printHostPolicy } from '#/shared/security/print-host-r
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { Route as portal } from './p/$token'
 import { Route as click } from './api/public/p/$token/click/$linkId'
 import { Route as media } from './api/public/portal-media/$assetId'

@@ -1,7 +1,7 @@
 // Portal context — link DTOs
 
 import { z } from 'zod/v4'
-import { portalLinkIconKeySchema } from '#/shared/portal-link-icon-schemas'
+import { portalLinkIconKeySchema } from '#/shared/domain-schemas/portal-link-icon-schemas'
 import { linkAddressRefusal } from '../domain/rules'
 
 const portalLinkLabelSchema = z.string().trim().min(1, 'Label is required').max(100)

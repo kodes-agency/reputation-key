@@ -5,7 +5,7 @@ import { Link } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { PHONE_LINK_TOUCH, ROW_NAME_LINK } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   DataTable,
   DataTableBody,

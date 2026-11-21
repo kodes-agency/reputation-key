@@ -6,7 +6,7 @@ import type {
   GoalSubject,
 } from '#/contexts/reporting/application/public-api'
 import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
-import { formatShortDate } from '#/lib/format'
+import { formatShortDate } from '#/shared/format/format'
 import { goalListSubjectText } from './goal-assignment-subject-label'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalListTarget } from './goal-month-target-view'

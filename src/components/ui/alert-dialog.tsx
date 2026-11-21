@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { AlertDialog as AlertDialogPrimitive } from 'radix-ui'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { Button } from '#/components/ui/button'
 import { DIALOG_SIZE, DIALOG_WIDTH_CAP } from '#/components/ui/dialog-width'
 

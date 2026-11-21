@@ -6,7 +6,7 @@ import type {
   AiAuthorizationPort,
   AiMerchantAuthorizationSnapshot,
 } from './ai-authorization.port.server'
-import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation-profiles'
+import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation/ai-operation-profiles'
 
 function isCapability(value: string): value is MerchantAiCapability {
   return (

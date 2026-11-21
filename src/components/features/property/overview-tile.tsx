@@ -16,8 +16,8 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
-import { cn } from '#/lib/utils'
-import { dashboardRangeComparisonLabel } from '#/shared/dashboard-range'
+import { cn } from '#/shared/class-names/utils'
+import { dashboardRangeComparisonLabel } from '#/shared/dashboard/dashboard-range'
 import {
   METRIC_LABEL_CLASS,
   METRIC_TILE_FIGURE_CLASS,

@@ -1,4 +1,4 @@
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import type { RenderReplyResult } from '#/shared/reply-library/render-reply'
 import type { ReplyFrameBand } from '#/shared/domain/reply-frame'
 

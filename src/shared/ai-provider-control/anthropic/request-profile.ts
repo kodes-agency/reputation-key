@@ -1,5 +1,5 @@
-import type { AiReasoningEffortV1 } from '#/shared/ai-openai-request-contract'
-import { digestProviderAttestationValue } from '#/shared/ai-provider-attestations'
+import type { AiReasoningEffortV1 } from '#/shared/ai-provider-profile/ai-openai-request-contract'
+import { digestProviderAttestationValue } from '#/shared/ai-provider-profile/ai-provider-attestations'
 
 // The provider publishes no dated snapshot id for the Claude 5.x line. The
 // evaluation harness (slice 3.9) chooses the final model and activation (3.10)

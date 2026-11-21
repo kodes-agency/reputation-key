@@ -30,7 +30,7 @@ import type {
   ReplyVoiceOverride,
   ReplyVoiceSettings,
 } from '#/shared/reply-library/reply-voice'
-import { isReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import { isReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import { trace } from '#/shared/observability/trace'
 import { BUILTIN_REPLY_LIBRARY_VERSION_NUMBER } from '#/shared/reply-library/builtin-library'
 import type {

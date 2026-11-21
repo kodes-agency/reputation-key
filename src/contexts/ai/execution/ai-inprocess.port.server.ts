@@ -4,7 +4,7 @@ import type {
   ReplySuggestionGatewayRequestV1,
   ReplySuggestionResult,
   ReviewAnalysisGatewayRequestV1,
-} from '#/shared/ai-gateway-transport-contract'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract'
 
 export type CommonAiSourceRequest = Readonly<{
   operationId: ReviewAnalysisGatewayRequestV1['operationId']
@@ -28,6 +28,6 @@ export type AiInferencePort = Readonly<{
   generateReply(
     input: ReplySuggestionSourceInput,
     signal: AbortSignal,
-    progress?: import('#/shared/reply-drafting-progress').ReplyDraftingProgressSink,
+    progress?: import('#/shared/reply/reply-drafting-progress').ReplyDraftingProgressSink,
   ): Promise<ReplySuggestionResult>
 }>

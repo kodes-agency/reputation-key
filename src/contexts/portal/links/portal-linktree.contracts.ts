@@ -5,7 +5,7 @@
 
 import { z } from 'zod/v4'
 import { GUEST_LOCALES, type GuestLocale } from '#/shared/domain/guest-locale'
-import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { offeredGuestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import {
   LINKTREE_TITLE_MAX_LENGTH,
   LINK_TEXT_LABEL_MAX_LENGTH,

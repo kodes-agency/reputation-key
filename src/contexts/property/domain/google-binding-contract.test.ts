@@ -1,4 +1,4 @@
-import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   GOOGLE_BINDING_STATES,

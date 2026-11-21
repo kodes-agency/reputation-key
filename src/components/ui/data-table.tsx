@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /** The container widths a list of rows becomes a table at, and a list of cards does. */
 export type DataTableRowsFrom = '3xl' | '4xl'

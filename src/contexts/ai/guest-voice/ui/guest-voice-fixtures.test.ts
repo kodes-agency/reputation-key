@@ -10,7 +10,7 @@ import {
   CHECK_IN_PROVISIONAL,
   checkInDetail,
 } from './guest-voice-fixtures-check-in'
-import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 describe('dated check-in fixtures', () => {
   it('uses a coherent raw rating population including both partial edge months', () => {
     expect(HAMPTON_READ.basis.textReviewCount).toBe(CHECK_IN_INPUT.current.length)

@@ -5,7 +5,7 @@ import {
   type ResolveSavedReplyFrameInput,
   type ResolveAiReplyV2FrameInput,
 } from './resolve-ai-reply-v2-frame.server'
-import type { ReplyDraftingV2Frame } from '#/shared/reply-drafting-v2-frame'
+import type { ReplyDraftingV2Frame } from '#/shared/reply/reply-drafting-v2-frame'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import { isBuiltinReplyVoiceLanguageGroup } from '#/shared/reply-library/reply-voice-language-groups'
 import type { ReplyTemplateLanguageGroup } from '#/shared/reply-language-catalogue'

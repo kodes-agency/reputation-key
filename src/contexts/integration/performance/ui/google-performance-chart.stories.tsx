@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent } from 'storybook/test'
-import type { PerformanceSeries } from '#/shared/google-performance-report-contract'
+import type { PerformanceSeries } from '#/shared/google-contracts/google-performance-report-contract'
 import { GooglePerformanceChart } from './google-performance-chart'
 
 const series: readonly PerformanceSeries[] = [

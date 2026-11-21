@@ -22,7 +22,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { sql, type SQL } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { createHealthChecker } from '#/shared/observability/health-metrics'
-import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-identifiers-v1'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 

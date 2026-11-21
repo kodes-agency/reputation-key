@@ -20,7 +20,7 @@
 import { createElement } from 'react'
 import { CircleCheck } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   notificationLink,
   type NotificationView,

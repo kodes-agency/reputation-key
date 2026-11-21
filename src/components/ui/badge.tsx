@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Slot } from 'radix-ui'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { TONE_INK, TONE_SURFACE } from './tone'
 
 // The first six variants are looks; the last four are tones, the colour of a state. A

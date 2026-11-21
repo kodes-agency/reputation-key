@@ -18,7 +18,7 @@ import {
   formatMonthDay,
   formatMonthName,
   formatShortDate,
-} from '#/lib/format'
+} from '#/shared/format/format'
 
 export type GoalCardState = 'live' | 'too_few' | 'unavailable' | 'not_started'
 

@@ -24,7 +24,7 @@ import {
   parentStatusMessage,
 } from './google-import-progress-model'
 import { PARENT_STATUS } from './google-import-parent-status'
-import { formatClock } from '#/lib/format'
+import { formatClock } from '#/shared/format/format'
 
 type Props = Readonly<{
   progress: ImportProgressDto

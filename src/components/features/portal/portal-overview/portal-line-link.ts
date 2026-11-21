@@ -6,7 +6,7 @@
 // beats the link layer's accent default.
 import { buttonVariants } from '#/components/ui/button'
 import { ROW_FIGURE_LINK } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /** Wraps rather than runs on, so a long line stays inside a card. */
 export const PORTAL_LINE_LINK = cn(

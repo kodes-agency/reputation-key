@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 import { SummaryButton as Button } from '#/components/ui/button-layouts'
 import { Textarea } from '#/components/ui/textarea'
-import { copyToClipboard } from '#/lib/clipboard'
+import { copyToClipboard } from '#/shared/clipboard/clipboard'
 import type { GuestVoiceV2Ready } from '../contracts'
 import { guestVoiceTeamSummary } from './guest-voice-team-summary'
 

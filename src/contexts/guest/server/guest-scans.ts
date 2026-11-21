@@ -11,7 +11,7 @@ import type { GuestResponseFormAvailability } from '../page/public-portal.contra
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { enrichSpan } from '#/shared/observability/request-context'
 import { z } from 'zod/v4'
-import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { guestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { getContainer } from '#/composition'

@@ -15,7 +15,7 @@ import {
   type NotificationChannel,
   type PersonalDeliveryWindow,
 } from '#/contexts/feed/application/public-api'
-import { describeTimezone } from '#/shared/timezone-display'
+import { describeTimezone } from '#/shared/format/timezone-display'
 import { NotificationsCategoryRow } from './notifications-category-row'
 import {
   EmailAvailabilityNotice,

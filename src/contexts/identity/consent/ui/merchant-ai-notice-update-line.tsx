@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { Button } from '#/components/ui/button'
-import { formatDayMonthYear } from '#/lib/format'
+import { formatDayMonthYear } from '#/shared/format/format'
 import { MerchantAiNoticeUpdateDialog } from './merchant-ai-notice-update-dialog'
 
 export function MerchantAiNoticeUpdateLine({

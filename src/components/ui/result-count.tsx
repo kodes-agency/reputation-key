@@ -1,4 +1,4 @@
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /**
  * What a narrowed list says it kept: "3 of 6". The total never reads smaller

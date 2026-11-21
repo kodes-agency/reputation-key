@@ -1,7 +1,7 @@
 import { UserRound } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { TimelineIndicator } from '#/components/ui/timeline'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { MESSAGE_PROSE_CLASS } from './guest-message'
 import { personInitials } from '#/components/ui/person-initials'
 import {

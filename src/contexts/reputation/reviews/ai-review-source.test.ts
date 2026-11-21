@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import {
   AiReviewSourceRefusal,
   canonicalizeRawAiReviewSourcePreviousRevision,
-} from '#/shared/ai-review-source-contract'
+} from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   REFUSED_AI_SOURCE_BYTE_LENGTH,
   computeAiReviewSourceProvenance,

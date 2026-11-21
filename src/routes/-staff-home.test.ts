@@ -32,7 +32,7 @@ vi.mock('#/contexts/identity/server/staff-self-account', () => ({
 }))
 import { staffHomeEntry } from './-staff-home-entry'
 import { signInDestination } from './-sign-in-destination'
-import { validateStaffHomeSearch } from '#/shared/staff-home-search'
+import { validateStaffHomeSearch } from '#/shared/routing/staff-home-search'
 import { staffHomeFns } from './-staff-home-fns'
 import { Route as MyRoute } from './my'
 import { Route as MyCodeRoute } from './_authenticated/my-code'

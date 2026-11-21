@@ -12,13 +12,19 @@ import {
   outboxEvents,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { AI_OPERATION_PROFILES, AI_ROUTING_POLICY } from '#/shared/ai-operation-profiles'
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
-import { AI_PROVIDER_IDS, type AiProviderId } from '#/shared/ai-provider-ids'
+import {
+  AI_OPERATION_PROFILES,
+  AI_ROUTING_POLICY,
+} from '#/shared/ai-operation/ai-operation-profiles'
+import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
+import {
+  AI_PROVIDER_IDS,
+  type AiProviderId,
+} from '#/shared/ai-provider-profile/ai-provider-ids'
 import {
   REVIEW_VOCABULARY_HINTS_VERSION,
   type VocabularyHintIdentity,
-} from '#/shared/review-vocabulary-hints'
+} from '#/shared/analysis/review-vocabulary-hints'
 import { AI_REVIEW_ANALYSIS_CONSUMER } from '../analysis/outbox-consumers.server'
 import type { AiErrorCode } from '../domain/errors'
 import { createAiOperationIdentity, parseAiExecutionBinding } from '../domain/rules'

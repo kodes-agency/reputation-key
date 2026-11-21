@@ -9,7 +9,7 @@ import { CircleAlert, EyeOff } from 'lucide-react'
 import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { DeleteLinkDialog } from './delete-link-dialog'
 import {
   LINK_ICONS,

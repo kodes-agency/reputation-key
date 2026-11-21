@@ -22,7 +22,7 @@ import {
   listPropertyIdsNoLongerEligible,
   MANAGER_BECAME_INELIGIBLE_END_REASON,
   type ResponsibleManagerEligibilityDeps,
-} from '#/shared/responsible-manager-eligibility'
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 
 type MemberAuthorityLifecycle = Readonly<{
   reconcileResponsibleManagerEligibility: (

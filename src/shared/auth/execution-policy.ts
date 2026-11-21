@@ -33,7 +33,7 @@
 // Deps are injected at composition (identity infrastructure owns the grant
 // and consent repositories); this module stays drizzle-free (boundary rule).
 
-import type { AiConsentExecution } from '#/shared/ai-runtime-capability-contract'
+import type { AiConsentExecution } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'

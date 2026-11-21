@@ -27,7 +27,7 @@ import {
   insertLiveReview,
 } from '#/shared/testing/review-tombstone-fixtures'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-identifiers-v1'
 import { createReviewDiscoveryRepository } from './review-discovery-repository.server'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createReviewRefreshRunRepository } from './review-refresh-run-repository.server'

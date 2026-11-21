@@ -12,7 +12,7 @@
 import { Circle, Eye, Info } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { InlineLink } from '#/components/ui/inline-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { ownChipsOf, sourcesOf } from './property-look-reach'
 import {
   describeAffected,

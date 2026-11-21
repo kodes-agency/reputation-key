@@ -11,7 +11,7 @@ import {
   type ReplyRotationUsage,
 } from '#/shared/reply-library/reply-rotation'
 import type { ReplyLibraryRepository } from './reply-library-repository.port.server'
-import type { ReplyVoiceChoices } from '#/shared/reply-drafting-v2-binding'
+import type { ReplyVoiceChoices } from '#/shared/reply/reply-drafting-v2-binding'
 
 type ReservationInput = Parameters<
   NonNullable<ReplyLibraryRepository['reserveAiFrame']>

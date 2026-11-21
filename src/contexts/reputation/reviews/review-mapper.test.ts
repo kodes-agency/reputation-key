@@ -1,7 +1,7 @@
 import { reviewIdentityValues } from '#/contexts/reputation/application/public-api'
 // Review context — review mapper tests
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect } from 'vitest'
 import { reviewFromRow, type ReviewHeadRow } from './review-mapper.server'
 import { isReviewError } from '../domain/review-errors'

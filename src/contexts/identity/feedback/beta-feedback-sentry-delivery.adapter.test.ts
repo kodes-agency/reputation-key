@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeedbackCaptureParams } from '#/shared/observability/telemetry'
 import { scrubSentryTags } from '#/shared/observability/sentry-event-scrub'
-import type { BetaFeedbackInput } from '#/shared/beta-feedback-contract'
+import type { BetaFeedbackInput } from '#/shared/beta-feedback/beta-feedback-contract'
 
 const captured = vi.hoisted(() => ({ params: [] as FeedbackCaptureParams[] }))
 

@@ -13,9 +13,9 @@ import {
   dashboardRangeComparisonLabel,
   DASHBOARD_RANGE_LABELS,
   type DashboardRange,
-} from '#/shared/dashboard-range'
+} from '#/shared/dashboard/dashboard-range'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { RatingFigure } from '#/components/ui/rating-figure'

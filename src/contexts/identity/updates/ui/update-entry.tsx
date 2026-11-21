@@ -3,7 +3,7 @@ import type { ProductUpdate } from '#/shared/whats-new/types'
 import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
 import { SectionTitle } from '#/components/ui/section-title'
 import { TouchInlineLink } from '#/components/ui/inline-touch-link'
-import { formatLocalDate } from '#/lib/format'
+import { formatLocalDate } from '#/shared/format/format'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 

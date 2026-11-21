@@ -2,17 +2,17 @@ import { summarizeError } from '#/shared/observability/error-summary'
 import {
   reportReplyProgress,
   type ReplyDraftingProgressSink,
-} from '#/shared/reply-drafting-progress'
+} from '#/shared/reply/reply-drafting-progress'
 import { timingSafeEqual } from 'node:crypto'
 import type {
   AiSettlementReceiptV1,
   AiSettlementOutcome,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import type {
   AiGatewayErrorCode,
   AiGatewayRouteRequestV1,
   AiGatewayRouteResponseV1,
-} from '#/shared/ai-gateway-transport-contract'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { SensitiveSourceLease } from './source-lease'
 import { GatewayPreparationError } from './contracts'

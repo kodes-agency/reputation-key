@@ -2541,7 +2541,7 @@ in `MERCHANT_AI_NOTICES_IN_FORCE`; the run's evidence rows carry
 they open it or press "Got it" (`merchant_ai_notice_update_receipts`).
 
 **Shipping a new notice:** add its plain-language entry to
-`src/shared/merchant-ai-notice-announcements.ts` (a test fails without it). A
+`src/shared/merchant-ai-notice/merchant-ai-notice-announcements.ts` (a test fails without it). A
 stored analysis stays visible across a notice that leaves review analysis
 unchanged: delivery applies the per-capability material-change rule that
 settlement uses (`ai-analysis-notice-coverage.server.ts`). A newly named AI provider

@@ -5,8 +5,8 @@ import { unbrand } from '#/shared/domain/ids'
 import {
   aiReplyBrandProfile,
   digestAiReplyBrandDisplayName,
-} from '#/shared/ai-reply-brand-profile.server'
-import type { AiReplyBrandProfile } from '#/shared/ai-reply-brand-profile'
+} from '#/shared/reply/ai-reply-brand-profile.server'
+import type { AiReplyBrandProfile } from '#/shared/reply/ai-reply-brand-profile'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 

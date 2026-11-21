@@ -6,7 +6,7 @@ import {
   BUILTIN_REPLY_LIBRARY_VERSION,
 } from './builtin-library'
 import { parseBuiltinReplyLibrary } from './builtin-library.schema'
-import { canonicalizeRfc8785 } from '../canonical-json'
+import { canonicalizeRfc8785 } from '../json/canonical-json'
 import { checkReplyText } from './reply-checks'
 
 const DIGEST_GOLDEN = 'bec4a34039db5adc43f194a334ce7e9c1e1d047a55e46eaef2ce9a3109f6afce'

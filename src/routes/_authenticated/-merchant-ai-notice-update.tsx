@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { MerchantAiNoticeUpdateBanner } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-banner'
 import { merchantAiNoticeUpdateQuery } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-query'
 import { useMarkMerchantAiNoticeUpdateSeen } from '#/contexts/identity/consent/ui/use-mark-merchant-ai-notice-update-seen'
-import type { MerchantAiNoticeUpdateClientGetter } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdateClientGetter } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { merchantAiNoticeUpdateClient } from './-merchant-ai-notice-update-client'
 

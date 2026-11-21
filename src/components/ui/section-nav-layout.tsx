@@ -1,5 +1,5 @@
 import { createContext, type ReactNode } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { SECTION_NAV_LAYOUT, type SectionNavFrame } from './section-nav-styles'
 
 /** The frame of the layout a nav sits in; null when it sits in none. */

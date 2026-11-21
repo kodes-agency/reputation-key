@@ -7,7 +7,7 @@ import {
   renderMaskedLayoutSvg,
   summarizeMaskedLayout,
   type MaskedLayout,
-} from '#/shared/beta-feedback-layout'
+} from '#/shared/beta-feedback/beta-feedback-layout'
 
 type Props = Readonly<{
   layout: MaskedLayout | null

@@ -7,7 +7,7 @@ import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { StatusBadge } from '#/components/ui/status-badge'
-import { formatDateTime } from '#/lib/format-date-time'
+import { formatDateTime } from '#/shared/format/format-date-time'
 import { createKeys } from '#/shared/queries/query-keys'
 import type { ListMyBetaFeedback, MyBetaFeedbackItem } from './beta-feedback-form-context'
 import {

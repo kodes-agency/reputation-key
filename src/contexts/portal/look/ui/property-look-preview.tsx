@@ -5,7 +5,7 @@
 // and logo are the page's own (`media`): a photograph just put on, or a focal
 // point still being dragged, shows at once, before any read has caught up.
 import { SegmentedControl } from '#/components/ui/segmented-control'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { PropertyLookPhone } from './property-look-phone'
 import type { PreviewMedia } from './property-look-preview-brand'
 import { describeOwnPhoto } from './property-look-reach'

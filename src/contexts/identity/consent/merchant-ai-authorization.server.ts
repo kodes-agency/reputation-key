@@ -1,7 +1,7 @@
 import {
   AI_RUNTIME_CAPABILITIES_V1,
   resolveAiRuntimeCapabilitySet,
-} from '#/shared/ai-runtime-capability-contract'
+} from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import type { MerchantAiPurpose } from '#/shared/domain/merchant-ai-capability'
 import {
   CURRENT_MERCHANT_AI_CAPABILITIES,

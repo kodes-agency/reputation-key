@@ -5,13 +5,13 @@
 // only their own rows. The operator triage workflow (transition, queue,
 // layout reads) stays on the repository and never reaches a request.
 
-import type { MaskedLayout } from '#/shared/beta-feedback-layout'
+import type { MaskedLayout } from '#/shared/beta-feedback/beta-feedback-layout'
 import type {
   BetaFeedbackInput,
   BetaFeedbackReportView,
   BetaFeedbackRouteKey,
   BetaFeedbackViewport,
-} from '#/shared/beta-feedback-contract'
+} from '#/shared/beta-feedback/beta-feedback-contract'
 import type { Role } from '#/shared/domain/roles'
 import type { BetaFeedbackTriageSnapshot } from '../domain/betaFeedbackTriage'
 

@@ -13,7 +13,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   betaFeedbackInputSchema,
   formatBetaFeedbackMessage,
-} from '#/shared/beta-feedback-contract'
+} from '#/shared/beta-feedback/beta-feedback-contract'
 import {
   METRIC_DEFINITIONS,
   labelValueAllowed,

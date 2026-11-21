@@ -2,14 +2,14 @@
 // both surface the same failure.
 //
 // `copyToClipboard` deliberately returns false instead of throwing (see the
-// contract note in src/lib/clipboard.ts) — it fails on insecure origins, in
+// contract note in src/shared/clipboard/clipboard.ts) — it fails on insecure origins, in
 // sandboxed iframes, and when clipboard permission is denied. Swallowing that
 // makes the button a silent no-op, and an operator printing a QR batch then
 // pastes whatever was already on the clipboard over a fresh code. On failure we
 // say so and select the rendered link so the user can copy it by hand.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { copyResolvedText, copyToClipboard } from '#/lib/clipboard'
+import { copyResolvedText, copyToClipboard } from '#/shared/clipboard/clipboard'
 import type { RefObject } from 'react'
 
 const COPIED_RESET_MS = 2000

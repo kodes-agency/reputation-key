@@ -7,7 +7,7 @@ import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import type { Database } from '#/shared/db'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { ConsumerRegistry } from '#/shared/outbox'
-import { removedMemberConsumerHandler } from '#/shared/removed-member-consumer'
+import { removedMemberConsumerHandler } from '#/shared/responsible-manager/removed-member-consumer'
 import type { InboxCommandStore } from './command-store.port.server'
 
 export type InboxMemberOffboardingConsumerDeps = Readonly<{

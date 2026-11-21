@@ -20,7 +20,7 @@ import { ListToolbar, ListToolbarStatus } from '#/components/ui/list-toolbar'
 import { ResultCount } from '#/components/ui/result-count'
 import { SearchField } from '#/components/ui/search-field'
 import type { SortDirection } from '#/components/ui/list-sort'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   DEFAULT_PORTAL_OVERVIEW_GROUP_BY,
   DEFAULT_PORTAL_OVERVIEW_SORT,

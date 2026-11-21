@@ -3,7 +3,7 @@ import {
   useDraftSessionSnapshot,
 } from '#/contexts/reputation/replies/ui/reply-draft-session-context'
 import { Fragment, type ReactNode } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { MentionSense } from './review-cause-view'
 import { evidenceSegments, type ReviewEvidence } from './review-evidence-view'
 

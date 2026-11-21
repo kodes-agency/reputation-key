@@ -24,7 +24,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { betaFeedbackTriage } from './beta-feedback-triage.schema'
-import type { MaskedLayoutBox } from '#/shared/beta-feedback-layout'
+import type { MaskedLayoutBox } from '#/shared/beta-feedback/beta-feedback-layout'
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 

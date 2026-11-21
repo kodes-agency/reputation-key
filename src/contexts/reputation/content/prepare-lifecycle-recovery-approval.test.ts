@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { ReviewLifecycleRecoveryRuntimeTarget } from '#/shared/ops/review-lifecycle-recovery-approval'
 import { prepareReviewLifecycleRecoveryApproval } from './prepare-lifecycle-recovery-approval.server'
 import type {

@@ -1,4 +1,4 @@
-import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
+import type { AiAdmissionDescriptorV1 } from '#/shared/ai-gateway/ai-internal-transport-contract'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
 import {
   mintAiExecutionAdmission,

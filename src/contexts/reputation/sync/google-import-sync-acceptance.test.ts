@@ -1,4 +1,4 @@
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import type { SyncPropertyReviewsJobData } from '../../review/application/ports/review-queue.port'

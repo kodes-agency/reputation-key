@@ -4,7 +4,7 @@ import type {
   PropertySetup,
   PropertySetupStep,
 } from '#/contexts/reporting/application/public-api'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   PropertySetupNotNowStep,
   type RatingGoalNotNow,

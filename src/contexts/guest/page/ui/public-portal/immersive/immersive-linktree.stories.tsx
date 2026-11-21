@@ -4,7 +4,7 @@
 // rating, the language of a copied text, and that no word is clipped.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, fn, waitFor, within } from 'storybook/test'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { bindLinkTapCounter } from './linktree-follow'
 import { trackedLinkHref } from '../portal-link-href'
 import {

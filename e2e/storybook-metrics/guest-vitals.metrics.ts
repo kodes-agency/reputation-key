@@ -30,7 +30,7 @@
 // all four.
 
 import { expect, test, type Page } from '@playwright/test'
-import { fontSetLinks, type FontLink } from '../../src/shared/font-sets'
+import { fontSetLinks, type FontLink } from '../../src/shared/fonts/font-sets'
 import {
   cumulativeLayoutShift,
   installWebVitals,

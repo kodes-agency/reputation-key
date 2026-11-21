@@ -10,7 +10,10 @@ import { getPropertyOverviewFn } from '#/contexts/reporting/server/dashboard'
 import { PropertyRatingsPage } from '#/contexts/reporting/property-overview/ui/property-ratings-page'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
-import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-range'
+import {
+  dashboardRangeSearch,
+  type DashboardRange,
+} from '#/shared/dashboard/dashboard-range'
 import { keptData, rangeOfLocation, useRangeOfShownData } from './-dashboard-range-read'
 import { RoutePending } from '#/components/layout/route-page-state'
 

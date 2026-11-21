@@ -8,9 +8,12 @@ import {
   formatMonthName,
   formatMonthYear,
   formatNumber,
-} from '#/lib/format'
-import { RANGE_PRESET_LABELS, type GuestVoiceRange } from '#/shared/dashboard-range'
-import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/format/format'
+import {
+  RANGE_PRESET_LABELS,
+  type GuestVoiceRange,
+} from '#/shared/dashboard/dashboard-range'
+import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 
 export function topicLabel(topic: ReviewTopicV3): string {
   return REVIEW_TOPIC_LABELS_V3[topic]

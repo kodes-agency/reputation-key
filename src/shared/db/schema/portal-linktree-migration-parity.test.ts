@@ -8,8 +8,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { GUEST_LOCALE_SQL_LIST } from '#/shared/guest-locale-schemas'
-import { PORTAL_LINK_ICON_SQL_LIST } from '#/shared/portal-link-icon-schemas'
+import { GUEST_LOCALE_SQL_LIST } from '#/shared/domain-schemas/guest-locale-schemas'
+import { PORTAL_LINK_ICON_SQL_LIST } from '#/shared/domain-schemas/portal-link-icon-schemas'
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..')
 const MIGRATION = readFileSync(

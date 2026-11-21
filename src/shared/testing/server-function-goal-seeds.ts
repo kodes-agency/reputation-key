@@ -16,9 +16,9 @@ import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
 } from '#/contexts/reporting/application/public-api'
-import { AI_REDACTION_PROFILE_VERSION } from '#/shared/ai-deterministic-redactor'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-deployment-profile'
-import { AI_SOURCE_POLICY_ID_V1 } from '#/shared/ai-source-profile'
+import { AI_REDACTION_PROFILE_VERSION } from '#/shared/ai-redaction/ai-deterministic-redactor'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-profile/ai-provider-deployment-profile'
+import { AI_SOURCE_POLICY_ID_V1 } from '#/shared/ai-review-source/ai-source-profile'
 import { getDb } from '#/shared/db'
 import {
   MERCHANT_AI_NOTICE_DIGEST,

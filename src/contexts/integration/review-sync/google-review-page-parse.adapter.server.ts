@@ -10,11 +10,11 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   parseReviewProviderResource,
   type ReviewProviderResource,
-} from '#/shared/review-provider-subject-contract'
+} from '#/shared/google-contracts/review-provider-subject-contract'
 import {
   parseGoogleReplyComment,
   parseGoogleReviewComment,
-} from '#/shared/google-review-comment'
+} from '#/shared/google-contracts/google-review-comment'
 import {
   reportRefusedReviewPages,
   reviewPageUrl,

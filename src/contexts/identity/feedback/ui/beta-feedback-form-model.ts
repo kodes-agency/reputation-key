@@ -12,14 +12,14 @@ import {
   type BetaFeedbackImpact,
   type BetaFeedbackInput,
   type BetaFeedbackType,
-} from '#/shared/beta-feedback-contract'
-import type { MaskedLayout } from '#/shared/beta-feedback-layout'
-import type { BetaFeedbackScreenshot } from '#/shared/beta-feedback-screenshot'
+} from '#/shared/beta-feedback/beta-feedback-contract'
+import type { MaskedLayout } from '#/shared/beta-feedback/beta-feedback-layout'
+import type { BetaFeedbackScreenshot } from '#/shared/beta-feedback/beta-feedback-screenshot'
 import {
   composeBetaFeedbackMessage,
   DEFAULT_IMPACT,
   IMPACT_LABELS,
-} from '#/shared/beta-feedback-narrative'
+} from '#/shared/beta-feedback/beta-feedback-narrative'
 import type { BetaFeedbackChoice } from './beta-feedback-choice'
 
 export const betaFeedbackFormSchema = z

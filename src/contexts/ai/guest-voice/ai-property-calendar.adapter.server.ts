@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-profile'
+import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-operation/ai-property-calendar-profile'
 import type { Database } from '#/shared/db'
 import type { AiPropertyCalendarPort } from './ai-property-calendar.port.server'
 

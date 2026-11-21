@@ -3,7 +3,7 @@ import {
   PLANNED_AVERAGE_WEIGHT_REVIEWS,
   perMonthOf,
 } from '#/contexts/reporting/rating-goals/rating-goal-setup-plan.contracts'
-import { formatMonthName, formatNumber } from '#/lib/format'
+import { formatMonthName, formatNumber } from '#/shared/format/format'
 import type { PaceUnit, SetupPlan } from './rating-goal-setup-draft'
 import { paceText } from './rating-goal-pace-words'
 import { likelyText, spanText } from './rating-goal-setup-time'

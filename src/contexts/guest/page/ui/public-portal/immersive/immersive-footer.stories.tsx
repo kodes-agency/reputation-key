@@ -4,7 +4,7 @@
 // hides it, and that the visit is counted whatever the guest does with it.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { portalVisitStorageKey } from '../../portal-visit-recording'
 import { VISIT_NOTICE_ACKNOWLEDGED_KEY } from '../../visit-notice-acknowledgement'
 import { bgCopy } from '../language-packs/bg'

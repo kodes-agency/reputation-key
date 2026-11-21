@@ -1,4 +1,4 @@
-import { replyRevisionSchema } from '#/shared/reply-revision'
+import { replyRevisionSchema } from '#/shared/reply/reply-revision'
 // Review context — reply shared helpers (split from reply.ts): the error-status
 // mapping and input DTOs the reply server functions share.
 

@@ -15,7 +15,7 @@ import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORGANIZATION_ID = 'org-google-admission-authority-test'

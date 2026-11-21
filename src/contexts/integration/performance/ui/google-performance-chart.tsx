@@ -1,11 +1,15 @@
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import type { PerformanceSeries } from '#/shared/google-performance-report-contract'
+import type { PerformanceSeries } from '#/shared/google-contracts/google-performance-report-contract'
 import {
   bucketUnitForRange,
   type BucketUnit,
   type DashboardRange,
-} from '#/shared/dashboard-range'
-import { axisTicks, groupByBucket, hasEnoughEvidence } from '#/shared/chart-buckets'
+} from '#/shared/dashboard/dashboard-range'
+import {
+  axisTicks,
+  groupByBucket,
+  hasEnoughEvidence,
+} from '#/shared/dashboard/chart-buckets'
 import {
   ChartLegend,
   ChartLegendContent,
@@ -30,7 +34,7 @@ import {
   TableRow,
 } from '#/components/ui/table'
 import { ChartFrame, ChartTooThin } from '#/components/ui/chart-frame'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 const COLORS = [
   'var(--foreground)',

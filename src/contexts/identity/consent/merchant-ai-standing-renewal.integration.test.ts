@@ -16,10 +16,10 @@ import {
   resetCapabilityPolicyStore,
   checkScopedCapability,
 } from '#/shared/auth/beta-capabilities'
-import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/ai-reply-template-catalogue'
+import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/reply/ai-reply-template-catalogue'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '#/shared/domain/merchant-ai-capability'
 import { CURRENT_MERCHANT_AI_NOTICE } from '#/shared/merchant-ai-notice-contract'
-import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '#/shared/merchant-ai-notice-announcements'
+import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { renewLapsedMerchantAiAuthorizations } from './renew-lapsed-merchant-ai-authorizations.server'
 import { createStandingRenewalStore } from './merchant-ai-standing-renewal.repository.server'
 import { createMerchantAiAuthorizationStore } from './merchant-ai-authorization.repository.server'
@@ -31,21 +31,26 @@ import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 // renewed under whichever runtime is served when the sweep runs, and the one it
 // recorded when it consented may be an earlier one.
 const served = vi.hoisted(() => ({ replyDraftingRuntime: null as string | null }))
-vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
-  return {
-    ...actual,
-    resolveAiRuntimeCapabilitySet: (
-      ...args: Parameters<typeof actual.resolveAiRuntimeCapabilitySet>
-    ) => {
-      const profiles = actual.resolveAiRuntimeCapabilitySet(...args)
-      return served.replyDraftingRuntime !== null && 'reply_drafting' in profiles
-        ? { ...profiles, reply_drafting: served.replyDraftingRuntime }
-        : profiles
-    },
-  }
-})
+vi.mock(
+  '#/shared/merchant-ai-notice/ai-runtime-capability-contract',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('#/shared/merchant-ai-notice/ai-runtime-capability-contract')
+      >()
+    return {
+      ...actual,
+      resolveAiRuntimeCapabilitySet: (
+        ...args: Parameters<typeof actual.resolveAiRuntimeCapabilitySet>
+      ) => {
+        const profiles = actual.resolveAiRuntimeCapabilitySet(...args)
+        return served.replyDraftingRuntime !== null && 'reply_drafting' in profiles
+          ? { ...profiles, reply_drafting: served.replyDraftingRuntime }
+          : profiles
+      },
+    }
+  },
+)
 
 let lease: TestLease
 let db: Database

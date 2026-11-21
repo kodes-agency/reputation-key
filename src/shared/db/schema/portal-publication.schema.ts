@@ -24,7 +24,7 @@ import {
   GUEST_LANGUAGE_PACK_SQL_PATTERN,
   GUEST_LOCALE_JSONB_LITERAL,
   GUEST_LOCALE_SQL_LIST,
-} from '../../guest-locale-schemas'
+} from '../../domain-schemas/guest-locale-schemas'
 import { portals } from './portal.schema'
 import { properties } from './property.schema'
 

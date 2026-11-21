@@ -5,7 +5,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { GUEST_LOCALES } from '#/shared/domain/guest-locale'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { PortalUnavailable } from './portal-unavailable'
 import { withoutStyleElements } from './public-portal/__fixtures__/markup-walk'
 import {

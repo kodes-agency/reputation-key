@@ -10,7 +10,7 @@
 // track runs on to `max` in a hatched stretch that cannot be chosen, and the
 // slider says `limit` is its highest value.
 import { Slider as SliderPrimitive } from 'radix-ui'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { PHONE_TOUCH_PAD } from './touch-pad'
 
 /**

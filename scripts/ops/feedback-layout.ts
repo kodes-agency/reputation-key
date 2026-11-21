@@ -18,7 +18,7 @@ import { BetaFeedbackTriageRepository } from '../../src/contexts/identity/infras
 import {
   renderMaskedLayoutSvg,
   summarizeMaskedLayout,
-} from '../../src/shared/beta-feedback-layout'
+} from '../../src/shared/beta-feedback/beta-feedback-layout'
 import { runCommandEntrypoint } from './command-entrypoint'
 import { runDatabaseOperatorCommand } from './operator-command'
 import { findNamedFeedbackRecord } from './feedback-record'

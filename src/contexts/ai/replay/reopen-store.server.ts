@@ -4,7 +4,7 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
-} from '#/shared/ai-review-source-contract'
+} from '#/shared/ai-review-source/ai-review-source-contract'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { aiReviewAnalysisBackfillRequested } from '../domain/events'
 import {

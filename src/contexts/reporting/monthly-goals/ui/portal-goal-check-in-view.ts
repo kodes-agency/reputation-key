@@ -6,7 +6,7 @@ import type {
   PortalGoalCheckIn,
   PortalGoalLastMonth,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { lastMonthWords } from './portal-goal-running-view'
 import { dayWords, monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
 

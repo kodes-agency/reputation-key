@@ -2,25 +2,25 @@ import { createReplyProgressParser } from './reply-progress-parser'
 import {
   reportReplyProgress,
   type ReplyDraftingProgressSink,
-} from '#/shared/reply-drafting-progress'
+} from '#/shared/reply/reply-drafting-progress'
 import type { KeyObject } from 'node:crypto'
 import type { AiReplyOutputRefusal } from './reply-output-refusal'
-import type { ReplySuggestionGatewayRequestV1 } from '#/shared/ai-gateway-transport-contract'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import type { ReplySuggestionGatewayRequestV1 } from '#/shared/ai-gateway/ai-gateway-transport-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import {
   AI_REDACTION_PROFILE_DIGEST,
   AI_REDACTION_PROFILE_VERSION,
   redactAiReviewSentences,
-} from '#/shared/ai-deterministic-redactor'
+} from '#/shared/ai-redaction/ai-deterministic-redactor'
 import {
   AI_STRUCTURED_MARKER_DETECTORS_VERSION,
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
-} from '#/shared/ai-structured-marker-detectors'
+} from '#/shared/ai-redaction/ai-structured-marker-detectors'
 import {
   reviewRedactionsAgree,
   reviewSentencesAreNumberedFromOne,
   reviewSentencesMatchText,
-} from '#/shared/review-analysis-v3-request'
+} from '#/shared/analysis/review-analysis-v3-request'
 import {
   parseCanonicalReplyLanguageTag,
   type EvaluatedReviewLanguage,
@@ -36,11 +36,11 @@ import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-langu
 import {
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-} from '#/shared/ai-reply-output-leakage'
+} from '#/shared/reply/ai-reply-output-leakage'
 import {
   acceptReplyDraftingV2,
   REPLY_DRAFTING_V2_PROFILE_DIGEST,
-} from '#/shared/reply-drafting-v2-contract'
+} from '#/shared/reply/reply-drafting-v2-contract'
 import {
   replyDraftingV2OutputSchema,
   REPLY_DRAFTING_V2_VERSIONS,
@@ -50,9 +50,12 @@ import {
   buildReplyDraftingV2Payload,
   replyDraftingV2DeveloperMessage,
 } from '#/shared/reply/request'
-import { frameReplyDraftingV2 } from '#/shared/reply-drafting-v2-frame'
-import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
-import { digestRenderedReply, signAiReplyProvenance } from '#/shared/ai-reply-provenance'
+import { frameReplyDraftingV2 } from '#/shared/reply/reply-drafting-v2-frame'
+import { digestAiReplyBrandDisplayName } from '#/shared/reply/ai-reply-brand-profile.server'
+import {
+  digestRenderedReply,
+  signAiReplyProvenance,
+} from '#/shared/reply/ai-reply-provenance'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import { derivePropertySafetyIdentifier } from './safety-identifier'
 import {
@@ -65,7 +68,7 @@ import type {
   PrepareProviderInvocationInput,
 } from './provider-contracts'
 import type { ReplyBodyIssueCode } from '#/shared/domain/reply-body-lint-policy'
-import type { AiOperationProfile } from '#/shared/ai-operation-profile'
+import type { AiOperationProfile } from '#/shared/ai-operation/ai-operation-profile'
 
 type Dependencies = Readonly<{
   profile: Pick<

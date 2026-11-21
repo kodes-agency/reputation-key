@@ -11,7 +11,7 @@
 import type { ReactNode } from 'react'
 import { Archive, Eye, Lock } from 'lucide-react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { PortalReadOnlyReason } from '#/contexts/portal/workspace/ui/shared/portal-edit-access'
 
 const NOTICE: Readonly<

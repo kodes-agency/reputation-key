@@ -7,7 +7,7 @@ import { workOutRatingGoal } from '#/contexts/reporting/rating-goals/rating-goal
 import { Button } from '#/components/ui/button'
 import { DialogFooter } from '#/components/ui/dialog'
 import { TONE_INK } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   GoalSetupLinks,
   GoalSetupPanel,
@@ -35,7 +35,7 @@ import {
   type SavedGoal,
   type WizardSubmission,
 } from './rating-goal-wizard-view'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { tenthsText } from './rating-goal-view'
 
 type Draft = steps.SetupDraft

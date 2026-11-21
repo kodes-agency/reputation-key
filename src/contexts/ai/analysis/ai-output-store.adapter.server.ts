@@ -17,9 +17,9 @@ import {
   reviews,
   reviewSourceContents,
 } from '#/shared/db/schema'
-import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
-import { isAspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
-import { isAiIssueLabel } from '#/shared/ai-issue-label'
+import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/reply/ai-personalized-reply-profile'
+import { isAspectTaxonomyV1Id } from '#/shared/analysis/aspect-taxonomy'
+import { isAiIssueLabel } from '#/shared/analysis/ai-issue-label'
 import type { AiOutputStorePort } from './ai-output-store.port.server'
 import type { ReviewAnalysisReadV1 } from '../domain/types'
 import {

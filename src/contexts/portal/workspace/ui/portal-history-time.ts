@@ -9,7 +9,7 @@ import {
   formatMonthDay,
   formatTimestamp,
   toInstant,
-} from '#/lib/format'
+} from '#/shared/format/format'
 
 const dayBefore = (key: string): string => {
   const [year = 0, month = 1, day = 1] = key.split('-').map(Number)

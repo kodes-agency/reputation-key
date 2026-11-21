@@ -10,7 +10,7 @@ import type { PortalPrintKitView } from '#/contexts/portal/application/portal-ma
 import type { PrintFace } from '#/shared/domain/portal-print'
 import { choosePrintTile } from '#/shared/domain/portal-print-code'
 import { printLiveArea } from '#/shared/domain/portal-print-measures'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { PrintDrawnBackArt } from './print-back-art'
 import {
   BADGE_LOGO,

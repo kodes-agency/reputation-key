@@ -5,7 +5,7 @@ import type {
   AiSettlementOutcome,
   AiSettlementPermit,
   AiSettlementReceiptV1,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 
 const DESCRIPTOR_DOMAIN = 'ai-admission-descriptor-v1\0'

@@ -4,7 +4,7 @@
 // and no failure of the chosen provider is ever answered by another.
 
 import { describe, expect, it } from 'vitest'
-import { AI_PROVIDER_IDS } from '#/shared/ai-provider-ids'
+import { AI_PROVIDER_IDS } from '#/shared/ai-provider-profile/ai-provider-ids'
 import type { AiProviderId } from './provider-contracts'
 import {
   AiProviderSelectionError,

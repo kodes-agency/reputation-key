@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { startAiProviderStub, type AiProviderStubHandle } from './ai-provider-stub'
-import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '../../src/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '../../src/shared/analysis/review-analysis-v3'
 import { replyDraftingV2OutputSchema } from '#/shared/reply/schema'
 
 let handle: AiProviderStubHandle | undefined

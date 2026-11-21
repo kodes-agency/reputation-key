@@ -5,15 +5,15 @@ import type {
   AiSettlementPermit,
   AiSettlementOutcome,
   AiSettlementReceiptV1,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import {
   parseAiGatewayRouteRequest,
   type AiGatewayRouteRequestV1,
-} from '#/shared/ai-gateway-transport-contract'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   analysisRequest,
   analysisV3Result,
-} from '#/shared/ai-gateway-transport-contract.test-fixtures'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
 import type {
   AiAdmissionClient,
   AiGatewayRoutePreparer,
@@ -25,7 +25,7 @@ import { settlementPermitOf, type AiExecutionAdmission } from './execution-admis
 import { admitForTest } from './execution-admission.test-fixtures'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
-import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
+import { settledCostMicros } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 
 const NOW = 1_780_000_000_000
 const SHA = 'a'.repeat(64)

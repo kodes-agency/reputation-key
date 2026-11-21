@@ -7,8 +7,8 @@ import { replyBand } from '#/shared/reply-library/reply-voice'
 import {
   replyContainsThanks,
   type ReplyDraftingV2Frame,
-} from '#/shared/reply-drafting-v2-frame'
-import type { ReplyVoiceChoices } from '#/shared/reply-drafting-v2-binding'
+} from '#/shared/reply/reply-drafting-v2-frame'
+import type { ReplyVoiceChoices } from '#/shared/reply/reply-drafting-v2-binding'
 
 export type AiFrameReservation = Readonly<{
   choices: ReplyVoiceChoices

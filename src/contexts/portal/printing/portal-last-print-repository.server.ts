@@ -11,7 +11,7 @@ import {
 } from '#/shared/domain/portal-print'
 import { PRINT_KIT_PAPERS } from '#/shared/domain/portal-print-kit'
 import { PRINT_CALLS_TO_ACTION } from '#/shared/domain/portal-print-copy'
-import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { guestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import { trace } from '#/shared/observability/trace'
 import type {
   PortalLastPrint,

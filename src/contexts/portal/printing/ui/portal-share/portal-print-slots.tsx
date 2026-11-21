@@ -7,7 +7,7 @@
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { useIsBelowLarge } from '#/components/hooks/use-mobile'
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { PortalPrintPhoneBar } from './portal-print-phone-bar'
 import { PortalPrintPreview } from './portal-print-preview'
 import type { PrintState } from './use-print'

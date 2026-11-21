@@ -12,7 +12,7 @@ import {
   reportReplyProgress,
   type ReplyDraftingProgress,
   type ReplyDraftingProgressSink,
-} from '#/shared/reply-drafting-progress'
+} from '#/shared/reply/reply-drafting-progress'
 
 export async function admitReplyDraft(
   deps: GenerateReplySuggestionDependencies,
@@ -299,7 +299,9 @@ async function joinActiveDraft(
 /** The accepted closing may omit a second thank-you; deliver the actual local frame. */
 export function deliveredReplyFrame(
   frame:
-    import('#/shared/reply-drafting-v2-frame').ReplyDraftingV2Frame | null | undefined,
+    | import('#/shared/reply/reply-drafting-v2-frame').ReplyDraftingV2Frame
+    | null
+    | undefined,
   text: string,
 ): Readonly<{ localFrame?: Readonly<{ prefix: string; suffix: string }> }> {
   const selected = frame?.candidates.find(

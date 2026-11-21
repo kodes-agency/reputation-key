@@ -16,7 +16,7 @@ import {
   PRINT_PRINTERS,
 } from '#/shared/domain/portal-print'
 import { PRINT_MAX_QUANTITY } from '#/shared/domain/portal-print-offer'
-import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { guestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 
 const MAX_FIELD = `Keep each line to ${PRINT_CUSTOM_MAX_CHARACTERS} characters`
 

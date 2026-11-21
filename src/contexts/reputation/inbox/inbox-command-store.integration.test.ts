@@ -12,7 +12,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //   4. rebuildInboxProjection heals a corrupted projection from canonical
 //      review/reply data; dryRun writes nothing.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'

@@ -38,7 +38,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import * as fc from 'fast-check'
 import { Pool } from 'pg'
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { getEnv } from '#/shared/config/env'
 import { replyId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { maximumCostMicrosWith } from '#/shared/ai-provider-pricing'
+import { maximumCostMicrosWith } from '#/shared/ai-provider-profile/ai-provider-pricing'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import {
   REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,

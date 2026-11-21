@@ -3,7 +3,7 @@ import type {
   PrivateFeedbackTargetAnalytics,
 } from '#/contexts/inbox/application/public-api'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 /** What a measure with no figure says in the figure's place: a note, not a number. */
 const NO_DATA = 'Not enough measured data'

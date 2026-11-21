@@ -18,7 +18,7 @@
 // that continues and scrolls the current tab into view.
 import { useRef, type ComponentProps } from 'react'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { NavLink } from './nav-link'
 import { stripFadeStyle } from './strip-scroll'
 import { LINE_TAB_CLASS, LINE_TABS_LIST_CLASS } from './tabs-line-styles'

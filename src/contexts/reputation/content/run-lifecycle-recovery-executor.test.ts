@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { organizationId } from '#/shared/domain/ids'
 import {
   REVIEW_LIFECYCLE_RECOVERY_APPROVAL_VERSION,

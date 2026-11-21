@@ -34,7 +34,7 @@ import {
   isEligiblePropertyManager,
   policyDeps as managerEligibilityPolicy,
 } from './responsibility/property-manager-eligibility.server'
-import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager-eligibility'
+import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import {
   archiveProperty,
   disconnectPropertyGoogleBinding,

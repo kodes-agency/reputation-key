@@ -5,7 +5,7 @@
 // field allowlists are exercised without one. A row that belongs to another
 // Organization or Property than the request stops the run before any output.
 
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { Database } from '#/shared/db'
 import {
   organizationId as brandOrganization,

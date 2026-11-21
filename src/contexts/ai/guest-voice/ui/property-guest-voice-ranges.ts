@@ -2,7 +2,7 @@ import {
   GUEST_VOICE_RANGES,
   RANGE_PRESET_LABELS,
   type GuestVoiceRange,
-} from '#/shared/dashboard-range'
+} from '#/shared/dashboard/dashboard-range'
 
 /** The control's words: the presets worded from the one table, and Automatic. */
 export const GUEST_VOICE_RANGE_LABELS: Readonly<Record<GuestVoiceRange, string>> = {

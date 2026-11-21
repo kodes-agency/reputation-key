@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { REVIEW_ANALYSIS_V3_MAX_MENTIONS } from '#/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_MAX_MENTIONS } from '#/shared/analysis/review-analysis-v3'
 
 // What a manager may say to correct a review's reading ("Not right?"). The server function
 // validates a request with `correctReviewMentionDto`.

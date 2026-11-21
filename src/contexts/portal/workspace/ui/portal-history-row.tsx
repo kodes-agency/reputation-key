@@ -8,7 +8,7 @@ import {
   TimelineContent,
   TimelineItem,
 } from '#/components/ui/timeline'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePortalHistory } from './portal-history-context'
 import { HistoryGlyphDisc } from './portal-history-glyph'
 import { describeHistoryEntry } from './portal-history-line'

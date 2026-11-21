@@ -11,7 +11,7 @@ import {
   MERCHANT_AI_NOTICES_IN_FORCE,
   parseMerchantAiNoticeCatalogueEntry,
 } from './merchant-ai-notice-contract'
-import { canonicalizeRfc8785 } from './canonical-json'
+import { canonicalizeRfc8785 } from './json/canonical-json'
 
 /** How the catalogue digest is made: a domain prefix over the canonical payload. */
 function noticeDigestOf(payload: unknown): string {

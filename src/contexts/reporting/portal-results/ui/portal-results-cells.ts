@@ -25,7 +25,7 @@ import {
   type MetricEvidenceSubject,
 } from '#/contexts/reporting/portal-results/ui/metric-availability-presentation'
 import { dayCount } from './portal-results-window'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 export type ResultsCellKey = 'scans' | 'ratings' | 'average' | 'googleOpens' | 'notes'
 

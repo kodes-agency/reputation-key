@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { reviewId } from '#/shared/domain/ids'
-import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
+import type {
+  AspectPolarityV1,
+  AspectTaxonomyV1Id,
+} from '#/shared/analysis/aspect-taxonomy'
 import {
   MAX_RECURRING_ISSUES,
   RECURRING_ISSUE_MIN_REVIEWS,

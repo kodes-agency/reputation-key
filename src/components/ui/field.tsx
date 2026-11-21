@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { Label } from '#/components/ui/label'
 
 function FieldGroup({ className, ...props }: React.ComponentProps<'div'>) {

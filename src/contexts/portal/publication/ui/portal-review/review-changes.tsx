@@ -5,7 +5,7 @@
 
 import { Eye, FileText, LayoutGrid, Palette, Settings2, Type } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { PortalReview } from '#/contexts/portal/application/portal-management-contracts'
 import { formatHistoryTime } from '#/contexts/portal/workspace/ui/portal-history-time'
 import { PhraseView } from '#/contexts/portal/workspace/ui/portal-phrase-view'

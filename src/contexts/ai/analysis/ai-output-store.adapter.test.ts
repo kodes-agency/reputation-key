@@ -10,11 +10,11 @@ import {
   merchantAiEnablement,
   reviews,
 } from '#/shared/db/schema'
-import { ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
+import { ASPECT_TAXONOMY_V1 } from '#/shared/analysis/aspect-taxonomy'
 import {
   isExecutionCompatibleWithConsent,
   getAiRuntimeCapability,
-} from '#/shared/ai-runtime-capability-contract'
+} from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter.server'
 
 describe('ai output list-filter adapter', () => {

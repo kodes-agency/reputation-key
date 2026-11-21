@@ -21,7 +21,7 @@ import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
-import type { ResponsibleManagerMembership } from '#/shared/responsible-manager-eligibility'
+import type { ResponsibleManagerMembership } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { buildPropertyContext } from '../build'

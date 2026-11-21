@@ -4,7 +4,7 @@ import {
   GOOGLE_PROVIDER_ENDPOINTS,
 } from '../../src/composition'
 import type { Env } from '../../src/shared/config/env'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation/ai-operation-profiles'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

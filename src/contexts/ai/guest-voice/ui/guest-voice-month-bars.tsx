@@ -1,5 +1,5 @@
 import type { GuestVoiceHistoryMonth } from '../contracts'
-import { formatNumber, formatLocalDate } from '#/lib/format'
+import { formatNumber, formatLocalDate } from '#/shared/format/format'
 import { monthLabel } from './guest-voice-words'
 
 /** The tallest bar, in px; the count above it takes the rest of the column. */

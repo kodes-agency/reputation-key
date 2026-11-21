@@ -7,7 +7,7 @@ import {
   merchantAiEnablement,
 } from '#/shared/db/schema'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
-import { isExecutionCompatibleWithConsent } from '#/shared/ai-runtime-capability-contract'
+import { isExecutionCompatibleWithConsent } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 

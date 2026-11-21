@@ -1,6 +1,6 @@
 // Review context — the SQL and row checks behind the AI source reads
 // (`readForAi`, `assertCurrentForAi`, the Trend population). The canonical-source
-// limits come from the AI source contract (`#/shared/ai-review-source-contract`),
+// limits come from the AI source contract (`#/shared/ai-review-source/ai-review-source-contract`),
 // the one definition the writer's refusal marker and these readers both compare
 // against; the "which Review revision is this" expectation lives here.
 
@@ -8,7 +8,7 @@ import { sql } from 'drizzle-orm'
 import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
-} from '#/shared/ai-review-source-contract'
+} from '#/shared/ai-review-source/ai-review-source-contract'
 import type {
   AiReviewSourceDenial,
   AiReviewSourceRequest,

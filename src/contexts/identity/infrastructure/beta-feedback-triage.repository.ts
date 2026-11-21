@@ -7,11 +7,11 @@ import {
   betaFeedbackTriage,
   betaFeedbackTriageTransitions,
 } from '#/shared/db/schema/beta-feedback-triage.schema'
-import type { MaskedLayout } from '#/shared/beta-feedback-layout'
+import type { MaskedLayout } from '#/shared/beta-feedback/beta-feedback-layout'
 import type {
   BetaFeedbackRouteKey,
   BetaFeedbackViewport,
-} from '#/shared/beta-feedback-contract'
+} from '#/shared/beta-feedback/beta-feedback-contract'
 import {
   assertBetaFeedbackTriageTransition,
   type BetaFeedbackTriageState,

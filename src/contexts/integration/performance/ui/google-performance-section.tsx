@@ -3,11 +3,11 @@ import type {
   PropertyGooglePerformanceReportV1,
   PropertyGooglePerformanceResultV1,
   PropertyPerformancePreset,
-} from '#/shared/google-performance-report-contract'
-import type { DashboardRange } from '#/shared/dashboard-range'
+} from '#/shared/google-contracts/google-performance-report-contract'
+import type { DashboardRange } from '#/shared/dashboard/dashboard-range'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   GooglePerformanceReport,

@@ -20,7 +20,7 @@ const PUBLISHED = '2026-09-12T22:30:00.000Z'
 const TWO_WEEKS_LATER = new Date('2026-09-27T09:00:00.000Z')
 
 describe('an Inbox stamp, read in Sofia', () => {
-  // One zone for the whole file: `#/lib/format` builds the reader's formatters
+  // One zone for the whole file: `#/shared/format/format` builds the reader's formatters
   // once, so they are built under this zone.
   beforeAll(() => {
     vi.stubEnv('TZ', 'Europe/Sofia')
@@ -53,7 +53,7 @@ describe('an Inbox stamp, read in Sofia', () => {
 })
 
 describe('Inbox sources', () => {
-  /** A date helper of `#/lib/format` called with the instant alone: the UTC default. */
+  /** A date helper of `#/shared/format/format` called with the instant alone: the UTC default. */
   const UTC_DEFAULT =
     /\bformat(?:Timestamp|Date|MonthDay|LongDate|Clock|MonthYear|MonthName)\(\s*[\w.?!]+\s*\)/u
 

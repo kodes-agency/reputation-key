@@ -16,8 +16,8 @@ import {
   installAiAnalysisFixture,
 } from '#/shared/db/testing/ai-review-analysis-v3-fixture'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
-import { providerRequestProfileOf } from '#/shared/ai-provider-attestations'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
+import { providerRequestProfileOf } from '#/shared/ai-provider-profile/ai-provider-attestations'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -26,7 +26,7 @@ import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/analysis/normalizer'
-import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
   analysisExecutionBinding,

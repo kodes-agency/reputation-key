@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   PROPERTY_ISSUE_NORMALIZATION_DIGEST,
   PROPERTY_ISSUE_NORMALIZATION_VERSION,
-} from '#/shared/property-issue-normalization'
+} from '#/shared/analysis/property-issue-normalization'
 import {
   DEFAULT_CLI_TOOLS,
   parseCliArguments,

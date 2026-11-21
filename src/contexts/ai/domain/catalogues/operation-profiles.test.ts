@@ -1,10 +1,10 @@
-import { openAiAttestationOf } from '#/shared/ai-openai-provider-attestation'
+import { openAiAttestationOf } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   AI_REDACTION_PROFILE_DIGEST,
   AI_REDACTION_PROFILE_VERSION,
-} from '#/shared/ai-deterministic-redactor'
+} from '#/shared/ai-redaction/ai-deterministic-redactor'
 import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
 import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '#/shared/ai-reply-language-verifier'
 import {
@@ -14,20 +14,23 @@ import {
 import {
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
   AI_STRUCTURED_MARKER_DETECTORS_VERSION,
-} from '#/shared/ai-structured-marker-detectors'
+} from '#/shared/ai-redaction/ai-structured-marker-detectors'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import {
   buildClosedOpenAiRequest,
   OPENAI_PROMPT_VERSIONS,
   renderOpenAiStaticTokenBearingMaterial,
-} from '#/shared/ai-openai-request-contract'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
+} from '#/shared/ai-provider-profile/ai-openai-request-contract'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-operation/ai-route-output-schemas'
 import {
   AI_OPERATION_PROFILES,
   AI_PROVIDER_DEPLOYMENT_PROFILE,
   AI_ROUTING_POLICY,
-} from '../../../../shared/ai-operation-profiles'
-import { ASPECT_TAXONOMY_V1, ASPECT_TAXONOMY_V1_DIGEST } from '#/shared/aspect-taxonomy'
+} from '../../../../shared/ai-operation/ai-operation-profiles'
+import {
+  ASPECT_TAXONOMY_V1,
+  ASPECT_TAXONOMY_V1_DIGEST,
+} from '#/shared/analysis/aspect-taxonomy'
 
 const sha256 = (domain: string, value: unknown): string =>
   createHash('sha256')

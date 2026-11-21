@@ -7,7 +7,7 @@ import {
   TimelineIndicator,
   TimelineItem,
 } from '#/components/ui/timeline'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { presentGuestReviewBody } from './guest-message-view'
 import { personInitials } from '#/components/ui/person-initials'
 import { languageDisplayName } from '#/contexts/reputation/replies/ui/composer/reply-language-options'

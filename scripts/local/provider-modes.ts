@@ -26,7 +26,7 @@
 
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation/ai-operation-profiles'
 
 /** Every endpoint `applyProviderEndpointOverrides` may override. */
 const SANDBOX_ENDPOINT_PINS = Object.freeze([

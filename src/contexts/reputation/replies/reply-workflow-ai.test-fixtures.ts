@@ -46,8 +46,11 @@ import {
 } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import type { Reply } from '../domain/review-types'
-import { digestRenderedReply, signAiReplyProvenance } from '#/shared/ai-reply-provenance'
-import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/ai-reply-template-catalogue'
+import {
+  digestRenderedReply,
+  signAiReplyProvenance,
+} from '#/shared/reply/ai-reply-provenance'
+import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/reply/ai-reply-template-catalogue'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,

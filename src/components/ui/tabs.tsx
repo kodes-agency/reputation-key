@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Tabs as TabsPrimitive } from 'radix-ui'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { LINE_TAB_CLASS, LINE_TABS_LIST_CLASS } from './tabs-line-styles'
 
 // Two looks, two jobs. The `line` variant (underline, see `tabs-line-styles.ts`)

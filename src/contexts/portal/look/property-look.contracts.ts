@@ -1,6 +1,6 @@
 import { z } from 'zod/v4'
 import { MAX_ADDITIONAL_GUEST_LOCALES } from '#/shared/domain/guest-locale'
-import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { offeredGuestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import { BACKGROUND_MODES } from '../domain/property-look'
 
 const propertyIdSchema = z.string().min(1, 'Property ID is required')

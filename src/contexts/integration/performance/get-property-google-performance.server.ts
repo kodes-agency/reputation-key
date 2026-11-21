@@ -6,7 +6,7 @@ import type { ProviderAuthorizationLeaseResult } from '#/shared/provider-ephemer
 import type {
   PropertyGooglePerformanceResultV1,
   PropertyPerformancePreset,
-} from '#/shared/google-performance-report-contract'
+} from '#/shared/google-contracts/google-performance-report-contract'
 import type { GooglePerformanceSourcePort } from '../provider/contracts'
 import {
   buildPropertyPerformancePeriod,

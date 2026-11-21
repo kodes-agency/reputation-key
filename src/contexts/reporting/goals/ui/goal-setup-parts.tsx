@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { IconButton } from '#/components/ui/icon-button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /**
  * The gap between the figure and each stepper: a phone's, and a desktop's. A goal

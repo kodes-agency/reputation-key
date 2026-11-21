@@ -7,7 +7,7 @@ import {
   actionFailureMessage,
 } from '#/components/hooks/use-action-mutation'
 import { createKeys } from '#/shared/queries/query-keys'
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueries, useQuery, useSuspenseQuery } from '@tanstack/react-query'

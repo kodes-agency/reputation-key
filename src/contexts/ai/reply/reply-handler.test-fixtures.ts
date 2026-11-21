@@ -5,7 +5,7 @@ import {
   useAiHandlerDatabase,
 } from '#/contexts/ai/infrastructure/testing/handler-harness.test-fixtures'
 import type { GenerateReplySuggestionDependencies } from '#/contexts/ai/reply/generate-suggestion.server'
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import { parseCanonicalReplyLanguageTag } from '#/shared/ai-review-language-catalogue'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { vi } from 'vitest'

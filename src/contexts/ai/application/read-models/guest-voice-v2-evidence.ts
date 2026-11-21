@@ -17,8 +17,8 @@
 import {
   REVIEW_STRENGTH_RANK_V3,
   type ReviewStrengthV3,
-} from '#/shared/review-analysis-v3'
-import { locateReviewSentences } from '#/shared/review-sentences'
+} from '#/shared/analysis/review-analysis-v3'
+import { locateReviewSentences } from '#/shared/ai-review-source/review-sentences'
 import type {
   GuestVoiceV2Read,
   LatestReview,

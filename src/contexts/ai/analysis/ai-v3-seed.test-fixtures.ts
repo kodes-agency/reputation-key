@@ -34,7 +34,7 @@ import {
   reviewAiAnalysisHeads,
   reviewSourceContents,
 } from '#/shared/db/schema'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -47,7 +47,7 @@ import type {
   ReviewAttentionLevelV2,
   ReviewSentimentV3,
   ReviewUrgentReasonV3,
-} from '#/shared/review-analysis-v3'
+} from '#/shared/analysis/review-analysis-v3'
 import type { AiOperationId, ReviewAnalysisMentionV3 } from '../domain/types'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter.server'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter.server'

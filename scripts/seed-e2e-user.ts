@@ -66,7 +66,7 @@ import {
 import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/domain/google-content-capability'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/policy/google-content-authority-repository.server'
 import { createDeclaredCapabilityPostureStores } from '../src/composition/declared-capability-posture'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../src/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../src/shared/ai-operation/ai-operation-profiles'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '../src/shared/domain/merchant-ai-capability'
 
 import { execFileSync } from 'node:child_process'

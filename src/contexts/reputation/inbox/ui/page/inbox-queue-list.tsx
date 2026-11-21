@@ -6,7 +6,7 @@ import { useId } from 'react'
 import { Button } from '#/components/ui/button'
 import { NavCount } from '#/components/ui/nav-count'
 import { Separator } from '#/components/ui/separator'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type {
   InboxQueue,
   InboxQueueCounts,

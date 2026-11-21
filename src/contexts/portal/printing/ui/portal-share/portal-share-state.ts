@@ -7,7 +7,7 @@
 // about when it was made, and what the screen reader is told.
 import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalShareMutations, PortalShareProps } from './portal-share-types'
-import { formatDate } from '#/lib/format'
+import { formatDate } from '#/shared/format/format'
 import { describeGraceCutoff } from './portal-share-guidance'
 
 export type PortalShareView = Readonly<{

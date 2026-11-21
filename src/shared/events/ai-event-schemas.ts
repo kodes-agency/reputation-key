@@ -6,7 +6,7 @@
 // (./../outbox/event-adapter.ts) in any case.
 
 import { z } from 'zod/v4'
-import { REVIEW_TOPICS_V3 } from '../review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '../analysis/review-topic-taxonomy'
 import type { EventDescriptor } from './descriptor'
 
 const aiPropertyTrendGenerationRequestedSchema = z.object({

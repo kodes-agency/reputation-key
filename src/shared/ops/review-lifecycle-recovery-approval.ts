@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 
 export const REVIEW_LIFECYCLE_RECOVERY_APPROVAL_VERSION =
   'review-lifecycle-recovery-approval-v1' as const

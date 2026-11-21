@@ -1,9 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { Stars, ReplyStatusBadge } from './property-dashboard-helpers'
 import type { RecentReview } from '#/contexts/reporting/application/public-api'
-import { formatDate } from '#/lib/format'
+import { formatDate } from '#/shared/format/format'
 import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /**
  * Format a review date, or render nothing when it is not a real instant.

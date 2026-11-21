@@ -1,4 +1,4 @@
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { activityError } from '../domain/activity-errors'

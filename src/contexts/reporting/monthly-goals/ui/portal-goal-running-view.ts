@@ -8,7 +8,7 @@ import type {
   PortalGoalRows,
   PortalGoalRunningMonth,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { daysLeftWords } from './goal-live-view'
 import {
   dayWords,

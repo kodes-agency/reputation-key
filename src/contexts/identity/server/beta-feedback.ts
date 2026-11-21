@@ -7,7 +7,7 @@ import {
   type BetaFeedbackInput,
   type BetaFeedbackReportView,
   betaFeedbackInputSchema,
-} from '#/shared/beta-feedback-contract'
+} from '#/shared/beta-feedback/beta-feedback-contract'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { isBetaFeedbackError } from '../domain/errors'

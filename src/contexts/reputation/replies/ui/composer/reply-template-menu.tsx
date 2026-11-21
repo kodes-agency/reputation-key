@@ -31,7 +31,7 @@ import {
 import type { ReplyLanguageChoices } from '#/contexts/reputation/replies/ui/use-reply-composer'
 import type { ReplyAssistScope } from '#/contexts/reputation/replies/ui/use-reply-suggestion'
 import { IconButton } from '#/components/ui/icon-button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 type TemplateOption = Readonly<{ id: string; title: string }>
 

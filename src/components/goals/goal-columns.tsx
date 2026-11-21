@@ -4,7 +4,7 @@
 import { useId } from 'react'
 import { Check } from 'lucide-react'
 import { useBarSelection } from '#/components/hooks/use-bar-selection'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   columnsModel,
   plotMaxWidthRem,

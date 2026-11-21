@@ -117,7 +117,7 @@ function evidenceFor(
 
 // A count grouped as the live line groups it ("1,234"), with the locale pinned
 // so the server and the browser word a month alike. `formatNumber` is UI-side
-// (`#/lib/format`), out of this layer's reach; this is its en-US shape.
+// (`#/shared/format/format`); this is its en-US shape.
 const wholeNumber = new Intl.NumberFormat('en-US')
 
 /** "1 scan", "64 private ratings", "1,234 scans": one is singular. */

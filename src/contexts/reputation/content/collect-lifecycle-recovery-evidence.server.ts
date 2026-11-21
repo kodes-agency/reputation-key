@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
 import { collectReviewSourceContentLifecycleReport } from '../../review/application/use-cases/collect-source-content-lifecycle-report'
 import {

@@ -10,7 +10,7 @@ import { resolveAiReadGate } from '../consent/ai-read-gate.server'
 import {
   getAiRuntimeCapability,
   isAiRuntimeNoticeInForce,
-} from '#/shared/ai-runtime-capability-contract'
+} from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type {
   AiGuestVoiceFactsPort,

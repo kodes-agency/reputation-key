@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
-import { renderOpenAiStaticTokenBearingMaterial } from '#/shared/ai-openai-request-contract'
-import { operationProfileForCatalogue } from '#/shared/ai-operation-profile'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { operationProviderPairing } from '#/shared/ai-operation-provider-pairings'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
-import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
+import { renderOpenAiStaticTokenBearingMaterial } from '#/shared/ai-provider-profile/ai-openai-request-contract'
+import { operationProfileForCatalogue } from '#/shared/ai-operation/ai-operation-profile'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
+import { operationProviderPairing } from '#/shared/ai-operation/ai-operation-provider-pairings'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-operation/ai-route-output-schemas'
+import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import {
   REVIEW_ANALYSIS_V3_VERSIONS,
   REVIEW_URGENT_REASONS_V3,
   REVIEW_STRENGTHS_V3,
-} from '#/shared/review-analysis-v3'
+} from '#/shared/analysis/review-analysis-v3'
 import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from '#/shared/analysis/artifacts'
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/analysis/prompt'
-import { REVIEW_GENERIC_THING_WORDS } from '#/shared/review-generic-things'
+import { REVIEW_GENERIC_THING_WORDS } from '#/shared/analysis/review-generic-things'
 import {
   REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
@@ -23,8 +23,11 @@ import {
   REVIEW_VOCABULARY_HINTS_CATALOGUE_DIGEST,
   VOCABULARY_HINT_SETS,
   vocabularyHintSetDigest,
-} from '#/shared/review-vocabulary-hints'
-import { REVIEW_TOPICS_V3, REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/review-vocabulary-hints'
+import {
+  REVIEW_TOPICS_V3,
+  REVIEW_TOPIC_LABELS_V3,
+} from '#/shared/analysis/review-topic-taxonomy'
 
 const profile = REVIEW_ANALYSIS_V3_LOGICAL_PROFILE
 

@@ -27,7 +27,7 @@ import type {
   ReviewProviderSubjectSighting,
   ReviewProviderSubjectSightings,
 } from './review-provider-subject-link.port.server'
-import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
+import type { ReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
 import type { ReviewProviderSubjectCandidates } from './sync-reviews.port.server'
 import { snapshotSubjectScope } from './review-provider-snapshot-scope.server'
 

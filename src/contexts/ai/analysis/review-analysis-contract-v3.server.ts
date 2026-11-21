@@ -22,14 +22,14 @@ import { isAiAuthorizationUnderServedContract } from '../application/ai-workflow
 import {
   REVIEW_ANALYSIS_V3_VERSIONS,
   deriveReviewAttentionV2,
-} from '#/shared/review-analysis-v3'
+} from '#/shared/analysis/review-analysis-v3'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/analysis/normalizer'
 import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/analysis/profile'
-import { reviewAnalysisV3GatewayResultSchema } from '#/shared/review-analysis-v3-request'
-import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { reviewAnalysisV3GatewayResultSchema } from '#/shared/analysis/review-analysis-v3-request'
+import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import { DERIVATIVE_RETENTION_MILLIS } from '../domain/types'
 import type { AiOutputStorePort } from './ai-output-store.port.server'
 import type { AiProviderChoicePort } from './ai-provider-choice.port.server'

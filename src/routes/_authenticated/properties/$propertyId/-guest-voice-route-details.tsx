@@ -7,7 +7,7 @@ import type {
   GuestVoiceDetailTarget,
   GuestVoiceV2Read,
 } from '#/contexts/ai/application/public-api'
-import type { GuestVoiceRange } from '#/shared/dashboard-range'
+import type { GuestVoiceRange } from '#/shared/dashboard/dashboard-range'
 import { propertyGuestVoiceDetailQuery } from './-guest-voice-queries'
 
 export function GuestVoiceRouteDetails({

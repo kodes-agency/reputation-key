@@ -23,7 +23,7 @@ import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-re
 import {
   releaseRemovedMemberResponsibilities,
   type ResponsibleManagerMembership,
-} from '#/shared/responsible-manager-eligibility'
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { policyDeps } from './portal-manager-eligibility.server'

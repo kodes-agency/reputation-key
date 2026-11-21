@@ -8,7 +8,7 @@ import { SectionTitle } from '#/components/ui/section-title'
 import type { PortalAnalyticsData } from '#/contexts/reporting/portal-results/contracts'
 import { PortalMetricEvidenceSummary } from './portal-metric-evidence-summary'
 import { PortalResponseIntegritySummary } from './portal-response-integrity-summary'
-import { formatLongDate } from '#/lib/format'
+import { formatLongDate } from '#/shared/format/format'
 
 type Definition = Readonly<{ term: string; meaning: string }>
 

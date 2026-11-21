@@ -1,7 +1,7 @@
 import rawLibrary from './builtin-library-v1.json'
-import { canonicalizeRfc8785 } from '../canonical-json'
+import { canonicalizeRfc8785 } from '../json/canonical-json'
 import { sha256Hex } from '../domain/sha256'
-import type { ReviewTopicV3 } from '../review-topic-taxonomy'
+import type { ReviewTopicV3 } from '../analysis/review-topic-taxonomy'
 import type { BuiltinReplyVoiceLanguageGroup } from './reply-voice-language-groups'
 
 export const BUILTIN_REPLY_LIBRARY_VERSION = 'reply-library-builtin-v1' as const

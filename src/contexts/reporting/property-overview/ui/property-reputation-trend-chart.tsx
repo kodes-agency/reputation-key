@@ -11,17 +11,17 @@ import type {
   RatingTrendPoint,
   ReviewVolumePoint,
 } from '#/contexts/reporting/application/public-api'
-import { axisTicks, hasEnoughEvidence } from '#/shared/chart-buckets'
+import { axisTicks, hasEnoughEvidence } from '#/shared/dashboard/chart-buckets'
 import {
   bucketUnitForRange,
   DASHBOARD_RANGE_LABELS,
   type DashboardRange,
-} from '#/shared/dashboard-range'
+} from '#/shared/dashboard/dashboard-range'
 import {
   buildPropertyReputationTrendData,
   type PropertyReputationTrendDatum,
 } from './property-reputation-trend-chart-data'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 const config = {
   newReviews: { label: 'New reviews', color: 'var(--muted-foreground)' },

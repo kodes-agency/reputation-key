@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
-import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
-import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
+import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract'
+import { analysisRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
 import { LANGUAGE_CATALOGUE_DIGEST } from '#/shared/ai-review-language-catalogue'
-import { providerRequestProfileOf } from '#/shared/ai-provider-attestations'
+import { providerRequestProfileOf } from '#/shared/ai-provider-profile/ai-provider-attestations'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,

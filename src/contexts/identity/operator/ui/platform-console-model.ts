@@ -6,8 +6,8 @@
 
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { deriveOrganizationSlug } from '#/shared/domain/organization-slug'
-import { formatDateTime } from '#/lib/format-date-time'
-import { formatDate } from '#/lib/format'
+import { formatDateTime } from '#/shared/format/format-date-time'
+import { formatDate } from '#/shared/format/format'
 import type {
   PlatformAdminInvitationView,
   PlatformOrganizationView,

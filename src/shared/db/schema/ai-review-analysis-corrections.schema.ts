@@ -24,8 +24,8 @@ import {
 import {
   REVIEW_ANALYSIS_V3_MAX_MENTIONS,
   REVIEW_CAUSE_PHRASE_PATTERN,
-} from '../../review-analysis-v3'
-import { REVIEW_TOPICS_V3 } from '../../review-topic-taxonomy'
+} from '../../analysis/review-analysis-v3'
+import { REVIEW_TOPICS_V3 } from '../../analysis/review-topic-taxonomy'
 import { aiPropertyIssueGroups } from './ai-property-issue-groups.schema'
 import { aiReviewAnalysisMentions } from './ai-review-analysis-v3.schema'
 import { sqlPatternLiteral, sqlStringList, timestamptz } from './ai-schema-helpers'

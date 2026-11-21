@@ -19,12 +19,12 @@ import type { AiSubjectHmacPort } from '#/contexts/ai/analysis/ai-subject-hmac.p
 import { createAiInProcessInference } from '#/contexts/ai/execution/ai-inprocess.adapter.server'
 import { createAiEgressRuntime } from './ai-egress-runtime'
 import { createAiSubjectHmacAdapter } from '#/contexts/ai/analysis/ai-subject-hmac.adapter.server'
-import { loadNamedEd25519PublicKeyring } from '#/shared/ed25519-key-material'
+import { loadNamedEd25519PublicKeyring } from '#/shared/ai-gateway/ed25519-key-material'
 import {
   assertAiProvenancePublicKeyringInventory,
   resolveAiGatewayRuntimeKeyInventory,
-} from '#/shared/ai-gateway-key-inventory'
-import type { AiGatewayCaller } from '#/shared/ai-gateway-transport-contract'
+} from '#/shared/ai-gateway/ai-gateway-key-inventory'
+import type { AiGatewayCaller } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 
 /**
  * External adapters are explicit container inputs. Absent overrides select the

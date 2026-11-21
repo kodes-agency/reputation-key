@@ -7,7 +7,7 @@ import { createGoogleContentAuthorityRepository } from './google-content-authori
 import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/provider/google-content-authorization-check.server'
 import { closePool } from '#/shared/db/pool'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,

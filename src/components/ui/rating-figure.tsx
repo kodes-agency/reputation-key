@@ -1,6 +1,6 @@
 import { Star } from 'lucide-react'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 // The glyph beside a figure, sized to the figure: the list cell's text, a
 // summary strip's value and a KPI tile's headline number.

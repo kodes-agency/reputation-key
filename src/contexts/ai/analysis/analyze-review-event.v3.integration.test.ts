@@ -9,7 +9,7 @@ const handlerDatabase = useAiHandlerDatabase()
 // fake provider. The skeleton shared by every contract is covered in
 // analyze-review-event.integration.test.ts.
 
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   AI_REVIEW_LANGUAGE_ICU_VERSION,
   AI_REVIEW_LANGUAGE_UNICODE_VERSION,
@@ -20,7 +20,7 @@ import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/analysis/normalizer'
-import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiOperationId } from '../domain/types'
 import type { AiProviderChoicePort } from './ai-provider-choice.port.server'

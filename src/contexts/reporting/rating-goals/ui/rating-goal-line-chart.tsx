@@ -4,7 +4,7 @@
 
 import { useId } from 'react'
 import { useBarSelection } from '#/components/hooks/use-bar-selection'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { LineChartModel, LineChartWords } from './rating-goal-line-chart-view'
 
 /** The plot's height and the axis column: new utility classes would grow every page's stylesheet. */

@@ -10,7 +10,7 @@
 // here and why), then the queries (what is).
 
 import { sql, type SQL } from 'drizzle-orm'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { Database } from '#/shared/db'
 import { csvCell } from '#/shared/security/csv-cell'
 import type {

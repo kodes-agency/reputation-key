@@ -3,7 +3,7 @@ import type {
   RatingGoalChartView,
   RatingGoalDetailView,
 } from '#/contexts/reporting/rating-goals/contracts'
-import { formatLocalDate } from '#/lib/format'
+import { formatLocalDate } from '#/shared/format/format'
 
 const DAY_MS = 86_400_000
 /** Room above the goal's line for its words, and under the lowest line. */

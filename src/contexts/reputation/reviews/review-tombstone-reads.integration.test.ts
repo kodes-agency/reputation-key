@@ -26,7 +26,7 @@ import {
   type TombstoneState,
 } from '#/shared/testing/review-tombstone-fixtures'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
-import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-identifiers-v1'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createEligibleReads } from './eligible-reads.server'

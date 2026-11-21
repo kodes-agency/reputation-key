@@ -2,8 +2,8 @@ import type {
   RatingTrendPoint,
   ReviewVolumePoint,
 } from '#/contexts/reporting/application/public-api'
-import { groupByBucket, type Bucket } from '#/shared/chart-buckets'
-import type { BucketUnit } from '#/shared/dashboard-range'
+import { groupByBucket, type Bucket } from '#/shared/dashboard/chart-buckets'
+import type { BucketUnit } from '#/shared/dashboard/dashboard-range'
 
 export type PropertyReputationDailyDatum = Readonly<{
   avgRating?: number

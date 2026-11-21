@@ -3,7 +3,7 @@ import {
   MERCHANT_AI_NOTICE_PAYLOAD,
   type MerchantAiNoticeCatalogueEntry,
 } from '#/shared/merchant-ai-notice-contract'
-import { AI_SOURCE_POLICY_ID_V1 } from '#/shared/ai-source-profile'
+import { AI_SOURCE_POLICY_ID_V1 } from '#/shared/ai-review-source/ai-source-profile'
 
 export {
   isMerchantAiNoticeInForceForCapabilities,

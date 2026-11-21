@@ -1,4 +1,4 @@
-import { matchesExpectedReply } from '#/shared/reply-revision'
+import { matchesExpectedReply } from '#/shared/reply/reply-revision'
 import { storedReplyFrame } from '#/shared/domain/reply-frame'
 import type { ReplyRepository } from './reply-repository.port.server'
 import type { ReviewRepository } from '../reviews/review-repository.port.server'
@@ -307,7 +307,7 @@ export type DeleteReply = ReturnType<typeof deleteReply>
 export type RetryPublish = ReturnType<typeof retryPublish>
 
 export type DraftReplyInput = Readonly<{
-  expectedReply?: import('#/shared/reply-revision').ReplyRevision | null
+  expectedReply?: import('#/shared/reply/reply-revision').ReplyRevision | null
   reviewId: ReviewId
   text: string
   replyLanguageTag?: string
@@ -704,7 +704,7 @@ export const rejectReply =
 
 export type DeleteReplyInput = Readonly<{
   reviewId: ReviewId
-  expectedReply?: import('#/shared/reply-revision').ReplyRevision | null
+  expectedReply?: import('#/shared/reply/reply-revision').ReplyRevision | null
 }>
 
 export const deleteReply =

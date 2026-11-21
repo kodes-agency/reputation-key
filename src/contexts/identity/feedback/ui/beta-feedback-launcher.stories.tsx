@@ -6,7 +6,7 @@ import {
   clearRecordedErrors,
   rememberRecordedError,
 } from '#/shared/observability/recorded-browser-errors'
-import { BETA_FEEDBACK_SCREENSHOT_MAX_BYTES } from '#/shared/beta-feedback-screenshot'
+import { BETA_FEEDBACK_SCREENSHOT_MAX_BYTES } from '#/shared/beta-feedback/beta-feedback-screenshot'
 import { BetaFeedbackLauncher } from './beta-feedback-launcher'
 import type {
   ListMyBetaFeedback,

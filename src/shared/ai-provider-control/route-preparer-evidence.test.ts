@@ -5,14 +5,14 @@ import {
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import { v2FormAnalysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
-import { canonicalizeRawAiReviewSource } from '#/shared/ai-review-source-contract'
+import { v2FormAnalysisRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
+import { canonicalizeRawAiReviewSource } from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/analysis/normalizer'
-import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '#/shared/review-analysis-v3'
-import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '#/shared/analysis/review-analysis-v3'
+import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import { GatewayPreparationError } from './contracts'
 import {
   evidencePreparer,

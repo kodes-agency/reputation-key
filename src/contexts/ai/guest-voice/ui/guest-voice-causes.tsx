@@ -1,5 +1,5 @@
 import { ReadableBadge as Badge } from '#/components/ui/readable-badge'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 /**
  * What was wrong, or right, named in the guests' own everyday words: the causes of an

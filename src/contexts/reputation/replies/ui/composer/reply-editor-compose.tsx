@@ -8,7 +8,7 @@ import {
   replyCommentByteLength,
 } from '#/shared/google-provider-control/reply-comment'
 import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from './reply-suggestion-contract'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   DOCK_FOOT_ROW_CLASS,
   DOCK_TEXT_ROW_CLASS,

@@ -18,20 +18,23 @@ import {
   reviewSourceContents,
 } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
 import { replyDynamicDeveloperBytes } from '#/shared/reply/request'
-import { maximumCostMicros, settledCostMicros } from '#/shared/ai-openai-provider-profile'
+import {
+  maximumCostMicros,
+  settledCostMicros,
+} from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 import type {
   AiAdmissionDescriptorV1,
   AiSettlementRequestV1,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import {
   AI_REPLY_OPERATION_PROFILE,
   AI_REPLY_V2_DEFAULT_BINDING,
   installAiOperationFixture,
   type AiOperationFixture,
 } from '#/shared/db/testing/ai-operation-fixture'
-import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
+import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/reply/ai-reply-provenance'
 import { createAiBudgetControl, reapStaleAiReservations } from '#/shared/db/ai/ai-budget'
 import { isMintedAiExecutionAdmission } from '#/shared/ai-provider-control/execution-admission'
 import { createAiExecutionAdmissionAdapter } from './ai-execution-admission.adapter.server'

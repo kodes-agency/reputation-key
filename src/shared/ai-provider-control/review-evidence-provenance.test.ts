@@ -15,9 +15,9 @@ import {
   canonicalizeRawAiReviewSentences,
   canonicalizeRawAiReviewSource,
   type RawAiReviewSource,
-} from '#/shared/ai-review-source-contract'
-import { locateReviewSentences } from '#/shared/review-sentences'
-import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/review-analysis-v3'
+} from '#/shared/ai-review-source/ai-review-source-contract'
+import { locateReviewSentences } from '#/shared/ai-review-source/review-sentences'
+import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/analysis/review-analysis-v3'
 import {
   evidencePreparer,
   fakeAdmission,

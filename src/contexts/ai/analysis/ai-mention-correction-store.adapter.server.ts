@@ -10,7 +10,7 @@ import {
   aiReviewAnalysisMentionCorrections,
   aiReviewAnalysisMentions,
 } from '#/shared/db/schema'
-import { isReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import { isReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import type {
   AiMentionCorrectionStorePort,
   ApplyMentionCorrectionInput,
