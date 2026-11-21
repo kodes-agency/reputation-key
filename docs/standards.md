@@ -343,6 +343,17 @@ in the serial `integration` project; `unit` excludes them. The folder a test sit
 in selects nothing, so a test keeps its project when it moves. A unit test for a `repositories/` source sits one level up
 (`infrastructure/<source>.test.ts`) so it stays in `unit`.
 
+### 8.3 Running only the affected tests (Guidance — not gated)
+
+`pnpm test:affected` runs the unit tests whose imports reach a file changed
+since the merge base with `origin/main`, committed or not, plus every test that
+reads the repository as text (`scripts/ci/text-reads.baseline.json`), which no
+import connects to what it reads. `--project=integration` does the same for the
+integration tests against the test database; `--since=<ref>` compares with
+another ref. It is a quicker loop before pushing, not a replacement: CI runs
+every test, and a change to `package.json`, the lockfile or a Vitest config
+selects every test.
+
 ## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)
 
 Fallow (dead-code, complexity, duplication) is a devDependency. Config: `.fallowrc.json` (audit.gate: new-only). No count of the issues main already carries is kept: its `regression.baseline` block is all zeroes.
