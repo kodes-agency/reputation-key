@@ -2,7 +2,7 @@ import type {
   ReviewSourceContentLifecycleInspectionMode,
   ReviewSourceContentLifecycleScope,
   ReviewSourceContentShadowFinding,
-} from '../ports/source-content-lifecycle-store.port'
+} from '../../../reputation/content/source-content-lifecycle-store.port.server'
 import type {
   ReviewSourceContentLifecycleCheckpoint,
   RunReviewSourceContentLifecycle,

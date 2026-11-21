@@ -93,7 +93,7 @@ describe('Google OAuth content authorization', () => {
   // between could start and send before that commit lands, because the start
   // predicate locks neither the attempt nor the reply. Holding the attempt row
   // FOR SHARE until the permit commits makes admission and settlement exclusive
-  // (reply-command-store.ts settleNeverDispatchedAttempt re-reads under lock).
+  // (reply-command-store.server.ts settleNeverDispatchedAttempt re-reads under lock).
   it('share-locks the reply publication attempt it admits a permit for', async () => {
     resetCapabilityPolicyStore()
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))

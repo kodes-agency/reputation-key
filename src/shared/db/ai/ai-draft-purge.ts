@@ -4,7 +4,7 @@
 // output of one AI operation; any manager edit makes it `human` and takes it
 // out of this module's reach. It may be published only while everything it was
 // generated from is current (the AI draft binding,
-// src/contexts/review/infrastructure/ai-draft-binding.ts). The transaction that
+// src/contexts/reputation/replies/ai-draft-binding.server.ts). The transaction that
 // changes one of those inputs calls the purge for the scope it changed:
 //
 //   control        an AI execution control transition (every Organization)
@@ -82,7 +82,7 @@
 // while the purge runs can slip past both statements; that Reply is still
 // AI-assisted, and the claim's binding check refuses it. A claim that refuses
 // AI text withdraws the Reply itself, through `purgeAiDraftsForReview`, with
-// this module's cause (review/infrastructure/unclaimable-publication.ts): the
+// this module's cause (reputation/publication/unclaimable-publication.server.ts): the
 // purge and the claim leave one shape, whichever reaches the Reply first.
 //
 // The purge empties a draft in place. A draft whose cycle was cancelled has

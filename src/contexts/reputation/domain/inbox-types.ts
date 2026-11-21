@@ -246,7 +246,7 @@ export type InboxItemDetail = Readonly<{
   /**
    * The guest's star rating, carried from the SAME `ReviewSnippet` that feeds
    * `reviewText` / `reviewTranslatedText` / `reviewerProfilePhotoUrl` above
-   * (`review-lookup.port.ts:18`), and therefore governed by the same rule:
+   * (`review-lookup.port.server.ts:18`), and therefore governed by the same rule:
    * `null` for `expired` and `not_found`. A review whose content we are no
    * longer eligible to serve may not assert a rating either — the number is
    * provider-owned content exactly like the words are.
@@ -256,7 +256,7 @@ export type InboxItemDetail = Readonly<{
    * transition (`inbox-command-store.ts:936`, `:1416` — "rating/snippet/
    * reviewer name stay with Review"), and the read path is stricter still:
    * `inboxItemFromRow` sets `rating: null` for EVERY row, feedback included
-   * (`inbox.mapper.ts:37`, "Legacy column values must not be served"), and
+   * (`inbox-mapper.server.ts:37`, "Legacy column values must not be served"), and
    * `findDetailById` never writes it back. So `detail.item.rating` is null for
    * both sources — which is why the detail pane could never draw stars. Only
    * the LIST projection re-populates `rating`, from the same eligible lookup

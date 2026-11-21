@@ -1,6 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
-import { persistedHeadFromItemRow } from '#/contexts/inbox/infrastructure/inbox-cycle-head'
+import { persistedHeadFromItemRow } from '#/contexts/reputation/inbox/inbox-cycle-head.server'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
@@ -9,20 +9,20 @@ import {
   inboxBulkReopenCompleted,
   type InboxBulkReopenedCycle,
 } from '#/contexts/reputation/domain/inbox-events'
-import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import {
   matchesLockedBulkReopenState,
   sourceCommandPermission,
   webActorId,
-} from '#/contexts/inbox/infrastructure/inbox-command-guards'
-import { appendEscalationHistory } from '#/contexts/inbox/infrastructure/inbox-escalation-history'
+} from '#/contexts/reputation/inbox/inbox-command-guards.server'
+import { appendEscalationHistory } from '#/contexts/reputation/inbox/inbox-escalation-history.server'
 import {
   appendPriorityHistory,
   guardPriorityCommand,
   managerPriorityColumns,
-} from '#/contexts/inbox/infrastructure/inbox-priority-history'
-import { reopenLockedBulkItem } from '#/contexts/inbox/infrastructure/inbox-bulk-commands'
+} from '#/contexts/reputation/inbox/inbox-priority-history.server'
+import { reopenLockedBulkItem } from '#/contexts/reputation/inbox/inbox-bulk-commands.server'
 import type { CommandRuntime } from './command-runtime.server'
 
 export const createStatusCommands = (

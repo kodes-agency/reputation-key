@@ -127,7 +127,7 @@ export type InboxCaseToolbarProps = Readonly<{
   /**
    * `detail.feedbackHandling`, passed through un-gated. The server already
    * null-gates it on the handle pair and the property's handle scope
-   * (`get-inbox-item-detail.ts:142-160`), and the
+   * (`get-inbox-item-detail.server.ts:142-160`), and the
    * item KIND must still come from `item.sourceType`, never from whether this
    * is null — see the `StatusMember` comment in `inbox-case-toolbar.tsx`.
    */

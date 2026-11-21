@@ -33,7 +33,7 @@ beforeEach(clearTestContainerEnv)
 describe('BQC-3.2 delayed policy delegation', () => {
   it('no *.job.ts handler file imports or calls the capability gate directly', () => {
     const jobFiles = walk(join(ROOT, 'src/contexts')).filter(
-      (f) => f.endsWith('.job.ts') && !f.endsWith('.test.ts'),
+      (f) => /[.-]job(?:\.server)?\.ts$/u.test(f) && !f.endsWith('.test.ts'),
     )
     expect(jobFiles.length).toBeGreaterThan(0)
 

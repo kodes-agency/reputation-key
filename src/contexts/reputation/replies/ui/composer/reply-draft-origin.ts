@@ -44,7 +44,7 @@ export type ReplyDraftAdoption = Readonly<{
  * `aiGenerated: false` (the `ends_adoption` rule of a draft save, applied by
  * `reputation/replies/store.server.ts`), so a saved `true` still describes the text, and
  * the saved tag is the one the AI acceptance store stamped
- * (`ai-suggested-draft-store.ts`).
+ * (`ai-suggested-draft-store.server.ts`).
  *
  * Within a mount the template tag follows `hasAiDraft` exactly: an adoption
  * sets it, the next adoption replaces it, and a hand edit does not clear it.

@@ -1,0 +1,256 @@
+// Review context — reply repository port
+// Per architecture: "Repository ports for all data access."
+
+import type { Reply, ReplySource, ReplyStatus } from '../domain/review-types'
+import type {
+  PersistedPublicationState,
+  PublicationFailureClass,
+} from '../domain/reply-publication-workflow'
+import type { OrganizationId, PropertyId, ReplyId, ReviewId } from '#/shared/domain/ids'
+
+/** Content-free reply lifecycle projection used by foreign read models. */
+export type ReplyMilestoneRow = Readonly<{
+  reviewId: ReviewId
+  firstSubmittedAt: Date | null
+  firstPublishedAt: Date | null
+}>
+
+/** Content-free reply state used by bounded foreign list enrichment. */
+export type ReplyStateRow = Readonly<{
+  reviewId: ReviewId
+  source: ReplySource
+  status: ReplyStatus
+  publicationState: PersistedPublicationState | null
+  publicationLastErrorClass: PublicationFailureClass | null
+  /** D8: set while automatic checks continue; decides the uncertain reply's queue. */
+  reconcileDueAt: Date | null
+  updatedAt: Date
+}>
+
+/**
+ * Content-free identity of the Google reply observation a Review's head
+ * selects: the fields Review's exact-current observation authority checks,
+ * never the reply text. A reply written on Google exists only as this head.
+ */
+export type GoogleReplyHeadRow = Readonly<{
+  reviewId: ReviewId
+  propertyId: PropertyId
+  observationRevision: number
+  sourceEpoch: number
+  materialReviewRevision: number
+  state: 'live' | 'absent'
+  change: 'added' | 'edited' | 'deleted' | 'unchanged'
+  resolution:
+    'confirmed_on_google' | 'external_current_live' | 'diverged' | 'absent' | 'unchanged'
+  provenance: 'repkey_confirmed' | 'external_or_unknown' | 'none'
+  matchedReplyId: ReplyId | null
+  matchedPublicationCycle: number | null
+  observedAt: Date
+}>
+
+/** Content-free reply candidate used to partition effective queue stages. */
+export type ReplyStageRow = Readonly<{
+  reviewId: ReviewId
+  source: ReplySource
+  stage: 'needs_reply' | 'awaiting' | 'waiting'
+}>
+
+/** Exact attempt key used to load content-free propagation timing evidence. */
+export type PublicationAttemptReference = Readonly<{
+  organizationId: OrganizationId
+  reviewId: ReviewId
+  replyId: ReplyId
+  publicationCycle: number
+  attemptNumber: number
+}>
+
+/** Existing evidence that bounds pending-observation propagation grace. */
+export type PublicationAttemptObservationProgress = Readonly<{
+  attemptStartedAt: Date
+  absentObservationCount: number
+}>
+export type ConditionalReplyUpdate = Readonly<{
+  measurementGenerationId?: string | null
+  status?: ReplyStatus
+  text?: string
+  replyLanguageTag?: string | null
+  templateLayer?: Reply['templateLayer']
+  templateRef?: string | null
+  templateRevision?: number | null
+  templateWordingKey?: string | null
+  voiceDigest?: string | null
+  voiceChoices?: Reply['voiceChoices']
+  aiGenerated?: boolean
+  submittedAt?: Date | null
+  submittedBy?: string | null
+  approvedBy?: string | null
+  approvedAt?: Date | null
+  rejectedBy?: string | null
+  rejectionReason?: string | null
+  publishedAt?: Date | null
+  /** Publication state machine fields (migration 0015). */
+  publicationState?: PersistedPublicationState | null
+  /** Monotonic approval/edit/retry cycle fence. */
+  publicationCycle?: number
+  publicationAttempts?: number
+  publicationLastErrorClass?: PublicationFailureClass | null
+  reconcileDueAt?: Date | null
+}>
+
+/** What a manager's draft save may change. Status, rejection and authorship
+ * are the store's to set. */
+export type DraftReplyContent = Readonly<{
+  /** The caller named the revision it shows, so the write must find that revision. */
+  fenceStateRevision?: boolean
+  measurementGenerationId?: string | null
+  text: string
+  replyLanguageTag?: string | null
+  templateLayer?: Reply['templateLayer']
+  templateRef?: string | null
+  templateRevision?: number | null
+  templateWordingKey?: string | null
+  voiceDigest?: string | null
+  voiceChoices?: Reply['voiceChoices']
+}>
+
+export type ReplyRepository = Readonly<{
+  findById(id: ReplyId, organizationId: OrganizationId): Promise<Reply | null>
+  findByReviewId(
+    reviewId: ReviewId,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<Reply>>
+  findInternalByReviewId(
+    reviewId: ReviewId,
+    organizationId: OrganizationId,
+  ): Promise<Reply | null>
+  /**
+   * Earliest lifecycle timestamps for a bounded review set, never reply text.
+   * `firstPublishedAt` also counts the reply Google shows now (its head is
+   * `live`), at the time Google reports for it, else when RepKey read it: a
+   * reply written on Google has no `replies` row.
+   */
+  findMilestonesByReviewIds(
+    reviewIds: ReadonlyArray<ReviewId>,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<ReplyMilestoneRow>>
+  /**
+   * The Google reply observation head of each review in a bounded set, in one
+   * query. A review Google was never read for has no head and is absent.
+   */
+  findCurrentGoogleReplyHeadsByReviewIds(
+    reviewIds: ReadonlyArray<ReviewId>,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<GoogleReplyHeadRow>>
+  /**
+   * Current reply state scalars for a bounded review set. One query returns
+   * every source candidate so the consumer can apply effective-reply precedence
+   * without exposing reply text or actor identity.
+   */
+  findStatesByReviewIds(
+    reviewIds: ReadonlyArray<ReviewId>,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<ReplyStateRow>>
+  findReviewIdsByReplyStage(
+    organizationId: OrganizationId,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ): Promise<ReadonlyArray<ReplyStageRow>>
+  /**
+   * Keyset-bounded batch of every non-terminal publication state whose
+   * recovery deadline is due, ordered (reconcileDueAt ASC, id ASC). `cursor`
+   * resumes strictly AFTER (reconcileDueAt, id). The recurring sweep either
+   * advances or settles each returned row; it never writes to the provider.
+   */
+  findDuePublicationReconciliationBatch(
+    now: Date,
+    cursor: Readonly<{ reconcileDueAt: Date; id: string }> | null,
+    limit: number,
+  ): Promise<ReadonlyArray<Reply>>
+  /**
+   * The current attempt's durable start and successful targeted-absence read
+   * count. Missing/mismatched evidence returns null so callers fail closed to
+   * the existing ambiguity path.
+   */
+  findPublicationAttemptObservationProgress(
+    attempt: PublicationAttemptReference,
+  ): Promise<PublicationAttemptObservationProgress | null>
+  /**
+   * D3/D4: when the exact attempt row was created
+   * (reply_publication_attempts.created_at), the clock for the uncertain-send
+   * grace, the ambiguous read ladder and the dispatch-evidence window. Null
+   * when no such attempt exists, so callers fail closed.
+   */
+  findCurrentPublicationAttemptStartedAt(
+    attempt: PublicationAttemptReference,
+  ): Promise<Date | null>
+  /**
+   * Replies of the given reviews whose publication cycle was never
+   * dispatched (requested/authorized) — the rows a disconnect may cancel. A
+   * sending or pending_observation cycle may already be on Google, so it stays
+   * with the worker and the reconciliation sweep, exactly as the
+   * Property-archive cancellation leaves it. Bounded by the caller's batch.
+   */
+  findUndispatchedPublicationsByReviewIds(
+    reviewIds: ReadonlyArray<ReviewId>,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<Reply>>
+  /**
+   * Up to `limit` replies of one Property's reviews, ordered by id, whose
+   * publication cycle can no longer be sent: not yet dispatched
+   * (`requested`/`authorized`), and either the Property is not active or the
+   * cycle was authorized at a source epoch behind the Property's current one
+   * (an Archive or Restore since approval). The provider authorizer would
+   * refuse every such write. Dispatched cycles (`sending`,
+   * `pending_observation`) may already be on Google and are left to the
+   * worker. A cancelled row leaves the set, so repeated calls drain it.
+   */
+  findUnsendablePublicationsByPropertyId(
+    propertyId: PropertyId,
+    organizationId: OrganizationId,
+    limit: number,
+  ): Promise<ReadonlyArray<Reply>>
+  upsert(reply: Omit<Reply, 'createdAt' | 'updatedAt'>, now?: Date): Promise<Reply>
+  /**
+   * Insert a review's first internal reply as a draft. Null when the review
+   * already has one (it was created after the caller looked): the insert never
+   * rewrites an existing reply, whatever its status.
+   */
+  createDraft(reply: Omit<Reply, 'createdAt' | 'updatedAt'>): Promise<Reply | null>
+  /**
+   * Rewrite a draft or a rejected reply as a human-authored draft. The write
+   * is a compare-and-set on the `save_draft` precondition
+   * (reputation/domain/reply-command-preconditions.ts): `reply` must be a draft or a
+   * rejected reply with no open publication, and the row must still have its
+   * status, publication state and cycle (and its state revision, when the
+   * content asks for that fence). Null otherwise, with nothing written.
+   *
+   * An AI-assisted reply is saved over like any other, whether or not its AI
+   * draft binding is still current: a manager typing over AI text makes the
+   * reply theirs, and the save clears its AI provenance
+   * (reputation/domain/reply-ai-text.ts).
+   */
+  saveDraft(reply: Reply, content: DraftReplyContent, now?: Date): Promise<Reply | null>
+  /**
+   * Delete a never-authorized draft or rejected reply (true), or clear a
+   * settled failed reply in place (its new revision). False when refused or
+   * stale. Publication evidence always keeps its reply row.
+   */
+  deleteDraft(reply: Reply): Promise<boolean | Pick<Reply, 'id' | 'stateRevision'>>
+  deleteByReviewIdAndSource(
+    reviewId: ReviewId,
+    source: ReplySource,
+    organizationId: OrganizationId,
+  ): Promise<void>
+}>
+
+/**
+ * The read-only reply slice Review publishes through `lookups.reply`.
+ * Other contexts get these five reads and nothing that writes.
+ */
+export type ReplyLookups = Pick<
+  ReplyRepository,
+  | 'findByReviewId'
+  | 'findMilestonesByReviewIds'
+  | 'findCurrentGoogleReplyHeadsByReviewIds'
+  | 'findStatesByReviewIds'
+  | 'findReviewIdsByReplyStage'
+>

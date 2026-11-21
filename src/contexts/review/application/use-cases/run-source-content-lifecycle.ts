@@ -6,8 +6,8 @@ import type {
   ReviewSourceContentLifecycleScope,
   ReviewSourceContentLifecycleStore,
   ReviewSourceContentShadowFinding,
-} from '../ports/source-content-lifecycle-store.port'
-import type { ReviewLifecycleRecoveryExecutionIdentity } from '../ports/lifecycle-recovery-execution-store.port'
+} from '../../../reputation/content/source-content-lifecycle-store.port.server'
+import type { ReviewLifecycleRecoveryExecutionIdentity } from '../../../reputation/content/lifecycle-recovery-execution-repository.port.server'
 import { ReviewDestructiveLifecycleQuarantinedError } from '../review-lifecycle-safety'
 
 export const REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT =

@@ -16,8 +16,8 @@ Event modules end in `-events.ts`: they are the only domain modules
 `src/shared/events` may import.
 
 The Reply workflow's hand-written oracle is `reply-workflow-oracle.test-fixtures.ts`.
-`reply-workflow.property.test.ts` here and Review's
-`infrastructure/reply-workflow.model.integration.test.ts` use it.
+`reply-workflow.property.test.ts` here and
+`replies/reply-workflow.model.integration.test.ts` use it.
 
 Review's and Inbox's layer code imports these files directly. Other areas reach
 them only through `review/application/public-api.ts` and
@@ -50,22 +50,26 @@ The Inbox page, queue, filter, row, selection, shortcut and cache primitives are
 in `inbox/ui/page/`, with their tests and stories. The Response Target chip and
 the deadline refresh that reloads the detail are in `response-targets/ui/`. The
 panel receives commands as props and reads browser-safe Inbox types through
-`src/contexts/inbox/application/public-api.ts`. Review and Inbox still own their
-server implementations, wiring and contracts in their existing contexts; see
-their area maps. Server functions remain at their existing `server/` paths.
+`src/contexts/inbox/application/public-api.ts`. Review and Inbox keep their
+server functions, builds, public APIs and the few browser-reached files their
+maps list; the rest of their code is in the features below. Server functions
+remain at their existing `server/` paths.
 
-`inbox/response-targets/` owns the Response Target server code Inbox shares with
-Settings: the target, policy, analytics and reminder-release stores (`*.store.server.ts`),
-the reminder release decision and tick (`reminder-release.server.ts`,
-`release-reminders.server.ts`), and its scheduler job. The Organization settings card and analytics summary stay
-in `response-targets/ui/`. The target rules themselves are in
-`domain/response-target.ts`. These stores still read Inbox's ports, and Inbox's
-build wires the stores and the job, so the two contexts depend on each other here
-until Inbox's ports move.
-The server files sit under `inbox/` so `inbox/*.server.ts` commands can use them
-without a cross-feature import; the UI sits at the feature level because a deeper
-`inbox/response-targets/ui/` is not classified by lint.
-Server functions stay in `src/contexts/inbox/server/`.
+Each port sits beside its implementation as `<impl>.port.server.ts`. A port
+implemented in a build or in composition sits with its callers. Inbox's copies of
+Review's authority ports are `inbox/review-*.port.server.ts`.
+
+`response-targets/` owns Response Targets end to end: the stores (`store`,
+`policy.store`, `analytics.store` and `reminder-release.store`, each
+`*.server.ts`) with their ports; `get-response-targets` and
+`set-response-target-policy`; the reminder release decision, the tick
+(`reminder-release.server.ts`, `release-reminders.server.ts`) and the
+`release-reminders.job.server.ts` scheduler job; `google-review-target-completion`
+and the archive consumer; the restated-revision exclusion store and its Review
+read; and, in `ui/`, the Organization settings card and analytics summary. The
+target rules stay in `domain/response-target.ts`. Inbox's command and projection
+code imports these server files directly. Server functions stay in
+`src/contexts/inbox/server/`.
 
 ## Reply writes
 
@@ -123,5 +127,41 @@ authority check and the single-row transition runner): `assignment-commands`
 (assign, bulk assign, release and manual reopen), `status-commands` (bulk
 reopen, escalation and priority), `note-commands` and `source-commands`
 (create, source projection, withdrawal, transition, reply observation and
-receipts). Helpers shared with the other Inbox stores stay in
-`contexts/inbox/infrastructure/`.
+receipts). Helpers shared with the other Inbox stores sit beside them in
+`inbox/` (guards, cycle head, projection, histories, mappers).
+
+## Review sync
+
+`sync/` holds the code that reads Google into Review: `admit-review-sync`
+(Integration's entry), discovery and the refresh sweep, provider snapshots and
+their runs, head checks, targeted reads, the check of one review on Google,
+provider subject keys and their inventory, and the worker runtime
+(`review-worker-runtime.server.ts`) that registers the Review jobs. Each job is
+`<name>-job.server.ts`. Review's `CONTEXT.md` names every job and what it does.
+
+## Reply publication
+
+`publication/` holds the path from an approved Reply to Google: the publish job
+with its pre-read and scope resolver, reconciliation of ambiguous attempts,
+dispatch evidence, the Google reply observation store with its fence and clock,
+cancellations and `publication-outbox-consumers.server.ts`.
+
+## Reviews
+
+`reviews/` holds the Review record: its repository, command store and Review
+writer, the observation repository and its retention, the exact-current
+authorities for reply observation, source transition and Response Targets, the
+governed reads (eligible reviews, serving stats, Google rating reads and weekly
+history) and the AI review source.
+
+## Content lifecycle
+
+`content/` holds provider content lifecycle: the content store, source-content
+purge, the lifecycle store and its sweeps, expiry activation, and operator
+recovery (evidence, approval and executor).
+
+## Reply library
+
+`library/` holds the manager's voice and templates: the library repository, the
+layer operations, the template frame choices and the AI reply frames. The
+resolver and its DTO stay in `review/application/`.

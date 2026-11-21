@@ -490,7 +490,7 @@ export const inboxCachePolicy = {
    * reject, delete, retry, edit or "Check Google again". The usual cause of a
    * refusal is a pane that is behind: another manager or tab already moved the
    * reply (rejected it, rewrote it, published it, took it out of every
-   * checkable state, `check-reply-publication.ts` NOTHING_TO_CHECK), and
+   * checkable state, `check-reply-publication.server.ts` NOTHING_TO_CHECK), and
    * nothing polls a reply that waits for a person (`replyRefetchInterval`). So
    * the review's detail, the lists and the counts are re-read, and the pane
    * shows the reply as it is instead of offering the refused command again.

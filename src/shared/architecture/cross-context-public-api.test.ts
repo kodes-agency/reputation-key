@@ -40,7 +40,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags application → foreign non-public-api application', async () => {
     // @proof ARCHITECTURE_BOUNDARY_IMPORTS#2
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
       'src/contexts/integration/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -56,7 +56,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows infrastructure/adapters → foreign application/ports (adapter exception)', async () => {
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
       'src/contexts/integration/infrastructure/adapters/sample.adapter.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -64,7 +64,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags infrastructure outside adapters/ → foreign application/ports', async () => {
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
       'src/contexts/integration/infrastructure/repositories/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -72,7 +72,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows a feature adapter → foreign application/ports (adapter exception)', async () => {
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
       'src/contexts/integration/imports/sample.adapter.server.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -80,7 +80,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags a feature server file that is not an adapter → foreign application/ports', async () => {
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'\nexport type { GoogleReviewApiPort }\n`,
       'src/contexts/integration/imports/sample.server.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -96,7 +96,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags infrastructure → foreign infrastructure', async () => {
     const messages = await lintSnippet(
-      `import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'\nexport const factory = createSourceContentPurge\n`,
+      `import { BetaFeedbackTriageRepository } from '#/contexts/identity/infrastructure/beta-feedback-triage.repository'\nexport const factory = BetaFeedbackTriageRepository\n`,
       'src/contexts/property/infrastructure/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -113,7 +113,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags context build.ts → foreign infrastructure', async () => {
     // @proof ARCHITECTURE_BOUNDARY_IMPORTS#1
     const messages = await lintSnippet(
-      `import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'\nexport const factory = createSourceContentPurge\n`,
+      `import { BetaFeedbackTriageRepository } from '#/contexts/identity/infrastructure/beta-feedback-triage.repository'\nexport const factory = BetaFeedbackTriageRepository\n`,
       'src/contexts/integration/build.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -146,7 +146,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags dynamic imports of foreign context infrastructure', async () => {
     // @proof ARCHITECTURE_BOUNDARY_IMPORTS#3
     const messages = await lintSnippet(
-      `export async function load() {\n  return import('#/contexts/review/infrastructure/source-content-purge')\n}\n`,
+      `export async function load() {\n  return import('#/contexts/identity/infrastructure/beta-feedback-triage.repository')\n}\n`,
       'src/contexts/property/application/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -170,7 +170,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags typeof inline imports of foreign context infrastructure', async () => {
     const messages = await lintSnippet(
-      `export type Purge = typeof import('#/contexts/review/infrastructure/source-content-purge')\n`,
+      `export type Purge = typeof import('#/contexts/identity/infrastructure/beta-feedback-triage.repository')\n`,
       'src/contexts/property/application/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)

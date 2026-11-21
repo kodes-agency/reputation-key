@@ -1,0 +1,34 @@
+// Inbox context — row ↔ domain mapper for inbox notes
+// Per architecture: pure functions, the only place where both row and domain shapes are known.
+
+import type { inboxNotes } from '#/shared/db/schema/inbox-workspace.schema'
+import type { InboxNote } from '../domain/inbox-types'
+import {
+  unbrand,
+  inboxNoteId,
+  inboxItemId,
+  organizationId,
+  userId,
+} from '#/shared/domain/ids'
+
+type InboxNoteRow = typeof inboxNotes.$inferSelect
+type InboxNoteInsertRow = typeof inboxNotes.$inferInsert
+
+export const inboxNoteFromRow = (row: InboxNoteRow): InboxNote => ({
+  id: inboxNoteId(row.id),
+  inboxItemId: inboxItemId(row.inboxItemId),
+  organizationId: organizationId(row.organizationId),
+  userId: userId(row.userId),
+  text: row.text,
+  createdAt: row.createdAt,
+})
+
+export const inboxNoteToInsertRow = (
+  note: Omit<InboxNote, 'createdAt'>,
+): InboxNoteInsertRow => ({
+  id: unbrand(note.id),
+  inboxItemId: unbrand(note.inboxItemId),
+  organizationId: unbrand(note.organizationId),
+  userId: unbrand(note.userId),
+  text: note.text,
+})

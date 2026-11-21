@@ -67,7 +67,7 @@ import {
   createWorkerProcessFailurePolicy,
   type WorkerTerminationTrigger,
 } from './process-failure'
-import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
+import { createPublishReplyScopeResolver } from '#/contexts/reputation/publication/publish-reply-scope-resolver.server'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { OUTBOX_DELIVERY_KIND } from '#/shared/outbox/dispatch-job-options'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'

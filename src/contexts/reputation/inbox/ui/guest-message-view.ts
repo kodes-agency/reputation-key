@@ -95,7 +95,7 @@ export type GuestReviewBodyInput = Readonly<{
   reviewContentStatus: ReviewContentStatus
   /**
    * `detail.reviewReplyLanguage` — the review's language CANONICALIZED by
-   * `get-inbox-item-detail.ts:183-188` (`bg-BG` → `bg-Cyrl-BG`). The only
+   * `get-inbox-item-detail.server.ts:183-188` (`bg-BG` → `bg-Cyrl-BG`). The only
    * operand the comparison can use; see `provenForeignToProperty`.
    */
   reviewLanguageTag: string | null | undefined
@@ -185,7 +185,7 @@ function isContentGone(status: ReviewContentStatus): boolean {
  * `<lang>-<Script>` group (`reply-language-catalogue.ts:81-96`), so a raw
  * `bg-BG` proves nothing either way and keeps the guest's words as the body.
  * `propertyDefaultReplyLanguage` is already canonical or null
- * (`get-inbox-item-detail.ts:178-182`); parsing it again costs nothing and
+ * (`get-inbox-item-detail.server.ts:178-182`); parsing it again costs nothing and
  * keeps this function honest for a caller that is not the use case.
  *
  * What this still does NOT prove is that the reader can read the translation:

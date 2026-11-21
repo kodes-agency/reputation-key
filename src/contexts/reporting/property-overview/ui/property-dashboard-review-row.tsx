@@ -15,7 +15,7 @@ import { cn } from '#/lib/utils'
  * value that is not an instant. That threw during render, so the whole
  * property page died rather than one row losing its date — which is what the
  * e2e error gate caught on /properties/$id. The read returns a Date now
- * (`review/infrastructure/serving-stats.ts`); this guard stays, because
+ * (`reputation/reviews/serving-stats.server.ts`); this guard stays, because
  * `formatDate` answers null for anything that is not a real instant.
  */
 export function formatReviewedAt(value: Date): string | null {

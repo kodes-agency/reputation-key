@@ -5,8 +5,11 @@ import type {
   PublicationFailureClass,
 } from '../../../reputation/domain/reply-publication-workflow'
 import type { Reply } from '../../../reputation/domain/review-types'
-import type { ReplyCommandStore } from './reply-command-store.port'
-import type { ConditionalReplyUpdate, ReplyRepository } from './reply.repository'
+import type { ReplyCommandStore } from '../../../reputation/replies/reply-command-store.port.server'
+import type {
+  ConditionalReplyUpdate,
+  ReplyRepository,
+} from '../../../reputation/replies/reply-repository.port.server'
 
 /** Outcomes an uncertain attempt row can still carry. */
 export const UNCERTAIN_ATTEMPT_OUTCOMES = ['sending', 'ambiguous'] as const

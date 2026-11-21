@@ -23,9 +23,9 @@ import {
   getInboxQueueCountsDto,
   getInboxPropertyCountsDto,
 } from '../application/dto/inbox.dto'
-import { decodeInboxCursor } from '../application/inbox-cursor'
+import { decodeInboxCursor } from '../../reputation/inbox/inbox-cursor.server'
 import { REPLY_STAGE_QUEUES, type InboxQueue } from '../application/inbox-queues'
-import { sourceDateWindow } from '../application/source-date-window'
+import { sourceDateWindow } from '../../reputation/inbox/source-date-window.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 /**

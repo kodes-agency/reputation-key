@@ -10,7 +10,7 @@
 // (`ReviewReplyPublicationCancelled`) and Feed's notice copy share. Review
 // records the first four when it stops a cycle; `source_changed` also when a
 // guest edit returns to draft a reply that was awaiting approval, or one whose
-// publication had failed (review/infrastructure/review-command-store.ts).
+// publication had failed (reputation/reviews/review-command-store.server.ts).
 // `ai_draft_withdrawn` is recorded by the AI draft purge
 // (src/shared/db/ai/ai-draft-purge.ts), which runs inside other contexts'
 // transactions: this schema is what checks the fact it builds. Review's

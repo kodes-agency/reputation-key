@@ -4,7 +4,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxUserViews } from '#/shared/db/schema/inbox-workspace.schema'
-import type { InboxViewRepository } from '#/contexts/inbox/application/ports/inbox-view.repository'
+import type { InboxViewRepository } from '#/contexts/reputation/inbox/inbox-view-repository.port.server'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { Pool } from 'pg'
 import { createDashboardRepository } from './dashboard-repository.server'
-import { createServingStats } from '#/contexts/review/infrastructure/serving-stats'
+import { createServingStats } from '#/contexts/reputation/reviews/serving-stats.server'
 import { createMetricStatsAdapter } from './metric-stats.adapter.server'
 import type { ReviewStatsPort } from './review-stats.port.server'
 import type { MetricStatsPort } from './metric-stats.port.server'

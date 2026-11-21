@@ -648,7 +648,7 @@ describe('the publication table against the hand-written workflow', () => {
    * The production event that carries each workflow event's state change.
    * Three workflow events are decided outside this table and are not listed:
    * `confirm` and `supersede` are the observation authority's own guarded
-   * writes (google-reply-observation-store.ts), and `settle_never_sent` is the
+   * writes (google-reply-observation-store.server.ts), and `settle_never_sent` is the
    * store's evidence-locked settle. The PostgreSQL model test covers them.
    */
   const PRODUCTION_EVENT: Readonly<

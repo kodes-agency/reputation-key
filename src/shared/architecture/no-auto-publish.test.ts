@@ -25,9 +25,10 @@ import { join, relative } from 'node:path'
 const ROOT = process.cwd()
 const SRC = join(ROOT, 'src')
 
-const OPS_FILE = 'src/contexts/review/application/use-cases/reply-operations.ts'
-const RECOVERY_FILE = 'src/contexts/review/infrastructure/outbox-consumers.ts'
-const JOB_FILE = 'src/contexts/review/infrastructure/jobs/publish-reply.job.ts'
+const OPS_FILE = 'src/contexts/reputation/replies/reply-operations.server.ts'
+const RECOVERY_FILE =
+  'src/contexts/reputation/publication/publication-outbox-consumers.server.ts'
+const JOB_FILE = 'src/contexts/reputation/publication/publish-reply-job.server.ts'
 
 const CALL_RE = /\.addPublishJob\s*\(/
 const REQUEST_RE = /\breviewReplyPublicationRequested\s*\(/

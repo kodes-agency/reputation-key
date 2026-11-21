@@ -1,5 +1,5 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
+import { fixHistoryCutoff } from '#/contexts/reputation/sync/review-provider-snapshot-repository.server'
 import { buildGoogleImportedProperty } from '#/contexts/property/application/public-api'
 import { organizationId, propertyId, googleConnectionId } from '#/shared/domain/ids'
 import { randomUUID } from 'node:crypto'

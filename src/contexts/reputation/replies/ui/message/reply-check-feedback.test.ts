@@ -115,7 +115,7 @@ describe('replyCheckFeedback', () => {
 
   it('promises no further check for an unreadable reply once automatic checks have ended', () => {
     // Terminal ambiguity: the use case reschedules nothing for `unreadable`
-    // (check-reply-publication.ts resultFor → reply.reconcileDueAt, null here),
+    // (check-reply-publication.server.ts resultFor → reply.reconcileDueAt, null here),
     // and the description above the line already says checks have stopped.
     const feedback = replyCheckFeedback(
       result('unreadable_on_google', {

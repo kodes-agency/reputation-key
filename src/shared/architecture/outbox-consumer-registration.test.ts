@@ -103,21 +103,19 @@ const CATALOGUE_CONSUMER_MODULES: ReadonlySet<string> = new Set(
 
 /**
  * The catalogue module namespaces each context registers its consumers under.
- * Most contexts use their own name; Reputation holds the Inbox consumers; Feed owns notifications and Recent
- * Activity, and Reporting owns metrics and goals (root CONTEXT.md, "Bounded
- * contexts").
+ * Most contexts use their own name; Reputation holds the Review and Inbox
+ * consumers; Feed owns notifications and Recent Activity, and Reporting owns
+ * metrics and goals (root CONTEXT.md, "Bounded contexts").
  */
 const CONTEXT_MODULE_NAMESPACES: Readonly<Record<string, ReadonlyArray<string>>> = {
   ai: ['ai'],
   feed: ['activity', 'notification'],
   identity: ['identity'],
-  inbox: ['inbox'],
   integration: ['integration'],
   portal: ['portal'],
   property: ['property'],
   reporting: ['goal', 'metric'],
-  reputation: ['inbox'],
-  review: ['review'],
+  reputation: ['inbox', 'review'],
 }
 
 /**
@@ -165,7 +163,10 @@ describe('BQR-2.2: outbox consumer registration', () => {
       'utf-8',
     )
     const guestSrc = readFileSync(
-      join(ROOT, 'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts'),
+      join(
+        ROOT,
+        'src/contexts/reputation/inbox/guest-feedback-outbox-consumers.server.ts',
+      ),
       'utf-8',
     )
     expect(src).toContain("eventType: 'review.created'")
@@ -199,7 +200,10 @@ describe('BQR-2.2: outbox consumer registration', () => {
       'utf-8',
     )
     const consumerSrc = readFileSync(
-      join(ROOT, 'src/contexts/review/infrastructure/outbox-consumers.ts'),
+      join(
+        ROOT,
+        'src/contexts/reputation/publication/publication-outbox-consumers.server.ts',
+      ),
       'utf-8',
     )
 
@@ -228,7 +232,10 @@ describe('BQR-2.2: outbox consumer registration', () => {
       'utf-8',
     )
     const guestSrc = readFileSync(
-      join(ROOT, 'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts'),
+      join(
+        ROOT,
+        'src/contexts/reputation/inbox/guest-feedback-outbox-consumers.server.ts',
+      ),
       'utf-8',
     )
     expect(src).toContain('handleInboxReviewCreated')
@@ -319,19 +326,19 @@ describe('BQR-2.2: outbox consumer registration', () => {
         'registerConsumer({',
         "  eventType: 'integration.google.account.disconnected',",
         "  consumerName: 'review.on-google-account-disconnected',",
-        "  module: 'inbox.outbox-consumers',",
+        "  module: 'portal.health-outbox-consumers',",
         '  handler: async () => ({ status: "applied" }),',
         '})',
       ].join('\n')
       const registrations = parseRegistrations(
         src,
-        'src/contexts/review/infrastructure/outbox-consumers.ts',
+        'src/contexts/reputation/publication/publication-outbox-consumers.server.ts',
       )
 
       // The module is a real consumer row, so the row check alone accepts it.
-      expect(CATALOGUE_CONSUMER_MODULES.has('inbox.outbox-consumers')).toBe(true)
+      expect(CATALOGUE_CONSUMER_MODULES.has('portal.health-outbox-consumers')).toBe(true)
       expect(registrations.filter(isMisattributed).map(describeRegistration)).toEqual([
-        'src/contexts/review/infrastructure/outbox-consumers.ts: review.on-google-account-disconnected → inbox.outbox-consumers',
+        'src/contexts/reputation/publication/publication-outbox-consumers.server.ts: review.on-google-account-disconnected → portal.health-outbox-consumers',
       ])
     })
   })

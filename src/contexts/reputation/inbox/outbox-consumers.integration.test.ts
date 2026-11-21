@@ -28,34 +28,34 @@ import {
 import {
   handleInboxGuestFeedbackRetracted,
   handleInboxGuestFeedbackSubmitted,
-} from '#/contexts/inbox/infrastructure/guest-feedback-outbox-consumers'
+} from '#/contexts/reputation/inbox/guest-feedback-outbox-consumers.server'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,
-} from '#/contexts/inbox/application/ports/review-lookup.port'
+} from '#/contexts/reputation/inbox/review-lookup.port.server'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
-} from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import type { ApplyReceiptStatus } from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import type { ReplyObservationAuthorityPort } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
-import type { SourceTransitionAuthorityPort } from '#/contexts/inbox/application/ports/source-transition-authority.port'
+} from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { ApplyReceiptStatus } from '#/contexts/reputation/inbox/command-store.port.server'
+import type { ReplyObservationAuthorityPort } from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
+import type { SourceTransitionAuthorityPort } from '#/contexts/reputation/inbox/review-source-transition-authority.port.server'
 import type {
   ReviewResponseTargetAuthorityPort,
   ReviewResponseTargetExpectation,
-} from '#/contexts/inbox/application/ports/review-response-target-authority.port'
+} from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import {
   dropInboxOrganization,
   seedInboxItem,
   seedInboxOrganization,
   seedReviewSource,
-} from '#/contexts/inbox/infrastructure/inbox-database-fixtures'
+} from '#/contexts/reputation/inbox/inbox-database.test-fixtures'
 import {
   feedbackId,
   inboxItemId,
@@ -67,7 +67,7 @@ import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type {
   FeedbackLookupPort,
   FeedbackSnippet,
-} from '#/contexts/inbox/application/ports/feedback-lookup.port'
+} from '#/contexts/reputation/inbox/feedback-lookup.port.server'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'

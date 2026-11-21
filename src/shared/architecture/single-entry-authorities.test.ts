@@ -60,7 +60,10 @@ describe('Review lifecycle authority', () => {
   it('permits storage apply only through the checkpointed application authority', () => {
     expect(
       callersOf(
-        productionFiles('src/contexts/review', /\.ts$/u),
+        [
+          ...productionFiles('src/contexts/review', /\.ts$/u),
+          ...productionFiles('src/contexts/reputation', /\.ts$/u),
+        ],
         '.applyLifecycleBatch(',
       ),
     ).toEqual([
@@ -70,9 +73,9 @@ describe('Review lifecycle authority', () => {
 
   it('keeps Review purge/report jobs and operator adapters free of direct Review deletion', () => {
     const entryPoints = [
-      'src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.ts',
-      'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
-      'src/contexts/review/infrastructure/source-content-purge.ts',
+      'src/contexts/reputation/content/purge-expired-reviews-job.server.ts',
+      'src/contexts/reputation/content/review-provider-lifecycle-sweeps-job.server.ts',
+      'src/contexts/reputation/content/source-content-purge.server.ts',
       'scripts/ops/enqueue-purge.ts',
       'scripts/ops/restore-verify.ts',
     ] as const

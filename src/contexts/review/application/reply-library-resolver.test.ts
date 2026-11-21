@@ -4,7 +4,7 @@ import {
   BUILTIN_REPLY_LIBRARY_VERSION_NUMBER,
 } from '#/shared/reply-library/builtin-library'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { StoredReplyTemplate } from './ports/reply-library.repository'
+import type { StoredReplyTemplate } from '../../reputation/library/reply-library-repository.port.server'
 import { resolveReplyLibraryTemplates } from './reply-library-resolver'
 
 const ORG = organizationId('org-1')

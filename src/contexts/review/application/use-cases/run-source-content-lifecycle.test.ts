@@ -4,7 +4,7 @@ import type {
   ReviewSourceContentLifecycleInspection,
   ReviewSourceContentLifecycleScope,
   ReviewSourceContentLifecycleStore,
-} from '../ports/source-content-lifecycle-store.port'
+} from '../../../reputation/content/source-content-lifecycle-store.port.server'
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,

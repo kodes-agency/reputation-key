@@ -30,15 +30,15 @@ const FENCED_MIRROR_WRITERS: Readonly<Record<string, string>> = {
     'Assignment, release and manual reopen commands: every Inbox row write co-commits with the Handling Cycle facts, its transition row, and the outbox fact.',
   'contexts/reputation/inbox/source-commands.server.ts':
     'Receipt-coordinated source commands (create, withdraw, source transition): every Inbox row write co-commits with the Handling Cycle facts, its transition row, and the outbox fact.',
-  'contexts/inbox/infrastructure/inbox-source-projection.ts':
+  'contexts/reputation/inbox/inbox-source-projection.server.ts':
     'Source-driven projection commands and the item row writers they share: item rows converge with the Handling Cycle facts, its transition row and the outbox fact in one transaction.',
   'contexts/reputation/inbox/feedback-handling-store.server.ts':
     'Private-feedback outcome store: closes the cycle and the item row in one locked transaction.',
-  'contexts/inbox/infrastructure/review-reply-close.ts':
+  'contexts/reputation/inbox/review-reply-close.server.ts':
     "Close on a reply Google shows, shared by the reply-observed consumer and the projection rebuild: closes the Handling Cycle and the item row in one transaction, inside Review's exact-current observation permit.",
-  'contexts/inbox/infrastructure/review-epoch-carry-head.ts':
+  'contexts/reputation/inbox/review-epoch-carry-head.server.ts':
     "Review-attested source-epoch carry: moves only the Inbox row's source revision, under the row lock the caller holds, and writes no status.",
-  'contexts/inbox/infrastructure/review-handling-cycle.store.ts':
+  'contexts/reputation/inbox/review-handling-cycle-store.server.ts':
     "Opening a source's first Handling Cycle: stamps the cycle facts on the Inbox row inserted in the same transaction.",
   'contexts/reputation/inbox/inbox-repository.server.ts':
     'Only reply milestone stamping; the milestone seam cannot express a status or a cycle fact.',
@@ -54,11 +54,18 @@ function walk(directory: string): readonly string[] {
 
 const REPUTATION_INBOX_ROOT = join(REPO_SRC, 'contexts', 'reputation', 'inbox')
 const REPUTATION_DOMAIN_ROOT = join(REPO_SRC, 'contexts', 'reputation', 'domain')
+const REPUTATION_RESPONSE_TARGETS_ROOT = join(
+  REPO_SRC,
+  'contexts',
+  'reputation',
+  'response-targets',
+)
 
 const productionFiles = [
   ...walk(INBOX_ROOT),
   ...walk(REPUTATION_INBOX_ROOT),
   ...walk(REPUTATION_DOMAIN_ROOT),
+  ...walk(REPUTATION_RESPONSE_TARGETS_ROOT),
 ]
 
 const relativeToSrc = (absolute: string): string =>
@@ -129,12 +136,16 @@ describe('inbox_items carries the Handling Cycle facts its readers resolve from'
       .map(relativeToSrc)
       .sort()
     expect(columnCallers).toEqual([
-      'contexts/inbox/infrastructure/inbox-priority-history.ts',
+      'contexts/reputation/inbox/inbox-priority-history.server.ts',
       'contexts/reputation/inbox/status-commands.server.ts',
     ])
   })
 
-  it('keeps the application, server, and domain layers out of the mirror entirely', () => {
+  // The Inbox use cases now live beside their stores in Reputation's features, so
+  // no path marks them; the first test fences every writer there by name. What a
+  // path still marks stays out of the mirror entirely: the public API, the server
+  // functions and the domain.
+  it('keeps the public API, server functions and domain out of the mirror entirely', () => {
     const layered = productionFiles.filter((file) => {
       const path = relativeToSrc(file)
       return (
@@ -170,9 +181,9 @@ describe('inbox_items carries the Handling Cycle facts its readers resolve from'
       .map(relativeToSrc)
       .sort()
     expect(readers).toEqual([
-      'contexts/inbox/infrastructure/inbox-cycle-head.ts',
-      'contexts/inbox/infrastructure/review-epoch-carry-head.ts',
-      'contexts/inbox/infrastructure/review-handling-cycle.store.ts',
+      'contexts/reputation/inbox/inbox-cycle-head.server.ts',
+      'contexts/reputation/inbox/review-epoch-carry-head.server.ts',
+      'contexts/reputation/inbox/review-handling-cycle-store.server.ts',
     ])
   })
 

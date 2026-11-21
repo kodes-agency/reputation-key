@@ -85,7 +85,7 @@ const INTERNAL_NOTE = 'Called the guest; they accepted a partial refund.'
  * The language this property's managers reply in, spelled the only way the
  * comparison can use: `parseCanonicalReplyLanguageTag` wants a 7-character
  * `<lang>-<Script>` group (`reply-language-catalogue.ts:81-96`), and
- * `get-inbox-item-detail.ts:178-182` drops a configured value that does not
+ * `get-inbox-item-detail.server.ts:178-182` drops a configured value that does not
  * parse, so `propertyDefaultReplyLanguage` is canonical or null and never a
  * raw `bg-BG`.
  */
@@ -103,7 +103,7 @@ const reviewItem: InboxItem = {
   sourceDate: SOURCE_DATE,
   propertyName: PROPERTY_NAME,
   // What the detail read really returns: `inboxItemFromRow` sets `rating: null`
-  // on every row (`inbox.mapper.ts:37`), `findDetailById` never writes it
+  // on every row (`inbox-mapper.server.ts:37`), `findDetailById` never writes it
   // back, and that item is the pane's `item` (`use-inbox-detail.ts:232`), so
   // the pane never sees a number here.
   //
@@ -117,7 +117,7 @@ const feedbackItem: InboxItem = {
   ...makeInboxItem({ id: 'thread-feedback', sourceType: 'feedback' }),
   sourceDate: SOURCE_DATE,
   // What the detail read really returns, for feedback exactly as for reviews:
-  // `inboxItemFromRow` sets `rating: null` on every row (`inbox.mapper.ts:37`)
+  // `inboxItemFromRow` sets `rating: null` on every row (`inbox-mapper.server.ts:37`)
   // and `findDetailById` never writes it back. A number here could hide a pane
   // reading `item.rating` — the story would draw it from the row whether or not
   // `feedbackRatingValue` was read at all.
@@ -1428,7 +1428,7 @@ export const HistoryFailedPhone = onPhone(HistoryFailed)
 // (`google-review-api.adapter.ts:450`). The first story below is that shape.
 //
 // `reviewReplyLanguage` is the review's language CANONICALIZED by the use case
-// (`get-inbox-item-detail.ts:184-188`), and `item.reviewLanguageCode` is the
+// (`get-inbox-item-detail.server.ts:184-188`), and `item.reviewLanguageCode` is the
 // raw code the source served. Only the canonical tag can be compared —
 // `parseCanonicalReplyLanguageTag` returns null for a raw `bg-BG` — but the raw
 // code is a valid BCP 47 tag and still labels the original's `lang`.
@@ -1544,7 +1544,7 @@ export const OriginalFirstWithNoPropertyLanguage: Story = {
       reviewText: TR_ORIGINAL,
       reviewTranslatedText: TR_INTO_EN,
       reviewReplyLanguage: 'tr-Latn-TR',
-      // The property has never set one. `get-inbox-item-detail.ts:178-182`
+      // The property has never set one. `get-inbox-item-detail.server.ts:178-182`
       // returns null both when nothing is configured and when what is
       // configured does not canonicalize, so this is the same state either way.
       propertyDefaultReplyLanguage: null,
@@ -1683,7 +1683,7 @@ export const ContentExpired: Story = {
     await expect(canvasElement.querySelector('details')).toBeNull()
     // …and no stars. `detail.reviewRating` is null here and it is the pane's
     // ONLY rating source for a review — `item.rating` is not read, because the
-    // detail item's copy is null for every row (`inbox.mapper.ts:37`) and a
+    // detail item's copy is null for every row (`inbox-mapper.server.ts:37`) and a
     // fallback to it could only ever print a score beside a withdrawn review.
     expectNoRating(canvas)
 

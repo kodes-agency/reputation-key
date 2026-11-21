@@ -4,7 +4,7 @@
 // adopted as a draft. AI output is advisory (ADR 0031; AI CONTEXT, Invariants 5
 // and 6): it reaches Google only through a manager's own Confirm & Publish.
 // Until a manager has made the text their own, the AI draft binding
-// (infrastructure/ai-draft-binding.ts) holds it: everything it was generated
+// (replies/ai-draft-binding.server.ts) holds it: everything it was generated
 // from must still be current, and its ten-minute adoption window must not have
 // passed.
 //
@@ -27,7 +27,7 @@
 // A claim that is refused withdraws the Reply, exactly as that purge would at
 // its next run: the cycle is cancelled, the AI text is removed, and what is
 // left is an empty draft a manager writes a new reply into
-// (infrastructure/unclaimable-publication.ts).
+// (publication/unclaimable-publication.server.ts).
 //
 // Each command therefore states which of three things it does with AI text:
 //
@@ -48,7 +48,7 @@
 // Organization export carries it. It changes only when the text does: a Reply
 // whose words are still the suggestion's stays `ai_assisted` through approval,
 // failure, a retry and publication, and becomes `human` through the one
-// mechanism a typed-over draft uses (reply-set-clause.ts, `aiGenerated: false`).
+// mechanism a typed-over draft uses (reply-set-clause.server.ts, `aiGenerated: false`).
 
 import type { ReplyCommand } from './reply-command-preconditions'
 

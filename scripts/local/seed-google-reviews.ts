@@ -21,12 +21,12 @@ import { reviewSourceContents } from '../../src/shared/db/schema/review-source-c
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { registerAllEventSchemas } from '../../src/shared/events/schema-registrations'
 import { insertOutboxRow } from '../../src/shared/outbox/commit'
-import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
+import { computeAiReviewSourceProvenance } from '../../src/contexts/reputation/reviews/ai-review-source.server'
 import {
   reviewGoogleReputationSnapshotVerified,
   type ReviewGoogleReputationSnapshotVerified,
 } from '../../src/contexts/reputation/domain/review-events'
-import { createGoogleRatingReads } from '../../src/contexts/review/infrastructure/google-rating-reads'
+import { createGoogleRatingReads } from '../../src/contexts/reputation/reviews/google-rating-reads.server'
 import { displayedTenths } from '../../src/contexts/reporting/domain/rating-goal-numbers'
 import { createCurrentGoogleReputationSnapshotRepository } from '../../src/contexts/reporting/readings/current-google-reputation-snapshot-repository.server'
 

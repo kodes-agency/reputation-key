@@ -12,12 +12,12 @@ import {
   answeredEditFixtures,
   type AnsweredEditRevision,
 } from '#/shared/testing/answered-review-edit-fixtures'
-import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
+import { createGoogleReplyObservationStore } from '#/contexts/reputation/publication/google-reply-observation-store.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import {
   handleInboxReplyObserved,
   handleInboxReviewCreated,

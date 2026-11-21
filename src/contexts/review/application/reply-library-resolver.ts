@@ -6,7 +6,7 @@ import type { ReplyLibraryRef, ReplyLibraryTemplateDto } from './dto/reply-libra
 import type {
   StoredReplyTemplate,
   StoredReplyTemplateVisibility,
-} from './ports/reply-library.repository'
+} from '../../reputation/library/reply-library-repository.port.server'
 
 type ResolveInput = Readonly<{
   builtin: BuiltinReplyLibrary

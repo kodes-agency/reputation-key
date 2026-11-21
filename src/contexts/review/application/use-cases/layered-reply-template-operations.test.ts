@@ -4,8 +4,8 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
-import type { ReplyLibraryRepository } from '../ports/reply-library.repository'
-import type { ReviewRepository } from '../ports/review.repository'
+import type { ReplyLibraryRepository } from '../../../reputation/library/reply-library-repository.port.server'
+import type { ReviewRepository } from '../../../reputation/reviews/review-repository.port.server'
 import type { Reply, Review } from '../../../reputation/domain/review-types'
 import {
   listReplyTemplates,

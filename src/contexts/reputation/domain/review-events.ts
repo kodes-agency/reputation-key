@@ -446,7 +446,7 @@ export type ReviewReplyPublicationCancelled = Readonly<{
   authorId: UserId | null
   /**
    * `source_changed` is a newer source for the Review, most often a guest
-   * edit (`infrastructure/review-command-store.ts`). It names a reply whose
+   * edit (`reviews/review-command-store.server.ts`). It names a reply whose
    * open publication was stopped, and also a reply a manager wrote that had no
    * open publication and was returned to draft by a guest edit: one awaiting
    * approval, or one whose publication had failed. So it does not mean the
@@ -459,7 +459,7 @@ export type ReviewReplyPublicationCancelled = Readonly<{
    * sent and its text is gone, so unlike the other causes there is no draft
    * left to approve again. The publish worker's claim records it too, for a
    * reply whose AI text it refuses: it withdraws that reply as the purge
-   * would (`infrastructure/unclaimable-publication.ts`).
+   * would (`publication/unclaimable-publication.server.ts`).
    */
   cause:
     'disconnect' | 'policy' | 'source_changed' | 'provider_truth' | 'ai_draft_withdrawn'

@@ -21,20 +21,20 @@ import {
   readOutboxFacts,
   seedInboxScope,
   seedReviewSource,
-} from '#/contexts/inbox/infrastructure/inbox-database-fixtures'
+} from '#/contexts/reputation/inbox/inbox-database.test-fixtures'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
-} from '#/contexts/inbox/application/ports/review-source-lookup.port'
+} from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type {
   GoogleReplyHead,
   ReplyLookupPort,
   ReplyMilestones,
-} from '#/contexts/inbox/application/ports/reply-lookup.port'
+} from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type {
   CurrentReplyObservationPermit,
   ReplyObservationAuthorityPort,
-} from '#/contexts/inbox/application/ports/reply-observation-authority.port'
+} from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
 import {
   inboxItemId,
   organizationId,

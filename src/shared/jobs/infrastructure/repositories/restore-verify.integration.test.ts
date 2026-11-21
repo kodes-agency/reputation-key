@@ -46,7 +46,7 @@ import {
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
 import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
-import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
+import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
 import {
   runOperatorCommand,
   type OperatorIO,

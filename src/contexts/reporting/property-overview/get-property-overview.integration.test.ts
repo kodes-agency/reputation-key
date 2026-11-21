@@ -5,9 +5,9 @@ import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/doma
 import type { AttentionSignalsPort } from './attention-signals.port.server'
 import { getDashboardData } from './get-dashboard-data.server'
 import { getPropertyOverview } from './get-property-overview.server'
-import type { GetReviewInboxItemIds } from '#/contexts/inbox/application/use-cases/get-review-inbox-item-ids'
+import type { GetReviewInboxItemIds } from '#/contexts/reputation/inbox/get-review-inbox-item-ids.server'
 import { getDb } from '#/shared/db'
-import { createServingStats } from '#/contexts/review/infrastructure/serving-stats'
+import { createServingStats } from '#/contexts/reputation/reviews/serving-stats.server'
 import {
   recordedDashboardRepo,
   seedDashboardProperty,

@@ -18,14 +18,14 @@ import {
   type InboxAssignmentRelease,
   type InboxAssignmentReleaseReason,
 } from '#/contexts/reputation/domain/inbox-events'
-import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
+import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
 import {
   cycleHeadItemColumns,
   mirrorCycleHead,
   persistedHeadFromItemRow,
-} from '#/contexts/inbox/infrastructure/inbox-cycle-head'
+} from '#/contexts/reputation/inbox/inbox-cycle-head.server'
 import { createNextHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import {
   assignmentAuthorityKey,
   handlingCycleHeadFromRow,
@@ -33,21 +33,21 @@ import {
   matchesLockedBulkAssignState,
   sourceCommandPermission,
   webActorId,
-} from '#/contexts/inbox/infrastructure/inbox-command-guards'
+} from '#/contexts/reputation/inbox/inbox-command-guards.server'
 import {
   currentAssignmentCycleNumber,
   insertAssignmentFact,
-} from '#/contexts/inbox/infrastructure/inbox-assignment-facts'
+} from '#/contexts/reputation/inbox/inbox-assignment-facts.server'
 import type {
   InboxCommandAuthorityPrincipal,
   InboxCommandAuthorityRequirement,
-} from '#/contexts/inbox/infrastructure/inbox-command-authority'
+} from '#/contexts/reputation/inbox/inbox-command-authority.server'
 import {
   assertManualReopenHonest,
   insertNextHandlingCycleDecision,
   updateItemRow,
-} from '#/contexts/inbox/infrastructure/inbox-source-projection'
-import { applyBulkAssignmentToItem } from '#/contexts/inbox/infrastructure/inbox-bulk-commands'
+} from '#/contexts/reputation/inbox/inbox-source-projection.server'
+import { applyBulkAssignmentToItem } from '#/contexts/reputation/inbox/inbox-bulk-commands.server'
 import type { CommandRuntime } from './command-runtime.server'
 
 const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

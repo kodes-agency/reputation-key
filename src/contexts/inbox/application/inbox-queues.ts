@@ -1,4 +1,4 @@
-import type { InboxFilters } from './ports/inbox.repository'
+import type { InboxFilters } from '../../reputation/inbox/inbox-repository.port.server'
 import type { ReviewId, UserId } from '#/shared/domain/ids'
 import { inboxError } from '../../reputation/domain/inbox-errors'
 import {

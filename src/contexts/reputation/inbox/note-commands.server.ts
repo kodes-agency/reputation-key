@@ -2,13 +2,13 @@ import { inboxNotes } from '#/shared/db/schema/inbox-workspace.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
-import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
+import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
 import {
   inboxNoteFromRow,
   inboxNoteToInsertRow,
-} from '#/contexts/inbox/infrastructure/mappers/inbox-note.mapper'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import { updateItemRow } from '#/contexts/inbox/infrastructure/inbox-source-projection'
+} from '#/contexts/reputation/inbox/inbox-note-mapper.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
+import { updateItemRow } from '#/contexts/reputation/inbox/inbox-source-projection.server'
 import type { CommandRuntime } from './command-runtime.server'
 
 export const createNoteCommands = (

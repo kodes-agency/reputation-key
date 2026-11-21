@@ -258,7 +258,7 @@ describe('publication failure copy', () => {
   })
 
   /**
-   * `sending` is claimed BEFORE the provider call (publish-reply.job.ts
+   * `sending` is claimed BEFORE the provider call (publish-reply-job.server.ts
    * header), and D4 settles some of those attempts as never dispatched. The
    * sentence may not assert a send the code cannot know happened.
    */

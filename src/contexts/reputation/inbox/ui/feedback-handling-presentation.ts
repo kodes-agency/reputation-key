@@ -53,7 +53,7 @@ export const feedbackHandlingOutcomeLabel = (
  *
  * Branch order is load-bearing. `open`
  * first: a reopened cycle carries no outcome of its own (history is scoped to
- * `head.currentCycleNumber`, feedback-handling.store.ts:294), so `mark` is the
+ * `head.currentCycleNumber`, feedback-handling-store.port.server.ts:294), so `mark` is the
  * only honest offer there. Then a recorded outcome, because a correction can
  * only supersede one — `submitFeedbackHandlingDecision` resolves silently with
  * no `currentOutcome` to pin. Everything left is a close that carries no
@@ -125,7 +125,7 @@ const isPermanentlyUnhandleableClose = (
  * own honest word:
  *
  *  * the caller may READ private feedback but not HANDLE it, so the server
- *    withholds `feedbackHandling` entirely (`get-inbox-item-detail.ts:133-155`)
+ *    withholds `feedbackHandling` entirely (`get-inbox-item-detail.server.ts:133-155`)
  *    and the open/handled word comes from `item.status` instead. This is why
  *    the fallback here is `itemStatus` and not a second `sourceType` test.
  *    There is no `closeReason` on that path to branch on, so it reads the bare

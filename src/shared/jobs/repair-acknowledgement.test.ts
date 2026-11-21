@@ -24,7 +24,7 @@ function contract(
   return {
     jobName: FAMILY,
     owner: 'review',
-    processor: 'src/contexts/review/infrastructure/jobs/sync-property-reviews.job.ts',
+    processor: 'src/contexts/reputation/sync/sync-property-reviews-job.server.ts',
     action: 'system:review.sync',
     capability: 'property.connect_gbp',
     queue: 'default',

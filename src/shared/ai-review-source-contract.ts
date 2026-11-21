@@ -601,7 +601,7 @@ export function canonicalizeRawAiReviewSentences(
 
 /**
  * The canonical source revision 1 made of the same raw input. Only for
- * recognising a digest stored before revision 2 (`ai-review-source.ts`); it is
+ * recognising a digest stored before revision 2 (`ai-review-source.server.ts`); it is
  * never what a model reads or what a new row stores.
  */
 export function canonicalizeRawAiReviewSourcePreviousRevision(

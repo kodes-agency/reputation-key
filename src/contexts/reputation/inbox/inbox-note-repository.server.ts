@@ -5,13 +5,13 @@
 import { and, eq, desc } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxNotes } from '#/shared/db/schema/inbox-workspace.schema'
-import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
+import type { InboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.port.server'
 import type { InboxNote } from '#/contexts/reputation/domain/inbox-types'
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
 import {
   inboxNoteFromRow,
   inboxNoteToInsertRow,
-} from '#/contexts/inbox/infrastructure/mappers/inbox-note.mapper'
+} from '#/contexts/reputation/inbox/inbox-note-mapper.server'
 import { trace } from '#/shared/observability/trace'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 

@@ -4,21 +4,21 @@
 // closes private feedback.
 // Escalation is a separate, orthogonal action.
 
-import { lentTransactionArgs } from '#/contexts/inbox/application/ports/review-open-transaction'
-import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
+import { lentTransactionArgs } from '#/contexts/reputation/inbox/review-open-transaction.port.server'
+import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import type {
   InboxCommandStore,
   ReopenReviewHandlingCycleCommand,
-} from '#/contexts/inbox/application/ports/inbox-command-store.port'
+} from '#/contexts/reputation/inbox/command-store.port.server'
 import { reviewId } from '#/shared/domain/ids'
 import type {
   HandlingCycleHead,
   InboxItem,
   ReviewHandlingCycleHead,
 } from '#/contexts/reputation/domain/inbox-types'
-import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/ports/review-handling-cycle.store'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
+import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { validateTransition } from '#/contexts/reputation/domain/inbox-rules'
@@ -27,8 +27,8 @@ import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import type {
   UpdateInboxStatus,
   UpdateInboxStatusInput,
-} from '#/contexts/inbox/application/inbox-status-commands'
-import { loadItemForCommand } from '#/contexts/inbox/application/inbox-access'
+} from '#/contexts/reputation/inbox/inbox-status-commands.server'
+import { loadItemForCommand } from '#/contexts/reputation/inbox/inbox-access.server'
 
 export type UpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository

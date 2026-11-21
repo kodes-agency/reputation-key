@@ -1,0 +1,226 @@
+import { reviewIdentityValues } from '#/contexts/reputation/application/public-api'
+// Review context — review mapper tests
+
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { describe, it, expect } from 'vitest'
+import { reviewFromRow, type ReviewHeadRow } from './review-mapper.server'
+import { isReviewError } from '../domain/review-errors'
+
+type ReviewRow = ReviewHeadRow
+
+const now = new Date('2025-06-01T12:00:00Z')
+const reviewedAt = new Date('2025-05-27T12:00:00Z')
+const expiresAt = new Date('2025-06-26T12:00:00Z')
+
+const sampleRow: ReviewRow = {
+  id: 'rev-uuid-001',
+  organizationId: 'org-uuid-001',
+  propertyId: 'prop-uuid-001',
+  platform: 'google',
+  externalId: 'google-review-123',
+  externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  googleConnectionId: 'conn-uuid-001',
+  reviewerName: 'Jane Doe',
+  reviewerProfilePhotoUrl: 'https://example.com/photo.jpg',
+  // Synthetic (test-fixtures/google-provider-identifiers-v1.json).
+  googleReviewUrl:
+    'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001',
+  rating: 5,
+  text: 'Great place!',
+  translatedText: null,
+  languageCode: 'en',
+  reviewedAt,
+  expiresAt,
+  sentimentLabel: 'positive',
+  sentimentScore: 0.92,
+  sourceCreatedAt: reviewedAt,
+  sourceUpdatedAt: null,
+  firstFetchedAt: now,
+  lastFetchedAt: now,
+  contentExpiresAt: null,
+  contentHash: null,
+  sourceSeenGeneration: null,
+  sourceEpoch: 3,
+  sourceRevision: 7,
+  sourceObservationSequence: 0,
+  materialNormalizationVersion: null,
+  materialSourceDigest: null,
+  materialNormalizedDigest: null,
+  analysisSequence: 11,
+  aiSourceByteLength: 32,
+  aiSourceDigest: 'a'.repeat(64),
+  sourceContentState: 'active',
+  sourceContentErasedAt: null,
+  replyStateRevision: 0,
+  createdAt: now,
+  updatedAt: now,
+}
+
+describe('reviewFromRow', () => {
+  it('brands IDs correctly', () => {
+    const review = reviewFromRow(sampleRow)
+    expect(String(review.id)).toBe('rev-uuid-001')
+    expect(String(review.organizationId)).toBe('org-uuid-001')
+    expect(String(review.propertyId)).toBe('prop-uuid-001')
+    expect(String(review.googleConnectionId)).toBe('conn-uuid-001')
+  })
+
+  it('maps all fields', () => {
+    const review = reviewFromRow(sampleRow)
+    expect(review.platform).toBe('google')
+    expect(review.externalId).toBe('google-review-123')
+    expect(review.externalLocationId).toBe(GOOGLE_LOCATION_PRIMARY_RESOURCE)
+    expect(review.reviewerName).toBe('Jane Doe')
+    expect(review.reviewerProfilePhotoUrl).toBe('https://example.com/photo.jpg')
+    expect(review.googleReviewUrl).toBe(sampleRow.googleReviewUrl)
+    expect(review.rating).toBe(5)
+    expect(review.text).toBe('Great place!')
+    expect(review.languageCode).toBe('en')
+    expect(review.reviewedAt).toBe(reviewedAt)
+    expect(review.expiresAt).toBe(expiresAt)
+    expect(review.sentimentLabel).toBe('positive')
+    expect(review.sentimentScore).toBe(0.92)
+    expect(review.sourceEpoch).toBe(3)
+    expect(review.sourceRevision).toBe(7)
+    expect(review.createdAt).toBe(now)
+    expect(review.updatedAt).toBe(now)
+  })
+
+  it('handles null googleConnectionId', () => {
+    const row = { ...sampleRow, googleConnectionId: null }
+    const review = reviewFromRow(row)
+    expect(review.googleConnectionId).toBeNull()
+  })
+
+  it('handles null optional fields', () => {
+    const row: ReviewRow = {
+      ...sampleRow,
+      reviewerName: null,
+      reviewerProfilePhotoUrl: null,
+      googleReviewUrl: null,
+      text: null,
+      languageCode: null,
+      sentimentLabel: null,
+      sentimentScore: null,
+    }
+    const review = reviewFromRow(row)
+    expect(review.reviewerName).toBeNull()
+    expect(review.reviewerProfilePhotoUrl).toBeNull()
+    expect(review.text).toBeNull()
+    expect(review.languageCode).toBeNull()
+    expect(review.sentimentLabel).toBeNull()
+    expect(review.sentimentScore).toBeNull()
+  })
+
+  it('reads the stored Google translation without copying it to the identity', () => {
+    // `text` holds the guest's original words; the machine translation is a
+    // separate column so the review display can show both without ever feeding
+    // the translation to language detection.
+    const row: ReviewRow = { ...sampleRow, text: 'Ок', translatedText: 'Ok' }
+
+    const review = reviewFromRow(row)
+    expect(review.text).toBe('Ок')
+    expect(review.translatedText).toBe('Ok')
+    expect(reviewIdentityValues(review)).not.toHaveProperty('translatedText')
+  })
+
+  it('reads a missing translation as null without adding an identity copy', () => {
+    const review = reviewFromRow(sampleRow)
+    expect(review.translatedText).toBeNull()
+    expect(reviewIdentityValues(review)).not.toHaveProperty('translatedText')
+  })
+
+  it('throws a tagged ReviewError (not bare Error) for an invalid platform', () => {
+    const row = { ...sampleRow, platform: 'yelp' as unknown as 'google' }
+    let thrown: unknown
+    try {
+      reviewFromRow(row)
+    } catch (e) {
+      thrown = e
+    }
+    expect(isReviewError(thrown)).toBe(true)
+    if (isReviewError(thrown)) {
+      expect(thrown.code).toBe('invalid_row')
+    }
+  })
+
+  it('throws a tagged ReviewError (not bare Error) for an invalid rating', () => {
+    const row = { ...sampleRow, rating: 0 as unknown as number }
+    let thrown: unknown
+    try {
+      reviewFromRow(row)
+    } catch (e) {
+      thrown = e
+    }
+    expect(isReviewError(thrown)).toBe(true)
+    if (isReviewError(thrown)) {
+      expect(thrown.code).toBe('invalid_row')
+    }
+  })
+})
+
+describe('reviewIdentityValues', () => {
+  it('writes the stable identity and fences without provider content', () => {
+    const review = reviewFromRow(sampleRow)
+    const row = reviewIdentityValues(review)
+
+    expect(row.id).toBe(sampleRow.id)
+    expect(row.organizationId).toBe(sampleRow.organizationId)
+    expect(row.propertyId).toBe(sampleRow.propertyId)
+    expect(row.platform).toBe(sampleRow.platform)
+    expect(row.externalId).toBeUndefined()
+    expect(row.externalLocationId).toBeUndefined()
+    expect(row.googleConnectionId).toBe(sampleRow.googleConnectionId)
+    const written: Record<string, unknown> = row
+    for (const field of [
+      'reviewerName',
+      'reviewerProfilePhotoUrl',
+      'googleReviewUrl',
+      'rating',
+      'text',
+      'languageCode',
+      'reviewedAt',
+      'expiresAt',
+      'sourceCreatedAt',
+      'sourceUpdatedAt',
+      'lastFetchedAt',
+      'contentExpiresAt',
+      'contentHash',
+      'aiSourceByteLength',
+      'aiSourceDigest',
+    ]) {
+      expect(written[field]).toBeUndefined()
+    }
+    expect(row.firstFetchedAt).toBe(sampleRow.firstFetchedAt)
+    expect(row.sourceEpoch).toBe(sampleRow.sourceEpoch)
+    expect(row.sourceRevision).toBe(sampleRow.sourceRevision)
+    expect(row.analysisSequence).toBe(sampleRow.analysisSequence)
+    expect(row.sentimentLabel).toBe(sampleRow.sentimentLabel)
+    expect(row.sentimentScore).toBe(sampleRow.sentimentScore)
+  })
+
+  it('excludes createdAt and updatedAt', () => {
+    const review = reviewFromRow(sampleRow)
+    const row = reviewIdentityValues(review)
+    expect('createdAt' in row).toBe(false)
+    expect('updatedAt' in row).toBe(false)
+  })
+
+  it('keeps an absent routing connection null', () => {
+    const rowWithNull = { ...sampleRow, googleConnectionId: null }
+    const review = reviewFromRow(rowWithNull)
+    expect(review.googleConnectionId).toBeNull()
+
+    const row = reviewIdentityValues(review)
+    expect(row.googleConnectionId).toBeNull()
+  })
+
+  it('preserves the connection used by the database publication guard', () => {
+    const review = reviewFromRow(sampleRow)
+    expect(review.googleConnectionId).not.toBeNull()
+    expect(String(review.googleConnectionId)).toBe('conn-uuid-001')
+
+    const row = reviewIdentityValues(review)
+    expect(row.googleConnectionId).toBe('conn-uuid-001')
+  })
+})

@@ -17,7 +17,7 @@ import {
   deployMigrationStateRefusal,
   ImageOlderThanDatabaseError,
 } from '../src/shared/db/migration-journal-state'
-import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
+import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/reputation/sync/provider-subject-key-initializer.server'
 import type { Database } from '../src/shared/db'
 import {
   formatDeclaredCapabilityPostureReport,

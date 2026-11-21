@@ -124,7 +124,7 @@ export const MAX_REPLY_LENGTH = 4096
  * The domain layer may import only `shared/domain` (eslint.config.js, the
  * `domain` boundary policy), so the application layer asks the shared rule and
  * the domain words the answer. A problem the shared rule adds and this union
- * lacks fails typecheck at the call site in `reply-operations.ts`.
+ * lacks fails typecheck at the call site in `reply-operations.server.ts`.
  */
 export type ReplyTextProblem =
   'empty' | 'too_long' | 'invalid_character' | 'malformed_unicode'

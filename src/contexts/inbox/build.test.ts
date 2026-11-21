@@ -3,7 +3,7 @@ import type { Database } from '#/shared/db'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { ReviewLookupPort } from './application/ports/review-lookup.port'
+import type { ReviewLookupPort } from '../reputation/inbox/review-lookup.port.server'
 import type { InboxContextBuildInput } from './build'
 import { buildInboxContext } from './build'
 

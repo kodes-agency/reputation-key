@@ -1,6 +1,6 @@
 // Where the Inbox sends a manager to see a review on Google, and the words for it.
 //
-// The server decides both links (`get-inbox-item-detail.ts`): the review's own
+// The server decides both links (`get-inbox-item-detail.server.ts`): the review's own
 // Business Profile page when Google gave one and the review is still eligible
 // to serve, and the Property's public reviews page otherwise, when the Property
 // holds a verified destination. This module only picks between them in that

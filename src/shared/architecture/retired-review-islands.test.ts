@@ -22,16 +22,16 @@ describe('retired Review islands stay contracted', () => {
 
   it('pins the active owners that replaced their unique obligations', () => {
     const snapshot = source(
-      'src/contexts/review/application/use-cases/run-review-provider-snapshot.ts',
+      'src/contexts/reputation/sync/run-review-provider-snapshot.server.ts',
     )
-    const sync = source('src/contexts/review/application/use-cases/sync-reviews.ts')
+    const sync = source('src/contexts/reputation/sync/sync-reviews.server.ts')
     const replyOperations = source(
-      'src/contexts/review/application/use-cases/reply-operations.ts',
+      'src/contexts/reputation/replies/reply-operations.server.ts',
     )
     const replyContentPolicy = source(
-      'src/contexts/review/application/reply-content-policy.ts',
+      'src/contexts/reputation/replies/reply-content-policy.server.ts',
     )
-    const inboxCursor = source('src/contexts/inbox/application/inbox-cursor.ts')
+    const inboxCursor = source('src/contexts/reputation/inbox/inbox-cursor.server.ts')
     const inboxCommandStore = source(
       'src/contexts/reputation/inbox/assignment-commands.server.ts',
     )
@@ -40,7 +40,7 @@ describe('retired Review islands stay contracted', () => {
     expect(snapshot).toContain('provider_rate_limited')
     expect(sync).toContain('defaultReviewLifecycle')
     expect(sync).toContain('computeReviewContentHash')
-    expect(replyOperations).toContain("from '../reply-content-policy'")
+    expect(replyOperations).toContain("from './reply-content-policy.server'")
     expect(replyContentPolicy).toContain("reviewError('invalid_reply'")
     expect(inboxCursor).toContain('decodeInboxCursor')
     expect(inboxCommandStore).toContain("inboxError('revision_conflict'")
