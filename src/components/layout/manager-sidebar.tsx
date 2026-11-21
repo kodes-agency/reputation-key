@@ -20,7 +20,7 @@ import { useRenderedPathname } from './rendered-location'
 import { ManagerNavItems } from './manager-nav-items'
 import { ManagerPropertySwitcher } from './manager-property-switcher'
 import { isOrganisationView, organisationViewFor } from './organisation-scope'
-import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
+import type { getLastVisitCountFn } from '#/contexts/reputation/server/inbox'
 
 type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>

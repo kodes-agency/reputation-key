@@ -34,7 +34,7 @@ import { getPropertySetupFn } from '#/contexts/reporting/server/property-setup'
 import {
   getReplyLibraryFn,
   saveReplyVoiceFn,
-} from '#/contexts/review/server/reply-library'
+} from '#/contexts/reputation/server/reply-library'
 
 export const importFns: GoogleImportFns = {
   getGoogleAuthUrl,

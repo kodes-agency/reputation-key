@@ -34,8 +34,8 @@ const replyServer = vi.hoisted(() => ({
   listReplyTemplatesFn: vi.fn(),
   loadReplyTemplateFn: vi.fn(),
 }))
-vi.mock('#/contexts/review/server/reply', () => replyServer)
-vi.mock('#/contexts/review/server/reply-templates', () => replyServer)
+vi.mock('#/contexts/reputation/server/reply', () => replyServer)
+vi.mock('#/contexts/reputation/server/reply-templates', () => replyServer)
 
 const REVIEW_ID = 'review-1'
 const SAVED_TEXT = 'Thank you for staying.'

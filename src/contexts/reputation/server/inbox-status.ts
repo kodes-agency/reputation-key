@@ -18,7 +18,7 @@ import {
   bulkUpdateStatusDto,
   escalateInboxItemDto,
   resolveEscalationDto,
-} from '../application/dto/inbox.dto'
+} from '../../inbox/application/dto/inbox.dto'
 
 // ── updateInboxStatus ──────────────────────────────────────────────
 

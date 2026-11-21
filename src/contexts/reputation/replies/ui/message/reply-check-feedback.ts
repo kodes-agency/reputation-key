@@ -133,7 +133,7 @@ export function replyCheckFeedback(
 /**
  * The check's error toast. `actionErrorMessage` shows only 4xx wording, but the
  * one failure a manager can act on here is a 500: `reviewErrorStatus` maps
- * `sync_failed` to 500 (review/server/reply-read.ts), and the check use case
+ * `sync_failed` to 500 (reputation/server/reply-read.ts), and the check use case
  * rewrites every `sync_failed` it can raise into its own sentence
  * (`check-reply-publication.server.ts`, GOOGLE_UNREACHABLE) before it reaches the
  * server fn — so that code's message is product copy, not internal state.

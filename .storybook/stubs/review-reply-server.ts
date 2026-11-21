@@ -1,4 +1,4 @@
-// Browser stub for #/contexts/review/server/reply.
+// Browser stub for #/contexts/reputation/server/reply.
 //
 // The real module imports getContainer from #/composition + runs createServerFn,
 // which leaks @tanstack/start-server-core into the preview bundle and breaks

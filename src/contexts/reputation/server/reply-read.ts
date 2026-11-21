@@ -5,9 +5,9 @@ import { replyRevisionSchema } from '#/shared/reply/reply-revision'
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { z } from 'zod/v4'
-import type { ReviewErrorCode } from '../../reputation/domain/review-errors'
+import type { ReviewErrorCode } from '../domain/review-errors'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
-import { replyTextProblemMessage } from '../../reputation/domain/review-rules'
+import { replyTextProblemMessage } from '../domain/review-rules'
 import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
 
 // ── Error → HTTP status mapping ──────────────────────────────────────

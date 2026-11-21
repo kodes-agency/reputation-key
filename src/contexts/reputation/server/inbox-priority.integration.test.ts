@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { setupServerFunctionHarness } from '#/shared/testing/server-function-harness'
 import { REVIEW_SEED_TABLES } from '#/shared/testing/server-function-review-seeds'
 import type { TestInboxItem } from '#/shared/testing/server-function-review-seeds'
-import { PRIORITY_CHANGED_MESSAGE } from '../../reputation/domain/inbox-errors'
+import { PRIORITY_CHANGED_MESSAGE } from '../domain/inbox-errors'
 
 vi.mock(
   '@tanstack/react-start',

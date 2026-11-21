@@ -141,7 +141,7 @@
       "exports": ["INBOX_HISTORY_KINDS"]
     },
     {
-      "file": "src/contexts/inbox/server/inbox.ts",
+      "file": "src/contexts/reputation/server/inbox.ts",
       "exports": ["assignInboxItemFn"]
     },
     {
@@ -196,11 +196,11 @@
       "exports": ["member", "organization", "session", "account", "verification"]
     },
     {
-      "file": "src/contexts/inbox/server/inbox-queries.ts",
+      "file": "src/contexts/reputation/server/inbox-queries.ts",
       "exports": ["stampLastInboxViewFn"]
     },
     {
-      "file": "src/contexts/inbox/server/inbox-item-actions.ts",
+      "file": "src/contexts/reputation/server/inbox-item-actions.ts",
       "exports": ["assignInboxItemFn"]
     },
     {

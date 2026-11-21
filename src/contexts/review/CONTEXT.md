@@ -46,7 +46,7 @@ never the identity or history authority.
 
 ## Feature map
 
-Server functions live in `server/`. The code behind them lives in Reputation:
+Server functions live in `../reputation/server/` (the `reply*.ts` files). The code behind them lives in Reputation:
 
 - `../reputation/sync/`: discovery, snapshots, head checks, targeted reads, the
   refresh sweep, provider subject keys and `review-worker-runtime.server.ts`.
@@ -71,7 +71,7 @@ pure types, rules, events and errors are in `../reputation/domain/`:
 the `reply-*`, `discovery-*`, `head-*`, `google-reply-observation`,
 `material-review-revision` and `snapshot-failure-backoff` modules.
 
-| Feature                          | Server function (file in `server/`)                                                                                                     | Use case or store (in `../reputation/`)                                                                                                           |
+| Feature                          | Server function (file in `../reputation/server/`)                                                                                       | Use case or store (in `../reputation/`)                                                                                                           |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Draft, submit, confirm, edit     | `draftReplyFn`, `submitReplyFn`, `approveReplyFn`, `editPublishedReplyFn` (`reply-draft.ts`)                                            | `replies/reply-operations.server.ts`, `replies/reply-command-store.server.ts`, `replies/reply-writer.server.ts`                                   |
 | Reject, delete, try again        | `rejectReplyFn`, `deleteReplyFn`, `retryPublishFn` (`reply.ts`)                                                                         | `replies/reply-operations.server.ts`, `replies/reply-command-store.server.ts`                                                                     |
@@ -92,10 +92,9 @@ there. Screen folders named below (`library/ui`, `replies/ui`) are in
 `../reputation/`.
 
 - `public-api.ts`: other areas and `scripts/ops/restore-verify.ts` import it. It stays
-  here until Review's server functions move into Reputation and it folds into
-  `reputation/public-api.ts`.
+  here until it folds into `reputation/public-api.ts`.
 - `dto/reply-library.dto.ts`: `library/ui` and `replies/ui` screens import it and
-  the public API re-exports it; `server/reply-library.ts` and `reply-templates.ts`
+  the public API re-exports it; `../reputation/server/reply-library.ts` and `reply-templates.ts`
   import it, so it cannot be a contract.
 - `reply-library-resolver.ts`: the `library/ui` stories fixture is a browser entry
   point and runs it; it imports the DTO and the library port.

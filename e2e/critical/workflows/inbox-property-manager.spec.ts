@@ -78,7 +78,7 @@ test.describe('Critical workflow: a grant-only PropertyManager works the Inbox',
 
     const before = await getInboxItemById(inboxItemId)
     await callServerFn(page, {
-      file: 'src/contexts/inbox/server/inbox-item-actions.ts',
+      file: 'src/contexts/reputation/server/inbox-item-actions.ts',
       exportName: 'assignInboxItemFn',
       data: {
         inboxItemId,

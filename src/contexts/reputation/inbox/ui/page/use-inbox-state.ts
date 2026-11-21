@@ -6,7 +6,7 @@
 // never router.invalidate()). Navigation sub-hook lives in inbox-state-helpers.
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
-import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
+import type { getInboxItemsFn } from '#/contexts/reputation/server/inbox'
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
 import type { InboxFilterValues } from '#/contexts/reputation/inbox/ui/page/inbox-filters'
 import type {

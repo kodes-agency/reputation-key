@@ -8,7 +8,7 @@ import { createFileRoute, Outlet, redirect, isRedirect } from '@tanstack/react-r
 import { getProductUpdatesClient } from './_authenticated/-product-updates-client'
 import { getSession } from '#/shared/auth/auth.functions'
 import { getActiveOrganization } from '#/contexts/identity/server/organizations'
-import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
+import { getLastVisitCountFn } from '#/contexts/reputation/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
 import { readViewportHint } from '#/routes/-viewport-hint'
 import { staleTab, watchPerson } from '#/shared/stale-tab/stale-tab'

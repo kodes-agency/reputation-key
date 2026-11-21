@@ -10,8 +10,8 @@ vi.mock(
   async () => (await import('#/shared/testing/compiled-server-fns')).startServerBuild,
 )
 
-import { getInboxItemDetailFn } from '#/contexts/inbox/server/inbox-item-queries'
-import { checkReplyPublicationFn } from '#/contexts/review/server/reply'
+import { getInboxItemDetailFn } from '#/contexts/reputation/server/inbox-item-queries'
+import { checkReplyPublicationFn } from '#/contexts/reputation/server/reply'
 
 const harness = setupServerFunctionHarness({
   cleanupTables: ['outbox_events', ...REVIEW_SEED_TABLES],

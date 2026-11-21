@@ -166,7 +166,7 @@ describe('source policy lint rules', () => {
 
   it.each([
     feature,
-    'src/contexts/review/server/reply.ts',
+    'src/contexts/reputation/server/reply.ts',
     'src/routes/api/policy-fixture.ts',
   ])('rejects worker system scope in request path %s', (filename) => {
     expect(
