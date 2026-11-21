@@ -1,8 +1,8 @@
-import type { MerchantAiOverviewEntry } from '#/contexts/identity/application/public-api'
+import type { MerchantAiOverviewEntry } from '#/contexts/identity/public-api'
 import type {
   AiOrganizationMonthSpend,
   ReviewAnalysisProgress,
-} from '#/contexts/ai/application/public-api'
+} from '#/contexts/ai/public-api'
 import type { StatusMap } from '#/components/ui/status-badge'
 import { formatNumber } from '#/shared/format/format'
 

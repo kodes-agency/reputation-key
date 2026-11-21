@@ -1,4 +1,4 @@
-import type { CurrentMerchantAiCapability } from '#/contexts/identity/application/public-api'
+import type { CurrentMerchantAiCapability } from '#/contexts/identity/public-api'
 import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
 import type { SetupPlan } from './setup-plan'
 

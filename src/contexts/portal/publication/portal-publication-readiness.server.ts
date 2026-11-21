@@ -7,7 +7,7 @@ import type { OrganizationId } from '#/shared/domain/ids'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { Portal } from '../domain/types'
 import type { VerifiedPublicationDestination } from '../domain/portal-publication-snapshot'
 import { portalError } from '../domain/errors'

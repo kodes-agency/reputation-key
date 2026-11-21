@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // A review that a head check or a push stored, and no full listing ever saw,
 // deleted on Google — against real PostgreSQL.
 //

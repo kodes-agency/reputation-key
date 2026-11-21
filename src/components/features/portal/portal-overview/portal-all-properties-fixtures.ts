@@ -7,7 +7,7 @@
 // in all). Avela Resort and The Harbor Hotel are read in different zones' worth
 // of days; Forma Kitchen is the property the board shows collapsed.
 import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
-import type { PortalResultsOverview } from '#/contexts/reporting/application/public-api'
+import type { PortalResultsOverview } from '#/contexts/reporting/public-api'
 import { portalId, propertyId } from '#/shared/domain/ids'
 import { NO_CODE, overviewGroup, overviewRow } from './portal-overview-fixtures'
 import {

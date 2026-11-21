@@ -38,10 +38,7 @@ import {
   presentImmersivePortal,
   type ServableMediaUrls,
 } from '../publication/public-portal-immersive.server'
-import type {
-  PublicImmersiveExperience,
-  PublicPortalText,
-} from '../application/public-api'
+import type { PublicImmersiveExperience, PublicPortalText } from '../public-api'
 
 export const PORTAL_PREVIEW_SOURCES = Object.freeze(['draft', 'live'] as const)
 export type PortalPreviewSource = (typeof PORTAL_PREVIEW_SOURCES)[number]

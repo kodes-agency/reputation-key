@@ -8,7 +8,7 @@
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId, type OrganizationId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
 import type { PortalLinkRepository } from '../links/portal-link-repository.port.server'
 import type { PortalExperienceRepository } from './portal-experience-repository.port.server'

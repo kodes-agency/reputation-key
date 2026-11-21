@@ -6,7 +6,7 @@
 // GOAL_CLEANUP_TABLES and GOAL_CLEANUP_TRIGGERS in its harness options.
 
 import { randomUUID } from 'node:crypto'
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { createMerchantAiAuthorizationStore } from '#/contexts/identity/consent/merchant-ai-authorization.repository.server'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '#/contexts/identity/consent/merchant-ai-authorization.server'
 import type { CurrentMerchantAiCapability } from '#/contexts/identity/domain/merchant-ai-authorization'
@@ -15,7 +15,7 @@ import { legacyPacePerWeek } from '#/contexts/reporting/domain/rating-goal-pace'
 import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { AI_REDACTION_PROFILE_VERSION } from '#/shared/ai-redaction/ai-deterministic-redactor'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-profile/ai-provider-deployment-profile'
 import { AI_SOURCE_POLICY_ID_V1 } from '#/shared/ai-review-source/ai-source-profile'

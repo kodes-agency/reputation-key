@@ -7,7 +7,7 @@
 // role with portal.update@assigned stays scoped.
 
 import type { PortalRepository } from './portal-repository.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalId, PropertyId } from '#/shared/domain/ids'
 import type { Permission } from '#/shared/domain/permissions'

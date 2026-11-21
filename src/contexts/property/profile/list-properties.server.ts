@@ -5,7 +5,7 @@
 import type { PropertyRepository } from './property-repository.port.server'
 import type { Property } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { propertyError } from '../domain/errors'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'

@@ -3,7 +3,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderReauthorize,

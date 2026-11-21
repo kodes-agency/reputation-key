@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { NotificationView } from '#/contexts/feed/application/public-api'
+import type { NotificationView } from '#/contexts/feed/public-api'
 import {
   makeNotification,
   makeNotificationFns,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NOTIFICATION_SETTINGS_CATEGORIES } from '#/contexts/feed/application/public-api'
+import { NOTIFICATION_SETTINGS_CATEGORIES } from '#/contexts/feed/public-api'
 import {
   CATEGORY_COPY,
   categoryDescription,

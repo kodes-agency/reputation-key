@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Inbox context — an Inbox item whose Review Google deleted.
 // Real PostgreSQL behind the real Review repository.
 //
@@ -30,7 +30,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
 import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'
 import { createEligibleReads } from '#/contexts/reputation/reviews/eligible-reads.server'

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // A Google listing that changes between a snapshot run's two scans, against
 // real PostgreSQL.
 //

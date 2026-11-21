@@ -1,4 +1,4 @@
-import type { PortalRatingFact } from '#/contexts/portal/application/public-api'
+import type { PortalRatingFact } from '#/contexts/portal/public-api'
 import type { GoalSubject } from '../domain/goal-program'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 

@@ -14,7 +14,7 @@ import type {
   PortalResultsMeasures,
   PortalResultsOverview,
   PortalResultsThresholds,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import {
   BELOW_MINIMUM_SAMPLE,

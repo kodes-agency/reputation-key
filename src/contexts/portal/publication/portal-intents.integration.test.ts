@@ -11,12 +11,12 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, userId, type PropertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { toPublicPortalLoaderData } from '#/contexts/guest/page/public-portal.contracts'
 import { printKitFileName } from '#/shared/domain/portal-print-kit'
 import { printDocumentTitle, printFileName } from '#/shared/domain/portal-print-how-to'

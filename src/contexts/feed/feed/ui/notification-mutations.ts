@@ -24,10 +24,7 @@ import {
 import { categoryInSentence } from '#/contexts/feed/preferences/ui/notifications-type-rows'
 import { createKeys } from '#/shared/queries/query-keys'
 import type { TenantScope } from '#/shared/queries/tenant-scope'
-import type {
-  NotificationListFilter,
-  NotificationView,
-} from '#/contexts/feed/application/public-api'
+import type { NotificationListFilter, NotificationView } from '#/contexts/feed/public-api'
 import { notificationFilterScope } from './notification-filters'
 import { feedWriteOptions, type FeedWriteKind } from './notification-feed-writes'
 import type { NotificationServerFns } from './types'

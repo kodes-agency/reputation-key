@@ -3,10 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import type { GuestVoiceV2View } from '#/contexts/ai/guest-voice/ui/guest-voice-v2-body'
 import type { GuestVoiceDetailNavigation } from '#/contexts/ai/guest-voice/ui/use-guest-voice-detail-navigation'
-import type {
-  GuestVoiceDetailTarget,
-  GuestVoiceV2Read,
-} from '#/contexts/ai/application/public-api'
+import type { GuestVoiceDetailTarget, GuestVoiceV2Read } from '#/contexts/ai/public-api'
 import type { GuestVoiceRange } from '#/shared/dashboard/dashboard-range'
 import { propertyGuestVoiceDetailQuery } from './-guest-voice-queries'
 

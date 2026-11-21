@@ -19,7 +19,7 @@
 // route's read of at most `MAX_UPLOAD_BYTES`, of an allowed type only. See
 // docs/operations/backup-and-lifecycle.md ("The 5 MB cap is the app's").
 
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext } from '#/shared/domain/permissions'

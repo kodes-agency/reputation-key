@@ -6,7 +6,7 @@
 // other reader of `properties` in this context.
 import type { Database } from '#/shared/db'
 import { and, eq, sql } from 'drizzle-orm'
-import { createInboxNotificationLookup } from '#/contexts/reputation/application/public-api'
+import { createInboxNotificationLookup } from '#/contexts/reputation/public-api'
 import { properties } from '#/shared/db/schema/property.schema'
 import {
   feedbackId,

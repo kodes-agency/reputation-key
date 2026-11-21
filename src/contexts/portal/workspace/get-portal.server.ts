@@ -7,7 +7,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../domain/errors'
 import { portalId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { assertPropertyAccess } from '../publication/assert-property-access.server'
 import {
   toPortalTokenStatus,

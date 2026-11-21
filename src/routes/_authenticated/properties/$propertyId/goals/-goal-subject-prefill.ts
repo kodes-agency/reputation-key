@@ -1,7 +1,7 @@
 // URLs are untrusted. Accept only this Property's offered Portals or groups; the
 // Property-wide goal is set separately from its card.
 
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/public-api'
 
 export type KnownGoalSubjects = Readonly<{
   groupIds: readonly string[]

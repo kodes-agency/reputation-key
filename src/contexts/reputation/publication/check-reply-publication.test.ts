@@ -11,7 +11,7 @@ import {
 } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import { err, ok } from '#/shared/domain'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import {
   googleConnectionId,
   organizationId,

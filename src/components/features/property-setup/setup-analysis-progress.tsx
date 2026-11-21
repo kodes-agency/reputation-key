@@ -8,7 +8,7 @@ import {
 import { StatusBadge, type StatusPresentation } from '#/components/ui/status-badge'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { reviewAnalysisProgressRefetchInterval } from '#/shared/queries/review-analysis-progress-polling'
-import type { ReviewAnalysisProgress } from '#/contexts/ai/application/public-api'
+import type { ReviewAnalysisProgress } from '#/contexts/ai/public-api'
 import type { PropertySetupFns, SetupImportedProperty } from './property-setup-contract'
 import { formatNumber } from '#/shared/format/format'
 

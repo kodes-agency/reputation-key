@@ -1,10 +1,7 @@
 // Monthly figures come from buildGoalResultsMatrix. Keep navigation words in portal-
 // goal-results-foot so linking pages do not load this page.
 
-import type {
-  buildGoalResultsMatrix,
-  GoalSubject,
-} from '#/contexts/reporting/application/public-api'
+import type { buildGoalResultsMatrix, GoalSubject } from '#/contexts/reporting/public-api'
 import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { formatShortDate } from '#/shared/format/format'
 import { goalListSubjectText } from './goal-assignment-subject-label'

@@ -10,7 +10,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../domain/errors'
 import type {

@@ -39,7 +39,7 @@ import type {
   RatingGoalPropertyFacts,
   RatingGoalPropertyFactsReader,
 } from './property-rating-goal-repository.port.server'
-import type { MetricPublicApi } from '../application/public-api'
+import type { MetricPublicApi } from '../public-api'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 

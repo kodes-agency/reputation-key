@@ -4,14 +4,14 @@
 // Nothing is written until every choice resolved, so a refusal creates nothing.
 
 import type { PortalRepository } from './portal-repository.port.server'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/public-api'
 import type { Portal, PortalId } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalInput } from './create-portal.contracts'
 export type { CreatePortalInput }
 import { isPortalError } from '../domain/errors'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/public-api'
 import { assertNewPortalPropertyAccess } from './load-accessible-portal.server'
 import type { PortalCommandStore } from './portal-command-store-port.server'
 import type { PortalApprovedDestinationRepository } from '../destinations/portal-approved-destination-repository.port.server'

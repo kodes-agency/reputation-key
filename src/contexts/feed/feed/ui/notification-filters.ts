@@ -14,7 +14,7 @@ import {
   isStillWaiting,
   type NotificationView,
   type NotificationListFilter,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import { CATEGORY_COPY } from '#/contexts/feed/preferences/ui/notifications-type-rows'
 
 /**

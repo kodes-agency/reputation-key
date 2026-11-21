@@ -12,7 +12,7 @@
 // site is what is decided: several links and Portals can open one. The Portal
 // it names is only where the admin is sent to decide it.
 
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {

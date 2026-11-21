@@ -3,11 +3,11 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
   isReviewAnalysisRevisionSetEvidence,
-} from '../replay/contracts'
-import { aiReviewAnalysisBackfillRequested } from '../domain/events'
-import { isAiError } from '../domain/errors'
+} from './replay/contracts'
+import { aiReviewAnalysisBackfillRequested } from './domain/events'
+import { isAiError } from './domain/errors'
 
-describe('AI application public API', () => {
+describe('AI public API', () => {
   it('exposes the supported identifier-only event constructors', () => {
     const occurredAt = new Date('2026-08-27T00:00:00.000Z')
     const organization = organizationId('org-ai-public-api')

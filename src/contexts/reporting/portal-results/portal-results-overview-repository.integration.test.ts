@@ -26,7 +26,7 @@ import {
   propertyId,
   type PortalId,
 } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '../application/public-api'
+import { METRIC_VERSION_IDS } from '../public-api'
 import { getPortalAnalytics } from './get-portal-analytics.server'
 import { getPortalResultsOverview } from './get-portal-results-overview.server'
 import { localDaysWindow, priorPeriodDates } from './time-range.server'

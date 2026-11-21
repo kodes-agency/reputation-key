@@ -7,7 +7,7 @@ import type {
   GuestRatingRetracted,
   GuestReviewLinkClicked,
   GuestScanRecorded,
-} from '#/contexts/guest/application/public-api'
+} from '#/contexts/guest/public-api'
 import {
   feedbackId,
   organizationId,

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The Review writer allocates an AI-analysis sequence before it knows whether
 // the observation will be applied. A replayed observation, or one older than
 // what is stored, is not applied: no Review takes the number and no event

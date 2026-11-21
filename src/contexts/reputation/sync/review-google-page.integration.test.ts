@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // A Review's own page on Google (`reviewReplyUrl`, "Open on Google") against
 // real PostgreSQL, through the real sync observation writer.
 //
@@ -35,7 +35,7 @@ import { createGoogleReplyObservationStore } from '../publication/google-reply-o
 import { createReviewSourceContentLifecycleStore } from '../content/source-content-lifecycle-store.server'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createAtomicReviewCommandStore } from '../reviews/review-command-store.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = organizationId('review-google-page-org-a')

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import type { AiMerchantAuthorizationSnapshot } from '#/contexts/ai/consent/ai-authorization.port.server'
 import type { AiControlHead } from '#/contexts/ai/application/ports/ai-control.port'
 import { createAiAuthorizationAdapter } from '#/contexts/ai/consent/ai-authorization.adapter.server'

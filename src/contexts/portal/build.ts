@@ -1,4 +1,4 @@
-import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/public-api'
 import { buildPortalAddressOperations } from './build-address-operations'
 import { assertPersonalGroupTargetAvailable } from './personal-portals/personal-portal-group-guard.server'
 import { renamePersonalPortalLabels } from './personal-portals/rename-personal-portal-labels.server'
@@ -14,9 +14,9 @@ import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
+} from '#/contexts/property/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/public-api'
 import type { Database } from '#/shared/db'
 import { createPortalRepository } from './publication/portal-repository.server'
 import { createPortalResponsibilityRuntime } from './responsibility/portal-responsibility-runtime.server'
@@ -109,7 +109,7 @@ import type {
   PortalContactRequestManagerAuthorityPublicApi,
   PortalAiReplyBrandProfilePublicApi,
   PortalPublicDisplayNameDefaultPublicApi,
-} from './application/public-api'
+} from './public-api'
 import { completeContentReview } from './publication/complete-content-review.server'
 import {
   listPortalResponsibleManagers,

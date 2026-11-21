@@ -5,7 +5,7 @@ import type {
   ImportAccountDto,
   ImportCandidateDto,
   ImportProgressDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import type {
   googleImportReviewDraftSchema,
   GoogleImportReviewDraftInput,

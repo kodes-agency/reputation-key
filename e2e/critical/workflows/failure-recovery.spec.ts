@@ -16,7 +16,7 @@ import type {
   ImportAccountPageDto,
   ImportCandidatePageDto,
   ImportProgressDto,
-} from '../../../src/contexts/integration/application/public-api'
+} from '../../../src/contexts/integration/public-api'
 import { callServerFn, callServerFnGet } from '../../helpers/server-fn'
 import { cleanupE2eData } from '../../helpers/fixture-cleanup'
 import { drainFixtureQueue, enqueueReviewSync } from '../../helpers/fixture-queues'

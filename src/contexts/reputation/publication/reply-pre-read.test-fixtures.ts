@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Test-only: the read of Google that precedes a publish claim, as production
 // builds it, on PostgreSQL.
 //

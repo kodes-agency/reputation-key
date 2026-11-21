@@ -1,5 +1,5 @@
 import { templateFrameChoices } from '../../../reputation/library/template-frame-choices.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ReviewId } from '#/shared/domain/ids'
 import {

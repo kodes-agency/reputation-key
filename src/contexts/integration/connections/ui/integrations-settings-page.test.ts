@@ -6,7 +6,7 @@ import type { Action } from '#/components/hooks/use-action'
 import type {
   GoogleAuthUrlInput,
   GoogleConnectionDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { IntegrationsSettingsPage } from './integrations-settings-page'
 
 type AuthorizeInput = Readonly<{ data: GoogleAuthUrlInput }>

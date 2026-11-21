@@ -1,4 +1,4 @@
-import type { CurrentMerchantAiCapability } from '#/contexts/identity/application/public-api'
+import type { CurrentMerchantAiCapability } from '#/contexts/identity/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/consent/merchant-ai-notice.contracts'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Field, FieldGroup, FieldLabel } from '#/components/ui/field'

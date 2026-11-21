@@ -1,7 +1,7 @@
 import type {
   IntegrationGoogleAccountDisconnected,
   IntegrationGoogleAccountReauthorizationRequired,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import {
   googleConnectionId,
   organizationId,

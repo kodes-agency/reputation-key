@@ -6,7 +6,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { listPortalOverview } from '#/contexts/portal/server/portals'
 import { getPortalResultsOverviewFn } from '#/contexts/reporting/server/portal-results-overview'
-import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
+import type { PortalResultsTimeRange } from '#/contexts/reporting/public-api'
 import { portalKeys } from '#/shared/queries/query-keys'
 
 // Read once for every Portal of the Property. A summary of state that changes in

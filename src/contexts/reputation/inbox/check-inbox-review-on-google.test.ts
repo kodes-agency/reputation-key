@@ -24,7 +24,7 @@ import type {
   GoogleCheckRateLimitPort,
 } from './google-check-rate-limit.port.server'
 import type { GoogleReplyHead, ReplyLookupPort } from './reply-lookup.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'

@@ -18,7 +18,7 @@ import {
 import type {
   EffectiveNotificationSettings,
   PersonalDeliveryWindow,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import { QuietHoursEditor } from './quiet-hours-editor'
 import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
 import { InlineLink } from '#/components/ui/inline-link'

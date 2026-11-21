@@ -32,7 +32,7 @@ import {
   PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
 } from '../domain/reply-publication-workflow'
 import type { ReplyDispatchEvidence } from '../publication/reply-publication-dispatch-evidence.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import {
   reviewId,

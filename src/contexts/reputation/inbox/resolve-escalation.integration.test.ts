@@ -25,7 +25,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/inbox-types'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'

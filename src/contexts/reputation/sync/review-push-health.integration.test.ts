@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Push health against real PostgreSQL: the Review writer and the targeted
 // (push) fetch record when each live Review was first seen and when its push
 // was accepted, and the pure rules (shared/domain/push-health.ts) read

@@ -7,7 +7,7 @@
 // A store that refuses the delete leaves an unreferenced object, which is
 // logged, never an error for the person who just saved a picture.
 
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   identityAssetKeyFromPath,

@@ -1,7 +1,7 @@
 // Identity context — the avatar and organization-logo image route's contract.
 
 import { describe, expect, it, vi } from 'vitest'
-import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-api'
+import { StoredObjectTooLargeError } from '#/contexts/portal/public-api'
 import { MAX_UPLOAD_BYTES } from '../images/upload-policy.server'
 import { createIdentityAssetServeHandler } from './identity-asset-serve'
 

@@ -9,7 +9,7 @@ import type { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/reply/ai-pe
 import type { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import type { ReplyDraftingV2Frame } from '#/shared/reply/reply-drafting-v2-frame'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
-import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
 import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type { AiControlPort } from '../application/ports/ai-control.port'
 import type { AiInferencePort } from '../execution/ai-inprocess.port.server'

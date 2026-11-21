@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Scoped job families — what a family is enqueued with must give the
 // delayed-execution gate a scope.
 //

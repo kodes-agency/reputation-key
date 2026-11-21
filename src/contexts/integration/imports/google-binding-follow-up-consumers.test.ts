@@ -6,7 +6,7 @@ import {
   type ConsumerEvent,
 } from '#/shared/outbox'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import {
   createGoogleBindingFollowUpHandlers,
   registerGoogleBindingFollowUpConsumers,

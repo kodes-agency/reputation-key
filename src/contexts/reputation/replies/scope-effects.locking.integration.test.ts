@@ -6,7 +6,7 @@ import {
   purgeAiDraftsForAuthorization,
   purgeAiDraftsForReview,
 } from '#/shared/db/ai/ai-draft-purge'
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createMockLogger } from '#/shared/testing/mock-logger'

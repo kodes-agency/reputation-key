@@ -14,7 +14,7 @@ import {
   type EffectiveNotificationSettings,
   type NotificationChannel,
   type PersonalDeliveryWindow,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import { describeTimezone } from '#/shared/format/timezone-display'
 import { NotificationsCategoryRow } from './notifications-category-row'
 import {

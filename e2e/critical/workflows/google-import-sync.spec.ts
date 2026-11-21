@@ -12,7 +12,7 @@ import type {
   ImportAccountPageDto,
   ImportCandidatePageDto,
   ImportProgressDto,
-} from '../../../src/contexts/integration/application/public-api'
+} from '../../../src/contexts/integration/public-api'
 import { drainFixtureQueue, waitForQueuesIdle } from '../../helpers/fixture-queues'
 import { e2eRunId } from '../../helpers/fixture-db'
 import { cleanupE2eData } from '../../helpers/fixture-cleanup'

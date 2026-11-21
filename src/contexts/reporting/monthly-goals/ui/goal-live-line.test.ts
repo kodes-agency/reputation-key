@@ -5,7 +5,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
+import type { GoalListProgress } from '#/contexts/reporting/public-api'
 import { GoalLiveLine, GoalLiveLinePending } from './goal-live-line'
 
 const goal = (patch: Partial<GoalListProgress> = {}): GoalListProgress => ({

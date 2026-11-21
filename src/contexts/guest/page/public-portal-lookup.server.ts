@@ -1,4 +1,4 @@
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import type { PublicPortalLookup } from './public-portal-lookup.port.server'
 import { trace } from '#/shared/observability/trace'
 export const createPublicPortalLookup = (

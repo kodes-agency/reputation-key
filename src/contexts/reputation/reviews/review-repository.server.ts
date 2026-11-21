@@ -1,4 +1,4 @@
-import { reviewIdentityValues } from '#/contexts/reputation/application/public-api'
+import { reviewIdentityValues } from '#/contexts/reputation/public-api'
 // Review context — Drizzle review repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 // Reviews table has no deletedAt column, so baseWhere is not used.

@@ -20,7 +20,7 @@ import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/revie
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { validateTransition } from '#/contexts/reputation/domain/inbox-rules'
 import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'

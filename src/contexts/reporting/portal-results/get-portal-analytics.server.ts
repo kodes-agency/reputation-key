@@ -1,6 +1,6 @@
 import { portalLinkTaps } from '../domain/portal-link-taps'
 import { portalScanPatterns } from '../domain/portal-scan-patterns'
-import type { PortalScanPatternsReader } from '#/contexts/guest/application/public-api'
+import type { PortalScanPatternsReader } from '#/contexts/guest/public-api'
 // Authorizes the reader for the Property, then orchestrates portal-scoped
 // queries into a single PortalAnalyticsData response.
 
@@ -19,8 +19,8 @@ import {
 import { priorPeriodDates } from './time-range.server'
 import { portalPeriodKpis } from './portal-period-kpis.server'
 import { qualifiedScansSince } from './qualified-scans-since.server'
-import type { PortalResponseIntegritySummary } from '#/contexts/guest/application/public-api'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalResponseIntegritySummary } from '#/contexts/guest/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import { PORTAL_RESULTS_THRESHOLDS } from '../domain/portal-results-thresholds'
 import { localDateOf } from '../domain/local-days'
 import {

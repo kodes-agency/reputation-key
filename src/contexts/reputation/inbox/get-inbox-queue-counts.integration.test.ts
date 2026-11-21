@@ -11,7 +11,7 @@ import {
 import { Pool } from 'pg'
 import { getInboxQueueCounts } from './get-inbox-queue-counts.server'
 import { getEnv } from '#/shared/config/env'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { ReplyLookupPort } from './reply-lookup.port.server'
 import type { InboxItem } from '../domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'

@@ -12,7 +12,7 @@ import {
   type ConfigurableNotificationCategory,
   type NotificationCategoryDefault,
   type NotificationChannel,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 
 const CADENCE_WORDS = {
   immediate: 'immediately',

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The AI draft purge against real PostgreSQL.
 //
 // An AI-assisted reply is the unedited output of one AI operation. The purge
@@ -81,7 +81,7 @@ import { createAtomicReplyCommandStore } from './reply-command-store.server'
 import { createReplyRepository } from './reply-repository.server'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createAtomicReviewCommandStore } from '../reviews/review-command-store.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 
 const ORG = organizationId('ai-draft-purge-test-org')
 const SUBMITTER = userId('ai-draft-purge-submitter')

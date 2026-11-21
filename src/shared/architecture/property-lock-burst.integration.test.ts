@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Burst regression for the Property source fence.
 //
 // Each import transaction and each Inbox projection takes the Property fence,

@@ -39,7 +39,7 @@ import type { InvitationEmailSender } from './members/invitation-email.port.serv
 import type { PropertyNameLookup } from './members/invitation-read-model.port.server'
 import { retireReplacedIdentityAsset } from './images/retire-replaced-identity-asset.server'
 import { reclaimPendingIdentityUploads } from './images/reclaim-pending-identity-uploads.server'
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import { staffFailureDiagnostic } from './staff/staff-failure-diagnostic.server'
 import {
   MERCHANT_AI_NOTICE,

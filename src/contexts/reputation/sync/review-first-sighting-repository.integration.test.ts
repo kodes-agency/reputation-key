@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The push health ledger against real PostgreSQL: the first-sighting row is
 // written in the Review's own first-insert transaction, and a push read pairs
 // with it afterwards.

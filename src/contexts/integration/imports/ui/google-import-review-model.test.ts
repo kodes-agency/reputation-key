@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
-import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import type { ImportCandidateDto } from '#/contexts/integration/public-api'
 import {
   applyBulkTimezone,
   buildConfirmedImportItems,

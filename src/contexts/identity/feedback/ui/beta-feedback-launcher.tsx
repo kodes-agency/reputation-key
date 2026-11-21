@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { BETA_FEEDBACK_REPORTS_ANCHOR } from '#/contexts/feed/application/public-api'
+import { BETA_FEEDBACK_REPORTS_ANCHOR } from '#/contexts/feed/public-api'
 import type { ListMyBetaFeedback, SubmitBetaFeedback } from './beta-feedback-form-context'
 
 // The app shell mounts this launcher on every authenticated page, but nobody

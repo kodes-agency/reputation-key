@@ -13,7 +13,7 @@ import type { ReviewSourceLookupPort } from '../reputation/inbox/review-source-l
 import type { ReplyLookupPort } from '../reputation/inbox/reply-lookup.port.server'
 import type { AiReviewInsightsPort } from '../reputation/inbox/ai-review-insights.port.server'
 import type { PropertyLookupPort } from '../reputation/inbox/property-lookup.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxPublicApi } from './application/public-api'
 import { updateInboxStatus } from '#/contexts/reputation/inbox/update-inbox-status.server'

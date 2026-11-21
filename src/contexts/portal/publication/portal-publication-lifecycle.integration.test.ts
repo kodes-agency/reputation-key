@@ -7,8 +7,8 @@
 
 import { randomBytes, randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/public-api'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
 import type { AuthContext } from '#/shared/domain/auth-context'

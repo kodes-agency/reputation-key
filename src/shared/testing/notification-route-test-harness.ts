@@ -4,8 +4,8 @@ import {
   registerEscalationResolutionNotificationConsumer,
   registerResponseTargetNotificationConsumer,
 } from '#/contexts/feed/notify/inbox-notice-routes.server'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
-import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/public-api'
 import type { Database } from '#/shared/db'
 import type { DomainEvent } from '#/shared/events/events'
 import type { OutboxRepository } from '#/shared/outbox'

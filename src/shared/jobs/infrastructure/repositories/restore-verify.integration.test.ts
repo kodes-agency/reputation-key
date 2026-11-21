@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // BQC-7.8 — ops:restore-verify integration proof (real PostgreSQL).
 //
 // fallow-ignore-file boundary-violation

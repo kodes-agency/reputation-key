@@ -11,7 +11,7 @@ import {
   getDefaultMaxRating,
   LOW_RATING_THRESHOLDS,
   type LowRatingThreshold,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
 import type { PreferenceValues } from './notification-preference-saves'
 import { named } from './notification-default-controls'

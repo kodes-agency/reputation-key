@@ -7,7 +7,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ImportProgressDto } from '#/contexts/integration/application/public-api'
+import type { ImportProgressDto } from '#/contexts/integration/public-api'
 import { GoogleImportProgressView } from './google-import-progress-view'
 
 const processing: ImportProgressDto = {

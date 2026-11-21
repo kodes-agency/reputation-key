@@ -1,7 +1,7 @@
 // Exercises the composed print read and real PDF download, including last-print memory.
 
 import { describe, expect, it, vi } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'

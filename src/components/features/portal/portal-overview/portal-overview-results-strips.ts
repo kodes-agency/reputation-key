@@ -5,7 +5,7 @@ import type {
   PortalResultsOverview,
   PortalResultsPropertyRow,
   PortalResultsThresholds,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import {
   measureCells,
   type ResultsCell,

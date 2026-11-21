@@ -1,7 +1,7 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import {
   googleReviewApiNotConfigured,
   type GoogleConnectionStatusPort,

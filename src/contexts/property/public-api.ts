@@ -3,11 +3,11 @@
 // to query property data. Per ADR-0001.
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
-import type { PropertyGoogleBindingStore } from '../profile/google-binding-store.port.server'
-import type { PropertyLifecycleState } from '../domain/property-lifecycle'
-import type { GoogleBindingState } from '../domain/google-binding-contract'
-export type { PropertyLifecycleState } from '../domain/property-lifecycle'
-export { buildGoogleImportedProperty } from '../profile/build-google-imported-property.server'
+import type { PropertyGoogleBindingStore } from './profile/google-binding-store.port.server'
+import type { PropertyLifecycleState } from './domain/property-lifecycle'
+import type { GoogleBindingState } from './domain/google-binding-contract'
+export type { PropertyLifecycleState } from './domain/property-lifecycle'
+export { buildGoogleImportedProperty } from './profile/build-google-imported-property.server'
 export type {
   PropertyArchived,
   PropertyCreated,
@@ -15,7 +15,7 @@ export type {
   PropertyRestored,
   PropertyUpdated,
   PropertyResponsibilityNeeded,
-} from '../domain/events'
+} from './domain/events'
 
 /** Minimal property info returned for cross-context lookups (e.g., webhook resolution). */
 type PropertyLookupResult = Readonly<{
@@ -54,7 +54,7 @@ export type PropertyGoogleReviewDestinationPublicApi = Readonly<{
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<
-    import('../domain/google-review-destination').PropertyGoogleReviewDestination | null
+    import('./domain/google-review-destination').PropertyGoogleReviewDestination | null
   >
 }>
 
@@ -168,4 +168,4 @@ export type PropertyPublicApi = Readonly<{
 }> &
   PropertySourceEpochPublicApi
 
-export type { GoogleBindingState } from '../domain/google-binding-contract'
+export type { GoogleBindingState } from './domain/google-binding-contract'

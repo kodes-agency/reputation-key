@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyFactsPublicApi } from '#/contexts/property/public-api'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { resolvePropertyPeriod } from './resolve-property-period'
 

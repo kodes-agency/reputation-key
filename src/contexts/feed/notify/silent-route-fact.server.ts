@@ -21,7 +21,7 @@
 
 import { sql } from 'drizzle-orm'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
-import { historicalOnboardingItem } from '#/contexts/reputation/application/public-api'
+import { historicalOnboardingItem } from '#/contexts/reputation/public-api'
 
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 

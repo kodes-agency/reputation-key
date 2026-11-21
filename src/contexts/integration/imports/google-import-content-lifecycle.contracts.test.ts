@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { GoogleImportClearReason } from './google-import-content-lifecycle.contracts'
-import {
-  createGoogleImportContentLifecycle,
-  contentExpiryDelayMs,
-} from '../application/public-api'
+import { createGoogleImportContentLifecycle, contentExpiryDelayMs } from '../public-api'
 
 describe('Google import provider-content lifecycle', () => {
   it('advances the epoch and clears queries before state', () => {

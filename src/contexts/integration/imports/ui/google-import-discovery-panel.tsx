@@ -2,7 +2,7 @@ import { MapPin } from 'lucide-react'
 import type {
   ImportAccountDto,
   ImportCandidateDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import {
   Card,

@@ -13,7 +13,7 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
 ## Boundaries
 
 - Cross-context and presentation-facing types/events are exported only through
-  `application/public-api.ts`.
+  `public-api.ts` at the area root.
 - `build.ts` is the composition-root boundary. Other contexts do not construct AI repositories, provider adapters, jobs, or control stores.
 - Server functions are authenticated delivery adapters; they call the built
   `publicApi` and are not domain authority. Every read `publicApi` serves for a
@@ -60,7 +60,6 @@ guest accounts as unverified and never states a reported problem as fact.
   in-process inference, and Organization spend.
 - `rights/`: AI's rights executor, Organization erasure and Organization export.
 - Only these stay in the layer folders:
-  - `application/public-api.ts`
   - `application/ai-workflow-support.ts`, `application/ports/ai-control.port.ts` and
     `infrastructure/adapters/ai-control.adapter.ts`, because operator scripts import them
   - `infrastructure/testing/handler-harness.test-fixtures.ts`, because a test counts a

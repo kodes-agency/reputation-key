@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The initial Google import's history cutoff against real PostgreSQL.
 //
 // A property imported on the live stack produced 260 review notifications and

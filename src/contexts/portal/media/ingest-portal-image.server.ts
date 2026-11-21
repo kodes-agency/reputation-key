@@ -10,8 +10,8 @@
 // stores nothing. The object is written before its row so a row never names a
 // missing object; if the row then fails, the object is removed again.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   portalId as toPortalId,

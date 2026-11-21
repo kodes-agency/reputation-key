@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { NotificationCategoryDefault } from '#/contexts/feed/application/public-api'
+import type { NotificationCategoryDefault } from '#/contexts/feed/public-api'
 import { describeInheritedDefault } from './notification-inherited-defaults'
 
 const stored = (): NotificationCategoryDefault =>

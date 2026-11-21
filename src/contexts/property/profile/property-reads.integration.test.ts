@@ -11,7 +11,7 @@ import {
 } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { isPropertyError } from '../domain/errors'
 import { createPropertyRepository } from './property-repository.server'
 import { seedTestProperty } from './property.test-fixtures'

@@ -100,7 +100,7 @@ import {
   readGoogleBeforeClaim,
   readsGoogleBeforeClaim,
 } from './publish-reply-preread.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { Reply, Review } from '../domain/review-types'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'

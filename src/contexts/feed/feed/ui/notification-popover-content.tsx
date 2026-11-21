@@ -33,7 +33,7 @@ import { byUrgency, type NotificationGroup } from './notification-filters'
 import { useNotifications } from './notification-queries'
 import type { NotificationFormat } from './notification-utils'
 import type { NotificationRowActions, NotificationServerFns } from './types'
-import type { NotificationView } from '#/contexts/feed/application/public-api'
+import type { NotificationView } from '#/contexts/feed/public-api'
 import { IconButton } from '#/components/ui/icon-button'
 
 /** How many updates the bell shows; the page has the rest. */

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Outbox delivery end-to-end proof (real PostgreSQL + real BullMQ/Redis).
 //
 // fallow-ignore-file boundary-violation

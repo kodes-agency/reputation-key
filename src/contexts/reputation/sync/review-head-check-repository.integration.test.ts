@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Review context — head check repository integration tests (real PostgreSQL).
 //
 // The baseline a dark head check compares Google's newest page with: the stored

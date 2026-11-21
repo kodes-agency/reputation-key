@@ -28,7 +28,7 @@ import type { PortalGroupId, PortalId, PropertyId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { portalError } from '../domain/errors'
 import {
   toPortalTokenStatus,

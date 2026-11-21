@@ -2,21 +2,21 @@
  * Integration context — public API for external consumers (components, routes).
  *
  * Re-exports domain types that components need.
- * Per boundary rules: components may import from `application/` but NOT from `domain/`.
+ * Per boundary rules: components may import this file but NOT `domain/`.
  */
-export type { GoogleConnectionDto } from '../connections/contracts'
-export type { GoogleAuthUrlInput } from '../connections/google-auth-url.contracts'
+export type { GoogleConnectionDto } from './connections/contracts'
+export type { GoogleAuthUrlInput } from './connections/google-auth-url.contracts'
 
-export type { GoogleReviewSyncContentAuthorizer } from '../review-sync/google-review-sync-authorizer.server'
-export type { GoogleReplyPublicationContentAuthorizer } from '../review-sync/google-reply-publication-authorizer.server'
+export type { GoogleReviewSyncContentAuthorizer } from './review-sync/google-review-sync-authorizer.server'
+export type { GoogleReplyPublicationContentAuthorizer } from './review-sync/google-reply-publication-authorizer.server'
 
 export {
   contentExpiryDelayMs,
   createGoogleImportContentLifecycle,
-} from '../imports/google-import-content-lifecycle.contracts'
-export type { GoogleImportViewCompletion } from '../imports/google-import-content-lifecycle.contracts'
+} from './imports/google-import-content-lifecycle.contracts'
+export type { GoogleImportViewCompletion } from './imports/google-import-content-lifecycle.contracts'
 
-export type { GoogleConnectionStatus } from '../domain/types'
+export type { GoogleConnectionStatus } from './domain/types'
 
 export type {
   IntegrationGoogleAccountConnected,
@@ -24,7 +24,7 @@ export type {
   IntegrationGoogleAccountReauthorizationRequired,
   IntegrationGoogleConnectionVisibilityChanged,
   GoogleReviewPushNotificationKind,
-} from '../domain/events'
+} from './domain/events'
 
 export {
   GOOGLE_PERFORMANCE_CATALOG_VERSION,
@@ -34,8 +34,8 @@ export {
   MAX_GOOGLE_PERFORMANCE_DAILY_VALUE,
   MAX_GOOGLE_PERFORMANCE_RESPONSE_BYTES,
   isGooglePerformanceDailyMetric,
-} from '../provider/contracts'
-export type { GoogleProviderRouteKey } from '../provider/contracts'
+} from './provider/contracts'
+export type { GoogleProviderRouteKey } from './provider/contracts'
 
 export {
   GBP_IMPORT_ITEM_STATUSES,
@@ -43,7 +43,7 @@ export {
   IMPORT_OUTCOME_CODES,
   IMPORT_PARENT_STATUSES,
   IMPORT_PROFILE_FIELDS,
-} from './google-import-contract'
+} from './application/google-import-contract'
 export type {
   GbpImportItemStatus,
   ImportAccountDto,
@@ -56,4 +56,4 @@ export type {
   ImportProgressDto,
   ImportProgressItemDto,
   StartPropertyImportItemInput,
-} from './google-import-contract'
+} from './application/google-import-contract'

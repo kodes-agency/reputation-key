@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The declared capability posture against the real control tables and the
 // real AI activation function. Every test runs inside one held transaction
 // that always rolls back: AI control heads only ever move forward (a trigger

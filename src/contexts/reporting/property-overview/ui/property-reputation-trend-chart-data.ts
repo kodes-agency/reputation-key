@@ -1,7 +1,4 @@
-import type {
-  RatingTrendPoint,
-  ReviewVolumePoint,
-} from '#/contexts/reporting/application/public-api'
+import type { RatingTrendPoint, ReviewVolumePoint } from '#/contexts/reporting/public-api'
 import { groupByBucket, type Bucket } from '#/shared/dashboard/chart-buckets'
 import type { BucketUnit } from '#/shared/dashboard/dashboard-range'
 

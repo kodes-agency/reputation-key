@@ -6,7 +6,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/public-api'
 import { resolveNewPortalLocales } from '../domain/portal-new-locales'
 import { loadPropertyDefaultLocales } from './create-portal-resolvers.server'
 import { assertNewPortalPropertyAccess } from './load-accessible-portal.server'

@@ -1,10 +1,10 @@
 import type { TenantScope } from '#/shared/queries/tenant-scope'
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
-import { contentExpiryDelayMs } from '#/contexts/integration/application/public-api'
+import { contentExpiryDelayMs } from '#/contexts/integration/public-api'
 import type {
   GoogleImportViewCompletion,
   ImportProgressDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import type {
   listImportAccounts,
   listImportCandidates,

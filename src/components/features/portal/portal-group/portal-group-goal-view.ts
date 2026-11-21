@@ -9,7 +9,7 @@
 // It is never the month's result. The figure is what has counted so far, so the
 // bar is neutral (no good or bad colour, no praise), a figure that cannot be
 // read is not a zero, and an average too thin to show says why instead.
-import type { GoalProgress } from '#/contexts/reporting/application/public-api'
+import type { GoalProgress } from '#/contexts/reporting/public-api'
 import { goalMetricLabel } from '#/contexts/reporting/monthly-goals/ui/goal-metric-label'
 import { goalTargetMarkerLine } from '#/contexts/reporting/monthly-goals/ui/goal-target-marker'
 import {

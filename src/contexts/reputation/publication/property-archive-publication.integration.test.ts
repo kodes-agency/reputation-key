@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Archiving a Property cancels its undispatched reply publications (PostgreSQL).
 //
 // The provider authorizer refuses a write unless the Property is active at the
@@ -37,7 +37,7 @@ import {
   type OrganizationId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { propertyArchived } from '#/contexts/property/domain/events'
 import type { Reply, Review } from '../domain/review-types'
 import {

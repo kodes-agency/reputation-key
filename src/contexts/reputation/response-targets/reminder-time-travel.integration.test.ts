@@ -32,7 +32,7 @@ import {
 } from '#/shared/domain/ids'
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
 import { propertyArchived, propertyRestored } from '#/contexts/property/domain/events'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildInboxContext, type InboxContextBuildInput } from '#/contexts/inbox/build'

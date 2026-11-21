@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { RAILWAY_SERVICE_SETTINGS } from '#/shared/release/railway-service-settings'
-import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/public-api'
+import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/public-api'
 import { POOL_MAX_CONNECTIONS } from '#/shared/db/pool'
 import {
   BACKGROUND_QUEUE_CONCURRENCY,

@@ -1,4 +1,4 @@
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import type { PortalContextResolver } from './portal-context-resolver.port.server'
 import type { PortalId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'

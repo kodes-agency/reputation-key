@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Stars, ReplyStatusBadge } from './property-dashboard-helpers'
-import type { RecentReview } from '#/contexts/reporting/application/public-api'
+import type { RecentReview } from '#/contexts/reporting/public-api'
 import { formatDate } from '#/shared/format/format'
 import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
 import { cn } from '#/shared/class-names/utils'

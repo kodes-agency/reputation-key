@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PropertySetup } from '#/contexts/reporting/application/public-api'
+import type { PropertySetup } from '#/contexts/reporting/public-api'
 import { propertyId } from '#/shared/domain/ids'
 import {
   completedPropertySetupStepCount,

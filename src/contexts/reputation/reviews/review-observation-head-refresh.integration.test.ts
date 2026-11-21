@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createAtomicReviewCommandStore } from './review-command-store.server'
 import { reviewCreated, reviewUpdated } from '../domain/review-events'
@@ -10,7 +10,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createReviewRepository } from './review-repository.server'
 import { createReviewSourceContentLifecycleStore } from '../content/source-content-lifecycle-store.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 
 // Each snapshot pass reads every review of a Property twice. The old writer
 // stored a full-text `review_source_observations` row for each read, so a review

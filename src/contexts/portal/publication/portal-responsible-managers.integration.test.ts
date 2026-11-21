@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type {
   IdentityManagerFactsPublicApi,
   StaffPublicApi,
-} from '#/contexts/identity/application/public-api'
+} from '#/contexts/identity/public-api'
 import { getDb } from '#/shared/db'
 import { organizationId, portalId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'

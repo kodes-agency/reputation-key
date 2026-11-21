@@ -12,7 +12,7 @@ import {
   type ConfigurableNotificationCategory,
   type NotificationChannel,
   type NotificationPreference,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 
 /**
  * Category switches and cadence are per Property. Quiet hours and the urgent

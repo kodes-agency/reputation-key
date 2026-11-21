@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ImportProgressDto } from '#/contexts/integration/application/public-api'
+import type { ImportProgressDto } from '#/contexts/integration/public-api'
 import { createKeys } from '#/shared/queries/query-keys'
 import {
   googleImportAccountsQuery,

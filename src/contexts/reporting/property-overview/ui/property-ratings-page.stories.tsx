@@ -2,7 +2,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
-import type { DashboardData } from '#/contexts/reporting/application/public-api'
+import type { DashboardData } from '#/contexts/reporting/public-api'
 import { PropertyRatingsPage } from './property-ratings-page'
 import {
   noDataDashboard,

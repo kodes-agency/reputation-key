@@ -1,6 +1,6 @@
 // Dashboard → Ratings (redesign rows 7a, 8, 9, 10, 12–14).
 import { useId } from 'react'
-import type { DashboardData } from '#/contexts/reporting/application/public-api'
+import type { DashboardData } from '#/contexts/reporting/public-api'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'

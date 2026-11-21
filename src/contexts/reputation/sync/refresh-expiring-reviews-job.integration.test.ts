@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Review context — the hourly refresh sweep (real PostgreSQL behind the real
 // Review, run and discovery repositories).
 //
@@ -31,7 +31,7 @@ import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-id
 import { createReviewDiscoveryRepository } from './review-discovery-repository.server'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createReviewRefreshRunRepository } from './review-refresh-run-repository.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 import { createRefreshExpiringReviewsHandler } from './refresh-expiring-reviews-job.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 

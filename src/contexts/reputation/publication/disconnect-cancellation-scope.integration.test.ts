@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // A Google disconnect cancels only publication cycles that were never
 // dispatched. Once the worker has claimed a cycle (sending) or Google has
 // accepted the write (pending_observation), the reply may already be live, so

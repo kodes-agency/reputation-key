@@ -3,7 +3,7 @@ import {
   personalPortalWords,
   type PersonalPortalPresentationDeps,
 } from './personal-portal-presentation.server'
-import type { PropertyLifecyclePublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyLifecyclePublicApi } from '#/contexts/property/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'

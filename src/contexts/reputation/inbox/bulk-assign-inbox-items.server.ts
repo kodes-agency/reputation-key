@@ -8,7 +8,7 @@ import type { InboxRepository, InboxSourceScope } from './inbox-repository.port.
 import type { InboxCommandStore } from './command-store.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { InboxItemId, PropertyId, UserId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import {

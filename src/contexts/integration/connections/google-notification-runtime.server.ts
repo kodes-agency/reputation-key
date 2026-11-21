@@ -3,7 +3,7 @@ import type { Clock } from '#/shared/domain/clock'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { GoogleConnectionRepository } from './google-connection-repository.port.server'
 import { createGoogleNotificationAccountCandidates } from './google-notification-account-candidates.server'
 import { createGoogleNotificationAccountUsageReader } from './google-notification-account-usage.server'

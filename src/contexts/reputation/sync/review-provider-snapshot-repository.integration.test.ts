@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Review provider snapshot repository against real PostgreSQL.
 //
 // `finishMainScan` was the one repository path with no coverage against a live

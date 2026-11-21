@@ -16,7 +16,7 @@ import {
   printCodesOf,
   reportingPrintCodeCollision,
 } from './print-code-lifecycle.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
 import { publishNewCodeArtifacts } from './new-code-artifacts.server'
 import { rotateToken } from '../domain/portal-token'

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionDto } from '#/contexts/integration/public-api'
 import { GoogleAccountSelector } from '#/contexts/integration/connections/ui/google-account-selector'
 import { ConnectGoogleButton } from '#/contexts/integration/connections/ui/connect-google-button'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'

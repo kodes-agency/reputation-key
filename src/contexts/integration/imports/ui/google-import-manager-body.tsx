@@ -1,4 +1,4 @@
-import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionDto } from '#/contexts/integration/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { GoogleImportDiscoveryPanel } from './google-import-discovery-panel'

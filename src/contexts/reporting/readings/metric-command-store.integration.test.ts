@@ -26,7 +26,7 @@ import { createAtomicMetricCommandStore } from './metric-command-store.server'
 import type {
   GuestReviewLinkClicked,
   GuestQualifiedScanRecorded,
-} from '#/contexts/guest/application/public-api'
+} from '#/contexts/guest/public-api'
 import { recordMetrics } from './record-metric.server'
 import { createPropertyLocalDateResolver } from './property-local-date.server'
 import {

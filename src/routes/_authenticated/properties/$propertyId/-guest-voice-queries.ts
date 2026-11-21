@@ -2,7 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import type {
   GuestVoiceDetailTarget,
   GuestVoiceWindowContext,
-} from '#/contexts/ai/application/public-api'
+} from '#/contexts/ai/public-api'
 import type { GuestVoiceRange } from '#/shared/dashboard/dashboard-range'
 import { aiKeys, dashboardKeys } from '#/shared/queries/query-keys'
 import { detailTargetKey } from '#/contexts/ai/guest-voice/ui/guest-voice-detail-navigation'

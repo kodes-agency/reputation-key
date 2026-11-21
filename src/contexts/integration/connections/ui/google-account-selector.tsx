@@ -1,4 +1,4 @@
-import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionDto } from '#/contexts/integration/public-api'
 import {
   Select,
   SelectContent,

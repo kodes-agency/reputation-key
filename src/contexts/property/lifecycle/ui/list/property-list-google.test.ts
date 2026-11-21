@@ -1,7 +1,7 @@
 // The Properties list's Rating and Reviews are Google's own number and count
 // (decision 16): its order and its summary read them, never RepKey's average.
 import { describe, expect, it } from 'vitest'
-import type { GoogleNumbersView } from '#/contexts/reporting/application/public-api'
+import type { GoogleNumbersView } from '#/contexts/reporting/public-api'
 import {
   buildPropertyListRows,
   sortPropertyListRows,

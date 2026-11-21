@@ -6,7 +6,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createPropertyRepository } from '#/contexts/property/profile/property-repository.server'
 import { getDb } from '#/shared/db'
 import { organizationId, type OrganizationId, type PropertyId } from '#/shared/domain/ids'

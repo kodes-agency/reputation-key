@@ -11,7 +11,7 @@ import type {
 } from './inbox-repository.port.server'
 import type { PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { inboxError } from '../domain/inbox-errors'
 import { resolveVisiblePropertyIds } from './visible-properties.server'
 import {

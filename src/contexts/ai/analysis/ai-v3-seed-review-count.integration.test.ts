@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The v3 seed in `adopt` mode, read the way an end-to-end stack reads it (PostgreSQL): Review
 // counts the Property's reviews for Guest voice 2.0 from its own source cache, and serves a
 // review's words only from a row that holds a location and a retention date. So the seed

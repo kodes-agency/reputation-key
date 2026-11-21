@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
+import type { GoalListProgress } from '#/contexts/reporting/public-api'
 import { GOAL_PACE_STATUS } from '../../goals/ui/goal-pace-status'
 import {
   daysLeftWords,

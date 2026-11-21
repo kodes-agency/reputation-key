@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { Link } from '@tanstack/react-router'
-import { BETA_FEEDBACK_REPORTS_ANCHOR } from '#/contexts/feed/application/public-api'
+import { BETA_FEEDBACK_REPORTS_ANCHOR } from '#/contexts/feed/public-api'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   clearRecordedErrors,

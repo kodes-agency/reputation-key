@@ -2,7 +2,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { organizationId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import type { PrepareGoogleImportSync } from '#/contexts/review/application/public-api'
 import {
   getImportOutcomePresentation,

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   eraseReviewSourceContent,
   replyScopeEffects,
-} from '#/contexts/reputation/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'

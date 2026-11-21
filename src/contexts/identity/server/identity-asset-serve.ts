@@ -11,8 +11,8 @@
 // claims to be.
 
 import { getContainer } from '#/composition'
-import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-api'
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import { StoredObjectTooLargeError } from '#/contexts/portal/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import {

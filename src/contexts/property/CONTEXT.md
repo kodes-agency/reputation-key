@@ -21,7 +21,7 @@ Property lookups.
 - Identity supplies membership, role and Property access, which decide
   Responsible Manager eligibility. Responsible Manager assignment is notification
   routing, not authorization or attribution.
-- `application/public-api.ts` exposes read, source-epoch, Google-binding,
+- `public-api.ts` exposes read, source-epoch, Google-binding,
   destination, and lifecycle facts; repositories and command stores remain
   internal.
 - Export and irreversible lifecycle contributors remain outside `publicApi`.

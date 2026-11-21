@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
@@ -11,7 +11,7 @@ import {
   propertyPortalBrandContents,
   propertyPortalBrandProfiles,
 } from '#/shared/db/schema/portal.schema'
-import { buildGoogleImportedProperty } from '#/contexts/property/application/public-api'
+import { buildGoogleImportedProperty } from '#/contexts/property/public-api'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildConsumerEvent, type ConsumerEvent } from '#/shared/outbox/envelope'

@@ -18,7 +18,7 @@ import { ConnectGoogleButton } from '#/contexts/integration/connections/ui/conne
 import type {
   GoogleAuthUrlInput,
   GoogleConnectionDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { GoogleConnectionSettingsRow } from '#/contexts/integration/connections/ui/google-connection-settings-row'
 
 type ConnectInput = Readonly<{ data: GoogleAuthUrlInput }>

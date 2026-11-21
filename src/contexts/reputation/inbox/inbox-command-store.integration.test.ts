@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Inbox command store + rebuild integration tests (real Postgres).
 //
 // Crash-boundary proofs on the real database:

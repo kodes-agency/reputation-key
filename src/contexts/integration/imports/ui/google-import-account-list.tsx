@@ -1,6 +1,6 @@
 // The selectable account rows keep their multiline identity and active border.
 import { Building2, ChevronRight } from 'lucide-react'
-import type { ImportAccountDto } from '#/contexts/integration/application/public-api'
+import type { ImportAccountDto } from '#/contexts/integration/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { LoadMoreButton } from '#/components/ui/load-more-button'
 import { EmptyState } from '#/components/ui/empty-state'

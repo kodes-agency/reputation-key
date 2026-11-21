@@ -7,7 +7,7 @@ import {
   portalGroups,
   portals,
 } from '#/shared/db/schema'
-import type { PortalRatingGoalReadApi } from '../application/public-api'
+import type { PortalRatingGoalReadApi } from '../public-api'
 import { findPortalRatingGoalBlock } from './running-portal-rating-goal.server'
 import { mapAssignment, mapProgram, mapVersion } from './goal-program-rows.server'
 

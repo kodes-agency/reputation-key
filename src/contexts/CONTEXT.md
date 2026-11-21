@@ -42,6 +42,7 @@ An area holds its features, and three things every feature shares:
 - `server/` adapts authenticated TanStack Start calls to the built application
   API. Server-function paths are stable RPC entry points.
 - `build.ts` and `build-*.ts` are the composition seam.
+- `public-api.ts` is the one file another area may import. Review and Inbox keep `application/public-api.ts` until their server functions move.
 
 `application/`, `infrastructure/` and `ports/` are the earlier layer folders.
 They only shrink: add no production file to them (a test beside old code is
@@ -59,7 +60,8 @@ fine), and move a file out in a change that does nothing else.
    server files; another area is reached only through its public API. A feature
    that outgrows one folder becomes two features, not a folder with sub-folders.
 4. Expose a call to the browser as a server function in the area's `server/`.
-   Expose a read or command to another area through `application/public-api.ts`.
+   Expose a read or command to another area through the area's `public-api.ts`
+   (Review and Inbox keep `application/public-api.ts` until their server functions move).
 5. Wire new dependencies in `build.ts`.
 6. Run `pnpm check:layout` and `pnpm lint`.
 
@@ -69,8 +71,9 @@ are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-cont
 
 ## Dependency rules
 
-- Cross-context code imports only `application/public-api.ts` or implements a
-  consumer-owned application port. Never import a foreign `domain/`,
+- Cross-context code imports only an area's `public-api.ts` (Review and Inbox
+  keep `application/public-api.ts` until their server functions move) or
+  implements a consumer-owned application port. Never import a foreign `domain/`,
   `infrastructure/`, `server/`, or non-public application module. The port's
   implementation lives in `infrastructure/adapters/` or in a feature as
   `<name>.adapter.server.ts`; a feature's contracts may name another area's

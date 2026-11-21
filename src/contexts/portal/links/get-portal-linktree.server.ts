@@ -4,7 +4,7 @@
 // every link in guest order with its per-language texts, its icon and whether
 // the place it opens is approved. Read-only, gated by `portal.read`.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import {

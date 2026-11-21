@@ -1,7 +1,7 @@
 import type {
   GoogleAuthUrlInput,
   GoogleConnectionStatus,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 
 type ConnectionAuthorizationState = Readonly<{
   id: string

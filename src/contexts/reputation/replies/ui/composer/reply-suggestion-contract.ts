@@ -2,7 +2,7 @@ import { replyCommentProblem } from '#/shared/google-provider-control/reply-comm
 import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
-} from '#/contexts/ai/application/public-api'
+} from '#/contexts/ai/public-api'
 import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
 import {
   equivalentReplyLanguageTags,

@@ -5,7 +5,7 @@ import type {
   FleetRatingGoal,
   GoogleNumbersView,
   PropertySetupStep,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { countryLabel } from '#/components/forms/country-label'
 import { searchMatcher } from '#/components/ui/property-search'
 import type {

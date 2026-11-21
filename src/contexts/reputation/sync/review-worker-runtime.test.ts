@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
 import type { Database } from '#/shared/db'

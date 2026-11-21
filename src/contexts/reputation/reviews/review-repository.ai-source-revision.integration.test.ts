@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Review context — what readForAi serves for a row stored before the source
 // text rules gained revision 2 (`AI_SOURCE_TEXT_REVISION`). Real PostgreSQL.
 

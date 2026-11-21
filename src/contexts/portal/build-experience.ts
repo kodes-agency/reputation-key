@@ -3,7 +3,7 @@
 // the file-length limit; every entry shares the same dependencies. A Portal's
 // own look (ADR 0070) is composed here too, with its repository.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import {
   getPropertyPortalExperience,
   savePortalLocalizedOverride,

@@ -3,7 +3,7 @@
 // delegate to other contexts' public APIs.
 
 import type { StaffPortalResolverPort } from './staff-portal-resolver.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 
 export const createStaffPortalResolverAdapter =
   (peopleApi: StaffPublicApi): StaffPortalResolverPort =>

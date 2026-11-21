@@ -4,7 +4,7 @@
 
 import type { Pool } from 'pg'
 import { getDb } from '#/shared/db'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../domain/approved-destination'
 import { getPortalPreview } from './get-portal-preview.server'
 import { createPortalRepository } from '../publication/portal-repository.server'

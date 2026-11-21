@@ -1,4 +1,4 @@
-import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyFactsPublicApi } from '#/contexts/property/public-api'
 import type { Clock } from '#/shared/domain/clock'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../property-overview/contracts'

@@ -5,7 +5,7 @@
 import type { Database } from '#/shared/db'
 import { buildActivityFeed, type ActivityBuildInput } from './build-activity'
 import type { ConsumerRegistry } from '#/shared/outbox'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Queue } from 'bullmq'
 import { notificationId, notificationEmailId } from '#/shared/domain/ids'
@@ -49,7 +49,7 @@ import {
   createNotificationDeliveryProcessors,
   type NotificationDeliveryWorkerInput,
 } from './email/notification-delivery-processors.server'
-import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/public-api'
 import { createNoticeWriter } from './notify/consumers.server'
 import { registerNotificationRoutes } from './notify/register-routes.server'
 import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './notify/health-read-timeout.server'

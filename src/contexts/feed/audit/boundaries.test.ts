@@ -30,7 +30,7 @@ describe.each(['event', 'fact', 'read', 'write', 'retention'])(
 
     it.each([
       'src/contexts/feed/infrastructure/audit-boundary-fixture.ts',
-      'src/contexts/feed/application/public-api.ts',
+      'src/contexts/feed/public-api.ts',
       'src/contexts/feed/server/audit-boundary-fixture.ts',
       'src/contexts/feed/build.ts',
       'src/contexts/feed/audit/boundary-fixture.server.ts',
@@ -68,7 +68,7 @@ describe('audit public runtime seams', () => {
     ['scripts/ops/audit-events.ts', 'readAuditEvents'],
   ])('allows access through the Feed public API in %s', async (file, name) => {
     const messages = await lint(
-      `import { ${name} } from '#/contexts/feed/application/public-api'\n`,
+      `import { ${name} } from '#/contexts/feed/public-api'\n`,
       file,
     )
     expect(messages.filter(({ ruleId }) => boundaryRules.has(ruleId ?? ''))).toEqual([])

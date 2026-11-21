@@ -1,4 +1,4 @@
-import type { StartPropertyImportItemInput } from '#/contexts/integration/application/public-api'
+import type { StartPropertyImportItemInput } from '#/contexts/integration/public-api'
 import type { GoogleImportFns } from './google-import-manager-contract'
 
 type StartResult = Readonly<{ importJobId: string; requestId: string }>

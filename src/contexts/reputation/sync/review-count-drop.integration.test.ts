@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // A review deleted on Google, reached through the head check's count alarm and
 // a listing's first miss — against real PostgreSQL.
 //

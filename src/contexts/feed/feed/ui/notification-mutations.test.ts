@@ -5,7 +5,7 @@ import type {
   NotificationFeedHead,
   NotificationListFilter,
   NotificationView,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import {
   makeNotification,
   notificationFeedHeadFixture,

@@ -18,7 +18,7 @@ import {
   type PrintSavedWording,
 } from '#/shared/domain/portal-print-wording'
 import { PRINT_REFUSAL_COPY } from '#/shared/domain/portal-print-refusals'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalError } from '../domain/errors'
 import type { SavePortalPrintWordingInput } from './portal-print-wording.contracts'

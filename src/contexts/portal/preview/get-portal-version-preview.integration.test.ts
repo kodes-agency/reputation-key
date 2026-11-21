@@ -8,7 +8,7 @@ import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixture
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createPortalReadsWorld } from '../infrastructure/testing/portal-reads-world'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalPublicationSnapshot } from '../domain/portal-publication-snapshot'
 import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../destinations/approved-destination-age.server'
 import type { PortalPublicationRepository } from '../publication/portal-publication-repository.port.server'

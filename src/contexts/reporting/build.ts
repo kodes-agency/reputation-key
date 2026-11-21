@@ -18,18 +18,15 @@ import {
   type PortalGroupId,
   type PortalId,
 } from '#/shared/domain/ids'
-import type {
-  PortalGroupPublicApi,
-  PortalPublicApi,
-} from '#/contexts/portal/application/public-api'
-import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PortalGroupPublicApi, PortalPublicApi } from '#/contexts/portal/public-api'
+import type { PropertyFactsPublicApi } from '#/contexts/property/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   ReviewGoogleRatingReads,
   ReviewServingStats,
 } from '#/contexts/review/application/public-api'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
-import type { MetricPublicApi, PortalRatingGoalReadApi } from './application/public-api'
+import type { MetricPublicApi, PortalRatingGoalReadApi } from './public-api'
 
 import { createPropertyLocalDateResolver } from './readings/property-local-date.server'
 import { createGoalMetricSnapshotReader } from './readings/goal-metric-snapshot.server'

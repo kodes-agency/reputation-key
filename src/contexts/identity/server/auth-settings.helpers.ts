@@ -1,7 +1,7 @@
 // Shared error handler for auth-settings server functions.
 // Extracted from auth-settings.ts to keep each file ≤150 lines.
 
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { assertOwnStoredAvatar } from '../images/finalize-avatar-upload.server'

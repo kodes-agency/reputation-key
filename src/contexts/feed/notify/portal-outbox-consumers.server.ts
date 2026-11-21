@@ -1,4 +1,4 @@
-import type { PortalResponsibilityNeeded } from '#/contexts/portal/application/public-api'
+import type { PortalResponsibilityNeeded } from '#/contexts/portal/public-api'
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'

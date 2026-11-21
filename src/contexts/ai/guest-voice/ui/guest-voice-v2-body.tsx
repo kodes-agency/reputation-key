@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import type { GuestVoiceDetailTarget, GuestVoiceV2Read } from '../contracts'
-import type { GoogleNumbersView } from '#/contexts/reporting/application/public-api'
+import type { GoogleNumbersView } from '#/contexts/reporting/public-api'
 import { windowDates } from './guest-voice-words'
 import { GuestVoiceProvider } from './guest-voice-context'
 import { GuestVoiceEveryTopic } from './guest-voice-every-topic'

@@ -17,8 +17,8 @@
 // fails verification when it is read is treated as absent (`not_published`),
 // as the repository returns it.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { PropertyFactsPublicApi } from '#/contexts/property/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import { buildPortalLinktreeView } from '../domain/portal-linktree-view'

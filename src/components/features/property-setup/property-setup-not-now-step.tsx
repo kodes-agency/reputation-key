@@ -8,7 +8,7 @@
 // waiting chip draws its own spinner, so a pending Button here is the
 // Button's own.
 import type { ReactNode } from 'react'
-import type { PropertySetupStep } from '#/contexts/reporting/application/public-api'
+import type { PropertySetupStep } from '#/contexts/reporting/public-api'
 import { Button } from '#/components/ui/button'
 import { propertySetupStepLabel } from './property-setup-steps'
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { StartPropertyImportItemInput } from '#/contexts/integration/application/public-api'
+import type { StartPropertyImportItemInput } from '#/contexts/integration/public-api'
 import { startGoogleImport, type GoogleImportStartDeps } from './google-import-start'
 
 const REQUEST_ID = '10000000-0000-4000-8000-000000000001'

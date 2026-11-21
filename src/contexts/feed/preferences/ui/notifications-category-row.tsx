@@ -16,7 +16,7 @@ import {
   offeredEmailCadences,
   type ConfigurableNotificationCategory,
   type NotificationCadence,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
 import type { PreferenceValues } from './notification-preference-saves'
 import type { SetDifferently } from './notification-apply-everywhere'

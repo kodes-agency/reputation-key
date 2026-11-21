@@ -2,10 +2,7 @@
 // become zero; averages below the sample floor ask for more ratings. Only eligible
 // single-subject counts receive a pace pill. Today counts as a day left.
 
-import type {
-  GoalListProgress,
-  GoalMetric,
-} from '#/contexts/reporting/application/public-api'
+import type { GoalListProgress, GoalMetric } from '#/contexts/reporting/public-api'
 import type { StatusPresentation } from '#/components/ui/status-badge'
 import { GOAL_PACE_STATUS } from '../../goals/ui/goal-pace-status'
 import { goalMetricLabel } from './goal-metric-label'

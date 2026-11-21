@@ -1,10 +1,7 @@
 import { staffTargetProblem } from '../domain/staff-target-eligibility'
 import { ratingSubjectSkipsPrivateRating } from './goal-rating-eligibility.server'
-import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
-import type {
-  PortalGroupPublicApi,
-  PortalPublicApi,
-} from '#/contexts/portal/application/public-api'
+import type { PropertyFactsPublicApi } from '#/contexts/property/public-api'
+import type { PortalGroupPublicApi, PortalPublicApi } from '#/contexts/portal/public-api'
 import {
   organizationId as toOrganizationId,
   portalGroupId as toPortalGroupId,

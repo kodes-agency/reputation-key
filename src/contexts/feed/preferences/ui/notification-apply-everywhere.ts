@@ -7,7 +7,7 @@ import type {
   ConfigurableNotificationCategory,
   NotificationChannel,
   NotificationPreference,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 
 export type ApplyEverywhereOutcome = Readonly<{
   applied: readonly NotificationChannel[]

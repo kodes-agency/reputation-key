@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -16,7 +16,7 @@ import { insertLiveReview } from '#/shared/testing/review-tombstone-fixtures'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createEligibleReads } from '../reviews/eligible-reads.server'
 import { createServingStats } from '../reviews/serving-stats.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 import { createReviewRepository } from '../reviews/review-repository.server'
 
 const ORG = organizationId('org-review-content-readers-1111111111')

@@ -13,7 +13,7 @@
 // Its deps carry no queue and no Google client: it cannot publish, authorize a
 // cycle or enqueue a job.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ReviewId } from '#/shared/domain/ids'

@@ -10,7 +10,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
 import type { PortalPublicationRepository } from '../publication/portal-publication-repository.port.server'
 import type { PortalActorDirectory } from './portal-actor-directory.port.server'

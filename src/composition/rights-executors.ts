@@ -4,7 +4,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '#/shared/db'
-import { NOTIFICATION_RIGHTS_TABLES } from '#/contexts/feed/application/public-api'
+import { NOTIFICATION_RIGHTS_TABLES } from '#/contexts/feed/public-api'
 import {
   createAiErasureReplayers,
   createAiRightsExecutor,

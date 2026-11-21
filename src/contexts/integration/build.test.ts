@@ -10,7 +10,7 @@ import type { Database } from '#/shared/db'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from '#/contexts/review/application/public-api'
 import type { GoogleProviderEndpoints } from './build'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'

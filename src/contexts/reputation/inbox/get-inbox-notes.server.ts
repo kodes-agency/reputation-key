@@ -7,7 +7,7 @@ import type { InboxRepository } from './inbox-repository.port.server'
 import type { InboxItemId } from '#/shared/domain/ids'
 import type { InboxNote } from '../domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxError } from '../domain/inbox-errors'
 import {

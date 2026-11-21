@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { openNextReviewCycleForTest } from '#/contexts/reputation/inbox/review-cycle-reopen.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
@@ -25,7 +25,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import { createGoogleReplyObservationStore } from '#/contexts/reputation/publication/google-reply-observation-store.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
 import type { CurrentReplyObservationPermit } from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
 import {
   handleInboxReplyObserved,

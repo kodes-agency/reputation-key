@@ -12,11 +12,11 @@ import {
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { PortalRepository } from './portal-repository.port.server'
 import type {
   PortalCommandStore,

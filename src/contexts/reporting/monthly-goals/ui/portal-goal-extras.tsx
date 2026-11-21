@@ -2,10 +2,7 @@
 // page. The Google section's view does not filter Portal goals.
 
 import { Link } from '@tanstack/react-router'
-import type {
-  GoalListProgress,
-  GoalSubject,
-} from '#/contexts/reporting/application/public-api'
+import type { GoalListProgress, GoalSubject } from '#/contexts/reporting/public-api'
 import type { listGoalPrograms } from '#/contexts/reporting/server/goal-programs'
 import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import { ROW_NAME_LINK } from '#/components/ui/row-link'

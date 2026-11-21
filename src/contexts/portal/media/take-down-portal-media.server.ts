@@ -12,7 +12,7 @@
 // sweep retries until it is gone. A takedown therefore never fails half-done in
 // the direction that matters (an image still being served).
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalMediaAssetId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'

@@ -3,12 +3,12 @@ import type { Database } from '#/shared/db'
 import type {
   PortalContactRequestManagerAuthorityPublicApi,
   PortalPublicApi,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/public-api'
 import type {
   IdentityAccountAdminAuthorityPublicApi,
   IdentityManagerFactsPublicApi,
-} from '#/contexts/identity/application/public-api'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+} from '#/contexts/identity/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Clock } from '#/shared/domain/clock'
 import { createGuestResponseRepository } from './responses/guest-response.repository.server'
