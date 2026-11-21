@@ -288,7 +288,9 @@
         "reason": "This is an exhaustive `switch (descriptor.routeKey)` over a closed 13-member union \u2014 the flat-not-nested shape the brief names as the legitimate waiver case. Only cyclomatic (26) exceeds; cognitive is 16, comfortably under the 20 ceiling, because there is no nesting: each arm is a sibling `case` tha"
       },
       {
-        "files": ["src/contexts/review/infrastructure/reply-observation-authority.ts"],
+        "files": [
+          "src/contexts/reputation/reviews/reply-observation-authority.server.ts"
+        ],
         "functions": ["isExactCurrentObservation"],
         "maxCyclomatic": 28,
         "reason": "The function is a single flat conjunction of ~20 independent equality checks \u2014 head identity, Review source position, head/observation denormalization agreement, the five decision fields, three enum-membership checks and the measured/startAt pairing \u2014 all compared against one expectation object. The"

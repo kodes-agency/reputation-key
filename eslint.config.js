@@ -70,7 +70,9 @@ const withMessage = (selectors, message) =>
   selectors.map((selector) => ({ selector, message }))
 
 // The component and route sources, as the source guards under src/components read them.
-// Layer folders keep their existing classifications.
+// Layer folders keep their existing classifications. ports/, queries/ and ui/ at an
+// area's root are retired: no element claims them, so a file there fails
+// boundaries/no-unknown-files.
 const FEATURE_ROOT =
   'src/contexts/*/!(domain|application|infrastructure|server|ports|queries|ui)'
 const FEATURE_UI = FEATURE_ROOT + '/ui/**/*.{ts,tsx}'
@@ -144,12 +146,11 @@ const SELECTABLE_BUTTONS = [
   ['src/contexts/reputation/inbox/ui/page/inbox-list-row.tsx', 'picker-tile'],
 ]
 
-// An area's public API: what other areas may import. It is moving from
-// application/public-api.ts to the area's root; until every area has moved,
-// lint names both paths.
+// An area's public API: what other areas may import, at the area's root. Review
+// and Inbox keep theirs in application/ until their server functions move into Reputation.
 const PUBLIC_API = [
   'src/contexts/*/public-api.ts',
-  'src/contexts/*/application/public-api.ts',
+  'src/contexts/{review,inbox}/application/public-api.ts',
 ]
 
 const elementType = (type) => ({ element: { type } })
@@ -353,7 +354,6 @@ export default tseslint.config(
       ...UI_SOURCES,
       'src/hooks/**/*.{ts,tsx}',
       'src/shared/hooks/**/*.{ts,tsx}',
-      'src/contexts/*/ui/**/*.{ts,tsx}',
       FEATURE_UI,
     ],
     ignores: NOT_A_UI_SOURCE,
@@ -379,11 +379,8 @@ export default tseslint.config(
 
         { type: 'domain', pattern: 'src/contexts/*/domain/**' },
         { type: 'application', pattern: 'src/contexts/*/application/**' },
-        { type: 'application', pattern: 'src/contexts/*/ports/**' },
-        { type: 'application', pattern: 'src/contexts/*/queries/**' },
         { type: 'infrastructure', pattern: 'src/contexts/*/infrastructure/**' },
         { type: 'server', pattern: 'src/contexts/*/server/**' },
-        { type: 'context-ui', pattern: 'src/contexts/*/ui/**' },
         { type: 'legal-source', pattern: 'docs/legal/**' },
         { type: 'routes', pattern: 'src/routes/**' },
         { type: 'components', pattern: 'src/components/**' },
@@ -538,7 +535,7 @@ export default tseslint.config(
                 to: {
                   file: {
                     path: [
-                      'src/contexts/{{from.file.captured.context}}/{domain,application,infrastructure,server,ports}/**',
+                      'src/contexts/{{from.file.captured.context}}/{domain,application,infrastructure,server}/**',
                       ...PUBLIC_API,
                     ],
                   },
@@ -568,7 +565,7 @@ export default tseslint.config(
               allow: {
                 to: {
                   file: {
-                    path: 'src/contexts/{review,inbox}/{domain,application,infrastructure,server,ports}/**',
+                    path: 'src/contexts/{review,inbox}/{application,server}/**',
                   },
                 },
               },
@@ -600,7 +597,6 @@ export default tseslint.config(
                   'application',
                   'infrastructure',
                   'server',
-                  'context-ui',
                   'routes',
                   'components',
                   'test-helpers',
@@ -642,17 +638,12 @@ export default tseslint.config(
               allow: { to: fileCategory('context-build') },
             },
             {
-              from: elementType('context-ui'),
-              allow: { to: elementTypes('application', ...SHARED_BROWSER) },
-            },
-            {
               from: elementType('routes'),
               allow: {
                 to: elementTypes(
                   ...UI,
                   'server',
                   'application',
-                  'context-ui',
                   ...SHARED_SERVER,
                   'legal-source',
                 ),
@@ -661,13 +652,7 @@ export default tseslint.config(
             {
               from: elementType('components'),
               allow: {
-                to: elementTypes(
-                  ...UI,
-                  'context-ui',
-                  'application',
-                  'server',
-                  ...SHARED_SERVER,
-                ),
+                to: elementTypes(...UI, 'application', 'server', ...SHARED_SERVER),
               },
             },
             {
@@ -943,7 +928,7 @@ export default tseslint.config(
               from: {
                 file: {
                   path: [
-                    'src/contexts/{review,inbox}/{application,infrastructure,server}/**',
+                    'src/contexts/{review,inbox}/{application,server}/**',
                     'src/contexts/{review,inbox}/build{,-*}.ts',
                   ],
                 },
@@ -976,7 +961,6 @@ export default tseslint.config(
       'src/routes/**/*.{ts,tsx}',
       'src/hooks/**/*.{ts,tsx}',
       'src/lib/**/*.{ts,tsx}',
-      'src/contexts/*/ui/**/*.{ts,tsx}',
       FEATURE_UI,
       'src/shared/email/**/*.{ts,tsx}',
       'src/shared/hooks/**/*.{ts,tsx}',
@@ -999,8 +983,8 @@ export default tseslint.config(
 
   // ─── BQC-5.1: cross-context public-api rule ────────────────────────
   // CONTEXT.md "Dependency rules": cross-context imports go through the
-  // target context's public-api.ts (at its root, or in application/ until it
-  // has moved) only; infrastructure/adapters/**
+  // target context's root public-api.ts only (Review and Inbox: application/
+  // until their server functions move); infrastructure/adapters/**
   // and feature *.adapter.server.ts files may import the foreign
   // application/ports/** contract they implement.
   {
@@ -1378,23 +1362,14 @@ export default tseslint.config(
     rules: { 'source-policy/system-scope': 'error' },
   },
   {
-    files: [
-      'src/components/**/*.{ts,tsx}',
-      'src/contexts/*/ui/**/*.{ts,tsx}',
-      FEATURE_UI,
-    ],
+    files: ['src/components/**/*.{ts,tsx}', FEATURE_UI],
     rules: {
       'source-policy/component-filename': 'error',
       'source-policy/component-server': 'error',
     },
   },
   {
-    files: [
-      ...UI_SOURCES,
-      'src/contexts/*/ui/**/*.{ts,tsx}',
-      'src/client.tsx',
-      'src/instrument.client.ts',
-    ],
+    files: [...UI_SOURCES, 'src/client.tsx', 'src/instrument.client.ts'],
     ignores: [...NOT_A_UI_SOURCE, 'src/routes/api/**'],
     rules: { 'source-policy/browser-server': 'error' },
   },
