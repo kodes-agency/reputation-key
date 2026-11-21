@@ -22,6 +22,19 @@ describe('parseIntegrationDurations', () => {
     })
   })
 
+  it('keeps the mean of a file seen in several runs', () => {
+    const log = [
+      line(' ✓  integration  src/a.integration.test.ts (2 tests) 1000ms'),
+      line(' ✓  integration  src/a.integration.test.ts (2 tests) 2.0s'),
+      line(' ✓  integration  src/a.integration.test.ts (2 tests) 3600ms'),
+      line(' ✓  integration  src/b.integration.test.ts (1 test) 400ms'),
+    ].join('\n')
+    expect(parseIntegrationDurations(log)).toEqual({
+      'src/a.integration.test.ts': 2_200,
+      'src/b.integration.test.ts': 400,
+    })
+  })
+
   it('sorts by path so a re-record diffs line by line', () => {
     const log = [
       line(' ✓  integration  src/z.integration.test.ts (1 test) 300ms'),
