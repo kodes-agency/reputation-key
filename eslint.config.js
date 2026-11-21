@@ -1051,6 +1051,31 @@ export default tseslint.config(
     },
   },
 
+  // Queue and Redis clients are built in shared/jobs and the composition root
+  // and handed to an area as values. Area code may name their types (a job's
+  // Job, an adapter's Redis) but never imports the packages to build one.
+  // A separate rule from no-restricted-imports, so the layer blocks above keep
+  // their own lists. Tests may still build real clients.
+  {
+    files: ['src/contexts/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['bullmq', 'ioredis'],
+              allowTypeImports: true,
+              message:
+                'Area code imports bullmq/ioredis types only (import type). Queue and Redis clients are built in shared/jobs or the composition root and passed in.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // ─── Allow drizzle-orm in shared/outbox/infrastructure/ (outbox repo) ──
   // PRE17A A3: The outbox repository uses Drizzle directly, same as context
   // infrastructure repos. Lives under shared/ because it's cross-context.

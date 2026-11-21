@@ -18,8 +18,10 @@ const UNKNOWN_DEPENDENCY_RULES = [
   'boundaries/no-unknown-dependencies',
   'boundaries/no-unknown',
 ]
+const QUEUE_CLIENT_RULE = '@typescript-eslint/no-restricted-imports'
 const BOUNDARY_RULES = [
   'no-restricted-imports',
+  QUEUE_CLIENT_RULE,
   'boundaries/dependencies',
   'boundaries/no-unknown-files',
   ...UNKNOWN_DEPENDENCY_RULES,
@@ -354,9 +356,56 @@ const controls = [
     source: "import '../../vitest.config'\n",
     expect: UNKNOWN_DEPENDENCY_RULES,
   },
+  // Queue and Redis clients are built in shared/jobs and the composition root;
+  // area code names their types only.
+  {
+    name: 'a feature job cannot build a queue',
+    file: 'src/contexts/reputation/sync/boundary-negative-control-job.server.ts',
+    source: "import { Queue } from 'bullmq'\nexport const control = Queue\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
+  {
+    name: 'a feature adapter cannot open its own Redis connection',
+    file: 'src/contexts/ai/execution/boundary-negative-control.adapter.server.ts',
+    source: "import Redis from 'ioredis'\nexport const control = Redis\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
+  {
+    name: 'a feature rule file cannot import a queue package',
+    file: 'src/contexts/reporting/rating-goals/boundary-negative-control.ts',
+    source: "import { Worker } from 'bullmq'\nexport const control = Worker\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
+  {
+    name: "an area's build cannot build a queue",
+    file: 'src/contexts/feed/build.ts',
+    source: "import { Queue } from 'bullmq'\nexport const control = Queue\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
+  {
+    name: 'an infrastructure adapter cannot open its own Redis connection',
+    file: 'src/contexts/ai/infrastructure/boundary-negative-control.ts',
+    source: "import { Redis } from 'ioredis'\nexport const control = Redis\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
 ]
 
 const allowedControls = [
+  {
+    name: 'a feature job may name the queue Job type',
+    file: 'src/contexts/reputation/sync/boundary-positive-control-job.server.ts',
+    source: "import type { Job } from 'bullmq'\nexport type Control = Job\n",
+  },
+  {
+    name: 'a feature adapter may name the Redis type',
+    file: 'src/contexts/ai/execution/boundary-positive-control.adapter.server.ts',
+    source: "import type { Redis } from 'ioredis'\nexport type Control = Redis\n",
+  },
+  {
+    name: 'a feature integration test may build a real queue',
+    file: 'src/contexts/ai/replay/boundary-positive-control.integration.test.ts',
+    source: "import { Queue } from 'bullmq'\nexport const control = Queue\n",
+  },
   {
     name: 'a feature adapter may import the port another area owns that it implements',
     file: 'src/contexts/guest/rights/boundary-positive-control.adapter.server.ts',
