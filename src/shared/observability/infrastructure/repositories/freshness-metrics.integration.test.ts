@@ -25,6 +25,10 @@ import { createHealthChecker } from '#/shared/observability/health-metrics'
 import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-identifiers-v1'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
+import {
+  insertEmailQueueRow,
+  type EmailQueueRowSeed,
+} from '#/shared/db/testing/notification-email-queue-seed'
 
 // Provider resource literals may only come from the generated fixture catalogue.
 const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =
@@ -276,6 +280,20 @@ async function seedProperty() {
   `)
 }
 
+const SEED_USER = 'user-obs-freshness'
+
+/** A queue row of this suite's Organization, on its marker Property by default. */
+const queueRow = (
+  seed: Omit<EmailQueueRowSeed, 'organizationId' | 'propertyId' | 'userId'> &
+    Partial<Pick<EmailQueueRowSeed, 'propertyId'>>,
+) =>
+  insertEmailQueueRow(db, {
+    organizationId: MARKER_ORG,
+    propertyId: MARKER_PROP_UUID,
+    userId: SEED_USER,
+    ...seed,
+  })
+
 type EmailSeed = Readonly<{
   key: string
   status: string
@@ -284,23 +302,20 @@ type EmailSeed = Readonly<{
   /** SQL fragment for not_before (NULL column when omitted). */
   notBefore?: SQL
   attempted?: boolean
+  lastErrorClass?: string
+  retryCount?: number
 }>
 
-async function seedEmail(seed: EmailSeed) {
-  await db.execute(sql`
-    INSERT INTO notification_email_queue (
-      notification_id, user_id, organization_id, property_id,
-      category, cadence, status, priority, idempotency_key,
-      not_before, next_attempt_at, attempted_at, created_at, updated_at
-    ) VALUES (
-      gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${MARKER_PROP_UUID},
-      'review', 'daily', ${seed.status}, 'normal', ${seed.key},
-      ${seed.notBefore ?? sql`NULL`}, ${seed.nextAttempt ?? sql`NULL`},
-      ${seed.attempted === true ? sql`NOW() - INTERVAL '25 minutes'` : sql`NULL`},
-      NOW(), NOW()
-    )
-  `)
-}
+const seedEmail = (seed: EmailSeed) =>
+  queueRow({
+    key: seed.key,
+    status: seed.status,
+    lastErrorClass: seed.lastErrorClass,
+    retryCount: seed.retryCount,
+    notBefore: seed.notBefore,
+    nextAttemptAt: seed.nextAttempt,
+    attemptedAt: seed.attempted === true ? sql`NOW() - INTERVAL '25 minutes'` : undefined,
+  })
 
 describe('notification email delivery aggregate (real reads)', () => {
   it('counts only overdue pending rows and isolates the already-attempted subset', async () => {
@@ -347,17 +362,13 @@ describe('notification email delivery aggregate (real reads)', () => {
 
     // No not_before, no next_attempt_at: the row is due the moment it exists,
     // so created_at is what "overdue" has to be measured from.
-    await db.execute(sql`
-      INSERT INTO notification_email_queue (
-        notification_id, user_id, organization_id, property_id,
-        category, cadence, status, priority, idempotency_key,
-        created_at, updated_at
-      ) VALUES (
-        gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${MARKER_PROP_UUID},
-        'review', 'urgent', 'pending', 'high', 'obs-freshness-unscheduled',
-        NOW() - INTERVAL '4 hours', NOW()
-      )
-    `)
+    await queueRow({
+      key: 'obs-freshness-unscheduled',
+      status: 'pending',
+      cadence: 'urgent',
+      priority: 'high',
+      createdAt: sql`NOW() - INTERVAL '4 hours'`,
+    })
 
     const after = (await checker.check()).notifications
 
@@ -399,26 +410,14 @@ type OutcomeSeed = Readonly<{
   bouncedAt?: SQL
 }>
 
-async function seedOutcome(seed: OutcomeSeed) {
-  await db.execute(sql`
-    INSERT INTO notification_email_queue (
-      notification_id, user_id, organization_id, property_id,
-      category, cadence, status, priority, idempotency_key,
-      provider_message_id, provider_state, last_error_class, retry_count,
-      suppression_reason,
-      accepted_at, failed_at, delivered_at, bounced_at, created_at, updated_at
-    ) VALUES (
-      gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${MARKER_PROP_UUID},
-      'urgent_operational', ${seed.cadence ?? 'immediate'}, ${seed.status}, 'urgent', ${seed.key},
-      ${seed.providerMessageId ?? null}, ${seed.providerState ?? null},
-      ${seed.lastErrorClass ?? null}, ${seed.retryCount ?? 0},
-      ${seed.suppressionReason ?? null},
-      ${seed.acceptedAt ?? sql`NULL`}, ${seed.failedAt ?? sql`NULL`},
-      ${seed.deliveredAt ?? sql`NULL`}, ${seed.bouncedAt ?? sql`NULL`},
-      NOW() - INTERVAL '2 days', NOW()
-    )
-  `)
-}
+const seedOutcome = (seed: OutcomeSeed) =>
+  queueRow({
+    category: 'urgent_operational',
+    cadence: seed.cadence ?? 'immediate',
+    priority: 'urgent',
+    createdAt: sql`NOW() - INTERVAL '2 days'`,
+    ...seed,
+  })
 
 const hoursAgo = (hours: number) => sql`NOW() - (${hours} * INTERVAL '1 hour')`
 
@@ -605,12 +604,9 @@ describe('notification email stall aggregate (real reads)', () => {
       status: 'failed',
       nextAttempt: sql`NOW() - INTERVAL '3 hours'`,
       attempted: true,
+      lastErrorClass: 'transient',
+      retryCount: 2,
     })
-    await db.execute(sql`
-      UPDATE notification_email_queue
-         SET last_error_class = 'transient', retry_count = 2
-       WHERE idempotency_key = 'obs-stall-retry-overdue'
-    `)
     // A quiet-hours hold that ended 30 minutes ago and was never released.
     await seedEmail({
       key: 'obs-stall-held',
@@ -623,22 +619,15 @@ describe('notification email stall aggregate (real reads)', () => {
       status: 'failed',
       nextAttempt: sql`NOW() - INTERVAL '5 hours'`,
       attempted: true,
+      lastErrorClass: 'transient',
+      retryCount: 5,
     })
-    await db.execute(sql`
-      UPDATE notification_email_queue
-         SET last_error_class = 'transient', retry_count = 5
-       WHERE idempotency_key = 'obs-stall-exhausted'
-    `)
     await seedEmail({
       key: 'obs-stall-permanent',
       status: 'failed',
       attempted: true,
+      lastErrorClass: 'permanent',
     })
-    await db.execute(sql`
-      UPDATE notification_email_queue
-         SET last_error_class = 'permanent'
-       WHERE idempotency_key = 'obs-stall-permanent'
-    `)
 
     const after = (await checker.check()).notifications
 
@@ -699,26 +688,15 @@ async function seedDigest(seed: DigestSeed) {
   `)
   const batchId = batch.rows[0]!.id
   for (let index = 0; index < seed.items; index += 1) {
-    const email = await db.execute<{ id: string }>(sql`
-      INSERT INTO notification_email_queue (
-        notification_id, user_id, organization_id, property_id,
-        category, cadence, status, priority, idempotency_key,
-        provider_message_id, provider_state, last_error_class, retry_count,
-        accepted_at, failed_at, delivered_at, bounced_at, created_at, updated_at
-      ) VALUES (
-        gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${MARKER_PROP_UUID},
-        'review', 'daily', ${seed.status}, 'normal', ${`${seed.key}-${index}`},
-        ${seed.providerMessageId ?? null}, ${seed.providerState ?? null},
-        ${seed.lastErrorClass ?? null}, ${seed.retryCount ?? 0},
-        ${seed.acceptedAt ?? sql`NULL`}, ${seed.failedAt ?? sql`NULL`},
-        ${seed.deliveredAt ?? sql`NULL`}, ${seed.bouncedAt ?? sql`NULL`},
-        NOW() - INTERVAL '2 days', NOW()
-      ) RETURNING id
-    `)
+    const emailId = await queueRow({
+      ...seed,
+      key: `${seed.key}-${index}`,
+      createdAt: sql`NOW() - INTERVAL '2 days'`,
+    })
     await db.execute(sql`
       INSERT INTO notification_digest_batch_members (
         batch_id, organization_id, user_id, notification_email_id, sort_index
-      ) VALUES (${batchId}, ${MARKER_ORG}, 'user-obs-freshness', ${email.rows[0]!.id}, ${index})
+      ) VALUES (${batchId}, ${MARKER_ORG}, 'user-obs-freshness', ${emailId}, ${index})
     `)
   }
 }
@@ -794,19 +772,17 @@ async function seedScopedProperty(id: string, slug: string, lifecycleState: stri
 }
 
 /** A quiet-hours hold that ended three hours ago and was never released. */
-async function seedHeldEmail(key: string, propertyId: string) {
-  await db.execute(sql`
-    INSERT INTO notification_email_queue (
-      notification_id, user_id, organization_id, property_id,
-      category, cadence, status, priority, idempotency_key,
-      not_before, created_at, updated_at
-    ) VALUES (
-      gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${propertyId},
-      'urgent_operational', 'immediate', 'delayed', 'urgent', ${key},
-      NOW() - INTERVAL '3 hours', NOW() - INTERVAL '10 hours', NOW()
-    )
-  `)
-}
+const seedHeldEmail = (key: string, propertyId: string) =>
+  queueRow({
+    key,
+    status: 'delayed',
+    category: 'urgent_operational',
+    cadence: 'immediate',
+    priority: 'urgent',
+    propertyId,
+    notBefore: sql`NOW() - INTERVAL '3 hours'`,
+    createdAt: sql`NOW() - INTERVAL '10 hours'`,
+  })
 
 describe('notification email stall scope (real reads)', () => {
   it('counts touched rows only where email may send, on an active Property', async () => {
@@ -825,19 +801,19 @@ describe('notification email stall scope (real reads)', () => {
     // An archived Property is never visited by the orphan sweep again.
     await seedHeldEmail('obs-scope-archived-held', ARCHIVED_PROP_UUID)
     // An Organization-scoped mandatory notice whose transient retry is 4h late.
-    await db.execute(sql`
-      INSERT INTO notification_email_queue (
-        notification_id, user_id, organization_id, property_id,
-        category, cadence, status, priority, idempotency_key,
-        last_error_class, retry_count, next_attempt_at, attempted_at,
-        created_at, updated_at
-      ) VALUES (
-        gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, NULL,
-        'mandatory', 'immediate', 'failed', 'urgent', 'obs-scope-org-retry',
-        'transient', 2, NOW() - INTERVAL '4 hours', NOW() - INTERVAL '5 hours',
-        NOW() - INTERVAL '6 hours', NOW()
-      )
-    `)
+    await queueRow({
+      key: 'obs-scope-org-retry',
+      status: 'failed',
+      category: 'mandatory',
+      cadence: 'immediate',
+      priority: 'urgent',
+      propertyId: null,
+      lastErrorClass: 'transient',
+      retryCount: 2,
+      nextAttemptAt: sql`NOW() - INTERVAL '4 hours'`,
+      attemptedAt: sql`NOW() - INTERVAL '5 hours'`,
+      createdAt: sql`NOW() - INTERVAL '6 hours'`,
+    })
 
     const after = (await scoped.check()).notifications
 
