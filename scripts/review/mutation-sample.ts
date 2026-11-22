@@ -15,13 +15,17 @@
 // them again. A fault no test catches is a survivor: either a missing
 // assertion, which gets a test, or a change that cannot be observed, which the
 // report says. The seed defaults to the month, so each month samples other
-// sites. The source file is always restored, also on Ctrl-C. It exits 1 when a
+// sites. The source file is always restored, also on Ctrl-C; a run killed
+// outright leaves a journal in the system temp folder, and the next run puts
+// the file back before it starts. It exits 1 when a
 // fault survived. mutation-sample-run.ts starts it; this module only exports,
 // so its test can import it without running it.
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import ts from 'typescript'
 
 export const TARGETS_PATH = 'scripts/review/mutation-targets.json'
@@ -197,6 +201,26 @@ type Result = Readonly<{
   outcome: Outcome
 }>
 
+// Which file holds a planted fault right now, and its original text.
+const JOURNAL = join(
+  tmpdir(),
+  `repkey-mutation-sample-${createHash('sha1').update(process.cwd()).digest('hex').slice(0, 12)}.json`,
+)
+
+/** Puts back a file that a stopped run left with a planted fault. */
+function restoreFromJournal(): void {
+  if (!existsSync(JOURNAL)) return
+  const { path, original } = JSON.parse(readFileSync(JOURNAL, 'utf8')) as {
+    path: string
+    original: string
+  }
+  writeFileSync(path, original)
+  rmSync(JOURNAL)
+  console.log(
+    `[mutation-sample] restored ${path}, which a stopped run left with a planted fault`,
+  )
+}
+
 function relatedTests(path: string, project: string): { passed: boolean; ran: boolean } {
   const run = spawnSync(
     'pnpm',
@@ -208,6 +232,7 @@ function relatedTests(path: string, project: string): { passed: boolean; ran: bo
       '--run',
       `--project=${project}`,
       '--passWithNoTests',
+      '--bail=1',
     ],
     { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
   )
@@ -225,13 +250,12 @@ function sampleTarget(
   count: number,
   seed: string,
   project: string,
-  restoreOnExit: (path: string, text: string) => () => void,
 ): Result[] {
   const original = readFileSync(target.path, 'utf8')
   const baseline = relatedTests(target.path, project)
   if (!baseline.ran) return [{ target, outcome: 'no-tests' }]
   if (!baseline.passed) return [{ target, outcome: 'baseline-red' }]
-  const forget = restoreOnExit(target.path, original)
+  writeFileSync(JOURNAL, JSON.stringify({ path: target.path, original }))
   try {
     return pickSites(
       mutationSites(original, target.path),
@@ -250,7 +274,8 @@ function sampleTarget(
       }
     })
   } finally {
-    forget()
+    writeFileSync(target.path, original)
+    rmSync(JOURNAL, { force: true })
   }
 }
 
@@ -296,24 +321,17 @@ export function runMutationSample(args: readonly string[]): number {
     (target) =>
       (group === '' || target.group === group) && (only === '' || target.path === only),
   )
-  const pending = new Map<string, string>()
-  const restoreAll = () => {
-    for (const [path, text] of pending) writeFileSync(path, text)
-  }
+  restoreFromJournal()
   const onSignal = () => {
-    restoreAll()
+    restoreFromJournal()
     process.exit(130)
   }
   process.on('SIGINT', onSignal)
   process.on('SIGTERM', onSignal)
-  const restoreOnExit = (path: string, text: string) => {
-    pending.set(path, text)
-    return () => pending.delete(path)
-  }
   const results: Result[] = []
   try {
     for (const target of targets) {
-      const sampled = sampleTarget(target, count, seed, project, restoreOnExit)
+      const sampled = sampleTarget(target, count, seed, project)
       for (const result of sampled) {
         console.log(
           `[mutation-sample] ${result.outcome} ${target.path}${result.site ? `:${result.site.line} ${result.site.kind}` : ''}`,
@@ -322,7 +340,7 @@ export function runMutationSample(args: readonly string[]): number {
       results.push(...sampled)
     }
   } finally {
-    restoreAll()
+    restoreFromJournal()
   }
   console.log(
     `\n[mutation-sample] seed ${seed}, ${project} tests\n${formatReport(results)}`,
