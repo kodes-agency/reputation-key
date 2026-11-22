@@ -60,6 +60,8 @@ export type CommittedFact = Readonly<{
 
 export type IdentityMembersDb = Readonly<{
   db: () => Database
+  /** The leased pool, for raw statements a fixture does not cover. */
+  pool: () => TestLease['pool']
   store: () => IdentityCommandStore
   seedOrganization: (organizationId: string) => Promise<void>
   seedUser: (row: StoredUser) => Promise<void>
@@ -172,6 +174,7 @@ export function setupIdentityMembersDb(
 
   return {
     db: () => db,
+    pool,
     store: () => createStore(db, randomUUID),
     seedOrganization,
     seedUser,
@@ -309,6 +312,12 @@ async function cleanup(
 ): Promise<void> {
   if (organizationIds.length === 0 && userIds.length === 0) return
   await withLastOwnerGuardDisabled(pool, async (client) => {
+    // Deleting a member whose Google connection is still active fires the
+    // connector-departure trigger, which records a fact.
+    await client.query(`DELETE FROM google_connections WHERE organization_id = ANY($1)`, [
+      organizationIds,
+    ])
+    await client.query(`DELETE FROM session WHERE "userId" = ANY($1)`, [userIds])
     await client.query(`DELETE FROM outbox_events WHERE organization_id = ANY($1)`, [
       organizationIds,
     ])
