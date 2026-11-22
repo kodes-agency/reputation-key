@@ -248,15 +248,19 @@ jobs:
   # (vitest.config.ts), 7 minutes of tests in a single job before. Each shard
   # has its own services and database, so the one-at-a-time rule holds inside
   # it; the migration checks run once, in the first. Two shards left the second
-  # 2.3 minutes behind the first and the slowest job of the pipeline.
+  # 2.3 minutes behind the first and the slowest job of the pipeline. Shards are
+  # split by each file's recorded duration (scripts/ci/integration-shards.ts),
+  # not by file count: with Vitest's own split one of three shards ran 14
+  # minutes while the others ran 9. Re-record the durations when a shard runs a
+  # minute or more longer than the rest (scripts/ci/record-integration-durations.ts).
   integration:
-    name: integration (${{ matrix.shard }}/3)
+    name: integration (${{ matrix.shard }}/4)
     runs-on: ubuntu-24.04
     timeout-minutes: 25 # longest green run ~5 min
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
 
     services:
       postgres:
@@ -368,7 +372,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: pnpm test:integration --shard=${{ matrix.shard }}/3
+        run: pnpm test:integration --shard=${{ matrix.shard }}/4
 
   # Build output and every consumer/boundary stay in one chain. It keeps its own
   # build because the client source maps exist only in a build that does not
