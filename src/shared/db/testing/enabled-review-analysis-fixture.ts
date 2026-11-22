@@ -22,6 +22,13 @@ export type EnabledReviewAnalysisFixture = Readonly<{
   /** Adds Property Trends beside Review Analysis. */
   propertyTrends?: boolean
   occurredAt?: Date
+  /** Defaults to the current provider deployment profile. */
+  providerDeploymentProfileVersion?: string
+  reviewAnalysisRuntimeVersion?: string
+  actorUserId?: string
+  reasonCode?: string
+  idempotencyKey?: string
+  requestHash?: string
 }>
 
 export async function seedEnabledReviewAnalysis(
@@ -39,7 +46,8 @@ export async function seedEnabledReviewAnalysis(
     state: 'enabled' as const,
     capabilities,
     capabilityRuntimeProfileVersions: {
-      review_analysis: 'review-analysis-runtime-v1',
+      review_analysis:
+        fixture.reviewAnalysisRuntimeVersion ?? 'review-analysis-runtime-v1',
       ...(fixture.propertyTrends
         ? { property_trends: 'property-trends-runtime-v1' }
         : {}),
@@ -55,22 +63,24 @@ export async function seedEnabledReviewAnalysis(
     sourcePolicyId: 'google-business-profile-source-policy-v1',
     routingPolicyVersion: 1,
     processingRegion: 'global' as const,
-    providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
+    providerDeploymentProfileVersion:
+      fixture.providerDeploymentProfileVersion ?? 'private-beta-global-v2',
     redactionProfileFamily: 'gbp-review-global-v1',
   }
+  const actor = fixture.actorUserId ?? ACTOR
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`)
     await tx.insert(merchantAiConsentEvidence).values({
       ...row,
       transitionKind: 'enable',
-      actorUserId: ACTOR,
-      reasonCode: 'merchant_enable',
-      idempotencyKey: `${fixture.propertyId}-enable`,
-      requestHash: 'd'.repeat(64),
+      actorUserId: actor,
+      reasonCode: fixture.reasonCode ?? 'merchant_enable',
+      idempotencyKey: fixture.idempotencyKey ?? `${fixture.propertyId}-enable`,
+      requestHash: fixture.requestHash ?? 'd'.repeat(64),
       occurredAt,
     })
     await tx
       .insert(merchantAiEnablement)
-      .values({ ...row, updatedBy: ACTOR, updatedAt: occurredAt })
+      .values({ ...row, updatedBy: actor, updatedAt: occurredAt })
   })
 }
