@@ -16,19 +16,18 @@
 // assertion, which gets a test, or a change that cannot be observed, which the
 // report says. The seed defaults to the month, so each month samples other
 // sites. The source file is always restored, also on Ctrl-C; a run killed
-// outright leaves a journal in the system temp folder, and the next run puts
-// the file back before it starts. It exits 1 when a
+// outright leaves a journal in the checkout's node_modules/.cache, and the
+// next run puts the file back before it starts. It exits 1 when a
 // fault survived. mutation-sample-run.ts starts it; this module only exports,
 // so its test can import it without running it.
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import ts from 'typescript'
 
-export const TARGETS_PATH = 'scripts/review/mutation-targets.json'
+const TARGETS_PATH = 'scripts/review/mutation-targets.json'
 
 export type MutationGroup = 'tenant-policy' | 'attempt-fence' | 'period-clock'
 
@@ -64,11 +63,108 @@ const OPERATOR_FLIPS: Partial<Record<ts.SyntaxKind, string>> = {
 const isStringy = (node: ts.Expression) =>
   ts.isStringLiteralLike(node) || ts.isTemplateExpression(node)
 
+type AddSite = (kind: string, start: number, end: number, replacement: string) => void
+
+/** One kind of fault: where it can go in a node, if anywhere. */
+type SiteFinder = (node: ts.Node, source: ts.SourceFile, add: AddSite) => void
+
+const flippedOperator: SiteFinder = (node, source, add) => {
+  if (!ts.isBinaryExpression(node)) return
+  const flip = OPERATOR_FLIPS[node.operatorToken.kind]
+  const concatenation =
+    node.operatorToken.kind === ts.SyntaxKind.PlusToken &&
+    (isStringy(node.left) || isStringy(node.right))
+  if (flip && !concatenation) {
+    add(
+      'operator',
+      node.operatorToken.getStart(source),
+      node.operatorToken.getEnd(),
+      flip,
+    )
+  }
+}
+
+const changedComparedString: SiteFinder = (node, source, add) => {
+  if (!ts.isBinaryExpression(node)) return
+  const kind = node.operatorToken.kind
+  if (
+    kind !== ts.SyntaxKind.EqualsEqualsEqualsToken &&
+    kind !== ts.SyntaxKind.ExclamationEqualsEqualsToken
+  ) {
+    return
+  }
+  for (const side of [node.left, node.right]) {
+    if (ts.isStringLiteral(side)) {
+      add(
+        'compared-string',
+        side.getStart(source) + 1,
+        side.getEnd() - 1,
+        `${side.text}_planted`,
+      )
+    }
+  }
+}
+
+const negatedIf: SiteFinder = (node, source, add) => {
+  if (!ts.isIfStatement(node)) return
+  const condition = node.expression
+  add(
+    'negate-if',
+    condition.getStart(source),
+    condition.getEnd(),
+    `!(${condition.getText(source)})`,
+  )
+}
+
+const droppedThrow: SiteFinder = (node, source, add) => {
+  if (ts.isThrowStatement(node))
+    add('drop-throw', node.getStart(source), node.getEnd(), 'void 0')
+}
+
+const swappedTernary: SiteFinder = (node, source, add) => {
+  if (!ts.isConditionalExpression(node)) return
+  const [condition, whenTrue, whenFalse] = [
+    node.condition,
+    node.whenTrue,
+    node.whenFalse,
+  ].map((part) => part.getText(source))
+  add(
+    'swap-ternary',
+    node.getStart(source),
+    node.getEnd(),
+    `((${condition}) ? (${whenFalse}) : (${whenTrue}))`,
+  )
+}
+
+const movedNumber: SiteFinder = (node, source, add) => {
+  if (!ts.isNumericLiteral(node)) return
+  if (ts.isPropertyAssignment(node.parent) && node.parent.name === node) return
+  if (ts.isEnumMember(node.parent)) return
+  add('number', node.getStart(source), node.getEnd(), String(Number(node.text) + 1))
+}
+
+const flippedBoolean: SiteFinder = (node, source, add) => {
+  const isTrue = node.kind === ts.SyntaxKind.TrueKeyword
+  if (!isTrue && node.kind !== ts.SyntaxKind.FalseKeyword) return
+  if (!ts.isReturnStatement(node.parent) && !ts.isPropertyAssignment(node.parent)) return
+  add('boolean', node.getStart(source), node.getEnd(), isTrue ? 'false' : 'true')
+}
+
+const SITE_FINDERS: readonly SiteFinder[] = [
+  flippedOperator,
+  changedComparedString,
+  negatedIf,
+  droppedThrow,
+  swappedTernary,
+  movedNumber,
+  flippedBoolean,
+]
+
 /** Every place in a module's code where a small fault can be planted. */
 export function mutationSites(text: string, fileName: string): MutationSite[] {
   const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true)
   const sites: MutationSite[] = []
-  const add = (kind: string, start: number, end: number, replacement: string) => {
+  const add: AddSite = (kind, start, end, replacement) => {
     sites.push({
       kind,
       start,
@@ -83,74 +179,10 @@ export function mutationSites(text: string, fileName: string): MutationSite[] {
       ts.isImportDeclaration(node) ||
       ts.isExportDeclaration(node) ||
       ts.isTypeNode(node)
-    )
+    ) {
       return
-    if (ts.isBinaryExpression(node)) {
-      const flip = OPERATOR_FLIPS[node.operatorToken.kind]
-      const concatenation =
-        node.operatorToken.kind === ts.SyntaxKind.PlusToken &&
-        (isStringy(node.left) || isStringy(node.right))
-      if (flip && !concatenation) {
-        add(
-          'operator',
-          node.operatorToken.getStart(source),
-          node.operatorToken.getEnd(),
-          flip,
-        )
-      }
-      const compared =
-        node.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
-        node.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken
-      for (const side of [node.left, node.right]) {
-        if (compared && ts.isStringLiteral(side)) {
-          add(
-            'compared-string',
-            side.getStart(source) + 1,
-            side.getEnd() - 1,
-            `${side.text}_planted`,
-          )
-        }
-      }
     }
-    if (ts.isIfStatement(node)) {
-      const condition = node.expression
-      add(
-        'negate-if',
-        condition.getStart(source),
-        condition.getEnd(),
-        `!(${condition.getText(source)})`,
-      )
-    }
-    if (ts.isThrowStatement(node)) {
-      add('drop-throw', node.getStart(source), node.getEnd(), 'void 0')
-    }
-    if (ts.isConditionalExpression(node)) {
-      add(
-        'swap-ternary',
-        node.getStart(source),
-        node.getEnd(),
-        `((${node.condition.getText(source)}) ? (${node.whenFalse.getText(source)}) : (${node.whenTrue.getText(source)}))`,
-      )
-    }
-    if (
-      ts.isNumericLiteral(node) &&
-      !(ts.isPropertyAssignment(node.parent) && node.parent.name === node) &&
-      !ts.isEnumMember(node.parent)
-    ) {
-      add('number', node.getStart(source), node.getEnd(), String(Number(node.text) + 1))
-    }
-    if (
-      (node.kind === ts.SyntaxKind.TrueKeyword ||
-        node.kind === ts.SyntaxKind.FalseKeyword) &&
-      (ts.isReturnStatement(node.parent) || ts.isPropertyAssignment(node.parent))
-    ) {
-      add(
-        'boolean',
-        node.getStart(source),
-        node.getEnd(),
-        node.kind === ts.SyntaxKind.TrueKeyword ? 'false' : 'true',
-      )
-    }
+    for (const find of SITE_FINDERS) find(node, source, add)
     ts.forEachChild(node, visit)
   }
   visit(source)
@@ -202,10 +234,8 @@ type Result = Readonly<{
 }>
 
 // Which file holds a planted fault right now, and its original text.
-const JOURNAL = join(
-  tmpdir(),
-  `repkey-mutation-sample-${createHash('sha1').update(process.cwd()).digest('hex').slice(0, 12)}.json`,
-)
+// Inside the checkout and ignored by git, so no other user can plant or read it.
+const JOURNAL = 'node_modules/.cache/mutation-sample-journal.json'
 
 /** Puts back a file that a stopped run left with a planted fault. */
 function restoreFromJournal(): void {
@@ -255,6 +285,7 @@ function sampleTarget(
   const baseline = relatedTests(target.path, project)
   if (!baseline.ran) return [{ target, outcome: 'no-tests' }]
   if (!baseline.passed) return [{ target, outcome: 'baseline-red' }]
+  mkdirSync(dirname(JOURNAL), { recursive: true })
   writeFileSync(JOURNAL, JSON.stringify({ path: target.path, original }))
   try {
     return pickSites(
