@@ -1,240 +1,21 @@
-import { createHash } from 'node:crypto'
-import { describe, expect, it, vi } from 'vitest'
-import {
-  googleConnectionId,
-  organizationId,
-  propertyId,
-  reviewId,
-} from '#/shared/domain/ids'
-import type { ReviewRepository } from '../reviews/review-repository.port.server'
-import type { ReviewCommandStore } from '../reviews/review-command-store.port.server'
-import type { GoogleReplyObservationStore } from '../publication/google-reply-observation-store.port.server'
-import type { ReviewProviderHistoryCutoff } from './review-provider-snapshot-repository.port.server'
-import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
+import { describe, expect, it } from 'vitest'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { GoogleReview, Review } from '../domain/review-types'
-import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source/ai-review-source-contract'
 import { computeAiReviewSourceProvenance } from '../reviews/ai-review-source.server'
+import { GOOGLE_REVIEW_PRIMARY_SEGMENTS } from '#/shared/testing/google-provider-identifiers-v1'
+import { providerReplyObservationKey } from './sync-reviews.server'
 import {
-  GOOGLE_LOCATION_PRIMARY_RESOURCE,
-  GOOGLE_REVIEW_PRIMARY_RESOURCE,
-  GOOGLE_REVIEW_PRIMARY_SEGMENTS,
-} from '#/shared/testing/google-provider-identifiers-v1'
-import {
-  createReviewProviderObservationWriter,
-  providerReplyObservationKey,
-} from './sync-reviews.server'
-
-const SCOPE_ORG = organizationId('org-review-writer-scope')
-const SCOPE_PROPERTY = propertyId('73000000-0000-4000-8000-000000000011')
-const SCOPE_REVIEW = reviewId('73000000-0000-4000-8000-000000000012')
-const SCOPE_CONNECTION = googleConnectionId('73000000-0000-4000-8000-000000000013')
-const SCOPE_NOW = new Date('2026-09-05T10:00:00.000Z')
-const SCOPE_PROVIDER_REVIEW = {
-  reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
-  externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-  externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-  reviewerName: 'Existing guest',
-  reviewerProfilePhotoUrl: null,
-  googleReviewUrl: null,
-  rating: 4,
-  text: 'Existing review',
-  translatedText: null,
-  languageCode: 'en',
-  reviewedAt: new Date('2026-08-15T10:00:00.000Z'),
-  replyText: null,
-  replyUpdatedAt: null,
-} satisfies GoogleReview
-const SCOPE_AI_PROVENANCE = computeAiReviewSourceProvenance({
-  text: SCOPE_PROVIDER_REVIEW.text,
-  rating: SCOPE_PROVIDER_REVIEW.rating,
-  languageCode: SCOPE_PROVIDER_REVIEW.languageCode,
-  reviewedAtEpochMillis: SCOPE_PROVIDER_REVIEW.reviewedAt.getTime(),
-  reviewerDisplayName: SCOPE_PROVIDER_REVIEW.reviewerName,
-})
-const SCOPE_SUBJECT = {
-  contractVersion: 'review-provider-subject-v1' as const,
-  keyVersion: 'v1',
-  locatorHmac: new Uint8Array(32).fill(1),
-  verifierHmac: new Uint8Array(32).fill(2),
-}
-
-function scopeReview(overrides: Partial<Review> = {}): Review {
-  return {
-    id: SCOPE_REVIEW,
-    organizationId: SCOPE_ORG,
-    propertyId: SCOPE_PROPERTY,
-    platform: 'google',
-    externalId: SCOPE_PROVIDER_REVIEW.externalId,
-    externalLocationId: SCOPE_PROVIDER_REVIEW.externalLocationId,
-    googleConnectionId: SCOPE_CONNECTION,
-    reviewerName: SCOPE_PROVIDER_REVIEW.reviewerName,
-    reviewerProfilePhotoUrl: SCOPE_PROVIDER_REVIEW.reviewerProfilePhotoUrl,
-    googleReviewUrl: SCOPE_PROVIDER_REVIEW.googleReviewUrl,
-    rating: SCOPE_PROVIDER_REVIEW.rating,
-    text: SCOPE_PROVIDER_REVIEW.text,
-    translatedText: SCOPE_PROVIDER_REVIEW.translatedText,
-    languageCode: SCOPE_PROVIDER_REVIEW.languageCode,
-    reviewedAt: SCOPE_PROVIDER_REVIEW.reviewedAt,
-    expiresAt: new Date('2027-08-15T10:00:00.000Z'),
-    sentimentLabel: null,
-    sentimentScore: null,
-    sourceCreatedAt: SCOPE_PROVIDER_REVIEW.reviewedAt,
-    sourceUpdatedAt: null,
-    firstFetchedAt: SCOPE_PROVIDER_REVIEW.reviewedAt,
-    lastFetchedAt: SCOPE_PROVIDER_REVIEW.reviewedAt,
-    contentExpiresAt: new Date('2026-10-05T10:00:00.000Z'),
-    contentHash: 'existing-content-hash',
-    sourceSeenGeneration: null,
-    sourceEpoch: 3,
-    sourceRevision: 1,
-    analysisSequence: 1,
-    aiSourceByteLength: SCOPE_AI_PROVENANCE.byteLength,
-    aiSourceDigest: SCOPE_AI_PROVENANCE.digest,
-    createdAt: SCOPE_PROVIDER_REVIEW.reviewedAt,
-    updatedAt: SCOPE_PROVIDER_REVIEW.reviewedAt,
-    ...overrides,
-  }
-}
-
-type ScopeObservationInput = Parameters<ReviewProviderObservationWriter['persist']>[0]
-type RecordedReplyObservation = Parameters<GoogleReplyObservationStore['record']>[0]
-
-function scopeObservation(
-  overrides: Partial<ScopeObservationInput> = {},
-): ScopeObservationInput {
-  return {
-    organizationId: SCOPE_ORG,
-    propertyId: SCOPE_PROPERTY,
-    connectionId: SCOPE_CONNECTION,
-    sourceEpoch: 4,
-    observationOrigin: 'ongoing',
-    firstSeenVia: 'snapshot',
-    observationKey: 'e'.repeat(64),
-    replyReadGeneration: 1,
-    subjects: [SCOPE_SUBJECT],
-    review: SCOPE_PROVIDER_REVIEW,
-    ...overrides,
-  }
-}
-
-/**
- * An imported epoch's history: its own cutoff, the Property's first import
- * cutoff (the same one unless the epoch began with a relink), and whether a
- * run has listed the epoch's history in full since the cutoff.
- */
-function historyAt(
-  cutoffAt: Date,
-  overrides: Partial<ReviewProviderHistoryCutoff> = {},
-): ReviewProviderHistoryCutoff {
-  return { cutoffAt, firstImportCutoffAt: cutoffAt, historyListed: false, ...overrides }
-}
-
-type ScopeStableIdentity = Awaited<
-  ReturnType<ReviewRepository['findStableIdentityByProviderSubjects']>
->
-
-function scopeWriter(
-  existing: Review | null,
-  history: ReviewProviderHistoryCutoff | null = null,
-  stableIdentity: ScopeStableIdentity = null,
-) {
-  const createdAt = existing?.createdAt ?? SCOPE_NOW
-  const upsert = vi.fn(
-    async (review: Omit<Review, 'createdAt' | 'updatedAt'>): Promise<Review> => ({
-      ...review,
-      createdAt,
-      updatedAt: SCOPE_NOW,
-    }),
-  )
-  const upsertAndRecord = vi.fn(
-    async (review: Omit<Review, 'createdAt' | 'updatedAt'>): Promise<Review> => ({
-      ...review,
-      sourceRevision: review.sourceRevision + 1,
-      analysisSequence: 1,
-      createdAt,
-      updatedAt: SCOPE_NOW,
-    }),
-  )
-  const reobserveExpiredAndRecord = vi.fn(
-    async (review: Omit<Review, 'createdAt' | 'updatedAt'>): Promise<Review> => ({
-      ...review,
-      sourceRevision: review.sourceRevision + 1,
-      analysisSequence: 1,
-      createdAt,
-      updatedAt: SCOPE_NOW,
-    }),
-  )
-  const readHistoryCutoff = vi.fn(async () => history)
-  const record = vi.fn(async (_observation: RecordedReplyObservation) => ({
-    observationRevision: 1,
-    change: 'unchanged' as const,
-    resolution: 'unchanged' as const,
-    matchedReplyId: null,
-    matchedPublicationCycle: null,
-    duplicate: false,
-  }))
-  const writer = createReviewProviderObservationWriter({
-    reviewRepo: {
-      findByExternalId: vi.fn(async () => existing),
-      findStableIdentityByProviderSubjects: vi.fn(async () => stableIdentity),
-      upsert,
-    } as unknown as ReviewRepository,
-    clock: () => SCOPE_NOW,
-    idGen: vi.fn(() => {
-      if (existing == null && stableIdentity == null) return SCOPE_REVIEW
-      throw new Error('must preserve the existing ReviewId')
-    }),
-    commandStore: {
-      upsertAndRecord,
-      reobserveExpiredAndRecord,
-    } as unknown as ReviewCommandStore,
-    googleReplyObservationStore: {
-      allocateReadGeneration: vi.fn(async () => 1),
-      findCurrentHead: vi.fn(async () => null),
-      record,
-    } satisfies GoogleReplyObservationStore,
-    historyCutoffs: { readHistoryCutoff },
-  })
-  return {
-    writer,
-    upsert,
-    upsertAndRecord,
-    reobserveExpiredAndRecord,
-    readHistoryCutoff,
-    record,
-  }
-}
-
-/** The origin the writer recorded, on both the revision write and its event. */
-async function recordedOrigins(
-  upsertAndRecord: ReturnType<typeof scopeWriter>['upsertAndRecord'],
-) {
-  const call = upsertAndRecord.mock.calls[0] as unknown as unknown[]
-  const eventFor = call[1] as (
-    persisted: Review,
-  ) => Readonly<{ _tag: string; observationOrigin?: string }>
-  const persisted = await upsertAndRecord.mock.results[0]?.value
-  return { stored: call[4], event: eventFor(persisted) }
-}
-
-/** The provenance a Review stored under revision 1 of the source text rules holds. */
-function revisionOneProvenance(review: GoogleReview) {
-  const canonical = canonicalizeRawAiReviewSourcePreviousRevision({
-    text: review.text,
-    rating: review.rating,
-    languageCode: review.languageCode,
-    reviewedAtEpochMillis: review.reviewedAt.getTime(),
-    reviewerDisplayName: review.reviewerName,
-  })
-  return {
-    byteLength: canonical.bytes.byteLength,
-    digest: createHash('sha256')
-      .update('ai-source-v1\0', 'utf8')
-      .update(canonical.bytes)
-      .digest('hex'),
-  }
-}
-
+  SCOPE_AI_PROVENANCE,
+  SCOPE_NOW,
+  SCOPE_ORG,
+  SCOPE_PROPERTY,
+  SCOPE_PROVIDER_REVIEW,
+  SCOPE_REVIEW,
+  revisionOneProvenance,
+  scopeObservation,
+  scopeReview,
+  scopeWriter,
+} from './sync-reviews.test-fixtures'
 describe('Review provider observation of a Google reply it cannot read', () => {
   it('records no reply observation for a reply whose original text Google did not return', async () => {
     // Google shows a reply, but only as a translation envelope: the original
@@ -588,41 +369,29 @@ describe('Review provider observation identity', () => {
     expect(upsert).not.toHaveBeenCalled()
   })
 
-  it('rejects an external Review identity owned by a different Property', async () => {
-    const existing = scopeReview({
-      propertyId: propertyId('73000000-0000-4000-8000-000000000014'),
-      sourceEpoch: 4,
-    })
-    const { writer, upsert } = scopeWriter(existing)
-
-    await expect(
-      writer.persist(scopeObservation({ sourceEpoch: 4 })),
-    ).rejects.toMatchObject({
-      _tag: 'DomainError',
-      code: 'observation_scope_mismatch',
-    })
-    expect(upsert).not.toHaveBeenCalled()
-  })
-
-  it('rejects a stale observation after the stored Review has reached a newer epoch', async () => {
-    const existing = scopeReview({ sourceEpoch: 5 })
-    const { writer, upsert } = scopeWriter(existing)
-
-    await expect(
-      writer.persist(scopeObservation({ sourceEpoch: 4 })),
-    ).rejects.toMatchObject({
-      _tag: 'DomainError',
-      code: 'observation_scope_mismatch',
-    })
-    expect(upsert).not.toHaveBeenCalled()
-  })
-
-  it('rejects an external Review identity outside the observation organization', async () => {
-    const existing = scopeReview({
-      organizationId: organizationId('org-review-writer-scope-other'),
-      sourceEpoch: 3,
-    })
-    const { writer, upsert } = scopeWriter(existing)
+  it.each([
+    [
+      'rejects an external Review identity owned by a different Property',
+      () =>
+        scopeReview({
+          propertyId: propertyId('73000000-0000-4000-8000-000000000014'),
+          sourceEpoch: 4,
+        }),
+    ],
+    [
+      'rejects a stale observation after the stored Review has reached a newer epoch',
+      () => scopeReview({ sourceEpoch: 5 }),
+    ],
+    [
+      'rejects an external Review identity outside the observation organization',
+      () =>
+        scopeReview({
+          organizationId: organizationId('org-review-writer-scope-other'),
+          sourceEpoch: 3,
+        }),
+    ],
+  ])('%s', async (_title, storedReview) => {
+    const { writer, upsert } = scopeWriter(storedReview())
 
     await expect(
       writer.persist(scopeObservation({ sourceEpoch: 4 })),
@@ -634,103 +403,45 @@ describe('Review provider observation identity', () => {
   })
 
   it('re-observes an erased provider subject on the same stable ReviewId', async () => {
-    const org = organizationId('org-review-writer')
-    const property = propertyId('73000000-0000-4000-8000-000000000001')
-    const stableReview = reviewId('73000000-0000-4000-8000-000000000002')
-    const connection = googleConnectionId('73000000-0000-4000-8000-000000000003')
-    const now = new Date('2026-08-26T10:00:00.000Z')
-    const reobserveExpiredAndRecord = vi.fn(async (review) => ({
-      ...review,
-      sourceRevision: review.sourceRevision + 1,
-      analysisSequence: review.analysisSequence + 2,
-      createdAt: now,
-      updatedAt: now,
-    }))
-    const writer = createReviewProviderObservationWriter({
-      reviewRepo: {
-        findByExternalId: vi.fn(async () => null),
-        findStableIdentityByProviderSubjects: vi.fn(async () => ({
-          id: stableReview,
-          organizationId: org,
-          propertyId: property,
-          sourceEpoch: 4,
-          sourceRevision: 7,
-          analysisSequence: 11,
-          sourceContentState: 'provider_deleted' as const,
-          firstFetchedAt: new Date('2026-07-01T10:00:00.000Z'),
-          sourceSeenGeneration: null,
-          sentimentLabel: 'negative',
-          sentimentScore: -0.8,
-        })),
-      } as unknown as ReviewRepository,
-      clock: () => now,
-      idGen: vi.fn(() => {
-        throw new Error('must not allocate a replacement ReviewId')
-      }),
-      commandStore: {
-        reobserveExpiredAndRecord,
-      } as unknown as ReviewCommandStore,
-      googleReplyObservationStore: {
-        allocateReadGeneration: vi.fn(async () => 1),
-        findCurrentHead: vi.fn(async () => null),
-        record: vi.fn(async () => ({
-          observationRevision: 1,
-          change: 'unchanged' as const,
-          resolution: 'unchanged' as const,
-          matchedReplyId: null,
-          matchedPublicationCycle: null,
-          duplicate: false,
-        })),
-      } satisfies GoogleReplyObservationStore,
-      historyCutoffs: { readHistoryCutoff: vi.fn(async () => null) },
-    })
-    const subject = {
-      contractVersion: 'review-provider-subject-v1' as const,
-      keyVersion: 'v1',
-      locatorHmac: new Uint8Array(32).fill(1),
-      verifierHmac: new Uint8Array(32).fill(2),
-    }
-
-    const result = await writer.persist({
-      organizationId: org,
-      propertyId: property,
-      connectionId: connection,
+    const { writer, reobserveExpiredAndRecord } = scopeWriter(null, null, {
+      id: SCOPE_REVIEW,
+      organizationId: SCOPE_ORG,
+      propertyId: SCOPE_PROPERTY,
       sourceEpoch: 4,
-      observationOrigin: 'ongoing',
-      firstSeenVia: 'snapshot',
-      observationKey: 'f'.repeat(64),
-      replyReadGeneration: 1,
-      subjects: [subject],
-      review: {
-        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
-        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-        externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-        reviewerName: 'Guest',
-        reviewerProfilePhotoUrl: null,
-        googleReviewUrl: null,
-        rating: 2,
-        text: 'Corrected source content',
-        translatedText: null,
-        languageCode: 'en',
-        reviewedAt: new Date('2026-08-20T10:00:00.000Z'),
-        replyText: null,
-        replyUpdatedAt: null,
-      },
+      sourceRevision: 7,
+      analysisSequence: 11,
+      sourceContentState: 'provider_deleted',
+      firstFetchedAt: new Date('2026-07-01T10:00:00.000Z'),
+      sourceSeenGeneration: null,
+      sentimentLabel: 'negative',
+      sentimentScore: -0.8,
     })
+
+    const result = await writer.persist(
+      scopeObservation({
+        sourceEpoch: 4,
+        observationKey: 'f'.repeat(64),
+        review: {
+          ...SCOPE_PROVIDER_REVIEW,
+          rating: 2,
+          text: 'Corrected source content',
+        },
+      }),
+    )
 
     expect(reobserveExpiredAndRecord).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: stableReview,
+        id: SCOPE_REVIEW,
         sourceEpoch: 4,
         sourceRevision: 7,
         analysisSequence: 11,
       }),
-      now,
+      SCOPE_NOW,
       'f'.repeat(64),
       'ongoing',
       false,
     )
-    expect(result).toEqual({ reviewId: stableReview, sourceRevision: 8, isNew: false })
+    expect(result).toEqual({ reviewId: SCOPE_REVIEW, sourceRevision: 8, isNew: false })
   })
 })
 
@@ -819,301 +530,5 @@ describe("Review provider observation of Google's updateTime", () => {
 
     expect(argumentsOf(omitted.upsert)[4]).toBe(false)
     expect(argumentsOf(reported.upsert)[4]).toBe(true)
-  })
-})
-
-describe('initial import history cutoff', () => {
-  const publishedAt = SCOPE_PROVIDER_REVIEW.reviewedAt
-  const daysAfterPublication = (days: number) =>
-    new Date(publishedAt.getTime() + days * 24 * 60 * 60 * 1000)
-
-  it('records a first sighting published at the import cutoff as onboarding history', async () => {
-    const { writer, upsertAndRecord, readHistoryCutoff } = scopeWriter(
-      null,
-      historyAt(publishedAt),
-    )
-
-    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
-
-    expect(readHistoryCutoff).toHaveBeenCalledWith({
-      organizationId: SCOPE_ORG,
-      propertyId: SCOPE_PROPERTY,
-      sourceEpoch: 4,
-    })
-    await expect(recordedOrigins(upsertAndRecord)).resolves.toEqual({
-      stored: 'historical_onboarding',
-      event: expect.objectContaining({
-        _tag: 'review.created',
-        observationOrigin: 'historical_onboarding',
-      }),
-    })
-  })
-
-  it('measures a first sighting published after the import cutoff', async () => {
-    const { writer, upsertAndRecord } = scopeWriter(
-      null,
-      historyAt(new Date(publishedAt.getTime() - 1)),
-    )
-
-    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
-
-    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
-      stored: 'ongoing',
-      event: { observationOrigin: 'ongoing' },
-    })
-  })
-
-  it('keeps measuring first sightings on a property that was never imported', async () => {
-    const { writer, upsertAndRecord } = scopeWriter(null, null)
-
-    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
-
-    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
-      stored: 'ongoing',
-    })
-  })
-
-  it.each(['historical_onboarding', 'ongoing'] as const)(
-    'announces, without measuring, a Review a relink finds from after the first import (%s run)',
-    async (observationOrigin) => {
-      // Imported a month before Google published it; relinked a week after.
-      const { writer, upsertAndRecord } = scopeWriter(
-        null,
-        historyAt(daysAfterPublication(7), {
-          firstImportCutoffAt: daysAfterPublication(-30),
-        }),
-      )
-
-      await writer.persist(scopeObservation({ sourceEpoch: 4, observationOrigin }))
-
-      await expect(recordedOrigins(upsertAndRecord)).resolves.toEqual({
-        stored: 'legacy_unknown',
-        event: expect.objectContaining({
-          _tag: 'review.created',
-          observationOrigin: 'legacy_unknown',
-        }),
-      })
-    },
-  )
-
-  it('keeps Google history from before the first import silent when a relink lists it', async () => {
-    const { writer, upsertAndRecord } = scopeWriter(
-      null,
-      historyAt(daysAfterPublication(200), { firstImportCutoffAt: publishedAt }),
-    )
-
-    await writer.persist(
-      scopeObservation({ sourceEpoch: 4, observationOrigin: 'historical_onboarding' }),
-    )
-
-    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
-      stored: 'historical_onboarding',
-      event: { observationOrigin: 'historical_onboarding' },
-    })
-  })
-
-  it("announces, without measuring, an old Review Google lists only after the epoch's history was listed", async () => {
-    const { writer, upsertAndRecord } = scopeWriter(
-      null,
-      historyAt(daysAfterPublication(1), { historyListed: true }),
-    )
-
-    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
-
-    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
-      stored: 'legacy_unknown',
-      event: { _tag: 'review.created', observationOrigin: 'legacy_unknown' },
-    })
-  })
-
-  it("treats a Review carried into a new source epoch by that epoch's cutoff", async () => {
-    const existing = scopeReview({ sourceEpoch: 3 })
-    const { writer, upsertAndRecord, readHistoryCutoff } = scopeWriter(
-      existing,
-      historyAt(new Date('2026-09-01T00:00:00.000Z')),
-    )
-
-    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
-
-    expect(readHistoryCutoff).toHaveBeenCalledWith(
-      expect.objectContaining({ sourceEpoch: 4 }),
-    )
-    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
-      stored: 'historical_onboarding',
-      event: { _tag: 'review.updated', observationOrigin: 'historical_onboarding' },
-    })
-  })
-
-  it('carries a Review RepKey already knew into a relinked epoch as history, never as news', async () => {
-    const existing = scopeReview({ sourceEpoch: 3 })
-    const { writer, upsertAndRecord } = scopeWriter(
-      existing,
-      historyAt(daysAfterPublication(7), {
-        firstImportCutoffAt: daysAfterPublication(-30),
-        historyListed: true,
-      }),
-    )
-
-    await writer.persist(
-      scopeObservation({ sourceEpoch: 4, observationOrigin: 'historical_onboarding' }),
-    )
-
-    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
-      stored: 'historical_onboarding',
-      event: { _tag: 'review.updated', observationOrigin: 'historical_onboarding' },
-    })
-  })
-
-  it('never turns a later revision of a Review known in this epoch into history', async () => {
-    const existing = scopeReview({ sourceEpoch: 4 })
-    const { writer, upsertAndRecord, readHistoryCutoff } = scopeWriter(
-      existing,
-      historyAt(new Date('2026-09-01T00:00:00.000Z')),
-    )
-
-    await writer.persist(
-      scopeObservation({
-        sourceEpoch: 4,
-        review: { ...SCOPE_PROVIDER_REVIEW, text: 'The guest edited this review' },
-      }),
-    )
-
-    expect(readHistoryCutoff).not.toHaveBeenCalled()
-    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
-      stored: 'ongoing',
-      event: { observationOrigin: 'ongoing' },
-    })
-  })
-
-  it('never turns a Review re-observed through its stable provider identity into history', async () => {
-    // Google deleted the review, clearing its external id, and lists it again:
-    // only the stable provider subject still finds the same Review in this epoch.
-    const { writer, reobserveExpiredAndRecord, readHistoryCutoff } = scopeWriter(
-      null,
-      historyAt(daysAfterPublication(1)),
-      {
-        id: SCOPE_REVIEW,
-        organizationId: SCOPE_ORG,
-        propertyId: SCOPE_PROPERTY,
-        sourceEpoch: 4,
-        sourceRevision: 3,
-        analysisSequence: 5,
-        sourceContentState: 'provider_deleted',
-        firstFetchedAt: publishedAt,
-        sourceSeenGeneration: null,
-        sentimentLabel: null,
-        sentimentScore: null,
-      },
-    )
-
-    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
-
-    expect(readHistoryCutoff).not.toHaveBeenCalled()
-    // One origin for the revision and its review.updated fact.
-    expect(reobserveExpiredAndRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ id: SCOPE_REVIEW, sourceEpoch: 4 }),
-      SCOPE_NOW,
-      'e'.repeat(64),
-      'ongoing',
-      false,
-    )
-  })
-
-  it('keeps the legacy origin a run gave an unusable provider clock', async () => {
-    const { writer, upsertAndRecord, readHistoryCutoff } = scopeWriter(
-      null,
-      historyAt(daysAfterPublication(1)),
-    )
-
-    await writer.persist(
-      scopeObservation({ sourceEpoch: 4, observationOrigin: 'legacy_unknown' }),
-    )
-
-    expect(readHistoryCutoff).not.toHaveBeenCalled()
-    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
-      stored: 'legacy_unknown',
-    })
-  })
-})
-
-describe('Review provider observation first-sighting ledger', () => {
-  const sightingOf = (
-    upsertAndRecord: ReturnType<typeof scopeWriter>['upsertAndRecord'],
-  ) => (upsertAndRecord.mock.calls[0] as unknown as unknown[])[5]
-
-  it('hands the command store the first sighting a polling snapshot made', async () => {
-    const { writer, upsertAndRecord } = scopeWriter(null)
-
-    await writer.persist(scopeObservation({ firstSeenVia: 'snapshot' }))
-
-    expect(sightingOf(upsertAndRecord)).toEqual({
-      seenVia: 'snapshot',
-      pushAcceptedAt: null,
-    })
-  })
-
-  it('carries the push acceptance time of a Review a push read found first', async () => {
-    const acceptedAt = new Date('2026-09-05T09:59:30.000Z')
-    const { writer, upsertAndRecord } = scopeWriter(null)
-
-    await writer.persist(
-      scopeObservation({ firstSeenVia: 'push', pushAcceptedAt: acceptedAt }),
-    )
-
-    expect(sightingOf(upsertAndRecord)).toEqual({
-      seenVia: 'push',
-      pushAcceptedAt: acceptedAt,
-    })
-  })
-
-  it.each(['historical_onboarding', 'legacy_unknown'] as const)(
-    'records no sighting for a first sighting whose origin is %s',
-    async (observationOrigin) => {
-      const { writer, upsertAndRecord } = scopeWriter(null)
-
-      await writer.persist(scopeObservation({ observationOrigin }))
-
-      expect(sightingOf(upsertAndRecord)).toBeUndefined()
-    },
-  )
-
-  it('records no sighting for a history import first sighting after the cutoff turns it into history', async () => {
-    const publishedAt = SCOPE_PROVIDER_REVIEW.reviewedAt
-    const { writer, upsertAndRecord } = scopeWriter(null, historyAt(publishedAt))
-
-    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
-
-    expect(sightingOf(upsertAndRecord)).toBeUndefined()
-  })
-
-  it('records no sighting for a Review RepKey already holds', async () => {
-    const { writer, upsertAndRecord } = scopeWriter(scopeReview({ sourceEpoch: 4 }), null)
-
-    await writer.persist(
-      scopeObservation({ review: { ...SCOPE_PROVIDER_REVIEW, text: 'Edited review' } }),
-    )
-
-    expect(sightingOf(upsertAndRecord)).toBeUndefined()
-  })
-
-  it('records no sighting for a Review reached through its stable provider identity', async () => {
-    const stableIdentity: ScopeStableIdentity = {
-      id: SCOPE_REVIEW,
-      organizationId: SCOPE_ORG,
-      propertyId: SCOPE_PROPERTY,
-      sourceEpoch: 4,
-      sourceRevision: 7,
-      analysisSequence: 11,
-      sourceContentState: 'active',
-      firstFetchedAt: new Date('2026-07-01T10:00:00.000Z'),
-      sourceSeenGeneration: null,
-      sentimentLabel: 'negative',
-      sentimentScore: -0.8,
-    }
-    const { writer, upsertAndRecord } = scopeWriter(null, null, stableIdentity)
-
-    await writer.persist(scopeObservation())
-
-    expect(sightingOf(upsertAndRecord)).toBeUndefined()
   })
 })
