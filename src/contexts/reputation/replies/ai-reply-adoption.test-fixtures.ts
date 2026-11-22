@@ -35,7 +35,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 export const BRAND_DISPLAY_NAME_DIGEST = digestAiReplyBrandDisplayName('Example Hotel')
 export const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
-  '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
+  '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769' // gitleaks:allow
 
 const DEFAULT_OPERATION_V1 = '74000000-0000-4000-8000-000000000004'
 const DEFAULT_OPERATION_V2 = '74000000-0000-4000-8000-000000000005'

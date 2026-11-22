@@ -28,3 +28,11 @@ export async function deleteTestOrganizationsWithExecutor(
     ])
   }
 }
+
+/** Removes an Organization's Replies ahead of the rows they reference. */
+export async function deleteOrganizationReplies(
+  db: Pick<Database, 'execute'>,
+  organizationId: string,
+): Promise<void> {
+  await db.execute(sql`DELETE FROM replies WHERE organization_id = ${organizationId}`)
+}
