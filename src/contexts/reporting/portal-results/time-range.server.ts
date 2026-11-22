@@ -24,10 +24,6 @@ function presetDays(preset: Exclude<TimeRangePreset, 'all'>): number {
   }
 }
 
-export function timeRangeDays(preset: TimeRangePreset): number | null {
-  return preset === 'all' ? null : presetDays(preset)
-}
-
 export function timeRangeToDates(preset: TimeRangePreset, now: Date, timezone = 'UTC') {
   if (preset === 'all') {
     // No start bound — epoch captures all data
