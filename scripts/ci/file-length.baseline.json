@@ -1,7 +1,5 @@
 {
   "scripts/seed-e2e-user.ts": 1033,
-  "src/contexts/ai/domain/rules.test.ts": 818,
-  "src/contexts/ai/execution/ai-execution-admission.adapter.integration.test.ts": 949,
   "src/contexts/feed/feed/ui/notification-panel.stories.tsx": 920,
   "src/contexts/feed/preferences/ui/notifications-settings-page.stories.tsx": 1067,
   "src/contexts/guest/page/ui/public-portal/immersive/immersive-response.stories.tsx": 806,
