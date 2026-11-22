@@ -8,50 +8,25 @@
 
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import { getDb } from '#/shared/db'
 import { organizationId, portalId } from '#/shared/domain/ids'
 import { PRINT_REFUSAL_COPY } from '#/shared/domain/portal-print-refusals'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { DownloadPortalPrintInput } from './portal-print.contracts'
-import {
-  PrintRenderRefusal,
-  type PortalPrintRenderer,
-  type PrintRenderInput,
-} from './pdfkit-print-renderer.port.server'
-import { createPortalPrint } from './create-portal-print.server'
-import { revealPortalAddress } from '../addresses/reveal-portal-address.server'
-import { createPortalAddressRepository } from '../addresses/portal-address-repository.server'
-import { createPortalLastPrintRepository } from './portal-last-print-repository.server'
-import { createPortalMediaAssetRepository } from '../media/portal-media-asset-repository.server'
-import { createPortalPrintWordingRepository } from './portal-print-wording-repository.server'
-import { createPortalPublicationRepository } from '../publication/portal-publication-repository.server'
-import { createPortalRepository } from '../publication/portal-repository.server'
-import { seedLiveImmersiveSnapshot } from '../publication/portal-live-immersive-seed.test-fixtures'
-import { testPortalTokenCodec } from '../addresses/portal-token-codec.test-fixtures'
-import { seedPortalWorkingCopy } from '../publication/portal-working-copy-seed.test-fixtures'
+import { PrintRenderRefusal } from './pdfkit-print-renderer.port.server'
 import {
   COMPLETE_SCENARIO,
   SCENARIO_HERO_ASSET,
   WORKING_COPY_ORG,
   WORKING_COPY_OTHER_ORG,
-  withOwnLook,
 } from '../publication/portal-working-copy-scenarios.test-fixtures'
+import { PRINT_KIT_INTEGRATION_TABLES } from './print-kit-live-seed.test-fixtures'
 import {
-  BASE_URL,
-  LOGO_ASSET,
-  PRINT_KIT_INTEGRATION_TABLES,
-  PRINT_ORIGIN,
-  printKitCipher,
-  printKitLiveConfiguration,
-  seedPrintKitCode,
-  sha256Hex,
-  storePrintKitPicture,
-} from './print-kit-live-seed.test-fixtures'
-import { createPropertyCountryReader } from './print-kit-property-country.server'
+  createPrintKitWorld,
+  PRINT_WORLD_PDF as PDF,
+  PRINT_WORLD_PRINTED_AT as PRINTED_AT,
+  type PrintKitWorldOptions as Options,
+} from './print-kit-use-case-world.test-fixtures'
 
 const { getPool } = setupIntegrationDb({
   orgA: WORKING_COPY_ORG,
@@ -59,169 +34,22 @@ const { getPool } = setupIntegrationDb({
   tables: PRINT_KIT_INTEGRATION_TABLES,
 })
 
-const PDF = new Uint8Array([37, 80, 68, 70])
-const PRINTED_AT = new Date('2026-10-25T10:00:00.000Z')
 const PORTAL = COMPLETE_SCENARIO.portalId
 const SHORT_ADDRESS = /^HTTPS:\/\/AP\.EXAMPLE\.TEST\/p\/[0-9A-Z]{20}$/u
 
-type Options = Readonly<{
-  personal?: Readonly<{ staffName: string; publicName: string }>
-  /** The wordmark the live version carries: left out, the scenario's; null, none written. */
-  wordmark?: string | null
-  /** The Portal wrote its own wordmark instead of following the Property brand. */
-  ownWordmark?: boolean
-  accessible?: readonly string[] | null
-  live?: boolean
-  /** The code is not kept sealed, so the address cannot be revealed again. */
-  codeSealed?: boolean
-  country?: string | null
-  refuse?: PrintRenderRefusal
-  /** The languages the live version offers; Bulgarian and English by default. */
-  localeSet?: readonly ('bg' | 'en' | 'de')[]
-  failLastPrint?: boolean
-  failWording?: boolean
-}>
-
-function liveConfiguration(options: Options) {
-  const base = printKitLiveConfiguration()
-  const localeSet = options.localeSet ?? base.localeSet
-  const own = (value: string) => ({ value, fallbackFrom: null }) as const
-  const withLocales =
-    options.localeSet === undefined
-      ? base
-      : {
-          ...base,
-          guestLocale: localeSet[0] ?? base.guestLocale,
-          languagePackVersion: `guest-ui-${localeSet[0] ?? 'bg'}-v2`,
-          localeSet: [...localeSet],
-          languagePackVersions: Object.fromEntries(
-            localeSet.map((locale) => [locale, `guest-ui-${locale}-v2`]),
-          ),
-          localizedContent: Object.fromEntries(
-            localeSet.map((locale) => [
-              locale,
-              {
-                title: own(`Hotel Rila ${locale}`),
-                shortDescription: own('Welcome'),
-                heroAlt: own('Hotel Rila'),
-                linktreeTitle: own('Links'),
-              },
-            ]),
-          ),
-          links: [],
-        }
-  const wordmark =
-    options.wordmark === undefined ? withLocales.brandProfile.wordmark : options.wordmark
-  return {
-    ...withLocales,
-    brandProfile: { ...withLocales.brandProfile, wordmark },
-  } as typeof base
-}
-
-async function harness(options: Options = {}) {
-  const pool = getPool()
-  await seedPortalWorkingCopy(
-    pool,
-    options.ownWordmark
-      ? withOwnLook({
-          identity: { wordmark: options.wordmark ?? null, logoAssetId: null },
-          lookVersion: 5,
-        })
-      : COMPLETE_SCENARIO,
-  )
-  if (options.personal) {
-    await pool.query(
-      `UPDATE portals SET kind = 'personal', name = $2, public_name = $3 WHERE id = $1`,
-      [PORTAL, options.personal.staffName, options.personal.publicName],
-    )
-  }
-  if (options.live !== false) {
-    await seedLiveImmersiveSnapshot({
-      organizationId: COMPLETE_SCENARIO.organizationId,
-      propertyId: COMPLETE_SCENARIO.propertyId,
-      portalId: PORTAL,
-      configuration: liveConfiguration(options),
-    })
-  }
-  await seedPrintKitCode(pool, options.codeSealed ?? true)
-  await pool.query('UPDATE properties SET country_code = $2 WHERE id = $1::uuid', [
-    COMPLETE_SCENARIO.propertyId,
-    options.country === undefined ? 'US' : options.country,
-  ])
-  const objectStore = createInMemoryObjectStore()
-  await storePrintKitPicture(pool, objectStore, SCENARIO_HERO_ASSET, {
-    width: 1600,
-    height: 1000,
-  })
-  await storePrintKitPicture(pool, objectStore, LOGO_ASSET, { width: 480, height: 120 })
-
-  const db = getDb()
-  const portalRepo = createPortalRepository(db)
-  const lastPrintRepo = createPortalLastPrintRepository(db)
-  const wordingRepo = createPortalPrintWordingRepository(db)
-  const staffPublicApi: StaffPublicApi = {
-    getAccessiblePropertyIds: async () => (options.accessible ?? null) as never,
-    getAssignedPortals: async () => [],
-  }
-  const warnings: object[] = []
-  const logger = {
-    ...createMockLogger(),
-    warn: (context: unknown) => {
-      if (typeof context === 'object' && context !== null) warnings.push(context)
-    },
-  }
-  const rendered: PrintRenderInput[] = []
-  const renderer: PortalPrintRenderer = {
-    render: async (input) => {
-      rendered.push(input)
-      if (options.refuse) throw options.refuse
-      return PDF
-    },
-  }
-  const failing = (): never => {
-    throw new Error('connection reset')
-  }
-  const make = createPortalPrint({
-    portalRepo,
-    staffPublicApi,
-    publicationRepo: createPortalPublicationRepository(db),
-    mediaRepo: createPortalMediaAssetRepository(db),
-    objectStore,
-    sha256Hex,
-    revealAddress: revealPortalAddress({
-      portalRepo,
-      staffPublicApi,
-      portalAddressRepo: createPortalAddressRepository(db),
-      addressCipher: printKitCipher,
-      tokenCodec: testPortalTokenCodec(),
-      reportPrintCodeProblem: () => undefined,
-      clock: () => PRINTED_AT,
-      address: { appOrigin: BASE_URL, printOrigin: PRINT_ORIGIN },
-    }),
-    renderer,
-    propertyCountry: createPropertyCountryReader(db),
-    lastPrintRepo: options.failLastPrint
-      ? { ...lastPrintRepo, record: async () => failing() }
-      : lastPrintRepo,
-    wordingRepo: options.failWording
-      ? { ...wordingRepo, save: async () => failing() }
-      : wordingRepo,
-    clock: () => PRINTED_AT,
-    logger,
-  })
-  return {
-    make,
-    rendered,
-    warnings,
-    lastPrintRepo,
-    wordingRepo,
-    ctx: buildTestAuthContext({ organizationId: WORKING_COPY_ORG }),
-    live: liveConfiguration(options),
-  }
-}
+const harness = (options: Options = {}) => createPrintKitWorld(getPool(), options)
+type World = Awaited<ReturnType<typeof harness>>
 
 const downloads = async () =>
   (await getPool().query('SELECT purpose FROM portal_address_downloads')).rows.length
+
+const nothingDisclosed = async () => expect(await downloads()).toBe(0)
+
+const lastPrint = ({ lastPrintRepo, ctx }: Pick<World, 'lastPrintRepo' | 'ctx'>) =>
+  lastPrintRepo.find(ctx.organizationId, portalId(PORTAL))
+
+const savedWording = ({ wordingRepo, ctx }: Pick<World, 'wordingRepo' | 'ctx'>) =>
+  wordingRepo.find(ctx.organizationId, portalId(PORTAL))
 
 const tents = (
   over: Partial<DownloadPortalPrintInput> = {},
@@ -333,56 +161,57 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
     expect(file.fileName).toBe('Polly Smith - Table tents.pdf')
   })
 
-  it('passes the spares and a count a sheet the manager asked for', async () => {
-    const { make, rendered, ctx } = await harness()
-
-    await make(tents({ fillSpares: true, perSheet: 3 }), ctx)
-
-    expect(rendered[0]?.sheets).toEqual({ quantity: 10, fillSpares: true, perSheet: 3 })
-  })
-
-  it('gives a print shop one piece per page', async () => {
-    const { make, rendered, ctx } = await harness()
-
-    const file = await make(
-      tents({ piece: 'counter', orientation: 'upright', printer: 'print_shop' }),
-      ctx,
-    )
-
-    expect(rendered[0]?.sheets).toBeUndefined()
-    expect(rendered[0]?.shop).toEqual({ cropMarks: false })
-    expect(file.fileName).toBe(
-      'lobby-portal-counter-cards-upright-en-bg-print-shop-letter.pdf',
-    )
-  })
-
-  it('asks for a print shop’s crop marks when the manager does, and names the file for them', async () => {
-    const { make, rendered, ctx } = await harness()
-
-    const file = await make(
-      tents({
+  it.each([
+    [
+      'passes the spares and a count a sheet the manager asked for',
+      { fillSpares: true, perSheet: 3 },
+      {
+        sheets: { quantity: 10, fillSpares: true, perSheet: 3 },
+        shop: undefined,
+        fileName: expect.any(String),
+      },
+    ],
+    [
+      'gives a print shop one piece per page',
+      { piece: 'counter', orientation: 'upright', printer: 'print_shop' },
+      {
+        sheets: undefined,
+        shop: { cropMarks: false },
+        fileName: 'lobby-portal-counter-cards-upright-en-bg-print-shop-letter.pdf',
+      },
+    ],
+    [
+      'asks for a print shop’s crop marks when the manager does, and names the file for them',
+      {
         piece: 'counter',
         orientation: 'upright',
         printer: 'print_shop',
         cropMarks: true,
-      }),
-      ctx,
-    )
-
-    expect(rendered[0]?.shop).toEqual({ cropMarks: true })
-    expect(file.fileName).toBe(
-      'lobby-portal-counter-cards-upright-en-bg-print-shop-crop-marks-letter.pdf',
-    )
-  })
-
-  it('leaves crop marks to the print shop: office sheets ignore them', async () => {
+      },
+      {
+        sheets: undefined,
+        shop: { cropMarks: true },
+        fileName:
+          'lobby-portal-counter-cards-upright-en-bg-print-shop-crop-marks-letter.pdf',
+      },
+    ],
+    [
+      'leaves crop marks to the print shop: office sheets ignore them',
+      { cropMarks: true },
+      {
+        sheets: expect.anything(),
+        shop: undefined,
+        fileName: 'lobby-portal-table-tents-wide-en-bg-letter.pdf',
+      },
+    ],
+  ] as const)('%s', async (_title, over, expected) => {
     const { make, rendered, ctx } = await harness()
 
-    const file = await make(tents({ cropMarks: true }), ctx)
+    const file = await make(tents(over), ctx)
 
-    expect(rendered[0]?.shop).toBeUndefined()
-    expect(rendered[0]?.sheets).toBeDefined()
-    expect(file.fileName).toBe('lobby-portal-table-tents-wide-en-bg-letter.pdf')
+    expect(rendered[0]?.sheets).toEqual(expected.sheets)
+    expect(rendered[0]?.shop).toEqual(expected.shop)
+    expect(file.fileName).toEqual(expected.fileName)
   })
 
   it('hands the renderer the property’s name for a card’s back page, and none otherwise', async () => {
@@ -409,28 +238,23 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
     expect(rendered[0]?.back).toEqual({ propertyName: live.brandProfile.displayName })
   })
 
-  it('refuses a back page on a tent before revealing: a tent prints its front on both faces', async () => {
-    const { make, ctx } = await harness()
+  it.each([
+    [
+      'prints on the paper the property’s country uses unless the request names one',
+      {},
+      'eu',
+    ],
+    [
+      'prints on the paper the request names even for a European property',
+      { paper: 'letter' },
+      'us',
+    ],
+  ] as const)('%s', async (_title, over, region) => {
+    const { make, rendered, ctx } = await harness({ country: 'BG' })
 
-    await expect(make(tents({ backPage: true }), ctx)).rejects.toMatchObject({
-      code: 'print_format_not_offered',
-      message:
-        'Tents print the front on both faces, so they have no back page. Choose a card for one.',
-      context: { cause: 'no_back_for_tents' },
-    })
-    expect(await downloads()).toBe(0)
-  })
+    await make(tents(over), ctx)
 
-  it('prints on the paper the property’s country uses unless the request names one', async () => {
-    const european = await harness({ country: 'BG' })
-    await european.make(tents(), european.ctx)
-    expect(european.rendered[0]?.face.region).toBe('eu')
-  })
-
-  it('prints on the paper the request names even for a European property', async () => {
-    const named = await harness({ country: 'BG' })
-    await named.make(tents({ paper: 'letter' }), named.ctx)
-    expect(named.rendered[0]?.face.region).toBe('us')
+    expect(rendered[0]?.face.region).toBe(region)
   })
 
   it.each([
@@ -444,7 +268,7 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
       code: 'print_format_not_offered',
       context: { cause },
     })
-    expect(await downloads()).toBe(0)
+    await nothingDisclosed()
   })
 
   it('refuses languages the live version does not offer, before revealing', async () => {
@@ -453,21 +277,21 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
     await expect(make(tents({ languages: ['en', 'fr'] }), ctx)).rejects.toMatchObject({
       code: 'locale_not_offered',
     })
-    expect(await downloads()).toBe(0)
+    await nothingDisclosed()
   })
 
   describe('saving the wording the print said as the Portal’s own', () => {
     const own = { en: { headline: 'Thanks for staying', subline: 'Tell us more' } }
 
     it('saves the wording and the own words that printed, normalised, for the languages of the print', async () => {
-      const { make, wordingRepo, ctx } = await harness()
+      const world = await harness()
 
-      await make(
+      await world.make(
         tents({ callToAction: 'how_was_stay', languages: ['en'], customWords: own }),
-        ctx,
+        world.ctx,
       )
 
-      expect(await wordingRepo.find(ctx.organizationId, portalId(PORTAL))).toEqual({
+      expect(await savedWording(world)).toEqual({
         callToAction: 'how_was_stay',
         customWords: own,
       })
@@ -481,32 +305,32 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
     })
 
     it('saves the wording alone when no own words differ from its copy', async () => {
-      const { make, wordingRepo, ctx } = await harness()
+      const world = await harness()
 
-      await make(
+      await world.make(
         tents({
           callToAction: 'how_was_stay',
           customWords: {
             en: { headline: 'How was your stay?', subline: 'Share your experience' },
           },
         }),
-        ctx,
+        world.ctx,
       )
 
-      expect(await wordingRepo.find(ctx.organizationId, portalId(PORTAL))).toEqual({
+      expect(await savedWording(world)).toEqual({
         callToAction: 'how_was_stay',
         customWords: null,
       })
     })
 
     it('saves nothing for a print that was refused', async () => {
-      const { make, wordingRepo, ctx } = await harness()
+      const world = await harness()
 
-      await expect(make(tents({ quantity: 0 }), ctx)).rejects.toMatchObject({
+      await expect(world.make(tents({ quantity: 0 }), world.ctx)).rejects.toMatchObject({
         code: 'print_format_not_offered',
       })
 
-      expect(await wordingRepo.find(ctx.organizationId, portalId(PORTAL))).toBeNull()
+      expect(await savedWording(world)).toBeNull()
     })
 
     it('still hands over the file when the wording cannot be saved, and says so without the words', async () => {
@@ -524,11 +348,14 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
 
   describe('remembering the print as the Portal’s last', () => {
     it('keeps the choices as the manager made them, on the paper the file was made for', async () => {
-      const { make, lastPrintRepo, ctx } = await harness({ country: 'BG' })
+      const world = await harness({ country: 'BG' })
 
-      await make(tents({ fillSpares: true, perSheet: 3, backPage: false }), ctx)
+      await world.make(
+        tents({ fillSpares: true, perSheet: 3, backPage: false }),
+        world.ctx,
+      )
 
-      expect(await lastPrintRepo.find(ctx.organizationId, portalId(PORTAL))).toEqual({
+      expect(await lastPrint(world)).toEqual({
         printedAt: PRINTED_AT,
         settings: {
           piece: 'tent',
@@ -550,12 +377,12 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
     })
 
     it('keeps the photo an Immersive print used, by image and framing, and none for Paper', async () => {
-      const { make, lastPrintRepo, ctx } = await harness()
+      const world = await harness()
 
-      await make(tents({ look: 'immersive' }), ctx)
-      const immersive = await lastPrintRepo.find(ctx.organizationId, portalId(PORTAL))
-      await make(tents({ look: 'paper' }), ctx)
-      const paper = await lastPrintRepo.find(ctx.organizationId, portalId(PORTAL))
+      await world.make(tents({ look: 'immersive' }), world.ctx)
+      const immersive = await lastPrint(world)
+      await world.make(tents({ look: 'paper' }), world.ctx)
+      const paper = await lastPrint(world)
 
       expect(immersive?.photo).toEqual({
         assetId: SCENARIO_HERO_ASSET,
@@ -566,9 +393,9 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
     })
 
     it('keeps a print shop’s choices too, the form coming back as it was', async () => {
-      const { make, lastPrintRepo, ctx } = await harness()
+      const world = await harness()
 
-      await make(
+      await world.make(
         tents({
           piece: 'counter',
           orientation: 'upright',
@@ -577,12 +404,10 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
           backPage: true,
           quantity: 40,
         }),
-        ctx,
+        world.ctx,
       )
 
-      expect(
-        (await lastPrintRepo.find(ctx.organizationId, portalId(PORTAL)))?.settings,
-      ).toMatchObject({
+      expect((await lastPrint(world))?.settings).toMatchObject({
         piece: 'counter',
         printer: 'print_shop',
         cropMarks: true,
@@ -606,15 +431,15 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
     })
 
     it('keeps nothing of a print that was refused', async () => {
-      const { make, lastPrintRepo, ctx } = await harness({
+      const world = await harness({
         refuse: new PrintRenderRefusal({ code: 'needs_short_code', moduleMm: null }),
       })
 
-      await expect(make(tents(), ctx)).rejects.toMatchObject({
+      await expect(world.make(tents(), world.ctx)).rejects.toMatchObject({
         code: 'print_code_too_small',
       })
 
-      expect(await lastPrintRepo.find(ctx.organizationId, portalId(PORTAL))).toBeNull()
+      expect(await lastPrint(world)).toBeNull()
     })
 
     it('still hands over the file when the print cannot be remembered, and says so without the address', async () => {
@@ -645,14 +470,14 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
         }),
       ),
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(await downloads()).toBe(0)
+    await nothingDisclosed()
   })
 
   it('refuses a Property outside the caller’s access before revealing', async () => {
     const { make, ctx } = await harness({ accessible: [randomUUID()] })
 
     await expect(make(tents(), ctx)).rejects.toMatchObject({ code: 'forbidden' })
-    expect(await downloads()).toBe(0)
+    await nothingDisclosed()
   })
 
   it('does not find a Portal of another Organization, and discloses nothing', async () => {
@@ -665,7 +490,7 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
       ),
     ).rejects.toMatchObject({ code: 'portal_not_found' })
     expect(rendered).toEqual([])
-    expect(await downloads()).toBe(0)
+    await nothingDisclosed()
   })
 
   it('refuses a Portal with no live publication before revealing', async () => {
@@ -674,47 +499,88 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
     await expect(make(tents(), ctx)).rejects.toMatchObject({
       code: 'publication_snapshot_unavailable',
     })
-    expect(await downloads()).toBe(0)
+    await nothingDisclosed()
   })
 
   it('makes and remembers nothing when the live address cannot be revealed', async () => {
-    const { make, rendered, lastPrintRepo, wordingRepo, ctx } = await harness({
-      codeSealed: false,
-    })
+    const world = await harness({ codeSealed: false })
 
-    await expect(make(tents(), ctx)).rejects.toMatchObject({
+    await expect(world.make(tents(), world.ctx)).rejects.toMatchObject({
       code: 'address_unavailable',
     })
 
-    expect(rendered).toEqual([])
-    expect(await lastPrintRepo.find(ctx.organizationId, portalId(PORTAL))).toBeNull()
-    expect(await wordingRepo.find(ctx.organizationId, portalId(PORTAL))).toBeNull()
+    expect(world.rendered).toEqual([])
+    expect(await lastPrint(world)).toBeNull()
+    expect(await savedWording(world)).toBeNull()
   })
 
-  it('says why the code cannot print on the piece, in the Share tab’s words', async () => {
-    const { make, ctx } = await harness({
-      refuse: new PrintRenderRefusal({ code: 'needs_short_code', moduleMm: null }),
-    })
+  // Renderer and format refusals: `beforeReveal` rows are refused before the
+  // address is disclosed; `keepsNothing` rows leave no remembered print.
+  it.each([
+    [
+      'refuses a back page on a tent before revealing: a tent prints its front on both faces',
+      undefined,
+      { backPage: true },
+      {
+        code: 'print_format_not_offered',
+        message:
+          'Tents print the front on both faces, so they have no back page. Choose a card for one.',
+        context: { cause: 'no_back_for_tents' },
+      },
+      { beforeReveal: true, keepsNothing: false },
+    ],
+    [
+      'says why the code cannot print on the piece, in the Share tab’s words',
+      'needs_short_code',
+      {},
+      {
+        code: 'print_code_too_small',
+        message:
+          'Replace the code to print tents and Small cards. Counter cards print with the code you have.',
+        context: { cause: 'needs_short_code' },
+      },
+      { beforeReveal: false, keepsNothing: false },
+    ],
+    [
+      'says when the words do not fit the piece, in the Share tab’s words, and keeps nothing',
+      'words_do_not_fit',
+      {},
+      {
+        code: 'print_format_not_offered',
+        message: PRINT_REFUSAL_COPY.words_do_not_fit,
+        context: { cause: 'words_do_not_fit' },
+      },
+      { beforeReveal: false, keepsNothing: true },
+    ],
+    [
+      'asks the manager to shorten their own words when the face cannot hold them',
+      'words_do_not_fit',
+      {
+        customWords: {
+          en: {
+            headline: 'Tell us how your visit went today, in a few taps',
+            subline: '',
+          },
+        },
+      },
+      {
+        code: 'print_format_not_offered',
+        message: PRINT_REFUSAL_COPY.shorten_to_fit,
+        context: { cause: 'shorten_to_fit' },
+      },
+      { beforeReveal: false, keepsNothing: false },
+    ],
+  ] as const)('%s', async (_title, refusal, over, expected, checks) => {
+    const world = await harness(
+      refusal
+        ? { refuse: new PrintRenderRefusal({ code: refusal, moduleMm: null }) }
+        : {},
+    )
 
-    await expect(make(tents(), ctx)).rejects.toMatchObject({
-      code: 'print_code_too_small',
-      message:
-        'Replace the code to print tents and Small cards. Counter cards print with the code you have.',
-      context: { cause: 'needs_short_code' },
-    })
-  })
+    await expect(world.make(tents(over), world.ctx)).rejects.toMatchObject(expected)
 
-  it('says when the words do not fit the piece, in the Share tab’s words, and keeps nothing', async () => {
-    const { make, lastPrintRepo, ctx } = await harness({
-      refuse: new PrintRenderRefusal({ code: 'words_do_not_fit', moduleMm: null }),
-    })
-
-    await expect(make(tents(), ctx)).rejects.toMatchObject({
-      code: 'print_format_not_offered',
-      message: PRINT_REFUSAL_COPY.words_do_not_fit,
-      context: { cause: 'words_do_not_fit' },
-    })
-    expect(await lastPrintRepo.find(ctx.organizationId, portalId(PORTAL))).toBeNull()
+    if (checks.beforeReveal) await nothingDisclosed()
+    if (checks.keepsNothing) expect(await lastPrint(world)).toBeNull()
   })
 
   it('prints the manager’s own words where they wrote them and the wording in the other language', async () => {
@@ -736,32 +602,9 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
     ])
   })
 
-  it('asks the manager to shorten their own words when the face cannot hold them', async () => {
-    const { make, ctx } = await harness({
-      refuse: new PrintRenderRefusal({ code: 'words_do_not_fit', moduleMm: null }),
-    })
-
-    await expect(
-      make(
-        tents({
-          customWords: {
-            en: {
-              headline: 'Tell us how your visit went today, in a few taps',
-              subline: '',
-            },
-          },
-        }),
-        ctx,
-      ),
-    ).rejects.toMatchObject({
-      code: 'print_format_not_offered',
-      message: PRINT_REFUSAL_COPY.shorten_to_fit,
-      context: { cause: 'shorten_to_fit' },
-    })
-  })
-
   it('refuses a wording that rule F holds back in a language of the print, before the address is read', async () => {
-    const { make, lastPrintRepo, ctx } = await harness({ localeSet: ['en', 'de'] })
+    const world = await harness({ localeSet: ['en', 'de'] })
+    const { make, ctx } = world
 
     await expect(
       make(tents({ languages: ['en', 'de'], callToAction: 'got_30_seconds' }), ctx),
@@ -781,8 +624,8 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
         ctx,
       ),
     ).rejects.toMatchObject({ context: { cause: 'wording_not_available' } })
-    expect(await downloads()).toBe(0)
-    expect(await lastPrintRepo.find(ctx.organizationId, portalId(PORTAL))).toBeNull()
+    await nothingDisclosed()
+    expect(await lastPrint(world)).toBeNull()
   })
 
   it('prints a held wording’s language once the manager has written their own words in it', async () => {
@@ -815,14 +658,14 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
         message: PRINT_REFUSAL_COPY.remove_offer,
         context: { cause: 'remove_offer' },
       })
-      expect(await downloads()).toBe(0)
+      await nothingDisclosed()
     },
   )
 
   it('remembers the manager’s own words with the print, only the languages that changed', async () => {
-    const { make, lastPrintRepo, ctx } = await harness()
+    const world = await harness()
 
-    await make(
+    await world.make(
       tents({
         callToAction: 'rate_visit',
         customWords: {
@@ -830,12 +673,10 @@ describe.sequential('createPortalPrint (real PostgreSQL)', () => {
           bg: { headline: 'Оценете посещението си', subline: 'Около 30 секунди' },
         },
       }),
-      ctx,
+      world.ctx,
     )
 
-    expect(
-      (await lastPrintRepo.find(ctx.organizationId, portalId(PORTAL)))?.settings,
-    ).toMatchObject({
+    expect((await lastPrint(world))?.settings).toMatchObject({
       callToAction: 'rate_visit',
       customWords: { en: { headline: 'How was today?', subline: '' } },
     })

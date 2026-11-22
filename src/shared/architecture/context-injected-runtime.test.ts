@@ -127,11 +127,10 @@ describe('injected runtime in Inbox, Integration, Portal, Reporting and Review',
   })
 
   it('keeps Review production code on injected time and identifiers', () => {
-    // Review's code lives in Reputation. Inbox's database fixture seeds rows
-    // with fresh ids and was never part of this guard.
+    // Review's code lives in Reputation. Test fixtures seed rows with fresh
+    // ids and clocks and were never part of this guard.
     const files = productionFiles('src/contexts/reputation', ['ui']).filter(
-      (file) =>
-        file.endsWith('.ts') && !file.endsWith('/inbox/inbox-database.test-fixtures.ts'),
+      (file) => file.endsWith('.ts') && !file.endsWith('.test-fixtures.ts'),
     )
     expect(offences(files, REVIEW_BANS)).toEqual([])
   })

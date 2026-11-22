@@ -4,6 +4,10 @@
 // its own instead of growing that one.
 
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
+import { toOutboxEvent } from '#/shared/outbox/event-adapter'
+import { buildConsumerEvent } from '#/shared/outbox/envelope'
+import { parseNotificationPayload } from '../domain/notification-payload'
+import { renderNotification } from '../domain/notification-templates'
 import { unbrand } from '#/shared/domain/ids'
 import type {
   WORKFLOW_NOTIFICATION_CONSUMERS,
@@ -20,6 +24,8 @@ export type WorkflowTestDeps = WorkflowNotificationConsumerDeps & {
   receipts: FakeNotificationConsumerDeps['receipts']
   fakes: FakeNotificationConsumerDeps
 }
+
+export const WORKFLOW_EVENT_ID = '30000000-0000-4000-8000-000000000009'
 
 /** One AccountAdmin and one responsible manager, both eligible, as a start. */
 export const makeWorkflowDeps = (): WorkflowTestDeps => {
@@ -47,7 +53,7 @@ export const workflowEvent = (
   payload: Readonly<Record<string, unknown>>,
   overrides: Partial<ConsumerEvent> = {},
 ): ConsumerEvent => ({
-  eventId: '30000000-0000-4000-8000-000000000009',
+  eventId: WORKFLOW_EVENT_ID,
   eventType,
   eventVersion: 1,
   payload: {
@@ -68,3 +74,82 @@ export const workflowEvent = (
 
 export const queuedJobs = (deps: WorkflowTestDeps): readonly QueuedNotice[] =>
   deps.fakes.jobs.map((job) => job.data as QueuedNotice)
+
+const WEB_SOURCE = 'web'
+
+export const assignedPayload = (input: {
+  assignedTo: string
+  userId: string | null
+  previousAssignee?: string | null
+  bulkId?: string
+}): Record<string, unknown> => ({
+  inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+  ...input,
+  source: WEB_SOURCE,
+})
+
+export const escalatedPayload = (
+  userId: string | null,
+  source: string = WEB_SOURCE,
+): Record<string, unknown> => ({
+  inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+  userId,
+  source,
+})
+
+export const noteAddedPayload = (
+  userId: string | null,
+  source: string = WEB_SOURCE,
+): Record<string, unknown> => ({
+  inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+  noteId: unbrand(NOTIF_TEST_IDS.noteId),
+  userId,
+  source,
+})
+
+/** A reply fact's payload; `authorId` is left out for a submission. */
+export const replyPayload = (input: {
+  userId: string | null
+  authorId?: string
+}): Record<string, unknown> => ({
+  replyId: unbrand(NOTIF_TEST_IDS.replyId),
+  reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+  ...input,
+  source: WEB_SOURCE,
+})
+
+export const publishFailedPayload = (
+  authorId: string | null,
+  extra: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> => ({
+  replyId: unbrand(NOTIF_TEST_IDS.replyId),
+  reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+  authorId,
+  ...extra,
+})
+
+export const firstJob = (deps: WorkflowTestDeps): QueuedNotice =>
+  deps.fakes.jobs[0]!.data as QueuedNotice
+
+export const renderedFor = (
+  deps: WorkflowTestDeps,
+  type: Parameters<typeof renderNotification>[0],
+) => renderNotification(type, parseNotificationPayload(firstJob(deps).payload))
+
+/** A recorded domain fact, carried through the outbox into a consumer event. */
+export const recordedEvent = (
+  fact: Parameters<typeof toOutboxEvent>[0] & { eventId: string },
+): ConsumerEvent => {
+  const row = toOutboxEvent(fact)
+  return buildConsumerEvent({
+    id: fact.eventId,
+    eventType: row.eventType,
+    eventVersion: row.eventVersion ?? 1,
+    payload: row.payload,
+    organizationId: row.organizationId,
+    propertyId: row.propertyId ?? null,
+    sourceContext: row.sourceContext,
+    sourceAggregateId: row.sourceAggregateId,
+    recordedAt: NOTIF_TEST_IDS.now,
+  })
+}
