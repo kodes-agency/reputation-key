@@ -38,6 +38,24 @@ let lease: TestLease
 let nextReview = 0
 let nextGeneration = 0
 const db = getDb()
+const repo = createReviewHeadCheckRepository(db)
+
+const comparison: HeadComparison = {
+  listed: 50,
+  newCount: 2,
+  changedCount: 1,
+  replyChangedCount: 3,
+  leaseRefreshCount: 4,
+  contentChangedCount: 6,
+  wouldPersist: 8,
+  googleTotal: 120,
+  storedLiveCount: 117,
+  totalDifference: 3,
+  googleAverage: 4.62,
+  storedAverage: 4.6,
+  averageDifference: 0.02,
+  hasMore: true,
+}
 
 const reviewUuid = (n: number) => `b2000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 
@@ -183,7 +201,6 @@ afterAll(async () => {
 })
 
 describe.sequential('reviewHeadCheckRepository.readBaseline (real PostgreSQL)', () => {
-  const repo = createReviewHeadCheckRepository(db)
   const baseline = (externalIds: readonly string[], property = PROP_A, epoch = 2) =>
     repo.readBaseline({
       organizationId: ORG,
@@ -309,8 +326,6 @@ describe.sequential('reviewHeadCheckRepository.readBaseline (real PostgreSQL)', 
 describe.sequential(
   'reviewHeadCheckRepository.hasOutstandingFailure (real PostgreSQL)',
   () => {
-    const repo = createReviewHeadCheckRepository(db)
-
     it('is false for a Property with no sync state or no recorded failure', async () => {
       await expect(repo.hasOutstandingFailure(PROP_A)).resolves.toBe(false)
       await pool.query(
@@ -337,7 +352,6 @@ describe.sequential(
 describe.sequential(
   'reviewHeadCheckRepository head cover and full-read requests (real PostgreSQL)',
   () => {
-    const repo = createReviewHeadCheckRepository(db)
     const syncRow = async (property: string) =>
       (
         await pool.query(
@@ -434,25 +448,8 @@ describe.sequential(
 )
 
 describe.sequential('reviewHeadCheckRepository.recordRun (real PostgreSQL)', () => {
-  const repo = createReviewHeadCheckRepository(db)
   const STARTED = new Date('2026-10-21T12:00:00.000Z')
   const COMPLETED = new Date('2026-10-21T12:00:01.500Z')
-  const comparison: HeadComparison = {
-    listed: 50,
-    newCount: 2,
-    changedCount: 1,
-    replyChangedCount: 3,
-    leaseRefreshCount: 4,
-    contentChangedCount: 6,
-    wouldPersist: 8,
-    googleTotal: 120,
-    storedLiveCount: 117,
-    totalDifference: 3,
-    googleAverage: 4.62,
-    storedAverage: 4.6,
-    averageDifference: 0.02,
-    hasMore: true,
-  }
   const rows = async () =>
     (
       await pool.query(
@@ -551,7 +548,6 @@ describe.sequential('reviewHeadCheckRepository.recordRun (real PostgreSQL)', () 
 describe.sequential(
   'reviewHeadCheckRepository.readPersistState (real PostgreSQL)',
   () => {
-    const repo = createReviewHeadCheckRepository(db)
     let nextFact = 0
 
     const insertFact = async (
@@ -702,7 +698,6 @@ describe.sequential(
 )
 
 describe.sequential('reviewHeadCheckRepository.recordHeadFact (real PostgreSQL)', () => {
-  const repo = createReviewHeadCheckRepository(db)
   const FACT_ID = 'c5000000-0000-4000-8000-000000000001'
   const READ_AT = ago(2_000)
 
@@ -791,24 +786,6 @@ describe.sequential('reviewHeadCheckRepository.recordHeadFact (real PostgreSQL)'
 describe.sequential(
   'reviewHeadCheckRepository.recordRun in persist mode (real PostgreSQL)',
   () => {
-    const repo = createReviewHeadCheckRepository(db)
-    const comparison: HeadComparison = {
-      listed: 50,
-      newCount: 2,
-      changedCount: 1,
-      replyChangedCount: 3,
-      leaseRefreshCount: 4,
-      contentChangedCount: 6,
-      wouldPersist: 8,
-      googleTotal: 120,
-      storedLiveCount: 117,
-      totalDifference: 3,
-      googleAverage: 4.62,
-      storedAverage: 4.6,
-      averageDifference: 0.02,
-      hasMore: true,
-    }
-
     it('writes a head row with what was actually stored and whether the fact was written', async () => {
       await repo.recordRun({
         propertyId: PROP_A,
