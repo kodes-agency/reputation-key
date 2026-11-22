@@ -281,7 +281,7 @@ a number, a name that is only praise or a generic noun, a spelled-out number
 before a unit, praise or glue word, a street-first number not followed by the end
 of a clause, and a Bulgarian name that is not in capitals are prose.
 `ai-redaction-ordinary-prose.test.ts` and `ai-redaction-recall.test.ts` pin both
-sides. What still reaches the provider, pinned there too: a lower-case name
+sides. What still reaches the provider, pinned in `ai-redaction-addresses.test.ts`: a lower-case name
 holding an everyday word with nothing that introduces the address (`7 wonderful
 place`, `1400 mile end drive` after `near`), which is `a 5 star place` and `a 10
 mile drive` in prose; a lower-case name that is a function word, a particle alone
@@ -309,7 +309,7 @@ address, a coordinate, a short handle, a passport number, a street whose type or
 name a break split. The blank before a dot reads a name as a domain's only when
 the name is lower case and long, holds a digit or a hyphen, or is in camel case
 (`Booking .com said` is prose). What a break through the middle of a word still
-leaves, pinned in `ai-redaction-recall.test.ts`: the first half of an email's
+leaves, pinned in `ai-redaction-recall-tokens.test.ts`: the first half of an email's
 local part (`joh` and `n.smith@gmail.com`; `wrote owner@example.com` cannot be
 told from it), a split passport label (`pa ssport`), an IPv6 address split
 inside a group, the tail of a URL path. The detectors read a word glued to a full
