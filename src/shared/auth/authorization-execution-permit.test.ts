@@ -58,6 +58,51 @@ describe('authorization execution permit', () => {
     expect(expired).toMatchObject({ kind: 'fenced', reason: 'start_deadline_elapsed' })
   })
 
+  it('returns the elapsed permit as fenced with the fence instant recorded', () => {
+    const admitted = createPermit()
+    const now = new Date('2026-08-10T10:00:10.000Z')
+
+    const result = startExecutionPermit(admitted, { now })
+
+    expect(result.kind).toBe('fenced')
+    expect(result.permit.state).toBe('fenced')
+    expect(result.permit.fencedAt).toEqual(now)
+    expect(result.permit.startedAt).toBeNull()
+    expect(result.permit.operationDeadlineAt).toBeNull()
+    // The caller's permit is not mutated.
+    expect(admitted.state).toBe('admitted')
+    expect(admitted.fencedAt).toBeNull()
+  })
+
+  it.each(['started', 'completed', 'fenced'] as const)(
+    'refuses to start a %s permit and leaves it exactly as it was',
+    (state) => {
+      const started = startExecutionPermit(createPermit(), {
+        now: new Date('2026-08-10T10:00:00.500Z'),
+      })
+      if (started.kind !== 'started') throw new Error('expected started permit')
+      const permits = {
+        started: started.permit,
+        completed: completeExecutionPermit(
+          started.permit,
+          new Date('2026-08-10T10:00:05.000Z'),
+        ),
+        fenced: fenceExecutionPermit(
+          createPermit(),
+          new Date('2026-08-10T10:00:02.000Z'),
+        ),
+      }
+      const permit = permits[state]
+      if (!permit) throw new Error(`expected a ${state} permit`)
+
+      const result = startExecutionPermit(permit, {
+        now: new Date('2026-08-10T10:00:06.000Z'),
+      })
+
+      expect(result).toEqual({ kind: 'fenced', reason: 'state_not_admitted', permit })
+    },
+  )
+
   it('allows one started permit to complete and rejects a second transition', () => {
     const started = startExecutionPermit(createPermit(), {
       now: new Date('2026-08-10T10:00:00.500Z'),
