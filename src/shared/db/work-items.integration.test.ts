@@ -380,6 +380,28 @@ describe('durable work through PostgreSQL', () => {
     ).toHaveLength(1)
   })
 
+  it('cancels waiting work as cancelled, not discarded, and never dispatches it again', async () => {
+    const row = await store.schedule(request())
+
+    const cancelled = await store.operate(
+      org,
+      row.id,
+      'cancel',
+      'operator',
+      'No longer needed',
+    )
+
+    expect(cancelled).toMatchObject({
+      state: 'cancelled',
+      operatorId: 'operator',
+      operatorReason: 'No longer needed',
+      completedAt: now,
+    })
+    expect((await store.inspect(org, row.id))?.state).toBe('cancelled')
+    now = new Date(now.getTime() + 60_000)
+    expect(await store.reserveDispatch()).toEqual([])
+  })
+
   it('shows stuck work ahead of retained success receipts', async () => {
     await db()
       .insert(workItems)
