@@ -22,7 +22,6 @@
   "src/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy.test.ts": 2,
   "src/contexts/guest/rights/guest-organization-export.adapter.test.ts": 4,
   "src/contexts/identity/application/ports/organization-export-contributor.port.test.ts": 1,
-  "src/contexts/identity/consent/merchant-ai-authorization.repository.integration.test.ts": 1,
   "src/contexts/identity/members/invitation-capability-gate.integration.test.ts": 1,
   "src/contexts/integration/imports/google-import-dispatch-migration.test.ts": 1,
   "src/contexts/reporting/rating-goals/rating-goal-pace-tenths-migration.integration.test.ts": 1,
