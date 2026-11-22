@@ -1,138 +1,266 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq } from 'drizzle-orm'
-import {
-  holdTransaction,
-  type HeldTransaction,
-} from '#/shared/db/testing/held-transaction'
-import {
-  notificationEmailQueue,
-  notificationPreferences,
-  notifications,
-  properties,
-} from '#/shared/db/schema'
+import { notifications } from '#/shared/db/schema'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { NotificationCategory } from '../domain/notification-types'
-import { SETTLED_EMAIL_REASON } from '../domain/notification-actionable'
 import {
   insertNotification,
   mandatoryRepeatEmailKey,
   type InsertNotificationDeps,
+  type InsertNotificationInput,
 } from './insert-notification.server'
-import { buildInsertNotificationDeps } from './insert-notification.test-fixtures'
+import {
+  buildInsertNotificationDeps,
+  useInsertNotificationHarness,
+  type StoredAnswer,
+} from './insert-notification.test-fixtures'
 
-const ORG_ID = organizationId('org-insert-notification')
-const PROPERTY_ID = propertyId('86100000-0000-4000-8000-000000000001')
-const USER_ID = userId('user-insert-notification')
-const input = {
-  userId: USER_ID,
-  organizationId: ORG_ID,
-  propertyId: PROPERTY_ID,
-  // A workflow notice: on in the app by default. An arrival (a new review) is
-  // off by default (D4), so it would test the skip, not the write.
-  type: 'inbox_note.added' as const,
-  resourceType: 'inbox_item' as const,
-  resourceId: 'item-1',
-  eventId: 'event-1',
-  payload: { propertyName: 'Riverside Hotel', platform: 'google' as const },
+const harness = useInsertNotificationHarness({
+  orgId: organizationId('org-insert-notification'),
+  propertyId: propertyId('86100000-0000-4000-8000-000000000001'),
+  userId: userId('user-insert-notification'),
+})
+const { input, notice, seed, noticeRows, emailRows, noticeById } = harness
+const {
+  ids: { orgId: ORG_ID, propertyId: PROPERTY_ID, userId: USER_ID },
+} = harness
+
+const summaryInput = notice('guest_voice.summary', {
+  resourceType: 'property',
+  resourceId: `${PROPERTY_ID}:2026-11-09`,
+  eventId: 'event-summary-1',
+  payload: {
+    propertyName: 'Seaview Hotel',
+    guestVoiceKind: 'weekly',
+    guestVoiceWindow: '90d',
+    guestVoiceLines: [
+      { kind: 'protect', topic: 'staff_service', reviewCount: 61, textReviewCount: 128 },
+    ],
+  },
+})
+
+/** A matcher list means those exact rows; a number means that many; undefined skips. */
+const expectRows = (
+  rows: ReadonlyArray<unknown>,
+  expected?: ReadonlyArray<unknown> | number,
+) => {
+  if (expected === undefined) return
+  if (typeof expected === 'number') expect(rows).toHaveLength(expected)
+  else expect(rows).toEqual(expected)
 }
-
-type Channel = 'in_app' | 'email'
-type StoredAnswer = Readonly<{
-  category: NotificationCategory
-  channel: Channel
-  enabled: boolean
-  cadence?: 'immediate' | 'daily'
-  maxRating?: 1 | 2 | 3 | 4
-}>
-
-let held: HeldTransaction
-
-const seed = async (...answers: ReadonlyArray<StoredAnswer>) => {
-  await held.db.insert(notificationPreferences).values(
-    answers.map((answer) => ({
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      category: answer.category,
-      channel: answer.channel,
-      enabled: answer.enabled,
-      cadence: answer.cadence ?? 'daily',
-      maxRating: answer.maxRating ?? null,
-    })),
-  )
-}
-
-/** The reader's Low ratings answers: how low each channel goes, and how it is sent. */
-const lowRatings = (
-  inApp: Readonly<{ enabled: boolean; maxRating: 1 | 2 | 3 | 4 }>,
-  email: Readonly<{ enabled: boolean; maxRating: 1 | 2 | 3 | 4 }>,
-): ReadonlyArray<StoredAnswer> => [
-  { category: 'low_ratings', channel: 'in_app', cadence: 'immediate', ...inApp },
-  { category: 'low_ratings', channel: 'email', cadence: 'immediate', ...email },
-]
-
-const noticeRows = () =>
-  held.db.select().from(notifications).where(eq(notifications.organizationId, ORG_ID))
-const emailRows = () =>
-  held.db
-    .select()
-    .from(notificationEmailQueue)
-    .where(eq(notificationEmailQueue.organizationId, ORG_ID))
-const noticeById = async (id: string) =>
-  (await held.db.select().from(notifications).where(eq(notifications.id, id)))[0]
 
 describe.sequential('insertNotification (real PostgreSQL)', () => {
   let deps: InsertNotificationDeps
+  beforeEach(() => {
+    deps = harness.deps
+  })
 
-  beforeAll(async () => {
-    held = await holdTransaction()
-    await held.db.insert(properties).values({
-      id: PROPERTY_ID,
-      organizationId: ORG_ID,
-      name: 'Insert Notification Property',
-      slug: 'insert-notification',
-      timezone: 'UTC',
+  // Preference answers in, rows out: every case writes one notice and checks the
+  // result, the notice rows, the email rows and whether an immediate email was queued.
+  type Routing = Readonly<{
+    name: string
+    answers?: ReadonlyArray<StoredAnswer>
+    notice: InsertNotificationInput
+    result: object | null
+    notices?: ReadonlyArray<unknown> | number
+    emails?: ReadonlyArray<unknown> | number
+    enqueued?: 'once' | 'never'
+  }>
+  const guestVoiceEmail = (cadence: 'immediate' | 'daily'): StoredAnswer => ({
+    category: 'guest_voice',
+    channel: 'email',
+    enabled: true,
+    cadence,
+  })
+  const urgentAlert = (eventId: string, platform?: 'google') =>
+    notice('review.ai_urgent_detected', {
+      eventId,
+      payload: { propertyName: 'Seaview Hotel', ...(platform ? { platform } : {}) },
     })
-  })
+  const ROUTING: ReadonlyArray<Routing> = [
+    {
+      name: 'persists a property-scoped in-app notification with governed category',
+      notice: input,
+      result: {
+        organizationId: ORG_ID,
+        propertyId: PROPERTY_ID,
+        category: 'workflow_collaboration',
+      },
+      notices: 1,
+      emails: 0,
+    },
+    {
+      // ADR 0059: Organization-scoped but not mandatory. ADR 0046's defaults
+      // decide it, in-app on, and nothing can opt it into email. A Property's
+      // switched-off answers for the same category are never consulted.
+      name: 'delivers a report outcome in-app only, with no Property preference to consult',
+      answers: [
+        { category: 'workflow_collaboration', channel: 'in_app', enabled: false },
+        { category: 'workflow_collaboration', channel: 'email', enabled: true },
+      ],
+      notice: notice('beta_feedback.outcome', {
+        propertyId: null,
+        resourceType: 'beta_feedback_report',
+        resourceId: '00000000-0000-4000-8000-0000000000f1',
+        eventId: 'identity-beta-feedback-event-1',
+        payload: { reportOutcome: 'resolved' },
+      }),
+      result: {
+        propertyId: null,
+        category: 'workflow_collaboration',
+        type: 'beta_feedback.outcome',
+        resourceType: 'beta_feedback_report',
+      },
+      notices: 1,
+      emails: 0,
+      enqueued: 'never',
+    },
+    {
+      name: 'skips every channel when concrete property preferences disable both',
+      answers: [
+        { category: 'workflow_collaboration', channel: 'in_app', enabled: false },
+        { category: 'workflow_collaboration', channel: 'email', enabled: false },
+      ],
+      notice: input,
+      result: null,
+      notices: 0,
+      emails: 0,
+    },
+    {
+      // Goal email is daily only (ADR 0046, amended 2026-09-22), but a row saved
+      // before that may still say immediate. Delivery must not honour it.
+      name: 'queues goal email for the daily digest even when a stored row says immediate',
+      answers: [
+        {
+          category: 'portal_goals',
+          channel: 'email',
+          enabled: true,
+          cadence: 'immediate',
+        },
+      ],
+      notice: notice('goal.completed', {
+        resourceType: 'goal',
+        resourceId: 'goal-1',
+        eventId: 'event-goal-1',
+        payload: { goalName: 'Weekend response time' },
+      }),
+      result: {},
+      emails: [expect.objectContaining({ category: 'portal_goals', cadence: 'daily' })],
+      enqueued: 'never',
+    },
+    // The Guest voice summary and the Urgent alert (ADR 0046, amended 2026-10-30).
+    {
+      name: 'persists nothing, and mails nothing, for a manager who never asked for the Monday email',
+      notice: summaryInput,
+      result: null,
+      notices: 0,
+      emails: 0,
+    },
+    {
+      // Email only: nothing is returned for the app, and the row the queue anchors
+      // on is stored already read, so it never holds the unread key.
+      name: 'mails the Monday email at once, as a message of its own, to a manager who turned email on',
+      answers: [guestVoiceEmail('immediate')],
+      notice: summaryInput,
+      result: null,
+      notices: [
+        expect.objectContaining({
+          category: 'guest_voice',
+          status: 'read',
+          readAt: null,
+        }),
+      ],
+      emails: [
+        expect.objectContaining({
+          category: 'guest_voice',
+          cadence: 'immediate',
+          priority: 'normal',
+        }),
+      ],
+      enqueued: 'once',
+    },
+    {
+      name: 'never folds the Monday email into the daily digest, even from a stored row that says daily',
+      answers: [guestVoiceEmail('daily')],
+      notice: summaryInput,
+      result: {},
+      emails: [
+        expect.objectContaining({ category: 'guest_voice', cadence: 'immediate' }),
+      ],
+    },
+    {
+      name: 'shows the Monday row in the app only for a manager who turned the app on',
+      answers: [{ category: 'guest_voice', channel: 'in_app', enabled: true }],
+      notice: summaryInput,
+      result: { category: 'guest_voice', status: 'unread' },
+      emails: 0,
+    },
+    {
+      // The existing urgent channel and the reader's existing preferences, nothing new.
+      name: 'files the Urgent alert under Action needed, urgent, and mails it at once by default',
+      notice: urgentAlert('event-urgent-1', 'google'),
+      result: {
+        category: 'urgent_operational',
+        priority: 'urgent',
+        title: 'An urgent review needs you at Seaview Hotel',
+      },
+      emails: [
+        expect.objectContaining({
+          category: 'urgent_operational',
+          cadence: 'immediate',
+          priority: 'urgent',
+        }),
+      ],
+      enqueued: 'once',
+    },
+    {
+      name: 'mails the Urgent alert to nobody who switched urgent email off, and still shows it in the app',
+      answers: [
+        {
+          category: 'urgent_operational',
+          channel: 'email',
+          enabled: false,
+          cadence: 'immediate',
+        },
+      ],
+      notice: urgentAlert('event-urgent-2'),
+      result: { category: 'urgent_operational', status: 'unread' },
+      emails: 0,
+    },
+    {
+      name: 'defaults Action Required email to immediate while respecting quiet hours',
+      notice: notice('portal.health_attention', {
+        resourceType: 'portal',
+        resourceId: 'portal-1',
+        eventId: 'event-portal-health-1',
+        payload: {},
+      }),
+      result: { category: 'urgent_operational', priority: 'normal' },
+      emails: [expect.objectContaining({ cadence: 'immediate' })],
+      enqueued: 'once',
+    },
+  ]
 
-  afterAll(async () => {
-    await held?.rollBack()
-  })
+  // A loop, not it.each: vitest cuts a long `$name` title short.
+  for (const row of ROUTING) {
+    it(row.name, async () => {
+      await seed(...(row.answers ?? []))
 
-  beforeEach(async () => {
-    await held.db
-      .delete(notificationEmailQueue)
-      .where(eq(notificationEmailQueue.organizationId, ORG_ID))
-    await held.db.delete(notifications).where(eq(notifications.organizationId, ORG_ID))
-    await held.db
-      .delete(notificationPreferences)
-      .where(eq(notificationPreferences.organizationId, ORG_ID))
-    deps = buildInsertNotificationDeps(held.db)
-  })
+      const result = await insertNotification(deps)(row.notice)
 
-  it('persists a property-scoped in-app notification with governed category', async () => {
-    const result = await insertNotification(deps)(input)
-
-    expect(result).toMatchObject({
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      category: 'workflow_collaboration',
+      if (row.result === null) expect(result).toBeNull()
+      else expect(result).toMatchObject(row.result)
+      expectRows(await noticeRows(), row.notices)
+      expectRows(await emailRows(), row.emails)
+      if (row.enqueued === 'once')
+        expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
+      if (row.enqueued === 'never')
+        expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
     })
-    expect(await noticeRows()).toHaveLength(1)
-    expect(await emailRows()).toHaveLength(0)
-  })
+  }
 
   it('always persists Organization mandatory in-app and immediate email delivery', async () => {
-    const result = await insertNotification(deps)({
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      propertyId: null,
-      type: 'account.organization_role_changed' as const,
-      resourceType: 'organization' as const,
-      resourceId: ORG_ID,
-      eventId: 'identity-role-event-1',
-    })
+    const result = await insertNotification(deps)(roleChange('identity-role-event-1'))
 
     expect(result).toMatchObject({
       propertyId: null,
@@ -150,37 +278,6 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       notificationEmailId: email!.id,
       organizationId: ORG_ID,
     })
-  })
-
-  it('delivers a report outcome in-app only, with no Property preference to consult', async () => {
-    // ADR 0059: Organization-scoped but not mandatory. ADR 0046's defaults
-    // decide it — in-app on — and nothing can opt it into email. A Property's
-    // switched-off answers for the same category are never consulted.
-    await seed(
-      { category: 'workflow_collaboration', channel: 'in_app', enabled: false },
-      { category: 'workflow_collaboration', channel: 'email', enabled: true },
-    )
-
-    const result = await insertNotification(deps)({
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      propertyId: null,
-      type: 'beta_feedback.outcome' as const,
-      resourceType: 'beta_feedback_report' as const,
-      resourceId: '00000000-0000-4000-8000-0000000000f1',
-      eventId: 'identity-beta-feedback-event-1',
-      payload: { reportOutcome: 'resolved' as const },
-    })
-
-    expect(result).toMatchObject({
-      propertyId: null,
-      category: 'workflow_collaboration',
-      type: 'beta_feedback.outcome',
-      resourceType: 'beta_feedback_report',
-    })
-    expect(await noticeRows()).toHaveLength(1)
-    expect(await emailRows()).toHaveLength(0)
-    expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
   })
 
   it('renders copy from the payload instead of storing caller-supplied text', async () => {
@@ -261,17 +358,6 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     expect(email?.recipientAudience).toEqual(audience)
   })
 
-  it('skips every channel when concrete property preferences disable both', async () => {
-    await seed(
-      { category: 'workflow_collaboration', channel: 'in_app', enabled: false },
-      { category: 'workflow_collaboration', channel: 'email', enabled: false },
-    )
-
-    await expect(insertNotification(deps)(input)).resolves.toBeNull()
-    expect(await noticeRows()).toHaveLength(0)
-    expect(await emailRows()).toHaveLength(0)
-  })
-
   // ── ADR 0046 r.2 ────────────────────────────────────────────────────
 
   it('bumps the existing unread row instead of inserting a second one', async () => {
@@ -345,19 +431,17 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
   // and keyed on the event, because the row's own `${id}:email` key would hand
   // back the first, already-sent email.
 
-  const roleChange = (eventId: string) => ({
-    userId: USER_ID,
-    organizationId: ORG_ID,
-    propertyId: null,
-    type: 'account.organization_role_changed' as const,
-    resourceType: 'organization' as const,
-    resourceId: ORG_ID,
-    eventId,
-  })
+  const roleChange = (eventId: string) =>
+    notice('account.organization_role_changed', {
+      propertyId: null,
+      resourceType: 'organization',
+      resourceId: ORG_ID,
+      eventId,
+    })
 
   it('emails a repeat mandatory notice that coalesced into the unread row', async () => {
     const first = (await insertNotification(deps)(roleChange('identity-role-event-1')))!
-    const repeatDeps = buildInsertNotificationDeps(held.db)
+    const repeatDeps = buildInsertNotificationDeps(harness.held.db)
 
     const result = await insertNotification(repeatDeps)(
       roleChange('identity-role-event-2'),
@@ -402,7 +486,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
 
   it('sends no second email when a mandatory event is replayed into its own row', async () => {
     await insertNotification(deps)(roleChange('identity-role-event-1'))
-    const replayDeps = buildInsertNotificationDeps(held.db)
+    const replayDeps = buildInsertNotificationDeps(harness.held.db)
 
     await insertNotification(replayDeps)(roleChange('identity-role-event-1'))
 
@@ -441,25 +525,21 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     // Regression: `goal.completed` classified as `digest_summary`, whose default
     // policy was {in_app:false, email:false}, so this returned null and NOTHING
     // was written for a default tenant.
-    const goal = {
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      type: 'goal.completed' as const,
-      resourceType: 'goal' as const,
+    const goal = notice('goal.completed', {
+      resourceType: 'goal',
       resourceId: 'goal-1',
       eventId: 'event-goal-1',
       payload: {
         propertyName: 'Seaview Hotel',
         goalName: 'Monthly portal goal',
         goalMonth: '2026-11',
-        goalSubjectKind: 'property' as const,
-        goalOutcome: 'met' as const,
-        goalMeasure: 'portal_rating_count' as const,
+        goalSubjectKind: 'property',
+        goalOutcome: 'met',
+        goalMeasure: 'portal_rating_count',
         goalCount: 41,
         goalTargetCount: 40,
       },
-    }
+    })
 
     const result = await insertNotification(deps)(goal)
 
@@ -481,187 +561,6 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
         eventId: 'event-goal-2',
       }),
     ).resolves.toBeNull()
-  })
-
-  // Goal email is daily only (ADR 0046, amended 2026-09-22), but a row saved
-  // before that may still say immediate. Delivery must not honour it.
-  it('queues goal email for the daily digest even when a stored row says immediate', async () => {
-    await seed({
-      category: 'portal_goals',
-      channel: 'email',
-      enabled: true,
-      cadence: 'immediate',
-    })
-
-    await insertNotification(deps)({
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      type: 'goal.completed',
-      resourceType: 'goal',
-      resourceId: 'goal-1',
-      eventId: 'event-goal-1',
-      payload: { goalName: 'Weekend response time' },
-    })
-
-    expect(await emailRows()).toEqual([
-      expect.objectContaining({ category: 'portal_goals', cadence: 'daily' }),
-    ])
-    expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
-  })
-
-  // ── The Guest voice summary and the Urgent alert (ADR 0046, amended 2026-10-30) ──
-
-  const summaryInput = {
-    userId: USER_ID,
-    organizationId: ORG_ID,
-    propertyId: PROPERTY_ID,
-    type: 'guest_voice.summary' as const,
-    resourceType: 'property' as const,
-    resourceId: `${PROPERTY_ID}:2026-11-09`,
-    eventId: 'event-summary-1',
-    payload: {
-      propertyName: 'Seaview Hotel',
-      guestVoiceKind: 'weekly' as const,
-      guestVoiceWindow: '90d' as const,
-      guestVoiceLines: [
-        {
-          kind: 'protect' as const,
-          topic: 'staff_service' as const,
-          reviewCount: 61,
-          textReviewCount: 128,
-        },
-      ],
-    },
-  }
-
-  it('persists nothing, and mails nothing, for a manager who never asked for the Monday email', async () => {
-    const result = await insertNotification(deps)(summaryInput)
-
-    expect(result).toBeNull()
-    expect(await noticeRows()).toHaveLength(0)
-    expect(await emailRows()).toHaveLength(0)
-  })
-
-  it('mails the Monday email at once, as a message of its own, to a manager who turned email on', async () => {
-    await seed({
-      category: 'guest_voice',
-      channel: 'email',
-      enabled: true,
-      cadence: 'immediate',
-    })
-
-    const result = await insertNotification(deps)(summaryInput)
-
-    // Email only: nothing is returned for the app, and the row the queue anchors on is
-    // stored already read, so it never holds the unread key.
-    expect(result).toBeNull()
-    expect(await noticeRows()).toEqual([
-      expect.objectContaining({ category: 'guest_voice', status: 'read', readAt: null }),
-    ])
-    expect(await emailRows()).toEqual([
-      expect.objectContaining({
-        category: 'guest_voice',
-        cadence: 'immediate',
-        priority: 'normal',
-      }),
-    ])
-    expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
-  })
-
-  it('never folds the Monday email into the daily digest, even from a stored row that says daily', async () => {
-    await seed({
-      category: 'guest_voice',
-      channel: 'email',
-      enabled: true,
-      cadence: 'daily',
-    })
-
-    await insertNotification(deps)(summaryInput)
-
-    expect(await emailRows()).toEqual([
-      expect.objectContaining({ category: 'guest_voice', cadence: 'immediate' }),
-    ])
-  })
-
-  it('shows the Monday row in the app only for a manager who turned the app on', async () => {
-    await seed({ category: 'guest_voice', channel: 'in_app', enabled: true })
-
-    const result = await insertNotification(deps)(summaryInput)
-
-    expect(result).toMatchObject({ category: 'guest_voice', status: 'unread' })
-    expect(await emailRows()).toHaveLength(0)
-  })
-
-  it('files the Urgent alert under Action needed, urgent, and mails it at once by default', async () => {
-    const result = await insertNotification(deps)({
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      type: 'review.ai_urgent_detected',
-      resourceType: 'inbox_item',
-      resourceId: 'item-1',
-      eventId: 'event-urgent-1',
-      payload: { propertyName: 'Seaview Hotel', platform: 'google' },
-    })
-
-    // The existing urgent channel and the reader's existing preferences, nothing new.
-    expect(result).toMatchObject({
-      category: 'urgent_operational',
-      priority: 'urgent',
-      title: 'An urgent review needs you at Seaview Hotel',
-    })
-    expect(await emailRows()).toEqual([
-      expect.objectContaining({
-        category: 'urgent_operational',
-        cadence: 'immediate',
-        priority: 'urgent',
-      }),
-    ])
-    expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
-  })
-
-  it('mails the Urgent alert to nobody who switched urgent email off, and still shows it in the app', async () => {
-    await seed({
-      category: 'urgent_operational',
-      channel: 'email',
-      enabled: false,
-      cadence: 'immediate',
-    })
-
-    const result = await insertNotification(deps)({
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      type: 'review.ai_urgent_detected',
-      resourceType: 'inbox_item',
-      resourceId: 'item-1',
-      eventId: 'event-urgent-2',
-      payload: { propertyName: 'Seaview Hotel' },
-    })
-
-    expect(result).toMatchObject({ category: 'urgent_operational', status: 'unread' })
-    expect(await emailRows()).toHaveLength(0)
-  })
-
-  it('defaults Action Required email to immediate while respecting quiet hours', async () => {
-    const result = await insertNotification(deps)({
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      type: 'portal.health_attention',
-      resourceType: 'portal',
-      resourceId: 'portal-1',
-      eventId: 'event-portal-health-1',
-      payload: {},
-    })
-
-    expect(result).toMatchObject({
-      category: 'urgent_operational',
-      priority: 'normal',
-    })
-    expect(await emailRows()).toEqual([expect.objectContaining({ cadence: 'immediate' })])
-    expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
   })
 
   it('keeps the durable email row pending when immediate queue dispatch is unavailable', async () => {
@@ -794,280 +693,6 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     })
   })
 
-  // ADR 0046, amended 2026-09-30: how low is the reader's, per channel —
-  // 3★ or lower in the app and 2★ or lower by email unless they chose.
-  describe('a low rating', () => {
-    const feedback = (guestRating: number) => ({
-      ...input,
-      type: 'feedback.created' as const,
-      eventId: `feedback-${guestRating}`,
-      payload: {
-        propertyName: 'Riverside Hotel',
-        platform: 'portal' as const,
-        guestRating,
-      },
-    })
-    const review = { ...input, type: 'review.created' as const, eventId: 'review-low' }
-    const DEFAULT_THRESHOLDS = lowRatings(
-      { enabled: true, maxRating: 3 },
-      { enabled: true, maxRating: 2 },
-    )
-    const arrivalsInApp: StoredAnswer = {
-      category: 'arrivals',
-      channel: 'in_app',
-      enabled: true,
-    }
-
-    it('files private feedback rated 1 as Low ratings, in the app and by email', async () => {
-      const result = await insertNotification(deps)(feedback(1))
-
-      expect(result).toMatchObject({
-        category: 'low_ratings',
-        title: 'Low-rated guest feedback at Riverside Hotel',
-      })
-      expect(result?.payload).toMatchObject({ lowRating: true, guestRating: 1 })
-      expect(await emailRows()).toHaveLength(1)
-    })
-
-    it('tells about 3-star feedback in the app only, since email is 2 stars or lower by default', async () => {
-      const result = await insertNotification(deps)(feedback(3))
-
-      expect(result).toMatchObject({ category: 'low_ratings' })
-      // Above the email threshold, the reader's New reviews answer stands:
-      // off by default.
-      expect(await emailRows()).toHaveLength(0)
-    })
-
-    it('files feedback above both thresholds as an arrival, off by default', async () => {
-      await expect(insertNotification(deps)(feedback(4))).resolves.toBeNull()
-
-      expect(await noticeRows()).toHaveLength(0)
-    })
-
-    it("routes a Google review by Review's eligible rating and keeps only the outcome", async () => {
-      vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
-
-      const result = await insertNotification(deps)(review)
-
-      expect(deps.ratingForRouting).toHaveBeenCalledWith({
-        organizationId: ORG_ID,
-        inboxItemId: 'item-1',
-      })
-      expect(result).toMatchObject({
-        category: 'low_ratings',
-        title: 'Low-rated review at Riverside Hotel',
-      })
-      // The flag, never the stars: a Google rating stays in Review (ADR 0031).
-      expect(result?.payload).toEqual({
-        propertyName: 'Riverside Hotel',
-        platform: 'google',
-        lowRating: true,
-      })
-      expect((await noticeRows())[0]?.payload).toEqual(result?.payload)
-      expect(JSON.stringify(await emailRows())).not.toContain('"rating"')
-    })
-
-    it('stores nothing for a Google review above both thresholds, like any new review', async () => {
-      vi.mocked(deps.ratingForRouting).mockResolvedValue(4)
-
-      await expect(insertNotification(deps)(review)).resolves.toBeNull()
-
-      expect(await noticeRows()).toHaveLength(0)
-    })
-
-    it('routes a review whose rating Review no longer holds as a new review', async () => {
-      // Past Google's cache window the eligible read answers null.
-      vi.mocked(deps.ratingForRouting).mockResolvedValue(null)
-
-      await expect(insertNotification(deps)(review)).resolves.toBeNull()
-
-      expect(await noticeRows()).toHaveLength(0)
-    })
-
-    it("follows the reader's own thresholds: off in the app still mails a 1-star review", async () => {
-      await seed(
-        ...lowRatings({ enabled: false, maxRating: 3 }, { enabled: true, maxRating: 1 }),
-      )
-      vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
-
-      // Not shown in the app, so nothing comes back to display.
-      await expect(insertNotification(deps)(review)).resolves.toBeNull()
-
-      expect(await noticeRows()).toEqual([
-        expect.objectContaining({
-          category: 'low_ratings',
-          status: 'read',
-          readAt: null,
-        }),
-      ])
-      expect(await emailRows()).toEqual([
-        expect.objectContaining({ category: 'low_ratings', cadence: 'immediate' }),
-      ])
-    })
-
-    // Each channel admits a rated notice under its own category, and the
-    // later checks read exactly that one: the feed the row's, the pre-send
-    // recheck and the unsubscribe link the email's.
-    it('files the row as the arrival its reader shows, and mails it as a low rating', async () => {
-      await seed(
-        ...lowRatings({ enabled: true, maxRating: 1 }, { enabled: true, maxRating: 3 }),
-        arrivalsInApp,
-      )
-      vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
-
-      const result = await insertNotification(deps)(review)
-
-      expect(result).toMatchObject({ category: 'arrivals' })
-      expect(result?.payload).not.toHaveProperty('lowRating')
-      expect(await emailRows()).toEqual([
-        expect.objectContaining({ category: 'low_ratings', cadence: 'immediate' }),
-      ])
-    })
-
-    it('files the row as a low rating, and mails it under the New reviews answer', async () => {
-      await seed(
-        ...lowRatings({ enabled: true, maxRating: 3 }, { enabled: true, maxRating: 1 }),
-        { category: 'arrivals', channel: 'email', enabled: true, cadence: 'daily' },
-      )
-      vi.mocked(deps.ratingForRouting).mockResolvedValue(3)
-
-      const result = await insertNotification(deps)(review)
-
-      expect(result).toMatchObject({ category: 'low_ratings' })
-      expect(await emailRows()).toEqual([
-        expect.objectContaining({ category: 'arrivals', cadence: 'daily' }),
-      ])
-    })
-
-    describe('an edit to a review whose notice still waits', () => {
-      const edit = (eventId: string) => ({
-        ...review,
-        type: 'review.updated' as const,
-        eventId,
-      })
-
-      it("replaces the waiting row when the edit crosses the reader's threshold", async () => {
-        // The first edit, to four stars, is an arrival the reader shows and
-        // is mailed.
-        await seed(...DEFAULT_THRESHOLDS, arrivalsInApp, {
-          category: 'arrivals',
-          channel: 'email',
-          enabled: true,
-          cadence: 'daily',
-        })
-        vi.mocked(deps.ratingForRouting).mockResolvedValue(4)
-        const waiting = (await insertNotification(deps)(edit('edit-1')))!
-        expect(waiting).toMatchObject({ category: 'arrivals' })
-        expect(await emailRows()).toEqual([
-          expect.objectContaining({ status: 'pending' }),
-        ])
-        vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
-
-        const result = await insertNotification(deps)(edit('edit-2'))
-
-        expect(result).toMatchObject({
-          category: 'low_ratings',
-          title: 'Review edited to a low rating at Riverside Hotel',
-        })
-        // Dismissed, not settled: the review still waits for a reply.
-        expect(await noticeById(waiting.id)).toMatchObject({
-          status: 'dismissed',
-          resolvedAt: null,
-        })
-        const emails = await emailRows()
-        expect(emails.find((email) => email.notificationId === waiting.id)).toMatchObject(
-          {
-            status: 'cancelled',
-            suppressionReason: SETTLED_EMAIL_REASON,
-          },
-        )
-        expect(await noticeRows()).toHaveLength(2)
-      })
-
-      it('folds an edit that stays on the same side of the threshold', async () => {
-        vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
-        const waiting = (await insertNotification(deps)(edit('edit-1')))!
-        vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
-
-        const result = await insertNotification(deps)(edit('edit-2'))
-
-        expect(result).toMatchObject({
-          id: waiting.id,
-          category: 'low_ratings',
-          coalescedCount: 2,
-        })
-        expect(await noticeRows()).toEqual([
-          expect.objectContaining({ id: waiting.id, status: 'unread' }),
-        ])
-      })
-    })
-
-    it('is not low for a reader whose thresholds are lower than the rating', async () => {
-      await seed(
-        ...lowRatings({ enabled: true, maxRating: 1 }, { enabled: true, maxRating: 1 }),
-      )
-      vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
-
-      await expect(insertNotification(deps)(review)).resolves.toBeNull()
-    })
-
-    it('does not look for a rating on a notice that has none', async () => {
-      await insertNotification(deps)(input)
-
-      expect(deps.ratingForRouting).not.toHaveBeenCalled()
-    })
-  })
-
-  // ── Channel reads on a lent transaction ─────────────────────────────
-
-  describe('channel reads on a lent transaction', () => {
-    it.each(['inbox_note.added', 'feedback.created'] as const)(
-      'resolves %s without overlapping preference reads',
-      async (type) => {
-        const query = held.client.query.bind(held.client) as (
-          ...args: unknown[]
-        ) => Promise<unknown>
-        let active = 0
-        let peak = 0
-        let reads = 0
-        const spy = vi.spyOn(held.client, 'query').mockImplementation(((
-          ...args: unknown[]
-        ) => {
-          const first = args[0]
-          const text =
-            typeof first === 'string' ? first : ((first as { text?: string }).text ?? '')
-          if (/notification_(preferences|category_defaults)/.test(text)) reads++
-          active++
-          peak = Math.max(peak, active)
-          return query(...args).finally(() => {
-            active--
-          })
-        }) as never)
-
-        try {
-          const notice = await insertNotification(deps)({
-            ...input,
-            type,
-            payload: {
-              propertyName: 'Hotel',
-              platform: type === 'feedback.created' ? 'portal' : 'google',
-              guestRating: 1,
-            },
-          })
-
-          expect(notice).toMatchObject({
-            category:
-              type === 'feedback.created' ? 'low_ratings' : 'workflow_collaboration',
-          })
-        } finally {
-          spy.mockRestore()
-        }
-        expect(reads).toBeGreaterThan(1)
-        expect(peak).toBe(1)
-      },
-    )
-  })
-
   // `integration.reauthorization_required` anchors on a Property so it can be
   // mailed. With no active Property to anchor on it falls back to the
   // Organization: in the bell, never by email, rather than to nobody.
@@ -1077,16 +702,14 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       { category: 'urgent_operational', channel: 'in_app', enabled: true },
     )
 
-    const result = await insertNotification(deps)({
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      propertyId: null,
-      type: 'integration.reauthorization_required',
-      resourceType: 'integration',
-      resourceId: '00000000-0000-4000-8000-0000000000e2',
-      eventId: 'event-1',
-      payload: { reauthorizationCause: 'provider_revoked' },
-    })
+    const result = await insertNotification(deps)(
+      notice('integration.reauthorization_required', {
+        propertyId: null,
+        resourceType: 'integration',
+        resourceId: '00000000-0000-4000-8000-0000000000e2',
+        payload: { reauthorizationCause: 'provider_revoked' },
+      }),
+    )
 
     expect(result).toMatchObject({
       propertyId: null,
@@ -1094,7 +717,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       resourceType: 'integration',
     })
     expect(
-      await held.db
+      await harness.held.db
         .select()
         .from(notifications)
         .where(
