@@ -16,7 +16,6 @@
   "src/contexts/portal/publication/portal-linktree-commands.integration.test.ts": 874,
   "src/contexts/portal/publication/portal-publication-commands.integration.test.ts": 835,
   "src/contexts/reporting/monthly-goals/monthly-portal-goal-card.test.ts": 1124,
-  "src/contexts/reporting/monthly-goals/monthly-portal-goal.test.ts": 1152,
   "src/contexts/reporting/monthly-goals/ui/portal-goal-sheet.stories.tsx": 873,
   "src/contexts/reporting/portal-results/get-portal-results-overview.test.ts": 892,
   "src/contexts/reputation/domain/reply-workflow.property.test.ts": 935,
