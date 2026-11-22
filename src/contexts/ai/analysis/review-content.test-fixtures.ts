@@ -1,5 +1,9 @@
 import { getDb } from '#/shared/db'
-import { reviews, reviewSourceContents } from '#/shared/db/schema'
+import {
+  materialReviewRevisions,
+  reviews,
+  reviewSourceContents,
+} from '#/shared/db/schema'
 
 type ContentInsert = typeof reviewSourceContents.$inferInsert
 
@@ -26,6 +30,8 @@ type ReviewSeed = typeof reviews.$inferInsert &
     rating: number
     reviewedAt: Date
     contentExpiresAt: Date
+    /** Also writes the legacy material revision of the Review's current source revision. */
+    withMaterialRevision?: boolean
   }
 
 /** A stable Review and its provider row, without a second provider copy. */
@@ -72,6 +78,20 @@ export async function seedReviewContent(input: ReviewSeed | ReviewSeed[]): Promi
       sourceRevision: row.sourceRevision,
       aiSourceByteLength: row.aiSourceByteLength ?? 24,
       aiSourceDigest: row.aiSourceDigest ?? 'a'.repeat(64),
+    })),
+  )
+  const withRevision = rows.filter((row) => row.withMaterialRevision)
+  if (withRevision.length === 0) return
+  await db.insert(materialReviewRevisions).values(
+    withRevision.map((row) => ({
+      reviewId: row.id,
+      revision: row.sourceRevision,
+      organizationId: row.organizationId,
+      propertyId: row.propertyId,
+      sourceEpoch: row.sourceEpoch,
+      normalizationVersion: 'legacy-unverified-v0',
+      rating: row.rating,
+      normalizedText: row.text ?? '',
     })),
   )
 }

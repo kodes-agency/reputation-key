@@ -58,7 +58,7 @@
   "src/contexts/reputation/replies/reply-repository.integration.test.ts": 7,
   "src/contexts/reputation/replies/ui/composer/reply-assist-language.test.ts": 2,
   "src/contexts/reputation/response-targets/reminder-time-travel.integration.test.ts": 2,
-  "src/contexts/reputation/reviews/review-repository.integration.test.ts": 7,
+  "src/contexts/reputation/reviews/review-repository.sweeps.integration.test.ts": 7,
   "src/contexts/reputation/reviews/serving-stats.eligibility.integration.test.ts": 1,
   "src/contexts/reputation/sync/discover-new-reviews-job.server.ts": 1,
   "src/contexts/reputation/sync/provider-subject-keyring.test.ts": 2,

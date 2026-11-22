@@ -620,6 +620,42 @@ describe('resolveTenant cache', () => {
     expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps two Secure sessions apart when a shared legacy cookie rides along and their tokens are one character long', async () => {
+    // The whole value after the "=" is the identity, however short: dropping its
+    // first character would leave both Secure values empty, skip them, and key
+    // both sessions on the shared legacy cookie, so the second one would be
+    // served the first one's cached authority.
+    const first = makeHeaders({
+      cookie:
+        '__Secure-better-auth.session_token=a; better-auth.session_token=legacy-shared',
+    })
+    const second = makeHeaders({
+      cookie:
+        '__Secure-better-auth.session_token=b; better-auth.session_token=legacy-shared',
+    })
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-secure', activeOrganizationId: 'org-secure' },
+      user: { id: 'user-secure' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'admin' })
+
+    await resolveTenant(first)
+    await resolveTenant(second)
+
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
+  })
+
+  it('serves a cached context for a session token one character long', async () => {
+    const headers = makeHeaders({ cookie: 'better-auth.session_token=a' })
+    adminSession()
+
+    const ctx1 = await resolveTenant(headers)
+    const ctx2 = await resolveTenant(headers)
+
+    expect(ctx2).toBe(ctx1)
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(1)
+  })
+
   it('bypasses cache after TTL expires', async () => {
     // Arrange
     vi.useFakeTimers()

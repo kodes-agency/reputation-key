@@ -343,6 +343,30 @@ in the serial `integration` project; `unit` excludes them. The folder a test sit
 in selects nothing, so a test keeps its project when it moves. A unit test for a `repositories/` source sits one level up
 (`infrastructure/<source>.test.ts`) so it stays in `unit`.
 
+### 8.3 Running only the affected tests (Guidance — not gated)
+
+`pnpm test:affected` runs the unit tests whose imports reach a file changed
+since the merge base with `origin/main`, committed or not, plus every test that
+reads the repository as text (`scripts/ci/text-reads.baseline.json`), which no
+import connects to what it reads. `--project=integration` does the same for the
+integration tests against the test database; `--since=<ref>` compares with
+another ref. It is a quicker loop before pushing, not a replacement: CI runs
+every test, and a change to `package.json`, the lockfile or a Vitest config
+selects every test.
+
+### 8.4 Monthly mutation sample (rule 31)
+
+Once a month, run `pnpm mutation:sample` (unit tests) and
+`pnpm mutation:sample --project=integration` (against the test database). It
+plants a few small faults in each module listed in
+`scripts/review/mutation-targets.json`, the modules that decide tenant policy,
+attempt fences and period clocks, and runs the tests that import that module
+against each fault. The seed is the month, so every month samples other sites.
+A fault no test catches is reported with the fault that module must not let
+through. Add the missing assertion, or note in the report why the change cannot
+be observed. When such a module moves or a new one takes over the decision,
+update the list; a unit test checks that every listed path exists.
+
 ## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)
 
 Fallow (dead-code, complexity, duplication) is a devDependency. Config: `.fallowrc.json` (audit.gate: new-only). No count of the issues main already carries is kept: its `regression.baseline` block is all zeroes.
