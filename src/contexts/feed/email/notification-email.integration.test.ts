@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
@@ -7,7 +7,6 @@ import {
   notificationDigestBatchMembers,
   notificationDigestBatches,
   notificationEmailQueue,
-  notifications,
   properties,
 } from '#/shared/db/schema'
 import {
@@ -29,6 +28,7 @@ import {
   settleDigestBatch,
   startDigestAttempt,
 } from './notification-digest-batch.server'
+import { emailIdOf, seedNotice } from './delivery-seed.test-fixtures'
 import {
   findDueEmailRecipients,
   findDueEmailsByUser,
@@ -43,9 +43,9 @@ import {
 const ORG = organizationId('notification-digest-batch-test-org')
 const USER = userId('notification-digest-batch-test-user')
 const PROPERTY = '81000000-0000-4000-8000-000000000001'
-const EMAIL_A = notificationEmailId('81000000-0000-4000-8000-000000000011')
-const EMAIL_B = notificationEmailId('81000000-0000-4000-8000-000000000012')
-const EMAIL_LATE = notificationEmailId('81000000-0000-4000-8000-000000000013')
+const EMAIL_A = notificationEmailId(emailIdOf('a'))
+const EMAIL_B = notificationEmailId(emailIdOf('b'))
+const EMAIL_LATE = notificationEmailId(emailIdOf('late'))
 const BATCH = notificationDigestBatchId('81000000-0000-4000-8000-000000000021')
 const NOW = new Date('2026-08-25T08:00:00.000Z')
 const FROZEN_REQUEST = {
@@ -86,6 +86,60 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
   let lease: TestLease
   let db: Database
 
+  const queueStatuses = async () => {
+    const rows = await db
+      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
+      .from(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.organizationId, ORG))
+    return new Map(rows.map((row) => [row.id, row.status]))
+  }
+
+  /** The three queue rows' statuses, in the order of EMAIL_A, EMAIL_B, EMAIL_LATE. */
+  const expectQueueStatuses = async (a: string, b: string, late: string) => {
+    expect(await queueStatuses()).toEqual(
+      new Map([
+        [EMAIL_A, a],
+        [EMAIL_B, b],
+        [EMAIL_LATE, late],
+      ]),
+    )
+  }
+
+  const settle = (
+    batchId: string,
+    expectedContentDigest: string,
+    settlement: Parameters<typeof settleDigestBatch>[1]['settlement'],
+  ) =>
+    settleDigestBatch(db, {
+      batchId,
+      organizationId: ORG,
+      userId: USER,
+      expectedContentDigest,
+      settlement,
+    })
+
+  const startAttempt = (startedAt = NOW) =>
+    startDigestAttempt(db, {
+      batchId: BATCH,
+      organizationId: ORG,
+      userId: USER,
+      startedAt,
+    })
+
+  const accept = (emailId: string, providerMessageId: string, acceptedAt = NOW) =>
+    markNotificationEmailAccepted(
+      db,
+      emailId,
+      ORG,
+      PROPERTY,
+      providerMessageId,
+      acceptedAt,
+    )
+
+  const lateEmail = () => findNotificationEmailById(db, EMAIL_LATE, ORG, PROPERTY)
+
+  const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
+
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
     db = drizzle(lease.pool) as Database
@@ -103,43 +157,22 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       slug: 'notification-digest-batch-test',
       timezone: 'UTC',
     })
-    const notificationRows = [EMAIL_A, EMAIL_B, EMAIL_LATE].map((emailId, index) => ({
-      id: `81000000-0000-4000-8000-00000000010${index + 1}`,
-      userId: USER,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      type: 'review.created',
-      category: 'urgent_operational',
-      priority: 'normal',
-      status: 'unread',
-      resourceType: 'inbox_item',
-      resourceId: `digest-test-resource-${index}`,
-      eventId: `digest-test-event-${index}`,
-      title: 'New review',
-      payload: {},
-      createdAt: NOW,
-      updatedAt: NOW,
-      emailId,
-    }))
-    await db
-      .insert(notifications)
-      .values(notificationRows.map(({ emailId: _emailId, ...row }) => row))
-    await db.insert(notificationEmailQueue).values(
-      notificationRows.map((row, index) => ({
-        id: row.emailId,
-        notificationId: row.id,
-        userId: USER,
+    for (const [index, name] of ['a', 'b', 'late'].entries()) {
+      await seedNotice(db, {
+        name,
         organizationId: ORG,
+        userId: USER,
         propertyId: PROPERTY,
-        category: 'urgent_operational',
-        cadence: 'daily',
-        status: 'pending',
-        priority: 'normal',
-        idempotencyKey: `digest-test-queue-${index}`,
         createdAt: NOW,
-        updatedAt: NOW,
-      })),
-    )
+        type: 'review.created',
+        category: 'urgent_operational',
+        resourceType: 'inbox_item',
+        resourceId: `digest-test-resource-${index}`,
+        eventId: `digest-test-event-${index}`,
+        title: 'New review',
+        email: { cadence: 'daily', idempotencyKey: `digest-test-queue-${index}` },
+      })
+    }
   })
 
   afterAll(async () => {
@@ -179,33 +212,21 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     ).resolves.toContainEqual({ organizationId: ORG, userId: USER })
 
     await expect(
-      settleDigestBatch(db, {
-        batchId: owner.batch.id,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: 'b'.repeat(64),
-        settlement: {
-          kind: 'accepted',
-          providerMessageId: 'must-not-accept-stale-content',
-          acceptedAt: NOW,
-        },
+      settle(owner.batch.id, 'b'.repeat(64), {
+        kind: 'accepted',
+        providerMessageId: 'must-not-accept-stale-content',
+        acceptedAt: NOW,
       }),
     ).resolves.toBe(false)
 
     const retryAt = new Date('2026-08-25T08:01:00.000Z')
     await expect(
-      settleDigestBatch(db, {
-        batchId: owner.batch.id,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: input.contentDigest,
-        settlement: {
-          kind: 'rejected',
-          classification: 'transient',
-          nextAttemptAt: retryAt,
-          failedAt: NOW,
-          refusedBeforeAcceptance: false,
-        },
+      settle(owner.batch.id, input.contentDigest, {
+        kind: 'rejected',
+        classification: 'transient',
+        nextAttemptAt: retryAt,
+        failedAt: NOW,
+        refusedBeforeAcceptance: false,
       }),
     ).resolves.toBe(true)
     await expect(findOpenDigestBatch(db, ORG, USER)).resolves.toMatchObject({
@@ -213,49 +234,17 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       state: 'retryable',
       retryCount: 1,
     })
-
-    const retryStates = await db
-      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
-      .from(notificationEmailQueue)
-      .where(eq(notificationEmailQueue.organizationId, ORG))
-    expect(new Map(retryStates.map((row) => [row.id, row.status]))).toEqual(
-      new Map([
-        [EMAIL_A, 'failed'],
-        [EMAIL_B, 'failed'],
-        [EMAIL_LATE, 'pending'],
-      ]),
-    )
+    await expectQueueStatuses('failed', 'failed', 'pending')
 
     await expect(
-      settleDigestBatch(db, {
-        batchId: owner.batch.id,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: input.contentDigest,
-        settlement: {
-          kind: 'accepted',
-          providerMessageId: 'resend-message-1',
-          acceptedAt: NOW,
-        },
+      settle(owner.batch.id, input.contentDigest, {
+        kind: 'accepted',
+        providerMessageId: 'resend-message-1',
+        acceptedAt: NOW,
       }),
     ).resolves.toBe(true)
 
-    const states = await db
-      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
-      .from(notificationEmailQueue)
-      .where(
-        and(
-          eq(notificationEmailQueue.organizationId, ORG),
-          sql`${notificationEmailQueue.id} IN (${EMAIL_A}, ${EMAIL_B}, ${EMAIL_LATE})`,
-        ),
-      )
-    expect(new Map(states.map((row) => [row.id, row.status]))).toEqual(
-      new Map([
-        [EMAIL_A, 'accepted'],
-        [EMAIL_B, 'accepted'],
-        [EMAIL_LATE, 'pending'],
-      ]),
-    )
+    await expectQueueStatuses('accepted', 'accepted', 'pending')
     await expect(findOpenDigestBatch(db, ORG, USER)).resolves.toBeNull()
   })
 
@@ -288,56 +277,24 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       )
 
     await expect(
-      settleDigestBatch(db, {
-        batchId: prepared.batch.id,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: input.contentDigest,
-        settlement: {
-          kind: 'accepted',
-          providerMessageId: 'must-not-settle-partial-membership',
-          acceptedAt: NOW,
-        },
+      settle(prepared.batch.id, input.contentDigest, {
+        kind: 'accepted',
+        providerMessageId: 'must-not-settle-partial-membership',
+        acceptedAt: NOW,
       }),
     ).resolves.toBe(false)
 
-    const beforeInvalidation = await db
-      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
-      .from(notificationEmailQueue)
-      .where(eq(notificationEmailQueue.organizationId, ORG))
-    expect(new Map(beforeInvalidation.map((row) => [row.id, row.status]))).toEqual(
-      new Map([
-        [EMAIL_A, 'pending'],
-        [EMAIL_B, 'pending'],
-        [EMAIL_LATE, 'pending'],
-      ]),
-    )
+    await expectQueueStatuses('pending', 'pending', 'pending')
 
     await expect(
-      settleDigestBatch(db, {
-        batchId: prepared.batch.id,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: input.contentDigest,
-        settlement: {
-          kind: 'invalidated',
-          reason: 'digest_membership_changed',
-          invalidatedAt: NOW,
-        },
+      settle(prepared.batch.id, input.contentDigest, {
+        kind: 'invalidated',
+        reason: 'digest_membership_changed',
+        invalidatedAt: NOW,
       }),
     ).resolves.toBe(true)
 
-    const afterInvalidation = await db
-      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
-      .from(notificationEmailQueue)
-      .where(eq(notificationEmailQueue.organizationId, ORG))
-    expect(new Map(afterInvalidation.map((row) => [row.id, row.status]))).toEqual(
-      new Map([
-        [EMAIL_A, 'suppressed'],
-        [EMAIL_B, 'pending'],
-        [EMAIL_LATE, 'pending'],
-      ]),
-    )
+    await expectQueueStatuses('suppressed', 'pending', 'pending')
     await expect(findOpenDigestBatch(db, ORG, USER)).resolves.toBeNull()
   })
 
@@ -361,14 +318,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     it('ends a provider-suppressed message as suppressed', async () => {
       // Stopping further mail to the address is the durable suppression's job
       // (notification-email-suppression.repository.test.ts).
-      await markNotificationEmailAccepted(
-        db,
-        EMAIL_A,
-        ORG,
-        PROPERTY,
-        'resend-suppressed-1',
-        NOW,
-      )
+      await accept(EMAIL_A, 'resend-suppressed-1')
 
       const moved = await recordProviderState(
         db,
@@ -386,14 +336,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     })
 
     it('ends a failure after acceptance as permanent, so no sweep sends it again', async () => {
-      await markNotificationEmailAccepted(
-        db,
-        EMAIL_A,
-        ORG,
-        PROPERTY,
-        'resend-failed-1',
-        NOW,
-      )
+      await accept(EMAIL_A, 'resend-failed-1')
 
       const moved = await recordProviderState(db, 'resend-failed-1', 'failed', LATER)
 
@@ -410,14 +353,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     it('keeps a provider-delayed message in flight until the provider settles it', async () => {
       // The queue's own `delayed` is the quiet-hours deferral and is sendable;
       // a provider delay must never make an accepted message sendable again.
-      await markNotificationEmailAccepted(
-        db,
-        EMAIL_A,
-        ORG,
-        PROPERTY,
-        'resend-delayed-1',
-        NOW,
-      )
+      await accept(EMAIL_A, 'resend-delayed-1')
 
       await recordProviderState(db, 'resend-delayed-1', 'delivery_delayed', LATER)
 
@@ -434,14 +370,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     })
 
     it('never lets a late failure, suppression or delay overwrite a delivered message', async () => {
-      await markNotificationEmailAccepted(
-        db,
-        EMAIL_A,
-        ORG,
-        PROPERTY,
-        'resend-late-1',
-        NOW,
-      )
+      await accept(EMAIL_A, 'resend-late-1')
       await recordProviderState(db, 'resend-late-1', 'delivered', LATER)
 
       for (const state of ['failed', 'suppressed', 'delivery_delayed'] as const) {
@@ -486,7 +415,6 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
   })
 
   it('keeps the first frozen request, returns it to later callers, and clears it when the row closes', async () => {
-    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
     const later = { ...EMAIL_REQUEST, subject: 'A later render' }
 
     const first = await freezeProviderRequest(
@@ -508,9 +436,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
 
     expect(first).toEqual(EMAIL_REQUEST)
     expect(second).toEqual(EMAIL_REQUEST)
-    await expect(
-      findNotificationEmailById(db, EMAIL_LATE, ORG, PROPERTY),
-    ).resolves.toMatchObject({
+    await expect(lateEmail()).resolves.toMatchObject({
       providerRequest: EMAIL_REQUEST,
       attemptedAt: at(0),
     })
@@ -524,9 +450,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       at(3),
       at(2),
     )
-    await expect(
-      findNotificationEmailById(db, EMAIL_LATE, ORG, PROPERTY),
-    ).resolves.toMatchObject({
+    await expect(lateEmail()).resolves.toMatchObject({
       providerRequest: EMAIL_REQUEST,
     })
     await markNotificationEmailSuppressed(
@@ -537,9 +461,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       'preference_disabled',
       at(4),
     )
-    await expect(
-      findNotificationEmailById(db, EMAIL_LATE, ORG, PROPERTY),
-    ).resolves.toMatchObject({
+    await expect(lateEmail()).resolves.toMatchObject({
       status: 'suppressed',
       providerRequest: null,
     })
@@ -562,8 +484,6 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
 
   it('keeps the time of the first provider attempt through every later one', async () => {
     // The provider's 24-hour idempotency window opens at the first attempt.
-    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
-
     await freezeProviderRequest(db, EMAIL_LATE, ORG, PROPERTY, EMAIL_REQUEST, at(0))
     await markNotificationEmailFailed(
       db,
@@ -575,18 +495,9 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       at(1),
     )
     await freezeProviderRequest(db, EMAIL_LATE, ORG, PROPERTY, EMAIL_REQUEST, at(2))
-    await markNotificationEmailAccepted(
-      db,
-      EMAIL_LATE,
-      ORG,
-      PROPERTY,
-      'resend-first-attempt',
-      at(3),
-    )
+    await accept(EMAIL_LATE, 'resend-first-attempt', at(3))
 
-    await expect(
-      findNotificationEmailById(db, EMAIL_LATE, ORG, PROPERTY),
-    ).resolves.toMatchObject({
+    await expect(lateEmail()).resolves.toMatchObject({
       status: 'accepted',
       attemptedAt: at(0),
       acceptedAt: at(3),
@@ -602,27 +513,14 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
 
     /** One attempt as the digest job makes it: record the start, then settle. */
     const attempt = async (outcome: AttemptOutcome) => {
-      await expect(
-        startDigestAttempt(db, {
-          batchId: BATCH,
-          organizationId: ORG,
-          userId: USER,
-          startedAt: NOW,
-        }),
-      ).resolves.toBe(true)
+      await expect(startAttempt()).resolves.toBe(true)
       if (outcome === 'lost') return
-      await settleDigestBatch(db, {
-        batchId: BATCH,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: digestBatchInput().contentDigest,
-        settlement: {
-          kind: 'rejected',
-          classification: 'transient',
-          nextAttemptAt: new Date('2026-08-25T08:01:00.000Z'),
-          failedAt: NOW,
-          refusedBeforeAcceptance: outcome === 'refused',
-        },
+      await settle(BATCH, digestBatchInput().contentDigest, {
+        kind: 'rejected',
+        classification: 'transient',
+        nextAttemptAt: new Date('2026-08-25T08:01:00.000Z'),
+        failedAt: NOW,
+        refusedBeforeAcceptance: outcome === 'refused',
       })
     }
 
@@ -637,13 +535,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       prepareWithAttempts([refusedBeforeAcceptance ? 'refused' : 'ambiguous'])
 
     const supersede = () =>
-      settleDigestBatch(db, {
-        batchId: BATCH,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: 'd'.repeat(64),
-        settlement: { kind: 'superseded', detectedAt: NOW },
-      })
+      settle(BATCH, 'd'.repeat(64), { kind: 'superseded', detectedAt: NOW })
 
     it('remembers that the provider refused every attempt', async () => {
       await prepareWithAttempts(['refused', 'refused'])
@@ -680,14 +572,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       await refuse(true)
       await supersede()
 
-      await expect(
-        startDigestAttempt(db, {
-          batchId: BATCH,
-          organizationId: ORG,
-          userId: USER,
-          startedAt: NOW,
-        }),
-      ).resolves.toBe(false)
+      await expect(startAttempt()).resolves.toBe(false)
     })
 
     it('retires a refused batch whose content changed and frees its members for a new one', async () => {
@@ -701,17 +586,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
         .from(notificationDigestBatches)
         .where(eq(notificationDigestBatches.id, input.id))
       expect(retired).toMatchObject({ state: 'terminal', outcomeClass: 'superseded' })
-      const states = await db
-        .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
-        .from(notificationEmailQueue)
-        .where(eq(notificationEmailQueue.organizationId, ORG))
-      expect(new Map(states.map((row) => [row.id, row.status]))).toEqual(
-        new Map([
-          [EMAIL_A, 'failed'],
-          [EMAIL_B, 'failed'],
-          [EMAIL_LATE, 'pending'],
-        ]),
-      )
+      await expectQueueStatuses('failed', 'failed', 'pending')
       const replacement = digestBatchInput(
         notificationDigestBatchId('81000000-0000-4000-8000-000000000023'),
       )
@@ -725,13 +600,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       const input = await refuse(true)
 
       await expect(
-        settleDigestBatch(db, {
-          batchId: BATCH,
-          organizationId: ORG,
-          userId: USER,
-          expectedContentDigest: input.contentDigest,
-          settlement: { kind: 'superseded', detectedAt: NOW },
-        }),
+        settle(BATCH, input.contentDigest, { kind: 'superseded', detectedAt: NOW }),
       ).resolves.toBe(true)
       await expect(findOpenDigestBatch(db, ORG, USER)).resolves.toBeNull()
     })
@@ -754,29 +623,15 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
   describe('the attempt a batch may have been accepted since', () => {
     // The provider's 24-hour idempotency window opens at the first attempt it
     // may have accepted; the digest job closes the batch against that instant.
-    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
-
-    const start = (startedAt: Date) =>
-      startDigestAttempt(db, {
-        batchId: BATCH,
-        organizationId: ORG,
-        userId: USER,
-        startedAt,
-      })
+    const start = startAttempt
 
     const reject = (failedAt: Date, refusedBeforeAcceptance: boolean) =>
-      settleDigestBatch(db, {
-        batchId: BATCH,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: digestBatchInput().contentDigest,
-        settlement: {
-          kind: 'rejected',
-          classification: 'transient',
-          nextAttemptAt: null,
-          failedAt,
-          refusedBeforeAcceptance,
-        },
+      settle(BATCH, digestBatchInput().contentDigest, {
+        kind: 'rejected',
+        classification: 'transient',
+        nextAttemptAt: null,
+        failedAt,
+        refusedBeforeAcceptance,
       })
 
     it('is unset until an attempt starts', async () => {
@@ -837,34 +692,18 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     const prepared = await prepareDigestBatch(db, input)
 
     await expect(
-      settleDigestBatch(db, {
-        batchId: prepared.batch.id,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: 'd'.repeat(64),
-        settlement: { kind: 'content_mismatch', detectedAt: NOW },
+      settle(prepared.batch.id, 'd'.repeat(64), {
+        kind: 'content_mismatch',
+        detectedAt: NOW,
       }),
     ).resolves.toBe(true)
 
-    const states = await db
-      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
-      .from(notificationEmailQueue)
-      .where(eq(notificationEmailQueue.organizationId, ORG))
-    expect(new Map(states.map((row) => [row.id, row.status]))).toEqual(
-      new Map([
-        [EMAIL_A, 'suppressed'],
-        [EMAIL_B, 'suppressed'],
-        [EMAIL_LATE, 'pending'],
-      ]),
-    )
+    await expectQueueStatuses('suppressed', 'suppressed', 'pending')
     await expect(findOpenDigestBatch(db, ORG, USER)).resolves.toBeNull()
     await expect(
-      settleDigestBatch(db, {
-        batchId: prepared.batch.id,
-        organizationId: ORG,
-        userId: USER,
-        expectedContentDigest: 'd'.repeat(64),
-        settlement: { kind: 'content_mismatch', detectedAt: NOW },
+      settle(prepared.batch.id, 'd'.repeat(64), {
+        kind: 'content_mismatch',
+        detectedAt: NOW,
       }),
     ).resolves.toBe(false)
   })
