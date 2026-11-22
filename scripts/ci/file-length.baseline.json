@@ -63,11 +63,9 @@
   "src/shared/db/schema/ai.schema.ts": 938,
   "src/shared/db/schema/inbox.schema.ts": 824,
   "src/shared/db/schema/review.schema.ts": 1360,
-  "src/shared/google-provider-control/postgres-permit-authority.integration.test.ts": 1200,
   "src/shared/jobs/alert-injection.test.ts": 1217,
   "src/shared/jobs/runtime-observations.test.ts": 941,
   "src/shared/observability/alert-definitions.test.ts": 1517,
-  "src/shared/ops/rights/google-rights-executor.integration.test.ts": 1039,
   "src/shared/outbox/event-adapter.test.ts": 908,
   "src/shared/stale-tab/stale-tab.test.ts": 873
 }
