@@ -160,3 +160,35 @@ export async function openAiExecutionControls(
     },
   }
 }
+
+/** The control id and generation columns an operation row stamps from the three heads. */
+export async function readOperationControlColumns(db: Database) {
+  const heads = await readControlHeads(db)
+  const global = requireControl(heads, AI_CONTROL_SCOPE_KEYS[0])
+  const provider = requireControl(heads, AI_CONTROL_SCOPE_KEYS[1])
+  const capability = requireControl(heads, AI_CONTROL_SCOPE_KEYS[2])
+  return {
+    globalControlId: global.controlId,
+    globalControlGeneration: global.generation,
+    providerControlId: provider.controlId,
+    providerControlGeneration: provider.generation,
+    capabilityControlId: capability.controlId,
+    capabilityControlGeneration: capability.generation,
+  }
+}
+
+/** The stop fence the current heads give an operation claimed now. */
+export async function readCurrentStopFence(db: Database) {
+  const heads = await readControlHeads(db)
+  const global = requireControl(heads, AI_CONTROL_SCOPE_KEYS[0])
+  const provider = requireControl(heads, AI_CONTROL_SCOPE_KEYS[1])
+  const capability = requireControl(heads, AI_CONTROL_SCOPE_KEYS[2])
+  return {
+    globalControlId: global.controlId,
+    globalGeneration: global.generation,
+    providerControlId: provider.controlId,
+    providerGeneration: provider.generation,
+    capabilityControlId: capability.controlId,
+    capabilityGeneration: capability.generation,
+  }
+}
