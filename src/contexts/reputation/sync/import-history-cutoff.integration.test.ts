@@ -31,33 +31,32 @@ import {
 } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { deriveReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleReview } from '../domain/review-types'
-import type {
-  GoogleReviewApiPort,
-  GoogleReviewPage,
-} from './google-review-api.port.server'
+import type { GoogleReviewPage } from './google-review-api.port.server'
 import type { AiReviewSourceRequest } from '../reviews/ai-review-source.port.server'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import {
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
   type SyncPropertyReviewsJobData,
 } from './review-queue.port.server'
-import type { ReviewProviderSubjectKeyService } from './provider-subject-keyring.server'
 import { admitReviewSync } from './admit-review-sync.server'
-import { createReviewProviderObservationWriter } from './sync-reviews.server'
 import {
   runReviewProviderSnapshot,
   type RunReviewProviderSnapshotResult,
 } from './run-review-provider-snapshot.server'
-import { createGoogleReplyObservationStore } from '../publication/google-reply-observation-store.server'
-import { createAtomicReviewCommandStore } from '../reviews/review-command-store.server'
-import { createReviewProviderSnapshotRepository } from './review-provider-snapshot-repository.server'
 import { createReviewRepository } from '../reviews/review-repository.server'
-import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
-import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
+import { googleReviewFixture, googleReviewPage } from './google-review.test-fixtures'
+import {
+  clearReviewSnapshotData,
+  createFakeGoogleReviewApi,
+  createSnapshotWriter,
+  createSpyLogger,
+  createSubjectKeyHarness,
+  insertTestOrganization,
+  insertTestProperty,
+  seedSnapshotConnection,
+} from './review-snapshot-harness.test-fixtures'
 
 const ORG = organizationId('review-history-cutoff-org')
 const CONNECTION = googleConnectionId('74000000-0000-4000-8000-00000000c001')
@@ -79,7 +78,6 @@ const PROPERTIES = [
 ] as const
 const ACCOUNT = 'history-cutoff-account'
 const TEST_KEY_VERSION = 'history-cutoff-test-v1'
-const TEST_KEY = new Uint8Array(32).fill(7)
 const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
@@ -94,32 +92,14 @@ let observedAt = new Date()
 let listing = new Map<string, GoogleReviewPage>()
 /** Set to simulate the lock timeout that failed the live import mid-page. */
 let failObservationOf: string | null = null
-let activeKeyVersion = TEST_KEY_VERSION
-let insertedTestKey = false
 
-const snapshotRepository = createReviewProviderSnapshotRepository(
-  db,
-  () => {
+const { snapshotRepository, writer: realWriter } = createSnapshotWriter(db, {
+  clock: () => observedAt,
+  nextRunId: () => {
     const next = snapshotRunIds.shift()
     if (!next) throw new Error('No snapshot run id left for this test')
     return next
   },
-  replyScopeEffects,
-)
-
-const realWriter = createReviewProviderObservationWriter({
-  reviewRepo: createReviewRepository(db, () => observedAt, undefined, replyScopeEffects),
-  clock: () => observedAt,
-  idGen: () => reviewId(crypto.randomUUID()),
-  commandStore: createAtomicReviewCommandStore(
-    db,
-    () => observedAt,
-    undefined,
-    undefined,
-    replyScopeEffects,
-  ),
-  googleReplyObservationStore: createGoogleReplyObservationStore(db),
-  historyCutoffs: snapshotRepository,
 })
 
 const observationWriter: ReviewProviderObservationWriter = {
@@ -132,43 +112,20 @@ const observationWriter: ReviewProviderObservationWriter = {
   },
 }
 
-const googleReviewApi: GoogleReviewApiPort = {
+const googleReviewApi = createFakeGoogleReviewApi({
   listReviewsPage: vi.fn(async ({ phase, pageIndex }) => {
     const page = listing.get(`${phase}:${pageIndex}`)
     if (!page) throw new Error(`No ${phase} page ${pageIndex} in this listing`)
     return page
   }),
-  readReviewsHead: vi.fn(),
-  getReview: vi.fn(async () => ({ status: 'not_found' as const })),
-  discardReviewCursors: vi.fn(async () => undefined),
-  replyToReview: vi.fn(async () => ({ providerCorrelationId: null })),
-}
+})
 
-const subjectKeyService: ReviewProviderSubjectKeyService = {
-  acquireDeriver: async () => ({
-    activeVersion: activeKeyVersion,
-    retiringVersion: null,
-    inventoryGeneration: 1,
-    deriveCandidates: (scope) => [
-      deriveReviewProviderSubject({
-        ...scope,
-        keyVersion: activeKeyVersion,
-        key: TEST_KEY,
-      }),
-    ],
-  }),
-  stageTrustedNext: vi.fn(async () => undefined),
-  activateTrustedNext: vi.fn(async () => undefined),
-  removeRetiring: vi.fn(async () => undefined),
-}
-
-const logger: LoggerPort = {
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  child: () => logger,
-}
+const subjectKeys = createSubjectKeyHarness(db, {
+  version: TEST_KEY_VERSION,
+  byte: 7,
+  generation: 999998,
+})
+const logger = createSpyLogger()
 
 /** The Property's own current source epoch, as the Property context reports it. */
 async function sourceEpochOf(property: PropertyId): Promise<number | null> {
@@ -202,7 +159,7 @@ const runSnapshot = runReviewProviderSnapshot({
   googleReviewApi,
   propertySourceEpoch,
   observationWriter,
-  subjectKeyService,
+  subjectKeyService: subjectKeys.service,
   syncActivity: {
     recordNewReviewObserved: vi.fn(async () => undefined),
     recordPushObserved: vi.fn(async () => undefined),
@@ -220,34 +177,16 @@ function providerReview(
   publishedAt: Date,
   overrides: Partial<GoogleReview> = {},
 ): GoogleReview {
-  const reviewName = `${locationOf(property)}/reviews/${slug}`
-  return {
-    reviewName,
+  return googleReviewFixture({
+    location: locationOf(property),
+    slug,
+    publishedAt,
     externalId: `${property.slice(-4)}-${slug}`,
-    externalLocationId: locationOf(property),
-    reviewerName: `Guest ${slug}`,
-    reviewerProfilePhotoUrl: null,
-    googleReviewUrl: null,
-    rating: 4,
-    text: `Review ${slug}`,
-    translatedText: null,
-    languageCode: 'en',
-    reviewedAt: publishedAt,
-    sourceCreatedAt: publishedAt,
-    sourceUpdatedAt: publishedAt,
-    replyText: null,
-    replyUpdatedAt: null,
-    ...overrides,
-  }
+    overrides,
+  })
 }
 
-function page(
-  reviews: readonly GoogleReview[],
-  totalReviewCount: number,
-  nextCursorRef: string | null,
-): GoogleReviewPage {
-  return { reviews, totalReviewCount, averageRating: 4, nextCursorRef }
-}
+const page = googleReviewPage
 
 function step(
   property: PropertyId,
@@ -408,73 +347,44 @@ function aiReadOf(source: StoredSource): AiReviewSourceRequest {
   }
 }
 
-async function clear(): Promise<void> {
-  await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
-  await db.execute(
-    sql`DELETE FROM google_reply_observation_heads WHERE organization_id = ${ORG}`,
-  )
-  await db.execute(
-    sql`DELETE FROM google_reply_observations WHERE organization_id = ${ORG}`,
-  )
-  await db.execute(
-    sql`DELETE FROM review_provider_subjects WHERE organization_id = ${ORG}`,
-  )
-  await db.execute(
-    sql`DELETE FROM review_provider_snapshot_runs WHERE organization_id = ${ORG}`,
-  )
-  await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG}`)
-  await db.execute(
-    sql`DELETE FROM review_ai_analysis_heads WHERE organization_id = ${ORG}`,
-  )
-  // Deleting the Property cascades every Review-owned per-epoch fact.
-  await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM google_connections WHERE organization_id = ${ORG}`)
+const HISTORY_REVISION = {
+  revision: 1,
+  eligibility: 'historical_onboarding',
+  startAt: null,
 }
+const LEGACY_REVISION = { revision: 1, eligibility: 'legacy_unknown', startAt: null }
+const measuredRevision = (startAt: Date | undefined) => ({
+  revision: 1,
+  eligibility: 'measured',
+  startAt,
+})
+
+const clear = () => clearReviewSnapshotData(db, ORG)
 
 beforeAll(async () => {
   clearEventSchemas()
   registerAllEventSchemas()
   await clear()
   await deleteTestOrganizations(db, [ORG])
-  await db.execute(sql`
-    INSERT INTO organization (id, name, slug, "createdAt")
-    VALUES (${ORG}, 'History cutoff test', ${ORG}, now())
-  `)
-  const active = await db.execute(sql`
-    SELECT key_version FROM review_provider_subject_hmac_key_versions
-    WHERE state = 'active'
-  `)
-  const existing = active.rows[0]?.key_version
-  if (existing == null) {
-    await db.execute(sql`
-      INSERT INTO review_provider_subject_hmac_key_versions
-        (key_version, key_digest, state, generation, created_at, activated_at)
-      VALUES
-        (${TEST_KEY_VERSION}, ${'7'.repeat(64)}, 'active', 999998,
-         transaction_timestamp(), transaction_timestamp())
-    `)
-    insertedTestKey = true
-  } else {
-    activeKeyVersion = String(existing)
-  }
+  await insertTestOrganization(db, ORG, 'History cutoff test')
+  await subjectKeys.ensureActive()
 })
 
 beforeEach(async () => {
   await clear()
-  await seedGoogleConnection(drizzleSeedRunner(db), {
+  await seedSnapshotConnection(db, {
     id: CONNECTION,
     organizationId: ORG,
     googleSubject: 'history-cutoff-subject',
-    accessToken: 'sealed-access',
-    refreshToken: 'sealed-refresh',
     connectedBy: 'history-cutoff-user',
   })
   for (const property of PROPERTIES) {
-    await db.execute(sql`
-      INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch)
-      VALUES (${property}, ${ORG}, 'History cutoff property',
-        ${`history-cutoff-${property.slice(-4)}`}, 'UTC', 0)
-    `)
+    await insertTestProperty(db, {
+      id: property,
+      organizationId: ORG,
+      name: 'History cutoff property',
+      slug: `history-cutoff-${property.slice(-4)}`,
+    })
   }
   snapshotRunIds = Array.from({ length: 4 }, () => crypto.randomUUID())
   listing = new Map()
@@ -485,12 +395,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await clear()
-  if (insertedTestKey) {
-    await db.execute(sql`
-      DELETE FROM review_provider_subject_hmac_key_versions
-      WHERE key_version = ${TEST_KEY_VERSION}
-    `)
-  }
+  await subjectKeys.removeInserted()
   await deleteTestOrganizations(db, [ORG])
   clearEventSchemas()
 })
@@ -540,17 +445,13 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       state: 'confirming',
     })
 
-    expect(await revisionsOf(lostByImport)).toEqual([
-      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
-    ])
+    expect(await revisionsOf(lostByImport)).toEqual([HISTORY_REVISION])
     expect(await createdEventOrigin(lostByImport)).toBe('historical_onboarding')
     expect(await revisionsOf(newAfterImport)).toEqual([
-      { revision: 1, eligibility: 'measured', startAt: newAfterImport.sourceCreatedAt },
+      measuredRevision(newAfterImport.sourceCreatedAt),
     ])
     expect(await createdEventOrigin(newAfterImport)).toBe('ongoing')
-    expect(await revisionsOf(seenByImport)).toEqual([
-      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
-    ])
+    expect(await revisionsOf(seenByImport)).toEqual([HISTORY_REVISION])
   })
 
   it('fixes the cutoff when the import is admitted, so a run ahead of the import job sees history', async () => {
@@ -580,19 +481,11 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       state: 'confirming',
     })
 
-    expect(await revisionsOf(seenBeforeImportJob)).toEqual([
-      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
-    ])
+    expect(await revisionsOf(seenBeforeImportJob)).toEqual([HISTORY_REVISION])
     expect(await createdEventOrigin(seenBeforeImportJob)).toBe('historical_onboarding')
-    expect(await revisionsOf(historyAfterJoin)).toEqual([
-      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
-    ])
+    expect(await revisionsOf(historyAfterJoin)).toEqual([HISTORY_REVISION])
     expect(await revisionsOf(newAfterAdmission)).toEqual([
-      {
-        revision: 1,
-        eligibility: 'measured',
-        startAt: newAfterAdmission.sourceCreatedAt,
-      },
+      measuredRevision(newAfterAdmission.sourceCreatedAt),
     ])
     // Joining the run did not move the cutoff the admission fixed.
     await expect(
@@ -630,17 +523,13 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       state: 'confirming',
     })
 
-    expect(await revisionsOf(historyAfterJoin)).toEqual([
-      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
-    ])
+    expect(await revisionsOf(historyAfterJoin)).toEqual([HISTORY_REVISION])
     expect(await revisionsOf(newAfterJoin)).toEqual([
-      { revision: 1, eligibility: 'measured', startAt: newAfterJoin.sourceCreatedAt },
+      measuredRevision(newAfterJoin.sourceCreatedAt),
     ])
     // Nothing fixed a cutoff before the import joined, and eligibility is
     // immutable: a revision measured before the join stays measured.
-    expect(await revisionsOf(seenBeforeImport)).toEqual([
-      { revision: 1, eligibility: 'measured', startAt: YEARS_AGO },
-    ])
+    expect(await revisionsOf(seenBeforeImport)).toEqual([measuredRevision(YEARS_AGO)])
   })
 
   it('announces, without measuring, an old review Google first lists after the import completed', async () => {
@@ -680,9 +569,7 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
 
     // New to the listing, so announced; RepKey saw none of its timing, so it is
     // never measured and never reminds anyone.
-    expect(await revisionsOf(listedLate)).toEqual([
-      { revision: 1, eligibility: 'legacy_unknown', startAt: null },
-    ])
+    expect(await revisionsOf(listedLate)).toEqual([LEGACY_REVISION])
     expect(await createdEventOrigin(listedLate)).toBe('legacy_unknown')
     // Only a Review's first revision is history. A guest's later edit is new
     // work and is measured from Google's update time.
@@ -744,14 +631,10 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
 
     // RepKey would have announced it had the Property stayed connected, but
     // cannot vouch for its timing: a reply Google shows now may be days old.
-    expect(await revisionsOf(postedWhileDisconnected)).toEqual([
-      { revision: 1, eligibility: 'legacy_unknown', startAt: null },
-    ])
+    expect(await revisionsOf(postedWhileDisconnected)).toEqual([LEGACY_REVISION])
     expect(await createdEventOrigin(postedWhileDisconnected)).toBe('legacy_unknown')
     // Google history from before RepKey ever imported the Property stays silent.
-    expect(await revisionsOf(olderThanFirstImport)).toEqual([
-      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
-    ])
+    expect(await revisionsOf(olderThanFirstImport)).toEqual([HISTORY_REVISION])
     expect(await createdEventOrigin(olderThanFirstImport)).toBe('historical_onboarding')
     // A Review RepKey already knew is carried in as history, not as news.
     expect(await revisionsOf(known)).toEqual([
@@ -759,7 +642,7 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       { revision: 2, eligibility: 'historical_onboarding', startAt: null },
     ])
     expect(await revisionsOf(newAfterRelink)).toEqual([
-      { revision: 1, eligibility: 'measured', startAt: newAfterRelink.sourceCreatedAt },
+      measuredRevision(newAfterRelink.sourceCreatedAt),
     ])
   })
 
@@ -773,9 +656,7 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       state: 'confirming',
     })
 
-    expect(await revisionsOf(old)).toEqual([
-      { revision: 1, eligibility: 'measured', startAt: YEARS_AGO },
-    ])
+    expect(await revisionsOf(old)).toEqual([measuredRevision(YEARS_AGO)])
   })
 })
 
