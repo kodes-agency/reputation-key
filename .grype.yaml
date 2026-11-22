@@ -211,7 +211,13 @@ ignore:
   # 3.5.7-1~deb13u3 deb CVE-2026-84786 High`, likewise for
   # openssl-provider-legacy), with no fixed version; apt in the pinned base
   # still offers only 3.5.7-1~deb13u3 (checked 2026-11-20). Same reachability
-  # argument as above.
+  # argument as above. CVE-2026-121482 (High) was added by grype's database of
+  # 2026-11-22 (grype: `libssl3t64 3.5.7-1~deb13u3 deb CVE-2026-121482 High`,
+  # likewise for openssl-provider-legacy), with no fixed version. Trixie now
+  # offers 3.5.9-1~deb13u1, but grype v0.116.1 reports this CVE and the seven
+  # above against 3.5.9-1~deb13u1 as well, with no fixed version (checked
+  # 2026-11-22 on the pinned base with 3.5.9 installed), so the pin stays.
+  # Same reachability argument as above.
   # expiresAt: 2026-12-01
   - vulnerability: CVE-2026-107496 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-88823 # libssl3t64 / openssl-provider-legacy, no trixie fix
@@ -220,3 +226,4 @@ ignore:
   - vulnerability: CVE-2026-107493 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-124709 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-84786 # libssl3t64 / openssl-provider-legacy, no trixie fix
+  - vulnerability: CVE-2026-121482 # libssl3t64 / openssl-provider-legacy, no trixie fix
