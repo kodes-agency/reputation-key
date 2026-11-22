@@ -1,4 +1,7 @@
-import { replyScopeEffects } from '#/contexts/reputation/public-api'
+import {
+  insertPublicationAuthorization,
+  replyScopeEffects,
+} from '#/contexts/reputation/public-api'
 // Reply command store integration tests (real Postgres).
 //
 // Crash-boundary proof on the real database:
@@ -15,6 +18,8 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
+import { sha256Hex } from '#/shared/domain/sha256'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { DomainEvent } from '#/shared/events/events'
@@ -34,6 +39,7 @@ import {
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createReplyRepository } from './reply-repository.server'
 import { createAtomicReplyCommandStore } from './reply-command-store.server'
+import { createGoogleReplyObservationStore } from '../publication/google-reply-observation-store.server'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import {
@@ -165,6 +171,110 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
 /** Same shape as a real reply event but with a type no schema is registered for. */
 function unregisteredEvent(base: DomainEvent): DomainEvent {
   return { ...base, _tag: 'review.reply.ghost' } as unknown as DomainEvent
+}
+
+/**
+ * One authorized cycle whose authorization names the observation head as its
+ * base. With `reviewAdvances` the Review moves a material revision on after the
+ * head was recorded, so the head is left describing a revision older than the
+ * one the cycle was authorized for. Approval refuses a head that is behind the
+ * Review, so no approval produces that state: the authorization row is written
+ * directly, which is how the claim's own fence is reached.
+ */
+async function authorizeAgainstHead(input: Readonly<{ reviewAdvances: boolean }>) {
+  const db = getDb()
+  const later = new Date(NOW.getTime() + 1_000)
+  const reviewRepo = createReviewRepository(
+    db,
+    () => new Date(),
+    undefined,
+    replyScopeEffects,
+  )
+  const firstReview = await reviewRepo.upsert(
+    makeReview(),
+    NOW,
+    sha256Hex('claim-head-first-revision'),
+  )
+  const head = await createGoogleReplyObservationStore(db).record({
+    organizationId: ORG_A,
+    propertyId: PROP_A,
+    reviewId: REVIEW_A,
+    sourceEpoch: firstReview.sourceEpoch,
+    materialReviewRevision: firstReview.sourceRevision,
+    readGeneration: 1,
+    observationKey: sha256Hex('claim-head-observation'),
+    source: 'provider_snapshot',
+    observedText: null,
+    providerUpdatedAt: null,
+    observedAt: NOW,
+    contentExpiresAt: firstReview.contentExpiresAt ?? NOW,
+  })
+  const review = input.reviewAdvances
+    ? await reviewRepo.upsert(
+        {
+          ...makeReview(),
+          text: 'A materially changed review after the head was read',
+          sourceUpdatedAt: later,
+          lastFetchedAt: later,
+        },
+        later,
+        sha256Hex('claim-head-second-revision'),
+      )
+    : firstReview
+  expect(review.sourceRevision).toBe(
+    firstReview.sourceRevision + (input.reviewAdvances ? 1 : 0),
+  )
+
+  const reply = await createReplyRepository(db, () => new Date()).upsert(
+    makeReply({
+      status: 'approved',
+      submittedAt: NOW,
+      approvedBy: USER_A,
+      approvedAt: NOW,
+      publicationState: 'authorized',
+      publicationCycle: 1,
+      reconcileDueAt: later,
+    }),
+  )
+  await db.transaction((tx) =>
+    insertPublicationAuthorization(tx, {
+      organizationId: ORG_A,
+      propertyId: PROP_A,
+      reviewId: REVIEW_A,
+      replyId: REPLY_A,
+      publicationCycle: 1,
+      sourceEpoch: review.sourceEpoch,
+      materialReviewRevision: review.sourceRevision,
+      baseObservationRevision: head.observationRevision,
+      authorizedByUserId: USER_A,
+      replyStateRevision: reply.stateRevision,
+      normalizationVersion: 'google-reply-v1',
+      expectedReplyDigest: googleReplyTextDigest(reply.text),
+      authorizedAt: NOW,
+      createdAt: NOW,
+    }),
+  )
+  const store = createAtomicReplyCommandStore(
+    db,
+    () => new Date(),
+    async () => true,
+    undefined,
+    replyScopeEffects,
+  )
+  return {
+    claim: () =>
+      store.markPublicationSending(
+        reply,
+        {
+          providerOperationKey: 'claim-against-head:1',
+          propertyId: PROP_A,
+          sourceEpoch: review.sourceEpoch,
+          materialReviewRevision: review.sourceRevision,
+          baseObservationRevision: head.observationRevision,
+        },
+        later,
+      ),
+  }
 }
 
 beforeAll(async () => {
@@ -434,6 +544,33 @@ describe.sequential('replyCommandStore (integration)', () => {
     )
     expect(cancellation.rows).toHaveLength(1)
     expect(cancellation.rows[0].payload).toMatchObject({ cause: 'policy' })
+  })
+
+  it('claims a cycle authorized against the current observation head', async () => {
+    const { claim } = await authorizeAgainstHead({ reviewAdvances: false })
+
+    await expect(claim()).resolves.toMatchObject({
+      publicationState: 'sending',
+      publicationAttempts: 1,
+    })
+  })
+
+  it('refuses the claim when the observation head still describes an older Review revision than the authorization', async () => {
+    const { claim } = await authorizeAgainstHead({ reviewAdvances: true })
+
+    await expect(claim()).resolves.toBeNull()
+    const attempts = await pool.query(
+      'SELECT id FROM reply_publication_attempts WHERE organization_id = $1',
+      [ORG_A],
+    )
+    expect(attempts.rows).toHaveLength(0)
+    await expect(
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG_A),
+    ).resolves.toMatchObject({
+      status: 'approved',
+      publicationState: 'authorized',
+      publicationAttempts: 0,
+    })
   })
 
   it('rolls back authorization and its lifecycle fact when the publication-intent insert fails', async () => {
