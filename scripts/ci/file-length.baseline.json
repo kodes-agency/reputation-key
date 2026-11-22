@@ -25,8 +25,6 @@
   "src/contexts/reporting/monthly-goals/ui/portal-goal-sheet.stories.tsx": 873,
   "src/contexts/reporting/portal-results/get-portal-results-overview.test.ts": 892,
   "src/contexts/reputation/domain/reply-workflow.property.test.ts": 935,
-  "src/contexts/reputation/inbox/inbox-replay-matrix.integration.test.ts": 909,
-  "src/contexts/reputation/inbox/outbox-consumers.integration.test.ts": 1557,
   "src/contexts/reputation/inbox/ui/inbox-detail-content.stories.tsx": 951,
   "src/contexts/reputation/inbox/ui/inbox-thread.stories.tsx": 1484,
   "src/contexts/reputation/inbox/ui/page/inbox-mobile-390.stories.tsx": 839,
