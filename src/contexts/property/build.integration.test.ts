@@ -326,7 +326,8 @@ describe('PropertyPublicApi', () => {
       propertyId('81000000-0000-4000-8000-000000000099'),
     ])
 
-    expect(zones).toEqual([
+    // The answer promises no order; its callers key it by id.
+    expect([...zones].sort((a, b) => a.id.localeCompare(b.id))).toEqual([
       { id: sofia.id, timezone: 'Europe/Sofia' },
       { id: newYork.id, timezone: 'America/New_York' },
     ])
