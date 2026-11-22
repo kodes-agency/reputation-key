@@ -11,7 +11,6 @@
   "src/contexts/feed/notify/notification-audience.integration.test.ts": 1248,
   "src/contexts/feed/preferences/ui/notifications-settings-page.stories.tsx": 1067,
   "src/contexts/guest/page/ui/public-portal/immersive/immersive-response.stories.tsx": 806,
-  "src/contexts/guest/responses/guest-response-lifecycle.integration.test.ts": 1016,
   "src/contexts/integration/connections/google-oauth.adapter.test.ts": 925,
   "src/contexts/integration/imports/google-import-command-authorizer.test.ts": 929,
   "src/contexts/integration/imports/google-import-processor.test.ts": 988,
@@ -26,9 +25,6 @@
   "src/contexts/reporting/monthly-goals/monthly-portal-goal.test.ts": 1152,
   "src/contexts/reporting/monthly-goals/ui/portal-goal-sheet.stories.tsx": 873,
   "src/contexts/reporting/portal-results/get-portal-results-overview.test.ts": 892,
-  "src/contexts/reporting/property-overview/dashboard-repository.integration.test.ts": 967,
-  "src/contexts/reporting/rating-goals/property-rating-goal-repository.storage.integration.test.ts": 1051,
-  "src/contexts/reporting/readings/metric-command-store.integration.test.ts": 867,
   "src/contexts/reputation/domain/reply-workflow.property.test.ts": 935,
   "src/contexts/reputation/inbox/inbox-replay-matrix.integration.test.ts": 909,
   "src/contexts/reputation/inbox/outbox-consumers.integration.test.ts": 1557,
@@ -61,9 +57,7 @@
   "src/shared/db/schema/ai.schema.ts": 938,
   "src/shared/db/schema/inbox.schema.ts": 824,
   "src/shared/db/schema/review.schema.ts": 1360,
-  "src/shared/google-provider-control/postgres-permit-authority.integration.test.ts": 1200,
   "src/shared/jobs/runtime-observations.test.ts": 941,
-  "src/shared/ops/rights/google-rights-executor.integration.test.ts": 1039,
   "src/shared/outbox/event-adapter.test.ts": 908,
   "src/shared/stale-tab/stale-tab.test.ts": 873
 }

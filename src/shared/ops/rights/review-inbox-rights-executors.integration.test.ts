@@ -14,12 +14,28 @@ import {
   decodeErasureJournalEntry,
   erasureJournalKey,
 } from '#/shared/db/lifecycle/erasure-journal.server'
-import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import {
+  organizationApplyArgv,
+  planRightsArgv,
+  putInto,
+  runRightsRequestScript,
+} from '#/shared/db/testing/rights-request-script'
+import {
+  countRows,
+  snapshotTenantTables,
+  watchTenants,
+} from '#/shared/db/testing/rights-tenant-snapshot'
+import {
+  cleanupReviewInboxRights,
+  insertInboxItemWithNote,
+  insertOrganizationReplyVoice,
+  insertReply,
+  insertReplyTemplate,
+  insertResponseTargetPolicy,
+  insertReviewWithSourceContent,
+} from '#/shared/testing/review-inbox-rights-seed'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { parseOperatorArgs, type OperatorContext } from '../operator-command'
-import { runRightsExecutors } from './rights-executor'
-import { createRightsJournal, type RightsJournalStore } from './rights-journal'
-import { planRightsRequest, rightsRequestCommandSpec } from './rights-request-command'
+import type { RightsJournalStore } from './rights-journal'
 import {
   INBOX_RIGHTS_EXPORT_PATH,
   REVIEW_RIGHTS_EXPORT_PATH,
@@ -57,40 +73,30 @@ const fixtures: Fixture[] = []
 let lease: TestLease
 let db: Database
 
-async function insertReview(
-  reviewId: string,
-  organizationId: string,
-  propertyId: string,
-): Promise<void> {
-  await lease.pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id, external_location_id,
-       expires_at, source_epoch, source_revision, source_observation_sequence,
-       analysis_sequence, source_content_state, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'google', $4, 'locations/rights', $6, 0, 1, 1, 1, 'active', $5, $5)`,
-    [reviewId, organizationId, propertyId, `external-${reviewId}`, AT, EXPIRES_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO review_source_contents (
-       review_id, organization_id, property_id, platform, external_id, external_location_id,
-       reviewer_name, rating, text, language_code, reviewed_at, last_fetched_at,
-       content_expires_at, source_epoch, source_revision, ai_source_byte_length,
-       ai_source_digest)
-     VALUES ($1, $2, $3, 'google', $4, 'locations/rights', $5, 4, $6, 'en', $7, $7, $8,
-             0, 1, 24, $9)`,
-    [
-      reviewId,
-      organizationId,
-      propertyId,
-      `external-${reviewId}`,
-      MARKERS.reviewerName,
-      MARKERS.reviewText,
-      AT,
-      EXPIRES_AT,
-      DIGEST,
-    ],
-  )
-}
+const reviewContent = (reviewId: string, organizationId: string, propertyId: string) =>
+  insertReviewWithSourceContent(lease.pool, {
+    reviewId,
+    organizationId,
+    propertyId,
+    reviewerName: MARKERS.reviewerName,
+    text: MARKERS.reviewText,
+    digest: DIGEST,
+    at: AT,
+    expiresAt: EXPIRES_AT,
+  })
+
+const inboxItem = (
+  fixture: Fixture,
+  input: { itemId: string; propertyId: string; noteText: string },
+) =>
+  insertInboxItemWithNote(lease.pool, {
+    ...input,
+    organizationId: fixture.organizationId,
+    userId: fixture.userId,
+    snippet: MARKERS.snippet,
+    reviewerName: MARKERS.reviewerName,
+    at: AT,
+  })
 
 async function seed(): Promise<Fixture> {
   const suffix = randomUUID()
@@ -129,9 +135,10 @@ async function seed(): Promise<Fixture> {
      VALUES ($1, $2, 'Rights Property', $3, 'UTC', 0, $4, $4)`,
     [property, org, `rights-${suffix}`, AT],
   )
-  const reviewIds = [review, mirrorReviewId, authorizedReviewId]
-  for (const reviewId of reviewIds) await insertReview(reviewId, org, property)
-  for (const [id, replyReviewId, text, source, state, status] of [
+  for (const reviewId of [review, mirrorReviewId, authorizedReviewId]) {
+    await reviewContent(reviewId, org, property)
+  }
+  for (const [id, reviewId, text, source, publicationState, status] of [
     [fixture.replyId, review, fixture.texts.reply, 'internal', 'published', 'published'],
     [
       randomUUID(),
@@ -150,157 +157,77 @@ async function seed(): Promise<Fixture> {
       'approved',
     ],
   ] as const) {
-    await q(
-      `INSERT INTO replies (
-         id, review_id, organization_id, text, status, source, created_by, submitted_by,
-         approved_by, authorship, publication_state, publication_cycle, created_at, updated_at
-       ) VALUES ($1, $2, $3, $4, $8, $5, $6, $6, $6, $10, $7, 1, $9, $9)`,
-      [
-        id,
-        replyReviewId,
-        org,
-        text,
-        source,
-        source === 'internal' ? fixture.userId : null,
-        state,
-        status,
-        AT,
-        source === 'internal' ? 'human' : null,
-      ],
-    )
+    await insertReply(lease.pool, {
+      id,
+      reviewId,
+      organizationId: org,
+      text,
+      source,
+      status,
+      publicationState,
+      userId: fixture.userId,
+      at: AT,
+    })
   }
-  await q(
-    `INSERT INTO organization_reply_voices (organization_id, contact, overridden_fields, updated_by)
-     VALUES ($1, $2, ARRAY['contact'], $3)`,
-    [org, fixture.texts.library, fixture.userId],
-  )
-  const templateId = randomUUID()
-  const revisionId = randomUUID()
-  await q(
-    `INSERT INTO reply_templates (id, organization_id, property_id, builtin_key, created_by, updated_by)
-     VALUES ($1, $2, $3, 'P-GEN', $4, $4)`,
-    [templateId, org, property, fixture.userId],
-  )
-  await q(
-    `INSERT INTO reply_template_revisions (id, template_id, number, title, stars_min, stars_max, review_kind, created_by)
-     VALUES ($1, $2, 1, 'Greeting', 4, 5, 'text', $3)`,
-    [revisionId, templateId, fixture.userId],
-  )
-  await q(
-    `INSERT INTO reply_template_wordings (revision_id, wording_key, language_group, body)
-     VALUES ($1, 'one', 'en-Latn', $2)`,
-    [revisionId, fixture.texts.library],
-  )
-  await q(`UPDATE reply_templates SET current_revision_id = $1 WHERE id = $2`, [
-    revisionId,
-    templateId,
-  ])
-
-  await q(
-    `INSERT INTO inbox_items (
-       id, organization_id, property_id, source_type, source_id, status, rating,
-       snippet, reviewer_name, source_date, platform, command_revision, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'feedback', $4, 'open', 2, $5, $6, $7, 'portal', 1, $7, $7)`,
-    [
-      fixture.itemId,
-      org,
-      property,
-      randomUUID(),
-      MARKERS.snippet,
-      MARKERS.reviewerName,
-      AT,
-    ],
-  )
-  await q(
-    `INSERT INTO inbox_notes (id, organization_id, inbox_item_id, author_user_id, text, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [randomUUID(), org, fixture.itemId, fixture.userId, fixture.texts.note, AT],
-  )
-  await q(
-    `INSERT INTO inbox_response_target_organization_policies (
-       organization_id, target_kind, duration_minutes, policy_version, updated_by, created_at, updated_at
-     ) VALUES ($1, 'private_feedback_handling', 2880, 1, $2, $3, $3)`,
-    [org, fixture.userId, AT],
-  )
+  await insertOrganizationReplyVoice(lease.pool, {
+    organizationId: org,
+    contact: fixture.texts.library,
+    userId: fixture.userId,
+  })
+  await insertReplyTemplate(lease.pool, {
+    organizationId: org,
+    propertyId: property,
+    userId: fixture.userId,
+    body: fixture.texts.library,
+  })
+  await inboxItem(fixture, {
+    itemId: fixture.itemId,
+    propertyId: property,
+    noteText: fixture.texts.note,
+  })
+  await insertResponseTargetPolicy(lease.pool, {
+    organizationId: org,
+    userId: fixture.userId,
+    at: AT,
+  })
   return fixture
 }
 
 /** Property B of the same Organization: its own review, reply, voice and inbox item. */
 async function seedSecondProperty(fixture: Fixture): Promise<void> {
-  const q = lease.pool.query.bind(lease.pool)
   const { organizationId: org, secondPropertyId: property, userId } = fixture
   const reviewId = randomUUID()
-  const itemId = randomUUID()
-  await q(
+  await lease.pool.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch, created_at, updated_at)
      VALUES ($1, $2, 'Rights Property B', $3, 'UTC', 0, $4, $4)`,
     [property, org, `rights-b-${property}`, AT],
   )
-  await insertReview(reviewId, org, property)
-  await q(
-    `INSERT INTO replies (
-       id, review_id, organization_id, text, status, source, created_by, submitted_by,
-       approved_by, authorship, publication_state, publication_cycle, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'published', 'internal', $5, $5, $5, 'human', 'published', 1, $6, $6)`,
-    [randomUUID(), reviewId, org, `PROPERTY_B_REPLY_${property}`, userId, AT],
-  )
-  await q(
+  await reviewContent(reviewId, org, property)
+  await insertReply(lease.pool, {
+    id: randomUUID(),
+    reviewId,
+    organizationId: org,
+    text: `PROPERTY_B_REPLY_${property}`,
+    source: 'internal',
+    status: 'published',
+    publicationState: 'published',
+    userId,
+    at: AT,
+  })
+  await lease.pool.query(
     `INSERT INTO property_reply_voices (organization_id, property_id, contact, overridden_fields, updated_by)
      VALUES ($1, $2, $3, ARRAY['contact'], $4)`,
     [org, property, `PROPERTY_B_VOICE_${property}`, userId],
   )
-  await q(
-    `INSERT INTO inbox_items (
-       id, organization_id, property_id, source_type, source_id, status, rating,
-       snippet, reviewer_name, source_date, platform, command_revision, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'feedback', $4, 'open', 2, $5, $6, $7, 'portal', 1, $7, $7)`,
-    [itemId, org, property, randomUUID(), MARKERS.snippet, MARKERS.reviewerName, AT],
-  )
-  await q(
-    `INSERT INTO inbox_notes (id, organization_id, inbox_item_id, author_user_id, text, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [randomUUID(), org, itemId, userId, `PROPERTY_B_NOTE_${property}`, AT],
-  )
+  await inboxItem(fixture, {
+    itemId: randomUUID(),
+    propertyId: property,
+    noteText: `PROPERTY_B_NOTE_${property}`,
+  })
 }
 
-async function cleanup(fixture: Fixture): Promise<void> {
-  const q = lease.pool.query.bind(lease.pool)
-  const org = fixture.organizationId
-  await q(
-    `DELETE FROM inbox_response_target_organization_policies WHERE organization_id = $1`,
-    [org],
-  )
-  await q(`DELETE FROM inbox_items WHERE organization_id = $1`, [org])
-  await q(`DELETE FROM reply_template_visibility WHERE organization_id = $1`, [org])
-  await q(
-    `DELETE FROM reply_template_wordings WHERE revision_id IN (
-       SELECT revision.id FROM reply_template_revisions revision
-       JOIN reply_templates template ON template.id = revision.template_id
-       WHERE template.organization_id = $1)`,
-    [org],
-  )
-  await q(
-    `UPDATE reply_templates SET current_revision_id = NULL WHERE organization_id = $1`,
-    [org],
-  )
-  await q(
-    `DELETE FROM reply_template_revisions
-     WHERE template_id IN (SELECT id FROM reply_templates WHERE organization_id = $1)`,
-    [org],
-  )
-  for (const table of [
-    'reply_templates',
-    'property_reply_voices',
-    'organization_reply_voices',
-    'replies',
-    'reviews',
-    'properties',
-  ]) {
-    await q(`DELETE FROM ${table} WHERE organization_id = $1`, [org])
-  }
-  await deleteTestOrganizations(lease.pool, [org])
-  await q('DELETE FROM "user" WHERE id = $1', [fixture.userId])
-}
+const cleanup = (fixture: Fixture) =>
+  cleanupReviewInboxRights(lease.pool, fixture.organizationId, fixture.userId)
 
 const TENANT_TABLES = [
   'reviews',
@@ -313,56 +240,16 @@ const TENANT_TABLES = [
   'inbox_response_target_organization_policies',
 ] as const
 
-/** `omit` names columns a trigger owns, for comparisons across a restore. */
-async function snapshot(organizationId: string, omit: string[] = []): Promise<string> {
-  const parts: string[] = []
-  for (const table of TENANT_TABLES) {
-    const result = await lease.pool.query(
-      `SELECT (to_jsonb(t.*) - $2::text[])::text AS row FROM ${table} AS t
-       WHERE organization_id = $1 ORDER BY (to_jsonb(t.*) - $2::text[])::text`,
-      [organizationId, omit],
-    )
-    parts.push(`${table}:${result.rows.map((row) => String(row.row)).join('|')}`)
-  }
-  return parts.join('\n')
-}
-
-async function rowCount(table: string, organizationId: string): Promise<number> {
-  const result = await lease.pool.query(
-    `SELECT count(*)::int AS count FROM ${table} WHERE organization_id = $1`,
-    [organizationId],
-  )
-  return Number(result.rows[0]?.count ?? 0)
-}
-
-function planFor(argv: string[]) {
-  const parsed = parseOperatorArgs(
-    ['--operator', 'op', ...argv],
-    rightsRequestCommandSpec,
-  )
-  if (!parsed.ok) throw new Error(parsed.error)
-  const ctx = {
-    operatorId: 'op',
-    correlationId: 'c',
-    organizationId: parsed.args.organizationId,
-    propertyId: parsed.args.propertyId,
-    dryRun: !parsed.args.apply,
-    batchSize: parsed.args.batchSize,
-  } as unknown as OperatorContext
-  return planRightsRequest(ctx, parsed.args)
-}
-
-const quietStore: RightsJournalStore = { put: async () => {}, alert: () => {} }
+const snapshot = (organizationId: string, omit: string[] = []) =>
+  snapshotTenantTables(lease.pool, TENANT_TABLES, organizationId, { omit })
+const rowCount = (table: string, organizationId: string) =>
+  countRows(lease.pool, table, organizationId)
 
 /** What scripts/ops/rights-request.ts does after the operator harness. */
-async function runScript(argv: string[], options: { store?: RightsJournalStore } = {}) {
-  const planned = planFor(argv)
-  const out: string[] = []
-  const err: string[] = []
-  const files = new Map<string, string>()
-  if (!planned.ok) return { exit: 1, out, err: [planned.error], files }
-  const exit = await runRightsExecutors({
-    plan: planned.plan,
+const runScript = (argv: string[], options: { store?: RightsJournalStore } = {}) =>
+  runRightsRequestScript({
+    argv,
+    store: options.store,
     executors: [
       createReviewRightsExecutor({
         db,
@@ -371,30 +258,9 @@ async function runScript(argv: string[], options: { store?: RightsJournalStore }
       }),
       createInboxRightsExecutor({ db, now: () => NOW }),
     ],
-    journal: createRightsJournal(options.store ?? quietStore),
-    io: { out: (line) => out.push(line), err: (line) => err.push(line) },
-    writeExportFile: async (path, bytes) => {
-      files.set(path, Buffer.from(bytes).toString('utf8'))
-    },
   })
-  return { exit, out, err, files }
-}
 
-const apply = (organizationId: string) => [
-  'organization',
-  '--org',
-  organizationId,
-  'verified=2026-11-01T10:00:00Z',
-  'verification=ticket:123',
-  '--reason',
-  'closure request',
-  '--ticket',
-  'T-1',
-  `confirm=ERASE ORGANIZATION ${organizationId}`,
-  '--apply',
-  '--yes',
-  'ops:rights-request',
-]
+const apply = (organizationId: string) => organizationApplyArgv(organizationId)
 
 /** Columns a database trigger maintains, so a restore cannot reproduce them. */
 const TRIGGER_OWNED = ['reply_state_revision']
@@ -501,15 +367,6 @@ async function expectErased(fixture: Fixture): Promise<void> {
   )
 }
 
-function putInto(journal: Map<string, string>): RightsJournalStore {
-  return {
-    put: async (key, bytes) => {
-      journal.set(key, bytes)
-    },
-    alert: () => {},
-  }
-}
-
 describe.sequential(
   'Review and Inbox rights executors through the rights-request command',
   () => {
@@ -565,19 +422,16 @@ describe.sequential(
        WHERE id = $1`,
         [asked.replyId],
       )
-      const before = [
-        await snapshot(asked.organizationId),
-        await snapshot(other.organizationId),
-      ]
+      const tenants = await watchTenants(snapshot, [
+        asked.organizationId,
+        other.organizationId,
+      ])
 
       const result = await runScript(apply(asked.organizationId))
 
       expect(result.exit).toBe(1)
       expect(result.err.join('\n')).toContain('active_reply_publications=')
-      expect([
-        await snapshot(asked.organizationId),
-        await snapshot(other.organizationId),
-      ]).toEqual(before)
+      await tenants.expectUnchanged()
     })
 
     it('closes one tenant, leaves the other byte-identical, and converges on replay', async () => {
@@ -732,10 +586,10 @@ describe.sequential(
 
       it('erases nothing and raises the alarm when the journal write is rejected', async () => {
         const { closing, kept } = await seedPair()
-        const before = [
-          await snapshot(closing.organizationId),
-          await snapshot(kept.organizationId),
-        ]
+        const tenants = await watchTenants(snapshot, [
+          closing.organizationId,
+          kept.organizationId,
+        ])
         const alert = vi.fn()
 
         const result = await runScript(apply(closing.organizationId), {
@@ -745,10 +599,7 @@ describe.sequential(
         expect(result.exit).not.toBe(0)
         expect(alert).toHaveBeenCalledWith(expect.objectContaining({ context: 'review' }))
         expect(result.err.join('\n')).toContain('Erasure journal write failed')
-        expect([
-          await snapshot(closing.organizationId),
-          await snapshot(kept.organizationId),
-        ]).toEqual(before)
+        await tenants.expectUnchanged()
       })
 
       it('refuses while a snapshot run is open and rolls the fence back', async () => {
@@ -771,20 +622,17 @@ describe.sequential(
             EXPIRES_AT,
           ],
         )
-        const before = [
-          await snapshot(closing.organizationId),
-          await snapshot(kept.organizationId),
-        ]
+        const tenants = await watchTenants(snapshot, [
+          closing.organizationId,
+          kept.organizationId,
+        ])
 
         const result = await runScript(apply(closing.organizationId))
 
         expect(result.exit).toBe(1)
         expect(result.err.join('\n')).toContain('open_provider_snapshot_runs=1')
         expect(result.err.join('\n')).toContain('nothing was changed')
-        expect([
-          await snapshot(closing.organizationId),
-          await snapshot(kept.organizationId),
-        ]).toEqual(before)
+        await tenants.expectUnchanged()
         expect(
           await rowCount('review_provider_snapshot_runs', closing.organizationId),
         ).toBe(1)
@@ -793,7 +641,7 @@ describe.sequential(
       it('refuses an Organization Inbox does not know, changing nothing', async () => {
         const { kept } = await seedPair()
         const before = await snapshot(kept.organizationId)
-        const planned = planFor(apply('rights-org-missing'))
+        const planned = planRightsArgv(apply('rights-org-missing'))
         if (!planned.ok) throw new Error(planned.error)
         const inbox = createInboxRightsExecutor({ db, now: () => NOW })
 
