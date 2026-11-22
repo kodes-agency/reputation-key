@@ -1,244 +1,42 @@
-// Create, rename, archive and list the history of Portal Groups, and delete a
-// Portal, on real PostgreSQL with two organizations: the results a manager sees,
-// the refusals, the facts recorded and the ledger written. The real use cases
-// run over the real stores and command store; only the clock and ids are fixed.
+// Create, rename and archive Portal Groups, and the history they write, on real
+// PostgreSQL with two organizations: the results a manager sees, the refusals, the
+// facts recorded and the ledger written. The real use cases run over the real
+// stores and command store; only the clock and ids are fixed.
 
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import { createPropertyRepository } from '#/contexts/property/profile/property-repository.server'
-import type { PropertyPublicApi } from '#/contexts/property/public-api'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
-import { getDb } from '#/shared/db'
-import { portals } from '#/shared/db/schema'
-import type { AuthContext } from '#/shared/domain/auth-context'
-import {
-  organizationId,
-  portalGroupId,
-  portalId,
-  propertyId,
-  userId,
-  type OrganizationId,
-  type PortalGroupId,
-  type PortalId,
-  type PropertyId,
-} from '#/shared/domain/ids'
-import type { Permission } from '#/shared/domain/permissions'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { isPortalError } from '../domain/errors'
-import { addPortalToGroup } from '../groups/add-portal-to-group.server'
-import { createPortalGroup } from '../groups/create-portal-group.server'
 import {
-  listPortalGroupHistory,
-  PORTAL_GROUP_HISTORY_PAGE,
-} from '../groups/list-portal-group-history.server'
-import { removePortalFromGroup } from '../groups/remove-portal-from-group.server'
-import { softDeletePortal } from './soft-delete-portal.server'
-import { softDeletePortalGroup } from '../groups/soft-delete-portal-group.server'
-import { updatePortalGroup } from '../groups/update-portal-group.server'
-import { issuePortalToken } from '../addresses/issue-portal-token.server'
-import { portalToRow } from './portal-mapper.server'
-import { createPortalRepository } from './portal-repository.server'
-import { createPortalGroupRepository } from '../groups/portal-group-repository.server'
-import { createPortalGroupHistoryRepository } from '../groups/portal-group-history-repository.server'
-import { createPortalTokenRepository } from '../addresses/portal-token-repository.server'
-import { testPortalTokenCodec } from '../addresses/portal-token-codec.test-fixtures'
-import { createAtomicPortalCommandStore } from './portal-command-store.server'
-
-const ORG_A = organizationId('org-group-lifecycle-0000000000001')
-const ORG_B = organizationId('org-group-lifecycle-0000000000002')
-const MANAGER = userId('manager-group-lifecycle-000000001')
-const NOW = new Date('2026-09-30T10:00:00.000Z')
-const EARLIER = new Date('2026-09-01T10:00:00.000Z')
-const NEXT = new Date(NOW.getTime() + 1)
+  createGroupLifecycleHarness,
+  ctxOf,
+  EARLIER,
+  expectCode,
+  GROUP_LIFECYCLE_TABLES,
+  MANAGER,
+  NEXT,
+  NOW,
+  ORG_A,
+  ORG_B,
+  wire,
+} from './portal-group-lifecycle.test-fixtures'
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
-  tables: [
-    'portal_address_downloads',
-    'portal_access_artifacts',
-    'portal_tokens',
-    'portal_group_history',
-    'portal_group_memberships',
-    'portal_groups',
-    'outbox_events',
-    'portal_responsible_managers',
-    'portals',
-    'properties',
-  ],
+  tables: [...GROUP_LIFECYCLE_TABLES],
 })
-
-const staffApi = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
-  getAccessiblePropertyIds: async () => accessible,
-  getAssignedPortals: async () => [],
-})
-
-function wire(accessible: ReadonlyArray<PropertyId> | null = null) {
-  const db = getDb()
-  const propertyRepo = createPropertyRepository(db)
-  const propertyApi = {
-    propertyExists: async (org: OrganizationId, id: PropertyId) =>
-      (await propertyRepo.findById(org, id)) !== null,
-  } as unknown as PropertyPublicApi
-  const common = {
-    portalGroupRepo: createPortalGroupRepository(db),
-    staffPublicApi: staffApi(accessible),
-    commandStore: createAtomicPortalCommandStore(db, createPortalRatingGoalGuard()),
-    clock: () => NOW,
-  }
-  const portalRepo = createPortalRepository(db)
-  return {
-    create: createPortalGroup({
-      ...common,
-      portalRepo,
-      propertyApi,
-      idGen: () => portalGroupId(randomUUID()),
-    }),
-    update: updatePortalGroup(common),
-    archive: softDeletePortalGroup(common),
-    add: addPortalToGroup({ ...common, portalRepo }),
-    remove: removePortalFromGroup(common),
-    list: listPortalGroupHistory({
-      portalGroupRepo: common.portalGroupRepo,
-      portalGroupHistoryRepo: createPortalGroupHistoryRepository(db),
-      staffPublicApi: common.staffPublicApi,
-    }),
-    deletePortal: softDeletePortal({ ...common, portalRepo }),
-    issue: issuePortalToken({
-      portalRepo,
-      portalTokenRepo: createPortalTokenRepository(db),
-      staffPublicApi: common.staffPublicApi,
-      commandStore: common.commandStore,
-      tokenCodec: testPortalTokenCodec(),
-      addressCipher: null,
-      reportPrintCodeProblem: () => undefined,
-      idGen: randomUUID,
-      clock: () => NOW,
-      address: {
-        appOrigin: 'https://app.example.test',
-        printOrigin: 'https://ap.example.test',
-      },
-    }),
-  }
-}
-
-const ctxOf = (
-  org: OrganizationId,
-  role: AuthContext['role'] = 'PropertyManager',
-): AuthContext => buildTestAuthContext({ organizationId: org, userId: MANAGER, role })
-
-const codeOf = (error: unknown): string | undefined =>
-  isPortalError(error) ? error.code : undefined
-
-async function seedProperty(org: OrganizationId): Promise<PropertyId> {
-  const id = propertyId(randomUUID())
-  await getPool().query(
-    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-     VALUES ($1, $2, 'Lifecycle property', $3, 'UTC', $4, $4)`,
-    [id, org, `life-${id.slice(0, 8)}`, EARLIER],
-  )
-  return id
-}
-
-async function seedPortal(
-  org: OrganizationId,
-  property: PropertyId,
-  overrides: Parameters<typeof buildTestPortal>[0] = {},
-): Promise<PortalId> {
-  const id = portalId(randomUUID())
-  await getDb()
-    .insert(portals)
-    .values(
-      portalToRow(
-        buildTestPortal({
-          id,
-          organizationId: org,
-          propertyId: property,
-          entityId: property,
-          name: `Portal ${id.slice(0, 8)}`,
-          slug: `life-${id.slice(0, 8)}`,
-          createdBy: MANAGER,
-          createdAt: EARLIER,
-          updatedAt: EARLIER,
-          ...overrides,
-        }),
-      ),
-    )
-  return id
-}
-
-async function seedGroup(
-  org: OrganizationId,
-  property: PropertyId,
-  name: string,
-  updatedAt: Date = EARLIER,
-): Promise<PortalGroupId> {
-  const id = portalGroupId(randomUUID())
-  await getPool().query(
-    `INSERT INTO portal_groups (id, organization_id, property_id, name, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $5)`,
-    [id, org, property, name, updatedAt],
-  )
-  return id
-}
-
-async function seedMembership(
-  org: OrganizationId,
-  property: PropertyId,
-  portal: PortalId,
-  group: PortalGroupId,
-) {
-  await getPool().query(
-    `INSERT INTO portal_group_memberships
-       (organization_id, property_id, portal_id, portal_group_id, effective_from, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [org, property, portal, group, EARLIER, MANAGER],
-  )
-}
-
-const groupRows = async (org: OrganizationId) =>
-  (
-    await getPool().query(
-      `SELECT id, name, created_by, updated_at, deleted_at FROM portal_groups
-       WHERE organization_id = $1 ORDER BY name`,
-      [org],
-    )
-  ).rows
-
-const membershipRows = async (org: OrganizationId, portal: PortalId) =>
-  (
-    await getPool().query(
-      `SELECT portal_group_id AS "group", effective_to, end_reason
-       FROM portal_group_memberships WHERE organization_id = $1 AND portal_id = $2
-       ORDER BY effective_from, portal_group_id`,
-      [org, portal],
-    )
-  ).rows
-
-const factsOf = async (org: OrganizationId, tag?: string) =>
-  (
-    await getPool().query<{ event_type: string; payload: Record<string, unknown> }>(
-      `SELECT event_type, payload FROM outbox_events
-       WHERE organization_id = $1 AND ($2::text IS NULL OR event_type = $2)
-       ORDER BY event_type`,
-      [org, tag ?? null],
-    )
-  ).rows
-
-const historyRows = async (org: OrganizationId) =>
-  (
-    await getPool().query(
-      `SELECT portal_group_id AS "group", kind, portal_id AS portal, name,
-              previous_name AS previous, actor_user_id AS actor
-       FROM portal_group_history WHERE organization_id = $1
-       ORDER BY occurred_at, kind, portal_id NULLS FIRST, portal_group_id`,
-      [org],
-    )
-  ).rows
+const {
+  seedProperty,
+  seedPortal,
+  seedGroup,
+  seedMembership,
+  groupRows,
+  membershipRows,
+  factsOf,
+  historyRows,
+} = createGroupLifecycleHarness(getPool)
 
 beforeEach(() => {
   clearEventSchemas()
@@ -309,9 +107,10 @@ describe.sequential('createPortalGroup (real PostgreSQL, two tenants)', () => {
     const property = await seedProperty(ORG_A)
     const { create } = wire()
 
-    await expect(
+    await expectCode(
       create({ name: 'Test', propertyId: property }, ctxOf(ORG_A, 'Member')),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
+      'forbidden',
+    )
 
     expect(await groupRows(ORG_A)).toEqual([])
     expect(await factsOf(ORG_A)).toEqual([])
@@ -323,9 +122,10 @@ describe.sequential('createPortalGroup (real PostgreSQL, two tenants)', () => {
     const { create } = wire()
     await create({ name: 'My Group', propertyId: property }, ctxOf(ORG_A))
 
-    await expect(
+    await expectCode(
       create({ name: 'My Group', propertyId: property }, ctxOf(ORG_A)),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'group_name_taken')
+      'group_name_taken',
+    )
     expect(await groupRows(ORG_A)).toHaveLength(1)
 
     await create({ name: 'My Group', propertyId: otherTenantProperty }, ctxOf(ORG_B))
@@ -335,9 +135,10 @@ describe.sequential('createPortalGroup (real PostgreSQL, two tenants)', () => {
   it('refuses a PropertyManager who is not assigned to the Property and allows an assigned one', async () => {
     const property = await seedProperty(ORG_A)
 
-    await expect(
+    await expectCode(
       wire([]).create({ name: 'Test', propertyId: property }, ctxOf(ORG_A)),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
+      'forbidden',
+    )
     expect(await groupRows(ORG_A)).toEqual([])
 
     const group = await wire([property]).create(
@@ -354,15 +155,17 @@ describe.sequential('createPortalGroup (real PostgreSQL, two tenants)', () => {
     const propertyB = await seedProperty(ORG_B)
     const { create } = wire()
 
-    await expect(
+    await expectCode(
       create({ name: 'Foreign', propertyId: propertyA }, ctxOf(ORG_B)),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'property_not_found')
-    await expect(
+      'property_not_found',
+    )
+    await expectCode(
       create(
         { name: 'Foreign portal', propertyId: propertyB, portalIds: [portalA] },
         ctxOf(ORG_B),
       ),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'portal_not_found')
+      'portal_not_found',
+    )
 
     expect(await groupRows(ORG_A)).toEqual([])
     expect(await groupRows(ORG_B)).toEqual([])
@@ -480,12 +283,13 @@ describe.sequential('createPortalGroup with Portals that are already grouped', (
     const otherProperty = await seedProperty(ORG_A)
     const { create } = wire()
 
-    await expect(
+    await expectCode(
       create(
         { name: 'New', propertyId: otherProperty, portalIds: [portals[0]] },
         ctxOf(ORG_A),
       ),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
+      'forbidden',
+    )
 
     expect((await groupRows(ORG_A)).map((row) => row.name)).toEqual(['Old A', 'Old B'])
     expect(await factsOf(ORG_A)).toEqual([])
@@ -563,12 +367,14 @@ describe.sequential('updatePortalGroup (real PostgreSQL, two tenants)', () => {
     const group = await seedGroup(ORG_A, propertyA, 'Old Name')
     const { update } = wire()
 
-    await expect(
+    await expectCode(
       update({ portalGroupId: randomUUID(), name: 'New' }, ctxOf(ORG_A)),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'group_not_found')
-    await expect(
+      'group_not_found',
+    )
+    await expectCode(
       update({ portalGroupId: group, name: 'Taken over' }, ctxOf(ORG_B)),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'group_not_found')
+      'group_not_found',
+    )
 
     expect(await groupRows(ORG_A)).toEqual([
       expect.objectContaining({ name: 'Old Name', updated_at: EARLIER }),
@@ -581,12 +387,14 @@ describe.sequential('updatePortalGroup (real PostgreSQL, two tenants)', () => {
     const property = await seedProperty(ORG_A)
     const group = await seedGroup(ORG_A, property, 'Old Name')
 
-    await expect(
+    await expectCode(
       wire().update({ portalGroupId: group, name: 'New' }, ctxOf(ORG_A, 'Member')),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
-    await expect(
+      'forbidden',
+    )
+    await expectCode(
       wire([]).update({ portalGroupId: group, name: 'New' }, ctxOf(ORG_A)),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
+      'forbidden',
+    )
 
     expect(await groupRows(ORG_A)).toEqual([
       expect.objectContaining({ name: 'Old Name' }),
@@ -633,9 +441,10 @@ describe.sequential('softDeletePortalGroup (real PostgreSQL, two tenants)', () =
     const property = await seedProperty(ORG_A)
     const group = await seedGroup(ORG_A, property, 'Test Group')
 
-    await expect(
+    await expectCode(
       wire(null).archive({ portalGroupId: group }, ctxOf(ORG_A, 'Member')),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
+      'forbidden',
+    )
 
     expect(await groupRows(ORG_A)).toEqual([
       expect.objectContaining({ deleted_at: null }),
@@ -647,9 +456,10 @@ describe.sequential('softDeletePortalGroup (real PostgreSQL, two tenants)', () =
     const property = await seedProperty(ORG_A)
     const group = await seedGroup(ORG_A, property, 'Test Group')
 
-    await expect(
+    await expectCode(
       wire([]).archive({ portalGroupId: group }, ctxOf(ORG_A)),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
+      'forbidden',
+    )
 
     expect(await groupRows(ORG_A)).toEqual([
       expect.objectContaining({ deleted_at: null }),
@@ -661,221 +471,19 @@ describe.sequential('softDeletePortalGroup (real PostgreSQL, two tenants)', () =
     const group = await seedGroup(ORG_A, property, 'Test Group')
     const { archive } = wire(null)
 
-    await expect(
+    await expectCode(
       archive({ portalGroupId: randomUUID() }, ctxOf(ORG_A, 'AccountAdmin')),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'group_not_found')
-    await expect(
+      'group_not_found',
+    )
+    await expectCode(
       archive({ portalGroupId: group }, ctxOf(ORG_B, 'AccountAdmin')),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'group_not_found')
+      'group_not_found',
+    )
 
     expect(await groupRows(ORG_A)).toEqual([
       expect.objectContaining({ deleted_at: null }),
     ])
     expect(await factsOf(ORG_A)).toEqual([])
     expect(await factsOf(ORG_B)).toEqual([])
-  })
-})
-
-describe.sequential('listPortalGroupHistory (real PostgreSQL, two tenants)', () => {
-  const readOnly = (org: OrganizationId) =>
-    buildTestAuthContext({
-      organizationId: org,
-      userId: MANAGER,
-      role: 'Member',
-      effectivePermissions: new Set<Permission>(['dashboard.read']),
-    })
-
-  it('returns the ledger of a group, one page', async () => {
-    const property = await seedProperty(ORG_A)
-    const { create, list } = wire()
-    const group = await create({ name: 'Lobby', propertyId: property }, ctxOf(ORG_A))
-
-    const result = await list({ portalGroupId: group.id }, ctxOf(ORG_A))
-
-    expect(result).toEqual([
-      expect.objectContaining({
-        organizationId: ORG_A,
-        propertyId: property,
-        portalGroupId: group.id,
-        kind: 'created',
-        portalId: null,
-        otherGroupId: null,
-        name: 'Lobby',
-        previousName: null,
-        actorUserId: MANAGER,
-        occurredAt: NOW,
-      }),
-    ])
-  })
-
-  it('stops at one page of a longer ledger', async () => {
-    const property = await seedProperty(ORG_A)
-    const group = await seedGroup(ORG_A, property, 'Lobby')
-    await getPool().query(
-      `INSERT INTO portal_group_history
-         (organization_id, property_id, portal_group_id, kind, name, previous_name,
-          actor_user_id, occurred_at)
-       SELECT $1, $2, $3, 'renamed', 'Name ' || n, 'Name ' || (n - 1), $4,
-              $5::timestamptz + n * interval '1 second'
-       FROM generate_series(1, $6::int) AS n`,
-      [ORG_A, property, group, MANAGER, EARLIER, PORTAL_GROUP_HISTORY_PAGE + 5],
-    )
-
-    const result = await wire().list({ portalGroupId: group }, ctxOf(ORG_A))
-
-    expect(result).toHaveLength(PORTAL_GROUP_HISTORY_PAGE)
-    expect(result[0]?.name).toBe(`Name ${PORTAL_GROUP_HISTORY_PAGE + 5}`)
-  })
-
-  it('refuses a role that cannot read Portals', async () => {
-    const property = await seedProperty(ORG_A)
-    const group = await seedGroup(ORG_A, property, 'Lobby')
-
-    await expect(
-      wire().list({ portalGroupId: group }, readOnly(ORG_A)),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
-  })
-
-  it('refuses a group that is not in the Organization', async () => {
-    const property = await seedProperty(ORG_A)
-    const group = await seedGroup(ORG_A, property, 'Lobby')
-    const { list } = wire()
-
-    await expect(list({ portalGroupId: randomUUID() }, ctxOf(ORG_A))).rejects.toSatisfy(
-      (e: unknown) => codeOf(e) === 'group_not_found',
-    )
-    await expect(list({ portalGroupId: group }, ctxOf(ORG_B))).rejects.toSatisfy(
-      (e: unknown) => codeOf(e) === 'group_not_found',
-    )
-  })
-
-  it('refuses a manager who is not assigned to the group Property', async () => {
-    const property = await seedProperty(ORG_A)
-    const group = await seedGroup(ORG_A, property, 'Lobby')
-
-    await expect(wire([]).list({ portalGroupId: group }, ctxOf(ORG_A))).rejects.toSatisfy(
-      (e: unknown) => codeOf(e) === 'forbidden',
-    )
-  })
-})
-
-describe.sequential('softDeletePortal (real PostgreSQL, two tenants)', () => {
-  const portalRow = async (org: OrganizationId, id: PortalId) =>
-    (
-      await getPool().query(
-        `SELECT deleted_at, updated_at FROM portals WHERE organization_id = $1 AND id = $2`,
-        [org, id],
-      )
-    ).rows[0]
-
-  const tokenRows = async (org: OrganizationId, id: PortalId) =>
-    (
-      await getPool().query(
-        `SELECT status, revoked_by, revoked_reason, revoked_at FROM portal_tokens
-         WHERE organization_id = $1 AND portal_id = $2`,
-        [org, id],
-      )
-    ).rows
-
-  it('requires staff removal for a personal Portal instead of ordinary deletion', async () => {
-    const property = await seedProperty(ORG_A)
-    const portal = await seedPortal(ORG_A, property, {
-      kind: 'personal',
-      publicName: 'Harbor',
-    })
-
-    await expect(
-      wire().deletePortal({ portalId: portal }, ctxOf(ORG_A, 'AccountAdmin')),
-    ).rejects.toMatchObject({ code: 'personal_portal_archive_locked' })
-
-    expect(await factsOf(ORG_A)).toEqual([])
-    expect((await portalRow(ORG_A, portal))?.deleted_at).toBeNull()
-  })
-
-  it('soft-deletes a Portal and records the portal.deleted fact', async () => {
-    const property = await seedProperty(ORG_A)
-    const portal = await seedPortal(ORG_A, property, { updatedAt: NOW })
-
-    await wire().deletePortal({ portalId: portal }, ctxOf(ORG_A, 'AccountAdmin'))
-
-    expect(await portalRow(ORG_A, portal)).toMatchObject({
-      deleted_at: NOW,
-      updated_at: NEXT,
-    })
-    const emitted = await factsOf(ORG_A, 'portal.deleted')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0]?.payload).toMatchObject({
-      portalId: portal,
-      sourceAggregateVersion: NEXT.toISOString(),
-    })
-  })
-
-  it('refuses a role that cannot delete', async () => {
-    const property = await seedProperty(ORG_A)
-    const portal = await seedPortal(ORG_A, property)
-
-    await expect(
-      wire().deletePortal({ portalId: portal }, ctxOf(ORG_A)),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
-
-    expect((await portalRow(ORG_A, portal))?.deleted_at).toBeNull()
-    expect(await factsOf(ORG_A)).toEqual([])
-  })
-
-  it('refuses an unknown Portal and a Portal of another organization', async () => {
-    const property = await seedProperty(ORG_A)
-    const portal = await seedPortal(ORG_A, property)
-    const { deletePortal } = wire()
-
-    await expect(
-      deletePortal({ portalId: randomUUID() }, ctxOf(ORG_A, 'AccountAdmin')),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'portal_not_found')
-    await expect(
-      deletePortal({ portalId: portal }, ctxOf(ORG_B, 'AccountAdmin')),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'portal_not_found')
-
-    expect((await portalRow(ORG_A, portal))?.deleted_at).toBeNull()
-    expect(await factsOf(ORG_A)).toEqual([])
-    expect(await factsOf(ORG_B)).toEqual([])
-  })
-
-  it('revokes the Portal tokens with an audit reason and leaves another tenant alone', async () => {
-    const property = await seedProperty(ORG_A)
-    const portal = await seedPortal(ORG_A, property)
-    const propertyB = await seedProperty(ORG_B)
-    const portalB = await seedPortal(ORG_B, propertyB)
-    const { issue, deletePortal } = wire()
-    await issue({ portalId: portal }, ctxOf(ORG_A))
-    await issue({ portalId: portalB }, ctxOf(ORG_B))
-    await getPool().query(`DELETE FROM outbox_events WHERE organization_id = ANY($1)`, [
-      [ORG_A, ORG_B],
-    ])
-
-    await deletePortal({ portalId: portal }, ctxOf(ORG_A, 'AccountAdmin'))
-
-    expect(await tokenRows(ORG_A, portal)).toEqual([
-      expect.objectContaining({
-        status: 'revoked',
-        revoked_by: MANAGER,
-        revoked_reason: 'portal deleted',
-        revoked_at: NOW,
-      }),
-    ])
-    expect(await tokenRows(ORG_B, portalB)).toEqual([
-      expect.objectContaining({ status: 'active', revoked_by: null }),
-    ])
-    expect(await factsOf(ORG_A, 'portal.token.revoked')).toHaveLength(1)
-    expect(await factsOf(ORG_B)).toEqual([])
-  })
-
-  it('stays quiet about tokens when the Portal has no live tokens', async () => {
-    const property = await seedProperty(ORG_A)
-    const portal = await seedPortal(ORG_A, property)
-
-    await wire().deletePortal({ portalId: portal }, ctxOf(ORG_A, 'AccountAdmin'))
-
-    expect(await tokenRows(ORG_A, portal)).toEqual([])
-    expect(await factsOf(ORG_A, 'portal.token.revoked')).toEqual([])
-    expect(await factsOf(ORG_A, 'portal.deleted')).toHaveLength(1)
   })
 })
