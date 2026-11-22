@@ -126,7 +126,12 @@ describe.sequential('publishPortalsChanges (real PostgreSQL, two tenants)', () =
       [second.portal, 'published'],
       [first.portal, 'published'],
     ])
-    expect(await publishedOrder(ORG_A)).toEqual([second.portal, first.portal])
+    // The results above carry the order. Both facts can share one created_at,
+    // and outbox rows have no insertion order to break the tie, so the facts
+    // are compared as a set.
+    expect([...(await publishedOrder(ORG_A))].sort()).toEqual(
+      [second.portal, first.portal].sort(),
+    )
   })
 
   it('goes on to the next Portal after a store conflict on the first', async () => {
