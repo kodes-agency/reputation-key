@@ -80,8 +80,28 @@ const makeReplyBinding = (): Record<string, unknown> => ({
   aiSubjectHmacKeyVersion: null,
 })
 
-const recordAt = (value: Record<string, unknown>, key: string): Record<string, unknown> =>
-  value[key] as Record<string, unknown>
+const REMOVE = Symbol('remove')
+
+type Patch = Record<string, unknown>
+
+// Returns a copy of `base` with each dotted path set (or deleted for REMOVE).
+const patched = (
+  base: Record<string, unknown>,
+  patch: Patch,
+): Record<string, unknown> => {
+  const copy = structuredClone(base)
+  for (const [path, replacement] of Object.entries(patch)) {
+    const keys = path.split('.')
+    const last = keys.pop() as string
+    const holder = keys.reduce<Record<string, unknown>>(
+      (node, key) => node[key] as Record<string, unknown>,
+      copy,
+    )
+    if (replacement === REMOVE) delete holder[last]
+    else holder[last] = replacement
+  }
+  return copy
+}
 
 describe('AI processing cell routing', () => {
   it.each([
@@ -244,160 +264,33 @@ describe('AI execution binding fail-closed validation', () => {
   })
 
   it.each([
-    [
-      'authorization lineage',
-      (value: Record<string, unknown>) => {
-        value.authorizationLineageId = 'not-a-uuid'
-      },
-    ],
-    [
-      'notice version',
-      (value: Record<string, unknown>) => {
-        value.noticeVersion = ''
-      },
-    ],
-    [
-      'notice digest',
-      (value: Record<string, unknown>) => {
-        value.noticeDigest = 'bad'
-      },
-    ],
-    [
-      'source epoch',
-      (value: Record<string, unknown>) => {
-        value.sourceEpoch = -1
-      },
-    ],
-    [
-      'property profile version',
-      (value: Record<string, unknown>) => {
-        value.propertyProfileVersion = Number.MAX_SAFE_INTEGER + 1
-      },
-    ],
-    [
-      'routing policy version',
-      (value: Record<string, unknown>) => {
-        value.routingPolicyVersion = -1
-      },
-    ],
-    [
-      'source policy ID',
-      (value: Record<string, unknown>) => {
-        value.sourcePolicyId = '\n'
-      },
-    ],
-    [
-      'source canonicalizer digest',
-      (value: Record<string, unknown>) => {
-        value.sourceCanonicalizerDigest = 'bad'
-      },
-    ],
-    [
-      'redaction profile',
-      (value: Record<string, unknown>) => {
-        value.redactionProfileVersion = ''
-      },
-    ],
-    [
-      'provider profile',
-      (value: Record<string, unknown>) => {
-        value.providerDeploymentProfileVersion = ''
-      },
-    ],
-    [
-      'operation profile',
-      (value: Record<string, unknown>) => {
-        value.operationProfileVersion = ''
-      },
-    ],
-    [
-      'runtime profile',
-      (value: Record<string, unknown>) => {
-        value.capabilityRuntimeProfileVersion = ''
-      },
-    ],
-    [
-      'language digest',
-      (value: Record<string, unknown>) => {
-        value.languageCatalogueDigest = 1
-      },
-    ],
-    [
-      'reply verifier digest',
-      (value: Record<string, unknown>) => {
-        value.replyLanguageVerifierDigest = 'bad'
-      },
-    ],
-    [
-      'script digest',
-      (value: Record<string, unknown>) => {
-        value.languageScriptConsistencyDigest = 'bad'
-      },
-    ],
-    [
-      'orthography digest',
-      (value: Record<string, unknown>) => {
-        value.zhOrthographyVerifierDigest = 'bad'
-      },
-    ],
-    [
-      'leakage digest',
-      (value: Record<string, unknown>) => {
-        value.outputLeakageProfileDigest = 'bad'
-      },
-    ],
-    [
-      'template digest',
-      (value: Record<string, unknown>) => {
-        value.replyTemplateCatalogueDigest = 'bad'
-      },
-    ],
-    [
-      'stop fence shape',
-      (value: Record<string, unknown>) => {
-        value.stopFence = null
-      },
-    ],
-    [
-      'global fence ID',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').globalControlId = 'bad'
-      },
-    ],
-    [
-      'global fence generation',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').globalGeneration = 0
-      },
-    ],
-    [
-      'provider fence ID',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').providerControlId = 'bad'
-      },
-    ],
-    [
-      'provider fence generation',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').providerGeneration = 0
-      },
-    ],
-    [
-      'capability fence ID',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').capabilityControlId = 'bad'
-      },
-    ],
-    [
-      'capability fence generation',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').capabilityGeneration = 0
-      },
-    ],
-  ])('rejects an invalid common %s', (_label, mutate) => {
-    const value = makeReplyBinding()
-    mutate(value)
-    expect(parseAiExecutionBinding(value).isErr()).toBe(true)
+    ['authorization lineage', { authorizationLineageId: 'not-a-uuid' }],
+    ['notice version', { noticeVersion: '' }],
+    ['notice digest', { noticeDigest: 'bad' }],
+    ['source epoch', { sourceEpoch: -1 }],
+    ['property profile version', { propertyProfileVersion: Number.MAX_SAFE_INTEGER + 1 }],
+    ['routing policy version', { routingPolicyVersion: -1 }],
+    ['source policy ID', { sourcePolicyId: '\n' }],
+    ['source canonicalizer digest', { sourceCanonicalizerDigest: 'bad' }],
+    ['redaction profile', { redactionProfileVersion: '' }],
+    ['provider profile', { providerDeploymentProfileVersion: '' }],
+    ['operation profile', { operationProfileVersion: '' }],
+    ['runtime profile', { capabilityRuntimeProfileVersion: '' }],
+    ['language digest', { languageCatalogueDigest: 1 }],
+    ['reply verifier digest', { replyLanguageVerifierDigest: 'bad' }],
+    ['script digest', { languageScriptConsistencyDigest: 'bad' }],
+    ['orthography digest', { zhOrthographyVerifierDigest: 'bad' }],
+    ['leakage digest', { outputLeakageProfileDigest: 'bad' }],
+    ['template digest', { replyTemplateCatalogueDigest: 'bad' }],
+    ['stop fence shape', { stopFence: null }],
+    ['global fence ID', { 'stopFence.globalControlId': 'bad' }],
+    ['global fence generation', { 'stopFence.globalGeneration': 0 }],
+    ['provider fence ID', { 'stopFence.providerControlId': 'bad' }],
+    ['provider fence generation', { 'stopFence.providerGeneration': 0 }],
+    ['capability fence ID', { 'stopFence.capabilityControlId': 'bad' }],
+    ['capability fence generation', { 'stopFence.capabilityGeneration': 0 }],
+  ])('rejects an invalid common %s', (_label, patch) => {
+    expect(parseAiExecutionBinding(patched(makeReplyBinding(), patch)).isErr()).toBe(true)
   })
 
   it('rejects unknown, missing, and malformed capability fences', () => {
@@ -433,171 +326,63 @@ describe('AI execution binding fail-closed validation', () => {
   })
 
   it.each([
-    [
-      'analysis fence shape',
-      makeAnalysisBinding,
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'capabilityFence').extra = true
-      },
-    ],
-    [
-      'analysis epoch',
-      makeAnalysisBinding,
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'capabilityFence').reviewAnalysisEpoch = 0
-      },
-    ],
-    [
-      'analysis language',
-      makeAnalysisBinding,
-      (value: Record<string, unknown>) => {
-        value.evaluatedLanguage = ''
-      },
-    ],
-    [
-      'analysis source revision',
-      makeAnalysisBinding,
-      (value: Record<string, unknown>) => {
-        value.sourceRevision = 0
-      },
-    ],
-    [
-      'analysis review time',
-      makeAnalysisBinding,
-      (value: Record<string, unknown>) => {
-        value.reviewedAtEpochMillis = -1
-      },
-    ],
-    [
-      'analysis subject key',
-      makeAnalysisBinding,
-      (value: Record<string, unknown>) => {
-        value.aiSubjectHmacKeyVersion = ''
-      },
-    ],
+    ['analysis fence shape', makeAnalysisBinding, { 'capabilityFence.extra': true }],
+    ['analysis epoch', makeAnalysisBinding, { 'capabilityFence.reviewAnalysisEpoch': 0 }],
+    ['analysis language', makeAnalysisBinding, { evaluatedLanguage: '' }],
+    ['analysis source revision', makeAnalysisBinding, { sourceRevision: 0 }],
+    ['analysis review time', makeAnalysisBinding, { reviewedAtEpochMillis: -1 }],
+    ['analysis subject key', makeAnalysisBinding, { aiSubjectHmacKeyVersion: '' }],
     [
       'analysis profile',
       makeAnalysisBinding,
-      (value: Record<string, unknown>) => {
-        value.operationProfileVersion = 'reply-suggestion-v1'
-      },
+      { operationProfileVersion: 'reply-suggestion-v1' },
     ],
     [
       'analysis runtime',
       makeAnalysisBinding,
-      (value: Record<string, unknown>) => {
-        value.capabilityRuntimeProfileVersion = 'wrong'
-      },
+      { capabilityRuntimeProfileVersion: 'wrong' },
     ],
     [
       'analysis cross-wiring',
       makeAnalysisBinding,
-      (value: Record<string, unknown>) => {
-        value.concreteReplyLanguage = { tag: 'en', templateGroup: 'latin' }
-      },
+      { concreteReplyLanguage: { tag: 'en', templateGroup: 'latin' } },
     ],
     [
       'reply fence shape',
       makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        delete recordAt(value, 'capabilityFence').baseReplyStateRevision
-      },
+      { 'capabilityFence.baseReplyStateRevision': REMOVE },
     ],
-    [
-      'reply epoch',
-      makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'capabilityFence').replyDraftingEpoch = 0
-      },
-    ],
+    ['reply epoch', makeReplyBinding, { 'capabilityFence.replyDraftingEpoch': 0 }],
     [
       'reply base state',
       makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'capabilityFence').baseReplyStateRevision = -1
-      },
+      { 'capabilityFence.baseReplyStateRevision': -1 },
     ],
-    [
-      'reply language',
-      makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        value.evaluatedLanguage = ''
-      },
-    ],
-    [
-      'reply concrete language',
-      makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        value.concreteReplyLanguage = null
-      },
-    ],
+    ['reply language', makeReplyBinding, { evaluatedLanguage: '' }],
+    ['reply concrete language', makeReplyBinding, { concreteReplyLanguage: null }],
     [
       'reply concrete language shape',
       makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'concreteReplyLanguage').extra = true
-      },
+      { 'concreteReplyLanguage.extra': true },
     ],
-    [
-      'reply language tag',
-      makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'concreteReplyLanguage').tag = ''
-      },
-    ],
+    ['reply language tag', makeReplyBinding, { 'concreteReplyLanguage.tag': '' }],
     [
       'reply template group',
       makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'concreteReplyLanguage').templateGroup = ''
-      },
+      { 'concreteReplyLanguage.templateGroup': '' },
     ],
     [
       'reply subject-key cross-wiring',
       makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        value.aiSubjectHmacKeyVersion = 'key'
-      },
+      { aiSubjectHmacKeyVersion: 'key' },
     ],
-    [
-      'reply leakage profile',
-      makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        value.outputLeakageProfileVersion = ''
-      },
-    ],
-    [
-      'reply template catalogue',
-      makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        value.replyTemplateCatalogueVersion = ''
-      },
-    ],
-    [
-      'reply profile',
-      makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        value.operationProfileVersion = 'wrong'
-      },
-    ],
-    [
-      'reply runtime',
-      makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        value.capabilityRuntimeProfileVersion = 'wrong'
-      },
-    ],
-    [
-      'reply digest',
-      makeReplyBinding,
-      (value: Record<string, unknown>) => {
-        value.replyLanguageVerifierDigest = 'bad'
-      },
-    ],
-  ])('rejects an invalid %s binding', (_label, createBinding, mutate) => {
-    const value = createBinding()
-    mutate(value)
-    expect(parseAiExecutionBinding(value).isErr()).toBe(true)
+    ['reply leakage profile', makeReplyBinding, { outputLeakageProfileVersion: '' }],
+    ['reply template catalogue', makeReplyBinding, { replyTemplateCatalogueVersion: '' }],
+    ['reply profile', makeReplyBinding, { operationProfileVersion: 'wrong' }],
+    ['reply runtime', makeReplyBinding, { capabilityRuntimeProfileVersion: 'wrong' }],
+    ['reply digest', makeReplyBinding, { replyLanguageVerifierDigest: 'bad' }],
+  ])('rejects an invalid %s binding', (_label, createBinding, patch) => {
+    expect(parseAiExecutionBinding(patched(createBinding(), patch)).isErr()).toBe(true)
   })
 })
 
@@ -689,170 +474,30 @@ describe('AI operation identity fail-closed validation', () => {
   })
 
   it.each([
-    [
-      'analysis organization',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.organizationId = ''
-      },
-    ],
-    [
-      'analysis property',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.propertyId = 'bad'
-      },
-    ],
-    [
-      'analysis actor',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.actorId = 'user-1'
-      },
-    ],
-    [
-      'analysis principal',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.systemPrincipal = null
-      },
-    ],
-    [
-      'analysis review',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.reviewId = 'bad'
-      },
-    ],
-    [
-      'analysis origin event',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.originEventId = 'bad'
-      },
-    ],
-    [
-      'analysis subject HMAC type',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.subjectHmac = 1
-      },
-    ],
-    [
-      'analysis subject HMAC format',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.subjectHmac = 'bad'
-      },
-    ],
-    [
-      'analysis subject key',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.subjectHmacKeyVersion = ''
-      },
-    ],
-    [
-      'analysis source epoch',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.sourceEpoch = -1
-      },
-    ],
-    [
-      'analysis source revision',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.sourceRevision = 0
-      },
-    ],
-    [
-      'analysis review time',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.reviewedAtEpochMillis = -1
-      },
-    ],
-    [
-      'analysis sequence',
-      makeAnalysisIdentity,
-      (value: Record<string, unknown>) => {
-        value.analysisSequence = 0
-      },
-    ],
-    [
-      'reply organization',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.organizationId = ''
-      },
-    ],
-    [
-      'reply property',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.propertyId = 'bad'
-      },
-    ],
-    [
-      'reply actor',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.actorId = ''
-      },
-    ],
-    [
-      'reply principal',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.systemPrincipal = 'user'
-      },
-    ],
-    [
-      'reply review',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.reviewId = 'bad'
-      },
-    ],
-    [
-      'reply source epoch',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.sourceEpoch = -1
-      },
-    ],
-    [
-      'reply source revision',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.sourceRevision = 0
-      },
-    ],
-    [
-      'reply review time',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.reviewedAtEpochMillis = -1
-      },
-    ],
-    [
-      'reply tone',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.tone = 'angry'
-      },
-    ],
-    [
-      'reply base state',
-      makeReplyIdentity,
-      (value: Record<string, unknown>) => {
-        value.baseReplyStateRevision = -1
-      },
-    ],
-  ])('rejects an invalid %s identity', (_label, createIdentity, mutate) => {
-    const value = createIdentity()
-    mutate(value)
-    expect(createAiOperationIdentity(value).isErr()).toBe(true)
+    ['analysis organization', makeAnalysisIdentity, { organizationId: '' }],
+    ['analysis property', makeAnalysisIdentity, { propertyId: 'bad' }],
+    ['analysis actor', makeAnalysisIdentity, { actorId: 'user-1' }],
+    ['analysis principal', makeAnalysisIdentity, { systemPrincipal: null }],
+    ['analysis review', makeAnalysisIdentity, { reviewId: 'bad' }],
+    ['analysis origin event', makeAnalysisIdentity, { originEventId: 'bad' }],
+    ['analysis subject HMAC type', makeAnalysisIdentity, { subjectHmac: 1 }],
+    ['analysis subject HMAC format', makeAnalysisIdentity, { subjectHmac: 'bad' }],
+    ['analysis subject key', makeAnalysisIdentity, { subjectHmacKeyVersion: '' }],
+    ['analysis source epoch', makeAnalysisIdentity, { sourceEpoch: -1 }],
+    ['analysis source revision', makeAnalysisIdentity, { sourceRevision: 0 }],
+    ['analysis review time', makeAnalysisIdentity, { reviewedAtEpochMillis: -1 }],
+    ['analysis sequence', makeAnalysisIdentity, { analysisSequence: 0 }],
+    ['reply organization', makeReplyIdentity, { organizationId: '' }],
+    ['reply property', makeReplyIdentity, { propertyId: 'bad' }],
+    ['reply actor', makeReplyIdentity, { actorId: '' }],
+    ['reply principal', makeReplyIdentity, { systemPrincipal: 'user' }],
+    ['reply review', makeReplyIdentity, { reviewId: 'bad' }],
+    ['reply source epoch', makeReplyIdentity, { sourceEpoch: -1 }],
+    ['reply source revision', makeReplyIdentity, { sourceRevision: 0 }],
+    ['reply review time', makeReplyIdentity, { reviewedAtEpochMillis: -1 }],
+    ['reply tone', makeReplyIdentity, { tone: 'angry' }],
+    ['reply base state', makeReplyIdentity, { baseReplyStateRevision: -1 }],
+  ])('rejects an invalid %s identity', (_label, createIdentity, patch) => {
+    expect(createAiOperationIdentity(patched(createIdentity(), patch)).isErr()).toBe(true)
   })
 })

@@ -1,8 +1,6 @@
 {
   "scripts/seed-e2e-user.ts": 1033,
   "src/contexts/ai/analysis/ai-review-analysis-v3-flow.integration.test.ts": 1060,
-  "src/contexts/ai/domain/rules.test.ts": 818,
-  "src/contexts/ai/execution/ai-execution-admission.adapter.integration.test.ts": 949,
   "src/contexts/ai/replay/reopen-store.integration.test.ts": 829,
   "src/contexts/feed/feed/ui/notification-panel.stories.tsx": 920,
   "src/contexts/feed/preferences/ui/notifications-settings-page.stories.tsx": 1067,
