@@ -14,634 +14,57 @@
 // subject does not exist yet and still converge.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import type { Pool } from 'pg'
-import { getDb, type Database } from '#/shared/db'
+import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import { releaseDueSlots } from '#/contexts/reputation/response-targets/release-due-slots.test-fixtures'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-
-import {
-  PrerequisiteNotReadyError,
-  type ConsumerEvent,
-  type ConsumerRegistry,
-} from '#/shared/outbox'
-import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { PrerequisiteNotReadyError, type ConsumerRegistry } from '#/shared/outbox'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
-  INBOX_REPLAY_CLOCK,
   INBOX_REPLAY_GUEST_ORDERS,
   INBOX_REPLAY_REVIEW_ORDERS,
-  INBOX_REPLAY_SCOPE,
-  INBOX_REPLAY_STATE_KEYS,
-  INBOX_REPLAY_STATE_SQL,
   INBOX_REPLAY_WITHDRAWAL_ORDERS,
   type InboxReplayGuestDelivery,
   type InboxReplayReviewDelivery,
-  type InboxReplayStateKey,
   type InboxReplayWithdrawalDelivery,
 } from '#/shared/testing/inbox-replay-fixtures'
-import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
-import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
-import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
-import {
-  createAtomicInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
-import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
-import { createReviewHandlingCycleStore } from './review-handling-cycle-store.server'
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
-import { createResponseTargetStore } from '../response-targets/store.server'
-import {
-  handleInboxReplyObserved,
-  handleInboxReviewCreated,
-  handleInboxReviewSourceTransitioned,
-  handleInboxReviewUpdated,
-  type InboxConsumerDeps,
-} from '#/contexts/reputation/inbox/outbox-consumers.server'
 import {
   handleInboxGuestFeedbackRetracted,
   handleInboxGuestFeedbackSubmitted,
   registerGuestFeedbackConsumer,
   type GuestFeedbackConsumerDeps,
 } from './guest-feedback-outbox-consumers.server'
-import type { ReviewLookupPort } from './review-lookup.port.server'
-import type { ReviewSourceLookupPort } from './review-source-lookup.port.server'
-import type { FeedbackLookupPort } from './feedback-lookup.port.server'
-import type { PropertyLookupPort } from './property-lookup.port.server'
-
-const SCOPE = INBOX_REPLAY_SCOPE
-const AT = INBOX_REPLAY_CLOCK
-const ORG = SCOPE.organizationId
+import {
+  AT,
+  EVENT_IDS,
+  ORG,
+  SCOPE,
+  allowAllCommandAuthority,
+  bindReplayPool,
+  captureState,
+  cleanAll,
+  cleanProjection,
+  countOutboxRows,
+  deliverReview,
+  drain,
+  expectNothingReleasable,
+  guestDeps,
+  guestEnvelope,
+  guestFeedbackPayload,
+  pool,
+  receiptFor,
+  replayEveryOrder,
+  retractionEnvelope,
+  seedReplayScope,
+  submissionEnvelope,
+} from './inbox-replay-matrix.test-fixtures'
 
 let lease: TestLease
-let pool: Pool
-
-const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
-
-const reviewLookup = {
-  getReviewSnippetById: async () => ({ status: 'not_found' as const }),
-  getReviewSnippetsByIds: async () => new Map(),
-  findEligibleReviewIds: async () => [],
-} satisfies ReviewLookupPort
-
-const reviewSourceLookup = {
-  getReviewSourceMetaById: async () => null,
-  getReviewSourceMetaByIds: async () => [],
-  listReviewSources: async () => [],
-} satisfies ReviewSourceLookupPort
-
-const propertyLookup = {
-  getPropertyNameById: async () => null,
-  getPropertyNamesByIds: async () => new Map(),
-} satisfies PropertyLookupPort
-
-/** Guest bodies are live-read. `available` flips to false once the source is purged. */
-function createFeedbackLookup(available: () => boolean): FeedbackLookupPort {
-  return {
-    getFeedbackSnippetById: async () =>
-      available()
-        ? {
-            comment: 'Replay private feedback',
-            ratingValue: 2,
-            responseRevision: 1,
-            occurredAt: AT.feedbackSubmittedAt,
-          }
-        : null,
-    getFeedbackSnippetsByIds: async () => new Map(),
-    findEligibleFeedbackIds: async () => [],
-  } as unknown as FeedbackLookupPort
-}
-
-// ── Source event envelopes ───────────────────────────────────────────
-
-const EVENT_IDS = {
-  'review.created': '7d000000-0000-4000-8000-000000000101',
-  'review.updated': '7d000000-0000-4000-8000-000000000102',
-  'reply.observed.staleDeletion': '7d000000-0000-4000-8000-000000000103',
-  'reply.observed.currentLiveReply': '7d000000-0000-4000-8000-000000000104',
-  'review.sourceTransitioned': '7d000000-0000-4000-8000-000000000105',
-  'guest.feedback.submitted': '7d000000-0000-4000-8000-000000000201',
-  'guest.rating.submitted.ratingOnlyCorrection': '7d000000-0000-4000-8000-000000000202',
-  'guest.feedback.submitted.redelivered': '7d000000-0000-4000-8000-000000000203',
-  'guest.feedback.retracted': '7d000000-0000-4000-8000-000000000204',
-} as const
-
-type DeliveryName = keyof typeof EVENT_IDS
-
-const reviewScope = {
-  reviewId: SCOPE.reviewId as string,
-  organizationId: ORG as string,
-  propertyId: SCOPE.propertyId as string,
-}
-
-const REVIEW_ENVELOPES: Readonly<Record<InboxReplayReviewDelivery, ConsumerEvent>> = {
-  'review.created': {
-    eventId: EVENT_IDS['review.created'],
-    eventType: 'review.created',
-    eventVersion: 1,
-    payload: {
-      ...reviewScope,
-      platform: 'google',
-      sourceEpoch: 0,
-      sourceRevision: 1,
-      analysisSequence: 1,
-      occurredAt: AT.reviewObservedRevision1.toISOString(),
-    },
-    organizationId: ORG,
-    propertyId: SCOPE.propertyId,
-    sourceContext: 'review',
-    sourceAggregateId: SCOPE.reviewId,
-  },
-  'review.updated': {
-    eventId: EVENT_IDS['review.updated'],
-    eventType: 'review.updated',
-    eventVersion: 1,
-    payload: {
-      ...reviewScope,
-      platform: 'google',
-      sourceEpoch: 0,
-      sourceRevision: 2,
-      analysisSequence: 2,
-      occurredAt: AT.reviewObservedRevision2.toISOString(),
-    },
-    organizationId: ORG,
-    propertyId: SCOPE.propertyId,
-    sourceContext: 'review',
-    sourceAggregateId: SCOPE.reviewId,
-  },
-  // Observation revision 1 was true yesterday and is not the current head.
-  'reply.observed.staleDeletion': {
-    eventId: EVENT_IDS['reply.observed.staleDeletion'],
-    eventType: 'review.reply.observed',
-    eventVersion: 1,
-    payload: {
-      ...reviewScope,
-      observationRevision: 1,
-      sourceEpoch: 0,
-      materialReviewRevision: 2,
-      change: 'deleted',
-      resolution: 'absent',
-      provenance: 'none',
-      matchedReplyId: null,
-      matchedPublicationCycle: null,
-      occurredAt: AT.replyObservedAt.toISOString(),
-    },
-    organizationId: ORG,
-    propertyId: SCOPE.propertyId,
-    sourceContext: 'review',
-    sourceAggregateId: SCOPE.reviewId,
-  },
-  'reply.observed.currentLiveReply': {
-    eventId: EVENT_IDS['reply.observed.currentLiveReply'],
-    eventType: 'review.reply.observed',
-    eventVersion: 1,
-    payload: {
-      ...reviewScope,
-      observationRevision: 2,
-      sourceEpoch: 0,
-      materialReviewRevision: 2,
-      change: 'added',
-      resolution: 'external_current_live',
-      provenance: 'external_or_unknown',
-      matchedReplyId: null,
-      matchedPublicationCycle: null,
-      occurredAt: AT.replyObservedAt.toISOString(),
-    },
-    organizationId: ORG,
-    propertyId: SCOPE.propertyId,
-    sourceContext: 'review',
-    sourceAggregateId: SCOPE.reviewId,
-  },
-  // The review is active, so this expiry fact can never be current truth.
-  'review.sourceTransitioned': {
-    eventId: EVENT_IDS['review.sourceTransitioned'],
-    eventType: 'review.source_transitioned',
-    eventVersion: 1,
-    payload: {
-      ...reviewScope,
-      sourceEpoch: 0,
-      sourceRevision: 2,
-      analysisSequence: 2,
-      change: 'source_expired',
-      occurredAt: AT.replyObservedAt.toISOString(),
-    },
-    organizationId: ORG,
-    propertyId: SCOPE.propertyId,
-    sourceContext: 'review',
-    sourceAggregateId: SCOPE.reviewId,
-  },
-}
-
-const guestEnvelope = (
-  name: DeliveryName,
-  eventType: string,
-  payload: Readonly<Record<string, unknown>>,
-): ConsumerEvent => ({
-  eventId: EVENT_IDS[name],
-  eventType,
-  eventVersion: 1,
-  payload,
-  organizationId: ORG,
-  propertyId: SCOPE.propertyId,
-  sourceContext: 'guest',
-  sourceAggregateId: SCOPE.feedbackId,
-})
-
-const guestFeedbackPayload = (feedbackSourceId: string) => ({
-  feedbackId: feedbackSourceId,
-  organizationId: ORG as string,
-  propertyId: SCOPE.propertyId as string,
-  portalId: SCOPE.portalId as string,
-  ratingId: null,
-  responseRevision: 1,
-  occurredAt: AT.feedbackSubmittedAt.toISOString(),
-})
-
-// ── Seeding ──────────────────────────────────────────────────────────
-
-async function cleanProjection(): Promise<void> {
-  await pool.query(
-    `DELETE FROM event_consumer_receipts
-     WHERE event_id = ANY($1::uuid[])`,
-    [Object.values(EVENT_IDS)],
-  )
-  await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
-  await pool.query(
-    `DELETE FROM outbox_events
-     WHERE organization_id = $1 AND id <> ALL($2::uuid[])`,
-    [ORG, Object.values(EVENT_IDS)],
-  )
-}
-
-async function cleanAll(): Promise<void> {
-  await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
-  await pool.query(
-    `DELETE FROM event_consumer_receipts WHERE event_id = ANY($1::uuid[])`,
-    [Object.values(EVENT_IDS)],
-  )
-  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
-  await pool.query(
-    'DELETE FROM google_reply_observation_heads WHERE organization_id = $1',
-    [ORG],
-  )
-  await pool.query('DELETE FROM google_reply_observations WHERE organization_id = $1', [
-    ORG,
-  ])
-  await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM guest_responses WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
-  await deleteTestOrganizations(pool, [ORG])
-}
-
-/**
- * Real Guest source rows, not stubs. The cutover classifier resolves a private
- * feedback anchor from `guest_responses`; without it every replayed feedback
- * row would classify as `orphan` and the zero-orphan assertion would be
- * meaningless.
- */
-async function seedGuestSourceTruth(): Promise<void> {
-  await pool.query(
-    `INSERT INTO portals (
-       id, organization_id, property_id, entity_type, entity_id, name, slug,
-       publication_state, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'property', $4, 'Replay portal', $5, 'published', $6, $6)`,
-    [
-      SCOPE.portalId,
-      ORG,
-      SCOPE.propertyId,
-      SCOPE.propertyId as string,
-      `replay-portal-${process.pid}`,
-      AT.feedbackSubmittedAt,
-    ],
-  )
-  await pool.query(
-    `INSERT INTO guest_responses (
-       id, organization_id, property_id, portal_id, status, rating,
-       response_consent, text_consent, media_consent, submitted_at,
-       retention_deadline, feedback_submitted_at, feedback_submission_revision,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'submitted', 2, true, true, false, $5, $6, $5, 1, $5, $5)`,
-    [
-      SCOPE.feedbackId,
-      ORG,
-      SCOPE.propertyId,
-      SCOPE.portalId,
-      AT.feedbackSubmittedAt,
-      new Date('2027-08-01T00:00:00.000Z'),
-    ],
-  )
-}
-
-async function seedScope(): Promise<void> {
-  await pool.query(
-    `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, 'Inbox replay matrix', $2, NOW())`,
-    [ORG, `inbox-replay-matrix-${process.pid}`],
-  )
-  await pool.query(
-    `INSERT INTO properties (
-       id, organization_id, name, slug, timezone, source_epoch, created_at, updated_at
-     ) VALUES ($1, $2, 'Replay property', $3, 'UTC', 0, NOW(), NOW())`,
-    [SCOPE.propertyId, ORG, `inbox-replay-matrix-${process.pid}`],
-  )
-}
-
-/** Final Review truth: active, material revision 2, current reply confirmed. */
-async function seedReviewSourceTruth(): Promise<void> {
-  await pool.query(
-    `WITH identity AS (
-       INSERT INTO reviews (
-         id, organization_id, property_id, platform, first_fetched_at,
-         source_epoch, source_revision, source_observation_sequence,
-         analysis_sequence, source_content_state, created_at, updated_at
-       ) VALUES ($1, $2, $3, 'google', $6, 0, 2, 2, 2, 'active', $6, $7)
-       RETURNING id
-     ) INSERT INTO review_source_contents (
-       review_id, organization_id, property_id, platform, external_id,
-       external_location_id, rating, reviewed_at, content_expires_at,
-       source_created_at, source_updated_at, first_fetched_at, last_fetched_at,
-       source_epoch, source_revision, ai_source_byte_length, ai_source_digest
-     ) SELECT id, $2, $3, 'google', 'replay-review', 'locations/replay',
-       5, $4, $5, $6, $7, $6, $7, 0, 2, 1, $8 FROM identity`,
-    [
-      SCOPE.reviewId,
-      ORG,
-      SCOPE.propertyId,
-      AT.targetStartRevision1,
-      new Date('2027-08-01T12:00:00.000Z'),
-      AT.reviewObservedRevision1,
-      AT.reviewObservedRevision2,
-      'a'.repeat(64),
-    ],
-  )
-  const revisions = [
-    {
-      revision: 1,
-      observedAt: AT.reviewObservedRevision1,
-      start: AT.targetStartRevision1,
-    },
-    {
-      revision: 2,
-      observedAt: AT.reviewObservedRevision2,
-      start: AT.targetStartRevision2,
-    },
-  ] as const
-  for (const revision of revisions) {
-    await pool.query(
-      `INSERT INTO material_review_revisions (
-         review_id, revision, organization_id, property_id, source_epoch,
-         normalization_version, source_digest, normalized_digest, rating,
-         normalized_text, response_target_eligibility, response_target_start_at,
-         content_state, created_at, updated_at
-       ) VALUES (
-         $1, $2, $3, $4, 0, 'review-material-v1', $5, $5, 4,
-         $6, 'measured', $7, 'active', $8, $8
-       )`,
-      [
-        SCOPE.reviewId,
-        revision.revision,
-        ORG,
-        SCOPE.propertyId,
-        String(revision.revision).repeat(64).slice(0, 64),
-        `replay-revision-${revision.revision}`,
-        revision.start,
-        revision.observedAt,
-      ],
-    )
-  }
-  // Observation revision 1 (deleted) is superseded by revision 2 (confirmed).
-  const observations = [
-    {
-      revision: 1,
-      state: 'absent',
-      change: 'deleted',
-      resolution: 'absent',
-      provenance: 'none',
-    },
-    {
-      revision: 2,
-      state: 'live',
-      change: 'added',
-      resolution: 'external_current_live',
-      provenance: 'external_or_unknown',
-    },
-  ] as const
-  let currentObservationId: string | null = null
-  for (const observation of observations) {
-    const inserted = await pool.query<{ id: string }>(
-      `INSERT INTO google_reply_observations (
-         organization_id, property_id, review_id, observation_revision,
-         observation_key, input_digest, source_epoch, material_review_revision,
-         read_generation, state, change, resolution, source, provenance,
-         normalized_text, normalization_version, normalized_digest, observed_at,
-         content_expires_at
-       ) VALUES (
-         $1, $2, $3, $4, $5, $6, 0, 2, $4, $7, $8, $9,
-         'provider_snapshot', $10, $11, 'google-reply-v1', $12, $13, $14
-       ) RETURNING id`,
-      [
-        ORG,
-        SCOPE.propertyId,
-        SCOPE.reviewId,
-        observation.revision,
-        String(observation.revision).repeat(64).slice(0, 64),
-        String(observation.revision + 3)
-          .repeat(64)
-          .slice(0, 64),
-        observation.state,
-        observation.change,
-        observation.resolution,
-        observation.provenance,
-        observation.state === 'live' ? `replay-reply-${observation.revision}` : null,
-        observation.state === 'live'
-          ? String(observation.revision + 6)
-              .repeat(64)
-              .slice(0, 64)
-          : null,
-        AT.replyObservedAt,
-        new Date('2027-08-01T12:00:00.000Z'),
-      ],
-    )
-    currentObservationId = inserted.rows[0]!.id
-  }
-  await pool.query(
-    `INSERT INTO google_reply_observation_heads (
-       review_id, organization_id, property_id, observation_id,
-       observation_revision, source_epoch, material_review_revision,
-       state, provenance, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 2, 0, 2, 'live', 'external_or_unknown', $5, $5)`,
-    [SCOPE.reviewId, ORG, SCOPE.propertyId, currentObservationId, AT.replyObservedAt],
-  )
-}
-
-async function seedSourceEventRows(): Promise<void> {
-  const rows: ReadonlyArray<Readonly<{ name: DeliveryName; type: string }>> = [
-    { name: 'review.created', type: 'review.created' },
-    { name: 'review.updated', type: 'review.updated' },
-    { name: 'reply.observed.staleDeletion', type: 'review.reply.observed' },
-    { name: 'reply.observed.currentLiveReply', type: 'review.reply.observed' },
-    { name: 'review.sourceTransitioned', type: 'review.source_transitioned' },
-    { name: 'guest.feedback.submitted', type: 'guest.feedback.submitted' },
-    {
-      name: 'guest.rating.submitted.ratingOnlyCorrection',
-      type: 'guest.rating.submitted',
-    },
-    { name: 'guest.feedback.submitted.redelivered', type: 'guest.feedback.submitted' },
-    { name: 'guest.feedback.retracted', type: 'guest.feedback.retracted' },
-  ]
-  for (const row of rows) {
-    await pool.query(
-      `INSERT INTO outbox_events (
-         id, event_type, event_version, payload, organization_id,
-         property_id, source_context, source_aggregate_id, created_at
-       ) VALUES ($1, $2, 1, '{}'::jsonb, $3, $4, 'review', $5, $6)
-       ON CONFLICT (id) DO NOTHING`,
-      [
-        EVENT_IDS[row.name],
-        row.type,
-        ORG,
-        SCOPE.propertyId,
-        SCOPE.reviewId,
-        AT.reviewObservedRevision1,
-      ],
-    )
-  }
-}
-
-// ── Delivery ─────────────────────────────────────────────────────────
-
-function reviewDeps(): InboxConsumerDeps {
-  const database: Database = getDb()
-  return {
-    commandStore: createAtomicInboxCommandStore(
-      database,
-      allowAllCommandAuthority,
-      () => AT.consumerClock,
-    ),
-    handlingCycleStore: createReviewHandlingCycleStore(database),
-    replyObservationAuthority: createReviewReplyObservationAuthority(database),
-    responseTargetAuthority: createReviewResponseTargetAuthority(database),
-    sourceTransitionAuthority: createReviewSourceTransitionAuthority(database),
-    reviewLookup,
-    reviewSourceLookup,
-    inboxRepo: createInboxRepository(
-      database,
-      { reviewLookup, feedbackLookup: createFeedbackLookup(() => true), propertyLookup },
-      { clock: () => AT.consumerClock, logger: createMockLogger() },
-    ),
-    idGen: () => SCOPE.reviewItemId,
-    clock: () => AT.consumerClock,
-    logger: createMockLogger(),
-  }
-}
-
-function guestDeps(
-  itemId: typeof SCOPE.feedbackItemId,
-  available: () => boolean,
-): GuestFeedbackConsumerDeps {
-  const database: Database = getDb()
-  const feedbackLookup = createFeedbackLookup(available)
-  return {
-    commandStore: createAtomicInboxCommandStore(
-      database,
-      allowAllCommandAuthority,
-      () => AT.consumerClock,
-    ),
-    feedbackLookup,
-    inboxRepo: createInboxRepository(
-      database,
-      { reviewLookup, feedbackLookup, propertyLookup },
-      { clock: () => AT.consumerClock, logger: createMockLogger() },
-    ),
-    idGen: () => itemId,
-    clock: () => AT.consumerClock,
-  }
-}
-
-async function deliverReview(name: InboxReplayReviewDelivery): Promise<void> {
-  const deps = reviewDeps()
-  const envelope = REVIEW_ENVELOPES[name]
-  if (name === 'review.created') {
-    await handleInboxReviewCreated(deps, envelope)
-    return
-  }
-  if (name === 'review.updated') {
-    await handleInboxReviewUpdated(deps, envelope)
-    return
-  }
-  if (name === 'review.sourceTransitioned') {
-    await handleInboxReviewSourceTransitioned(deps, envelope)
-    return
-  }
-  await handleInboxReplyObserved(deps, envelope)
-}
-
-/**
- * One durable dispatcher pass set. A throwing handler is retryable (the
- * dispatcher redelivers); an `obsolete` result is terminal. Every delivery is
- * offered twice per pass so at-least-once redelivery is exercised inline.
- */
-async function drain<Name extends string>(
-  deliveries: readonly Name[],
-  deliver: (name: Name) => Promise<void>,
-): Promise<void> {
-  let pending = [...deliveries]
-  for (let pass = 0; pass <= deliveries.length && pending.length > 0; pass += 1) {
-    const retry: Name[] = []
-    for (const name of pending) {
-      try {
-        await deliver(name)
-        await deliver(name)
-      } catch {
-        retry.push(name)
-      }
-    }
-    pending = retry
-  }
-  if (pending.length > 0) {
-    throw new Error(`Replay never converged; still pending: ${pending.join(', ')}`)
-  }
-}
-
-// ── State capture ────────────────────────────────────────────────────
-
-type ReplayState = Readonly<Record<InboxReplayStateKey, unknown[]>>
-
-async function captureState(): Promise<ReplayState> {
-  const entries = await Promise.all(
-    INBOX_REPLAY_STATE_KEYS.map(async (key) => {
-      const result = await pool.query(INBOX_REPLAY_STATE_SQL[key], [ORG])
-      return [key, result.rows] as const
-    }),
-  )
-  return Object.fromEntries(entries) as ReplayState
-}
-
-const countOutboxRows = async (): Promise<number> =>
-  Number(
-    (
-      await pool.query<{ count: string }>(
-        `SELECT count(*) AS count FROM outbox_events
-         WHERE organization_id = $1 AND id <> ALL($2::uuid[])`,
-        [ORG, Object.values(EVENT_IDS)],
-      )
-    ).rows[0]!.count,
-  )
-
-const receiptFor = async (eventId: string): Promise<string | null> =>
-  (
-    await pool.query<{ status: string }>(
-      'SELECT status FROM event_consumer_receipts WHERE event_id = $1 LIMIT 1',
-      [eventId],
-    )
-  ).rows[0]?.status ?? null
 
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 4)
-  pool = lease.pool
+  bindReplayPool(lease.pool)
   clearEventSchemas()
   registerAllEventSchemas()
 })
@@ -652,34 +75,20 @@ afterAll(async () => {
   await lease.release()
 })
 
-beforeEach(async () => {
-  await cleanAll()
-  await seedScope()
-  await seedReviewSourceTruth()
-  await seedGuestSourceTruth()
-  await seedSourceEventRows()
-})
+beforeEach(seedReplayScope)
 
 describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
   it('rebuilds one identical Review projection for every named delivery order', async () => {
-    const observed: Array<{ order: string; state: ReplayState }> = []
-    for (const order of INBOX_REPLAY_REVIEW_ORDERS) {
-      await cleanProjection()
-      await drain<InboxReplayReviewDelivery>(order.deliveries, deliverReview)
-      observed.push({ order: order.name, state: await captureState() })
-    }
+    const observed = await replayEveryOrder<InboxReplayReviewDelivery>(
+      INBOX_REPLAY_REVIEW_ORDERS.map((order) => order),
+      deliverReview,
+    )
 
     expect(observed).toHaveLength(INBOX_REPLAY_REVIEW_ORDERS.length)
-    for (const candidate of observed.slice(1)) {
-      expect({ order: 'in_order', state: candidate.state }).toEqual({
-        order: 'in_order',
-        state: observed[0]!.state,
-      })
-    }
 
     // Current source truth: two Material Review Revisions, the second closed by
     // a confirmed provider reply. Both stale facts are absorbed as obsolete.
-    const converged = observed[0]!.state
+    const converged = observed[0]!
     expect(converged.items).toEqual([
       expect.objectContaining({ id: SCOPE.reviewItemId as string, status: 'closed' }),
     ])
@@ -746,12 +155,7 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
 
     // Cycle 1 was superseded and cycle 2 closed on a confirmed reply, so no
     // slot may still be releasable however far the clock is advanced.
-    await expect(
-      releaseDueSlots(createResponseTargetStore(getDb()), {
-        now: new Date('2027-01-01T00:00:00.000Z'),
-        limit: 100,
-      }),
-    ).resolves.toEqual({ released: 0 })
+    await expectNothingReleasable()
   })
 
   it('absorbs an identical second replay of the whole Review history as a no-op', async () => {
@@ -798,16 +202,13 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
         // it is a structural assertion, not a projection command.
         return
       }
-      const eventName: DeliveryName =
-        name === 'guest.feedback.submitted.redelivered'
-          ? 'guest.feedback.submitted.redelivered'
-          : 'guest.feedback.submitted'
       await handleInboxGuestFeedbackSubmitted(
         guestDeps(SCOPE.feedbackItemId, () => true),
-        guestEnvelope(
-          eventName,
-          'guest.feedback.submitted',
-          guestFeedbackPayload(SCOPE.feedbackId),
+        submissionEnvelope(
+          SCOPE.feedbackId,
+          name === 'guest.feedback.submitted.redelivered'
+            ? 'guest.feedback.submitted.redelivered'
+            : 'guest.feedback.submitted',
         ),
       )
     }
@@ -824,15 +225,10 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
     )
     expect(registered).toEqual(['guest.feedback.submitted', 'guest.feedback.retracted'])
 
-    const observed: ReplayState[] = []
-    for (const order of INBOX_REPLAY_GUEST_ORDERS) {
-      await cleanProjection()
-      await drain<InboxReplayGuestDelivery>(order.deliveries, deliverGuest)
-      observed.push(await captureState())
-    }
-    for (const candidate of observed.slice(1)) {
-      expect(candidate).toEqual(observed[0])
-    }
+    const observed = await replayEveryOrder<InboxReplayGuestDelivery>(
+      INBOX_REPLAY_GUEST_ORDERS.map((order) => order),
+      deliverGuest,
+    )
 
     // Exactly one Inbox Item, one cycle, one target — the rating-only
     // correction and the redelivery add nothing.
@@ -853,32 +249,20 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
       if (name === 'guest.feedback.submitted') {
         await handleInboxGuestFeedbackSubmitted(
           deps,
-          guestEnvelope(
-            'guest.feedback.submitted',
-            'guest.feedback.submitted',
-            guestFeedbackPayload(SCOPE.withdrawnFeedbackId),
-          ),
+          submissionEnvelope(SCOPE.withdrawnFeedbackId),
         )
         return
       }
       await handleInboxGuestFeedbackRetracted(
         deps,
-        guestEnvelope('guest.feedback.retracted', 'guest.feedback.retracted', {
-          ...guestFeedbackPayload(SCOPE.withdrawnFeedbackId),
-          supersedesSourceEventId: EVENT_IDS['guest.feedback.submitted'],
-        }),
+        retractionEnvelope(SCOPE.withdrawnFeedbackId),
       )
     }
 
-    const observed: ReplayState[] = []
-    for (const order of INBOX_REPLAY_WITHDRAWAL_ORDERS) {
-      await cleanProjection()
-      await drain<InboxReplayWithdrawalDelivery>(order.deliveries, deliverWithdrawal)
-      observed.push(await captureState())
-    }
-    for (const candidate of observed.slice(1)) {
-      expect(candidate).toEqual(observed[0])
-    }
+    const observed = await replayEveryOrder<InboxReplayWithdrawalDelivery>(
+      INBOX_REPLAY_WITHDRAWAL_ORDERS.map((order) => order),
+      deliverWithdrawal,
+    )
     expect(observed[0]!.items).toEqual([])
     expect(observed[0]!.cycles).toEqual([])
     expect(observed[0]!.outcomes).toEqual([])
@@ -893,14 +277,7 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
   it('opens no Inbox item when the withdrawal is handled between the creation consumer’s source check and its insert', async () => {
     await cleanProjection()
     const deps = guestDeps(SCOPE.feedbackItemId, () => true)
-    const withdrawal = guestEnvelope(
-      'guest.feedback.retracted',
-      'guest.feedback.retracted',
-      {
-        ...guestFeedbackPayload(SCOPE.feedbackId),
-        supersedesSourceEventId: EVENT_IDS['guest.feedback.submitted'],
-      },
-    )
+    const withdrawal = retractionEnvelope(SCOPE.feedbackId)
     const withdrawnAfterTheSourceCheck: GuestFeedbackConsumerDeps = {
       ...deps,
       feedbackLookup: {
@@ -916,11 +293,7 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
 
     await handleInboxGuestFeedbackSubmitted(
       withdrawnAfterTheSourceCheck,
-      guestEnvelope(
-        'guest.feedback.submitted',
-        'guest.feedback.submitted',
-        guestFeedbackPayload(SCOPE.feedbackId),
-      ),
+      submissionEnvelope(SCOPE.feedbackId),
     )
 
     const state = await captureState()
@@ -981,19 +354,12 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
     let bodyAvailable = true
     await handleInboxGuestFeedbackSubmitted(
       guestDeps(SCOPE.feedbackItemId, () => bodyAvailable),
-      guestEnvelope(
-        'guest.feedback.submitted',
-        'guest.feedback.submitted',
-        guestFeedbackPayload(SCOPE.feedbackId),
-      ),
+      submissionEnvelope(SCOPE.feedbackId),
     )
     bodyAvailable = false
     await handleInboxGuestFeedbackRetracted(
       guestDeps(SCOPE.feedbackItemId, () => bodyAvailable),
-      guestEnvelope('guest.feedback.retracted', 'guest.feedback.retracted', {
-        ...guestFeedbackPayload(SCOPE.feedbackId),
-        supersedesSourceEventId: EVENT_IDS['guest.feedback.submitted'],
-      }),
+      retractionEnvelope(SCOPE.feedbackId),
     )
 
     const state = await captureState()
@@ -1011,12 +377,7 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
       ),
     ).toEqual([true, true])
     expect(state.outcomes).toEqual([])
-    await expect(
-      releaseDueSlots(createResponseTargetStore(getDb()), {
-        now: new Date('2027-01-01T00:00:00.000Z'),
-        limit: 100,
-      }),
-    ).resolves.toEqual({ released: 0 })
+    await expectNothingReleasable()
     await expect(
       createFeedbackHandlingStore(getDb(), allowAllCommandAuthority).getState(
         SCOPE.feedbackItemId,
