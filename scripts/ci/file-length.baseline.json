@@ -11,7 +11,6 @@
   "src/contexts/feed/notify/notification-audience.integration.test.ts": 1248,
   "src/contexts/feed/preferences/ui/notifications-settings-page.stories.tsx": 1067,
   "src/contexts/guest/page/ui/public-portal/immersive/immersive-response.stories.tsx": 806,
-  "src/contexts/guest/responses/guest-response-lifecycle.integration.test.ts": 1016,
   "src/contexts/integration/connections/google-oauth.adapter.test.ts": 925,
   "src/contexts/integration/imports/google-import-command-authorizer.test.ts": 929,
   "src/contexts/integration/imports/google-import-processor.test.ts": 988,
