@@ -49,8 +49,6 @@
   "src/contexts/reputation/sync/sync-property-reviews-job.integration.test.ts": 1478,
   "src/contexts/reputation/sync/sync-reviews.test.ts": 953,
   "src/shared/ai-provider-control/openai-connector.test.ts": 1186,
-  "src/shared/ai-redaction/ai-redaction-ordinary-prose.test.ts": 1027,
-  "src/shared/ai-redaction/ai-redaction-recall.test.ts": 1072,
   "src/shared/analysis/normalizer.test.ts": 932,
   "src/shared/architecture/google-import-store-items.integration.test.ts": 1275,
   "src/shared/architecture/reply-observation-inbox.integration.test.ts": 1641,
