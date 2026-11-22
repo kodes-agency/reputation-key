@@ -34,13 +34,10 @@
   "src/contexts/reputation/sync/review-provider-snapshot-repository.integration.test.ts": 1716,
   "src/contexts/reputation/sync/review-provider-snapshot-repository.server.ts": 1351,
   "src/shared/ai-provider-control/openai-connector.test.ts": 1186,
-  "src/shared/analysis/normalizer.test.ts": 932,
   "src/shared/architecture/google-import-store-items.integration.test.ts": 1275,
   "src/shared/architecture/reply-observation-inbox.integration.test.ts": 1641,
   "src/shared/db/schema/ai.schema.ts": 938,
   "src/shared/db/schema/inbox.schema.ts": 824,
   "src/shared/db/schema/review.schema.ts": 1360,
-  "src/shared/jobs/runtime-observations.test.ts": 941,
-  "src/shared/outbox/event-adapter.test.ts": 908,
-  "src/shared/stale-tab/stale-tab.test.ts": 873
+  "src/shared/outbox/event-adapter.test.ts": 908
 }
