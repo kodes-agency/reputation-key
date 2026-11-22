@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
+import { raceAgainstGrantRevocation } from '#/shared/db/testing/lock-race'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -17,17 +18,15 @@ import {
 } from '#/shared/domain/ids'
 import { decideCurrentManagerPropertyAuthorities } from '#/contexts/identity/members/member-property-authority.server'
 import type { InboxItem } from '../domain/inbox-types'
-import {
-  inboxItemAssigned,
-  inboxItemBulkStatusChanged,
-  inboxNoteAdded,
-} from '../domain/inbox-events'
+import { inboxItemAssigned, inboxNoteAdded } from '../domain/inbox-events'
 import { isInboxError } from '../domain/inbox-errors'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxCommandAuthority } from './inbox-command-authority.adapter.server'
+import { bulkReopenFacts } from './inbox-command-facts.test-fixtures'
+import { buildFeedbackItem } from './inbox-item-factory.test-fixtures'
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 
 const db = getDb()
@@ -48,22 +47,6 @@ const NOW = new Date('2026-08-27T00:00:00.000Z')
 const ASSIGN_SESSION = 'ibx-batch-assign-target-revocation'
 const BULK_SESSION = 'ibx-batch-bulk-later-revocation'
 
-async function waitForSessionLock(applicationName: string): Promise<void> {
-  const deadline = Date.now() + 5_000
-  while (Date.now() < deadline) {
-    const waiting = await getPool().query(
-      `SELECT 1
-       FROM pg_stat_activity
-       WHERE application_name = $1
-         AND wait_event_type = 'Lock'`,
-      [applicationName],
-    )
-    if (waiting.rowCount === 1) return
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-  throw new Error(`session ${applicationName} did not reach its lock wait`)
-}
-
 function authorityForSession(applicationName: string): InboxCommandAuthority {
   const authorize = createInboxCommandAuthority({
     decideManagerPropertyAuthorities: (tx, input) =>
@@ -75,39 +58,29 @@ function authorityForSession(applicationName: string): InboxCommandAuthority {
   }
 }
 
-function makeItem(
+const makeItem = (
   id: InboxItem['id'],
   property: InboxItem['propertyId'],
   sourceId: InboxItem['sourceId'],
   status: 'open' | 'closed',
-): InboxItem {
-  return {
+): InboxItem =>
+  buildFeedbackItem({
     id,
     organizationId: ORG,
     propertyId: property,
-    sourceType: 'feedback',
     sourceId,
     status,
-    rating: 2,
-    sourceDate: NOW,
-    platform: null,
-    snippet: 'Private feedback',
-    assignedTo: null,
-    reviewerName: null,
-    propertyName: null,
-    isEscalated: false,
-    escalatedAt: null,
-    escalatedBy: null,
-    escalationResolvedAt: null,
-    escalationResolvedBy: null,
-    closedAt: status === 'closed' ? NOW : null,
-    firstReplySubmittedAt: null,
-    firstReplyPublishedAt: null,
-    commandRevision: 1,
-    createdAt: NOW,
-    updatedAt: NOW,
-  }
-}
+    at: NOW,
+  })
+
+/** The grant lock-race arguments for the MANAGER's grant at one Property. */
+const revocationOf = (property: typeof PROPERTY_A, session = ASSIGN_SESSION) => ({
+  organizationId: ORG,
+  propertyId: property,
+  userId: MANAGER,
+  revokedAt: NOW,
+  applicationName: session,
+})
 
 async function insertItem(item: InboxItem): Promise<void> {
   await db.execute(sql`
@@ -128,8 +101,7 @@ async function clearCommandRows(): Promise<void> {
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
 }
 
-beforeAll(async () => {
-  await clearCommandRows()
+async function dropAuthorityFixture(): Promise<void> {
   await executeWithLastOwnerGuardDisabled(db, [
     sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
     sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`,
@@ -137,6 +109,11 @@ beforeAll(async () => {
     sql`DELETE FROM "user" WHERE id IN (${OWNER}, ${MANAGER})`,
     sql`DELETE FROM permission_version WHERE organization_id = ${ORG}`,
   ])
+}
+
+beforeAll(async () => {
+  await clearCommandRows()
+  await dropAuthorityFixture()
   await deleteTestOrganizations(db, [ORG])
 
   await db.execute(sql`
@@ -181,13 +158,7 @@ beforeEach(async () => {
 afterAll(async () => {
   clearEventSchemas()
   await clearCommandRows()
-  await executeWithLastOwnerGuardDisabled(db, [
-    sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
-    sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`,
-    sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
-    sql`DELETE FROM "user" WHERE id IN (${OWNER}, ${MANAGER})`,
-    sql`DELETE FROM permission_version WHERE organization_id = ${ORG}`,
-  ])
+  await dropAuthorityFixture()
   await deleteTestOrganizations(db, [ORG])
 })
 
@@ -198,74 +169,40 @@ describe.sequential('Inbox command-wide authority', () => {
   it('lets target revocation finish before an actor-to-assignee command is denied', async () => {
     const item = makeItem(ITEM_A, PROPERTY_A, FEEDBACK_A, 'open')
     await insertItem(item)
-    const revoker = await getPool().connect()
-    let revocationOpen = false
-    let command: ReturnType<
-      ReturnType<typeof createAtomicInboxCommandStore>['assign']
-    > | null = null
 
-    try {
-      await revoker.query('BEGIN')
-      revocationOpen = true
-      await revoker.query(
-        `SELECT id
-         FROM property_access_grant
-         WHERE organization_id = $1
-           AND property_id = $2::uuid
-           AND user_id = $3
-           AND revoked_at IS NULL
-         FOR UPDATE`,
-        [ORG, PROPERTY_A, MANAGER],
-      )
-
-      const store = createAtomicInboxCommandStore(
-        db,
-        authorityForSession(ASSIGN_SESSION),
-        () => NOW,
-      )
-      command = store.assign(
-        item,
-        { assignedTo: MANAGER },
-        inboxItemAssigned({
-          inboxItemId: ITEM_A,
-          organizationId: ORG,
-          propertyId: PROPERTY_A,
-          userId: OWNER,
-          assignedTo: MANAGER,
-          source: 'web',
-          occurredAt: NOW,
-        }),
-        NOW,
-      )
-      void command.catch(() => undefined)
-      await waitForSessionLock(ASSIGN_SESSION)
-
-      await revoker.query(
-        `UPDATE property_access_grant
-         SET revoked_at = $4
-         WHERE organization_id = $1
-           AND property_id = $2::uuid
-           AND user_id = $3
-           AND revoked_at IS NULL`,
-        [ORG, PROPERTY_A, MANAGER, NOW],
-      )
-      await revoker.query('COMMIT')
-      revocationOpen = false
-
-      await expect(command).rejects.toSatisfy(
-        (error: unknown) => isInboxError(error) && error.code === 'forbidden',
-      )
-      const current = await getPool().query(
-        `SELECT assigned_to, command_revision::int AS command_revision
-         FROM inbox_items WHERE id = $1`,
-        [ITEM_A],
-      )
-      expect(current.rows).toEqual([{ assigned_to: null, command_revision: 1 }])
-    } finally {
-      if (revocationOpen) await revoker.query('ROLLBACK').catch(() => undefined)
-      revoker.release()
-      await command?.catch(() => undefined)
-    }
+    await raceAgainstGrantRevocation({
+      ...revocationOf(PROPERTY_A),
+      start: () =>
+        createAtomicInboxCommandStore(
+          db,
+          authorityForSession(ASSIGN_SESSION),
+          () => NOW,
+        ).assign(
+          item,
+          { assignedTo: MANAGER },
+          inboxItemAssigned({
+            inboxItemId: ITEM_A,
+            organizationId: ORG,
+            propertyId: PROPERTY_A,
+            userId: OWNER,
+            assignedTo: MANAGER,
+            source: 'web',
+            occurredAt: NOW,
+          }),
+          NOW,
+        ),
+      afterRevocation: async (command) => {
+        await expect(command).rejects.toSatisfy(
+          (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+        )
+        const current = await getPool().query(
+          `SELECT assigned_to, command_revision::int AS command_revision
+           FROM inbox_items WHERE id = $1`,
+          [ITEM_A],
+        )
+        expect(current.rows).toEqual([{ assigned_to: null, command_revision: 1 }])
+      },
+    })
   })
 
   // Non-revoked twin: 'lets the manager reopen closed items across both granted
@@ -275,90 +212,47 @@ describe.sequential('Inbox command-wide authority', () => {
     const itemB = makeItem(ITEM_B, PROPERTY_B, FEEDBACK_B, 'closed')
     await insertItem(itemA)
     await insertItem(itemB)
-    const revoker = await getPool().connect()
-    let revocationOpen = false
-    let command: ReturnType<
-      ReturnType<typeof createAtomicInboxCommandStore>['bulkUpdateStatus']
-    > | null = null
+    const events = reopenFacts(
+      [itemA, itemB],
+      MANAGER,
+      '4e000000-0000-4000-8000-000000000099',
+    )
 
-    try {
-      await revoker.query('BEGIN')
-      revocationOpen = true
-      await revoker.query(
-        `SELECT id
-         FROM property_access_grant
-         WHERE organization_id = $1
-           AND property_id = $2::uuid
-           AND user_id = $3
-           AND revoked_at IS NULL
-         FOR UPDATE`,
-        [ORG, PROPERTY_B, MANAGER],
-      )
-
-      const bulkId = '4e000000-0000-4000-8000-000000000099'
-      const events = [itemA, itemB].map((item) =>
-        inboxItemBulkStatusChanged({
-          inboxItemId: item.id,
-          organizationId: ORG,
-          propertyId: item.propertyId,
-          userId: MANAGER,
-          oldStatus: 'closed',
-          newStatus: 'open',
-          bulkId,
-          source: 'web',
-          occurredAt: NOW,
+    await raceAgainstGrantRevocation({
+      ...revocationOf(PROPERTY_B, BULK_SESSION),
+      start: () =>
+        createAtomicInboxCommandStore(
+          db,
+          authorityForSession(BULK_SESSION),
+          () => NOW,
+        ).bulkUpdateStatus([itemA, itemB], events, {
+          reason: 'new_information',
+          explanation: null,
         }),
-      )
-      const store = createAtomicInboxCommandStore(
-        db,
-        authorityForSession(BULK_SESSION),
-        () => NOW,
-      )
-      command = store.bulkUpdateStatus([itemA, itemB], events, {
-        reason: 'new_information',
-        explanation: null,
-      })
-      void command.catch(() => undefined)
-      await waitForSessionLock(BULK_SESSION)
-
-      await revoker.query(
-        `UPDATE property_access_grant
-         SET revoked_at = $4
-         WHERE organization_id = $1
-           AND property_id = $2::uuid
-           AND user_id = $3
-           AND revoked_at IS NULL`,
-        [ORG, PROPERTY_B, MANAGER, NOW],
-      )
-      await revoker.query('COMMIT')
-      revocationOpen = false
-
-      await expect(command).rejects.toSatisfy(
-        (error: unknown) => isInboxError(error) && error.code === 'forbidden',
-      )
-      const current = await getPool().query(
-        `SELECT id::text AS id, status, command_revision::int AS command_revision
-         FROM inbox_items
-         WHERE organization_id = $1
-         ORDER BY id`,
-        [ORG],
-      )
-      expect(current.rows).toEqual([
-        { id: ITEM_A, status: 'closed', command_revision: 1 },
-        { id: ITEM_B, status: 'closed', command_revision: 1 },
-      ])
-      const facts = await getPool().query(
-        `SELECT 1 FROM outbox_events
-         WHERE organization_id = $1
-           AND event_type = 'inbox.inbox_item.bulk_status_changed'`,
-        [ORG],
-      )
-      expect(facts.rowCount).toBe(0)
-    } finally {
-      if (revocationOpen) await revoker.query('ROLLBACK').catch(() => undefined)
-      revoker.release()
-      await command?.catch(() => undefined)
-    }
+      afterRevocation: async (command) => {
+        await expect(command).rejects.toSatisfy(
+          (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+        )
+        const current = await getPool().query(
+          `SELECT id::text AS id, status, command_revision::int AS command_revision
+           FROM inbox_items
+           WHERE organization_id = $1
+           ORDER BY id`,
+          [ORG],
+        )
+        expect(current.rows).toEqual([
+          { id: ITEM_A, status: 'closed', command_revision: 1 },
+          { id: ITEM_B, status: 'closed', command_revision: 1 },
+        ])
+        const facts = await getPool().query(
+          `SELECT 1 FROM outbox_events
+           WHERE organization_id = $1
+             AND event_type = 'inbox.inbox_item.bulk_status_changed'`,
+          [ORG],
+        )
+        expect(facts.rowCount).toBe(0)
+      },
+    })
   })
 })
 
@@ -394,14 +288,18 @@ async function openCycleItem(
   return item
 }
 
-/** Close an open item as the OWNER so the setup never depends on the code under test. */
-async function closeItem(item: InboxItem, outcomeId: string): Promise<InboxItem> {
-  const handled = await createFeedbackHandlingStore(db, allowAll).markHandled({
+async function markHandledAs(
+  authority: InboxCommandAuthority,
+  actor: typeof OWNER,
+  item: InboxItem,
+  outcomeId: string,
+) {
+  return createFeedbackHandlingStore(db, authority).markHandled({
     item,
     outcomeId,
     outcome: 'follow_up_attempted',
     internalNote: null,
-    actorUserId: OWNER,
+    actorUserId: actor,
     recordedAt: NOW,
     expected: {
       commandRevision: item.commandRevision,
@@ -410,8 +308,24 @@ async function closeItem(item: InboxItem, outcomeId: string): Promise<InboxItem>
       stateRevision: 1,
     },
   })
-  return handled.item
 }
+
+/** Close an open item as the OWNER so the setup never depends on the code under test. */
+async function closeItem(item: InboxItem, outcomeId: string): Promise<InboxItem> {
+  return (await markHandledAs(allowAll, OWNER, item, outcomeId)).item
+}
+
+const clearFacts = () =>
+  getPool().query(`DELETE FROM outbox_events WHERE organization_id = $1`, [ORG])
+
+const reopenFacts = (items: readonly InboxItem[], user: typeof OWNER, bulkId: string) =>
+  bulkReopenFacts({
+    items,
+    organizationId: ORG,
+    userId: user,
+    bulkId,
+    occurredAt: NOW,
+  })
 
 async function revokeGrant(property: typeof PROPERTY_A): Promise<void> {
   await db.execute(sql`
@@ -521,20 +435,12 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
   it('lets the manager mark handled feedback at a granted Property', async () => {
     const item = await openCycleItem(ITEM_A, PROPERTY_A, FEEDBACK_A)
 
-    const handled = await createFeedbackHandlingStore(db, realAuthority).markHandled({
+    const handled = await markHandledAs(
+      realAuthority,
+      MANAGER,
       item,
-      outcomeId: '4e000000-0000-4000-8000-000000000041',
-      outcome: 'follow_up_attempted',
-      internalNote: null,
-      actorUserId: MANAGER,
-      recordedAt: NOW,
-      expected: {
-        commandRevision: 1,
-        cycleNumber: 1,
-        sourceRevision: 1,
-        stateRevision: 1,
-      },
-    })
+      '4e000000-0000-4000-8000-000000000041',
+    )
 
     expect(handled.item.status).toBe('closed')
   })
@@ -552,23 +458,11 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
       closed.id,
       MANAGER,
     ])
-    const bulkId = '4e000000-0000-4000-8000-000000000096'
+    const events = reopenFacts([closed], OWNER, '4e000000-0000-4000-8000-000000000096')
 
     const result = await commandStore().bulkUpdateStatus(
       [{ ...closed, assignedTo: MANAGER }],
-      [
-        inboxItemBulkStatusChanged({
-          inboxItemId: closed.id,
-          organizationId: ORG,
-          propertyId: closed.propertyId,
-          userId: OWNER,
-          oldStatus: 'closed',
-          newStatus: 'open',
-          bulkId,
-          source: 'web',
-          occurredAt: NOW,
-        }),
-      ],
+      events,
       { reason: 'new_information', explanation: null },
     )
 
@@ -588,68 +482,32 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
       closed.id,
       MANAGER,
     ])
-    await getPool().query(`DELETE FROM outbox_events WHERE organization_id = $1`, [ORG])
-    const bulkId = '4e000000-0000-4000-8000-000000000095'
-    const revoker = await getPool().connect()
-    let revocationOpen = false
-    let command: Promise<unknown> | null = null
+    await clearFacts()
+    const events = reopenFacts([closed], OWNER, '4e000000-0000-4000-8000-000000000095')
 
-    try {
-      await revoker.query('BEGIN')
-      revocationOpen = true
-      await revoker.query(
-        `SELECT id FROM property_access_grant
-         WHERE organization_id = $1 AND property_id = $2::uuid
-           AND user_id = $3 AND revoked_at IS NULL
-         FOR UPDATE`,
-        [ORG, PROPERTY_A, MANAGER],
-      )
-      command = createAtomicInboxCommandStore(
-        db,
-        authorityForSession(ASSIGN_SESSION),
-        () => NOW,
-      ).bulkUpdateStatus(
-        [{ ...closed, assignedTo: MANAGER }],
-        [
-          inboxItemBulkStatusChanged({
-            inboxItemId: closed.id,
-            organizationId: ORG,
-            propertyId: closed.propertyId,
-            userId: OWNER,
-            oldStatus: 'closed',
-            newStatus: 'open',
-            bulkId,
-            source: 'web',
-            occurredAt: NOW,
-          }),
-        ],
-        { reason: 'new_information', explanation: null },
-      )
-      void command.catch(() => undefined)
-      await waitForSessionLock(ASSIGN_SESSION)
-      await revoker.query(
-        `UPDATE property_access_grant SET revoked_at = $4
-         WHERE organization_id = $1 AND property_id = $2::uuid
-           AND user_id = $3 AND revoked_at IS NULL`,
-        [ORG, PROPERTY_A, MANAGER, NOW],
-      )
-      await revoker.query('COMMIT')
-      revocationOpen = false
-
-      await expect(command).resolves.toMatchObject({ updated: 1 })
-      await expect(itemRow(ITEM_A)).resolves.toMatchObject({
-        status: 'open',
-        assigned_to: null,
-      })
-      const facts = await factTypes()
-      expect(facts.filter((type) => type === 'inbox.inbox_item.unassigned')).toHaveLength(
-        1,
-      )
-    } finally {
-      if (revocationOpen) await revoker.query('ROLLBACK').catch(() => undefined)
-      revoker.release()
-      await command?.catch(() => undefined)
-    }
+    await raceAgainstGrantRevocation({
+      ...revocationOf(PROPERTY_A),
+      start: () =>
+        createAtomicInboxCommandStore(
+          db,
+          authorityForSession(ASSIGN_SESSION),
+          () => NOW,
+        ).bulkUpdateStatus([{ ...closed, assignedTo: MANAGER }], events, {
+          reason: 'new_information',
+          explanation: null,
+        }),
+      afterRevocation: async (command) => {
+        await expect(command).resolves.toMatchObject({ updated: 1 })
+        await expect(itemRow(ITEM_A)).resolves.toMatchObject({
+          status: 'open',
+          assigned_to: null,
+        })
+        const facts = await factTypes()
+        expect(
+          facts.filter((type) => type === 'inbox.inbox_item.unassigned'),
+        ).toHaveLength(1)
+      },
+    })
   })
 
   // Race: one of the departing member's two grants is revoked while a release
@@ -682,54 +540,31 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
       `UPDATE inbox_items SET assigned_to = $2 WHERE organization_id = $1`,
       [ORG, MANAGER],
     )
-    await getPool().query(`DELETE FROM outbox_events WHERE organization_id = $1`, [ORG])
-    const revoker = await getPool().connect()
-    let revocationOpen = false
-    let command: Promise<unknown> | null = null
+    await clearFacts()
 
-    try {
-      await revoker.query('BEGIN')
-      revocationOpen = true
-      await revoker.query(
-        `SELECT id FROM property_access_grant
-         WHERE organization_id = $1 AND property_id = $2::uuid
-           AND user_id = $3 AND revoked_at IS NULL
-         FOR UPDATE`,
-        [ORG, PROPERTY_A, MANAGER],
-      )
-      command = createAtomicInboxCommandStore(
-        db,
-        authorityForSession(ASSIGN_SESSION),
-        () => NOW,
-      ).releaseIneligibleAssignmentsForUser({
-        organizationId: ORG,
-        userId: MANAGER,
-        actorId: OWNER,
-        at: NOW,
-      })
-      void command.catch(() => undefined)
-      await waitForSessionLock(ASSIGN_SESSION)
-      await revoker.query(
-        `UPDATE property_access_grant SET revoked_at = $4
-         WHERE organization_id = $1 AND property_id = $2::uuid
-           AND user_id = $3 AND revoked_at IS NULL`,
-        [ORG, PROPERTY_A, MANAGER, NOW],
-      )
-      await revoker.query('COMMIT')
-      revocationOpen = false
-
-      await expect(command).resolves.toEqual({ released: 1 })
-      await expect(itemRow(ITEM_A)).resolves.toMatchObject({ assigned_to: null })
-      await expect(itemRow(ITEM_B)).resolves.toMatchObject({ assigned_to: MANAGER })
-      const facts = await factTypes()
-      expect(facts.filter((type) => type === 'inbox.inbox_item.unassigned')).toHaveLength(
-        1,
-      )
-    } finally {
-      if (revocationOpen) await revoker.query('ROLLBACK').catch(() => undefined)
-      revoker.release()
-      await command?.catch(() => undefined)
-    }
+    await raceAgainstGrantRevocation({
+      ...revocationOf(PROPERTY_A),
+      start: () =>
+        createAtomicInboxCommandStore(
+          db,
+          authorityForSession(ASSIGN_SESSION),
+          () => NOW,
+        ).releaseIneligibleAssignmentsForUser({
+          organizationId: ORG,
+          userId: MANAGER,
+          actorId: OWNER,
+          at: NOW,
+        }),
+      afterRevocation: async (command) => {
+        await expect(command).resolves.toEqual({ released: 1 })
+        await expect(itemRow(ITEM_A)).resolves.toMatchObject({ assigned_to: null })
+        await expect(itemRow(ITEM_B)).resolves.toMatchObject({ assigned_to: MANAGER })
+        const facts = await factTypes()
+        expect(
+          facts.filter((type) => type === 'inbox.inbox_item.unassigned'),
+        ).toHaveLength(1)
+      },
+    })
   })
 
   it('lets the manager reopen closed items across both granted Properties in one bulk command', async () => {
@@ -741,20 +576,11 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
       await openCycleItem(ITEM_B, PROPERTY_B, FEEDBACK_B),
       '4e000000-0000-4000-8000-000000000043',
     )
-    await getPool().query(`DELETE FROM outbox_events WHERE organization_id = $1`, [ORG])
-    const bulkId = '4e000000-0000-4000-8000-000000000098'
-    const events = [closedA, closedB].map((item) =>
-      inboxItemBulkStatusChanged({
-        inboxItemId: item.id,
-        organizationId: ORG,
-        propertyId: item.propertyId,
-        userId: MANAGER,
-        oldStatus: 'closed',
-        newStatus: 'open',
-        bulkId,
-        source: 'web',
-        occurredAt: NOW,
-      }),
+    await clearFacts()
+    const events = reopenFacts(
+      [closedA, closedB],
+      MANAGER,
+      '4e000000-0000-4000-8000-000000000098',
     )
 
     const result = await commandStore().bulkUpdateStatus([closedA, closedB], events, {
