@@ -1,11 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { railwayServiceManifest } from '../../src/shared/release/railway-service-settings.test-fixtures'
-import {
-  CI_PRODUCTION_IMAGE_NAMES,
-  parseCiImageDigestMap,
-  TRUSTED_REPOSITORY,
-} from './ci-image-digest-map'
+import { CI_PRODUCTION_IMAGE_NAMES, parseCiImageDigestMap } from './ci-image-digest-map'
 import {
   DISPATCH_RUN_ID,
   DISPATCHED_RUN_JOBS,
@@ -13,7 +9,6 @@ import {
   fakeDispatchedRun,
   REVISION,
 } from './ci-image-digest-map.test-fixtures'
-import type { CommandRunner } from './command-runner'
 import {
   applyClosedBetaImageDeployment,
   buildClosedBetaImageDeploymentPlan,
@@ -24,11 +19,19 @@ import {
   railwayTargetArgs,
   resolveDeploymentRevision,
   runDeployCiImagesCommand,
-  type ClosedBetaImageDeployment,
   type GitRevisionReader,
   type ProviderRedisKeepCheck,
   type RailwayServiceObservation,
 } from './deploy-ci-images'
+import type { CommandRunner } from './command-runner'
+import {
+  fakeRailwayRunner,
+  planFor,
+  railwayCallIndex,
+  ranRailway,
+  serviceInventory,
+  withWebEndpointUp,
+} from './deploy-ci-images.test-fixtures'
 
 const ORIGIN_MAIN = 'b'.repeat(40)
 
@@ -41,23 +44,6 @@ function gitReader(isAncestor: boolean): GitRevisionReader {
       return isAncestor
     },
   }
-}
-
-function serviceInventory(): RailwayServiceObservation[] {
-  return CLOSED_BETA_IMAGE_SERVICES.map(({ serviceId, serviceName }, index) => ({
-    id: serviceId,
-    name: serviceName,
-    source: {
-      repo: serviceName === 'google-provider-redis' ? null : TRUSTED_REPOSITORY,
-      image: serviceName === 'google-provider-redis' ? 'redis:7' : null,
-    },
-    status: 'SUCCESS',
-    deploymentStopped: false,
-    deploymentId: `deployment-${String(index)}`,
-    configuredReplicas: 1,
-    runningReplicas: 1,
-    crashedReplicas: 0,
-  }))
 }
 
 describe('closed-beta CI image deployment authority', () => {
@@ -131,78 +117,21 @@ describe('closed-beta CI image deployment authority', () => {
   })
 
   it('writes the release identity before the container that needs it starts', async () => {
-    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
-    const plan = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).filter(
-      ({ serviceName }) => serviceName === 'web',
-    )
-    const calls: string[][] = []
-    let connected = false
-    const runner: CommandRunner = (command, args) => {
-      if (
-        command === 'git' &&
-        args[0] === 'show' &&
-        args[1]?.endsWith(':drizzle/meta/_journal.json')
-      ) {
-        return { status: 0, stdout: JSON.stringify({ entries: [] }), stderr: '' }
-      }
-      calls.push([command, ...args])
-      if (args[0] === 'service' && args[1] === 'list') {
-        const inventory = serviceInventory().map((service) => ({
-          id: service.id,
-          name: service.name,
-          source:
-            service.name === 'web' && connected
-              ? { repo: null, image: plan[0]!.imageReference }
-              : service.source,
-          status: 'SUCCESS',
-          deploymentStopped: false,
-          latestDeployment: {
-            id:
-              service.name === 'web' && connected
-                ? 'deployment-web-next'
-                : service.deploymentId,
-          },
-          replicas: { configured: 1, running: 1, crashed: 0 },
-        }))
-        return { status: 0, stdout: JSON.stringify(inventory), stderr: '' }
-      }
-      if (args[0] === 'deployment' && args[1] === 'list') {
-        return {
-          status: 0,
-          stdout: JSON.stringify([
-            {
-              id: connected ? 'deployment-web-next' : 'deployment-0',
-              status: 'SUCCESS',
-              meta: {
-                imageDigest: plan[0]!.digest,
-                serviceManifest: railwayServiceManifest('web'),
-              },
-            },
-          ]),
-          stderr: '',
-        }
-      }
-      if (args[0] === 'service' && args[1] === 'source') connected = true
-      return { status: 0, stdout: '{}', stderr: '' }
-    }
-    const fetchStub = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 200 }))
+    const plan = [planFor('web')]
+    const { runner, calls } = fakeRailwayRunner({
+      inventory: serviceInventory(),
+      digest: plan[0]!.digest,
+      connectedImage: plan[0]!.imageReference,
+    })
 
-    try {
-      await expect(
+    await expect(
+      withWebEndpointUp(() =>
         applyClosedBetaImageDeployment({ plan, runner, out: () => {} }),
-      ).resolves.toEqual([{ serviceName: 'web', deploymentId: 'deployment-web-next' }])
-    } finally {
-      fetchStub.mockRestore()
-    }
+      ),
+    ).resolves.toEqual([{ serviceName: 'web', deploymentId: 'deployment-web-next' }])
 
-    const variableSet = calls.findIndex(
-      (call) => call[1] === 'variable' && call[2] === 'set',
-    )
-    const sourceConnect = calls.findIndex(
-      (call) => call[1] === 'service' && call[2] === 'source',
-    )
+    const variableSet = railwayCallIndex(calls, 'variable', 'set')
+    const sourceConnect = railwayCallIndex(calls, 'service', 'source')
     // Image sources receive no Railway git metadata, so the identity must
     // exist before the deploy that reports it through runtime health.
     expect(variableSet).toBeGreaterThanOrEqual(0)
@@ -214,92 +143,33 @@ describe('closed-beta CI image deployment authority', () => {
   })
 
   it('redeploys a correctly pinned service whose release identity is stale', async () => {
-    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
-    const target = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).find(
-      ({ serviceName }) => serviceName === 'web',
-    )!
+    const target = planFor('web')
     // Already on the exact target digest, but carrying someone else's revision.
     const plan = [
       { ...target, beforeSource: { repo: null, image: target.imageReference } },
     ]
-    const calls: string[][] = []
-    let redeployed = false
-    const runner: CommandRunner = (command, args) => {
-      if (
-        command === 'git' &&
-        args[0] === 'show' &&
-        args[1]?.endsWith(':drizzle/meta/_journal.json')
-      ) {
-        return { status: 0, stdout: JSON.stringify({ entries: [] }), stderr: '' }
-      }
-      calls.push([command, ...args])
-      if (args[0] === 'variable' && args[1] === 'list') {
-        return { status: 0, stdout: `RELEASE_SHA=${'c'.repeat(40)}\n`, stderr: '' }
-      }
-      if (args[0] === 'service' && args[1] === 'list') {
-        return {
-          status: 0,
-          stdout: JSON.stringify(
-            serviceInventory().map((service) => ({
-              id: service.id,
-              name: service.name,
-              source:
-                service.name === 'web'
-                  ? { repo: null, image: target.imageReference }
-                  : service.source,
-              status: 'SUCCESS',
-              deploymentStopped: false,
-              latestDeployment: {
-                id:
-                  service.name === 'web' && redeployed
-                    ? 'deployment-web-next'
-                    : service.deploymentId,
-              },
-              replicas: { configured: 1, running: 1, crashed: 0 },
-            })),
-          ),
-          stderr: '',
-        }
-      }
-      if (args[0] === 'deployment' && args[1] === 'list') {
-        return {
-          status: 0,
-          stdout: JSON.stringify([
-            {
-              id: redeployed ? 'deployment-web-next' : 'deployment-0',
-              status: 'SUCCESS',
-              meta: {
-                imageDigest: target.digest,
-                serviceManifest: railwayServiceManifest('web'),
-              },
-            },
-          ]),
-          stderr: '',
-        }
-      }
-      if (args[0] === 'redeploy') redeployed = true
-      return { status: 0, stdout: '{}', stderr: '' }
-    }
-    const fetchStub = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 200 }))
+    const { runner, calls } = fakeRailwayRunner({
+      inventory: serviceInventory().map((service) =>
+        service.name === 'web'
+          ? { ...service, source: { repo: null, image: target.imageReference } }
+          : service,
+      ),
+      digest: target.digest,
+      releaseSha: 'c'.repeat(40),
+    })
 
-    try {
-      await expect(
+    await expect(
+      withWebEndpointUp(() =>
         applyClosedBetaImageDeployment({ plan, runner, out: () => {} }),
-      ).resolves.toEqual([{ serviceName: 'web', deploymentId: 'deployment-web-next' }])
-    } finally {
-      fetchStub.mockRestore()
-    }
+      ),
+    ).resolves.toEqual([{ serviceName: 'web', deploymentId: 'deployment-web-next' }])
 
     // Matching the digest is not enough to skip: the running container would
     // keep reporting the wrong revision in /api/health/metrics.
-    expect(calls.some((call) => call[1] === 'redeploy')).toBe(true)
+    expect(ranRailway(calls, ['redeploy'])).toBe(true)
     // Reconnecting an identical source may produce no deployment at all, so
     // the redeploy path must be used instead of connect.
-    expect(calls.some((call) => call[1] === 'service' && call[2] === 'source')).toBe(
-      false,
-    )
+    expect(ranRailway(calls, ['service', 'source'])).toBe(false)
     expect(calls.find((call) => call[1] === 'variable' && call[2] === 'set')).toContain(
       `RELEASE_SHA=${REVISION}`,
     )
@@ -318,12 +188,6 @@ describe('keeping google-provider-redis when its image sources did not change', 
   const RUNNING = 'c'.repeat(40)
   const RUNNING_IMAGE = `ghcr.io/kodes-agency/repkey-google-provider-redis@sha256:${'9'.repeat(64)}`
 
-  const planFor = (serviceName: string): ClosedBetaImageDeployment => {
-    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
-    return buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).find(
-      (service) => service.serviceName === serviceName,
-    )!
-  }
   const running = (
     overrides: Partial<RailwayServiceObservation> = {},
   ): RailwayServiceObservation => ({
@@ -443,68 +307,33 @@ describe('keeping google-provider-redis when its image sources did not change', 
   it('leaves a kept google-provider-redis untouched during the deploy', async () => {
     const service = planFor('google-provider-redis')
     const plan = [{ ...service, beforeSource: { repo: null, image: RUNNING_IMAGE } }]
-    const calls: string[][] = []
-    const runner: CommandRunner = (command, args) => {
-      if (
-        command === 'git' &&
-        args[0] === 'show' &&
-        args[1]?.endsWith(':drizzle/meta/_journal.json')
-      ) {
-        return { status: 0, stdout: JSON.stringify({ entries: [] }), stderr: '' }
-      }
-      calls.push([command, ...args])
-      if (args[0] === 'variable' && args[1] === 'list') {
-        return { status: 0, stdout: `RELEASE_SHA=${RUNNING}\n`, stderr: '' }
-      }
-      if (args[0] === 'service' && args[1] === 'list') {
-        return {
-          status: 0,
-          stdout: JSON.stringify(
-            serviceInventory().map((observed) => ({
-              id: observed.id,
-              name: observed.name,
-              source:
-                observed.name === 'google-provider-redis'
-                  ? { repo: null, image: RUNNING_IMAGE }
-                  : observed.source,
-              status: 'SUCCESS',
-              deploymentStopped: false,
-              latestDeployment: { id: observed.deploymentId },
-              replicas: { configured: 1, running: 1, crashed: 0 },
-            })),
-          ),
-          stderr: '',
-        }
-      }
-      throw new Error(`unexpected command ${[command, ...args].join(' ')}`)
-    }
+    const { runner, calls } = fakeRailwayRunner({
+      inventory: serviceInventory().map((observed) =>
+        observed.name === 'google-provider-redis'
+          ? { ...observed, source: { repo: null, image: RUNNING_IMAGE } }
+          : observed,
+      ),
+      digest: service.digest,
+      releaseSha: RUNNING,
+      strictUnexpected: true,
+    })
     const lines: string[] = []
-    const fetchStub = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 200 }))
 
-    try {
-      await expect(
+    await expect(
+      withWebEndpointUp(() =>
         applyClosedBetaImageDeployment({
           plan,
           runner,
           out: (line) => lines.push(line),
           keepProviderRedis: provable(),
         }),
-      ).resolves.toEqual([
-        { serviceName: 'google-provider-redis', deploymentId: 'deployment-2' },
-      ])
-    } finally {
-      fetchStub.mockRestore()
-    }
-
-    expect(calls.some((call) => call[1] === 'variable' && call[2] === 'set')).toBe(false)
-    expect(
-      calls.some(
-        (call) =>
-          call[1] === 'redeploy' || (call[1] === 'service' && call[2] === 'source'),
       ),
-    ).toBe(false)
+    ).resolves.toEqual([
+      { serviceName: 'google-provider-redis', deploymentId: 'deployment-2' },
+    ])
+
+    expect(ranRailway(calls, ['variable', 'set'])).toBe(false)
+    expect(ranRailway(calls, ['redeploy'], ['service', 'source'])).toBe(false)
     expect(lines).toContain(
       `google-provider-redis: kept at ${RUNNING}; nothing it is built from changed, and a redeploy would empty the provider-ephemeral store`,
     )
@@ -554,7 +383,6 @@ describe('keeping google-provider-redis when its image sources did not change', 
     )
   })
 })
-
 // During the 2026-10-21 Railway outage `service source connect` stored the new
 // image and created no deployment. The latest deployment kept running the
 // morning's image with status SUCCESS, so a source that names the target said
@@ -562,7 +390,6 @@ describe('keeping google-provider-redis when its image sources did not change', 
 describe('trusting a service only when its latest deployment runs the target', () => {
   const OLD_DIGEST = `sha256:${'f'.repeat(64)}`
   const WEB_DIGEST = `sha256:${String(CI_PRODUCTION_IMAGE_NAMES.indexOf('web') + 1).repeat(64)}`
-  const ok = (stdout: string) => ({ status: 0, stdout, stderr: '' })
 
   type Outage = Readonly<{
     /** The `meta` of the latest deployment before anything is redeployed. */
@@ -576,93 +403,21 @@ describe('trusting a service only when its latest deployment runs the target', (
   }>
 
   function outage(options: Outage) {
-    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
-    const target = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).find(
-      ({ serviceName }) => serviceName === 'web',
-    )!
+    const target = planFor('web')
     // The configured source already names the target, as after the outage.
     const configured = serviceInventory().map((service) =>
       service.name === 'web'
         ? { ...service, source: { repo: null, image: target.imageReference } }
         : service,
     )
-    const calls: string[][] = []
-    let redeployed = false
-    let listingsSinceRedeploy = 0
-    const runner: CommandRunner = (command, args) => {
-      if (
-        command === 'git' &&
-        args[0] === 'show' &&
-        args[1]?.endsWith(':drizzle/meta/_journal.json')
-      ) {
-        return { status: 0, stdout: JSON.stringify({ entries: [] }), stderr: '' }
-      }
-      calls.push([command, ...args])
-      if (args[0] === 'variable' && args[1] === 'list') {
-        return ok(`RELEASE_SHA=${REVISION}\n`)
-      }
-      if (args[0] === 'service' && args[1] === 'list') {
-        return ok(
-          JSON.stringify(
-            configured.map((service) => ({
-              id: service.id,
-              name: service.name,
-              source: service.source,
-              status: 'SUCCESS',
-              deploymentStopped: false,
-              latestDeployment: {
-                id:
-                  service.name === 'web' && redeployed
-                    ? 'deployment-web-next'
-                    : service.deploymentId,
-              },
-              replicas: { configured: 1, running: 1, crashed: 0 },
-            })),
-          ),
-        )
-      }
-      if (args[0] === 'deployment' && args[1] === 'list') {
-        const newOneListed =
-          redeployed && listingsSinceRedeploy++ >= (options.staleListings ?? 0)
-        return ok(
-          JSON.stringify([
-            newOneListed
-              ? {
-                  id: 'deployment-web-next',
-                  status: 'SUCCESS',
-                  meta: {
-                    imageDigest: options.redeployedDigest ?? target.digest,
-                    serviceManifest: railwayServiceManifest('web'),
-                  },
-                }
-              : {
-                  id: options.runningId ?? 'deployment-0',
-                  status: 'SUCCESS',
-                  ...(options.runningMeta === undefined
-                    ? {}
-                    : { meta: options.runningMeta }),
-                },
-          ]),
-        )
-      }
-      if (args[0] === 'redeploy') redeployed = true
-      return ok('{}')
-    }
-    const plan = buildClosedBetaImageDeploymentPlan(digestMap, configured).filter(
-      ({ serviceName }) => serviceName === 'web',
-    )
+    const { runner, calls } = fakeRailwayRunner({
+      ...options,
+      inventory: configured,
+      digest: target.digest,
+      releaseSha: REVISION,
+    })
+    const plan = [planFor('web', configured)]
     return { target, plan, runner, calls }
-  }
-
-  async function withWebEndpointUp<T>(run: () => Promise<T>): Promise<T> {
-    const fetchStub = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 200 }))
-    try {
-      return await run()
-    } finally {
-      fetchStub.mockRestore()
-    }
   }
 
   it('redeploys from the configured source when the latest deployment runs an older digest', async () => {
@@ -686,9 +441,7 @@ describe('trusting a service only when its latest deployment runs the target', (
       '--from-source',
     ])
     // The source is already right: connecting it again would create nothing.
-    expect(calls.some((call) => call[1] === 'service' && call[2] === 'source')).toBe(
-      false,
-    )
+    expect(ranRailway(calls, ['service', 'source'])).toBe(false)
     expect(lines).toContain(
       `web: source already names ${target.imageReference}, but its latest deployment deployment-0 runs ${OLD_DIGEST}; redeploying from the source`,
     )
@@ -702,10 +455,8 @@ describe('trusting a service only when its latest deployment runs the target', (
 
     await withWebEndpointUp(() => applyClosedBetaImageDeployment({ plan, runner }))
 
-    const redeployAt = calls.findIndex((call) => call[1] === 'redeploy')
-    const variableSetAt = calls.findIndex(
-      (call) => call[1] === 'variable' && call[2] === 'set',
-    )
+    const redeployAt = railwayCallIndex(calls, 'redeploy')
+    const variableSetAt = railwayCallIndex(calls, 'variable', 'set')
     expect(variableSetAt).toBeGreaterThanOrEqual(0)
     expect(redeployAt).toBeGreaterThan(variableSetAt)
     expect(
@@ -767,12 +518,7 @@ describe('trusting a service only when its latest deployment runs the target', (
 
     expect(lines).toContain(`web: already healthy at ${target.imageReference}`)
     expect(
-      calls.some(
-        (call) =>
-          call[1] === 'redeploy' ||
-          (call[1] === 'service' && call[2] === 'source') ||
-          (call[1] === 'variable' && call[2] === 'set'),
-      ),
+      ranRailway(calls, ['redeploy'], ['service', 'source'], ['variable', 'set']),
     ).toBe(false)
   })
 
@@ -818,16 +564,12 @@ describe('trusting a service only when its latest deployment runs the target', (
   it('still refuses a source that changed after the reviewed deployment plan', async () => {
     const { runner, calls } = outage({ runningMeta: { imageDigest: OLD_DIGEST } })
     // Reviewed while web still ran from the repository, not from the image.
-    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
-    const reviewed = buildClosedBetaImageDeploymentPlan(
-      digestMap,
-      serviceInventory(),
-    ).filter(({ serviceName }) => serviceName === 'web')
+    const reviewed = [planFor('web')]
 
     await expect(
       withWebEndpointUp(() => applyClosedBetaImageDeployment({ plan: reviewed, runner })),
     ).rejects.toThrow('web source changed after the reviewed deployment plan')
-    expect(calls.some((call) => call[1] === 'redeploy')).toBe(false)
+    expect(ranRailway(calls, ['redeploy'])).toBe(false)
   })
 })
 
