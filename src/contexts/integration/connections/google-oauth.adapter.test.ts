@@ -1,130 +1,32 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createGoogleEgressGateway } from '#/shared/google-provider-control/egress-gateway'
-import { exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { describe, expect, it, vi } from 'vitest'
 import { createGoogleOAuthAdapter } from './google-oauth.adapter.server'
 import type { GoogleAuthorizedProviderExecutor } from '../provider/google-client.port.server'
-import { googleConnectionId, organizationId } from '#/shared/domain/ids'
-
-const BUSINESS_MANAGE_SCOPE = 'https://www.googleapis.com/auth/business.manage'
-const EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email'
-const CONFIG = {
-  clientId: 'rep-key-client',
-  clientSecret: 'client-secret',
-  tokenUrl: 'https://oauth.example.test/token',
-  jwksUrl: 'https://oauth.example.test/jwks',
-  revokeUrl: 'https://oauth.example.test/revoke',
-  clock: () => new Date(),
-  executor: {
-    execute: async (descriptor, options) => {
-      const gateway = createGoogleEgressGateway({
-        nowMs: () => options.deadlineMs - 10_000,
-        bindCredential: () => '1'.repeat(64),
-        routeTarget: {
-          kind: 'local_sandbox',
-          simulatorOrigin: 'https://oauth.example.test',
-        },
-        admission: {
-          start: async () => ({
-            ok: true,
-            handle: {
-              expiresAtMs: options.deadlineMs,
-              permitCompletion: new Promise<void>(() => undefined),
-              complete: async () => true,
-            },
-          }),
-        },
-        fetch: (...args) => fetch(...args),
-      })
-      return gateway.execute({
-        permitId: 'test-oauth-permit',
-        descriptor,
-        deadlineMs: options.deadlineMs,
-      })
-    },
-  } satisfies GoogleAuthorizedProviderExecutor,
-}
-
-const jsonResponse = (value: unknown, init: ResponseInit = {}) =>
-  new Response(JSON.stringify(value), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  })
-
-const authorization = {
-  capability: 'property.import_gbp_v2' as const,
-  organizationId: organizationId('org-oauth-gateway'),
-  propertyId: null,
-  connectionId: googleConnectionId('00000000-0000-4000-8000-000000000101'),
-  initiatorUserId: 'user-oauth-gateway',
-  expectedCredentialGeneration: 1,
-  authorizationVector: { credentialGeneration: 1 },
-}
+import {
+  BUSINESS_MANAGE_SCOPE,
+  CONFIG,
+  EMAIL_SCOPE,
+  authorization,
+  executorAdapter,
+  executorAnswering,
+  executorFailing,
+  executorResult,
+  exchangeInput,
+  jsonResponse,
+  signedIdToken,
+  stubFetch,
+  tokenEndpointResponse,
+} from '#/shared/testing/google-oauth-adapter.test-fixtures'
 
 describe('createGoogleOAuthAdapter', () => {
-  const fetchMock = vi.fn<typeof fetch>()
-
-  beforeEach(() => {
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
-  })
-
-  async function signedIdToken(
-    nonce: string,
-    options: Readonly<{
-      azp?: string
-      includeIssuedAt?: boolean
-      audience?: string | string[]
-      email?: string
-      emailVerified?: boolean | string
-    }> = {},
-  ) {
-    const { publicKey, privateKey } = await generateKeyPair('RS256')
-    const jwk = await exportJWK(publicKey)
-    let builder = new SignJWT({
-      nonce,
-      ...(options.azp === undefined ? {} : { azp: options.azp }),
-      ...(options.email === undefined ? {} : { email: options.email }),
-      ...(options.emailVerified === undefined
-        ? {}
-        : { email_verified: options.emailVerified }),
-    })
-      .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
-      .setIssuer('https://accounts.google.com')
-      .setAudience(options.audience ?? CONFIG.clientId)
-      .setSubject('signed-google-subject')
-    if (options.includeIssuedAt !== false) builder = builder.setIssuedAt()
-    const token = await builder.setExpirationTime('5m').sign(privateKey)
-    return { token, jwks: { keys: [{ ...jwk, kid: 'test-key', alg: 'RS256' }] } }
-  }
+  const fetchMock = stubFetch()
 
   it('verifies the v2 ID token and returns only the signed subject identity', async () => {
     const { token, jwks } = await signedIdToken('oidc-nonce')
     fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          access_token: 'access-token',
-          refresh_token: 'refresh-token',
-          expires_in: 3600,
-          scope: `openid ${BUSINESS_MANAGE_SCOPE}`,
-          id_token: token,
-        }),
-      )
+      .mockResolvedValueOnce(tokenEndpointResponse({ id_token: token }))
       .mockResolvedValueOnce(jsonResponse(jwks))
 
-    const result = await createGoogleOAuthAdapter(CONFIG).exchangeCode({
-      contractVersion: 'v2',
-      authorization,
-      code: 'authorization-code',
-      redirectUri: 'https://app.example.test/api/auth/google/callback',
-      codeVerifier: 'pkce-verifier',
-      oidcNonce: 'oidc-nonce',
-    })
+    const result = await createGoogleOAuthAdapter(CONFIG).exchangeCode(exchangeInput())
 
     expect(result.identity).toEqual({
       kind: 'oidc',
@@ -145,15 +47,7 @@ describe('createGoogleOAuthAdapter', () => {
   it('persists the successful exchange before JWKS work and resumes without re-exchange', async () => {
     const { token, jwks } = await signedIdToken('oidc-nonce')
     fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          access_token: 'access-token',
-          refresh_token: 'refresh-token',
-          expires_in: 3600,
-          scope: `openid ${BUSINESS_MANAGE_SCOPE}`,
-          id_token: token,
-        }),
-      )
+      .mockResolvedValueOnce(tokenEndpointResponse({ id_token: token }))
       .mockResolvedValueOnce(jsonResponse(jwks))
     const adapter = createGoogleOAuthAdapter(CONFIG)
     let preserved:
@@ -167,12 +61,7 @@ describe('createGoogleOAuthAdapter', () => {
 
     await expect(
       adapter.exchangeCode({
-        contractVersion: 'v2',
-        authorization,
-        code: 'one-use-code',
-        redirectUri: 'https://app.example.test/api/auth/google/callback',
-        codeVerifier: 'pkce-verifier',
-        oidcNonce: 'oidc-nonce',
+        ...exchangeInput({ code: 'one-use-code' }),
         preserveSuccessfulResult: async (result) => {
           preserved = result
           expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -211,24 +100,9 @@ describe('createGoogleOAuthAdapter', () => {
       const { token, jwks } = await signedIdToken('oidc-nonce', claims)
       fetchMock
         .mockReset()
-        .mockResolvedValueOnce(
-          jsonResponse({
-            access_token: 'access-token',
-            refresh_token: 'refresh-token',
-            expires_in: 3600,
-            scope,
-            id_token: token,
-          }),
-        )
+        .mockResolvedValueOnce(tokenEndpointResponse({ scope, id_token: token }))
         .mockResolvedValueOnce(jsonResponse(jwks))
-      return createGoogleOAuthAdapter(CONFIG).exchangeCode({
-        contractVersion: 'v2',
-        authorization,
-        code: 'authorization-code',
-        redirectUri: 'https://app.example.test/api/auth/google/callback',
-        codeVerifier: 'pkce-verifier',
-        oidcNonce: 'oidc-nonce',
-      })
+      return createGoogleOAuthAdapter(CONFIG).exchangeCode(exchangeInput())
     }
 
     const granted = await exchange(`openid ${EMAIL_SCOPE} ${BUSINESS_MANAGE_SCOPE}`, {
@@ -281,12 +155,7 @@ describe('createGoogleOAuthAdapter', () => {
         }),
       )
       return createGoogleOAuthAdapter(CONFIG).exchangeCode({
-        contractVersion: 'v2',
-        authorization,
-        code: 'authorization-code',
-        redirectUri: 'https://app.example.test/api/auth/google/callback',
-        codeVerifier: 'pkce-verifier',
-        oidcNonce: 'oidc-nonce',
+        ...exchangeInput(),
         preserveSuccessfulResult,
       })
     }
@@ -321,46 +190,24 @@ describe('createGoogleOAuthAdapter', () => {
   it('fails closed when the signed nonce or exact granted scopes do not match', async () => {
     const { token, jwks } = await signedIdToken('different-nonce')
     fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          access_token: 'access-token',
-          refresh_token: 'refresh-token',
-          expires_in: 3600,
-          scope: `openid ${BUSINESS_MANAGE_SCOPE}`,
-          id_token: token,
-        }),
-      )
+      .mockResolvedValueOnce(tokenEndpointResponse({ id_token: token }))
       .mockResolvedValueOnce(jsonResponse(jwks))
 
     await expect(
-      createGoogleOAuthAdapter(CONFIG).exchangeCode({
-        contractVersion: 'v2',
-        authorization,
-        code: 'authorization-code',
-        redirectUri: 'https://app.example.test/api/auth/google/callback',
-        codeVerifier: 'pkce-verifier',
-        oidcNonce: 'expected-nonce',
-      }),
+      createGoogleOAuthAdapter(CONFIG).exchangeCode(
+        exchangeInput({ oidcNonce: 'expected-nonce' }),
+      ),
     ).rejects.toMatchObject({ code: 'oauth_failed' })
 
-    fetchMock.mockReset().mockResolvedValueOnce(
-      jsonResponse({
-        access_token: 'access-token',
-        refresh_token: 'refresh-token',
-        expires_in: 3600,
-        scope: BUSINESS_MANAGE_SCOPE,
-        id_token: token,
-      }),
-    )
+    fetchMock
+      .mockReset()
+      .mockResolvedValueOnce(
+        tokenEndpointResponse({ scope: BUSINESS_MANAGE_SCOPE, id_token: token }),
+      )
     await expect(
-      createGoogleOAuthAdapter(CONFIG).exchangeCode({
-        contractVersion: 'v2',
-        authorization,
-        code: 'authorization-code',
-        redirectUri: 'https://app.example.test/api/auth/google/callback',
-        codeVerifier: 'pkce-verifier',
-        oidcNonce: 'different-nonce',
-      }),
+      createGoogleOAuthAdapter(CONFIG).exchangeCode(
+        exchangeInput({ oidcNonce: 'different-nonce' }),
+      ),
     ).rejects.toMatchObject({ code: 'oauth_failed' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -370,24 +217,9 @@ describe('createGoogleOAuthAdapter', () => {
       includeIssuedAt: false,
     })
     fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          access_token: 'access-token',
-          refresh_token: 'refresh-token',
-          expires_in: 3600,
-          scope: `openid ${BUSINESS_MANAGE_SCOPE}`,
-          id_token: missingIat.token,
-        }),
-      )
+      .mockResolvedValueOnce(tokenEndpointResponse({ id_token: missingIat.token }))
       .mockResolvedValueOnce(jsonResponse(missingIat.jwks))
-    const input = {
-      authorization,
-      contractVersion: 'v2' as const,
-      code: 'authorization-code',
-      redirectUri: 'https://app.example.test/api/auth/google/callback',
-      codeVerifier: 'pkce-verifier',
-      oidcNonce: 'oidc-nonce',
-    }
+    const input = exchangeInput()
     await expect(
       createGoogleOAuthAdapter(CONFIG).exchangeCode(input),
     ).rejects.toMatchObject({ code: 'oauth_failed' })
@@ -395,15 +227,7 @@ describe('createGoogleOAuthAdapter', () => {
     const wrongAzp = await signedIdToken('oidc-nonce', { azp: 'other-client' })
     fetchMock
       .mockReset()
-      .mockResolvedValueOnce(
-        jsonResponse({
-          access_token: 'access-token',
-          refresh_token: 'refresh-token',
-          expires_in: 3600,
-          scope: `openid ${BUSINESS_MANAGE_SCOPE}`,
-          id_token: wrongAzp.token,
-        }),
-      )
+      .mockResolvedValueOnce(tokenEndpointResponse({ id_token: wrongAzp.token }))
       .mockResolvedValueOnce(jsonResponse(wrongAzp.jwks))
     await expect(
       createGoogleOAuthAdapter(CONFIG).exchangeCode(input),
@@ -413,14 +237,7 @@ describe('createGoogleOAuthAdapter', () => {
   it('bounds the JWKS cache and uses stale keys only on provider failure', async () => {
     const { token, jwks } = await signedIdToken('oidc-nonce')
     let now = new Date()
-    const tokenResponse = () =>
-      jsonResponse({
-        access_token: 'access-token',
-        refresh_token: 'refresh-token',
-        expires_in: 3600,
-        scope: `openid ${BUSINESS_MANAGE_SCOPE}`,
-        id_token: token,
-      })
+    const tokenResponse = () => tokenEndpointResponse({ id_token: token })
     fetchMock
       .mockResolvedValueOnce(tokenResponse())
       .mockResolvedValueOnce(
@@ -429,14 +246,7 @@ describe('createGoogleOAuthAdapter', () => {
       .mockResolvedValueOnce(tokenResponse())
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
     const adapter = createGoogleOAuthAdapter({ ...CONFIG, clock: () => now })
-    const input = {
-      authorization,
-      contractVersion: 'v2' as const,
-      code: 'authorization-code',
-      redirectUri: 'https://app.example.test/api/auth/google/callback',
-      codeVerifier: 'pkce-verifier',
-      oidcNonce: 'oidc-nonce',
-    }
+    const input = exchangeInput()
     await expect(adapter.exchangeCode(input)).resolves.toMatchObject({
       identity: { kind: 'oidc', googleSubject: 'signed-google-subject' },
     })
@@ -455,14 +265,7 @@ describe('createGoogleOAuthAdapter', () => {
       }),
     )
     await expect(
-      createGoogleOAuthAdapter(CONFIG).exchangeCode({
-        contractVersion: 'v2',
-        authorization,
-        code: 'authorization-code',
-        redirectUri: 'https://app.example.test/api/auth/google/callback',
-        codeVerifier: 'pkce-verifier',
-        oidcNonce: 'oidc-nonce',
-      }),
+      createGoogleOAuthAdapter(CONFIG).exchangeCode(exchangeInput()),
     ).rejects.toThrow('outcome is ambiguous')
     expect(fetchMock).toHaveBeenCalledOnce()
   })
@@ -470,16 +273,11 @@ describe('createGoogleOAuthAdapter', () => {
   it('refuses missing authorization before every token or revoke operation', async () => {
     const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>()
     const adapter = createGoogleOAuthAdapter({ ...CONFIG, executor: { execute } })
+    const { authorization: _omitted, ...withoutAuthorization } = exchangeInput()
 
-    await expect(
-      adapter.exchangeCode({
-        contractVersion: 'v2',
-        code: 'authorization-code',
-        redirectUri: 'https://app.example.test/api/auth/google/callback',
-        codeVerifier: 'pkce-verifier',
-        oidcNonce: 'oidc-nonce',
-      }),
-    ).rejects.toMatchObject({ code: 'oauth_failed' })
+    await expect(adapter.exchangeCode(withoutAuthorization)).rejects.toMatchObject({
+      code: 'oauth_failed',
+    })
     await expect(adapter.refreshAccessToken('refresh-token')).rejects.toMatchObject({
       code: 'token_refresh_failed',
     })
@@ -497,15 +295,9 @@ describe('createGoogleOAuthAdapter', () => {
     const { token, jwks } = await signedIdToken('oidc-nonce')
     const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>()
     execute
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: {
-          contentType: 'application/json',
-          cacheControl: null,
-          retryAfter: null,
-        },
-        body: new TextEncoder().encode(
+      .mockResolvedValueOnce(
+        executorResult(
+          200,
           JSON.stringify({
             access_token: 'access-token',
             refresh_token: 'refresh-token',
@@ -514,42 +306,20 @@ describe('createGoogleOAuthAdapter', () => {
             id_token: token,
           }),
         ),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: {
-          contentType: 'application/json',
-          cacheControl: null,
-          retryAfter: null,
-        },
-        body: new TextEncoder().encode(
+      )
+      .mockResolvedValueOnce(
+        executorResult(
+          200,
           JSON.stringify({ access_token: 'refreshed-token', expires_in: 1800 }),
         ),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: { contentType: null, cacheControl: null, retryAfter: null },
-        body: new Uint8Array(),
-      })
+      )
+      .mockResolvedValueOnce(executorResult(200, '', null))
     fetchMock.mockResolvedValueOnce(jsonResponse(jwks))
-    const adapter = createGoogleOAuthAdapter({
-      ...CONFIG,
-      executor: { execute },
-      nowMs: () => Date.now(),
-    })
+    const adapter = executorAdapter(execute)
 
-    await expect(
-      adapter.exchangeCode({
-        contractVersion: 'v2',
-        authorization,
-        code: 'authorization-code',
-        redirectUri: 'https://app.example.test/api/auth/google/callback',
-        codeVerifier: 'pkce-verifier',
-        oidcNonce: 'oidc-nonce',
-      }),
-    ).resolves.toMatchObject({ accessToken: 'access-token' })
+    await expect(adapter.exchangeCode(exchangeInput())).resolves.toMatchObject({
+      accessToken: 'access-token',
+    })
     await expect(
       adapter.refreshAccessToken('refresh-token', authorization),
     ).resolves.toEqual({ accessToken: 'refreshed-token', expiresIn: 1800 })
@@ -567,27 +337,10 @@ describe('createGoogleOAuthAdapter', () => {
   })
 
   it('classifies a lost exchange response as ambiguous and never opens a direct fallback', async () => {
-    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () => ({
-      ok: false,
-      code: 'transport_error',
-      dispatch: 'unknown',
-      retryAfterMs: 0,
-    }))
-    const adapter = createGoogleOAuthAdapter({
-      ...CONFIG,
-      executor: { execute },
-      nowMs: () => Date.now(),
-    })
+    const execute = executorFailing('transport_error')
 
     await expect(
-      adapter.exchangeCode({
-        contractVersion: 'v2',
-        authorization,
-        code: 'single-use-code',
-        redirectUri: 'https://app.example.test/api/auth/google/callback',
-        codeVerifier: 'pkce-verifier',
-        oidcNonce: 'oidc-nonce',
-      }),
+      executorAdapter(execute).exchangeCode(exchangeInput({ code: 'single-use-code' })),
     ).rejects.toThrow('outcome is ambiguous')
     expect(fetchMock).not.toHaveBeenCalled()
     expect(execute).toHaveBeenCalledTimes(1)
@@ -615,405 +368,13 @@ describe('createGoogleOAuthAdapter', () => {
   ])(
     'classifies $name after exchange dispatch as ambiguous and zeroizes response bytes',
     async ({ status, contentType, body }) => {
-      const responseBody = new TextEncoder().encode(body)
-      const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () => ({
-        ok: true,
-        status,
-        headers: { contentType, cacheControl: null, retryAfter: null },
-        body: responseBody,
-      }))
-      const adapter = createGoogleOAuthAdapter({
-        ...CONFIG,
-        executor: { execute },
-        nowMs: () => Date.now(),
-      })
+      const { execute, responseBody } = executorAnswering(status, body, contentType)
 
       await expect(
-        adapter.exchangeCode({
-          contractVersion: 'v2',
-          authorization,
-          code: 'single-use-code',
-          redirectUri: 'https://app.example.test/api/auth/google/callback',
-          codeVerifier: 'pkce-verifier',
-          oidcNonce: 'oidc-nonce',
-        }),
+        executorAdapter(execute).exchangeCode(exchangeInput({ code: 'single-use-code' })),
       ).rejects.toThrow('outcome is ambiguous')
       expect([...responseBody].every((byte) => byte === 0)).toBe(true)
       expect(fetchMock).not.toHaveBeenCalled()
     },
   )
-})
-
-// Google answers a refresh of a revoked or expired grant with 400
-// `invalid_grant`. Every such answer used to read as a generic, retryable
-// `token_refresh_failed`, so a connection nobody could use again stayed
-// "Connected" and nobody was asked to reconnect it.
-describe('Google ID token age and JWKS key cache', () => {
-  const fetchMock = vi.fn<typeof fetch>()
-  const NOW = new Date('2030-06-01T12:00:00.000Z')
-  const NOW_SECONDS = NOW.getTime() / 1_000
-  const MINUTE_MS = 60_000
-  const exchangeInput = {
-    authorization,
-    contractVersion: 'v2' as const,
-    code: 'authorization-code',
-    redirectUri: 'https://app.example.test/api/auth/google/callback',
-    codeVerifier: 'pkce-verifier',
-    oidcNonce: 'oidc-nonce',
-  }
-
-  beforeEach(() => {
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
-  })
-
-  async function signingKey() {
-    const { publicKey, privateKey } = await generateKeyPair('RS256')
-    const jwk = await exportJWK(publicKey)
-    const sign = (issuedAtSeconds: number) =>
-      new SignJWT({ nonce: exchangeInput.oidcNonce })
-        .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
-        .setIssuer('https://accounts.google.com')
-        .setAudience(CONFIG.clientId)
-        .setSubject('signed-google-subject')
-        .setIssuedAt(issuedAtSeconds)
-        .setExpirationTime(issuedAtSeconds + 15 * 60)
-        .sign(privateKey)
-    return { sign, jwks: { keys: [{ ...jwk, kid: 'test-key', alg: 'RS256' }] } }
-  }
-
-  const requestUrl = (input: Parameters<typeof fetch>[0]) =>
-    typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-
-  const serveGoogle = (
-    token: () => Promise<string>,
-    jwksResponse: () => Response | Promise<Response>,
-  ) => {
-    const jwksFetches = vi.fn()
-    fetchMock.mockImplementation(async (input) => {
-      if (requestUrl(input) === CONFIG.jwksUrl) {
-        jwksFetches()
-        return jwksResponse()
-      }
-      return jsonResponse({
-        access_token: 'access-token',
-        refresh_token: 'refresh-token',
-        expires_in: 3600,
-        scope: `openid ${BUSINESS_MANAGE_SCOPE}`,
-        id_token: await token(),
-      })
-    })
-    return jwksFetches
-  }
-
-  describe('ID token age', () => {
-    const exchangeWithAge = async (ageSeconds: number) => {
-      const { sign, jwks } = await signingKey()
-      serveGoogle(
-        () => sign(NOW_SECONDS - ageSeconds),
-        () => jsonResponse(jwks),
-      )
-      return createGoogleOAuthAdapter({ ...CONFIG, clock: () => NOW }).exchangeCode(
-        exchangeInput,
-      )
-    }
-
-    it('accepts a token issued exactly ten minutes ago', async () => {
-      await expect(exchangeWithAge(600)).resolves.toMatchObject({
-        identity: { kind: 'oidc', googleSubject: 'signed-google-subject' },
-      })
-    })
-
-    it('refuses a token issued one second over ten minutes ago, though it has not expired', async () => {
-      await expect(exchangeWithAge(601)).rejects.toMatchObject({
-        code: 'oauth_failed',
-      })
-    })
-
-    it('refuses a token issued long ago', async () => {
-      await expect(exchangeWithAge(3_000)).rejects.toMatchObject({
-        code: 'oauth_failed',
-      })
-    })
-  })
-
-  describe('key cache deadline', () => {
-    let now: Date
-    const advance = (ms: number) => {
-      now = new Date(now.getTime() + ms)
-    }
-
-    const setup = async (cacheControl: string | undefined) => {
-      now = NOW
-      const { sign, jwks } = await signingKey()
-      let jwksOutcome: () => Response = () =>
-        jsonResponse(
-          jwks,
-          cacheControl === undefined
-            ? {}
-            : { headers: { 'Cache-Control': cacheControl } },
-        )
-      // Issued at the adapter's current time, so the age limit never interferes.
-      const jwksFetches = serveGoogle(
-        () => sign(Math.floor(now.getTime() / 1_000)),
-        () => jwksOutcome(),
-      )
-      const adapter = createGoogleOAuthAdapter({ ...CONFIG, clock: () => now })
-      return {
-        adapter,
-        jwksFetches,
-        failKeys: () => {
-          jwksOutcome = () => new Response(null, { status: 503 })
-        },
-      }
-    }
-
-    it('reads the keys again only after the default five minutes when no max-age is sent', async () => {
-      const { adapter, jwksFetches } = await setup(undefined)
-
-      await adapter.exchangeCode(exchangeInput)
-      advance(5 * MINUTE_MS - 1)
-      await adapter.exchangeCode(exchangeInput)
-      expect(jwksFetches).toHaveBeenCalledTimes(1)
-
-      advance(1)
-      await adapter.exchangeCode(exchangeInput)
-      expect(jwksFetches).toHaveBeenCalledTimes(2)
-    })
-
-    it.each(['max-age=0', 'max-age=abc', 'public'])(
-      'falls back to the five-minute default for Cache-Control "%s"',
-      async (cacheControl) => {
-        const { adapter, jwksFetches } = await setup(cacheControl)
-
-        await adapter.exchangeCode(exchangeInput)
-        advance(5 * MINUTE_MS - 1)
-        await adapter.exchangeCode(exchangeInput)
-        expect(jwksFetches).toHaveBeenCalledTimes(1)
-
-        advance(1)
-        await adapter.exchangeCode(exchangeInput)
-        expect(jwksFetches).toHaveBeenCalledTimes(2)
-      },
-    )
-
-    it('honours a max-age between the floor and the ceiling to the millisecond', async () => {
-      const { adapter, jwksFetches } = await setup('public, max-age=1800')
-
-      await adapter.exchangeCode(exchangeInput)
-      advance(30 * MINUTE_MS - 1)
-      await adapter.exchangeCode(exchangeInput)
-      expect(jwksFetches).toHaveBeenCalledTimes(1)
-
-      advance(1)
-      await adapter.exchangeCode(exchangeInput)
-      expect(jwksFetches).toHaveBeenCalledTimes(2)
-    })
-
-    it('caps a long max-age at one hour', async () => {
-      const { adapter, jwksFetches } = await setup('max-age=86400')
-
-      await adapter.exchangeCode(exchangeInput)
-      advance(60 * MINUTE_MS - 1)
-      await adapter.exchangeCode(exchangeInput)
-      expect(jwksFetches).toHaveBeenCalledTimes(1)
-
-      advance(1)
-      await adapter.exchangeCode(exchangeInput)
-      expect(jwksFetches).toHaveBeenCalledTimes(2)
-    })
-
-    it('serves expired keys through a provider failure until ten minutes past the deadline', async () => {
-      const { adapter, jwksFetches, failKeys } = await setup('max-age=60')
-      await adapter.exchangeCode(exchangeInput)
-      failKeys()
-
-      advance(60_000 + 10 * MINUTE_MS - 1)
-      await expect(adapter.exchangeCode(exchangeInput)).resolves.toMatchObject({
-        identity: { googleSubject: 'signed-google-subject' },
-      })
-      expect(jwksFetches).toHaveBeenCalledTimes(2)
-    })
-
-    it('refuses the exchange once a failing provider outlasts the stale window', async () => {
-      const { adapter, failKeys } = await setup('max-age=60')
-      await adapter.exchangeCode(exchangeInput)
-      failKeys()
-
-      advance(60_000 + 10 * MINUTE_MS)
-      await expect(adapter.exchangeCode(exchangeInput)).rejects.toMatchObject({
-        code: 'oauth_failed',
-      })
-    })
-
-    it('serves expired keys when the keys cannot be reached at all', async () => {
-      const { adapter, jwksFetches } = await setup('max-age=60')
-      await adapter.exchangeCode(exchangeInput)
-      const respond = fetchMock.getMockImplementation()!
-      fetchMock.mockImplementation(async (input, init) => {
-        if (requestUrl(input) === CONFIG.jwksUrl) throw new TypeError('network down')
-        return respond(input, init)
-      })
-
-      advance(2 * MINUTE_MS)
-      await expect(adapter.exchangeCode(exchangeInput)).resolves.toMatchObject({
-        identity: { googleSubject: 'signed-google-subject' },
-      })
-      expect(jwksFetches).toHaveBeenCalledTimes(1)
-    })
-  })
-})
-
-describe('Google OAuth refresh refusals', () => {
-  const fetchMock = vi.fn<typeof fetch>()
-
-  beforeEach(() => {
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  const DESCRIPTION = 'Token has been expired or revoked.'
-
-  function refreshAnsweredWith(status: number, body: string) {
-    const responseBody = new TextEncoder().encode(body)
-    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () => ({
-      ok: true,
-      status,
-      headers: {
-        contentType: 'application/json; charset=utf-8',
-        cacheControl: null,
-        retryAfter: null,
-      },
-      body: responseBody,
-    }))
-    const adapter = createGoogleOAuthAdapter({
-      ...CONFIG,
-      executor: { execute },
-      nowMs: () => Date.now(),
-    })
-    return { adapter, responseBody }
-  }
-
-  async function refusal(promise: Promise<unknown>): Promise<Error> {
-    const outcome = await promise.then(
-      () => null,
-      (error: unknown) => error,
-    )
-    expect(outcome).toBeInstanceOf(Error)
-    return outcome as Error
-  }
-
-  it('reads a 400 invalid_grant answer as a grant that needs reauthorization', async () => {
-    const { adapter, responseBody } = refreshAnsweredWith(
-      400,
-      JSON.stringify({ error: 'invalid_grant', error_description: DESCRIPTION }),
-    )
-
-    const failure = await refusal(
-      adapter.refreshAccessToken('refresh-token-secret', authorization),
-    )
-
-    expect(failure).toMatchObject({
-      _tag: 'IntegrationError',
-      code: 'reauthorization_required',
-    })
-    expect(JSON.stringify(failure)).not.toContain(DESCRIPTION)
-    expect(failure.message).not.toContain('refresh-token-secret')
-    expect([...responseBody].every((byte) => byte === 0)).toBe(true)
-  })
-
-  // Both name RepKey's own client, not one tenant's grant: a wrong client ID
-  // or secret would otherwise end every connection's grant at once.
-  it.each([
-    {
-      name: 'invalid_client, which is RepKey configuration',
-      status: 401,
-      body: JSON.stringify({ error: 'invalid_client' }),
-    },
-    {
-      name: 'unauthorized_client, a grant issued to another client',
-      status: 400,
-      body: JSON.stringify({ error: 'unauthorized_client' }),
-    },
-    {
-      name: 'a 401 unauthorized_client',
-      status: 401,
-      body: JSON.stringify({ error: 'unauthorized_client' }),
-    },
-    {
-      name: 'a 5xx even when it names invalid_grant',
-      status: 503,
-      body: JSON.stringify({ error: 'invalid_grant' }),
-    },
-    { name: 'a 400 without a readable OAuth error', status: 400, body: '<html>' },
-  ])('keeps $name a retryable refresh failure', async ({ status, body }) => {
-    const { adapter, responseBody } = refreshAnsweredWith(status, body)
-
-    const failure = await refusal(
-      adapter.refreshAccessToken('refresh-token', authorization),
-    )
-
-    expect(failure).toMatchObject({ code: 'token_refresh_failed' })
-    expect([...responseBody].every((byte) => byte === 0)).toBe(true)
-  })
-
-  it('keeps a refresh the gateway could not finish retryable', async () => {
-    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () => ({
-      ok: false,
-      code: 'deadline_exceeded',
-      dispatch: 'unknown',
-      retryAfterMs: 0,
-    }))
-    const adapter = createGoogleOAuthAdapter({
-      ...CONFIG,
-      executor: { execute },
-      nowMs: () => Date.now(),
-    })
-
-    await expect(
-      adapter.refreshAccessToken('refresh-token', authorization),
-    ).rejects.toMatchObject({ code: 'token_refresh_failed' })
-  })
-
-  it('reads refresh refusals through the compiled provider transport the same way', async () => {
-    const adapter = createGoogleOAuthAdapter(CONFIG)
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse(
-          { error: 'invalid_grant', error_description: DESCRIPTION },
-          {
-            status: 400,
-          },
-        ),
-      )
-      .mockResolvedValueOnce(jsonResponse({ error: 'invalid_grant' }, { status: 500 }))
-      .mockResolvedValueOnce(
-        jsonResponse({ error: 'unauthorized_client' }, { status: 400 }),
-      )
-
-    await expect(
-      adapter.refreshAccessToken('refresh-token', authorization),
-    ).rejects.toMatchObject({
-      code: 'reauthorization_required',
-    })
-    await expect(
-      adapter.refreshAccessToken('refresh-token', authorization),
-    ).rejects.toMatchObject({
-      code: 'token_refresh_failed',
-    })
-    await expect(
-      adapter.refreshAccessToken('refresh-token', authorization),
-    ).rejects.toMatchObject({
-      code: 'token_refresh_failed',
-    })
-  })
 })

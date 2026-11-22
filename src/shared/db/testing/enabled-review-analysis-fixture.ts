@@ -19,6 +19,8 @@ export type EnabledReviewAnalysisFixture = Readonly<{
   authorizationLineageId: string
   analysisStartSequence: number
   authorizedSourceEpoch?: number
+  /** Adds Reply Drafting beside Review Analysis. */
+  replyDrafting?: boolean
   /** Adds Property Trends beside Review Analysis. */
   propertyTrends?: boolean
   occurredAt?: Date
@@ -35,9 +37,11 @@ export async function seedEnabledReviewAnalysis(
   db: Database,
   fixture: EnabledReviewAnalysisFixture,
 ): Promise<void> {
-  const capabilities = fixture.propertyTrends
-    ? ['review_analysis', 'property_trends']
-    : ['review_analysis']
+  const capabilities = [
+    'review_analysis',
+    ...(fixture.replyDrafting ? ['reply_drafting'] : []),
+    ...(fixture.propertyTrends ? ['property_trends'] : []),
+  ]
   const occurredAt = fixture.occurredAt ?? new Date()
   const row = {
     organizationId: fixture.organizationId,
@@ -48,6 +52,7 @@ export async function seedEnabledReviewAnalysis(
     capabilityRuntimeProfileVersions: {
       review_analysis:
         fixture.reviewAnalysisRuntimeVersion ?? 'review-analysis-runtime-v1',
+      ...(fixture.replyDrafting ? { reply_drafting: 'reply-drafting-runtime-v1' } : {}),
       ...(fixture.propertyTrends
         ? { property_trends: 'property-trends-runtime-v1' }
         : {}),
