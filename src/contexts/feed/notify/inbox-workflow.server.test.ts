@@ -1,95 +1,72 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { registerWorkflowNotificationConsumers } from './inbox-notice-routes.server'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createConsumerRegistry,
   type ConsumerRegistry,
-  type ConsumerEvent,
 } from '#/shared/outbox/consumer-registry'
 import {
   handleWorkflowNotificationEvent,
   WORKFLOW_NOTIFICATION_CONSUMERS,
   type WorkflowNotificationConsumerDeps,
 } from './inbox-workflow.server'
+import { NOTIF_TEST_IDS } from '../infrastructure/notification-consumer-test-fixtures'
 import {
-  createNotificationConsumerDeps,
-  noticeWriterOver,
-  NOTIF_TEST_IDS,
-  type FakeNotificationConsumerDeps,
-} from '../infrastructure/notification-consumer-test-fixtures'
+  assignedPayload,
+  escalatedPayload,
+  makeWorkflowDeps,
+  noteAddedPayload,
+  publishFailedPayload,
+  replyPayload,
+  WORKFLOW_EVENT_ID,
+  firstJob,
+  renderedFor,
+  workflowEvent as event,
+  type WorkflowTestDeps as Deps,
+} from './workflow-consumer.test-fixtures'
 import { unbrand } from '#/shared/domain/ids'
-import {
-  reviewReplyPublishFailed,
-  reviewReplyRejected,
-} from '#/contexts/reputation/domain/review-events'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { buildConsumerEvent } from '#/shared/outbox/envelope'
-import { parseNotificationPayload } from '../domain/notification-payload'
-import { renderNotification } from '../domain/notification-templates'
 import type { QueuedNotice } from '../infrastructure/notification-consumer-test-fixtures'
 
-// ARC-03-T7: a fresh container-scoped registry per test.
+// A fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
-const EVENT_ID = '30000000-0000-4000-8000-000000000008'
+const EVENT_ID = WORKFLOW_EVENT_ID
+const makeDeps = makeWorkflowDeps
 
-type Deps = WorkflowNotificationConsumerDeps & {
-  fakes: FakeNotificationConsumerDeps
-  queue: FakeNotificationConsumerDeps['queue']
-  receipts: FakeNotificationConsumerDeps['receipts']
-}
+const IDS = NOTIF_TEST_IDS
+const BULK_ID = '30000000-0000-4000-8000-000000000099'
 
-const makeDeps = (): Deps => {
-  const fakes = createNotificationConsumerDeps()
-  fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
-  fakes.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
-  fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
-  const receipts = { insertReceipt: vi.fn(async () => undefined) }
-  return {
-    noticeWriter: noticeWriterOver(fakes.queue, receipts),
-    queue: fakes.queue,
-    userLookup: fakes.userLookup,
-    responsibleManagers: fakes.responsibleManagers,
-    inboxItemLookup: fakes.inboxItemLookup,
-    replyApproval: fakes.replyApproval,
-    activeProperty: fakes.activeProperty,
-    retireMovedAssignment: fakes.retireMovedAssignment,
-    clock: fakes.clock,
-    logger: fakes.logger,
-    receipts,
-    fakes,
-  }
-}
+type ItemFacts = NonNullable<
+  Awaited<
+    ReturnType<WorkflowNotificationConsumerDeps['inboxItemLookup']['findInboxItemFacts']>
+  >
+>
 
-const event = (
-  eventType: (typeof WORKFLOW_NOTIFICATION_CONSUMERS)[number]['eventType'],
-  payload: Readonly<Record<string, unknown>>,
-  overrides: Partial<ConsumerEvent> = {},
-): ConsumerEvent => ({
-  eventId: EVENT_ID,
-  eventType,
-  eventVersion: 1,
-  payload: {
-    organizationId: unbrand(NOTIF_TEST_IDS.orgId),
-    propertyId: unbrand(NOTIF_TEST_IDS.propId),
-    occurredAt: NOTIF_TEST_IDS.now.toISOString(),
-    ...payload,
-  },
-  organizationId: unbrand(NOTIF_TEST_IDS.orgId),
-  propertyId: unbrand(NOTIF_TEST_IDS.propId),
-  sourceContext: eventType.split('.')[0]!,
-  sourceAggregateId: 'aggregate-1',
-  occurredAt: NOTIF_TEST_IDS.now.toISOString(),
-  recordedAt: NOTIF_TEST_IDS.now.toISOString(),
-  correlationId: 'correlation-1',
+const itemFacts = (overrides: Partial<ItemFacts> = {}): ItemFacts => ({
+  propertyId: unbrand(IDS.propId),
+  portalId: null,
+  assignedTo: null,
+  propertyName: 'Riverside Hotel',
+  guestRating: null,
+  sourceType: 'review',
+  createdAt: IDS.now,
   ...overrides,
 })
 
-const recipientsOf = (deps: Deps) =>
-  deps.fakes.jobs.map((job) => (job.data as { userId: string }).userId)
+const jobsData = (deps: Deps) => deps.fakes.jobs.map((job) => job.data as QueuedNotice)
 
-const audienceOf = (deps: Deps) => (deps.fakes.jobs[0]!.data as QueuedNotice).audience
+const recipientsOf = (deps: Deps) => jobsData(deps).map((data) => data.userId as string)
+
+const audienceOf = (deps: Deps) => firstJob(deps).audience
+type RoutingRow = {
+  name: string
+  arrange?: (deps: Deps) => void
+  actor: string
+  recipients: readonly string[]
+  audience?: unknown
+  sorted?: boolean
+}
 
 describe('durable workflow notification consumers', () => {
   beforeEach(() => {
@@ -117,41 +94,22 @@ describe('durable workflow notification consumers', () => {
   it.each([
     {
       eventType: 'inbox.inbox_item.assigned' as const,
-      payload: {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        assignedTo: unbrand(NOTIF_TEST_IDS.manager1),
-        userId: unbrand(NOTIF_TEST_IDS.submitter),
-        source: 'web',
-      },
+      payload: assignedPayload({ assignedTo: IDS.manager1, userId: IDS.submitter }),
       notificationType: 'inbox.assigned',
     },
     {
       eventType: 'inbox.inbox_item.escalated' as const,
-      payload: {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        userId: unbrand(NOTIF_TEST_IDS.submitter),
-        source: 'web',
-      },
+      payload: escalatedPayload(IDS.submitter),
       notificationType: 'inbox.escalated',
     },
     {
       eventType: 'inbox.inbox_note.added' as const,
-      payload: {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        noteId: unbrand(NOTIF_TEST_IDS.noteId),
-        userId: unbrand(NOTIF_TEST_IDS.authorId),
-        source: 'web',
-      },
+      payload: noteAddedPayload(IDS.authorId),
       notificationType: 'inbox_note.added',
     },
     {
       eventType: 'review.reply.submitted' as const,
-      payload: {
-        replyId: unbrand(NOTIF_TEST_IDS.replyId),
-        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-        userId: unbrand(NOTIF_TEST_IDS.submitter),
-        source: 'web',
-      },
+      payload: replyPayload({ userId: IDS.submitter }),
       notificationType: 'reply.pending_approval',
     },
     ...(
@@ -163,28 +121,20 @@ describe('durable workflow notification consumers', () => {
       ] as const
     ).map(([eventType, notificationType]) => ({
       eventType,
-      payload: {
-        replyId: unbrand(NOTIF_TEST_IDS.replyId),
-        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-        userId: unbrand(NOTIF_TEST_IDS.submitter),
-        authorId: unbrand(NOTIF_TEST_IDS.authorId),
-        source: 'web',
-      },
+      payload: replyPayload({ userId: IDS.submitter, authorId: IDS.authorId }),
       notificationType,
     })),
   ])(
     'delivers $eventType through its durable route',
     async ({ eventType, payload, notificationType }) => {
       const deps = makeDeps()
-      deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
-        propertyId: NOTIF_TEST_IDS.propId,
-        portalId: null,
-        assignedTo: NOTIF_TEST_IDS.manager1,
-        propertyName: 'Riverside Hotel',
-        guestRating: null,
-        sourceType: 'review',
-        createdAt: new Date('2026-06-01T09:00:00.000Z'),
-      })
+      deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue(
+        itemFacts({
+          propertyId: IDS.propId,
+          assignedTo: IDS.manager1,
+          createdAt: new Date('2026-06-01T09:00:00.000Z'),
+        }),
+      )
 
       await expect(
         handleWorkflowNotificationEvent(deps, event(eventType, payload)),
@@ -210,12 +160,7 @@ describe('durable workflow notification consumers', () => {
   it('carries the reconnect cause of a failed publication to its author', async () => {
     const deps = makeDeps()
     const failure = (extra: Readonly<Record<string, unknown>>) =>
-      event('review.reply.publish_failed', {
-        replyId: unbrand(NOTIF_TEST_IDS.replyId),
-        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-        authorId: unbrand(NOTIF_TEST_IDS.authorId),
-        ...extra,
-      })
+      event('review.reply.publish_failed', publishFailedPayload(IDS.authorId, extra))
 
     await handleWorkflowNotificationEvent(
       deps,
@@ -225,7 +170,7 @@ describe('durable workflow notification consumers', () => {
 
     expect(deps.fakes.jobs.map(({ data }) => data)).toEqual([
       expect.objectContaining({
-        userId: unbrand(NOTIF_TEST_IDS.authorId),
+        userId: unbrand(IDS.authorId),
         type: 'reply.publish_failed',
         payload: expect.objectContaining({
           publishFailureCause: 'google_reauthorization_required',
@@ -240,20 +185,17 @@ describe('durable workflow notification consumers', () => {
 
   it('uses the same per-recipient job identity after an ambiguous replay', async () => {
     const deps = makeDeps()
-    const approval = event('review.reply.approved', {
-      replyId: unbrand(NOTIF_TEST_IDS.replyId),
-      reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-      userId: unbrand(NOTIF_TEST_IDS.submitter),
-      authorId: unbrand(NOTIF_TEST_IDS.authorId),
-      source: 'web',
-    })
+    const approval = event(
+      'review.reply.approved',
+      replyPayload({ userId: IDS.submitter, authorId: IDS.authorId }),
+    )
 
     await handleWorkflowNotificationEvent(deps, approval)
     await handleWorkflowNotificationEvent(deps, approval)
 
     expect(deps.fakes.jobs.map(({ opts }) => opts)).toEqual([
-      { jobId: `${EVENT_ID}-${unbrand(NOTIF_TEST_IDS.authorId)}` },
-      { jobId: `${EVENT_ID}-${unbrand(NOTIF_TEST_IDS.authorId)}` },
+      { jobId: `${EVENT_ID}-${unbrand(IDS.authorId)}` },
+      { jobId: `${EVENT_ID}-${unbrand(IDS.authorId)}` },
     ])
   })
 
@@ -263,13 +205,14 @@ describe('durable workflow notification consumers', () => {
     await expect(
       handleWorkflowNotificationEvent(
         deps,
-        event('inbox.inbox_item.assigned', {
-          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-          assignedTo: unbrand(NOTIF_TEST_IDS.manager1),
-          userId: unbrand(NOTIF_TEST_IDS.submitter),
-          bulkId: '30000000-0000-4000-8000-000000000099',
-          source: 'web',
-        }),
+        event(
+          'inbox.inbox_item.assigned',
+          assignedPayload({
+            assignedTo: IDS.manager1,
+            userId: IDS.submitter,
+            bulkId: BULK_ID,
+          }),
+        ),
       ),
     ).resolves.toEqual({ status: 'applied' })
 
@@ -282,18 +225,19 @@ describe('durable workflow notification consumers', () => {
     )
   })
 
-  // D3: "Assigned to you" stops waiting on whoever held the item once it
-  // moves on, whether or not they are told.
+  // "Assigned to you" stops waiting on whoever held the item once it moves on,
+  // whether or not they are told.
   describe('an item moving away from its holder', () => {
-    const moved = (extra: Readonly<Record<string, unknown>> = {}) =>
-      event('inbox.inbox_item.assigned', {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        assignedTo: unbrand(NOTIF_TEST_IDS.manager2),
-        previousAssignee: unbrand(NOTIF_TEST_IDS.manager1),
-        userId: unbrand(NOTIF_TEST_IDS.manager1),
-        source: 'web',
-        ...extra,
-      })
+    const moved = (extra: Partial<Parameters<typeof assignedPayload>[0]> = {}) =>
+      event(
+        'inbox.inbox_item.assigned',
+        assignedPayload({
+          assignedTo: IDS.manager2,
+          previousAssignee: IDS.manager1,
+          userId: IDS.manager1,
+          ...extra,
+        }),
+      )
 
     it('retires the holder\'s "Assigned to you" when they hand it on themselves', async () => {
       const deps = makeDeps()
@@ -301,25 +245,20 @@ describe('durable workflow notification consumers', () => {
       await handleWorkflowNotificationEvent(deps, moved())
 
       expect(deps.fakes.retireMovedAssignment).toHaveBeenCalledWith({
-        organizationId: NOTIF_TEST_IDS.orgId,
-        userId: NOTIF_TEST_IDS.manager1,
-        inboxItemId: NOTIF_TEST_IDS.inboxItemId,
+        organizationId: IDS.orgId,
+        userId: IDS.manager1,
+        inboxItemId: IDS.inboxItemId,
         eventId: EVENT_ID,
         at: expect.any(Date),
       })
       // They are not told about their own handoff; only the new holder is.
-      expect(deps.fakes.jobs.map((job) => (job.data as QueuedNotice).type)).toEqual([
-        'inbox.assigned',
-      ])
+      expect(jobsData(deps).map((data) => data.type)).toEqual(['inbox.assigned'])
     })
 
     it('retires it when the item moves in bulk, which notifies per group', async () => {
       const deps = makeDeps()
 
-      await handleWorkflowNotificationEvent(
-        deps,
-        moved({ bulkId: '30000000-0000-4000-8000-000000000099' }),
-      )
+      await handleWorkflowNotificationEvent(deps, moved({ bulkId: BULK_ID }))
 
       expect(deps.fakes.retireMovedAssignment).toHaveBeenCalledOnce()
       expect(deps.fakes.jobs).toEqual([])
@@ -330,7 +269,7 @@ describe('durable workflow notification consumers', () => {
 
       await handleWorkflowNotificationEvent(
         deps,
-        moved({ previousAssignee: null, userId: unbrand(NOTIF_TEST_IDS.submitter) }),
+        moved({ previousAssignee: null, userId: IDS.submitter }),
       )
 
       expect(deps.fakes.retireMovedAssignment).not.toHaveBeenCalled()
@@ -344,12 +283,10 @@ describe('durable workflow notification consumers', () => {
       await expect(
         handleWorkflowNotificationEvent(
           deps,
-          event('inbox.inbox_item.assigned', {
-            inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-            assignedTo: unbrand(NOTIF_TEST_IDS.manager1),
-            userId: unbrand(NOTIF_TEST_IDS.manager1),
-            source: 'web',
-          }),
+          event(
+            'inbox.inbox_item.assigned',
+            assignedPayload({ assignedTo: IDS.manager1, userId: IDS.manager1 }),
+          ),
         ),
       ).resolves.toEqual({ status: 'applied' })
 
@@ -364,14 +301,11 @@ describe('durable workflow notification consumers', () => {
     it.each([
       {
         eventType: 'inbox.inbox_item.escalated' as const,
-        payload: { inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId) },
+        payload: escalatedPayload(IDS.admin1),
       },
       {
         eventType: 'review.reply.submitted' as const,
-        payload: {
-          replyId: unbrand(NOTIF_TEST_IDS.replyId),
-          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-        },
+        payload: replyPayload({ userId: IDS.admin1 }),
       },
     ])(
       'tells the other AccountAdmins, not the admin who acted, about $eventType',
@@ -380,21 +314,11 @@ describe('durable workflow notification consumers', () => {
         // The AccountAdmin fallback: the Property has no responsible manager
         // who could take either notice, so both fall through to the admins.
         deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([])
-        deps.fakes.userLookup.findByRole.mockResolvedValue([
-          NOTIF_TEST_IDS.admin1,
-          NOTIF_TEST_IDS.admin2,
-        ])
+        deps.fakes.userLookup.findByRole.mockResolvedValue([IDS.admin1, IDS.admin2])
 
-        await handleWorkflowNotificationEvent(
-          deps,
-          event(eventType, {
-            ...payload,
-            userId: unbrand(NOTIF_TEST_IDS.admin1),
-            source: 'web',
-          }),
-        )
+        await handleWorkflowNotificationEvent(deps, event(eventType, payload))
 
-        expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin2])
+        expect(recipientsOf(deps)).toEqual([IDS.admin2])
       },
     )
 
@@ -406,13 +330,10 @@ describe('durable workflow notification consumers', () => {
         await expect(
           handleWorkflowNotificationEvent(
             deps,
-            event(eventType, {
-              replyId: unbrand(NOTIF_TEST_IDS.replyId),
-              reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-              userId: unbrand(NOTIF_TEST_IDS.authorId),
-              authorId: unbrand(NOTIF_TEST_IDS.authorId),
-              source: 'web',
-            }),
+            event(
+              eventType,
+              replyPayload({ userId: IDS.authorId, authorId: IDS.authorId }),
+            ),
           ),
         ).resolves.toEqual({ status: 'applied' })
 
@@ -421,335 +342,294 @@ describe('durable workflow notification consumers', () => {
     )
   })
 
-  // I5.3: an approval request used to go to every AccountAdmin in the
-  // Organization, while the Property's responsible managers — who hold
-  // reply.manage and could approve — were never asked.
+  // An approval request goes to the Property's responsible managers who may
+  // approve, not to every AccountAdmin in the Organization.
   describe('who is asked to approve a reply', () => {
-    const submitted = (submitterId: string) =>
-      event('review.reply.submitted', {
-        replyId: unbrand(NOTIF_TEST_IDS.replyId),
-        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-        userId: submitterId,
-        source: 'web',
+    const rows: readonly RoutingRow[] = [
+      {
+        name: 'asks the responsible managers who may approve, not every admin',
+        arrange: (deps) => {
+          deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+            IDS.manager1,
+            IDS.manager2,
+          ])
+          deps.fakes.userLookup.findByRole.mockResolvedValue([IDS.admin1])
+        },
+        actor: IDS.submitter,
+        recipients: [IDS.manager1, IDS.manager2],
+        audience: { kind: 'reply_approver', propertyId: unbrand(IDS.propId) },
+      },
+      {
+        name: 'leaves out a responsible manager who may not approve replies',
+        arrange: (deps) => {
+          deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+            IDS.manager1,
+            IDS.manager2,
+          ])
+          deps.fakes.replyApproval.canApproveReplies.mockImplementation(
+            async (_org: string, _property: string, candidate: string) =>
+              candidate === IDS.manager2,
+          )
+        },
+        actor: IDS.submitter,
+        recipients: [IDS.manager2],
+      },
+      {
+        name: 'falls back to the AccountAdmins when no responsible manager may approve',
+        arrange: (deps) => {
+          deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([IDS.manager1])
+          deps.fakes.replyApproval.canApproveReplies.mockResolvedValue(false)
+          deps.fakes.userLookup.findByRole.mockResolvedValue([IDS.admin1, IDS.admin2])
+        },
+        actor: IDS.submitter,
+        recipients: [IDS.admin1, IDS.admin2],
+        audience: { kind: 'account_admin' },
+      },
+      {
+        name: 'never asks the submitter, even when they are the only approver',
+        arrange: (deps) => {
+          deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([IDS.manager1])
+          deps.fakes.userLookup.findByRole.mockResolvedValue([IDS.admin1])
+        },
+        actor: IDS.manager1,
+        recipients: [IDS.admin1],
+      },
+    ]
+
+    for (const { name, arrange, actor, recipients, audience } of rows) {
+      it(name, async () => {
+        const deps = makeDeps()
+        arrange?.(deps)
+
+        await handleWorkflowNotificationEvent(
+          deps,
+          event('review.reply.submitted', replyPayload({ userId: actor })),
+        )
+
+        expect(recipientsOf(deps)).toEqual(recipients)
+        if (audience) expect(audienceOf(deps)).toEqual(audience)
       })
-
-    it('asks the responsible managers who may approve, not every admin', async () => {
-      const deps = makeDeps()
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
-        NOTIF_TEST_IDS.manager1,
-        NOTIF_TEST_IDS.manager2,
-      ])
-      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
-
-      await handleWorkflowNotificationEvent(deps, submitted(NOTIF_TEST_IDS.submitter))
-
-      expect(recipientsOf(deps)).toEqual([
-        NOTIF_TEST_IDS.manager1,
-        NOTIF_TEST_IDS.manager2,
-      ])
-      expect(audienceOf(deps)).toEqual({
-        kind: 'reply_approver',
-        propertyId: unbrand(NOTIF_TEST_IDS.propId),
-      })
-    })
-
-    it('leaves out a responsible manager who may not approve replies', async () => {
-      const deps = makeDeps()
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
-        NOTIF_TEST_IDS.manager1,
-        NOTIF_TEST_IDS.manager2,
-      ])
-      deps.fakes.replyApproval.canApproveReplies.mockImplementation(
-        async (_org: string, _property: string, candidate: string) =>
-          candidate === NOTIF_TEST_IDS.manager2,
-      )
-
-      await handleWorkflowNotificationEvent(deps, submitted(NOTIF_TEST_IDS.submitter))
-
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
-    })
-
-    it('falls back to the AccountAdmins when no responsible manager may approve', async () => {
-      const deps = makeDeps()
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
-        NOTIF_TEST_IDS.manager1,
-      ])
-      deps.fakes.replyApproval.canApproveReplies.mockResolvedValue(false)
-      deps.fakes.userLookup.findByRole.mockResolvedValue([
-        NOTIF_TEST_IDS.admin1,
-        NOTIF_TEST_IDS.admin2,
-      ])
-
-      await handleWorkflowNotificationEvent(deps, submitted(NOTIF_TEST_IDS.submitter))
-
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin1, NOTIF_TEST_IDS.admin2])
-      expect(audienceOf(deps)).toEqual({ kind: 'account_admin' })
-    })
-
-    it('never asks the submitter, even when they are the only approver', async () => {
-      const deps = makeDeps()
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
-        NOTIF_TEST_IDS.manager1,
-      ])
-      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
-
-      await handleWorkflowNotificationEvent(deps, submitted(NOTIF_TEST_IDS.manager1))
-
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin1])
-    })
+    }
   })
 
   // The same rule for escalations: the Property's or Portal's responsible
   // scope first, AccountAdmins only when it has nobody.
   describe('who hears that an item was escalated', () => {
-    const escalated = (actorId: string) =>
-      event('inbox.inbox_item.escalated', {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        userId: actorId,
-        source: 'web',
+    const rows: readonly RoutingRow[] = [
+      {
+        name: 'tells the Property responsible managers rather than every admin',
+        arrange: (deps) => {
+          deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([IDS.manager1])
+          deps.fakes.userLookup.findByRole.mockResolvedValue([IDS.admin1])
+        },
+        actor: IDS.submitter,
+        recipients: [IDS.manager1],
+        audience: {
+          kind: 'responsible_scope',
+          scope: { kind: 'property', propertyId: unbrand(IDS.propId) },
+        },
+      },
+      {
+        name: 'tells the Portal responsible managers when the item is private feedback',
+        arrange: (deps) => {
+          deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue(
+            itemFacts({ portalId: 'portal-1', sourceType: 'feedback' }),
+          )
+          deps.fakes.responsibleManagers.findForPortal.mockResolvedValue([IDS.manager2])
+        },
+        actor: IDS.submitter,
+        recipients: [IDS.manager2],
+      },
+      {
+        name: 'falls back to the AccountAdmins when the scope has nobody',
+        arrange: (deps) => {
+          deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([])
+          deps.fakes.userLookup.findByRole.mockResolvedValue([IDS.admin1])
+        },
+        actor: IDS.submitter,
+        recipients: [IDS.admin1],
+      },
+      {
+        name: 'never tells whoever escalated it',
+        arrange: (deps) => {
+          deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+            IDS.manager1,
+            IDS.manager2,
+          ])
+        },
+        actor: IDS.manager1,
+        recipients: [IDS.manager2],
+      },
+    ]
+
+    for (const { name, arrange, actor, recipients, audience } of rows) {
+      it(name, async () => {
+        const deps = makeDeps()
+        arrange?.(deps)
+
+        await handleWorkflowNotificationEvent(
+          deps,
+          event('inbox.inbox_item.escalated', escalatedPayload(actor)),
+        )
+
+        expect(recipientsOf(deps)).toEqual(recipients)
+        if (audience) expect(audienceOf(deps)).toEqual(audience)
       })
-
-    it('tells the Property responsible managers rather than every admin', async () => {
-      const deps = makeDeps()
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
-        NOTIF_TEST_IDS.manager1,
-      ])
-      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
-
-      await handleWorkflowNotificationEvent(deps, escalated(NOTIF_TEST_IDS.submitter))
-
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager1])
-      expect(audienceOf(deps)).toEqual({
-        kind: 'responsible_scope',
-        scope: { kind: 'property', propertyId: unbrand(NOTIF_TEST_IDS.propId) },
-      })
-    })
-
-    it('tells the Portal responsible managers when the item is private feedback', async () => {
-      const deps = makeDeps()
-      deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
-        propertyId: unbrand(NOTIF_TEST_IDS.propId),
-        portalId: 'portal-1',
-        assignedTo: null,
-        propertyName: 'Riverside Hotel',
-        guestRating: null,
-        sourceType: 'feedback',
-        createdAt: NOTIF_TEST_IDS.now,
-      })
-      deps.fakes.responsibleManagers.findForPortal.mockResolvedValue([
-        NOTIF_TEST_IDS.manager2,
-      ])
-
-      await handleWorkflowNotificationEvent(deps, escalated(NOTIF_TEST_IDS.submitter))
-
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
-    })
-
-    it('falls back to the AccountAdmins when the scope has nobody', async () => {
-      const deps = makeDeps()
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([])
-      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
-
-      await handleWorkflowNotificationEvent(deps, escalated(NOTIF_TEST_IDS.submitter))
-
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin1])
-    })
-
-    it('never tells whoever escalated it', async () => {
-      const deps = makeDeps()
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
-        NOTIF_TEST_IDS.manager1,
-        NOTIF_TEST_IDS.manager2,
-      ])
-
-      await handleWorkflowNotificationEvent(deps, escalated(NOTIF_TEST_IDS.manager1))
-
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
-    })
+    }
   })
 
-  // I15: a previous assignee was never told the item had moved on, so they
-  // kept it on their list. An eligibility-loss release stays silent — it
-  // carries no new assignee, so it is not a reassignment.
+  // A previous assignee is told the item moved on. An eligibility-loss
+  // release stays silent: it carries no new assignee, so it is not a
+  // reassignment.
   describe('who hears that an item moved to somebody else', () => {
-    const reassigned = (previousAssignee: string | null) =>
-      event('inbox.inbox_item.assigned', {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        assignedTo: unbrand(NOTIF_TEST_IDS.manager2),
-        previousAssignee,
-        userId: unbrand(NOTIF_TEST_IDS.submitter),
-        source: 'web',
-      })
+    const reassigned = (
+      previousAssignee: string | null,
+      userId: string = IDS.submitter,
+    ) =>
+      event(
+        'inbox.inbox_item.assigned',
+        assignedPayload({ assignedTo: IDS.manager2, previousAssignee, userId }),
+      )
 
     it('tells the previous assignee, beside the new one', async () => {
       const deps = makeDeps()
 
-      await handleWorkflowNotificationEvent(
-        deps,
-        reassigned(unbrand(NOTIF_TEST_IDS.manager1)),
-      )
+      await handleWorkflowNotificationEvent(deps, reassigned(IDS.manager1))
 
       const byUser = new Map(
-        deps.fakes.jobs.map((job) => {
-          const data = job.data as QueuedNotice
-          return [data.userId as string, data.type]
-        }),
+        jobsData(deps).map((data) => [data.userId as string, data.type]),
       )
-      expect(byUser.get(NOTIF_TEST_IDS.manager2)).toBe('inbox.assigned')
-      expect(byUser.get(NOTIF_TEST_IDS.manager1)).toBe('inbox.unassigned')
+      expect(byUser.get(IDS.manager2)).toBe('inbox.assigned')
+      expect(byUser.get(IDS.manager1)).toBe('inbox.unassigned')
     })
 
-    it('tells nobody extra when the item had no previous assignee', async () => {
-      const deps = makeDeps()
+    const quietRows = [
+      {
+        name: 'tells nobody extra when the item had no previous assignee',
+        incoming: reassigned(null),
+        recipients: [IDS.manager2],
+      },
+      {
+        name: 'never tells a previous assignee who reassigned it themselves',
+        incoming: reassigned(IDS.manager1, IDS.manager1),
+        recipients: [IDS.manager2],
+      },
+      {
+        name: 'says nothing on a claim, where the previous assignee is the claimant',
+        incoming: event(
+          'inbox.inbox_item.assigned',
+          assignedPayload({
+            assignedTo: IDS.manager1,
+            previousAssignee: IDS.manager1,
+            userId: IDS.manager1,
+          }),
+        ),
+        recipients: [],
+      },
+    ]
 
-      await handleWorkflowNotificationEvent(deps, reassigned(null))
+    for (const { name, incoming, recipients } of quietRows) {
+      it(name, async () => {
+        const deps = makeDeps()
 
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
-    })
+        await handleWorkflowNotificationEvent(deps, incoming)
 
-    it('never tells a previous assignee who reassigned it themselves', async () => {
-      const deps = makeDeps()
-
-      await handleWorkflowNotificationEvent(
-        deps,
-        event('inbox.inbox_item.assigned', {
-          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-          assignedTo: unbrand(NOTIF_TEST_IDS.manager2),
-          previousAssignee: unbrand(NOTIF_TEST_IDS.manager1),
-          userId: unbrand(NOTIF_TEST_IDS.manager1),
-          source: 'web',
-        }),
-      )
-
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
-    })
-
-    it('says nothing on a claim, where the previous assignee is the claimant', async () => {
-      const deps = makeDeps()
-
-      await handleWorkflowNotificationEvent(
-        deps,
-        event('inbox.inbox_item.assigned', {
-          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-          assignedTo: unbrand(NOTIF_TEST_IDS.manager1),
-          previousAssignee: unbrand(NOTIF_TEST_IDS.manager1),
-          userId: unbrand(NOTIF_TEST_IDS.manager1),
-          source: 'web',
-        }),
-      )
-
-      expect(deps.fakes.jobs).toEqual([])
-    })
+        expect(recipientsOf(deps)).toEqual(recipients)
+      })
+    }
   })
 
-  // I15: notes only ever reached the assignee, so a note written BY the
-  // assignee reached nobody and notes could not be used to ask for help.
+  // A note written by the assignee still reaches somebody, so notes can be
+  // used to ask for help.
   describe('who hears about a note', () => {
     const noteAdded = (actorId: string) =>
-      event('inbox.inbox_note.added', {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        noteId: unbrand(NOTIF_TEST_IDS.noteId),
-        userId: actorId,
-        source: 'web',
-      })
+      event('inbox.inbox_note.added', noteAddedPayload(actorId))
 
-    const assignedTo = (deps: Deps, assignee: string | null) =>
-      deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
-        propertyId: unbrand(NOTIF_TEST_IDS.propId),
-        portalId: null,
-        assignedTo: assignee,
-        propertyName: 'Riverside Hotel',
-        guestRating: null,
-        sourceType: 'review',
-        createdAt: NOTIF_TEST_IDS.now,
-      })
-
-    it('reaches the assignee, the responsible scope and the earlier note authors', async () => {
-      const deps = makeDeps()
-      assignedTo(deps, NOTIF_TEST_IDS.manager1)
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
-        NOTIF_TEST_IDS.manager2,
-      ])
-      deps.fakes.inboxItemLookup.findNoteAuthors.mockResolvedValue([
-        NOTIF_TEST_IDS.authorId,
-      ])
-
-      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.submitter))
-
-      expect(recipientsOf(deps).sort()).toEqual(
-        [
-          NOTIF_TEST_IDS.manager1,
-          NOTIF_TEST_IDS.manager2,
-          NOTIF_TEST_IDS.authorId,
-        ].sort(),
+    const assignedTo = (deps: Deps, assignee: ItemFacts['assignedTo']) =>
+      deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue(
+        itemFacts({ assignedTo: assignee }),
       )
-    })
 
-    it('reaches the responsible scope when the assignee wrote the note', async () => {
-      const deps = makeDeps()
-      assignedTo(deps, NOTIF_TEST_IDS.manager1)
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
-        NOTIF_TEST_IDS.manager2,
-      ])
+    const withScopeAndEarlierAuthor = (deps: Deps) => {
+      assignedTo(deps, IDS.manager1)
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([IDS.manager2])
+      deps.fakes.inboxItemLookup.findNoteAuthors.mockResolvedValue([IDS.authorId])
+    }
 
-      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.manager1))
+    const rows: readonly RoutingRow[] = [
+      {
+        name: 'reaches the assignee, the responsible scope and the earlier note authors',
+        arrange: withScopeAndEarlierAuthor,
+        actor: IDS.submitter,
+        recipients: [IDS.manager1, IDS.manager2, IDS.authorId].sort(),
+        sorted: true,
+      },
+      {
+        name: 'reaches the responsible scope when the assignee wrote the note',
+        arrange: (deps) => {
+          assignedTo(deps, IDS.manager1)
+          deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([IDS.manager2])
+        },
+        actor: IDS.manager1,
+        recipients: [IDS.manager2],
+      },
+      {
+        name: 'falls back to the AccountAdmins when the item itself is gone',
+        arrange: (deps) => {
+          deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue(null)
+          deps.fakes.userLookup.findByRole.mockResolvedValue([IDS.admin1])
+        },
+        actor: IDS.submitter,
+        recipients: [IDS.admin1],
+      },
+    ]
 
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
-    })
+    for (const { name, arrange, actor, recipients, sorted } of rows) {
+      it(name, async () => {
+        const deps = makeDeps()
+        arrange?.(deps)
+
+        await handleWorkflowNotificationEvent(deps, noteAdded(actor))
+
+        const heard = recipientsOf(deps)
+        expect(sorted ? heard.sort() : heard).toEqual(recipients)
+      })
+    }
 
     it('never tells the person who wrote the note', async () => {
       const deps = makeDeps()
-      assignedTo(deps, NOTIF_TEST_IDS.manager1)
+      assignedTo(deps, IDS.manager1)
       deps.fakes.inboxItemLookup.findNoteAuthors.mockResolvedValue([
-        NOTIF_TEST_IDS.submitter,
-        NOTIF_TEST_IDS.authorId,
+        IDS.submitter,
+        IDS.authorId,
       ])
 
-      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.submitter))
+      await handleWorkflowNotificationEvent(deps, noteAdded(IDS.submitter))
 
-      expect(recipientsOf(deps)).not.toContain(NOTIF_TEST_IDS.submitter)
+      expect(recipientsOf(deps)).not.toContain(IDS.submitter)
     })
 
     it('names why each recipient was admitted, so the send can recheck it', async () => {
       const deps = makeDeps()
-      assignedTo(deps, NOTIF_TEST_IDS.manager1)
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
-        NOTIF_TEST_IDS.manager2,
-      ])
-      deps.fakes.inboxItemLookup.findNoteAuthors.mockResolvedValue([
-        NOTIF_TEST_IDS.authorId,
-      ])
+      withScopeAndEarlierAuthor(deps)
 
-      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.submitter))
+      await handleWorkflowNotificationEvent(deps, noteAdded(IDS.submitter))
 
       const audiences = new Map(
-        deps.fakes.jobs.map((job) => {
-          const data = job.data as QueuedNotice
-          return [data.userId as string, data.audience]
-        }),
+        jobsData(deps).map((data) => [data.userId as string, data.audience]),
       )
-      expect(audiences.get(NOTIF_TEST_IDS.manager1)).toEqual({
+      expect(audiences.get(IDS.manager1)).toEqual({
         kind: 'inbox_assignee',
-        inboxItemId: NOTIF_TEST_IDS.inboxItemId,
+        inboxItemId: IDS.inboxItemId,
       })
-      expect(audiences.get(NOTIF_TEST_IDS.manager2)).toEqual({
+      expect(audiences.get(IDS.manager2)).toEqual({
         kind: 'responsible_scope',
-        scope: { kind: 'property', propertyId: unbrand(NOTIF_TEST_IDS.propId) },
+        scope: { kind: 'property', propertyId: unbrand(IDS.propId) },
       })
-      expect(audiences.get(NOTIF_TEST_IDS.authorId)).toEqual({
+      expect(audiences.get(IDS.authorId)).toEqual({
         kind: 'inbox_note_author',
-        inboxItemId: NOTIF_TEST_IDS.inboxItemId,
+        inboxItemId: IDS.inboxItemId,
       })
-    })
-
-    it('falls back to the AccountAdmins when the item itself is gone', async () => {
-      const deps = makeDeps()
-      deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue(null)
-      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
-
-      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.submitter))
-
-      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin1])
     })
   })
 
@@ -758,22 +638,17 @@ describe('durable workflow notification consumers', () => {
 
     await handleWorkflowNotificationEvent(
       deps,
-      event('inbox.inbox_item.escalated', {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        userId: unbrand(NOTIF_TEST_IDS.submitter),
-        source: 'web',
-      }),
+      event('inbox.inbox_item.escalated', escalatedPayload(IDS.submitter)),
     )
 
-    const data = deps.fakes.jobs[0]!.data as QueuedNotice
     expect(deps.fakes.userLookup.findActorRole).toHaveBeenCalledWith(
-      NOTIF_TEST_IDS.submitter,
-      NOTIF_TEST_IDS.orgId,
+      IDS.submitter,
+      IDS.orgId,
     )
-    expect(data.payload).toMatchObject({ actorRole: 'property_manager' })
-    expect(
-      renderNotification('inbox.escalated', parseNotificationPayload(data.payload)).body,
-    ).toMatch(/^A property manager escalated this/)
+    expect(firstJob(deps).payload).toMatchObject({ actorRole: 'property_manager' })
+    expect(renderedFor(deps, 'inbox.escalated').body).toMatch(
+      /^A property manager escalated this/,
+    )
   })
 
   describe('how long something has waited', () => {
@@ -782,14 +657,11 @@ describe('durable workflow notification consumers', () => {
     it.each([
       {
         eventType: 'inbox.inbox_item.escalated' as const,
-        payload: { inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId) },
+        payload: escalatedPayload(IDS.submitter),
       },
       {
         eventType: 'review.reply.submitted' as const,
-        payload: {
-          replyId: unbrand(NOTIF_TEST_IDS.replyId),
-          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-        },
+        payload: replyPayload({ userId: IDS.submitter }),
       },
     ])(
       "stamps $eventType with when the current wait began, not the item's age",
@@ -797,15 +669,12 @@ describe('durable workflow notification consumers', () => {
         const deps = makeDeps()
         deps.fakes.inboxItemLookup.findWaitingSince.mockResolvedValue(WAIT_STARTED)
 
-        await handleWorkflowNotificationEvent(
-          deps,
-          event(eventType, { ...payload, userId: unbrand(NOTIF_TEST_IDS.submitter) }),
-        )
+        await handleWorkflowNotificationEvent(deps, event(eventType, payload))
 
-        const data = deps.fakes.jobs[0]!.data as QueuedNotice
+        const data = firstJob(deps)
         expect(deps.fakes.inboxItemLookup.findWaitingSince).toHaveBeenCalledWith(
-          NOTIF_TEST_IDS.inboxItemId,
-          NOTIF_TEST_IDS.orgId,
+          IDS.inboxItemId,
+          IDS.orgId,
         )
         expect(data.payload).toMatchObject({ waitingSince: WAIT_STARTED.toISOString() })
         expect(data.payload).not.toHaveProperty('waitingHours')
@@ -818,16 +687,13 @@ describe('durable workflow notification consumers', () => {
 
       await handleWorkflowNotificationEvent(
         deps,
-        event('review.reply.published', {
-          replyId: unbrand(NOTIF_TEST_IDS.replyId),
-          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-          userId: null,
-          authorId: unbrand(NOTIF_TEST_IDS.authorId),
-          source: 'web',
-        }),
+        event(
+          'review.reply.published',
+          replyPayload({ userId: null, authorId: IDS.authorId }),
+        ),
       )
 
-      const data = deps.fakes.jobs[0]!.data as QueuedNotice
+      const data = firstJob(deps)
       expect(data.payload).not.toHaveProperty('waitingSince')
       expect(data.payload).not.toHaveProperty('waitingHours')
     })
@@ -838,358 +704,21 @@ describe('durable workflow notification consumers', () => {
 
       await handleWorkflowNotificationEvent(
         deps,
-        event('inbox.inbox_item.escalated', {
-          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-          userId: unbrand(NOTIF_TEST_IDS.submitter),
-          source: 'web',
-        }),
+        event('inbox.inbox_item.escalated', escalatedPayload(IDS.submitter)),
       )
 
-      const data = deps.fakes.jobs[0]!.data as QueuedNotice
-      expect(data.payload).not.toHaveProperty('waitingSince')
-    })
-  })
-
-  describe('a reply that failed to publish', () => {
-    const publishFailed = (authorId: string | null) =>
-      event('review.reply.publish_failed', {
-        replyId: unbrand(NOTIF_TEST_IDS.replyId),
-        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-        authorId,
-      })
-
-    it('goes to the author while they can still act on the Property', async () => {
-      const deps = makeDeps()
-
-      await handleWorkflowNotificationEvent(
-        deps,
-        publishFailed(unbrand(NOTIF_TEST_IDS.authorId)),
-      )
-
-      expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
-        expect.objectContaining({
-          userId: NOTIF_TEST_IDS.authorId,
-          type: 'reply.publish_failed',
-          audience: { kind: 'property_operator' },
-        }),
-      ])
-    })
-
-    it.each([
-      ['has left the Property', unbrand(NOTIF_TEST_IDS.authorId)],
-      ['is unknown', null],
-    ])(
-      'goes to the Property responsible managers when the author %s',
-      async (_label, authorId) => {
-        const deps = makeDeps()
-        deps.fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
-
-        await handleWorkflowNotificationEvent(deps, publishFailed(authorId))
-
-        expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
-          expect.objectContaining({
-            userId: NOTIF_TEST_IDS.manager1,
-            type: 'reply.publish_failed',
-            audience: {
-              kind: 'responsible_scope',
-              scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
-            },
-          }),
-        ])
-      },
-    )
-  })
-
-  describe('a publication that was cancelled after approval', () => {
-    // BQC-3.8 kept this fact's identifiers strictly UUID, unlike the older
-    // reply families, so its envelope cannot reuse the short test ids.
-    const CANCELLED_IDS = {
-      replyId: '30000000-0000-4000-8000-0000000000c1',
-      reviewId: '30000000-0000-4000-8000-0000000000c2',
-      propertyId: '30000000-0000-4000-8000-0000000000c3',
-    } as const
-
-    const cancelled = (
-      cause:
-        | 'disconnect'
-        | 'policy'
-        | 'source_changed'
-        | 'provider_truth'
-        | 'ai_draft_withdrawn',
-      authorId: string | null = unbrand(NOTIF_TEST_IDS.authorId),
-    ) =>
-      event(
-        'review.reply.publication_cancelled',
-        { ...CANCELLED_IDS, authorId, cause },
-        { propertyId: CANCELLED_IDS.propertyId },
-      )
-
-    // No responsible manager may approve, so the approvers are the admins;
-    // the responsible-approver tier has its own suite
-    // (workflow-publication-cancelled-audience.test.ts).
-    const adminFallbackDeps = () => {
-      const deps = makeDeps()
-      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([])
-      return deps
-    }
-
-    it('tells the author and, with no responsible approver, the admins', async () => {
-      const deps = adminFallbackDeps()
-      deps.fakes.userLookup.findByRole.mockResolvedValue([
-        NOTIF_TEST_IDS.admin1,
-        NOTIF_TEST_IDS.admin2,
-      ])
-
-      await handleWorkflowNotificationEvent(deps, cancelled('disconnect'))
-
-      expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
-        expect.objectContaining({
-          userId: NOTIF_TEST_IDS.authorId,
-          type: 'reply.publication_cancelled',
-          audience: { kind: 'property_operator' },
-        }),
-        expect.objectContaining({
-          userId: NOTIF_TEST_IDS.admin1,
-          type: 'reply.publication_cancelled',
-          audience: { kind: 'account_admin' },
-        }),
-        expect.objectContaining({
-          userId: NOTIF_TEST_IDS.admin2,
-          type: 'reply.publication_cancelled',
-          audience: { kind: 'account_admin' },
-        }),
-      ])
-    })
-
-    it('tells the admins alone when the fact names no author', async () => {
-      const deps = adminFallbackDeps()
-
-      await handleWorkflowNotificationEvent(deps, cancelled('source_changed', null))
-
-      expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
-        expect.objectContaining({
-          userId: NOTIF_TEST_IDS.admin1,
-          type: 'reply.publication_cancelled',
-        }),
-      ])
-    })
-
-    it('names an author who is also an admin once', async () => {
-      const deps = adminFallbackDeps()
-      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.authorId])
-
-      await handleWorkflowNotificationEvent(deps, cancelled('provider_truth'))
-
-      expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
-        expect.objectContaining({
-          userId: NOTIF_TEST_IDS.authorId,
-          audience: { kind: 'property_operator' },
-        }),
-      ])
-    })
-
-    // A policy cancellation is what an Archive or a lost authority looks like:
-    // the approver it took the authority from cannot re-approve anything.
-    it('leaves out an approver who just lost authority over the Property', async () => {
-      const deps = adminFallbackDeps()
-      deps.fakes.userLookup.findByRole.mockResolvedValue([
-        NOTIF_TEST_IDS.admin1,
-        NOTIF_TEST_IDS.admin2,
-      ])
-      deps.fakes.responsibleManagers.isEligibleForProperty.mockImplementation(
-        async (_org: unknown, _property: unknown, user: unknown) =>
-          user !== NOTIF_TEST_IDS.admin2,
-      )
-
-      await handleWorkflowNotificationEvent(deps, cancelled('policy'))
-
-      expect(deps.fakes.jobs.map((job) => (job.data as QueuedNotice).userId)).toEqual([
-        NOTIF_TEST_IDS.authorId,
-        NOTIF_TEST_IDS.admin1,
-      ])
-    })
-
-    it('keeps every approver for a cancellation that took nobody’s authority', async () => {
-      const deps = adminFallbackDeps()
-      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
-      deps.fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
-
-      await handleWorkflowNotificationEvent(deps, cancelled('disconnect'))
-
-      expect(deps.fakes.jobs.map((job) => (job.data as QueuedNotice).userId)).toEqual([
-        NOTIF_TEST_IDS.authorId,
-        NOTIF_TEST_IDS.admin1,
-      ])
-    })
-
-    it.each([
-      [
-        'disconnect',
-        'The Google connection was disconnected before it went out. The draft is saved: reconnect Google, then approve it again.',
-      ],
-      [
-        'policy',
-        'This property can no longer publish to Google, so it was never sent. The draft is saved.',
-      ],
-      [
-        'source_changed',
-        'The guest changed their review, so RepKey stopped the reply that was written before the change. Open it to check what Google shows, then reply to the new review.',
-      ],
-      [
-        'provider_truth',
-        'A different reply is live on Google, so this one is not. Open it to check.',
-      ],
-    ] as const)('says why it was cancelled for cause %s', async (cause, body) => {
-      const deps = adminFallbackDeps()
-
-      await handleWorkflowNotificationEvent(deps, cancelled(cause))
-
-      const data = deps.fakes.jobs[0]!.data as QueuedNotice
-      expect(
-        renderNotification(
-          'reply.publication_cancelled',
-          parseNotificationPayload(data.payload),
-        ),
-      ).toMatchObject({
-        title: 'Reply returned to draft at Riverside Hotel',
-        body,
-      })
-    })
-
-    // The AI draft purge's cause has to survive the payload allowlist, or the
-    // notice falls back to "Reply returned to draft" for a draft that is gone.
-    it('says an AI draft was removed when the purge withdrew it', async () => {
-      const deps = adminFallbackDeps()
-
-      await handleWorkflowNotificationEvent(deps, cancelled('ai_draft_withdrawn'))
-
-      const data = deps.fakes.jobs[0]!.data as QueuedNotice
-      expect(
-        renderNotification(
-          'reply.publication_cancelled',
-          parseNotificationPayload(data.payload),
-        ),
-      ).toMatchObject({
-        title: 'AI draft removed at Riverside Hotel',
-        actionLabel: 'Open review',
-      })
-    })
-  })
-
-  it('carries what happened to an unpublished reply from its recorded fact', async () => {
-    const fact = reviewReplyPublishFailed({
-      replyId: NOTIF_TEST_IDS.replyId,
-      reviewId: NOTIF_TEST_IDS.reviewId,
-      propertyId: NOTIF_TEST_IDS.propId,
-      organizationId: NOTIF_TEST_IDS.orgId,
-      authorId: NOTIF_TEST_IDS.authorId,
-      outcome: 'unconfirmed',
-      occurredAt: NOTIF_TEST_IDS.now,
-    })
-    const row = toOutboxEvent(fact)
-    const deps = makeDeps()
-
-    await handleWorkflowNotificationEvent(
-      deps,
-      buildConsumerEvent({
-        id: fact.eventId,
-        eventType: row.eventType,
-        eventVersion: row.eventVersion ?? 1,
-        payload: row.payload,
-        organizationId: row.organizationId,
-        propertyId: row.propertyId ?? null,
-        sourceContext: row.sourceContext,
-        sourceAggregateId: row.sourceAggregateId,
-        recordedAt: NOTIF_TEST_IDS.now,
-      }),
-    )
-
-    const data = deps.fakes.jobs[0]!.data as QueuedNotice
-    expect(data.payload).toMatchObject({ publishOutcome: 'unconfirmed' })
-    expect(
-      renderNotification('reply.publish_failed', parseNotificationPayload(data.payload)),
-    ).toMatchObject({
-      title: 'Reply not confirmed on Google at Riverside Hotel',
-      actionLabel: 'View reply',
-    })
-  })
-
-  describe('a rejected reply recorded through the outbox', () => {
-    const recordRejection = (reason: string | null): ConsumerEvent => {
-      const fact = reviewReplyRejected({
-        replyId: NOTIF_TEST_IDS.replyId,
-        reviewId: NOTIF_TEST_IDS.reviewId,
-        propertyId: NOTIF_TEST_IDS.propId,
-        organizationId: NOTIF_TEST_IDS.orgId,
-        userId: NOTIF_TEST_IDS.admin1,
-        authorId: NOTIF_TEST_IDS.authorId,
-        reason,
-        occurredAt: NOTIF_TEST_IDS.now,
-      })
-      const row = toOutboxEvent(fact)
-      return buildConsumerEvent({
-        id: fact.eventId,
-        eventType: row.eventType,
-        eventVersion: row.eventVersion ?? 1,
-        payload: row.payload,
-        organizationId: row.organizationId,
-        propertyId: row.propertyId ?? null,
-        sourceContext: row.sourceContext,
-        sourceAggregateId: row.sourceAggregateId,
-        recordedAt: NOTIF_TEST_IDS.now,
-      })
-    }
-
-    const deliverRejection = async (reason: string | null) => {
-      const deps = makeDeps()
-      const recorded = recordRejection(reason)
-      await handleWorkflowNotificationEvent(deps, recorded)
-      const data = deps.fakes.jobs[0]!.data as QueuedNotice
-      const { body } = renderNotification(
-        'reply.rejected',
-        parseNotificationPayload(data.payload),
-      )
-      return { recorded, data, body }
-    }
-
-    it('tells the author a reason is waiting without carrying its words', async () => {
-      const { recorded, data, body } = await deliverRejection(
-        'Too defensive, drop the refund mention',
-      )
-
-      expect(body).toBe(
-        'The approver left a reason. Open the reply to read it, then edit and resubmit.',
-      )
-      expect(JSON.stringify([recorded, data])).not.toContain('refund')
-    })
-
-    it('says there was no reason only when the approver gave none', async () => {
-      const { data, body } = await deliverRejection(null)
-
-      // Explicit, so a later reasonless rejection that coalesces into an
-      // unread row replaces "a reason is waiting" (newest wins per key).
-      expect(data.payload).toMatchObject({ hasModerationReason: false })
-      expect(body).toBe('It was sent back without a reason. Edit it and resubmit.')
+      expect(firstJob(deps).payload).not.toHaveProperty('waitingSince')
     })
   })
 
   it.each([
     {
       eventType: 'inbox.inbox_item.escalated' as const,
-      payload: {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        userId: null,
-        source: 'import',
-      },
+      payload: escalatedPayload(null, 'import'),
     },
     {
       eventType: 'inbox.inbox_note.added' as const,
-      payload: {
-        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
-        noteId: unbrand(NOTIF_TEST_IDS.noteId),
-        userId: null,
-        source: 'import',
-      },
+      payload: noteAddedPayload(null, 'import'),
     },
   ])(
     'accepts the domain-valid system actor for $eventType',
@@ -1207,13 +736,7 @@ describe('durable workflow notification consumers', () => {
     const deps = makeDeps()
     const approval = event(
       'review.reply.approved',
-      {
-        replyId: unbrand(NOTIF_TEST_IDS.replyId),
-        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-        userId: unbrand(NOTIF_TEST_IDS.submitter),
-        authorId: unbrand(NOTIF_TEST_IDS.authorId),
-        source: 'web',
-      },
+      replyPayload({ userId: IDS.submitter, authorId: IDS.authorId }),
       { organizationId: 'another-organization' },
     )
 
@@ -1231,10 +754,8 @@ describe('durable workflow notification consumers', () => {
       handleWorkflowNotificationEvent(
         deps,
         event('inbox.inbox_item.escalated', {
-          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+          ...escalatedPayload(null, 'import'),
           propertyId: null,
-          userId: null,
-          source: 'import',
         }),
       ),
     ).rejects.toThrow('attribution mismatch')
@@ -1250,13 +771,10 @@ describe('durable workflow notification consumers', () => {
     await expect(
       handleWorkflowNotificationEvent(
         deps,
-        event('review.reply.approved', {
-          replyId: unbrand(NOTIF_TEST_IDS.replyId),
-          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
-          userId: unbrand(NOTIF_TEST_IDS.submitter),
-          authorId: unbrand(NOTIF_TEST_IDS.authorId),
-          source: 'web',
-        }),
+        event(
+          'review.reply.approved',
+          replyPayload({ userId: IDS.submitter, authorId: IDS.authorId }),
+        ),
       ),
     ).rejects.toThrow('Queue unavailable')
 

@@ -1,28 +1,10 @@
-import { replyScopeEffects } from '#/contexts/reputation/public-api'
-// Review context — reply repository integration tests
-// Per architecture: integration tests against real Postgres.
-// Tenant isolation test is NON-NEGOTIABLE.
-
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import { eq } from 'drizzle-orm'
+// Reply repository reads — integration tests against real Postgres.
+import { describe, it, expect } from 'vitest'
 import { createReplyRepository } from './reply-repository.server'
 import { createPublicationReconciliationCandidateQuery } from '../publication/publication-reconciliation-candidate-repository.server'
-import { createReviewRepository } from '../reviews/review-repository.server'
 import { getDb } from '#/shared/db'
-import { replies } from '#/shared/db/schema/review.schema'
-import {
-  inboxItemId,
-  organizationId,
-  propertyId,
-  reviewId,
-  replyId,
-  userId,
-} from '#/shared/domain/ids'
-import type { Review, Reply } from '../domain/review-types'
-import { Pool } from 'pg'
-import { getEnv } from '#/shared/config/env'
-import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { reviewId, propertyId, userId } from '#/shared/domain/ids'
+import type { Review } from '../domain/review-types'
 import {
   REPLY_QUEUE_PUBLICATION_STATES,
   REPLY_QUEUE_STATUSES,
@@ -34,297 +16,47 @@ import type { InboxItem } from '#/contexts/reputation/public-api'
 import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
 import { getInboxQueueCounts } from '#/contexts/reputation/inbox/get-inbox-queue-counts.server'
 import { getInboxItems } from '#/contexts/reputation/inbox/get-inbox-items.server'
-import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
-import { seedInboxItem } from '#/contexts/reputation/inbox/inbox-database.test-fixtures'
-import { createMockLogger } from '#/shared/testing/mock-logger'
+import {
+  buildFixtureItem,
+  createInboxUseCaseDatabase,
+} from '#/contexts/reputation/inbox/inbox-database.test-fixtures'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import {
+  ORG_A,
+  ORG_B,
+  PROP_A,
+  arrangeRepo,
+  makeReply,
+  now,
+  observeGoogleReply,
+  reviewedAt,
+  seedReview,
+  servedReview,
+  useReplyRepositoryDatabase,
+} from './reply-repository.test-fixtures'
 
-const ORG_A = organizationId('org-rpl-test-aaaa-3333333333333333')
-const ORG_B = organizationId('org-rpl-test-bbbb-4444444444444444')
-const PROP_A = propertyId('2a000000-0000-0000-0000-000000000001')
-const PROP_B = propertyId('72b00000-0000-4000-8000-000000000002')
-
-let pool: Pool
-
-async function truncateReplies(pool: Pool) {
-  for (const table of ['google_reply_observation_heads', 'google_reply_observations']) {
-    await pool.query(`DELETE FROM ${table} WHERE organization_id IN ($1, $2)`, [
-      ORG_A,
-      ORG_B,
-    ])
-  }
-  await pool.query('DELETE FROM inbox_items WHERE organization_id IN ($1, $2)', [
-    ORG_A,
-    ORG_B,
-  ])
-  await pool.query('DELETE FROM replies WHERE organization_id IN ($1, $2)', [
-    ORG_A,
-    ORG_B,
-  ])
-  await pool.query('DELETE FROM reviews WHERE organization_id IN ($1, $2)', [
-    ORG_A,
-    ORG_B,
-  ])
-}
-
-async function seedOrgs(pool: Pool, ids: string[]) {
-  // Clean up stale rows that hold our target slugs (from previous test runs with different IDs)
-  const slugs = ids.map((id) => 't-' + id.replace(/-/g, '').slice(-12))
-  const conflictingOrganizations = await pool.query<{ id: string }>(
-    `SELECT id FROM organization WHERE slug = ANY($1) AND NOT (id = ANY($2))`,
-    [slugs, ids],
-  )
-  await deleteTestOrganizations(
-    pool,
-    conflictingOrganizations.rows.map(({ id }) => id),
-  )
-  for (const id of ids) {
-    const slug = 't-' + id.replace(/-/g, '').slice(-12)
-    await pool.query(
-      `INSERT INTO organization (id, name, slug, "createdAt")
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (id) DO UPDATE SET slug = EXCLUDED.slug, name = EXCLUDED.name`,
-      [id, `Test Org ${slug}`, slug],
-    )
-  }
-}
-
-async function seedProperties(pool: Pool) {
-  await pool.query(
-    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [PROP_A, ORG_A, 'Test Property A', 'test-prop-a', 'UTC'],
-  )
-  await pool.query(
-    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [PROP_B, ORG_B, 'Test Property B', 'test-rpl-prop-b', 'UTC'],
-  )
-}
-
-beforeAll(async () => {
-  const env = getEnv()
-  pool = new Pool({ connectionString: env.DATABASE_URL, max: 5 })
-  const client = await pool.connect()
-  client.release()
-})
-
-afterAll(async () => {
-  await truncateReplies(pool)
-  await pool.end()
-})
-
-beforeEach(async () => {
-  await truncateReplies(pool)
-  await seedOrgs(pool, [ORG_A, ORG_B])
-  await seedProperties(pool)
-})
-
-const now = new Date('2025-06-01T12:00:00Z')
-const reviewedAt = new Date('2025-05-27T12:00:00Z')
-
-async function seedReview(
-  db: ReturnType<typeof getDb>,
-  overrides: Partial<Review> = {},
-): Promise<Review> {
-  const reviewRepo = createReviewRepository(
-    db,
-    () => new Date(),
-    undefined,
-    replyScopeEffects,
-  )
-  return reviewRepo.upsert({
-    id: reviewId('3a000000-0000-0000-0000-000000000001'),
-    organizationId: ORG_A,
-    propertyId: PROP_A,
-    platform: 'google',
-    externalId: 'rpl-ext-001',
-    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-    googleConnectionId: null,
-    reviewerName: 'Jane Doe',
-    reviewerProfilePhotoUrl: null,
-    googleReviewUrl: null,
-    rating: 5,
-    text: 'Great place!',
-    translatedText: null,
-    languageCode: 'en',
-    reviewedAt,
-    expiresAt: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000),
-    sentimentLabel: null,
-    sentimentScore: null,
-    sourceCreatedAt: reviewedAt,
-    sourceUpdatedAt: null,
-    firstFetchedAt: now,
-    lastFetchedAt: now,
-    contentExpiresAt: null,
-    contentHash: null,
-    sourceSeenGeneration: null,
-    sourceEpoch: 0,
-    sourceRevision: 0,
-    analysisSequence: 0,
-    aiSourceByteLength: 1,
-    aiSourceDigest: '0'.repeat(64),
-    ...overrides,
-  })
-}
-
-/** A review as Google serves it, so its first material revision exists. */
-const servedReview = (n: number) =>
-  seedReview(getDb(), {
-    id: reviewId(`3a000000-0000-0000-0000-0000000001${String(n).padStart(2, '0')}`),
-    externalId: `rpl-google-${n}`,
-    contentExpiresAt: new Date('2027-01-01T00:00:00Z'),
-  })
-
-/** What Google shows for a review now: one observation and the head on it. */
-async function observeGoogleReply(
-  review: Review,
-  seed: Readonly<{
-    state: 'live' | 'absent'
-    providerUpdatedAt: Date | null
-    observedAt: Date
-  }>,
-): Promise<void> {
-  const live = seed.state === 'live'
-  const inserted = await pool.query<{ id: string }>(
-    `INSERT INTO google_reply_observations (
-       organization_id, property_id, review_id, observation_revision,
-       observation_key, input_digest, source_epoch, material_review_revision,
-       read_generation, state, change, resolution, source, provenance,
-       normalized_text, normalization_version, normalized_digest,
-       provider_updated_at, observed_at, content_expires_at
-     ) VALUES ($1, $2, $3, 2, $4, $4, $5, $6, 1, $7, $8, $9, 'provider_snapshot', $10,
-               $11, 'google-reply-v1', $12, $13, $14, '2027-01-01T00:00:00Z')
-     RETURNING id`,
-    [
-      review.organizationId,
-      review.propertyId,
-      review.id,
-      review.id.replaceAll('-', '').repeat(2),
-      review.sourceEpoch,
-      review.sourceRevision,
-      seed.state,
-      live ? 'added' : 'deleted',
-      live ? 'external_current_live' : 'absent',
-      live ? 'external_or_unknown' : 'none',
-      live ? 'Thank you, from Google' : null,
-      live ? 'd'.repeat(64) : null,
-      seed.providerUpdatedAt,
-      seed.observedAt,
-    ],
-  )
-  await pool.query(
-    `INSERT INTO google_reply_observation_heads (
-       review_id, organization_id, property_id, observation_id,
-       observation_revision, source_epoch, material_review_revision, state,
-       provenance, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 2, $5, $6, $7, $8, $9, $9)`,
-    [
-      review.id,
-      review.organizationId,
-      review.propertyId,
-      inserted.rows[0]?.id,
-      review.sourceEpoch,
-      review.sourceRevision,
-      seed.state,
-      live ? 'external_or_unknown' : 'none',
-      seed.observedAt,
-    ],
-  )
-}
-
-function makeReply(overrides: Partial<Omit<Reply, 'id'>> & { id?: string } = {}): Reply {
-  const idStr = overrides.id ?? '2a000000-0000-0000-0000-000000000001'
-  const { id: _ignored, ...rest } = overrides
-  return {
-    id: replyId(idStr),
-    reviewId: reviewId('3a000000-0000-0000-0000-000000000001'),
-    organizationId: ORG_A,
-    text: 'Thank you!',
-    status: 'published',
-    source: 'google_sync',
-    createdBy: null,
-    approvedBy: null,
-    rejectedBy: null,
-    rejectionReason: null,
-    aiGenerated: false,
-    stateRevision: 1,
-    submittedAt: null,
-    approvedAt: null,
-    publishedAt: now,
-    createdAt: now,
-    updatedAt: now,
-    ...rest,
-  } as Reply
-}
+const getPool = useReplyRepositoryDatabase()
 
 describe.sequential('replyRepository (integration)', () => {
-  describe('upsert and findByReviewId', () => {
-    it('inserts and retrieves a reply', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const reply = makeReply()
-
-      const created = await repo.upsert(reply)
-      const found = await repo.findByReviewId(reply.reviewId, ORG_A)
-
-      expect(found).toHaveLength(1)
-      expect(found[0].id).toBe(created.id)
-      expect(found[0].text).toBe('Thank you!')
-    })
-
-    it('persists a library template as a human-authored manual draft', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const draft = makeReply({
-        id: '2a000000-0000-4000-8000-000000000099',
-        status: 'draft',
-        source: 'internal',
-        createdBy: 'manager-1' as never,
-        aiGenerated: false,
-        templateLayer: 'account',
-        templateRef: 'template:73000000-0000-4000-8000-000000000001',
-        templateRevision: 3,
-        templateWordingKey: 'w1',
-        publishedAt: null,
-      })
-
-      await repo.upsert(draft)
-      const [persisted] = await db
-        .select({
-          aiGenerated: replies.aiGenerated,
-          authorship: replies.authorship,
-          templateLayer: replies.templateLayer,
-          templateRef: replies.templateRef,
-          templateRevision: replies.templateRevision,
-          templateWordingKey: replies.templateWordingKey,
-        })
-        .from(replies)
-        .where(eq(replies.id, draft.id))
-
-      expect(persisted).toEqual({
-        aiGenerated: false,
-        authorship: 'human',
-        templateLayer: 'account',
-        templateRef: 'template:73000000-0000-4000-8000-000000000001',
-        templateRevision: 3,
-        templateWordingKey: 'w1',
-      })
-    })
-
-    it('returns empty array for review with no replies', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const found = await repo.findByReviewId(
-        reviewId('00000000-0000-0000-0000-000000000999'),
-        ORG_A,
-      )
-      expect(found).toHaveLength(0)
+  describe.each([
+    [
+      'does not query for an empty review scope',
+      (repo: ReturnType<typeof createReplyRepository>) =>
+        repo.findMilestonesByReviewIds([], ORG_A),
+    ],
+    [
+      'does not query for an empty review scope',
+      (repo: ReturnType<typeof createReplyRepository>) =>
+        repo.findStatesByReviewIds([], ORG_A),
+    ],
+    [
+      'does not query for an empty property scope',
+      (repo: ReturnType<typeof createReplyRepository>) =>
+        repo.findReviewIdsByReplyStage(ORG_A, []),
+    ],
+  ])('empty scope', (title, query) => {
+    it(title, async () => {
+      await expect(query(createReplyRepository(getDb(), () => now))).resolves.toEqual([])
     })
   })
 
@@ -381,24 +113,18 @@ describe.sequential('replyRepository (integration)', () => {
       ).resolves.toEqual([])
     })
 
-    it('does not query for an empty review scope', async () => {
-      const repo = createReplyRepository(getDb(), () => new Date())
-
-      await expect(repo.findMilestonesByReviewIds([], ORG_A)).resolves.toEqual([])
-    })
-
     it('counts the reply Google shows, at the time Google reports for it', async () => {
       const repo = createReplyRepository(getDb(), () => new Date())
       const writtenOnGoogle = new Date('2025-05-29T08:00:00Z')
       const readFromGoogle = new Date('2025-05-30T06:00:00Z')
       const onlyOnGoogle = await servedReview(1)
-      await observeGoogleReply(onlyOnGoogle, {
+      await observeGoogleReply(getPool(), onlyOnGoogle, {
         state: 'live',
         providerUpdatedAt: writtenOnGoogle,
         observedAt: readFromGoogle,
       })
       const noUpdateTime = await servedReview(2)
-      await observeGoogleReply(noUpdateTime, {
+      await observeGoogleReply(getPool(), noUpdateTime, {
         state: 'live',
         providerUpdatedAt: null,
         observedAt: readFromGoogle,
@@ -415,13 +141,13 @@ describe.sequential('replyRepository (integration)', () => {
           publishedAt: sentFromRepKey,
         }),
       )
-      await observeGoogleReply(repliedFromRepKey, {
+      await observeGoogleReply(getPool(), repliedFromRepKey, {
         state: 'live',
         providerUpdatedAt: writtenOnGoogle,
         observedAt: readFromGoogle,
       })
       const deletedOnGoogle = await servedReview(4)
-      await observeGoogleReply(deletedOnGoogle, {
+      await observeGoogleReply(getPool(), deletedOnGoogle, {
         state: 'absent',
         providerUpdatedAt: null,
         observedAt: readFromGoogle,
@@ -471,13 +197,13 @@ describe.sequential('replyRepository (integration)', () => {
       const repo = createReplyRepository(getDb(), () => new Date())
       const readFromGoogle = new Date('2025-05-30T06:00:00Z')
       const live = await servedReview(5)
-      await observeGoogleReply(live, {
+      await observeGoogleReply(getPool(), live, {
         state: 'live',
         providerUpdatedAt: new Date('2025-05-29T08:00:00Z'),
         observedAt: readFromGoogle,
       })
       const deleted = await servedReview(6)
-      await observeGoogleReply(deleted, {
+      await observeGoogleReply(getPool(), deleted, {
         state: 'absent',
         providerUpdatedAt: null,
         observedAt: readFromGoogle,
@@ -607,12 +333,6 @@ describe.sequential('replyRepository (integration)', () => {
         [],
       )
     })
-
-    it('does not query for an empty review scope', async () => {
-      const repo = createReplyRepository(getDb(), () => now)
-
-      await expect(repo.findStatesByReviewIds([], ORG_A)).resolves.toEqual([])
-    })
   })
 
   describe('findReviewIdsByReplyStage', () => {
@@ -733,7 +453,7 @@ describe.sequential('replyRepository (integration)', () => {
     })
 
     it('counts and lists an uncertain publish under Waiting for Google only while checks continue', async () => {
-      const db = getDb()
+      const { db, repo } = await arrangeRepo({}, () => now)
       const checked = await seedReview(db, {
         id: reviewId('3d000000-0000-4000-8000-000000000001'),
         externalId: 'rpl-stage-uncertain-checked',
@@ -742,7 +462,6 @@ describe.sequential('replyRepository (integration)', () => {
         id: reviewId('3d000000-0000-4000-8000-000000000002'),
         externalId: 'rpl-stage-uncertain-stopped',
       })
-      const repo = createReplyRepository(db, () => now)
       for (const [review, reconcileDueAt, suffix] of [
         [checked, new Date('2025-06-01T12:15:00Z'), '1'],
         [stopped, null, '2'],
@@ -774,58 +493,25 @@ describe.sequential('replyRepository (integration)', () => {
         findReviewIdsByReplyStage: (orgId, propertyIds) =>
           repo.findReviewIdsByReplyStage(orgId, propertyIds),
       })
-      const inboxRepo = createInboxRepository(
-        db,
-        {
-          reviewLookup: {
-            getReviewSnippetById: async () => ({ status: 'not_found' }),
-            getReviewSnippetsByIds: async () => new Map(),
-            findEligibleReviewIds: async () => [],
+      const itemFor = (review: Review) =>
+        buildFixtureItem({
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          scope: 'reply-stage',
+          label: review.externalId,
+          status: 'open',
+          sourceType: 'review',
+          at: now,
+          overrides: {
+            sourceId: review.id,
+            sourceDate: reviewedAt,
+            rating: null,
+            snippet: null,
           },
-          feedbackLookup: {
-            getFeedbackSnippetById: async () => null,
-            getFeedbackSnippetsByIds: async () => new Map(),
-            findEligibleFeedbackIds: async () => [],
-          },
-          propertyLookup: {
-            getPropertyNameById: async () => null,
-            getPropertyNamesByIds: async () => new Map(),
-          },
-        },
-        { clock: () => now, logger: createMockLogger() },
-      )
-      const inboxItem = (id: string, review: Review): InboxItem => ({
-        id: inboxItemId(id),
-        organizationId: ORG_A,
-        propertyId: PROP_A,
-        sourceType: 'review',
-        sourceId: review.id,
-        status: 'open',
-        isEscalated: false,
-        escalatedAt: null,
-        escalatedBy: null,
-        escalationResolvedAt: null,
-        escalationResolvedBy: null,
-        rating: null,
-        sourceDate: reviewedAt,
-        platform: 'google',
-        snippet: null,
-        assignedTo: null,
-        reviewerName: null,
-        propertyName: null,
-        closedAt: null,
-        firstReplySubmittedAt: null,
-        firstReplyPublishedAt: null,
-        commandRevision: 1,
-        createdAt: now,
-        updatedAt: now,
-      })
-      for (const item of [
-        inboxItem(crypto.randomUUID(), checked),
-        inboxItem(crypto.randomUUID(), stopped),
-      ]) {
-        await seedInboxItem(pool, db, item, () => now)
-      }
+        })
+      const inbox = createInboxUseCaseDatabase(getPool(), () => now)
+      const inboxRepo = inbox.repo
+      await inbox.seed(itemFor(checked), itemFor(stopped))
       const staffPublicApi = {
         getAccessiblePropertyIds: async () => null,
         getAssignedPortals: async () => [],
@@ -858,51 +544,11 @@ describe.sequential('replyRepository (integration)', () => {
       await expect(listed('waiting')).resolves.toEqual([checked.id])
       await expect(listed('reply')).resolves.toEqual([stopped.id])
     })
-
-    it('does not query for an empty property scope', async () => {
-      const repo = createReplyRepository(getDb(), () => now)
-
-      await expect(repo.findReviewIdsByReplyStage(ORG_A, [])).resolves.toEqual([])
-    })
-  })
-
-  describe('upsert with conflict resolution', () => {
-    it('updates existing reply on conflict (reviewId + source + org)', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-
-      const reply = makeReply({ text: 'Original reply' })
-      await repo.upsert(reply)
-
-      const updated = await repo.upsert({
-        ...reply,
-        text: 'Updated reply',
-      })
-
-      expect(updated.text).toBe('Updated reply')
-      expect(updated.id).toBe(reply.id)
-    })
-
-    it('increments the durable state revision on every internal reply update', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const reply = makeReply({ text: 'Original reply', source: 'internal' })
-
-      const created = await repo.upsert(reply)
-      const updated = await repo.upsert({ ...reply, text: 'Updated reply' })
-
-      expect(created.stateRevision).toBe(1)
-      expect(updated.stateRevision).toBe(2)
-    })
   })
 
   describe('publication reconciliation scheduling', () => {
     it('finds due pending observations without widening operator candidates', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
+      const { db, repo } = await arrangeRepo()
       const candidates = createPublicationReconciliationCandidateQuery(db)
       const currentDueAt = new Date(now.getTime() - 60 * 1000)
       const pending = await repo.upsert(
@@ -978,7 +624,7 @@ describe.sequential('replyRepository (integration)', () => {
 
       // PostgreSQL can store microsecond precision. Normalize to JavaScript's
       // millisecond Date scale so a returned deadline remains a valid cursor.
-      await pool.query(
+      await getPool().query(
         `UPDATE replies
          SET reconcile_due_at = TIMESTAMPTZ '2025-06-01 11:58:00.123456+00'
          WHERE id = $1 AND organization_id = $2`,
@@ -1008,404 +654,6 @@ describe.sequential('replyRepository (integration)', () => {
         limit: 1,
       })
       expect(secondPage).toEqual([expect.objectContaining({ replyId: second.id })])
-    })
-  })
-
-  describe('tenant isolation', () => {
-    it('keeps replies isolated across tenant-owned reviews', async () => {
-      const db = getDb()
-      const reviewA = await seedReview(db)
-      const reviewB = await seedReview(db, {
-        id: reviewId('3b000000-0000-0000-0000-000000000002'),
-        organizationId: ORG_B,
-        propertyId: PROP_B,
-        externalId: 'rpl-ext-tenant-b',
-      })
-      const repo = createReplyRepository(db, () => new Date())
-
-      await repo.upsert(
-        makeReply({
-          id: '2a000000-0000-0000-0000-000000000001',
-          reviewId: reviewA.id,
-          organizationId: ORG_A,
-          text: 'Reply from org A',
-        }),
-      )
-      await repo.upsert(
-        makeReply({
-          id: '2a000000-0000-0000-0000-000000000002',
-          organizationId: ORG_B,
-          reviewId: reviewB.id,
-          text: 'Reply from org B',
-          status: 'draft',
-        }),
-      )
-
-      const foundA = await repo.findByReviewId(reviewA.id, ORG_A)
-      const foundB = await repo.findByReviewId(reviewB.id, ORG_B)
-      const crossTenantA = await repo.findByReviewId(reviewA.id, ORG_B)
-      const crossTenantB = await repo.findByReviewId(reviewB.id, ORG_A)
-
-      expect(foundA).toHaveLength(1)
-      expect(foundB).toHaveLength(1)
-      expect(foundA[0].text).toBe('Reply from org A')
-      expect(foundB[0].text).toBe('Reply from org B')
-      expect(crossTenantA).toEqual([])
-      expect(crossTenantB).toEqual([])
-    })
-  })
-
-  describe('deleteByReviewIdAndSource', () => {
-    it('deletes only matching source', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-
-      await repo.upsert(makeReply({ source: 'google_sync' }))
-      await repo.upsert(
-        makeReply({
-          id: '2a000000-0000-0000-0000-000000000002',
-          source: 'internal',
-          status: 'draft',
-        }),
-      )
-
-      await repo.deleteByReviewIdAndSource(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        'google_sync',
-        ORG_A,
-      )
-
-      const remaining = await repo.findByReviewId(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        ORG_A,
-      )
-      expect(remaining).toHaveLength(1)
-      expect(remaining[0].source).toBe('internal')
-    })
-  })
-
-  // The draft writes carry their command's precondition as the guard of the
-  // SQL statement (reputation/domain/reply-command-preconditions.ts), so a caller that
-  // skipped the use case, or read the reply before it moved, changes nothing.
-  const internalDraft = (overrides: Parameters<typeof makeReply>[0] = {}) =>
-    makeReply({
-      source: 'internal',
-      status: 'draft',
-      publishedAt: null,
-      publicationState: null,
-      publicationCycle: 0,
-      publicationAttempts: 0,
-      publicationLastErrorClass: null,
-      reconcileDueAt: null,
-      ...overrides,
-    })
-
-  const NOT_A_DRAFT_OR_FAILED_REPLY = [
-    ['waiting for approval', { status: 'pending_approval' }],
-    ['being published', { status: 'approved', publicationState: 'authorized' }],
-    [
-      'accepted by Google',
-      { status: 'approved', publicationState: 'pending_observation' },
-    ],
-    ['published', { status: 'published', publicationState: 'published' }],
-    [
-      'a draft with an open publication',
-      { status: 'draft', publicationState: 'sending' },
-    ],
-  ] as const
-
-  describe('createDraft', () => {
-    it('inserts the first draft of a review', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-
-      const created = await repo.createDraft(internalDraft({ text: 'First draft' }))
-
-      expect(created).toMatchObject({
-        status: 'draft',
-        text: 'First draft',
-        publicationState: null,
-        publicationCycle: 0,
-      })
-    })
-
-    it('never rewrites a reply the review already has', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const confirmed = await repo.upsert(
-        internalDraft({
-          status: 'approved',
-          publicationState: 'authorized',
-          publicationCycle: 1,
-          text: 'Confirmed text',
-        }),
-      )
-
-      await expect(
-        repo.createDraft(
-          internalDraft({ id: '2a000000-0000-0000-0000-000000000002', text: 'Late' }),
-        ),
-      ).resolves.toBeNull()
-
-      expect(await repo.findInternalByReviewId(confirmed.reviewId, ORG_A)).toEqual(
-        confirmed,
-      )
-    })
-
-    it('refuses to insert anything but a draft with no publication', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-
-      for (const reply of [
-        internalDraft({ status: 'approved' }),
-        internalDraft({ publicationCycle: 1 }),
-        internalDraft({ publicationState: 'authorized' }),
-      ]) {
-        await expect(repo.createDraft(reply)).rejects.toMatchObject({
-          _tag: 'ReviewError',
-          code: 'invalid_input',
-        })
-      }
-      expect(await repo.findByReviewId(internalDraft().reviewId, ORG_A)).toHaveLength(0)
-    })
-  })
-
-  describe('saveDraft', () => {
-    it('rewrites a draft, and a rejected reply as a draft with its rejection cleared', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const draft = await repo.upsert(internalDraft({ text: 'Original' }))
-
-      const saved = await repo.saveDraft(draft, {
-        text: 'Rewritten',
-        replyLanguageTag: 'en-Latn-GB',
-      })
-      expect(saved).toMatchObject({
-        status: 'draft',
-        text: 'Rewritten',
-        replyLanguageTag: 'en-Latn-GB',
-      })
-
-      await pool.query(
-        `UPDATE replies SET status = 'rejected', rejection_reason = 'Too terse'
-          WHERE id = $1`,
-        [draft.id],
-      )
-      const rejected = await repo.findById(draft.id, ORG_A)
-      expect(rejected).toMatchObject({ status: 'rejected', rejectionReason: 'Too terse' })
-
-      await expect(
-        repo.saveDraft(rejected!, { text: 'Friendlier' }),
-      ).resolves.toMatchObject({
-        status: 'draft',
-        text: 'Friendlier',
-        rejectionReason: null,
-        rejectedBy: null,
-      })
-    })
-
-    it('rewrites a draft whose publication was cancelled', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const cancelled = await repo.upsert(
-        internalDraft({ publicationState: 'cancelled', publicationCycle: 1 }),
-      )
-
-      await expect(
-        repo.saveDraft(cancelled, { text: 'Second thoughts' }),
-      ).resolves.toMatchObject({
-        status: 'draft',
-        text: 'Second thoughts',
-        publicationState: 'cancelled',
-        publicationCycle: 1,
-      })
-    })
-
-    it.each([
-      ...NOT_A_DRAFT_OR_FAILED_REPLY,
-      ['failed', { status: 'publish_failed', publicationState: 'terminal' }],
-    ] as const)('changes nothing for a reply that is %s', async (_name, state) => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const stored = await repo.upsert(
-        internalDraft({ ...state, publicationCycle: 1, text: 'Confirmed text' }),
-      )
-
-      await expect(repo.saveDraft(stored, { text: 'Stale tab' })).resolves.toBeNull()
-
-      expect(await repo.findById(stored.id, ORG_A)).toEqual(stored)
-    })
-
-    it('loses to a reply that was submitted after the caller read it', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const draft = await repo.upsert(internalDraft({ text: 'Original' }))
-      await pool.query(`UPDATE replies SET status = 'pending_approval' WHERE id = $1`, [
-        draft.id,
-      ])
-      const submitted = await repo.findById(draft.id, ORG_A)
-
-      await expect(repo.saveDraft(draft, { text: 'Stale tab' })).resolves.toBeNull()
-
-      expect(await repo.findById(draft.id, ORG_A)).toEqual(submitted)
-    })
-
-    it('does not rewrite a reply through another organization', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const draft = await repo.upsert(internalDraft({ text: 'Original' }))
-
-      await expect(
-        repo.saveDraft({ ...draft, organizationId: ORG_B }, { text: 'Intruder' }),
-      ).resolves.toBeNull()
-
-      expect(await repo.findById(draft.id, ORG_A)).toEqual(draft)
-    })
-  })
-
-  describe('deleteDraft', () => {
-    it.each(['draft', 'rejected'] as const)(
-      'deletes a %s reply that was never authorized',
-      async (status) => {
-        const db = getDb()
-        await seedReview(db)
-        const repo = createReplyRepository(db, () => new Date())
-        const reply = await repo.upsert(internalDraft({ status }))
-
-        await expect(repo.deleteDraft(reply)).resolves.toBe(true)
-
-        expect(await repo.findByReviewId(reply.reviewId, ORG_A)).toHaveLength(0)
-      },
-    )
-
-    it.each([
-      ...NOT_A_DRAFT_OR_FAILED_REPLY,
-      [
-        'an uncertain failure',
-        {
-          status: 'publish_failed',
-          publicationState: 'ambiguous',
-          publicationLastErrorClass: 'ambiguous',
-        },
-      ],
-      [
-        'a terminal failure whose outcome is unknown',
-        {
-          status: 'publish_failed',
-          publicationState: 'terminal',
-          publicationLastErrorClass: 'ambiguous',
-        },
-      ],
-      ['a cancelled draft', { status: 'draft', publicationState: 'cancelled' }],
-      ['a rejected reply that was confirmed before', { status: 'rejected' }],
-    ] as const)('keeps a reply that is %s', async (_name, state) => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const stored = await repo.upsert(internalDraft({ ...state, publicationCycle: 1 }))
-
-      await expect(repo.deleteDraft(stored)).resolves.toBe(false)
-
-      expect(await repo.findById(stored.id, ORG_A)).toEqual(stored)
-    })
-
-    it('clears a settled failed reply and keeps its row for publication evidence', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const failed = await repo.upsert(
-        internalDraft({
-          status: 'publish_failed',
-          publicationState: 'terminal',
-          publicationCycle: 1,
-          publicationLastErrorClass: 'retryable',
-        }),
-      )
-
-      await expect(repo.deleteDraft(failed)).resolves.toEqual({
-        id: failed.id,
-        stateRevision: failed.stateRevision + 1,
-      })
-
-      const cleared = await repo.findById(failed.id, ORG_A)
-      expect(cleared).toMatchObject({
-        id: failed.id,
-        text: '',
-        status: 'draft',
-        publicationState: 'cancelled',
-        publicationCycle: 1,
-        publicationLastErrorClass: null,
-      })
-      expect(cleared!.stateRevision).toBeGreaterThan(failed.stateRevision)
-      await expect(repo.deleteDraft(failed)).resolves.toBe(false)
-      expect(await repo.findById(failed.id, ORG_A)).toEqual(cleared)
-    })
-
-    it('keeps a reply that was submitted after the caller read it', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const draft = await repo.upsert(internalDraft())
-      await pool.query(`UPDATE replies SET status = 'pending_approval' WHERE id = $1`, [
-        draft.id,
-      ])
-
-      await expect(repo.deleteDraft(draft)).resolves.toBe(false)
-
-      expect(await repo.findById(draft.id, ORG_A)).toMatchObject({
-        status: 'pending_approval',
-      })
-    })
-  })
-
-  describe('cross-org delete protection', () => {
-    it('deleteDraft through another organization does not delete the reply', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-      const reply = await repo.upsert(internalDraft())
-
-      // The same reply, addressed through ORG_B.
-      await expect(repo.deleteDraft({ ...reply, organizationId: ORG_B })).resolves.toBe(
-        false,
-      )
-
-      // Reply should still exist for ORG_A
-      const found = await repo.findByReviewId(reply.reviewId, ORG_A)
-      expect(found).toHaveLength(1)
-      expect(found[0].id).toBe(reply.id)
-    })
-
-    it('deleteByReviewIdAndSource with wrong org does not delete the reply', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-
-      await repo.upsert(makeReply({ source: 'google_sync' }))
-
-      // Attempt delete with ORG_B (wrong org)
-      await repo.deleteByReviewIdAndSource(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        'google_sync',
-        ORG_B,
-      )
-
-      // Reply should still exist for ORG_A
-      const found = await repo.findByReviewId(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        ORG_A,
-      )
-      expect(found).toHaveLength(1)
-      expect(found[0].source).toBe('google_sync')
     })
   })
 })

@@ -33,7 +33,8 @@ function productionSources(directory: string): string[] {
     const path = join(directory, entry.name)
     if (entry.isDirectory())
       return entry.name === 'testing' ? [] : productionSources(path)
-    return /\.tsx?$/.test(entry.name) && !/\.(test|stories)\.tsx?$/.test(entry.name)
+    return /\.tsx?$/.test(entry.name) &&
+      !/\.(test|test-fixtures|stories)\.tsx?$/.test(entry.name)
       ? [path]
       : []
   })

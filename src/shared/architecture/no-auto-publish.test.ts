@@ -43,6 +43,7 @@ function walkTsFiles(dir: string): string[] {
       else if (
         ent.name.endsWith('.ts') &&
         !ent.name.endsWith('.test.ts') &&
+        !ent.name.endsWith('.test-fixtures.ts') &&
         !ent.name.endsWith('.d.ts')
       ) {
         out.push(relative(ROOT, p))
