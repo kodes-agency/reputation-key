@@ -15,6 +15,13 @@ describe('importItemAdmitsAttempt', () => {
     expect(importItemAdmitsAttempt(2, 2)).toBe(true)
   })
 
+  it('admits the first attempt again once it has claimed the item', () => {
+    // A stalled first attempt is re-run by BullMQ with the same attemptsMade (1).
+    expect(importItemAdmitsAttempt(1, 1)).toBe(true)
+    expect(importItemAdmitsAttempt(1, 2)).toBe(true)
+    expect(importItemAdmitsAttempt(1, 3)).toBe(false)
+  })
+
   it('refuses an older attempt and one that skips ahead', () => {
     expect(importItemAdmitsAttempt(2, 1)).toBe(false)
     expect(importItemAdmitsAttempt(2, 4)).toBe(false)

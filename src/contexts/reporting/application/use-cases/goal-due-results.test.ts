@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
-import { dueResultsForProgram, openResultsForPeriods } from './goal-program-shared'
+import {
+  dueMonthlyPeriods,
+  dueResultsForProgram,
+  openResultsForPeriods,
+} from './goal-program-shared'
 
 const MARCH = new Date('2026-02-28T22:00:00Z')
 const APRIL = new Date('2026-03-31T21:00:00Z')
@@ -145,5 +149,27 @@ describe('due Goal months', () => {
     const due = dueResultsForProgram(average, id, MARCH)
     expect(due.map((result) => result.assignmentId)).toEqual(['first', 'second'])
     expect(due.every((result) => result.programVersionId === 'version')).toBe(true)
+  })
+})
+
+describe('bounded Goal month catch-up', () => {
+  // A UTC version starting 1 January 2026: its 120th month begins 1 December 2035
+  // and its 121st on 1 January 2036.
+  const version = {
+    ...fixture().version,
+    propertyTimezone: 'UTC',
+    effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+  }
+
+  it('recovers exactly ten years of missed months', () => {
+    const periods = dueMonthlyPeriods(version, null, new Date('2035-12-15T00:00:00Z'))
+    expect(periods).toHaveLength(120)
+    expect(periods.at(-1)?.start).toEqual(new Date('2035-12-01T00:00:00Z'))
+  })
+
+  it('fails visibly rather than leave a gap once a month beyond the tenth year is due', () => {
+    expect(() =>
+      dueMonthlyPeriods(version, null, new Date('2036-01-15T00:00:00Z')),
+    ).toThrow('Goal Program monthly catch-up exceeds safety bound')
   })
 })

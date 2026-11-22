@@ -536,3 +536,41 @@ describe('a consumer waiting for its prerequisite', () => {
     expect(loggerMocks.error).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('a failing consumer in the log', () => {
+  async function failWith(thrown: unknown) {
+    decideMock.mockResolvedValue(ALLOW)
+    consumerRegistry.registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-breaks',
+      module: TEST_MODULE,
+      handler: () => Promise.reject(thrown),
+    })
+    return createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
+      fakeJob(makeEnvelope()),
+    ).catch((err: unknown) => err)
+  }
+
+  it('names the error and its first message line, so an operator can tell failures apart', async () => {
+    const failure = await failWith(new TypeError('projection boom\nstack-like detail'))
+
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        consumerName: 'c-breaks',
+        failureReason: 'TypeError: projection boom',
+      }),
+      expect.stringMatching(/Consumer handler failed/),
+    )
+  })
+
+  it('reports an unknown name for something that is not an error, and still fails the job', async () => {
+    const failure = await failWith({ code: 'refused' })
+
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ consumerName: 'c-breaks', failureReason: 'unknown: ' }),
+      expect.stringMatching(/Consumer handler failed/),
+    )
+  })
+})
