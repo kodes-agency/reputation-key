@@ -238,7 +238,7 @@ async function harness(
     inference: { analyzeReview, generateReply: vi.fn() },
     operations: persistence.operations,
     outputs: { storeAnalysisV3 },
-    aggregates: { applyReviewAnalysis, advanceWithoutAnalysis, readWindow: vi.fn() },
+    aggregates: { applyReviewAnalysis, advanceWithoutAnalysis },
     admission: {
       acquire: vi.fn(async () => ({
         ok: true as const,
