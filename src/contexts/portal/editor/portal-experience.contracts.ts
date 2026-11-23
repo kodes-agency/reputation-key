@@ -1,7 +1,6 @@
 import { z } from 'zod/v4'
 import { offeredGuestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import { validatePortalDestinationUri } from '../domain/approved-destination'
-import { contrastRatio, MIN_TEXT_CONTRAST } from '#/shared/domain/portal-field-colour'
 
 const portalGuestLocaleSchema = offeredGuestLocaleSchema
 
@@ -18,33 +17,6 @@ const portalBrandDisplayNameSchema = z
   .min(1, 'Public display name is required')
   .max(120)
 
-const portalBrandColorSchema = z
-  .string()
-  .regex(/^#[0-9a-f]{6}$/iu, 'Choose a valid six-digit colour')
-
-export const portalBrandFormInputSchema = z
-  .object({
-    displayName: portalBrandDisplayNameSchema,
-    primaryColor: portalBrandColorSchema,
-    backgroundColor: portalBrandColorSchema,
-    textColor: portalBrandColorSchema,
-  })
-  .superRefine((value, ctx) => {
-    const primaryContrast = contrastRatio(value.primaryColor, value.backgroundColor)
-    const textContrast = contrastRatio(value.textColor, value.backgroundColor)
-    if (
-      primaryContrast === null ||
-      textContrast === null ||
-      textContrast < MIN_TEXT_CONTRAST
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['textColor'],
-        message: 'Text and background colours need accessible contrast',
-      })
-    }
-  })
-
 export const propertyPublicDisplayNameInputSchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required'),
   displayName: portalBrandDisplayNameSchema,
@@ -53,13 +25,6 @@ export const propertyPublicDisplayNameInputSchema = z.object({
 /** What the Public display name form holds: the name alone, never the colours. */
 export const propertyPublicDisplayNameFormInputSchema =
   propertyPublicDisplayNameInputSchema.pick({ displayName: true })
-
-export const propertyPortalBrandProfileInputSchema = portalExperienceScopeSchema
-  .extend({
-    logoUrl: z.null().optional(),
-    defaultHeroImageUrl: z.null().optional(),
-  })
-  .and(portalBrandFormInputSchema)
 
 const portalGuestTitleSchema = z.string().trim().min(1, 'Write a welcome line').max(120)
 
@@ -133,9 +98,6 @@ export const portalApprovedDestinationDisableInputSchema =
     reason: z.string().trim().min(1, 'Disable reason is required').max(240),
   })
 
-export type PropertyPortalBrandProfileInput = z.infer<
-  typeof propertyPortalBrandProfileInputSchema
->
 export type PropertyPortalBrandContentInput = z.infer<
   typeof propertyPortalBrandContentInputSchema
 >
