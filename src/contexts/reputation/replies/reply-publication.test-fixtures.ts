@@ -13,7 +13,7 @@ import {
   reviewReplyPublicationRequested,
 } from '../domain/review-events'
 import { createReviewRepository } from '../reviews/review-repository.server'
-import { createReplyRepository } from './reply-repository.server'
+import { seedReply } from './reply-seed.test-fixtures'
 import { createAtomicReplyCommandStore } from './reply-command-store.server'
 
 /** Identity behavior is outside the Review truth-chain fixtures. Production
@@ -54,9 +54,7 @@ export async function seedReviewAndReplyAtStage(
     replyScopeEffects,
   ).upsert(input.review, now, sha256Hex(`review-observation:${reviewId}`))
   const commandStore = createTestReplyCommandStore()
-  const originalReply = await createReplyRepository(db, () => new Date()).upsert(
-    input.reply,
-  )
+  const originalReply = await seedReply(db, input.reply)
   const authorized = await commandStore.markPublicationAuthorized(
     originalReply,
     { status: 'approved', approvedBy: userId, approvedAt: now },

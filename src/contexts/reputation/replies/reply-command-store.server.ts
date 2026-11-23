@@ -476,17 +476,6 @@ export const createAtomicReplyCommandStore = (
     submitReply: (...args) => submitMeasuredReply(...args),
     rejectReply: (reply, updates, event, now) =>
       transition('reply.commandStore.rejectReply', reply, 'reject', updates, event, now),
-    // Publish also persists publication_state='published' and clears
-    // the reconcile schedule — provider confirmation is authoritative.
-    markPublished: (reply, updates, event, now) =>
-      transition(
-        'reply.commandStore.markPublished',
-        reply,
-        'confirm_published',
-        { ...updates, publicationState: 'published', reconcileDueAt: null },
-        event,
-        now,
-      ),
 
     // Authorize = approve/retry re-authorization (new publication
     // cycle): guarded status update + authorized state + cycle reset + the
