@@ -358,9 +358,7 @@ export const createAtomicIdentityCommandStore = (
         .limit(1)
       if (
         rows[0]?.staffParticipationId &&
-        !(await admitStaffInvitation(
-          'organizationId' in rows[0] ? String(rows[0].organizationId) : '',
-        ))
+        !(await admitStaffInvitation(String(rows[0].organizationId)))
       )
         throw identityError(
           'forbidden',

@@ -54,7 +54,7 @@ export type StaffManagementStore = Readonly<{
       code: string | null
     }>[]
   >
-  getColleagues?: (organizationId: string, propertyId: string) => Promise<boolean>
+  getColleagues: (organizationId: string, propertyId: string) => Promise<boolean>
   setColleagues(
     organizationId: string,
     propertyId: string,

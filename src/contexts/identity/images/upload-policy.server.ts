@@ -24,6 +24,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../domain/errors'
+import { MAX_UPLOAD_BYTES } from './identity-assets.contracts'
 
 export const ALLOWED_IMAGE_CONTENT_TYPES = [
   'image/jpeg',
@@ -31,8 +32,6 @@ export const ALLOWED_IMAGE_CONTENT_TYPES = [
   'image/webp',
   'image/gif',
 ]
-
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 // 5 MB
 
 /**
  * Authorize the upload `permission` and validate the declared content type

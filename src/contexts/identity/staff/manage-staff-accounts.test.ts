@@ -90,6 +90,7 @@ function setup(
       },
     },
     management: {
+      getColleagues: async () => false,
       removalsForUser: async () => [],
       completeRemoval: vi.fn(async () => undefined),
       cancelOnboardings: async () => {

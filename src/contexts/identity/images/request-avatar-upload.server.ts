@@ -3,7 +3,8 @@
 
 import type { IdentityStoragePort } from '../members/auth-identity.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { assertUploadAllowed, MAX_UPLOAD_BYTES } from './upload-policy.server'
+import { assertUploadAllowed } from './upload-policy.server'
+import { MAX_UPLOAD_BYTES } from './identity-assets.contracts'
 export type RequestAvatarUploadInput = Readonly<{
   contentType: string
   fileSize: number
