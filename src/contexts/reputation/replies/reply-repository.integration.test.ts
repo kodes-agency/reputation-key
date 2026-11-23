@@ -1,3 +1,4 @@
+import { seedReply } from './reply-seed.test-fixtures'
 // Reply repository reads — integration tests against real Postgres.
 import { describe, it, expect } from 'vitest'
 import { createReplyRepository } from './reply-repository.server'
@@ -73,7 +74,8 @@ describe.sequential('replyRepository (integration)', () => {
       const laterSubmission = new Date('2025-05-31T09:00:00Z')
       const publication = new Date('2025-06-01T09:00:00Z')
 
-      await repo.upsert(
+      await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000011',
           reviewId: firstReview.id,
@@ -82,7 +84,8 @@ describe.sequential('replyRepository (integration)', () => {
           publishedAt: null,
         }),
       )
-      await repo.upsert(
+      await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000012',
           reviewId: firstReview.id,
@@ -132,7 +135,8 @@ describe.sequential('replyRepository (integration)', () => {
       // RepKey's own reply went out first; Google's time is its later edit.
       const repliedFromRepKey = await servedReview(3)
       const sentFromRepKey = new Date('2025-05-28T12:00:00Z')
-      await repo.upsert(
+      await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000103',
           reviewId: repliedFromRepKey.id,
@@ -263,7 +267,8 @@ describe.sequential('replyRepository (integration)', () => {
       })
       const repo = createReplyRepository(db, () => now)
 
-      const providerReply = await repo.upsert(
+      const providerReply = await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000011',
           reviewId: firstReview.id,
@@ -278,7 +283,8 @@ describe.sequential('replyRepository (integration)', () => {
         }),
         now,
       )
-      const internalReply = await repo.upsert(
+      const internalReply = await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000012',
           reviewId: firstReview.id,
@@ -344,7 +350,8 @@ describe.sequential('replyRepository (integration)', () => {
         externalId: 'rpl-stage-ext-002',
       })
       const repo = createReplyRepository(db, () => now)
-      await repo.upsert(
+      await seedReply(
+        getDb(),
         makeReply({
           reviewId: firstReview.id,
           status: 'pending_approval',
@@ -352,7 +359,8 @@ describe.sequential('replyRepository (integration)', () => {
         }),
         now,
       )
-      await repo.upsert(
+      await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000002',
           reviewId: secondReview.id,
@@ -398,7 +406,8 @@ describe.sequential('replyRepository (integration)', () => {
           id,
           externalId: `rpl-stage-matrix-${index}`,
         })
-        await repo.upsert(
+        await seedReply(
+          getDb(),
           makeReply({
             id: `2c000000-0000-4000-8000-${suffix}`,
             reviewId: id,
@@ -466,7 +475,8 @@ describe.sequential('replyRepository (integration)', () => {
         [checked, new Date('2025-06-01T12:15:00Z'), '1'],
         [stopped, null, '2'],
       ] as const) {
-        await repo.upsert(
+        await seedReply(
+          getDb(),
           makeReply({
             id: `2d000000-0000-4000-8000-00000000000${suffix}`,
             reviewId: review.id,
@@ -551,7 +561,8 @@ describe.sequential('replyRepository (integration)', () => {
       const { db, repo } = await arrangeRepo()
       const candidates = createPublicationReconciliationCandidateQuery(db)
       const currentDueAt = new Date(now.getTime() - 60 * 1000)
-      const pending = await repo.upsert(
+      const pending = await seedReply(
+        getDb(),
         makeReply({
           source: 'internal',
           status: 'approved',
@@ -591,9 +602,9 @@ describe.sequential('replyRepository (integration)', () => {
         id: reviewId('3a000000-0000-0000-0000-000000000002'),
         externalId: 'rpl-ext-002',
       })
-      const repo = createReplyRepository(db, () => new Date())
       const candidates = createPublicationReconciliationCandidateQuery(db)
-      const first = await repo.upsert(
+      const first = await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000011',
           reviewId: firstReview.id,
@@ -607,7 +618,8 @@ describe.sequential('replyRepository (integration)', () => {
           publishedAt: null,
         }),
       )
-      const second = await repo.upsert(
+      const second = await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000012',
           reviewId: secondReview.id,

@@ -1,3 +1,4 @@
+import { seedReply } from './reply-seed.test-fixtures'
 import {
   insertPublicationAuthorization,
   replyScopeEffects,
@@ -225,7 +226,8 @@ async function authorizeAgainstHead(input: Readonly<{ reviewAdvances: boolean }>
     firstReview.sourceRevision + (input.reviewAdvances ? 1 : 0),
   )
 
-  const reply = await createReplyRepository(db, () => new Date()).upsert(
+  const reply = await seedReply(
+    getDb(),
     makeReply({
       status: 'approved',
       submittedAt: NOW,
@@ -322,7 +324,7 @@ describe.sequential('replyCommandStore (integration)', () => {
       status: 'pending_approval',
       submittedAt: NOW,
     })
-    await replyRepo.upsert(pending)
+    await seedReply(getDb(), pending)
 
     const lifecycleEvent = reviewReplyApproved({
       replyId: REPLY_A,
@@ -466,7 +468,7 @@ describe.sequential('replyCommandStore (integration)', () => {
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
-    await replyRepo.upsert(pending)
+    await seedReply(getDb(), pending)
     const publicationIntent = reviewReplyPublicationRequested({
       replyId: REPLY_A,
       reviewId: REVIEW_A,
@@ -593,7 +595,7 @@ describe.sequential('replyCommandStore (integration)', () => {
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
-    await replyRepo.upsert(pending)
+    await seedReply(getDb(), pending)
 
     const lifecycleEvent = reviewReplyApproved({
       replyId: REPLY_A,
@@ -659,7 +661,7 @@ describe.sequential('replyCommandStore (integration)', () => {
     )
 
     await reviewRepo.upsert(makeReview())
-    await replyRepo.upsert(makeReply({ status: 'draft' }))
+    await seedReply(getDb(), makeReply({ status: 'draft' }))
 
     const event = unregisteredEvent(
       reviewReplySubmitted({
@@ -711,7 +713,7 @@ describe.sequential('replyCommandStore (integration)', () => {
     )
 
     await reviewRepo.upsert(makeReview())
-    await replyRepo.upsert(makeReply({ status: 'draft' }))
+    await seedReply(getDb(), makeReply({ status: 'draft' }))
 
     const event = reviewReplySubmitted({
       replyId: REPLY_A,

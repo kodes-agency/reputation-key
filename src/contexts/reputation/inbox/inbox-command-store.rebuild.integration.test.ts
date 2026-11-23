@@ -1,3 +1,5 @@
+import { seedReply } from '../replies/reply-seed.test-fixtures'
+import { getDb } from '#/shared/db'
 import { describe, it, expect } from 'vitest'
 import { inboxItemId, reviewId } from '#/shared/domain/ids'
 import type {} from '#/contexts/reputation/domain/review-types'
@@ -71,14 +73,14 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
   }
 
   async function seedCanonicalState() {
-    const { reviewRepo, replyRepo, commandStore } = makeRebuild()
+    const { reviewRepo, commandStore } = makeRebuild()
     // LIVE-PUBLISHED: historical publish metadata is stamped, but rebuild is
     // not exact-current Reply authority and therefore cannot close the cycle.
     const livePublished = makeReview({
       id: reviewId('4d000000-0000-0000-0000-000000000011'),
     })
     const storedLivePublished = await reviewRepo.upsert(livePublished)
-    await replyRepo.upsert(makeReply({ reviewId: livePublished.id }))
+    await seedReply(getDb(), makeReply({ reviewId: livePublished.id }))
     await commandStore.createItem(
       makeItem({
         id: inboxItemId('4d000000-0000-0000-0000-000000000021'),

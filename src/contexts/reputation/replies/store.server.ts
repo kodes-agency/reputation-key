@@ -367,50 +367,6 @@ export function createReplyWriter({ db, clock, rows }: ReplyWriterDeps): ReplyWr
   }
 
   const drafts: ReplyWriter['drafts'] = {
-    upsert: async (reply, now) => {
-      return trace('reply.upsert', () =>
-        withReplyReviewLock(reply.organizationId, reply.reviewId, async (tx) => {
-          const row = replyToRow(reply)
-          const updatedAt = now ?? clock()
-          const result = await tx
-            .insert(replies)
-            .values(row)
-            .onConflictDoUpdate({
-              target: [replies.reviewId, replies.source, replies.organizationId],
-              set: {
-                text: row.text,
-                replyLanguageTag: row.replyLanguageTag,
-                templateLayer: row.templateLayer,
-                templateRef: row.templateRef,
-                templateRevision: row.templateRevision,
-                templateWordingKey: row.templateWordingKey,
-                voiceDigest: row.voiceDigest,
-                voiceChoices: row.voiceChoices,
-                status: row.status,
-                approvedBy: row.approvedBy,
-                rejectedBy: row.rejectedBy,
-                rejectionReason: row.rejectionReason,
-                aiGenerated: row.aiGenerated,
-                stateRevision: row.stateRevision,
-                submittedAt: row.submittedAt,
-                approvedAt: row.approvedAt,
-                publishedAt: row.publishedAt,
-                updatedAt,
-              },
-            })
-            .returning()
-
-          if (!result[0]) {
-            throw reviewError(
-              'repo_upsert_failed',
-              'Reply upsert failed — no row returned',
-            )
-          }
-          return replyFromRow(result[0])
-        }),
-      )
-    },
-
     createDraft: async (reply) => {
       return trace('reply.createDraft', () =>
         withReplyReviewLock(reply.organizationId, reply.reviewId, async (tx) => {
@@ -494,22 +450,6 @@ export function createReplyWriter({ db, clock, rows }: ReplyWriterDeps): ReplyWr
             )
             .returning({ id: replies.id })
           return deleted.length > 0
-        }),
-      )
-    },
-
-    deleteByReviewIdAndSource: async (reviewId, source, organizationId) => {
-      return trace('reply.deleteByReviewIdAndSource', () =>
-        withReplyReviewLock(organizationId, reviewId, async (tx) => {
-          await tx
-            .delete(replies)
-            .where(
-              and(
-                eq(replies.reviewId, reviewId),
-                eq(replies.source, source),
-                eq(replies.organizationId, organizationId),
-              ),
-            )
         }),
       )
     },
