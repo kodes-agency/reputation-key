@@ -177,11 +177,8 @@ function reader(
       ),
   )
   const list = vi.fn(async () => programs)
-  const get = vi.fn<GoalProgressDeps['reads']['get']>(async () => {
-    throw new Error('the list reads no goal one by one')
-  })
   const deps: GoalProgressDeps = {
-    reads: { list, get },
+    reads: { list },
     metrics: { queryGoalMetric },
     now: () => now,
   }
@@ -189,7 +186,6 @@ function reader(
     listProgress: createGoalListProgressReader(deps),
     queryGoalMetric,
     list,
-    get,
   }
 }
 
@@ -197,7 +193,7 @@ const input = { propertyId: PROPERTY_ID }
 
 describe('the month so far of the goals on the Goals list', () => {
   it('reads the Property once and no goal one by one', async () => {
-    const { listProgress, list, get } = reader([
+    const { listProgress, list } = reader([
       bundle({ id: 'program-1' }),
       bundle({ id: 'program-2', metric: 'portal_rating_count' }),
     ])
@@ -206,7 +202,6 @@ describe('the month so far of the goals on the Goals list', () => {
 
     expect(list).toHaveBeenCalledTimes(1)
     expect(list).toHaveBeenCalledWith(PROPERTY_ID, actor)
-    expect(get).not.toHaveBeenCalled()
   })
 
   it('gives a goal with one count subject its figure, target and days left', async () => {
@@ -477,7 +472,7 @@ describe('the month so far of the goals on the Goals list', () => {
       bundle({ id: `program-${index + 1}`, subjects: [portal(`portal-${index + 1}`)] }),
     )
     const deps: GoalProgressDeps = {
-      reads: { list: async () => goals, get: vi.fn() },
+      reads: { list: async () => goals },
       metrics: {
         queryGoalMetric: async () => {
           inFlight += 1
@@ -516,7 +511,7 @@ describe('the month so far of the goals on the Goals list', () => {
     const gate = (portalId: string) =>
       new Promise<void>((resolve) => finishing.set(portalId, resolve))
     const deps: GoalProgressDeps = {
-      reads: { list: async () => goals, get: vi.fn() },
+      reads: { list: async () => goals },
       metrics: {
         queryGoalMetric: async (query) => {
           const portalId = query.subject.kind === 'portal' ? query.subject.portalId : ''
