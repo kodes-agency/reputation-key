@@ -1,3 +1,4 @@
+import { seedReply } from './reply-seed.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // D3/D4 — uncertain-send grace, ambiguous read ladder and never-dispatched
 // settlement on the real database.
@@ -185,7 +186,7 @@ async function claimOneAttempt() {
     replyScopeEffects,
   )
   const review = await reviewRepo.upsert(makeReview())
-  const pending = await replyRepo.upsert(pendingReply())
+  const pending = await seedReply(getDb(), pendingReply())
   const authorized = await store.markPublicationAuthorized(
     pending,
     { status: 'approved', approvedBy: USER_A, approvedAt: STARTED_AT },

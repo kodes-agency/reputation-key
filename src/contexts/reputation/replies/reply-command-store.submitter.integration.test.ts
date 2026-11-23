@@ -1,3 +1,4 @@
+import { seedReply } from './reply-seed.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Who submitted a reply, stored with it (real PostgreSQL).
 //
@@ -141,7 +142,7 @@ describe.sequential('the submitter of a reply (integration)', () => {
   it('is stored by the submit write beside the creator', async () => {
     const db = getDb()
     const replyRepo = createReplyRepository(db, () => NOW)
-    await replyRepo.upsert(draft)
+    await seedReply(getDb(), draft, NOW)
 
     await createAtomicReplyCommandStore(
       db,
@@ -170,7 +171,7 @@ describe.sequential('the submitter of a reply (integration)', () => {
 
   it('reads a reply never submitted as addressed to its creator', async () => {
     const replyRepo = createReplyRepository(getDb(), () => NOW)
-    await replyRepo.upsert(draft)
+    await seedReply(getDb(), draft, NOW)
 
     const stored = await replyRepo.findById(REPLY, ORG)
     expect(stored?.submittedBy).toBeNull()
