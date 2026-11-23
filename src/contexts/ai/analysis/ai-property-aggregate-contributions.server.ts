@@ -28,9 +28,6 @@ export type Contribution = Readonly<{
 export async function withdrawReviewContribution(input: {
   tx: AggregateTransaction
   command: AggregateIdentityInput & Readonly<{ reviewId: string }>
-  head: AggregateHead
-  aggregateRevision: number
-  appliedAt: Date
 }): Promise<void> {
   const { tx, command } = input
   await tx
