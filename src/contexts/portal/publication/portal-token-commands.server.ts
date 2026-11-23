@@ -84,7 +84,6 @@ function portalTokenToRow(
     tokenHash: token.tokenHash,
     tokenKeyVersion: token.tokenKeyVersion,
     version: token.version,
-    printBatch: token.printBatch,
     status: token.status,
     issuedAt: token.issuedAt,
     gracePeriodEnds: token.gracePeriodEnds,
