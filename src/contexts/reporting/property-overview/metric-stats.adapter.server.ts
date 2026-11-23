@@ -12,7 +12,6 @@ import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import {
   metricPeriodWhere,
   metricPortalWhere,
-  metricPortalsWhere,
   readMetricAggregates,
   type MetricAggregateRow,
 } from './read-facade.server'
@@ -69,24 +68,6 @@ export const createMetricStatsAdapter = (db: Database): MetricStatsPort => ({
       const rows = await readMetricAggregates(
         db,
         metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
-      )
-      return sumRows(rows)
-    })
-  },
-
-  async getSumsByPortals(
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-    portalIds: ReadonlyArray<PortalId>,
-    startDate: Date,
-    endDate: Date,
-  ) {
-    return trace('dashboard.metricStats.getSumsByPortals', async () => {
-      if (portalIds.length === 0) return []
-
-      const rows = await readMetricAggregates(
-        db,
-        metricPortalsWhere(organizationId, propertyId, portalIds, startDate, endDate),
       )
       return sumRows(rows)
     })

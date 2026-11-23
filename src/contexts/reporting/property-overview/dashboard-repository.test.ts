@@ -25,7 +25,6 @@ const stubMetricStats = (overrides: Partial<Record<keyof MetricStatsPort, unknow
   ({
     getSumsByPeriod: vi.fn(),
     getSumsByPortal: vi.fn(),
-    getSumsByPortals: vi.fn(),
     getCountsByPortal: vi.fn(),
     ...overrides,
   }) as unknown as MetricStatsPort
