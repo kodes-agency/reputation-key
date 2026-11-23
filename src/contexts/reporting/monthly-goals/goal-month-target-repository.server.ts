@@ -59,38 +59,6 @@ export function mapTargetChange(
 }
 
 /**
- * Every change to a month's target of the given Programs, oldest first. It
- * filters on the organization, the Property and the Program together: a
- * Program id alone never selects a row. Called by the Program reads `get` and
- * `list` only, and kept out of the bundle hydration, which loads children by
- * parent id.
- */
-export async function listTargetChanges(
-  db: Database,
-  organizationId: string,
-  propertyId: string,
-  programIds: readonly string[],
-): Promise<readonly GoalMonthTargetChange[]> {
-  if (programIds.length === 0) return []
-  const rows = await db
-    .select()
-    .from(goalMonthTargetChanges)
-    .where(
-      and(
-        eq(goalMonthTargetChanges.organizationId, organizationId),
-        eq(goalMonthTargetChanges.propertyId, propertyId),
-        inArray(goalMonthTargetChanges.programId, [...programIds]),
-      ),
-    )
-    .orderBy(
-      asc(goalMonthTargetChanges.createdAt),
-      asc(goalMonthTargetChanges.changeId),
-      asc(goalMonthTargetChanges.monthlyResultId),
-    )
-  return rows.map(mapTargetChange)
-}
-
-/**
  * The Program's months that are open and running at the command's instant,
  * locked for the rest of the transaction. The instant is the injected clock,
  * as for the due-result reads; the guard checks the database's own.

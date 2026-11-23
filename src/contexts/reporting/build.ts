@@ -84,7 +84,6 @@ import {
 } from './monthly-goals/get-portal-goal-page.server'
 import { readGoalRecommendationCounts } from './monthly-goals/goal-recommendation-readings.server'
 import {
-  createGoalProgramProgressReader,
   createGoalProgressReader,
   type GoalProgressRequestApi,
 } from './monthly-goals/goal-progress.server'
@@ -344,8 +343,6 @@ function buildGoalModule(
   })
   const readGoalProgress = (policy: GoalExecutionPolicy) =>
     createGoalProgressReader(goalProgressDeps(policy))
-  const readGoalProgramProgress = (policy: GoalExecutionPolicy) =>
-    createGoalProgramProgressReader(goalProgressDeps(policy))
   const readGoalListProgress = (policy: GoalExecutionPolicy) =>
     createGoalListProgressReader(goalProgressDeps(policy))
   const goalRecommendationFacts: GoalRecommendationFactsPort = {
@@ -471,7 +468,6 @@ function buildGoalModule(
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
     history: (policy, ...args) => readGoalPrograms(policy).history!(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
-    programProgress: (policy, ...args) => readGoalProgramProgress(policy)(...args),
     listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
     monthlyPortalGoal,
     portalGoalAdd,
