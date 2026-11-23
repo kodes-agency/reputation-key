@@ -45,7 +45,6 @@ export type PortalGroupCommandStore = Pick<
   PortalCommandStore,
   | 'createPortalGroup'
   | 'updatePortalGroup'
-  | 'addPortalToGroup'
   | 'removePortalFromGroup'
   | 'movePortalToGroup'
   | 'deletePortalGroup'
@@ -353,12 +352,6 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
             recordedAt: command.occurredAt,
           })
         })
-      }),
-
-    addPortalToGroup: async (command) =>
-      trace('portal.commandStore.addPortalToGroup', async () => {
-        assertMembershipCommand(command, 'portal_group.portal_added')
-        await db.transaction((tx) => joinPortalGroupInTransaction(tx, command))
       }),
 
     removePortalFromGroup: async (command) =>

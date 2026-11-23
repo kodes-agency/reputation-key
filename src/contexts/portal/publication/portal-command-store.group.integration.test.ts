@@ -418,16 +418,19 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       sourceAggregateVersion: UPDATED_AT.toISOString(),
       occurredAt: UPDATED_AT,
     })
-    await store.addPortalToGroup({
+    await store.movePortalToGroup({
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
-      portalGroupId: GROUP_A,
       portalId: PORTAL_A,
-      expectedUpdatedAt: GROUP_UPDATED_AT,
-      revision: UPDATED_AT,
-      occurredAt: UPDATED_AT,
       changedBy: MANAGER,
-      event: added,
+      occurredAt: UPDATED_AT,
+      to: {
+        portalGroupId: GROUP_A,
+        expectedUpdatedAt: GROUP_UPDATED_AT,
+        revision: UPDATED_AT,
+        event: added,
+      },
+      from: null,
     })
     const removed = portalRemovedFromGroup({
       portalGroupId: GROUP_A,
@@ -492,7 +495,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     ])
   })
 
-  it('serializes competing group additions for the same Portal', async () => {
+  it('serializes competing first-group joins for the same Portal', async () => {
     const { store } = await seedStoredPortal()
     await getPool().query(
       `INSERT INTO portal_groups
@@ -519,27 +522,33 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
 
     const results = await Promise.allSettled([
-      store.addPortalToGroup({
+      store.movePortalToGroup({
         organizationId: ORG_A,
         propertyId: PROPERTY_A,
-        portalGroupId: GROUP_A,
         portalId: PORTAL_A,
-        expectedUpdatedAt: GROUP_UPDATED_AT,
-        revision: UPDATED_AT,
+        changedBy: MANAGER,
         occurredAt: UPDATED_AT,
-        changedBy: MANAGER,
-        event: firstEvent,
+        to: {
+          portalGroupId: GROUP_A,
+          expectedUpdatedAt: GROUP_UPDATED_AT,
+          revision: UPDATED_AT,
+          event: firstEvent,
+        },
+        from: null,
       }),
-      store.addPortalToGroup({
+      store.movePortalToGroup({
         organizationId: ORG_A,
         propertyId: PROPERTY_A,
-        portalGroupId: GROUP_B,
         portalId: PORTAL_A,
-        expectedUpdatedAt: GROUP_UPDATED_AT,
-        revision: DELETED_AT,
-        occurredAt: DELETED_AT,
         changedBy: MANAGER,
-        event: secondEvent,
+        occurredAt: DELETED_AT,
+        to: {
+          portalGroupId: GROUP_B,
+          expectedUpdatedAt: GROUP_UPDATED_AT,
+          revision: DELETED_AT,
+          event: secondEvent,
+        },
+        from: null,
       }),
     ])
 

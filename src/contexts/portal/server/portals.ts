@@ -27,7 +27,6 @@ import {
   portalApprovedDestinationRequestInputSchema,
   portalLocalizedOverrideInputSchema,
   propertyPortalBrandContentInputSchema,
-  propertyPortalBrandProfileInputSchema,
   propertyPortalExperienceInputSchema,
   propertyPublicDisplayNameInputSchema,
 } from '../editor/portal-experience.contracts'
@@ -101,32 +100,6 @@ export const getPropertyPortalExperience = createServerFn({ method: 'GET' })
           propertyId: data.propertyId,
         })
         return getContainer().portalPublicApi.management.getPropertyPortalExperience(
-          data,
-          ctx,
-        )
-      },
-    ),
-  )
-
-// The e2e seed path: no screen saves a brand profile; the e2e fixtures do.
-export const savePropertyPortalBrandProfile = createServerFn({ method: 'POST' })
-  .validator(propertyPortalBrandProfileInputSchema)
-  .handler(
-    commandHandler(
-      {
-        method: 'POST',
-        name: 'portal.savePropertyPortalBrandProfile',
-        errors: portalCommandErrors,
-      },
-      async ({ data, headers }) => {
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-          propertyId: data.propertyId,
-        })
-        return getContainer().portalPublicApi.management.savePropertyPortalBrandProfile(
           data,
           ctx,
         )
