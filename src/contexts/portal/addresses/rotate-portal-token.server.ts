@@ -112,13 +112,7 @@ export const rotatePortalToken =
       graceSeconds * 1000,
       occurredAt,
     )
-    if (!('oldToken' in result)) {
-      throw portalError('token_unavailable', 'Portal token cannot be rotated')
-    }
-    const gracePeriodEnds = result.oldToken.gracePeriodEnds
-    if (!gracePeriodEnds) {
-      throw portalError('token_unavailable', 'Portal token rotation has no grace period')
-    }
+    const { gracePeriodEnds } = result.oldToken
     const sealedAddress =
       deps.addressCipher?.seal(material.rawToken, {
         organizationId: result.newToken.organizationId,
