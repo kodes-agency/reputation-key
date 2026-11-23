@@ -41,16 +41,6 @@ export type DashboardPortalQuery = Readonly<{
   endDate: Date
 }>
 
-/** Query for KPIs across multiple portals. */
-export type DashboardKPIsForPortalsQuery = Readonly<{
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalIds: ReadonlyArray<PortalId>
-  startDate: Date
-  endDate: Date
-  comparisonPeriod: DashboardComparisonPeriod | null
-}>
-
 /** Query for recent reviews (no date range — always last N). */
 export type DashboardRecentReviewsQuery = Readonly<{
   organizationId: OrganizationId
@@ -60,7 +50,6 @@ export type DashboardRecentReviewsQuery = Readonly<{
 
 export type DashboardRepository = Readonly<{
   getKPIs(input: DashboardKPIQuery): Promise<KPIs>
-  getKPIsForPortals(input: DashboardKPIsForPortalsQuery): Promise<KPIs>
   getRatingDistribution(input: DashboardPeriodQuery): Promise<RatingDistribution>
   getRatingTrend(input: DashboardPeriodQuery): Promise<RatingTrendPoint[]>
   getReviewVolume(input: DashboardPeriodQuery): Promise<ReviewVolumePoint[]>

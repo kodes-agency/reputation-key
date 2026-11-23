@@ -134,10 +134,6 @@ import {
 import { SCHEDULED_RETENTION_ACTIVE } from '#/shared/db/retention/scheduled-retention-activation'
 import { getPortalResultsOverview } from './portal-results/get-portal-results-overview.server'
 import {
-  getAttentionSignals,
-  type GetAttentionSignals,
-} from './property-overview/get-attention-signals.server'
-import {
   getPropertyOverview,
   type GetPropertyOverview,
 } from './property-overview/get-property-overview.server'
@@ -601,13 +597,6 @@ function buildDashboardModule(
     now: input.clock,
     propertyAccess,
   })
-  const getAttention: GetAttentionSignals = getAttentionSignals({
-    signals: attentionSignals,
-    reviewStats: input.reviewServingStats,
-    inboxTargets: input.inboxTargets,
-    clock: input.clock,
-    propertyAccess,
-  })
   const getOverview: GetPropertyOverview = getPropertyOverview({
     getDashboardData: getDashboard,
     propertyAccess,
@@ -644,11 +633,9 @@ function buildDashboardModule(
         input.staffScanTargetsEnabled ?? false,
       ),
       readPropertyGoogleNumbers,
-      getDashboardData: getDashboard,
       getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
       getPortalAnalytics: getPortal,
       getPortalResultsOverview: getResultsOverview,
-      getAttentionSignals: getAttention,
       getPropertyOverview: getOverview,
       getFleetOverview: getFleet,
       getPropertySetup: getPropertySetupRead,
@@ -657,11 +644,9 @@ function buildDashboardModule(
     internal: {
       repos: { dashboardRepo, propertySetupRepo },
       useCases: {
-        getDashboardData: getDashboard,
         getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
         getPortalAnalytics: getPortal,
         getPortalResultsOverview: getResultsOverview,
-        getAttentionSignals: getAttention,
         getPropertyOverview: getOverview,
         getFleetOverview: getFleet,
         getPropertySetup: getPropertySetupRead,

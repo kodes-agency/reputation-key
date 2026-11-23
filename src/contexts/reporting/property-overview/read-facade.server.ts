@@ -67,22 +67,6 @@ export function metricPortalWhere(
   )
 }
 
-/** metric_readings scope for a set of portals. */
-export function metricPortalsWhere(
-  organizationId: OrganizationId,
-  propertyId: PropertyId,
-  portalIds: ReadonlyArray<PortalId>,
-  startDate: Date,
-  endDate: Date,
-) {
-  return and(
-    metricPeriodWhere(organizationId, propertyId, startDate, endDate),
-    // Drizzle inArray() doesn't accept branded PortalId[] — the cast is safe
-    // because PortalId is a string-brand.
-    inArray(metricReadings.portalId, portalIds as unknown as string[]),
-  )
-}
-
 /** inbox_items scope: tenant + property. */
 export function inboxScopeWhere(organizationId: OrganizationId, propertyId: PropertyId) {
   return and(
