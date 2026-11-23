@@ -9,7 +9,6 @@ import {
   assertInboxSourcePropertyAccessible,
   canHandleInboxSource,
   canReadInboxSource,
-  readableInboxSourceTypes,
   resolveInboxSourceScopes,
 } from './inbox-access.server'
 
@@ -47,16 +46,6 @@ describe('Inbox source-specific access', () => {
     expect(
       canHandleInboxSource(contextWith('inbox.write', 'feedback.handle'), 'feedback'),
     ).toBe(true)
-  })
-
-  it('returns only the source families the caller may read', () => {
-    expect(readableInboxSourceTypes(contextWith('inbox.read', 'review.read'))).toEqual([
-      'review',
-    ])
-    expect(
-      readableInboxSourceTypes(contextWith('inbox.read', 'review.read', 'feedback.read')),
-    ).toEqual(['review', 'feedback'])
-    expect(readableInboxSourceTypes(contextWith('inbox.read'))).toEqual([])
   })
 
   it('intersects Inbox and owning-context property scopes per source', async () => {

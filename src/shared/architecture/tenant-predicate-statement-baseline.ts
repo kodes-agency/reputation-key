@@ -35,7 +35,6 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/feed/email/notification-digest-batch.server.ts#suppressAndClose': 1,
   'src/contexts/guest/page/guest-observation-store.server.ts#retractQualifiedScan': 1,
   'src/contexts/reputation/inbox/feedback-handling-store.server.ts#correctOutcome': 1,
-  'src/contexts/reputation/inbox/inbox-escalation-history.server.ts#readInboxEscalationHistory': 1,
   'src/contexts/reputation/response-targets/store.server.ts#cancelResponseTargetForCycle': 1,
   'src/contexts/reputation/response-targets/store.server.ts#stopPrivateFeedbackTarget': 1,
   'src/contexts/integration/connections/google-disconnect-revoke-repository.server.ts#acquireDispatch': 1,

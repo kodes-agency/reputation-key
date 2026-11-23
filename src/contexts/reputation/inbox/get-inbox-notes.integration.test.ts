@@ -89,7 +89,19 @@ afterAll(async () => {
   await pool.end()
 })
 
-const addNote = (note: InboxNote) => noteRepo.create(note, note.organizationId)
+const addNote = (note: InboxNote) =>
+  pool.query(
+    `INSERT INTO inbox_notes (id, inbox_item_id, organization_id, author_user_id, text, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      note.id,
+      note.inboxItemId,
+      note.organizationId,
+      note.userId,
+      note.text,
+      note.createdAt,
+    ],
+  )
 
 /**
  * A counting directory double. Every test asserts the lookup happens

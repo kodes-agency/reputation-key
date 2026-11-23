@@ -9,5 +9,4 @@ export type InboxNoteRepository = Readonly<{
     inboxItemId: InboxItemId,
     orgId: OrganizationId,
   ): Promise<ReadonlyArray<InboxNote>>
-  create(note: InboxNote, orgId: OrganizationId): Promise<InboxNote>
 }>
