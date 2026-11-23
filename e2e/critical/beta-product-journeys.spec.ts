@@ -184,13 +184,10 @@ async function publishRotatingPortal(page: Page, suffix: string) {
   // checking the address refusal, since a fresh Property has no wording yet.
   await callServerFn(page, {
     file: 'src/contexts/portal/server/portals.ts',
-    exportName: 'savePropertyPortalBrandProfile',
+    exportName: 'savePropertyPublicDisplayName',
     data: {
       propertyId: seed.p1PropertyId,
       displayName: 'E2E Beta Hotel P1',
-      primaryColor: '#6366f1',
-      backgroundColor: '#ffffff',
-      textColor: '#111827',
     },
   })
   await callServerFn(page, {

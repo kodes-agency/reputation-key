@@ -295,33 +295,19 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
 
   it('versions Property branding and removes an empty Portal-local override', async () => {
     const repo = createPortalExperienceRepository(getDb())
-    const firstProfile = await repo.savePropertyProfile({
+    const firstProfile = await repo.savePropertyDisplayName({
       id: 'fa400000-0000-4000-8000-000000000001',
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
-      profile: {
-        displayName: 'Example Hotel',
-        logoUrl: null,
-        defaultHeroImageUrl: null,
-        primaryColor: '#1D4ED8',
-        backgroundColor: '#FFFFFF',
-        textColor: '#111827',
-      },
+      displayName: 'Example Hotel',
       updatedBy: ADMIN,
       at: NOW,
     })
-    const secondProfile = await repo.savePropertyProfile({
+    const secondProfile = await repo.savePropertyDisplayName({
       id: 'fa400000-0000-4000-8000-000000000002',
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
-      profile: {
-        displayName: 'Example Hotel Sofia',
-        logoUrl: null,
-        defaultHeroImageUrl: null,
-        primaryColor: '#1D4ED8',
-        backgroundColor: '#FFFFFF',
-        textColor: '#111827',
-      },
+      displayName: 'Example Hotel Sofia',
       updatedBy: ADMIN,
       at: new Date(NOW.getTime() + 1_000),
     })
