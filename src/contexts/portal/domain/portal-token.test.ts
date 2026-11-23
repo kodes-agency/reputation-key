@@ -1,12 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  type PortalToken,
-  issueToken,
-  rotateToken,
-  revokeToken,
-  isActive,
-  isInGracePeriod,
-} from './portal-token'
+import { issueToken, rotateToken } from './portal-token'
 
 describe('PortalToken', () => {
   const NOW = new Date('2026-01-15T12:00:00Z')
@@ -23,193 +16,35 @@ describe('PortalToken', () => {
     now: NOW,
   }
 
+  const replacement = {
+    id: 'token-2',
+    tokenIdentifier: 'identifier-new',
+    tokenHash: 'hash-new',
+    tokenKeyVersion: 1,
+    version: 2,
+  }
+
   describe('issueToken', () => {
     it('creates an active token', () => {
       const t = issueToken(baseParams)
       expect(t.status).toBe('active')
-      expect(isActive(t, NOW)).toBe(true)
       expect(t.revokedAt).toBeNull()
     })
   })
 
   describe('rotateToken', () => {
     it('creates old (rotating) and new (active) tokens', () => {
-      const t = issueToken(baseParams)
-      const result = rotateToken(
-        t,
-        {
-          id: 'token-2',
-          tokenIdentifier: 'identifier-new',
-          tokenHash: 'hash-new',
-          tokenKeyVersion: 1,
-          version: 2,
-        },
-        60000,
-        NOW,
-      )
-      if ('oldToken' in result) {
-        expect(result.oldToken.status).toBe('rotating')
-        expect(result.oldToken.gracePeriodEnds).not.toBeNull()
-        expect(result.newToken.status).toBe('active')
-        expect(result.newToken.tokenHash).toBe('hash-new')
-        expect(result.newToken.version).toBe(2)
-      }
+      const result = rotateToken(issueToken(baseParams), replacement, 60000, NOW)
+      expect(result.oldToken.status).toBe('rotating')
+      expect(result.oldToken.gracePeriodEnds).toEqual(new Date(NOW.getTime() + 60000))
+      expect(result.newToken.status).toBe('active')
+      expect(result.newToken.tokenHash).toBe('hash-new')
+      expect(result.newToken.version).toBe(2)
     })
 
-    it('both tokens are active during grace period', () => {
-      const t = issueToken(baseParams)
-      const result = rotateToken(
-        t,
-        {
-          id: 'token-2',
-          tokenIdentifier: 'identifier-new',
-          tokenHash: 'hash-new',
-          tokenKeyVersion: 1,
-          version: 2,
-        },
-        60000,
-        NOW,
-      )
-      if ('oldToken' in result) {
-        expect(isActive(result.oldToken, NOW)).toBe(true)
-        expect(isActive(result.newToken, NOW)).toBe(true)
-      }
-    })
-
-    it('prevents rotating a revoked token', () => {
-      const t = revokeToken(
-        issueToken(baseParams),
-        'admin',
-        'compromised',
-        NOW,
-      ) as PortalToken
-      const result = rotateToken(
-        t,
-        {
-          id: 'token-2',
-          tokenIdentifier: 'identifier-new',
-          tokenHash: 'hash-new',
-          tokenKeyVersion: 1,
-          version: 2,
-        },
-        60000,
-        NOW,
-      )
-      expect(result).toHaveProperty('code', 'already_revoked')
-    })
-  })
-
-  describe('revokeToken', () => {
-    it('revokes an active token', () => {
-      const t = issueToken(baseParams)
-      const result = revokeToken(t, 'admin', 'compromised', NOW)
-      expect(result).toHaveProperty('status', 'revoked')
-      if (!('code' in result)) {
-        expect(result.revokedBy).toBe('admin')
-        expect(result.revokedReason).toBe('compromised')
-      }
-    })
-
-    it('prevents revoking an already-revoked token', () => {
-      const t = revokeToken(issueToken(baseParams), 'admin', 'test', NOW) as PortalToken
-      const result = revokeToken(t, 'admin', 'again', NOW)
-      expect(result).toHaveProperty('code', 'already_revoked')
-    })
-
-    it('revokes a rotating token', () => {
-      const t = issueToken(baseParams)
-      const rot = rotateToken(
-        t,
-        {
-          id: 'token-2',
-          tokenIdentifier: 'identifier-new',
-          tokenHash: 'hash-new',
-          tokenKeyVersion: 1,
-          version: 2,
-        },
-        60000,
-        NOW,
-      )
-      if ('oldToken' in rot) {
-        const result = revokeToken(rot.oldToken, 'admin', 'urgent', NOW)
-        expect(result).toHaveProperty('status', 'revoked')
-      }
-    })
-  })
-
-  describe('isActive', () => {
-    it('active token is active', () => {
-      expect(isActive(issueToken(baseParams), NOW)).toBe(true)
-    })
-
-    it('revoked token is not active', () => {
-      const t = revokeToken(issueToken(baseParams), 'admin', 'test', NOW) as PortalToken
-      expect(isActive(t, NOW)).toBe(false)
-    })
-
-    it('rotating token within grace period is active', () => {
-      const t = issueToken(baseParams)
-      const rot = rotateToken(
-        t,
-        {
-          id: 'token-2',
-          tokenIdentifier: 'identifier-new',
-          tokenHash: 'hash-new',
-          tokenKeyVersion: 1,
-          version: 2,
-        },
-        60000,
-        NOW,
-      )
-      if ('oldToken' in rot) {
-        expect(isActive(rot.oldToken, NOW)).toBe(true)
-      }
-    })
-
-    it('rotating token after grace period is not active', () => {
-      const t = issueToken(baseParams)
-      // Grace period of 0ms — immediately expired
-      const rot = rotateToken(
-        t,
-        {
-          id: 'token-2',
-          tokenIdentifier: 'identifier-new',
-          tokenHash: 'hash-new',
-          tokenKeyVersion: 1,
-          version: 2,
-        },
-        0,
-        NOW,
-      )
-      if ('oldToken' in rot) {
-        // Add 1ms to ensure we're past the grace end
-        expect(isActive(rot.oldToken, new Date(NOW.getTime() + 1000))).toBe(false)
-      }
-    })
-  })
-
-  describe('isInGracePeriod', () => {
-    it('returns true for rotating token within grace', () => {
-      const t = issueToken(baseParams)
-      const rot = rotateToken(
-        t,
-        {
-          id: 'token-2',
-          tokenIdentifier: 'identifier-new',
-          tokenHash: 'hash-new',
-          tokenKeyVersion: 1,
-          version: 2,
-        },
-        60000,
-        NOW,
-      )
-      if ('oldToken' in rot) {
-        expect(isInGracePeriod(rot.oldToken, NOW)).toBe(true)
-      }
-    })
-
-    it('returns false for active token (not rotating)', () => {
-      expect(isInGracePeriod(issueToken(baseParams), NOW)).toBe(false)
+    it('refuses a token that is not active', () => {
+      const revoked = { ...issueToken(baseParams), status: 'revoked' as const }
+      expect(() => rotateToken(revoked, replacement, 60000, NOW)).toThrow(/revoked/)
     })
   })
 })

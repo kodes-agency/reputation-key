@@ -620,14 +620,13 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       15 * 60 * 1000,
       rotateAt,
     )
-    if (!('oldToken' in rotation)) throw new Error('rotation fixture must be valid')
     const rotated = portalTokenRotated({
       portalId: PORTAL_A,
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
       previousVersion: 1,
       version: 2,
-      gracePeriodEnds: rotation.oldToken.gracePeriodEnds!,
+      gracePeriodEnds: rotation.oldToken.gracePeriodEnds,
       sourceAggregateVersion: rotateAt.toISOString(),
       occurredAt: rotateAt,
     })
