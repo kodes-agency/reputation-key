@@ -12,7 +12,6 @@ import {
   savePortalLocalizedOverride,
   savePropertyDefaultGuestLocales,
   savePropertyPortalBrandContent,
-  savePropertyPortalBrandProfile,
   savePropertyPublicDisplayName,
 } from './manage-portal-experience.server'
 import { AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR } from '../domain/portal-experience'
@@ -24,7 +23,6 @@ import {
   ORG_A,
   ORG_B,
   adminOf,
-  brandProfileInput,
   contentRow,
   depsOf,
   eventTypes,
@@ -39,151 +37,6 @@ import {
 } from './portal-experience-world.test-fixtures'
 
 setupExperienceDb()
-
-describe('savePropertyPortalBrandProfile (real PostgreSQL)', () => {
-  it('refuses a PropertyManager: Property-wide branding needs portal.admin', async () => {
-    const { property } = await scene()
-
-    await rejectsWithPortalCode(
-      savePropertyPortalBrandProfile(depsOf())(brandProfileInput(property), managerOf()),
-      'forbidden',
-    )
-    expect(await profileRow(property)).toBeUndefined()
-  })
-
-  it('persists a trimmed name and upper-cased colours, and never a caller-supplied image URL', async () => {
-    const { property } = await scene()
-    const ctx = adminOf()
-
-    const saved = await savePropertyPortalBrandProfile(depsOf())(
-      brandProfileInput(property),
-      ctx,
-    )
-
-    expect(saved.logoUrl).toBeNull()
-    expect(saved.defaultHeroImageUrl).toBeNull()
-    expect(await profileRow(property)).toMatchObject({
-      display_name: 'Seaside Retreat',
-      logo_url: null,
-      default_hero_image_url: null,
-      primary_color: '#6366F1',
-      background_color: '#FFFFFF',
-      text_color: '#111827',
-      updated_by: ctx.userId,
-    })
-    expect(await eventTypes()).toContain('portal.property_brand_profile.updated')
-  })
-
-  it('does not reach another Organization’s Property', async () => {
-    const { property } = await scene()
-    await seedBrandProfile(getPool(), ORG_A, property)
-
-    await savePropertyPortalBrandProfile(depsOf())(
-      brandProfileInput(property, { displayName: 'Intruder' }),
-      adminOf(ORG_B),
-    ).catch(() => undefined)
-
-    expect((await profileRow(property)).display_name).toBe('Avela Resort')
-  })
-
-  it('refuses text colour below the 4.5 contrast floor', async () => {
-    const { property } = await scene()
-
-    // #999999 on #FFFFFF is roughly 2.8:1: legible enough to look fine in a
-    // colour picker and far below what a guest on a phone outdoors can read.
-    await rejectsWithPortalCode(
-      savePropertyPortalBrandProfile(depsOf())(
-        brandProfileInput(property, { textColor: '#999999' }),
-        adminOf(),
-      ),
-      'invalid_theme',
-    )
-    expect(await profileRow(property)).toBeUndefined()
-  })
-
-  it('refuses a colour that is not a six-digit hex', async () => {
-    const { property } = await scene()
-
-    await rejectsWithPortalCode(
-      savePropertyPortalBrandProfile(depsOf())(
-        brandProfileInput(property, { primaryColor: 'rebeccapurple' }),
-        adminOf(),
-      ),
-      'invalid_theme',
-    )
-    await rejectsWithPortalCode(
-      savePropertyPortalBrandProfile(depsOf())(
-        brandProfileInput(property, { textColor: '#111' }),
-        adminOf(),
-      ),
-      'invalid_theme',
-    )
-    expect(await profileRow(property)).toBeUndefined()
-  })
-
-  it('passes a trimmed wordmark and the background mode through, and keeps them when the caller leaves them out', async () => {
-    const { property } = await scene()
-    const save = savePropertyPortalBrandProfile(depsOf())
-
-    await save(
-      brandProfileInput(property, { wordmark: '  HARBOUR  ', backgroundMode: 'manual' }),
-      adminOf(),
-    )
-    expect(await profileRow(property)).toMatchObject({
-      wordmark: 'HARBOUR',
-      background_mode: 'manual',
-    })
-
-    await save(brandProfileInput(property), adminOf())
-    expect(await profileRow(property)).toMatchObject({
-      wordmark: 'HARBOUR',
-      background_mode: 'manual',
-    })
-  })
-
-  it('clears the wordmark when given null or only spaces', async () => {
-    const { property } = await scene()
-    const save = savePropertyPortalBrandProfile(depsOf())
-    await save(brandProfileInput(property, { wordmark: 'HARBOUR' }), adminOf())
-
-    await save(brandProfileInput(property, { wordmark: null }), adminOf())
-    expect((await profileRow(property)).wordmark).toBeNull()
-
-    await save(brandProfileInput(property, { wordmark: 'HARBOUR' }), adminOf())
-    await save(brandProfileInput(property, { wordmark: '   ' }), adminOf())
-    expect((await profileRow(property)).wordmark).toBeNull()
-  })
-
-  it('refuses a wordmark over 24 characters and an unknown background mode before anything persists', async () => {
-    const { property } = await scene()
-    const save = savePropertyPortalBrandProfile(depsOf())
-
-    await rejectsWithPortalCode(
-      save(brandProfileInput(property, { wordmark: 'x'.repeat(25) }), adminOf()),
-      'invalid_description',
-    )
-    await rejectsWithPortalCode(
-      save(brandProfileInput(property, { backgroundMode: 'dark' }), adminOf()),
-      'invalid_theme',
-    )
-    expect(await profileRow(property)).toBeUndefined()
-  })
-
-  it('refuses a blank or over-long display name', async () => {
-    const { property } = await scene()
-    const save = savePropertyPortalBrandProfile(depsOf())
-
-    await rejectsWithPortalCode(
-      save(brandProfileInput(property, { displayName: '   ' }), adminOf()),
-      'invalid_description',
-    )
-    await rejectsWithPortalCode(
-      save(brandProfileInput(property, { displayName: 'x'.repeat(121) }), adminOf()),
-      'invalid_description',
-    )
-    expect(await profileRow(property)).toBeUndefined()
-  })
-})
 
 describe('savePropertyPublicDisplayName (real PostgreSQL)', () => {
   it('refuses a PropertyManager: the public display name is Property-wide branding', async () => {

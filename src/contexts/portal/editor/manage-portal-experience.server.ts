@@ -23,14 +23,10 @@ import {
 import { assertPropertyAccess } from '../publication/assert-property-access.server'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
 import { isPublicDisplayNameConfirmed } from '../domain/portal-experience'
-import { contrastRatio, MIN_TEXT_CONTRAST } from '#/shared/domain/portal-field-colour'
 import { portalError } from '../domain/errors'
 import {
-  BACKGROUND_MODES,
   normaliseDefaultGuestLocales,
   normaliseHeroAltText,
-  normaliseWordmark,
-  type BackgroundMode,
 } from '../domain/property-look'
 
 type Deps = Readonly<{
@@ -209,71 +205,6 @@ export const ensureDefaultPublicDisplayName =
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       displayName,
-      at: deps.clock(),
-    })
-  }
-
-export const savePropertyPortalBrandProfile =
-  (deps: Deps) =>
-  async (
-    input: Readonly<{
-      propertyId: string
-      displayName: string
-      logoUrl?: null
-      defaultHeroImageUrl?: null
-      primaryColor: string
-      backgroundColor: string
-      textColor: string
-      /** Left as it is when omitted; null (or only spaces) clears it. */
-      wordmark?: string | null
-      /** Left as it is when omitted. */
-      backgroundMode?: BackgroundMode
-    }>,
-    ctx: AuthContext,
-  ) => {
-    assertPortalAdmin(ctx)
-    const pid = propertyId(input.propertyId)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
-    const displayName = normalizedRequired(input.displayName, 'Display name', 120)
-    const wordmark =
-      input.wordmark === undefined ? undefined : normaliseWordmark(input.wordmark)
-    if (
-      input.backgroundMode !== undefined &&
-      !BACKGROUND_MODES.includes(input.backgroundMode)
-    ) {
-      throw portalError('invalid_theme', 'Choose an automatic or a manual background')
-    }
-    const textContrast = contrastRatio(input.textColor, input.backgroundColor)
-    if (
-      contrastRatio(input.primaryColor, input.backgroundColor) === null ||
-      textContrast === null ||
-      textContrast < MIN_TEXT_CONTRAST
-    ) {
-      throw portalError(
-        'invalid_theme',
-        'Brand colours must be valid hex colours with accessible text contrast',
-      )
-    }
-    return deps.experienceRepo.savePropertyProfile({
-      id: deps.idGen(),
-      organizationId: ctx.organizationId,
-      propertyId: pid,
-      profile: {
-        displayName,
-        // Manager-supplied public URLs are deliberately not admitted. Image
-        // issuance can populate these through the server-owned derivative path.
-        logoUrl: null,
-        defaultHeroImageUrl: null,
-        primaryColor: input.primaryColor.toUpperCase(),
-        backgroundColor: input.backgroundColor.toUpperCase(),
-        textColor: input.textColor.toUpperCase(),
-        // Only what the caller named: an omitted look field keeps its value.
-        ...(wordmark === undefined ? {} : { wordmark }),
-        ...(input.backgroundMode === undefined
-          ? {}
-          : { backgroundMode: input.backgroundMode }),
-      },
-      updatedBy: ctx.userId,
       at: deps.clock(),
     })
   }
