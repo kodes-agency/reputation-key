@@ -363,12 +363,12 @@ quota, ranking, incentive or employment input.
 
 ### Dashboard authorization
 
-`getDashboardData`, `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
+`getDashboardData`, `getPropertyOverview`, `getPortalAnalytics` and
 `getPortalResultsOverview` take the caller's `AuthContext` and first ask
 `property-overview/dashboard-property-access.server.ts`: the reader belongs to the Organization, holds
 `dashboard.read` and reaches every Property named (Organization-wide holders all, managers
 only those granted). A refusal is a tagged `DashboardError` `forbidden` raised before
-anything is read. `getPropertyOverview` and `getAttentionSignals` also need
+anything is read. `getPropertyOverview` also needs
 `dashboard.fleet_read`, because the attention band is work state. `getDashboardData` hides
 reply state from a reader without `reply.manage` (`domain/reply-workflow-redaction.ts`).
 Server functions still ask the execution policy first; the use case's check is the one a
