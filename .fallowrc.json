@@ -114,14 +114,7 @@
     },
     {
       "file": "src/contexts/reporting/public-api.ts",
-      "exports": [
-        "findMetricVersionById",
-        "GOOGLE_PERFORMANCE_ERROR_CODES",
-        "PROPERTY_PERFORMANCE_PRESETS",
-        "goalMonthlyResultClosed",
-        "isGooglePerformanceErrorCode",
-        "isPropertyPerformancePreset"
-      ]
+      "exports": ["findMetricVersionById", "goalMonthlyResultClosed"]
     },
     {
       "file": "src/contexts/guest/public-api.ts",
