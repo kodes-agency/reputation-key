@@ -118,24 +118,6 @@ export type HandlingCycleTransition = Readonly<{
  * persistence authority is source-neutral. New cross-source code should use
  * `HandlingCycle` / `HandlingCycleHead` directly.
  */
-export type ReviewHandlingCycle = Readonly<{
-  inboxItemId: InboxItemId
-  cycleNumber: number
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  reviewId: ReviewId
-  materialReviewRevision: number
-  openedReason: HandlingCycleOpenReason
-  manualReopenReason: ManualReopenReason | null
-  manualReopenExplanation: string | null
-  supersedesCycleNumber: number | null
-  openedBy: UserId | null
-  openedAt: Date
-  sourceType?: 'review'
-  sourceId?: ReviewId
-  sourceRevision?: number
-}>
-
 export type ReviewHandlingCycleHead = Readonly<{
   inboxItemId: InboxItemId
   organizationId: OrganizationId
