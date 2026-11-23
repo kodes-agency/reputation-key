@@ -11,6 +11,9 @@
 /** The route that serves these images, without a trailing slash. */
 export const IDENTITY_ASSET_PUBLIC_PATH = '/api/public/identity-assets'
 
+/** The largest avatar or organization logo, in bytes. */
+export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+
 const OWNER_ID = '[A-Za-z0-9_-]{1,64}'
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 
