@@ -76,8 +76,6 @@ const REPLY_COMMAND_AI_TEXT_RULES: Readonly<Record<ReplyCommand, AiTextRule>> = 
   // The manager typed the new text.
   edit_published: 'ends_adoption',
   delete: 'unaffected',
-  // Provider truth: what Google shows does not depend on the binding.
-  confirm_published: 'unaffected',
 }
 
 export const aiTextRuleOf = (command: ReplyCommand): AiTextRule =>

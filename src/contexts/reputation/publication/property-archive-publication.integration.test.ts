@@ -46,6 +46,7 @@ import {
 } from '../domain/review-events'
 import { buildReviewContext } from '../build-review'
 import { createReviewRepository } from '../reviews/review-repository.server'
+import { seedReply } from '#/contexts/reputation/replies/reply-seed.test-fixtures'
 import { createReplyRepository } from '../replies/reply-repository.server'
 import { createAtomicReplyCommandStore } from '../replies/reply-command-store.server'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store.server'
@@ -182,7 +183,7 @@ async function authorizeReply(sourceEpoch = 0): Promise<void> {
     sourceEpoch,
   })
   const pending = pendingReply()
-  await createReplyRepository(db, () => NOW).upsert(pending)
+  await seedReply(db, pending, NOW)
   const authorized = await createAtomicReplyCommandStore(
     db,
     () => NOW,

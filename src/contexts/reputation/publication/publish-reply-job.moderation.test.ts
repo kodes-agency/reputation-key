@@ -179,7 +179,6 @@ describe('publish-reply job handler reading Google moderation', () => {
         without.googleReplyObservationStore.record.mock.calls,
       )
       for (const name of [
-        'markPublished',
         'markPublicationTerminal',
         'markPublicationAmbiguous',
         'deferUncertainSend',

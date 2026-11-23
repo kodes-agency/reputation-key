@@ -27,10 +27,7 @@ export type UncertainSendSnapshot = Readonly<{
  * its Replies, inside the caller's transaction where it takes one.
  */
 export type ReplyWriter = Readonly<{
-  drafts: Pick<
-    ReplyRepository,
-    'upsert' | 'createDraft' | 'saveDraft' | 'deleteDraft' | 'deleteByReviewIdAndSource'
-  >
+  drafts: Pick<ReplyRepository, 'createDraft' | 'saveDraft' | 'deleteDraft'>
   lockReplyReview(
     tx: Tx,
     organizationId: Reply['organizationId'],
