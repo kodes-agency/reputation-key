@@ -39,6 +39,19 @@ export type GoalMetricEvaluation = Readonly<{
   reason: string | null
 }>
 
+export function sameGoalEvaluation(
+  left: GoalMetricEvaluation,
+  right: GoalMetricEvaluation,
+): boolean {
+  return (
+    left.state === right.state &&
+    left.value === right.value &&
+    left.sampleCount === right.sampleCount &&
+    left.achieved === right.achieved &&
+    left.reason === right.reason
+  )
+}
+
 export type GoalAssignmentWindow = Readonly<{
   subject: GoalSubject
   metric: GoalMetric

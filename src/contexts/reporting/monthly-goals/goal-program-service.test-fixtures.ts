@@ -171,6 +171,7 @@ export function createGoalProgramHarness(
     appendResults: vi.fn(real.appendResults),
     listDueResults: vi.fn(real.listDueResults),
     getDueResult: vi.fn(real.getDueResult),
+    getProgram: vi.fn(real.getProgram),
     getAssignment: vi.fn(real.getAssignment),
     getVersion: vi.fn(real.getVersion),
     updateResult: vi.fn<typeof real.updateResult>(async (input) =>
