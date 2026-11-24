@@ -209,7 +209,6 @@ describe.sequential('processing profile rebuild through PostgreSQL', () => {
         reviewId: reviewId(seededReviewId(IDS, 1)),
         sourceRevision: 1,
         analysisSequence: 1,
-        calendarProfileVersion: 'property-calendar-v1',
       }),
     ).resolves.toEqual({ status: 'stale' })
     expect(await facts(version)).toEqual(rebuilt)
@@ -242,7 +241,6 @@ describe.sequential('processing profile rebuild through PostgreSQL', () => {
       reviewId: reviewId(seededReviewId(IDS, 1)),
       sourceRevision: 1,
       analysisSequence: 1,
-      calendarProfileVersion: 'property-calendar-v1',
     })
     expect(await facts(version)).toEqual(rebuilt)
   })

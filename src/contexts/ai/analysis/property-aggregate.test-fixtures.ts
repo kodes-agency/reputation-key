@@ -113,7 +113,6 @@ export function createAggregateHelpers(db: Database) {
       analysisSequence,
       reviewAnalysisEpoch: 1,
       propertyProfileVersion: 1,
-      calendarProfileVersion: 'property-calendar-v1',
     })
 
   const advanceWithoutAnalysis = (
