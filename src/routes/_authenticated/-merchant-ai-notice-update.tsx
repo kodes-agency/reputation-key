@@ -4,7 +4,6 @@ import { MerchantAiNoticeUpdateBanner } from '#/contexts/identity/consent/ui/mer
 import { merchantAiNoticeUpdateQuery } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-query'
 import { useMarkMerchantAiNoticeUpdateSeen } from '#/contexts/identity/consent/ui/use-mark-merchant-ai-notice-update-seen'
 import type { MerchantAiNoticeUpdateClientGetter } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { merchantAiNoticeUpdateClient } from './-merchant-ai-notice-update-client'
 
 const getClient: MerchantAiNoticeUpdateClientGetter = async () =>
@@ -14,7 +13,7 @@ const getClient: MerchantAiNoticeUpdateClientGetter = async () =>
 export default function MerchantAiNoticeUpdate() {
   const { user, activeOrganization, role } = useRouteContext({
     from: '/_authenticated',
-  }) as AuthRouteContext
+  })
   return role === 'AccountAdmin' ? (
     <NoticeUpdateBody userId={user.id} organizationId={activeOrganization?.id ?? ''} />
   ) : null
