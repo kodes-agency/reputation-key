@@ -6,10 +6,8 @@ import { z } from 'zod/v4'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { commandHandler } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
-import { portalId } from '#/shared/domain/ids'
-import { portalError } from '../domain/errors'
 import { portalCommandErrors } from './portal-command-errors'
-import { requirePortalResourceScope } from './property-scope'
+import { requirePortalScope } from './portal-scope.server'
 
 const coverageInput = z.object({ portalId: z.string().min(1, 'Portal ID is required') })
 
@@ -24,16 +22,7 @@ export const getPortalLanguageCoverage = createServerFn({ method: 'GET' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await requirePortalResourceScope({
-          actor: ctx,
-          action: 'portal.read',
-          capability: 'portal.read',
-          notFound: portalError('portal_not_found', 'portal not found'),
-          lookup: () =>
-            getContainer().portalPublicApi.management.resolvePortalManagementScope(
-              portalId(data.portalId),
-            ),
-        })
+        await requirePortalScope(ctx, data.portalId, 'portal.read')
         return await getContainer().portalPublicApi.management.getPortalLanguageCoverage(
           data,
           ctx,

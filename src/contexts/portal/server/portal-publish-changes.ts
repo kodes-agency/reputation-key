@@ -8,15 +8,14 @@ import { z } from 'zod/v4'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { commandHandler } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
-import { portalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   publishPortalChangesInputSchema,
   publishPortalsChangesInputSchema,
 } from '../publication/publish-portal-changes.contracts'
-import { isPortalError, portalError } from '../domain/errors'
+import { isPortalError } from '../domain/errors'
 import { portalCommandErrors } from './portal-command-errors'
-import { requirePortalResourceScope } from './property-scope'
+import { requirePortalScope } from './portal-scope.server'
 
 /**
  * Every Portal the request names must be one this actor may change, checked
@@ -34,16 +33,7 @@ async function writeWithScope<T>(
 ): Promise<T> {
   for (const id of ids) {
     try {
-      await requirePortalResourceScope({
-        actor: ctx,
-        action: 'portal.update',
-        capability: 'portal.write',
-        notFound: portalError('portal_not_found', 'portal not found'),
-        lookup: () =>
-          getContainer().portalPublicApi.management.resolvePortalManagementScope(
-            portalId(id),
-          ),
-      })
+      await requirePortalScope(ctx, id, 'portal.update')
     } catch (error) {
       const isMissing = isPortalError(error) && error.code === 'portal_not_found'
       if (!(options.missingIsPerPortal && isMissing)) throw error

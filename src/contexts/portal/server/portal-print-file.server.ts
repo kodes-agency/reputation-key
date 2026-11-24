@@ -7,30 +7,14 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { getContainer } from '#/composition'
-import { portalId } from '#/shared/domain/ids'
 import { printKitDownloadOf } from '../printing/print-download.server'
 import type { PortalPrintKitFile, PortalPrintKitDownload } from '../printing/contracts'
-import { isPortalError, portalError } from '../domain/errors'
+import { isPortalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
 import {
   checkPortalAddressRateLimit,
   checkPortalPrintWordingRateLimit,
 } from './portal-address-rate-limit.server'
-
-/**
- * The Portal a print is for, as `requirePortalResourceScope` looks it up: its
- * management scope, or "portal not found". Each server function names its own
- * permission and capability beside it.
- */
-export function portalPrintScope(rawPortalId: string) {
-  return {
-    notFound: portalError('portal_not_found', 'portal not found'),
-    lookup: () =>
-      getContainer().portalPublicApi.management.resolvePortalManagementScope(
-        portalId(rawPortalId),
-      ),
-  }
-}
 
 /** The file contains the live code's address: nothing in the path may keep a copy. */
 function disableFileCaching(): void {

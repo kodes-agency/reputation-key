@@ -52,6 +52,16 @@ describe('BQR-0: Dark context capability enforcement', () => {
           expect(binding).toContain('decidePublicExecution(')
         })
       }
+      if (context === 'portal') {
+        it('routes the shared Portal scope helpers through the resource-scope seam', () => {
+          const helper = readFileSync(
+            join(SERVER_DIR, context, 'server', 'portal-scope.server.ts'),
+            'utf-8',
+          )
+          expect(helper).toContain('requirePortalResourceScope(')
+          expect(helper).toContain('portalCapabilityOf(action)')
+        })
+      }
       for (const file of files) {
         const basename = file.split('/').pop()!
         const content = readFileSync(file, 'utf-8')
@@ -61,6 +71,8 @@ describe('BQR-0: Dark context capability enforcement', () => {
         const hasAuthorizeSeam =
           content.includes('requireExecutionAllowed') ||
           content.includes('requirePortalResourceScope') ||
+          content.includes('requirePortalScope') ||
+          content.includes('requirePortalGroupScope') ||
           content.includes('requireMatchingPortalResourceScopes') ||
           content.includes('decidePublicExecution') ||
           content.includes('resolveBoundSession')
