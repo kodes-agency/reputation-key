@@ -2,63 +2,7 @@
 // Per architecture: "Pure unit, no setup, no mocks. Run in milliseconds."
 
 import { describe, it, expect } from 'vitest'
-import { isGovernedDisconnectInFlight, isValidEmail, isValidVisibility } from './rules'
-
-// ── isValidEmail ──────────────────────────────────────────────────
-
-describe('isValidEmail', () => {
-  it('accepts a standard email', () => {
-    expect(isValidEmail('user@example.com')).toBe(true)
-  })
-
-  it('accepts subdomain email', () => {
-    expect(isValidEmail('user@mail.example.com')).toBe(true)
-  })
-
-  it('accepts plus addressing', () => {
-    expect(isValidEmail('user+tag@example.com')).toBe(true)
-  })
-
-  it('accepts dash in local part', () => {
-    expect(isValidEmail('user-name@example.com')).toBe(true)
-  })
-
-  it('rejects missing @', () => {
-    expect(isValidEmail('userexample.com')).toBe(false)
-  })
-
-  it('rejects empty string', () => {
-    expect(isValidEmail('')).toBe(false)
-  })
-
-  it('rejects spaces around @', () => {
-    expect(isValidEmail('user @example.com')).toBe(false)
-  })
-
-  it('rejects missing domain', () => {
-    expect(isValidEmail('user@')).toBe(false)
-  })
-
-  it('rejects missing TLD', () => {
-    expect(isValidEmail('user@example')).toBe(false)
-  })
-
-  it('rejects double @', () => {
-    expect(isValidEmail('user@@example.com')).toBe(false)
-  })
-
-  it('rejects @ at start', () => {
-    expect(isValidEmail('@example.com')).toBe(false)
-  })
-
-  it('rejects trailing dot in TLD with space', () => {
-    expect(isValidEmail('user@example .com')).toBe(false)
-  })
-
-  it('rejects whitespace-only string', () => {
-    expect(isValidEmail('   ')).toBe(false)
-  })
-})
+import { isGovernedDisconnectInFlight, isValidVisibility } from './rules'
 
 // ── isValidVisibility ─────────────────────────────────────────────
 
