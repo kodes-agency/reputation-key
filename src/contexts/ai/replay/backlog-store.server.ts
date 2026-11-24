@@ -8,6 +8,7 @@ import type {
   AiReviewAnalysisBacklogPort,
 } from './contracts'
 import type { AiAdmissionLane } from '../domain/admission-lanes'
+import { rowValues } from './row-values'
 
 type BacklogRow = Readonly<{
   event_envelope_id: string
@@ -33,21 +34,9 @@ const PRIORITIES: ReadonlySet<string> = new Set<AiAdmissionLane>([
   'interactive',
 ])
 
-function safeInteger(value: number | string, field: string, minimum = 0): number {
-  const parsed = typeof value === 'string' ? Number(value) : value
-  if (!Number.isSafeInteger(parsed) || parsed < minimum) {
-    throw new Error(`AI review analysis backlog ${field} is invalid`)
-  }
-  return parsed
-}
-
-function instant(value: Date | string, field: string): number {
-  const parsed = value instanceof Date ? value.getTime() : Date.parse(value)
-  if (!Number.isSafeInteger(parsed)) {
-    throw new Error(`AI review analysis backlog ${field} is invalid`)
-  }
-  return parsed
-}
+const { safeInteger, epochMillis: instant } = rowValues(
+  (field) => `AI review analysis backlog ${field} is invalid`,
+)
 
 function mapEntry(row: BacklogRow): AiReviewAnalysisBacklogEntry {
   if (!ORIGINS.has(row.origin) || !PRIORITIES.has(row.priority)) {

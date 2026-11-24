@@ -63,7 +63,6 @@ const SECOND_REVIEW_ID = reviewId('76000000-0000-4000-8000-000000000008')
 const ACTOR_USER_ID = 'ai-v3-flow-test-actor'
 const SOURCE_EPOCH = 0
 const SOURCE_REVISION = 1
-const CALENDAR_PROFILE = 'property-calendar-v1' as const
 const WINDOW_DAY = '2026-10-19'
 
 const DERIVATIVE: AiAnalysisDerivativeV3 = {
@@ -215,7 +214,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       analysisSequence,
       reviewAnalysisEpoch: 1,
       propertyProfileVersion: 1,
-      calendarProfileVersion: CALENDAR_PROFILE,
     })
 
   const readWindow = () =>

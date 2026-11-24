@@ -202,7 +202,6 @@ export async function settleReviewAnalysisWithResult(
     analysisSequence: input.analysisSequence,
     reviewAnalysisEpoch: input.reviewAnalysisEpoch,
     propertyProfileVersion: input.propertyProfileVersion,
-    calendarProfileVersion: 'property-calendar-v1',
   })
   return aggregate.status === 'stale' || aggregate.status === 'unavailable'
     ? { status: 'generation_changed' }
