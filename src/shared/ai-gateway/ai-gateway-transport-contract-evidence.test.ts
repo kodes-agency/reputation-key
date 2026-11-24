@@ -30,6 +30,17 @@ function issuesOf(value: unknown): readonly string[] {
   }
 }
 
+/** The path of every issue the strict request schema raises for a value, dotted. */
+function issuePathsOf(value: unknown): readonly string[] {
+  try {
+    parseAiGatewayRouteRequest(value)
+    return []
+  } catch (error) {
+    if (!(error instanceof ZodError)) throw error
+    return error.issues.map((issue) => issue.path.join('.'))
+  }
+}
+
 describe('review-analysis v3 evidence request', () => {
   it('is what the live catalogue serves for review analysis, and nothing is wrong with it', () => {
     // The sentences, the property context, the provider and their agreement with the
@@ -47,14 +58,15 @@ describe('review-analysis v3 evidence request', () => {
 
   describe('the retired v2 form', () => {
     it('is refused as cross-wired: the live catalogue serves review analysis as v3', () => {
-      expect(issuesOf(v2FormAnalysisRequest())).toContain(CROSS_WIRED)
+      const retired = { ...analysisV3Request(), binding: v2FormAnalysisRequest().binding }
+      expect(issuesOf(retired)).toContain(CROSS_WIRED)
     })
 
-    it('has no sentences and no property context', () => {
-      const v2 = v2FormAnalysisRequest()
-      expect(v2.source.sentences).toBeUndefined()
-      expect(v2.propertyContext).toBeUndefined()
-      expect(v2.provider).toBeUndefined()
+    it('is refused for having no sentences, property context or provider', () => {
+      const paths = issuePathsOf(v2FormAnalysisRequest())
+      expect(paths).toContain('source.sentences')
+      expect(paths).toContain('propertyContext')
+      expect(paths).toContain('provider')
     })
 
     it('refuses sentences on the reply route, which reads no evidence', () => {
@@ -69,21 +81,24 @@ describe('review-analysis v3 evidence request', () => {
   })
 
   describe('v3 evidence', () => {
-    it('requires the numbered sentences, the property context and the provider together', () => {
+    it('requires the numbered sentences, the property context and the provider', () => {
       const request = analysisV3Request()
       const { sentences: _sentences, ...sourceWithoutSentences } = request.source
       const { propertyContext: _context, ...requestWithoutContext } = request
       const { provider: _provider, ...requestWithoutProvider } = request
 
-      expect(issuesOf({ ...request, source: sourceWithoutSentences })).toContain(
-        'analysis v3 route requires numbered sentences, a property context and a provider',
-      )
-      expect(issuesOf(requestWithoutContext)).toContain(
-        'analysis v3 route requires numbered sentences, a property context and a provider',
-      )
-      expect(issuesOf(requestWithoutProvider)).toContain(
-        'analysis v3 route requires numbered sentences, a property context and a provider',
-      )
+      expect(issuePathsOf({ ...request, source: sourceWithoutSentences })).toEqual([
+        'source.sentences',
+      ])
+      expect(issuePathsOf(requestWithoutContext)).toEqual(['propertyContext'])
+      expect(issuePathsOf(requestWithoutProvider)).toEqual(['provider'])
+    })
+
+    it('requires the review text the sentences are checked against', () => {
+      const request = analysisV3Request()
+      expect(
+        issuesOf({ ...request, source: { ...request.source, text: null } }),
+      ).toContain('analysis v3 route requires the review text')
     })
 
     it('takes the claimed provider as an identity of the closed set and nothing looser', () => {
