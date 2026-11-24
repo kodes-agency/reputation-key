@@ -6,7 +6,7 @@ import { aiReviewAnalysisBackfillRequested } from '../domain/events'
 import type { ReviewAnalysisEnrollmentFence } from './contracts'
 import { ANALYSABLE_REVIEW_SQL } from './reopen-store.server'
 import { lockReviewAnalysisPropertyFence } from '../analysis/review-analysis-property-fence.server'
-import { rowValues } from './row-values'
+import { rowValues } from './row-values.server'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>

@@ -8,7 +8,7 @@ import type {
   AiReviewAnalysisBacklogPort,
 } from './contracts'
 import type { AiAdmissionLane } from '../domain/admission-lanes'
-import { rowValues } from './row-values'
+import { rowValues } from './row-values.server'
 
 type BacklogRow = Readonly<{
   event_envelope_id: string

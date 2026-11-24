@@ -22,7 +22,7 @@ import {
 } from './enrollment-candidates.server'
 import { lockPropertyForAuthorizationChange } from '../analysis/review-analysis-property-fence.server'
 import { planReplaySnapshot } from './snapshot'
-import { rowValues } from './row-values'
+import { rowValues } from './row-values.server'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>

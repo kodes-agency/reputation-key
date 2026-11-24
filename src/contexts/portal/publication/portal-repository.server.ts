@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, asc, eq, ne, not, isNull } from 'drizzle-orm'
+import { and, eq, not, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { portals } from '#/shared/db/schema/portal.schema'
@@ -11,13 +11,7 @@ import type {
   ResolvePortalContextResult,
 } from './portal-repository.port.server'
 import { portalFromRow } from './portal-mapper.server'
-import {
-  portalId as toPortalId,
-  unbrand,
-  type OrganizationId,
-  type PortalId,
-  type PropertyId,
-} from '#/shared/domain/ids'
+import { unbrand, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 export const createPortalRepository = (db: Database): PortalRepository => ({
@@ -27,17 +21,6 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         .select()
         .from(portals)
         .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(id))))
-        .limit(1)
-      return rows[0] ? portalFromRow(rows[0]) : null
-    })
-  },
-
-  findBySlug: async (orgId, slug) => {
-    return trace('portal.findBySlug', async () => {
-      const rows = await db
-        .select()
-        .from(portals)
-        .where(and(...baseWhere(portals, orgId), eq(portals.slug, slug)))
         .limit(1)
       return rows[0] ? portalFromRow(rows[0]) : null
     })
@@ -102,27 +85,3 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
     })
   },
 })
-
-/** A deterministic, database-bounded snapshot for explicit Goal assignment. */
-export const createCurrentPortalIdReader =
-  (db: Database) =>
-  async (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-    limit: number,
-  ): Promise<ReadonlyArray<PortalId>> => {
-    if (!Number.isInteger(limit) || limit < 1) return []
-    const rows = await db
-      .select({ id: portals.id })
-      .from(portals)
-      .where(
-        and(
-          ...baseWhere(portals, orgId),
-          eq(portals.propertyId, propertyId),
-          ne(portals.publicationState, 'archived'),
-        ),
-      )
-      .orderBy(asc(portals.id))
-      .limit(limit)
-    return rows.map((row) => toPortalId(row.id))
-  }
