@@ -150,15 +150,6 @@ export async function setMonthlyPortalGoal(
   )
 }
 
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type MonthlyPortalGoalSetRequestApi = Readonly<{
-  set: (
-    policy: GoalExecutionPolicy,
-    input: SetMonthlyPortalGoalRequest,
-    actor: GoalActor,
-  ) => Promise<GoalProgramBundle>
-}>
-
 export type MonthlyPortalGoalChangeDeps = Readonly<{
   policy: GoalExecutionPolicy
   /** Every Program of the Property, to know which is the monthly goal. */
@@ -452,30 +443,6 @@ export async function keepMonthlyPortalGoal(
   return { month: input.month }
 }
 
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type MonthlyPortalGoalChangeRequestApi = Readonly<{
-  changeNow: (
-    policy: GoalExecutionPolicy,
-    input: ChangeMonthlyPortalGoalNowRequest,
-    actor: GoalActor,
-  ) => Promise<GoalMonthTargetChangeResult>
-  revise: (
-    policy: GoalExecutionPolicy,
-    input: ReviseMonthlyPortalGoalRequest,
-    actor: GoalActor,
-  ) => Promise<GoalProgramBundle>
-  stop: (
-    policy: GoalExecutionPolicy,
-    input: StopMonthlyPortalGoalRequest,
-    actor: GoalActor,
-  ) => Promise<GoalProgram>
-  keep: (
-    policy: GoalExecutionPolicy,
-    input: KeepMonthlyPortalGoalRequest,
-    actor: GoalActor,
-  ) => Promise<Readonly<{ month: string }>>
-}>
-
 export type MonthlyPortalGoalPromptDeps = Readonly<{
   policy: GoalExecutionPolicy
   /** The Property's time zone, whose months the prompt names. */
@@ -518,12 +485,3 @@ export async function deferMonthlyPortalGoalPrompt(
   })
   return { month }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type MonthlyPortalGoalPromptRequestApi = Readonly<{
-  defer: (
-    policy: GoalExecutionPolicy,
-    input: DeferMonthlyPortalGoalPromptRequest,
-    actor: GoalActor,
-  ) => Promise<Readonly<{ month: string }>>
-}>

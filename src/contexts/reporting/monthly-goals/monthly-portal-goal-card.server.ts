@@ -200,12 +200,3 @@ export async function readMonthlyPortalGoalCard(
     actor,
   )
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program reads. */
-export type MonthlyPortalGoalCardRequestApi = Readonly<{
-  card: (
-    policy: GoalExecutionPolicy,
-    input: Readonly<{ propertyId: string }>,
-    actor: GoalActor,
-  ) => Promise<PortalGoalCardView>
-}>

@@ -26,7 +26,6 @@ import { type GoalProgramService } from './goal-programs.server'
 import {
   GoalProgramError,
   type GoalActor,
-  type GoalExecutionPolicy,
 } from '../application/use-cases/goal-program-shared'
 import { progressOf } from './goal-progress.server'
 import {
@@ -359,14 +358,3 @@ export async function readPortalGoalSinglePage(
       return subjectViewOf(deps, bundle, page.subject, context)
   }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program reads. */
-export type PortalGoalSinglePageRequestApi = Readonly<{
-  portalGoalSingle: Readonly<{
-    page: (
-      policy: GoalExecutionPolicy,
-      input: PortalGoalSinglePageInput,
-      actor: GoalActor,
-    ) => Promise<PortalGoalSinglePageView>
-  }>
-}>

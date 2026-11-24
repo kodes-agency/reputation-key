@@ -43,10 +43,7 @@ import { registerCurrentGoogleReputationConsumer } from './readings/current-goog
 import { createGoalProgramSubjectReader } from './monthly-goals/goal-program-subject-reader.server'
 import { createGoalProgramVisibilityAdapter } from './monthly-goals/goal-program-visibility.adapter.server'
 import { createGoalProgramRepository } from './monthly-goals/goal-program-repository.server'
-import {
-  createGoalProgramService,
-  type GoalProgramRequestApi,
-} from './monthly-goals/goal-programs.server'
+import { createGoalProgramService } from './monthly-goals/goal-programs.server'
 import { type GoalExecutionPolicy } from './application/use-cases/goal-program-shared'
 import { withGoalProgramVisibility } from './monthly-goals/goal-program-visibility.server'
 import { createGoalsForSubjects } from './monthly-goals/goal-bulk-create.server'
@@ -56,10 +53,7 @@ import {
 } from './monthly-goals/goal-recommendation-read.server'
 import type { GoalRecommendationFactsPort } from './monthly-goals/goal-recommendation-facts.port.server'
 import { readMonthlyPortalGoalCard } from './monthly-goals/monthly-portal-goal-card.server'
-import {
-  readMonthlyPortalGoalPage,
-  type MonthlyPortalGoalRequestApi,
-} from './monthly-goals/monthly-portal-goal-page.server'
+import { readMonthlyPortalGoalPage } from './monthly-goals/monthly-portal-goal-page.server'
 import {
   changeMonthlyPortalGoalNow,
   deferMonthlyPortalGoalPrompt,
@@ -72,24 +66,14 @@ import {
   addPortalGoal,
   addPortalGoals,
   type PortalGoalAddDeps,
-  type PortalGoalAddRequestApi,
 } from './monthly-goals/portal-goal-add.server'
 import { readPortalGoalAddOptions } from './monthly-goals/portal-goal-add-options.server'
 import { readMonthlyPortalGoalLine } from './monthly-goals/monthly-portal-goal-line.server'
 import { createPortalGoalPromptDeferralStore } from './monthly-goals/portal-goal-prompt-deferrals-repository.server'
-import {
-  readPortalGoalSinglePage,
-  type PortalGoalSinglePageRequestApi,
-} from './monthly-goals/get-portal-goal-page.server'
+import { readPortalGoalSinglePage } from './monthly-goals/get-portal-goal-page.server'
 import { readGoalRecommendationCounts } from './monthly-goals/goal-recommendation-readings.server'
-import {
-  createGoalProgressReader,
-  type GoalProgressRequestApi,
-} from './monthly-goals/goal-progress.server'
-import {
-  createGoalListProgressReader,
-  type GoalListProgressRequestApi,
-} from './monthly-goals/goal-list-progress.server'
+import { createGoalProgressReader } from './monthly-goals/goal-progress.server'
+import { createGoalListProgressReader } from './monthly-goals/goal-list-progress.server'
 import type { GoalProgramRepository } from './application/ports/goal-program.repository'
 import {
   createPropertyRatingGoalRepository,
@@ -257,6 +241,12 @@ function buildMetricModule(input: ReportingContextBuildInput) {
   } as const
 }
 
+/** A use case with its leading deps argument fixed. */
+const bind =
+  <D, A extends unknown[], R>(useCase: (deps: D, ...args: A) => R, deps: D) =>
+  (...args: A): R =>
+    useCase(deps, ...args)
+
 function buildGoalModule(
   input: ReportingContextBuildInput,
   metricApi: ReturnType<typeof buildMetricModule>['publicApi'],
@@ -331,10 +321,6 @@ function buildGoalModule(
     metrics: metricApi,
     now: input.clock,
   })
-  const readGoalProgress = (policy: GoalExecutionPolicy) =>
-    createGoalProgressReader(goalProgressDeps(policy))
-  const readGoalListProgress = (policy: GoalExecutionPolicy) =>
-    createGoalListProgressReader(goalProgressDeps(policy))
   const goalRecommendationFacts: GoalRecommendationFactsPort = {
     listPortalReadiness: (organizationId, propertyId, asOf) =>
       input.portalApi.listGoalReadinessFacts(
@@ -377,42 +363,6 @@ function buildGoalModule(
     recommendation: goalRecommendationDeps(policy),
     now: input.clock,
   })
-  const monthlyPortalGoal: MonthlyPortalGoalRequestApi['monthlyPortalGoal'] =
-    Object.freeze({
-      card: (policy, ...args) =>
-        readMonthlyPortalGoalCard(monthlyPortalGoalReads(policy), ...args),
-      page: (policy, ...args) =>
-        readMonthlyPortalGoalPage(
-          {
-            ...goalPageDeps(policy),
-            history: (programId, propertyId, actor) =>
-              readGoalPrograms(policy).get({ programId, propertyId }, actor),
-          },
-          ...args,
-        ),
-      set: (policy, ...args) =>
-        setMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
-      changeNow: (policy, ...args) =>
-        changeMonthlyPortalGoalNow(monthlyPortalGoalCommands(policy), ...args),
-      revise: (policy, ...args) =>
-        reviseMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
-      stop: (policy, ...args) =>
-        stopMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
-      keep: (policy, ...args) =>
-        keepMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
-      defer: (policy, ...args) =>
-        deferMonthlyPortalGoalPrompt(
-          {
-            policy,
-            subjects: goalProgramSubjects,
-            prompts: portalGoalPrompts,
-            now: input.clock,
-          },
-          ...args,
-        ),
-      line: (policy, ...args) =>
-        readMonthlyPortalGoalLine(monthlyPortalGoalReads(policy), ...args),
-    })
   const portalGoalAddDeps = (policy: GoalExecutionPolicy): PortalGoalAddDeps => ({
     policy,
     programs: buildGoalPrograms(policy),
@@ -429,40 +379,55 @@ function buildGoalModule(
     recommendation: goalRecommendationDeps(policy),
     now: input.clock,
   })
-  const portalGoalAdd: PortalGoalAddRequestApi['portalGoalAdd'] = Object.freeze({
-    options: (policy, ...args) =>
-      readPortalGoalAddOptions(
-        {
+  /** Every Goal use case with this request's policy bound; the actor is passed per call. */
+  const programsFor = (policy: GoalExecutionPolicy) => {
+    const reads = readGoalPrograms(policy)
+    const portalReads = monthlyPortalGoalReads(policy)
+    const pageDeps = goalPageDeps(policy)
+    const commands = monthlyPortalGoalCommands(policy)
+    const addDeps = portalGoalAddDeps(policy)
+    return Object.freeze({
+      list: reads.list,
+      history: reads.history,
+      progress: createGoalProgressReader(goalProgressDeps(policy)),
+      listProgress: createGoalListProgressReader(goalProgressDeps(policy)),
+      monthlyPortalGoal: Object.freeze({
+        card: bind(readMonthlyPortalGoalCard, portalReads),
+        page: bind(readMonthlyPortalGoalPage, {
+          ...pageDeps,
+          history: (programId, propertyId, actor) =>
+            reads.get({ programId, propertyId }, actor),
+        }),
+        set: bind(setMonthlyPortalGoal, commands),
+        changeNow: bind(changeMonthlyPortalGoalNow, commands),
+        revise: bind(reviseMonthlyPortalGoal, commands),
+        stop: bind(stopMonthlyPortalGoal, commands),
+        keep: bind(keepMonthlyPortalGoal, commands),
+        defer: bind(deferMonthlyPortalGoalPrompt, {
           policy,
-          reads: readGoalPrograms(policy),
+          subjects: goalProgramSubjects,
+          prompts: portalGoalPrompts,
+          now: input.clock,
+        }),
+        line: bind(readMonthlyPortalGoalLine, portalReads),
+      }),
+      portalGoalAdd: Object.freeze({
+        options: bind(readPortalGoalAddOptions, {
+          policy,
+          reads,
           recommendation: goalRecommendationDeps(policy),
           staffScanTargetsEnabled: input.staffScanTargetsEnabled ?? false,
           subjectNames: goalProgramSubjects,
           now: input.clock,
-        },
-        ...args,
-      ),
-    one: (policy, ...args) => addPortalGoal(portalGoalAddDeps(policy), ...args),
-    each: (policy, ...args) => addPortalGoals(portalGoalAddDeps(policy), ...args),
-  })
-  const portalGoalSingle: PortalGoalSinglePageRequestApi['portalGoalSingle'] =
-    Object.freeze({
-      page: (policy, ...args) => readPortalGoalSinglePage(goalPageDeps(policy), ...args),
+        }),
+        one: bind(addPortalGoal, addDeps),
+        each: bind(addPortalGoals, addDeps),
+      }),
+      portalGoalSingle: Object.freeze({
+        page: bind(readPortalGoalSinglePage, pageDeps),
+      }),
     })
-  const programs: GoalProgramRequestApi &
-    GoalProgressRequestApi &
-    GoalListProgressRequestApi &
-    MonthlyPortalGoalRequestApi &
-    PortalGoalAddRequestApi &
-    PortalGoalSinglePageRequestApi = Object.freeze({
-    list: (policy, ...args) => readGoalPrograms(policy).list(...args),
-    history: (policy, ...args) => readGoalPrograms(policy).history(...args),
-    progress: (policy, ...args) => readGoalProgress(policy)(...args),
-    listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
-    monthlyPortalGoal,
-    portalGoalAdd,
-    portalGoalSingle,
-  })
+  }
 
   const portalRatingGoalRead: PortalRatingGoalReadApi = {
     ...createPortalRatingGoalGuard(),
@@ -484,7 +449,7 @@ function buildGoalModule(
 
   return {
     publicApi: {
-      programs,
+      programsFor,
       ...portalRatingGoalRead,
       findMonthlyResultNotificationFacts:
         monthlyResultNotificationFacts.findMonthlyResultNotificationFacts,

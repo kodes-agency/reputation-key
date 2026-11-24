@@ -7,17 +7,15 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
-import { type GoalProgramRequestApi } from '../monthly-goals/goal-programs.server'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
 } from '../application/use-cases/goal-program-shared'
-import type { GoalProgressRequestApi } from '../monthly-goals/goal-progress.server'
-import type { GoalListProgressRequestApi } from '../monthly-goals/goal-list-progress.server'
-import type { MonthlyPortalGoalRequestApi } from '../monthly-goals/monthly-portal-goal-page.server'
-import type { PortalGoalAddRequestApi } from '../monthly-goals/portal-goal-add.server'
-import type { PortalGoalSinglePageRequestApi } from '../monthly-goals/get-portal-goal-page.server'
+
+type GoalPrograms = ReturnType<
+  ReturnType<typeof getContainer>['goalPublicApi']['programsFor']
+>
 
 export const requestActor = (
   ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
@@ -81,22 +79,12 @@ const goalProgramStatus = (error: GoalProgramError): number => {
  * policy, and maps a GoalProgramError to its HTTP status once.
  */
 export async function withGoalPrograms<T>(
-  run: (
-    programs: GoalProgramRequestApi &
-      GoalProgressRequestApi &
-      GoalListProgressRequestApi &
-      MonthlyPortalGoalRequestApi &
-      PortalGoalAddRequestApi &
-      PortalGoalSinglePageRequestApi,
-    policy: GoalExecutionPolicy,
-    actor: GoalActor,
-  ) => Promise<T>,
+  run: (programs: GoalPrograms, actor: GoalActor) => Promise<T>,
 ): Promise<T> {
   const ctx = await resolveTenantContext(await headersFromContext())
-  const programs = getContainer().goalPublicApi.programs
-  const policy = requestPolicy(ctx)
+  const programs = getContainer().goalPublicApi.programsFor(requestPolicy(ctx))
   try {
-    return await run(programs, policy, requestActor(ctx))
+    return await run(programs, requestActor(ctx))
   } catch (error) {
     if (error instanceof GoalProgramError) {
       throwContextError('GoalProgramError', error, goalProgramStatus(error))
