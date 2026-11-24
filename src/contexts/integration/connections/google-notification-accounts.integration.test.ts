@@ -143,6 +143,8 @@ describe('account subscription ordering through PostgreSQL', () => {
               sourceEpoch: 1,
             }),
           } as unknown as PropertyGoogleBindingPublicApi,
+          enqueueReviewSync: async () => undefined,
+          defaultPublicDisplayName: async () => true,
           subscribe: management.subscribe,
           receipts: {
             hasReceipt: async (id, consumer) => receipts.has(`${id}:${consumer}`),

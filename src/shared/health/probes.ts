@@ -41,50 +41,27 @@ export function liveProbe(now: () => Date = () => new Date()): LiveProbe {
   }
 }
 
-export function readyProbe(
-  deps: Readonly<{
-    container: boolean
-    keys: boolean
-    db: boolean
-    redis: boolean
-    migrations: boolean
-    policy: boolean
-  }>,
+/** The probe body: ok only when every dependency reports true. */
+export function probeBody<Deps extends Readonly<Record<string, boolean>>>(
+  deps: Deps,
   now: () => Date = () => new Date(),
-): ReadyProbe {
-  const ok =
-    deps.container && deps.keys && deps.db && deps.redis && deps.migrations && deps.policy
+): Readonly<{ status: 'ok' | 'degraded'; timestamp: string }> & Deps {
   return {
-    status: ok ? 'ok' : 'degraded',
-    container: deps.container,
-    keys: deps.keys,
-    db: deps.db,
-    redis: deps.redis,
-    migrations: deps.migrations,
-    policy: deps.policy,
+    status: Object.values(deps).every(Boolean) ? 'ok' : 'degraded',
+    ...deps,
     timestamp: now().toISOString(),
   }
 }
 
-export function startupProbe(
-  deps: Readonly<{
-    container: boolean
-    keys: boolean
-    migrations: boolean
-    policy: boolean
-  }>,
-  now: () => Date = () => new Date(),
-): StartupProbe {
-  const ok = deps.container && deps.keys && deps.migrations && deps.policy
-  return {
-    status: ok ? 'ok' : 'degraded',
-    container: deps.container,
-    keys: deps.keys,
-    migrations: deps.migrations,
-    policy: deps.policy,
-    timestamp: now().toISOString(),
-  }
-}
+export const readyProbe = (
+  deps: Omit<ReadyProbe, 'status' | 'timestamp'>,
+  now?: () => Date,
+): ReadyProbe => probeBody(deps, now)
+
+export const startupProbe = (
+  deps: Omit<StartupProbe, 'status' | 'timestamp'>,
+  now?: () => Date,
+): StartupProbe => probeBody(deps, now)
 
 export function probeHttpStatus(status: 'ok' | 'degraded'): 200 | 503 {
   return status === 'ok' ? 200 : 503

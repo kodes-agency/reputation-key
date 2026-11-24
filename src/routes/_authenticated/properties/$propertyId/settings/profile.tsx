@@ -5,7 +5,6 @@ import { PropertyProfileCard } from '#/contexts/property/profile/ui/property-pro
 import { PropertyPublicDisplayNameCard } from '#/contexts/portal/look/ui/property-public-display-name-card'
 import { updateProperty } from '#/contexts/property/server/properties'
 import { savePropertyPublicDisplayName } from '#/contexts/portal/server/portals'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -16,7 +15,7 @@ export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/profile',
 )({
   loader: async ({ params: { propertyId }, context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (can(role, 'portal.read')) {
       await context.queryClient.ensureQueryData(propertyPortalExperienceQuery(propertyId))
     }

@@ -1,7 +1,6 @@
 // The Staff page loads only accounts. Attribution tables remain for reporting.
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { PeoplePage } from '#/contexts/identity/staff/ui/people/people-page'
@@ -22,7 +21,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
         propertyId: params.propertyId,
       },
     })
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'staff.read')) throw roleUnavailable('Staff', 'properties')
   },
   validateSearch: (search) => peopleSearchSchema.parse(search),

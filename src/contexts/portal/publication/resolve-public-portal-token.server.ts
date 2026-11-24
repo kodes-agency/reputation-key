@@ -105,6 +105,17 @@ export type GuestLocalePreference = Readonly<{
   acceptLanguage?: string | null
 }>
 
+/** The scope of the admitted token, for a preference that is only trusted within it. */
+export type AdmittedPortalScope = Readonly<{
+  organizationId: string
+  propertyId: string
+  portalId: string
+}>
+
+export type GuestLocalePreferenceFor = (
+  scope: AdmittedPortalScope,
+) => GuestLocalePreference
+
 type AdmittedPublication = Readonly<{
   token: ResolvedPortalPublication['token']
   snapshot: PortalPublicationSnapshot
@@ -322,7 +333,7 @@ export const resolvePublicPortalToken =
   (deps: ResolvePublicPortalTokenDeps) =>
   async (
     rawToken: string,
-    preference: GuestLocalePreference = {},
+    preference: GuestLocalePreference | GuestLocalePreferenceFor = {},
   ): Promise<ResolvePublicPortalTokenOutcome> => {
     const digest = deps.tokenCodec.digest(rawToken)
     if (!digest) return { status: 'unavailable' }
@@ -333,7 +344,16 @@ export const resolvePublicPortalToken =
     const { token, snapshot, configuration } = admitted
 
     const googleReview = await resolveGoogleReviewGateway(deps, token, snapshot)
-    const presentation = selectPresentation(configuration, preference)
+    const presentation = selectPresentation(
+      configuration,
+      typeof preference === 'function'
+        ? preference({
+            organizationId: token.organizationId,
+            propertyId: token.propertyId,
+            portalId: token.portalId,
+          })
+        : preference,
+    )
     if (!presentation) return { status: 'unavailable' }
     const { selectedLocale, languagePackVersion } = presentation
     const served = await resolveServedContent(

@@ -176,6 +176,34 @@ export function positionalArgs(argv: ReadonlyArray<string>): ReadonlyArray<strin
   return out
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** The plan of a command that is one action word and nothing else. */
+export function planActionOnly(
+  args: OperatorArgs,
+  action: string,
+): Readonly<{ ok: true }> | Readonly<{ ok: false; error: string }> {
+  const [first, ...extra] = args.positionals
+  if (first !== action) return { ok: false, error: `the only action is '${action}'` }
+  if (extra.length > 0) return { ok: false, error: `'${action}' takes no argument` }
+  return { ok: true }
+}
+
+/** The plan of a command that is one action word and one Property UUID. */
+export function planActionWithPropertyId(
+  args: OperatorArgs,
+  action: string,
+): Readonly<{ ok: true; propertyId: string }> | Readonly<{ ok: false; error: string }> {
+  const [first, propertyId, ...extra] = args.positionals
+  if (first !== action) return { ok: false, error: `the only action is '${action}'` }
+  if (!propertyId) return { ok: false, error: '<propertyId> is required' }
+  if (!UUID_PATTERN.test(propertyId)) {
+    return { ok: false, error: '<propertyId> must be a UUID' }
+  }
+  if (extra.length > 0) return { ok: false, error: 'one <propertyId> at a time' }
+  return { ok: true, propertyId: propertyId.toLowerCase() }
+}
+
 export type ParseResult =
   Readonly<{ ok: true; args: OperatorArgs }> | Readonly<{ ok: false; error: string }>
 

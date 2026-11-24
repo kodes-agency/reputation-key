@@ -233,23 +233,6 @@ function countScalars(value: string): number {
   return count
 }
 
-function isScalarString(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const unit = value.charCodeAt(index)
-    if (unit < 0xd800 || unit > 0xdfff) continue
-    if (
-      unit > 0xdbff ||
-      index + 1 >= value.length ||
-      value.charCodeAt(index + 1) < 0xdc00 ||
-      value.charCodeAt(index + 1) > 0xdfff
-    ) {
-      return false
-    }
-    index += 1
-  }
-  return true
-}
-
 function lookupFold(codePoint: number): string {
   let low = 0
   let high = AI_UNICODE_CASE_FOLDING_V17.length - 1
@@ -742,7 +725,7 @@ export function scanStructuredMarkerCandidates(
   ) {
     return { status: 'blocked', reason: 'profile_mismatch' }
   }
-  if (typeof input.text !== 'string' || !isScalarString(input.text)) {
+  if (typeof input.text !== 'string' || !input.text.isWellFormed()) {
     return { status: 'blocked', reason: 'invalid_unicode' }
   }
   if (input.text !== input.text.normalize('NFKC')) {

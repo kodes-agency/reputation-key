@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { AiAdmissionDescriptorV1 } from '../ai-gateway/ai-internal-transport-contract'
-import { canonicalizeRfc8785 } from '../merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { assertClosedJsonAndFreeze } from '../json/closed-json-contract'
 
 // `gpt-6-luna` is pinned by its plain id since the switch-on (2026-10-30): the account

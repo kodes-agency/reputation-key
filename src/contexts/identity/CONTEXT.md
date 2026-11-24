@@ -65,8 +65,6 @@ Server code is `*.server.ts`, and what the browser imports is
 `<name>.contracts.ts`. Server functions stay under `server/`. Only these stay in
 the layer folders:
 
-- `application/staff-self-context.ts` (`public-api` re-exports it to a browser
-  screen).
 - `application/ports/organization-export-contributor.port.ts` (foreign export
   contributors implement it).
 - The files operator scripts import: `beta-feedback-issue`,

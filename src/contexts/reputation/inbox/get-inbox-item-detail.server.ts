@@ -117,7 +117,11 @@ export const getInboxItemDetail =
       item.propertyId,
     )
 
-    const detail = await deps.repo.findDetailById(input.inboxItemId, ctx.organizationId)
+    const detail = await deps.repo.findDetailById(
+      input.inboxItemId,
+      ctx.organizationId,
+      item,
+    )
     if (!detail) {
       throw inboxError('not_found', 'Inbox item not found', {
         inboxItemId: input.inboxItemId,

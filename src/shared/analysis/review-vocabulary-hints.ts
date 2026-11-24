@@ -1,11 +1,11 @@
 import '@tanstack/react-start/server-only'
-import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
-import { canonicalizeRfc8785 } from '../json/canonical-json'
 import { normalizeGooglePrimaryCategory } from '../domain/google-primary-category'
 import { REVIEW_CAUSE_PHRASE_PATTERN } from './review-analysis-v3'
 import catalogueSource from './review-vocabulary-hints-v1.json'
 import { REVIEW_TOPICS_V3, type ReviewTopicV3 } from './review-topic-taxonomy'
+import { deepFreeze } from '../json/deep-freeze'
+import { digestOf } from '../ai-operation/ai-digest'
 
 // Vocabulary hints (review-vocabulary-hints-v1): per kind of business, the
 // everyday names guests give things ("front desk", "air conditioning", "massage
@@ -132,21 +132,6 @@ function parseCatalogue(source: unknown): readonly VocabularyHintSet[] {
     )
   }
   return Object.freeze(sets)
-}
-
-function deepFreeze<Value>(value: Value): Value {
-  if (typeof value === 'object' && value !== null) {
-    for (const child of Object.values(value)) deepFreeze(child)
-    Object.freeze(value)
-  }
-  return value
-}
-
-function digestOf(domain: string, value: unknown): string {
-  return createHash('sha256')
-    .update(domain, 'utf8')
-    .update(canonicalizeRfc8785(value), 'utf8')
-    .digest('hex')
 }
 
 /** What a request carries from a set, and so what its digest covers. */

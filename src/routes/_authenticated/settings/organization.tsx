@@ -17,7 +17,6 @@ import {
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { getActiveOrganization } from '#/contexts/identity/server/organizations.query'
 import { updateOrganization } from '#/contexts/identity/server/organizations.update'
@@ -63,7 +62,7 @@ const googleReviewTargetAnalyticsQuery = queryOptions({
 export const Route = createFileRoute('/_authenticated/settings/organization')({
   staticData: { page: { title: 'Organization', tier: 'narrow', under: 'settings' } },
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'organization.update')) {
       throw roleUnavailable('Organization', 'profile')
     }

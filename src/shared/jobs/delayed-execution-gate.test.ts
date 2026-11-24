@@ -81,9 +81,7 @@ function lastRequest(): DelayedDecisionRequest {
 function installRealPolicy(env: CapabilityPolicyEnv) {
   resetCapabilityPolicyStore()
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
-  const refreshPolicy = vi.fn(async () => {})
-  initDelayedExecutionPolicy(createDelayedExecutionPolicy({ refreshPolicy }))
-  return refreshPolicy
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 }
 
 function fixtureEnv(namePart: string): CapabilityPolicyEnv {
@@ -438,7 +436,7 @@ describe('gateDispatcherConsumer (stubbed policy)', () => {
 
 describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', () => {
   it('current allow — GBP sync with capability and fresh read', async () => {
-    const refreshPolicy = installRealPolicy(fixtureEnv('current allow'))
+    installRealPolicy(fixtureEnv('current allow'))
 
     const outcome = await gateJob(
       'sync-property-reviews',
@@ -456,7 +454,6 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
     expect(outcome.kind).toBe('allow')
     expect(outcome.decision.outcome).toBe('allow')
     expect(outcome.decision.freshRead).toBe(true)
-    expect(refreshPolicy).toHaveBeenCalledTimes(1)
   })
 
   it('org-suspended deny — suspension after enqueue denies at dispatch (terminal)', async () => {

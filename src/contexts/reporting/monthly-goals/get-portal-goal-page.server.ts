@@ -4,7 +4,7 @@
 
 import { goalMonthDays } from '../domain/goal-pace'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
-import { localDateOf } from '../domain/local-days'
+import { localDateOf } from '#/shared/domain/local-days'
 import type { PortalGoalRecommendation } from './contracts'
 import type { PortalGoalPageView } from './contracts'
 import type {

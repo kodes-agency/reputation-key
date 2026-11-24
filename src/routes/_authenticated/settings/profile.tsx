@@ -20,7 +20,6 @@ import { TimezoneAndFormatCard } from '#/contexts/feed/preferences/ui/timezone-a
 import { notificationUserSettingsQuery } from '#/routes/-queries/route-queries'
 import { createKeys } from '#/shared/queries/query-keys'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const NO_ACTIVE_ORGANIZATION = 'no-active-organization'
 
@@ -44,7 +43,7 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
 function ProfileSettings() {
   const scope = useTenantScope()
   const { notificationKeys, identityKeys } = createKeys(scope)
-  const ctx = Route.useRouteContext() as AuthRouteContext
+  const ctx = Route.useRouteContext()
   const router = useRouter()
   const queryClient = useQueryClient()
   const organizationId = ctx.activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION

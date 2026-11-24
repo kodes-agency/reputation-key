@@ -1,17 +1,13 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyId } from '#/shared/domain/ids'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
-import { dashboardErrorStatus } from './dashboard-error-status'
+import { withDashboard } from './dashboard-request.server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { isDashboardError } from '../domain/dashboard-errors'
 
 const propertySetupInputSchema = z.object({ propertyId: z.uuid() })
 
@@ -44,22 +40,13 @@ function ratingGoalsEnabled(ctx: AuthContext, propertyIdValue?: string): boolean
   ).allowed
 }
 
-function mapPropertySetupError(error: unknown): never {
-  if (isDashboardError(error)) {
-    throwContextError('DashboardError', error, dashboardErrorStatus(error.code))
-  }
-  throw catchUntagged(error)
-}
-
 /** One Property's setup steps for the settings hub, property page and composer. */
 export const getPropertySetupFn = createServerFn({ method: 'GET' })
   .validator(propertySetupInputSchema)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        try {
-          const headers = await headersFromContext()
-          const ctx = await resolveTenantContext(headers)
+      async ({ data }) =>
+        withDashboard(async (ctx) => {
           await requireExecutionAllowed({
             actor: ctx,
             action: 'property.read',
@@ -72,10 +59,7 @@ export const getPropertySetupFn = createServerFn({ method: 'GET' })
             accessiblePropertyIds: await accessiblePropertyIds(ctx),
             ratingGoalsEnabled: ratingGoalsEnabled(ctx, data.propertyId),
           })
-        } catch (error) {
-          mapPropertySetupError(error)
-        }
-      },
+        }),
       'GET',
       'dashboard.getPropertySetup',
     ),
@@ -84,10 +68,8 @@ export const getPropertySetupFn = createServerFn({ method: 'GET' })
 /** Setup progress for every Property the manager can access (properties list). */
 export const listPropertySetupSummariesFn = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
-    async () => {
-      try {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
+    async () =>
+      withDashboard(async (ctx) => {
         await requireExecutionAllowed({ actor: ctx, action: 'property.read' })
         return await getContainer().dashboardPublicApi.listPropertySetupSummaries({
           organizationId: ctx.organizationId,
@@ -95,10 +77,7 @@ export const listPropertySetupSummariesFn = createServerFn({ method: 'GET' }).ha
           accessiblePropertyIds: await accessiblePropertyIds(ctx),
           ratingGoalsEnabled: ratingGoalsEnabled(ctx),
         })
-      } catch (error) {
-        mapPropertySetupError(error)
-      }
-    },
+      }),
     'GET',
     'dashboard.listPropertySetupSummaries',
   ),

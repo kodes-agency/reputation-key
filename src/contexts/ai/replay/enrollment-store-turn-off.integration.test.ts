@@ -540,7 +540,6 @@ describe('turning review analysis off (real PostgreSQL)', () => {
       {
         exchangeAttemptId: attemptId,
         code: 'valid-auth-code',
-        visibility: 'organization',
         purpose: 'reviews',
         connectionMode: 'reconnect',
         targetConnectionId: CONNECTION,

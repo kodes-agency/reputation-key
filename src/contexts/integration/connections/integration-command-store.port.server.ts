@@ -6,11 +6,7 @@
 // and its durable outbox_events fact in one PostgreSQL transaction.
 
 import type { OrganizationId } from '#/shared/domain/ids'
-import type {
-  GoogleConnection,
-  GoogleConnectionId,
-  GoogleConnectionVisibility,
-} from '../domain/types'
+import type { GoogleConnection, GoogleConnectionId } from '../domain/types'
 import type {
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
@@ -52,7 +48,6 @@ export type ReconnectGoogleAccountCommand = Readonly<{
   scopes: ReadonlyArray<string>
   encryptedRefreshToken: string
   tokenExpiresAt: Date
-  visibility: GoogleConnectionVisibility
   exchangeAttemptId?: string
   event: IntegrationGoogleAccountConnected
 }>

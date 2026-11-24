@@ -62,7 +62,7 @@ describe('durable Google category refresh', () => {
     initCapabilityPolicyStore(
       createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'google' }),
     )
-    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const policy = createDelayedExecutionPolicy()
     const row = ENTRY_POINT_CATALOGUE.find(
       (entry) =>
         entry.kind === 'consumer' && entry.name === GOOGLE_CATEGORY_REFRESH_CONSUMER,

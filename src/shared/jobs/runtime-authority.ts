@@ -9,7 +9,7 @@
  * never belong in this model.
  */
 
-export type JobRuntimePosture = 'active' | 'dark' | 'quarantined'
+export type JobRuntimePosture = 'active' | 'quarantined'
 export type JobRoutingOwnership = 'cell_local' | 'global_control_plane'
 export type JobOperationalQueue = 'default' | 'background' | 'domain-events'
 
@@ -71,8 +71,6 @@ export type JobRuntimeReadinessReason =
   | 'handler_missing'
   | 'scheduler_missing'
   | 'schedule_denied'
-  | 'dark_handler_registered'
-  | 'dark_scheduler_registered'
   | 'quarantined_scheduler_registered'
   | 'success_never_observed'
   | 'last_success_objective_missed'
@@ -80,8 +78,6 @@ export type JobRuntimeReadinessReason =
   | 'repair_required'
   | 'dead_letter_present'
   | 'stalled_work_observed'
-  | 'dark_queue_work_present'
-  | 'dark_execution_observed'
   | 'invalid_observation'
 
 export type JobRuntimeReadiness = Readonly<{
@@ -289,25 +285,6 @@ function appendWorkHealthReasons(
   if (observation.deadLetterCount > 0) reasons.push('dead_letter_present')
 }
 
-/** Dark work must be inert: nothing registered, queued, or executed since boot. */
-function darkPostureReasons(
-  observation: JobRuntimeObservation,
-  runtimeStartedAt: Date,
-): JobRuntimeReadinessReason[] {
-  const reasons: JobRuntimeReadinessReason[] = []
-  if (observation.handlerRegistered) reasons.push('dark_handler_registered')
-  if (observation.schedulerRegistered) reasons.push('dark_scheduler_registered')
-  if (observation.oldestWaitingAt !== null) reasons.push('dark_queue_work_present')
-  if (
-    observation.lastStartedAt !== null &&
-    observation.lastStartedAt.getTime() >= runtimeStartedAt.getTime()
-  ) {
-    reasons.push('dark_execution_observed')
-  }
-  if (observation.deadLetterCount > 0) reasons.push('dead_letter_present')
-  return reasons
-}
-
 /**
  * A never-observed success is only a miss once the objective has elapsed since
  * this process started, so a fresh boot is not reported as a missed objective.
@@ -352,11 +329,6 @@ export function assessJobRuntime(
   }
   if (invalidObservation(observation, now) || fromTheFuture(runtimeStartedAt, now)) {
     return { ready: false, reasons: ['invalid_observation'] }
-  }
-
-  if (contract.posture === 'dark') {
-    const darkReasons = darkPostureReasons(observation, runtimeStartedAt)
-    return { ready: darkReasons.length === 0, reasons: darkReasons }
   }
 
   const reasons: JobRuntimeReadinessReason[] = []

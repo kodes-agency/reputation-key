@@ -69,8 +69,8 @@ export type InboxFilters = Readonly<{
 export type PaginatedResult = Readonly<{
   items: ReadonlyArray<InboxItem>
   nextCursor: Cursor | null
-  /** Total rows matching the filters, before cursor pagination. */
-  totalCount: number
+  /** Total rows matching the filters, before cursor pagination; null on cursor pages. */
+  totalCount: number | null
 }>
 
 /** Rows matching the filters at one property. Properties with none are absent. */
@@ -139,7 +139,15 @@ export type InboxRepository = Readonly<{
     propertyIds?: ReadonlyArray<PropertyId>,
     sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
-  findDetailById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItemDetail | null>
+  /**
+   * `loaded` is the item `findById` already returned for this id and
+   * organization; passing it skips reading the same row again.
+   */
+  findDetailById(
+    id: InboxItemId,
+    orgId: OrganizationId,
+    loaded?: InboxItem,
+  ): Promise<InboxItemDetail | null>
   /**
    * Lightweight keyset scan of review-sourced items for projection
    * rebuild — no enrichment lookups, ordered by id, resuming AFTER `cursor`.

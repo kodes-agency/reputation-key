@@ -634,7 +634,7 @@ describe.sequential('getInboxItems', () => {
       expect(page.items.map((item) => item.id)).toEqual(
         expectedIds.slice(offset, offset + limit).map(itemId),
       )
-      expect(page.totalCount).toBe(3)
+      expect(page.totalCount).toBe(cursor ? null : 3)
       const last = seeded.find(
         (item) => item.id === itemId(expectedIds[offset + limit - 1] ?? ''),
       )!

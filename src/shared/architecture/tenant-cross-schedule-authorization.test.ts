@@ -163,9 +163,7 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, '\
 
 function installPolicy(env: Readonly<Record<string, string>>): void {
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
-  initDelayedExecutionPolicy(
-    createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-  )
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 }
 
 // A family the catalogue does not hold yet, under an action the catalogue

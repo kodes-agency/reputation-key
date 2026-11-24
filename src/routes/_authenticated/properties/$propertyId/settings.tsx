@@ -12,7 +12,6 @@ import {
   visiblePropertySettingsSections,
 } from '#/contexts/property/profile/ui/settings/property-settings-sections'
 import { PropertySetupStrip } from '#/components/features/property-setup/property-setup-strip'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
@@ -31,7 +30,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/set
     page: { title: NAV_LABEL.propertySettings, under: 'property' },
   },
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'property.read'))
       throw roleUnavailable(NAV_LABEL.propertySettings, 'properties')
   },

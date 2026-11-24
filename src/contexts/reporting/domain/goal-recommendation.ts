@@ -29,7 +29,6 @@
 //
 // Pure. Days are Property-local `YYYY-MM-DD`, decided here, never on a client.
 
-import { propertyWallClockToInstant } from '#/shared/domain/property-calendar'
 import { goalMonthDays } from './goal-pace'
 import { defaultGoalStartMonth, goalStartOptions } from './goal-start'
 import { goalStepAtOrAbove, goalStepUp, type ExactCount } from './goal-number-steps'
@@ -38,7 +37,7 @@ import {
   portalReadiness,
   type PortalQuietFact,
 } from './goal-portal-readiness'
-import { addLocalDays, localDateOf } from './local-days'
+import { addLocalDays, localDateOf, localMidnight } from '#/shared/domain/local-days'
 import type {
   Choices,
   MeasureRecommendation,
@@ -64,12 +63,9 @@ const LIFT_STRETCH: ExactCount = { num: 6n, den: 5n }
 const DAYS_PER_WEEK = 7
 const BASIS_WEEKS = [2, 3, 4] as const
 
-function localMidnight(localDay: string, timezone: string): Date {
+function localDayStart(localDay: string, timezone: string): Date {
   const [year = 0, month = 1, day = 1] = localDay.split('-').map(Number)
-  return propertyWallClockToInstant(
-    { year, month, day, hour: 0, minute: 0, second: 0, millisecond: 0 },
-    timezone,
-  )
+  return localMidnight(year, month, day, timezone)
 }
 
 /** The basis: the 28 whole Property-local days ending yesterday. */
@@ -80,8 +76,8 @@ export function recommendationWindow(now: Date, timezone: string): Recommendatio
     today,
     firstDay,
     lastDay: addLocalDays(today, -1),
-    start: localMidnight(firstDay, timezone),
-    end: localMidnight(today, timezone),
+    start: localDayStart(firstDay, timezone),
+    end: localDayStart(today, timezone),
   }
 }
 

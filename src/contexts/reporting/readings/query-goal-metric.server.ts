@@ -20,7 +20,6 @@ import type {
 type GoalMetricSpec = Readonly<{
   metricKey: MetricKey
   calculation: 'sum' | 'weighted_average'
-  sourceActive: boolean
   eventTypes: readonly string[]
 }>
 
@@ -28,19 +27,16 @@ const GOAL_METRIC_SPECS: Readonly<Record<string, GoalMetricSpec>> = {
   [METRIC_VERSION_IDS.qualifiedScanGoal]: {
     metricKey: 'portal.qualified_scan',
     calculation: 'sum',
-    sourceActive: true,
     eventTypes: ['guest.qualified_scan.recorded', 'guest.qualified_scan.retracted'],
   },
   [METRIC_VERSION_IDS.portalRatingCountGoal]: {
     metricKey: 'portal.rating_count',
     calculation: 'sum',
-    sourceActive: true,
     eventTypes: ['guest.rating.submitted', 'guest.rating.retracted'],
   },
   [METRIC_VERSION_IDS.portalRatingAverageGoal]: {
     metricKey: 'portal.rating_average',
     calculation: 'weighted_average',
-    sourceActive: true,
     eventTypes: ['guest.rating.submitted', 'guest.rating.retracted'],
   },
 }
@@ -249,14 +245,6 @@ export async function prepareGoalMetricQuery(
   const governed = await registry.findVersionById(query.definitionVersionId)
   if (!governed || !governedVersionIsUsable(governed, spec, query)) {
     return unavailable(query, 'metric_version_unavailable', spec.metricKey)
-  }
-  if (!spec.sourceActive) {
-    return unavailable(
-      query,
-      'metric_source_not_active',
-      spec.metricKey,
-      governed.version.minimumSample,
-    )
   }
   const aggregateQuery: GoalMetricAggregateQuery = {
     ...query,

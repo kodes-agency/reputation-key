@@ -281,7 +281,6 @@ export const savePortalLocalizedOverride =
       locale: OfferedGuestLocale
       title: string | null
       shortDescription: string | null
-      heroImageUrl?: null
     }>,
     ctx: AuthContext,
   ) => {
@@ -308,7 +307,6 @@ export const savePortalLocalizedOverride =
           input.shortDescription === null
             ? null
             : normalizedRequired(input.shortDescription, 'Portal guest description', 500),
-        heroImageUrl: null,
       },
       updatedBy: ctx.userId,
       at: deps.clock(),

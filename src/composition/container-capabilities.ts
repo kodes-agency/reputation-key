@@ -167,10 +167,6 @@ export function buildContainerCapabilities({
       createProcessors: notification.delivery.createProcessors,
       noticeWriter: notification.delivery.noticeWriter,
     }),
-    // BQC-2.2: version-gated strong read of persisted policy state.
-    // Workers await this before starting; side-effect paths use it for
-    // fresh reads (BQC-2.5). Owned by the identity build (readiness).
-    refreshPolicyStore: identity.policy.refresh,
     // `providerSubjectKeys` is always a service — the real keyring-backed one
     // when the writer material is configured, otherwise the secret-free deny
     // adapter whose acquireDeriver() throws `config_invalid`. So this IS the

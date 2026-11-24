@@ -3,7 +3,7 @@
 // the recommendation's count. Read prompt deferral only for a ready offer.
 
 import type { PortalFacts } from '../domain/goal-recommendation-types'
-import { localDateOf } from '../domain/local-days'
+import { localDateOf } from '#/shared/domain/local-days'
 import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalCardView,

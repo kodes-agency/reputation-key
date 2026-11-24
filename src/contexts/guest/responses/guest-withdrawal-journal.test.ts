@@ -31,21 +31,9 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-it('ships with guest journaling active and writes through the bucket adapter', async () => {
+it('writes through the existing journal bucket adapter', async () => {
   const put = vi.spyOn(ErasureJournalBucket.prototype, 'put').mockResolvedValue()
   const journal = createGuestWithdrawalJournal(deps())
-  expect(journal).toBeDefined()
-  await journal!.put('private/erasure-journal/default', 'IDs-only evidence')
-  expect(put).toHaveBeenCalledWith('private/erasure-journal/default', 'IDs-only evidence')
-})
-
-it('builds no journal when explicitly switched off', () => {
-  expect(createGuestWithdrawalJournal(deps(), false)).toBeUndefined()
-})
-
-it('uses the existing journal bucket adapter when activated', async () => {
-  const put = vi.spyOn(ErasureJournalBucket.prototype, 'put').mockResolvedValue()
-  const journal = createGuestWithdrawalJournal(deps(), true)!
   await journal.put('private/erasure-journal/test', 'IDs-only evidence')
   expect(put).toHaveBeenCalledWith('private/erasure-journal/test', 'IDs-only evidence')
 })
@@ -54,7 +42,7 @@ it('refuses bucket access during isolated restore', async () => {
   const put = vi.spyOn(ErasureJournalBucket.prototype, 'put').mockResolvedValue()
   env.RESTORE_MODE = 'isolated'
   await expect(
-    createGuestWithdrawalJournal(deps(), true)!.put('unused', 'unused'),
+    createGuestWithdrawalJournal(deps()).put('unused', 'unused'),
   ).rejects.toThrow('Bucket access is refused during restore')
   expect(put).not.toHaveBeenCalled()
 })
@@ -63,7 +51,7 @@ it('refuses missing credentials without attempting a bucket write', async () => 
   const put = vi.spyOn(ErasureJournalBucket.prototype, 'put').mockResolvedValue()
   delete env.AWS_S3_SECRET_ACCESS_KEY
   await expect(
-    createGuestWithdrawalJournal(deps(), true)!.put('unused', 'unused'),
+    createGuestWithdrawalJournal(deps()).put('unused', 'unused'),
   ).rejects.toThrow('Required bucket credentials are missing')
   expect(put).not.toHaveBeenCalled()
 })
@@ -71,7 +59,7 @@ it('refuses missing credentials without attempting a bucket write', async () => 
 it('reports journal failure to monitoring without any subject identifiers', () => {
   const dependency = deps()
   const errorLog = vi.spyOn(dependency.logger, 'error')
-  createGuestWithdrawalJournal(dependency, true)!.alert({
+  createGuestWithdrawalJournal(dependency).alert({
     journalId: 'private-journal-identity',
     context: 'guest',
   })
@@ -93,7 +81,7 @@ it('logs only the error name and S3 code of a failed bucket write', async () => 
   vi.spyOn(ErasureJournalBucket.prototype, 'put').mockRejectedValue(failure)
   const dependency = deps()
   const errorLog = vi.spyOn(dependency.logger, 'error')
-  const journal = createGuestWithdrawalJournal(dependency, true)!
+  const journal = createGuestWithdrawalJournal(dependency)
   await expect(journal.put('private/erasure-journal/abc', 'bytes')).rejects.toBe(failure)
   journal.alert({ journalId: 'id', context: 'guest' })
   expect(errorLog).toHaveBeenCalledWith(

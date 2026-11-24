@@ -23,7 +23,7 @@ describe('operator erasure', () => {
       keepSessionBound,
       journalWrites,
     } = await harness(() => now, allow)
-    await lifecycle.submit(scope, SESSION, { rating: 3, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 3 })
     const original = (await outbox.byTag('guest.rating.submitted'))[0]!
     await keepSessionBound()
     now = new Date('2026-08-12T12:00:00.000Z')
@@ -49,7 +49,7 @@ describe('operator erasure', () => {
         undefined,
         authority,
       )
-      await lifecycle.submit(scope, SESSION, { rating: 3, responseConsent: true })
+      await lifecycle.submit(scope, SESSION, { rating: 3 })
 
       await expect(
         rawLifecycle.eraseAsOperator('someone-else', scope, (await stored()).id),
@@ -65,7 +65,7 @@ describe('operator erasure', () => {
       undefined,
       allow,
     )
-    await lifecycle.submit(scope, SESSION, { rating: 3, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 3 })
 
     await expect(
       rawLifecycle.eraseAsOperator(
@@ -84,7 +84,7 @@ describe('operator erasure', () => {
       undefined,
       allow,
     )
-    await lifecycle.submit(scope, SESSION, { rating: 3, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 3 })
     const id = (await stored()).id
     await rawLifecycle.eraseAsOperator('operator-1', scope, id)
 

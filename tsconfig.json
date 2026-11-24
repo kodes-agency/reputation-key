@@ -14,7 +14,7 @@
     "paths": {
       "#/*": ["./src/*"]
     },
-    "lib": ["ES2022", "ES2024.Promise", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "ES2024.Promise", "ES2024.String", "DOM", "DOM.Iterable"],
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

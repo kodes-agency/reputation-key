@@ -67,7 +67,6 @@ it('replays an exported pre-delete intent against an earlier tenant snapshot ide
     ['org-other', 3],
   ])
   const replayer = createGuestBackupErasureReplayer({
-    countUndeliveredGuestFacts: async () => 0,
     countTenantRows: async (_tx, org) => snapshot.get(org) ?? 0,
     scrubTenantRows: async (_tx, org) => {
       snapshot.delete(org)

@@ -69,7 +69,7 @@ const REPLY_COMMAND_STARTS: Readonly<Record<ReplyCommand, ReplyCommandStart>> = 
 
 /** Terminal ambiguity: the automatic checks ended without learning whether
  * Google has the reply. It is `terminal`, and still not safe to send again. */
-const endedWithoutAnAnswer = (reply: ReplyCommandSubject): boolean =>
+export const isTerminalAmbiguity = (reply: ReplyCommandSubject): boolean =>
   reply.publicationState === 'terminal' && reply.publicationLastErrorClass === 'ambiguous'
 
 /** A reply that was ever authorized for publication has authorization, and
@@ -92,10 +92,10 @@ export function replyCommandMayStart(
   reply: ReplyCommandSubject,
 ): boolean {
   if (!isAtCommandStart(command, reply)) return false
-  if (command === 'retry_publication') return !endedWithoutAnAnswer(reply)
+  if (command === 'retry_publication') return !isTerminalAmbiguity(reply)
   if (command === 'delete') {
     return reply.status === 'publish_failed'
-      ? reply.publicationState === 'terminal' && !endedWithoutAnAnswer(reply)
+      ? reply.publicationState === 'terminal' && !isTerminalAmbiguity(reply)
       : reply.publicationState === null && !hasPublicationRecord(reply)
   }
   return true
@@ -227,6 +227,6 @@ export function takenBackByGuestEdit(
   return {
     status: 'draft',
     publicationState: 'cancelled',
-    supersedesAttempt: endedWithoutAnAnswer(reply),
+    supersedesAttempt: isTerminalAmbiguity(reply),
   }
 }

@@ -18,7 +18,7 @@ import { googleImportDiscoveryRecords } from '#/shared/db/schema/google-import-d
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import type { ImportDiscoveryAuthorization } from './durable-import-reference-store.port.server'
 import {
-  createDurableImportReferenceKeys,
+  invalidationDigest,
   invalidationScopeFor,
 } from './durable-import-reference-keys.server'
 import {
@@ -38,8 +38,6 @@ const REFERENCE_KEY = 'a'.repeat(43)
 const ISSUED_AT = new Date('2026-08-28T10:00:00.000Z')
 const EXPIRES_AT = new Date('2026-08-28T10:15:00.000Z')
 const NOW = new Date('2026-08-28T10:05:00.000Z')
-
-const keys = createDurableImportReferenceKeys({})
 
 const CONNECTION_SCOPE = invalidationScopeFor('connection', [
   ORGANIZATION_ID,
@@ -174,8 +172,8 @@ const storedRow = (
   ...overrides,
 })
 
-const digestsFor = (...scopes: Parameters<typeof keys.invalidationKeys>[0][]) =>
-  scopes.flatMap((scope) => keys.invalidationKeys(scope)).map(({ key }) => key)
+const digestsFor = (...scopes: Parameters<typeof invalidationDigest>[0][]) =>
+  scopes.map(invalidationDigest)
 
 describe('durable import scope locks', () => {
   it('locks each distinct scope once, in a deterministic order', async () => {
@@ -246,7 +244,7 @@ describe('durable import checkpoint writes', () => {
   it('locks the scope before it probes the invalidation fence', async () => {
     const { db, statements } = createFakeDatabase({ invalidations: [] })
 
-    await insertDurableImportRecords(db, keys, [record()], [CONNECTION_SCOPE], NOW)
+    await insertDurableImportRecords(db, [record()], [CONNECTION_SCOPE], NOW)
 
     expect(statements.map(({ op }) => op)).toEqual([
       'execute',
@@ -261,7 +259,7 @@ describe('durable import checkpoint writes', () => {
     const digests = digestsFor(CONNECTION_SCOPE)
     expect(digests.length).toBeGreaterThan(0)
 
-    await insertDurableImportRecords(db, keys, [record()], [CONNECTION_SCOPE], NOW)
+    await insertDurableImportRecords(db, [record()], [CONNECTION_SCOPE], NOW)
 
     const [sweep] = only(statements, 'delete', idempotencyReceipts)
     const [probe] = only(statements, 'select', idempotencyReceipts)
@@ -280,7 +278,7 @@ describe('durable import checkpoint writes', () => {
     const { db, statements } = createFakeDatabase({ invalidations: [{ key: 'live' }] })
 
     await expect(
-      insertDurableImportRecords(db, keys, [record()], [CONNECTION_SCOPE], NOW),
+      insertDurableImportRecords(db, [record()], [CONNECTION_SCOPE], NOW),
     ).rejects.toBeInstanceOf(DurableImportReferenceInvalidated)
     expect(only(statements, 'insert')).toEqual([])
   })
@@ -289,7 +287,7 @@ describe('durable import checkpoint writes', () => {
     const { db, statements } = createFakeDatabase({ invalidations: [{ key: 'live' }] })
 
     await expect(
-      insertDurableImportRecords(db, keys, [], [CONNECTION_SCOPE], NOW),
+      insertDurableImportRecords(db, [], [CONNECTION_SCOPE], NOW),
     ).rejects.toBeInstanceOf(DurableImportReferenceInvalidated)
     expect(only(statements, 'execute')).toHaveLength(1)
   })
@@ -297,7 +295,7 @@ describe('durable import checkpoint writes', () => {
   it('writes no row for a terminal page that passes the fence', async () => {
     const { db, statements } = createFakeDatabase({ invalidations: [] })
 
-    await insertDurableImportRecords(db, keys, [], [CONNECTION_SCOPE], NOW)
+    await insertDurableImportRecords(db, [], [CONNECTION_SCOPE], NOW)
 
     expect(only(statements, 'select', idempotencyReceipts)).toHaveLength(1)
     expect(only(statements, 'insert')).toEqual([])
@@ -308,7 +306,6 @@ describe('durable import checkpoint writes', () => {
 
     await insertDurableImportRecords(
       db,
-      keys,
       [record({ affectedPropertyId: '83000000-0000-4000-8000-000000000003' })],
       [CONNECTION_SCOPE],
       NOW,
@@ -351,7 +348,6 @@ describe('durable import checkpoint writes', () => {
     await expect(
       insertDurableImportRecords(
         db,
-        keys,
         [record(), record({ referenceKey: 'b'.repeat(43) })],
         [CONNECTION_SCOPE],
         NOW,
@@ -365,7 +361,6 @@ describe('durable import checkpoint writes', () => {
     await expect(
       insertDurableImportRecords(
         db,
-        keys,
         [record(), record({ referenceKey: 'b'.repeat(43) })],
         [CONNECTION_SCOPE],
         NOW,

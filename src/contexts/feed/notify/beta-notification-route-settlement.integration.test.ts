@@ -63,9 +63,7 @@ describe.sequential('settling routes retire their notices and cancel their mail'
 
   beforeEach(() => {
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-    )
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
   })
 
   afterEach(() => {
