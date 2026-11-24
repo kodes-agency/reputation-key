@@ -4,7 +4,6 @@ export const PROVIDER_EPHEMERAL_NAMESPACES = [
   'oauth-state',
   'opaque-reference',
   'authorization-lease',
-  'invalidation-dedupe',
 ] as const
 export type ProviderEphemeralNamespace = (typeof PROVIDER_EPHEMERAL_NAMESPACES)[number]
 
@@ -14,7 +13,6 @@ const PROVIDER_EPHEMERAL_NAMESPACE_ALLOWED: Readonly<
   'oauth-state': true,
   'opaque-reference': true,
   'authorization-lease': true,
-  'invalidation-dedupe': true,
 }
 const SAFE_KEY = /^[A-Za-z0-9_-]{32,128}$/
 const MAX_VALUE_BYTES = 5 * 1024 * 1024

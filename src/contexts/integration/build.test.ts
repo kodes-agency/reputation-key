@@ -80,7 +80,6 @@ function buildDeps(overrides: {
     outboxRepo: {} as unknown as OutboxRepository,
     clock: () => new Date('2026-01-15T12:00:00.000Z'),
     idGen: () => '00000000-0000-4000-8000-000000000101',
-    invalidationOwnerGen: () => 'deterministic-invalidation-owner',
     jobQueue: createInMemoryQueue(),
     propertyApi: {} as unknown as PropertyPublicApi,
     logger: createMockLogger(),
