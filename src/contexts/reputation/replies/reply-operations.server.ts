@@ -25,7 +25,10 @@ import {
   assertReplyTextSendable,
 } from './reply-content-policy.server'
 import { assertReplySlotsFilled } from '../domain/review-rules'
-import { assertReplyCommandMayStart } from '../domain/reply-command-preconditions'
+import {
+  assertReplyCommandMayStart,
+  isTerminalAmbiguity,
+} from '../domain/reply-command-preconditions'
 import {
   buildIdempotencyKey,
   nextPublicationCycle,
@@ -758,9 +761,7 @@ export const retryPublish =
     // A settled published reply has returned above; a confirmation that wins
     // the settle race returns here without a new cycle.
     const requiresPositiveReconciliation =
-      reply.publicationState === 'ambiguous' ||
-      (reply.publicationState === 'terminal' &&
-        reply.publicationLastErrorClass === 'ambiguous')
+      reply.publicationState === 'ambiguous' || isTerminalAmbiguity(reply)
     const retryable = requiresPositiveReconciliation
       ? await reconcileUncertainPublicationBeforeRetry(deps, reply, review)
       : reply

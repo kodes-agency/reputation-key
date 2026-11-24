@@ -15,6 +15,7 @@ import type { PropertyId } from '#/shared/domain/ids'
 import type { Reply } from '../domain/review-types'
 import { reviewReplyPublishFailed } from '../domain/review-events'
 import { replyAuthor } from '../domain/reply-author'
+import { isTerminalAmbiguity } from '../domain/reply-command-preconditions'
 import type { ReplyRepository } from '../replies/reply-repository.port.server'
 import type { ReplyCommandStore } from '../replies/reply-command-store.port.server'
 import type {
@@ -50,11 +51,7 @@ export function isUncertainPublicationAttempt(reply: Reply): boolean {
   if (reply.publicationCycle < 1 || reply.publicationAttempts < 1) return false
   if (reply.status === 'approved') return reply.publicationState === 'sending'
   if (reply.status !== 'publish_failed') return false
-  return (
-    reply.publicationState === 'ambiguous' ||
-    (reply.publicationState === 'terminal' &&
-      reply.publicationLastErrorClass === 'ambiguous')
-  )
+  return reply.publicationState === 'ambiguous' || isTerminalAmbiguity(reply)
 }
 
 const POSSIBLY_DISPATCHED: NeverDispatchedSettlement = Object.freeze({
