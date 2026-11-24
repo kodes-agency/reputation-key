@@ -5,11 +5,12 @@
 // Property facts, which mirror notification-property-scope-repository.server.ts, the
 // other reader of `properties` in this context.
 import type { Database } from '#/shared/db'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { createInboxNotificationLookup } from '#/contexts/reputation/public-api'
 import { properties } from '#/shared/db/schema/property.schema'
 import {
   feedbackId,
+  propertyId,
   unbrand,
   type InboxItemId,
   type OrganizationId,
@@ -21,7 +22,7 @@ import type {
   ResponseTargetReminderNotificationFacts,
 } from './inbox-item-lookup.port.server'
 import type { FeedbackPortalLookupPort } from './cross-context-lookups.port.server'
-import { activePropertyCondition } from './active-property.server'
+import { createActivePropertyLookup } from './active-property.server'
 
 export const createInboxItemLookupAdapter = (
   db: Database,
@@ -67,24 +68,7 @@ export const createInboxItemLookupAdapter = (
     }
   }
 
-  // A Property outside the workspace has no work to prompt.
-  const isActiveProperty = async (
-    propertyId: string,
-    orgId: OrganizationId,
-  ): Promise<boolean> => {
-    const rows = await db
-      .select({ id: properties.id })
-      .from(properties)
-      .where(
-        and(
-          eq(properties.id, propertyId),
-          eq(properties.organizationId, unbrand(orgId)),
-          sql.raw(activePropertyCondition('properties')),
-        ),
-      )
-      .limit(1)
-    return rows.length > 0
-  }
+  const isActiveProperty = createActivePropertyLookup(db)
 
   return {
     findInboxItemByReviewId: (reviewId, orgId) =>
@@ -136,7 +120,13 @@ export const createInboxItemLookupAdapter = (
       if (!row) return null
       // A reminder released before Inbox cancelled its slots is obsolete, both
       // at fan-out and when the queued notification is materialized.
-      if (!(await isActiveProperty(row.reminderPropertyId, input.organizationId))) {
+      // A Property outside the workspace has no work to prompt.
+      if (
+        !(await isActiveProperty(
+          input.organizationId,
+          propertyId(row.reminderPropertyId),
+        ))
+      ) {
         return null
       }
       const item = await findInboxItemFacts(input.inboxItemId, input.organizationId)

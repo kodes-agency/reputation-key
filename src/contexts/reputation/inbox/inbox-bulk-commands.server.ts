@@ -1,4 +1,3 @@
-import { inboxAssignmentHistory } from '#/shared/db/schema/inbox.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { userId, type UserId } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/inbox-types'
@@ -22,7 +21,10 @@ import {
 } from './inbox-command-guards.server'
 import { cycleHeadItemColumns, mirrorCycleHead } from './inbox-cycle-head.server'
 import { resolveBulkReopenAssignee } from './inbox-bulk-reopen-assignee.server'
-import { insertAssignmentFact } from './inbox-assignment-facts.server'
+import {
+  appendAssignmentHistory,
+  insertAssignmentFact,
+} from './inbox-assignment-facts.server'
 import type { InboxCommandAuthority } from './inbox-command-authority.server'
 import {
   assertManualReopenHonest,
@@ -95,11 +97,8 @@ export async function applyBulkAssignmentToItem(
         source: 'web',
         occurredAt,
       })
-  await tx.insert(inboxAssignmentHistory).values({
-    inboxItemId: item.id,
+  await appendAssignmentHistory(tx, item, {
     resultingCommandRevision: row.commandRevision,
-    organizationId: item.organizationId,
-    propertyId: item.propertyId,
     handlingCycleNumber: input.headRow?.currentCycleNumber ?? null,
     previousAssignee,
     nextAssignee: assignedTo,
@@ -200,11 +199,8 @@ export async function reopenLockedBulkItem(
     updatedAt: now,
   })
   if (unassignedFact) {
-    await tx.insert(inboxAssignmentHistory).values({
-      inboxItemId: item.id,
+    await appendAssignmentHistory(tx, item, {
       resultingCommandRevision: row.commandRevision,
-      organizationId: item.organizationId,
-      propertyId: item.propertyId,
       handlingCycleNumber,
       previousAssignee: itemRow.assignedTo,
       nextAssignee: null,

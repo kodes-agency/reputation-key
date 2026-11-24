@@ -131,27 +131,35 @@ export const createInboxRepository = (
 ): InboxRepository => {
   const log = runtime.logger.child({ component: 'inbox-repo' })
 
+  const readItemRow = async (
+    id: InboxItemId,
+    orgId: OrganizationId,
+  ): Promise<InboxItem | null> => {
+    const rows = await db
+      .select()
+      .from(inboxItems)
+      .where(
+        and(
+          hasActiveHandlingAuthority,
+          eq(inboxItems.id, id),
+          eq(inboxItems.organizationId, orgId),
+        ),
+      )
+      .limit(1)
+    return rows[0] ? withDefaults(rows[0]) : null
+  }
+
   return {
     findById: async (id: InboxItemId, orgId: OrganizationId) => {
       return trace('inbox.findById', async () => {
         const start = runtime.clock().getTime()
         log.debug('querying inbox findById')
-        const rows = await db
-          .select()
-          .from(inboxItems)
-          .where(
-            and(
-              hasActiveHandlingAuthority,
-              eq(inboxItems.id, id),
-              eq(inboxItems.organizationId, orgId),
-            ),
-          )
-          .limit(1)
+        const item = await readItemRow(id, orgId)
         log.debug(
           { duration: runtime.clock().getTime() - start },
           'inbox findById complete',
         )
-        return rows[0] ? withDefaults(rows[0]) : null
+        return item
       })
     },
 
@@ -439,25 +447,16 @@ export const createInboxRepository = (
       })
     },
 
-    findDetailById: async (id: InboxItemId, orgId: OrganizationId) => {
+    findDetailById: async (
+      id: InboxItemId,
+      orgId: OrganizationId,
+      loaded?: InboxItem,
+    ) => {
       return trace('inbox.findDetailById', async () => {
         const start = runtime.clock().getTime()
         log.debug('querying inbox findDetailById')
-        const rows = await db
-          .select()
-          .from(inboxItems)
-          .where(
-            and(
-              hasActiveHandlingAuthority,
-              eq(inboxItems.id, id),
-              eq(inboxItems.organizationId, orgId),
-            ),
-          )
-          .limit(1)
-
-        if (!rows[0]) return null
-
-        const item = withDefaults(rows[0])
+        const item = loaded ?? (await readItemRow(id, orgId))
+        if (!item) return null
 
         // Enrich with property name via lookup port
         const propertyName = await ports.propertyLookup.getPropertyNameById(

@@ -258,8 +258,8 @@ export const createStatusCommands = (
         'Inbox item escalation update failed — no row returned',
         event,
         stamp,
-        (tx, row) =>
-          appendEscalationHistory(tx, item, row, {
+        (tx, row, handlingCycleNumber) =>
+          appendEscalationHistory(tx, item, row, handlingCycleNumber, {
             kind: 'escalated',
             actorUserId: updates.escalatedBy,
             occurredAt: stamp,
@@ -280,8 +280,8 @@ export const createStatusCommands = (
         'Inbox item priority update failed — no row returned',
         event,
         stamp,
-        (tx, row) =>
-          appendPriorityHistory(tx, item, row, {
+        (tx, row, handlingCycleNumber) =>
+          appendPriorityHistory(tx, item, row, handlingCycleNumber, {
             priority: updates.priority,
             actorUserId: updates.setBy,
             occurredAt: stamp,
@@ -304,8 +304,8 @@ export const createStatusCommands = (
         'Inbox item resolve-escalation failed — no row returned',
         event,
         stamp,
-        (tx, row) =>
-          appendEscalationHistory(tx, item, row, {
+        (tx, row, handlingCycleNumber) =>
+          appendEscalationHistory(tx, item, row, handlingCycleNumber, {
             kind: 'resolved',
             actorUserId: updates.resolvedBy,
             occurredAt: stamp,

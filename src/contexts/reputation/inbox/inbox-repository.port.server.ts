@@ -139,7 +139,15 @@ export type InboxRepository = Readonly<{
     propertyIds?: ReadonlyArray<PropertyId>,
     sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
-  findDetailById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItemDetail | null>
+  /**
+   * `loaded` is the item `findById` already returned for this id and
+   * organization; passing it skips reading the same row again.
+   */
+  findDetailById(
+    id: InboxItemId,
+    orgId: OrganizationId,
+    loaded?: InboxItem,
+  ): Promise<InboxItemDetail | null>
   /**
    * Lightweight keyset scan of review-sourced items for projection
    * rebuild — no enrichment lookups, ordered by id, resuming AFTER `cursor`.

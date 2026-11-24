@@ -168,8 +168,8 @@ export function createStoryOnlyInboxRepo(): StoryOnlyInboxFake {
           i.status === 'open' && (!since || i.createdAt.getTime() >= since.getTime()),
       ).length,
     scanReviewItems: refuse('The projection rebuild'),
-    findDetailById: async (id, orgId) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
+    findDetailById: async (id, orgId, loaded) => {
+      const item = loaded ?? items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) return null
       const isReview = item.sourceType === 'review'
       return {

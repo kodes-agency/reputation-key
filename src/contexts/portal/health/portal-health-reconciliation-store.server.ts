@@ -47,6 +47,79 @@ function googleDestinationState(
 const laterInstant = (left: Date, right: Date): Date =>
   left.getTime() >= right.getTime() ? left : right
 
+type HealthTx = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+// One statement per fact for all Portals, one after another on the
+// transaction's own client.
+async function readPortalHealthFacts(
+  tx: HealthTx,
+  input: PortalHealthReconciliationInput,
+  portalIds: ReadonlyArray<string>,
+  observedAt: Date,
+) {
+  const withActivation = new Set<string>()
+  const withAddress = new Set<string>()
+  const withManager = new Set<string>()
+  const currentByPortal = new Map<string, typeof portalHealthIntervals.$inferSelect>()
+  if (portalIds.length > 0) {
+    const activations = await tx
+      .selectDistinct({ portalId: portalPublicationActivations.portalId })
+      .from(portalPublicationActivations)
+      .where(
+        and(
+          eq(portalPublicationActivations.organizationId, input.organizationId),
+          eq(portalPublicationActivations.propertyId, input.propertyId),
+          inArray(portalPublicationActivations.portalId, portalIds),
+          isNull(portalPublicationActivations.deactivatedAt),
+        ),
+      )
+    const addresses = await tx
+      .selectDistinct({ portalId: portalTokens.portalId })
+      .from(portalTokens)
+      .where(
+        and(
+          eq(portalTokens.organizationId, input.organizationId),
+          eq(portalTokens.propertyId, input.propertyId),
+          inArray(portalTokens.portalId, portalIds),
+          or(
+            eq(portalTokens.status, 'active'),
+            and(
+              eq(portalTokens.status, 'rotating'),
+              gte(portalTokens.gracePeriodEnds, observedAt),
+            ),
+          ),
+        ),
+      )
+    const managers = await tx
+      .selectDistinct({ portalId: portalResponsibleManagers.portalId })
+      .from(portalResponsibleManagers)
+      .where(
+        and(
+          eq(portalResponsibleManagers.organizationId, input.organizationId),
+          eq(portalResponsibleManagers.propertyId, input.propertyId),
+          inArray(portalResponsibleManagers.portalId, portalIds),
+          isNull(portalResponsibleManagers.effectiveTo),
+        ),
+      )
+    const intervals = await tx
+      .select()
+      .from(portalHealthIntervals)
+      .where(
+        and(
+          eq(portalHealthIntervals.organizationId, input.organizationId),
+          eq(portalHealthIntervals.propertyId, input.propertyId),
+          inArray(portalHealthIntervals.portalId, portalIds),
+          isNull(portalHealthIntervals.effectiveTo),
+        ),
+      )
+    for (const row of activations) withActivation.add(row.portalId)
+    for (const row of addresses) withAddress.add(row.portalId)
+    for (const row of managers) withManager.add(row.portalId)
+    for (const row of intervals) currentByPortal.set(row.portalId, row)
+  }
+  return { withActivation, withAddress, withManager, currentByPortal }
+}
+
 /**
  * Recomputes derived Portal Health from committed dependency state. Receipt,
  * interval transition and identifier-only Health fact are one transaction.
@@ -110,72 +183,14 @@ export const createPortalHealthReconciliationStore = (
             .orderBy(asc(portals.id))
             .for('update')
 
-          // Read after the Portal rows are locked, one statement per fact for
-          // all of them, one after another on the transaction's own client.
-          const portalIds = portalRows.map((portal) => portal.id)
-          const withActivation = new Set<string>()
-          const withAddress = new Set<string>()
-          const withManager = new Set<string>()
-          const currentByPortal = new Map<
-            string,
-            typeof portalHealthIntervals.$inferSelect
-          >()
-          if (portalIds.length > 0) {
-            const activations = await tx
-              .selectDistinct({ portalId: portalPublicationActivations.portalId })
-              .from(portalPublicationActivations)
-              .where(
-                and(
-                  eq(portalPublicationActivations.organizationId, input.organizationId),
-                  eq(portalPublicationActivations.propertyId, input.propertyId),
-                  inArray(portalPublicationActivations.portalId, portalIds),
-                  isNull(portalPublicationActivations.deactivatedAt),
-                ),
-              )
-            const addresses = await tx
-              .selectDistinct({ portalId: portalTokens.portalId })
-              .from(portalTokens)
-              .where(
-                and(
-                  eq(portalTokens.organizationId, input.organizationId),
-                  eq(portalTokens.propertyId, input.propertyId),
-                  inArray(portalTokens.portalId, portalIds),
-                  or(
-                    eq(portalTokens.status, 'active'),
-                    and(
-                      eq(portalTokens.status, 'rotating'),
-                      gte(portalTokens.gracePeriodEnds, observedAt),
-                    ),
-                  ),
-                ),
-              )
-            const managers = await tx
-              .selectDistinct({ portalId: portalResponsibleManagers.portalId })
-              .from(portalResponsibleManagers)
-              .where(
-                and(
-                  eq(portalResponsibleManagers.organizationId, input.organizationId),
-                  eq(portalResponsibleManagers.propertyId, input.propertyId),
-                  inArray(portalResponsibleManagers.portalId, portalIds),
-                  isNull(portalResponsibleManagers.effectiveTo),
-                ),
-              )
-            const intervals = await tx
-              .select()
-              .from(portalHealthIntervals)
-              .where(
-                and(
-                  eq(portalHealthIntervals.organizationId, input.organizationId),
-                  eq(portalHealthIntervals.propertyId, input.propertyId),
-                  inArray(portalHealthIntervals.portalId, portalIds),
-                  isNull(portalHealthIntervals.effectiveTo),
-                ),
-              )
-            for (const row of activations) withActivation.add(row.portalId)
-            for (const row of addresses) withAddress.add(row.portalId)
-            for (const row of managers) withManager.add(row.portalId)
-            for (const row of intervals) currentByPortal.set(row.portalId, row)
-          }
+          // Read after the Portal rows are locked.
+          const { withActivation, withAddress, withManager, currentByPortal } =
+            await readPortalHealthFacts(
+              tx,
+              input,
+              portalRows.map((portal) => portal.id),
+              observedAt,
+            )
 
           let changed = 0
           for (const portal of portalRows) {

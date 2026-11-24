@@ -205,19 +205,7 @@ function fail(message: string): never {
 }
 
 function assertScalarString(value: string, field: string): void {
-  for (let index = 0; index < value.length; index += 1) {
-    const codeUnit = value.charCodeAt(index)
-    if (codeUnit < 0xd800 || codeUnit > 0xdfff) continue
-    if (
-      codeUnit > 0xdbff ||
-      index + 1 >= value.length ||
-      value.charCodeAt(index + 1) < 0xdc00 ||
-      value.charCodeAt(index + 1) > 0xdfff
-    ) {
-      fail(`${field} contains an unpaired surrogate`)
-    }
-    index += 1
-  }
+  if (!value.isWellFormed()) fail(`${field} contains an unpaired surrogate`)
 }
 
 /** Free text: the review and the reviewer's display name. */

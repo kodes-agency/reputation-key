@@ -18,8 +18,6 @@ export type JobQueueName = 'default' | 'background'
 /** Registration posture of a job. */
 export type JobRegistration =
   | 'enabled' // real handler registered and schedulable
-  | 'denied_dark' // capability dark — no-op handler registered (BQR-0 containment)
-  | 'blocked_capability' // capability hard-blocked — no-op handler registered
   | 'quarantined' // safety no-op registered; scheduling/cutover explicitly denied
 
 export type JobDefinition = Readonly<{
