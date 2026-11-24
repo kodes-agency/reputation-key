@@ -15,7 +15,7 @@ import {
   getMerchantAiAuthorizationFn,
   listMerchantAiOverviewFn,
 } from '#/contexts/identity/server/merchant-ai'
-import { listMembers } from '#/contexts/identity/server/organizations'
+import { listMembers } from '#/contexts/identity/server/organizations.query'
 import { listProperties, updateProperty } from '#/contexts/property/server/properties'
 import {
   listPropertyResponsibleManagers,
