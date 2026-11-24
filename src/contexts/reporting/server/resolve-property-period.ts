@@ -1,3 +1,4 @@
+import { dashboardError } from '../domain/dashboard-errors'
 import type { PropertyFactsPublicApi } from '#/contexts/property/public-api'
 import type { Clock } from '#/shared/domain/clock'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
@@ -30,13 +31,7 @@ export async function resolvePropertyPeriod(
     input.propertyId,
   )
   if (!timezone) {
-    // Server helpers construct the public error shape without importing a
-    // domain error constructor across the server/domain boundary.
-    throw {
-      _tag: 'DashboardError' as const,
-      code: 'not_found' as const,
-      message: 'Property timezone unavailable',
-    }
+    throw dashboardError('not_found', 'Property timezone unavailable')
   }
   return {
     ...(input.wholeLocalDays === true ? localDaysWindow : timeRangeToDates)(
