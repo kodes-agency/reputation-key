@@ -13,31 +13,9 @@ import { portalGroupMemberSchema } from '../groups/portal-group-membership.contr
 import { portalError } from '../domain/errors'
 import { portalCommandErrors } from './portal-command-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import {
-  portalGroupId as toPortalGroupId,
-  portalId as toPortalId,
-} from '#/shared/domain/ids'
-import {
-  requireMatchingPortalResourceScopes,
-  requirePortalResourceScope,
-} from './property-scope'
-
-async function authorizePortalGroupResource(
-  ctx: AuthContext,
-  rawGroupId: string,
-  action: 'portal.read' | 'portal.update' | 'portal.delete',
-): Promise<void> {
-  await requirePortalResourceScope({
-    actor: ctx,
-    action,
-    capability: action === 'portal.read' ? 'portal.read' : 'portal.write',
-    notFound: portalError('group_not_found', 'portal group not found'),
-    lookup: () =>
-      getContainer().portalPublicApi.management.resolvePortalGroupManagementScope(
-        toPortalGroupId(rawGroupId),
-      ),
-  })
-}
+import { portalGroupId as toPortalGroupId } from '#/shared/domain/ids'
+import { requireMatchingPortalResourceScopes } from './property-scope'
+import { portalScopeLookup, requirePortalGroupScope } from './portal-scope.server'
 
 async function authorizePortalGroupMembership(
   ctx: AuthContext,
@@ -53,10 +31,7 @@ async function authorizePortalGroupMembership(
         getContainer().portalPublicApi.management.resolvePortalGroupManagementScope(
           toPortalGroupId(input.portalGroupId),
         ),
-      () =>
-        getContainer().portalPublicApi.management.resolvePortalManagementScope(
-          toPortalId(input.portalId),
-        ),
+      portalScopeLookup(input.portalId),
     ],
   })
 }
@@ -101,7 +76,7 @@ export const updatePortalGroup = createServerFn({ method: 'POST' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.update')
+        await requirePortalGroupScope(ctx, data.portalGroupId, 'portal.update')
 
         const { management: useCases } = getContainer().portalPublicApi
         const group = await useCases.updatePortalGroup(data, ctx)
@@ -158,7 +133,7 @@ export const softDeletePortalGroup = createServerFn({ method: 'POST' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.delete')
+        await requirePortalGroupScope(ctx, data.portalGroupId, 'portal.delete')
 
         const { management: useCases } = getContainer().portalPublicApi
         await useCases.softDeletePortalGroup(data, ctx)
@@ -227,7 +202,7 @@ export const listPortalGroupHistory = createServerFn({ method: 'GET' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.read')
+        await requirePortalGroupScope(ctx, data.portalGroupId, 'portal.read')
 
         const { management: useCases } = getContainer().portalPublicApi
         const entries = await useCases.listPortalGroupHistory(data, ctx)
