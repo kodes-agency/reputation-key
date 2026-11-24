@@ -12,8 +12,9 @@ import { lockStaffAddresses } from './staff-address-lease.server'
 export const createStaffManagementStore = (
   db: Database,
   clock: () => Date,
+  invitationExpiresInMs: number,
 ): StaffManagementStore => ({
-  replaceInvitation: replaceStaffInvitation(db, clock),
+  replaceInvitation: replaceStaffInvitation(db, clock, invitationExpiresInMs),
   removalsForUser: async (org, userId) => {
     const rows = await db.execute(sql`SELECT DISTINCT p.id FROM staff_participations p
       JOIN staff_user_links l ON l.organization_id = p.organization_id AND l.staff_participant_id = p.staff_participant_id
@@ -175,7 +176,7 @@ export const createStaffManagementStore = (
           'This address belongs to another Organization',
         )
       const result = await tx.execute(
-        sql`UPDATE invitation i SET status = 'pending', "expiresAt" = ${new Date(clock().getTime() + 7 * 86400000)} FROM staff_participations p WHERE i."organizationId" = ${org} AND i."staffParticipationId" = ${participation} AND p.id::text = i."staffParticipationId" AND p.organization_id = i."organizationId" AND p.status = 'active' AND p.ended_at IS NULL AND i.status IN ('pending', 'expired') RETURNING i.id, i.email, i."staffParticipationId" AS "staffParticipationId", p.property_id AS "propertyId", p.personal_portal_id AS "portalId", p.display_name AS "displayName", i."inviterId" AS "requestedBy"`,
+        sql`UPDATE invitation i SET status = 'pending', "expiresAt" = ${new Date(clock().getTime() + invitationExpiresInMs)} FROM staff_participations p WHERE i."organizationId" = ${org} AND i."staffParticipationId" = ${participation} AND p.id::text = i."staffParticipationId" AND p.organization_id = i."organizationId" AND p.status = 'active' AND p.ended_at IS NULL AND i.status IN ('pending', 'expired') RETURNING i.id, i.email, i."staffParticipationId" AS "staffParticipationId", p.property_id AS "propertyId", p.personal_portal_id AS "portalId", p.display_name AS "displayName", i."inviterId" AS "requestedBy"`,
       )
       if (!result.rows[0])
         throw staffAccountError(

@@ -35,7 +35,7 @@ export type MetricPublicApi = Readonly<{
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
   portalAnalytics: PortalAnalyticsRepository
   getCurrentOnGoogle: CurrentGoogleReputationSnapshotStore['getCurrentOnGoogle']
-  getApprovedGoalVersion?: (
+  getApprovedGoalVersion: (
     definitionVersionId: string,
   ) => Promise<GovernedMetricVersion | null>
 }>

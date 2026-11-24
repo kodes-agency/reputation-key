@@ -40,7 +40,7 @@ const mocks = vi.hoisted(() => ({
   issueSession: vi.fn(),
   responseState: vi.fn(),
   getDropped: vi.fn(),
-  resolveLinkAndTrack: vi.fn(),
+  resolvePortalLink: vi.fn(),
 }))
 
 // Outside a Start build `createServerFn` discards what the handler returns, so the
@@ -108,7 +108,7 @@ vi.mock('#/composition', () => ({
         },
         responseLifecycle: { getState: mocks.responseState },
         responseCeiling: { getDropped: mocks.getDropped },
-        resolveLinkAndTrack: mocks.resolveLinkAndTrack,
+        resolvePortalLink: mocks.resolvePortalLink,
         guestPublicRuntime: { hashNetworkPseudonym: mocks.hashNetworkPseudonym },
         consumeGuestNetworkPressure: mocks.consumeGuestNetworkPressure,
         recordScan: mocks.recordScan,

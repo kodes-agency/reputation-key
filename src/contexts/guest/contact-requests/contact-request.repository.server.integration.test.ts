@@ -1,3 +1,4 @@
+import { createInMemoryWithdrawalJournal } from '../responses/guest-withdrawal-journal.test-fixtures'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -154,7 +155,11 @@ const encryption = () =>
   })
 
 const repository = () =>
-  createContactRequestRepository(drizzle(getPool()) as unknown as Database, encryption())
+  createContactRequestRepository(
+    drizzle(getPool()) as unknown as Database,
+    encryption(),
+    createInMemoryWithdrawalJournal(),
+  )
 
 async function seedResponse(responseId: string, submittedAt: Date): Promise<void> {
   await getPool().query(
@@ -578,6 +583,7 @@ describe('Contact Request repository', () => {
         keys: { v1: '55'.repeat(32) },
         generateIv: () => randomBytes(12),
       }),
+      createInMemoryWithdrawalJournal(),
     )
 
     await expect(

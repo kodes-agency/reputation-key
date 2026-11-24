@@ -62,7 +62,6 @@ const redeemed = {
   ok: true as const,
   kind: 'exchange' as const,
   exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
-  visibility: 'private' as const,
   purpose: 'import_gbp_v2' as const,
   connectionMode: 'new' as const,
   targetConnectionId: null,

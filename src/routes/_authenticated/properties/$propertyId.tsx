@@ -6,7 +6,6 @@ import {
   roleUnavailable,
   routeNotice,
 } from '#/shared/auth/route-notice'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertyQuery } from '#/routes/-queries/route-queries'
@@ -15,7 +14,7 @@ import { useRenderedPathname } from '#/components/layout/rendered-location'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   beforeLoad: ({ context, params }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     // Property admin shell is a manager surface (property.admin).
     // Member login is inactive in beta; this remains a manager-only shell.
     if (!can(role, 'property.admin')) throw roleUnavailable('Properties', 'profile')

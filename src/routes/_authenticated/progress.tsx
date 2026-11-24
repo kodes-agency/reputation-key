@@ -1,6 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { z } from 'zod/v4'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 
@@ -18,7 +17,7 @@ export const Route = createFileRoute('/_authenticated/progress')({
       throw redirect({ to: '/properties' })
     }
 
-    if (!can((context as AuthRouteContext).role, 'goal.read')) {
+    if (!can(context.role, 'goal.read')) {
       throw roleUnavailable('Goals', 'properties')
     }
 

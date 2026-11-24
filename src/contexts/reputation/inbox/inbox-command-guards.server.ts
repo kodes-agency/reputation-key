@@ -384,3 +384,14 @@ export function matchesLockedBulkReopenState(
     itemRow.status === headRow.status
   )
 }
+
+/**
+ * An authority decision that is a changed contract, not a plain denial: the
+ * command was planned against an authority state that no longer exists.
+ */
+export const isAuthorityContractChange = (reason: string): boolean =>
+  reason.includes('authority_changed') || reason.includes('contract_mismatch')
+
+/** A stored Handling Cycle number, or null while the head awaits repair. */
+export const validCycleNumber = (value: number | null): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 ? value : null

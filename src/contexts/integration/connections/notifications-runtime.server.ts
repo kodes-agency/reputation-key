@@ -28,7 +28,7 @@ export type GoogleNotificationsRuntimeDeps = Readonly<{
   logger: LoggerPort
   connectionRepo: ActiveConnectionTokenProviderDeps['connectionRepo']
   propertyApi: PropertyPublicApi
-  propertyBindingApi: PropertyGoogleBindingPublicApi | undefined
+  propertyBindingApi: PropertyGoogleBindingPublicApi
   executor: GoogleAuthorizedProviderExecutor | undefined
   providerTokenAccess: GoogleProviderTokenAccess
   withSingle401Refresh: GoogleRefreshingProviderExecutorFactory

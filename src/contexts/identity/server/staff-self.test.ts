@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { requireOwnStaffParticipation } from '../application/staff-self-context'
 import { STAFF_NOTICE_VERSION } from '../domain/staff-account'
 import { requireOwnParticipation } from './staff-self-context'
 
@@ -25,11 +24,11 @@ const person = {
 
 describe('own participation selection', () => {
   it('finds the person’s own participation by id', () => {
-    expect(requireOwnStaffParticipation(person, participationId)).toEqual(own)
+    expect(requireOwnParticipation(person, participationId)).toEqual(own)
   })
 
   it('refuses an id that is not one of the person’s own', () => {
-    expect(() => requireOwnStaffParticipation(person, 'other')).toThrow(
+    expect(() => requireOwnParticipation(person, 'other')).toThrow(
       'Choose one of your own staff Properties',
     )
     expect(() => requireOwnParticipation(person, 'another-person')).toThrow(

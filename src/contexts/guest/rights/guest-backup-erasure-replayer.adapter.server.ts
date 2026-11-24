@@ -10,10 +10,7 @@ import {
   countGuestLegacyPropertyRows,
   eraseGuestLegacyPropertyRows,
 } from './guest-property-legacy-rows.server'
-import {
-  drizzleGuestLifecycleWorkbench,
-  type GuestLifecycleWorkbench,
-} from './guest-organization-erasure.server'
+import { countTenantRows, scrubTenantRows } from './guest-organization-erasure.server'
 
 /**
  * Re-erase one Organization's Guest rows in a restored cell.
@@ -21,8 +18,13 @@ import {
  * Convergent: the row count is read first, so replaying against a cell that was
  * never rolled back past the erasure removes nothing and reports zero.
  */
+type TenantRows = Readonly<{
+  countTenantRows: typeof countTenantRows
+  scrubTenantRows: typeof scrubTenantRows
+}>
+
 export const createGuestBackupErasureReplayer = (
-  workbench: GuestLifecycleWorkbench = drizzleGuestLifecycleWorkbench,
+  rows: TenantRows = { countTenantRows, scrubTenantRows },
 ): BackupErasureReplayer => ({
   context: 'guest',
   subjectClass: 'organization',
@@ -34,9 +36,9 @@ export const createGuestBackupErasureReplayer = (
     ) {
       throw new Error('Guest replayer requires an Organization-scoped Guest erasure')
     }
-    const resurrected = await workbench.countTenantRows(tx, entry.organizationId)
+    const resurrected = await rows.countTenantRows(tx, entry.organizationId)
     if (resurrected === 0) return 0
-    await workbench.scrubTenantRows(tx, entry.organizationId)
+    await rows.scrubTenantRows(tx, entry.organizationId)
     return resurrected
   },
 })

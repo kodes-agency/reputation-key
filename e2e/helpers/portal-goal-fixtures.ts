@@ -18,7 +18,7 @@ import type {
   RecommendationPortal,
   RecommendPortalGoalInput,
 } from '../../src/contexts/reporting/domain/goal-recommendation-types'
-import { addLocalDays, localDateOf } from '../../src/contexts/reporting/domain/local-days'
+import { addLocalDays, localDateOf } from '../../src/shared/domain/local-days'
 import {
   findMetricVersionById,
   METRIC_VERSION_IDS,

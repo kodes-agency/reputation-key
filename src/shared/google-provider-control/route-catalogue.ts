@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 import {
   GOOGLE_PERFORMANCE_DAILY_METRICS,
-  GOOGLE_PROVIDER_ROUTE_KEYS,
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   type GoogleEndpointClass,
   type GoogleProviderRouteKey,
@@ -9,10 +8,7 @@ import {
 } from './contracts'
 import { replyCommentProblem } from './reply-comment'
 import { REVIEW_LIST_NEWEST_UPDATED_FIRST } from './review-route-descriptors'
-import {
-  routeDescriptorSchema,
-  type GoogleProviderRouteDescriptor,
-} from './route-descriptors'
+import type { GoogleProviderRouteDescriptor } from './route-descriptors'
 
 export type { GoogleProviderRouteDescriptor } from './route-descriptors'
 
@@ -695,62 +691,4 @@ export function compileGoogleProviderRequest(
       inFlightPolicyId: policy.inFlightPolicyId,
     }),
   })
-}
-
-export function parseGoogleProviderRouteDescriptor(
-  value: unknown,
-): GoogleProviderRouteDescriptor {
-  const parsed = routeDescriptorSchema.safeParse(value)
-  if (!parsed.success) throw new Error('provider route input is invalid')
-  return parsed.data
-}
-
-function assertWriteRecoveryRule(
-  routeKey: GoogleProviderRouteKey,
-  route: GoogleProviderRoutePolicy,
-): void {
-  if (route.method !== 'GET' && route.recovery === 'safe_read_repeat') {
-    throw new Error(`Google provider write cannot be blindly repeated: ${routeKey}`)
-  }
-}
-
-function assertTransportState(
-  routeKey: GoogleProviderRouteKey,
-  route: GoogleProviderRoutePolicy,
-): void {
-  if (
-    (route.transport === 'direct_fixed_trust_read') !==
-    (route.repositoryState === 'direct_fixed_trust_read')
-  ) {
-    throw new Error(`Google provider egress state is invalid: ${routeKey}`)
-  }
-}
-
-export function assertGoogleProviderRoutePolicies(): void {
-  const actualKeys = Object.keys(GOOGLE_PROVIDER_ROUTE_POLICIES).sort()
-  const expectedKeys = [...GOOGLE_PROVIDER_ROUTE_KEYS].sort()
-  if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)) {
-    throw new Error('Google provider egress route inventory is incomplete')
-  }
-  for (const routeKey of GOOGLE_PROVIDER_ROUTE_KEYS) {
-    const route = GOOGLE_PROVIDER_ROUTE_POLICIES[routeKey]
-    if (!GOOGLE_PROVIDER_PRODUCTION_ORIGINS.includes(route.origin)) {
-      throw new Error(`Google provider egress origin is not approved: ${routeKey}`)
-    }
-    if (!route.ownerModule.startsWith('src/contexts/integration/')) {
-      throw new Error(`Google provider egress owner is outside Integration: ${routeKey}`)
-    }
-    if (route.transport === 'direct_fixed_trust_read') {
-      if (
-        routeKey !== 'oauth.jwks' ||
-        route.method !== 'GET' ||
-        route.credential !== 'none' ||
-        route.recovery !== 'safe_read_repeat'
-      ) {
-        throw new Error(`Google provider direct egress exception is invalid: ${routeKey}`)
-      }
-    }
-    assertTransportState(routeKey, route)
-    assertWriteRecoveryRule(routeKey, route)
-  }
 }

@@ -2,6 +2,7 @@
 // suites: two tenants, the response they submit, its facts, and the SQL
 // read-backs the assertions use.
 
+import { createInMemoryWithdrawalJournal } from './guest-withdrawal-journal.test-fixtures'
 import { sql } from 'drizzle-orm'
 import { expect } from 'vitest'
 import { testDb } from '#/shared/testing/ambient-test-runtime'
@@ -67,7 +68,12 @@ const CROSS_TENANT_SCOPE = {
 
 export const createAtomicGuestResponseCommandStore = (
   database: Parameters<typeof createAtomicGuestResponseCommandStoreFactory>[0],
-) => createAtomicGuestResponseCommandStoreFactory(database, () => NOW)
+) =>
+  createAtomicGuestResponseCommandStoreFactory(
+    database,
+    () => NOW,
+    createInMemoryWithdrawalJournal(),
+  )
 
 export const createGuestResponseRepository = (
   database: Parameters<typeof createGuestResponseRepositoryFactory>[0],
@@ -260,10 +266,40 @@ export function facts(
   ]
 }
 
+/**
+ * Submit the rating, then add the private feedback, as the two staged commands
+ * do. Resolves with the first outcome that is not 'applied'.
+ */
+export async function commitSubmittedWithFeedback(
+  store: Store,
+  response: GuestResponse = buildGuestResponse(),
+  submissionFacts: ReturnType<typeof facts> = facts(response),
+) {
+  const [rating, feedback] = submissionFacts
+  const submitted = await store.commitSubmitted(
+    {
+      ...response,
+      text: null,
+      textConsent: false,
+      feedbackSubmittedAt: null,
+      feedbackSubmissionRevision: null,
+    },
+    [rating],
+  )
+  if (submitted !== 'applied') return submitted
+  return store.commitFeedbackAdded(
+    { ...response, ratingSourceEventId: rating.eventId },
+    feedback,
+  )
+}
+
 /** Submit the default response with both facts; the response as persisted carries their ids. */
 export async function arrangeSubmitted(store: Store) {
   const [originalRating, originalFeedback] = facts()
-  await store.commitSubmitted(buildGuestResponse(), [originalRating, originalFeedback])
+  await commitSubmittedWithFeedback(store, buildGuestResponse(), [
+    originalRating,
+    originalFeedback,
+  ])
   const persisted = buildGuestResponse({
     ratingSourceEventId: originalRating.eventId,
     feedbackSourceEventId: originalFeedback.eventId,
@@ -315,7 +351,7 @@ export function excludeForReview(persisted: GuestResponse, reviewedAt: Date) {
 export async function commitOtherTenantResponse(store: Store) {
   const submissionFacts = facts(otherTenantResponse())
   await expect(
-    store.commitSubmitted(otherTenantResponse(), submissionFacts),
+    commitSubmittedWithFeedback(store, otherTenantResponse(), submissionFacts),
   ).resolves.toBe('applied')
   return submissionFacts
 }

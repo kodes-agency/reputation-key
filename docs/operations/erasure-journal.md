@@ -78,10 +78,10 @@ recovery procedure after use.
 
 ## Activation
 
-Guest withdrawal journaling is on (`GUEST_WITHDRAWAL_JOURNAL_ACTIVE` in
-`contexts/guest/responses/guest-withdrawal-journal.server.ts`), enabled
-after the restore replay for both guest target kinds and a verified backup set
-(2026-11-04). Keep these true while it is on:
+Guest withdrawal journaling is always on (`contexts/guest/responses/guest-withdrawal-journal.server.ts`):
+every withdrawal and contact-request withdrawal journals first, and there is
+no switch. It was enabled after the restore replay for both guest target kinds
+and a verified backup set (2026-11-04). Keep these true:
 
 - The bucket credentials are set and the 45-day journal expiry rule is applied
   and checked against the real provider (`erasure-journal-expiry`). Without

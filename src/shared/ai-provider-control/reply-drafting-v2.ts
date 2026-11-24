@@ -100,12 +100,7 @@ function assertPolicy(
     !REPLY_DRAFTING_V2_LANGUAGES.some((tag) => tag === concrete.templateGroup)
   )
     throw new GatewayPreparationError('language_not_supported')
-  if (
-    concrete.templateGroup !== target?.templateGroup ||
-    request.replyProfileVersion !== REPLY_DRAFTING_V2_VERSIONS.profile ||
-    !binding.replyDraftingV2 ||
-    !request.replyV2Frame
-  )
+  if (concrete.templateGroup !== target?.templateGroup || !binding.replyDraftingV2)
     throw new GatewayPreparationError('invalid_request')
   if (
     request.replyV2Frame.voiceDigest !== binding.replyDraftingV2.voiceDigest ||
@@ -135,7 +130,7 @@ function assertPolicy(
 function numberedEvidence(request: ReplySuggestionGatewayRequestV1, wholeText: string) {
   const sentences = request.source.sentences
   if (
-    !sentences?.length ||
+    sentences.length === 0 ||
     request.source.text === null ||
     !reviewSentencesAreNumberedFromOne(sentences) ||
     !reviewSentencesMatchText(request.source.text, sentences)
@@ -163,7 +158,7 @@ function acceptedBody(
   concrete: ConcreteReplyLanguage,
   draft: import('#/shared/reply/schema').ReplyDraftingV2Output,
 ): AcceptedGatewayResult | null {
-  const frame = request.replyV2Frame!
+  const frame = request.replyV2Frame
   const rendered = frameReplyDraftingV2(draft.replyText, frame)
   if (replyCommentProblem(rendered.replyText) !== null)
     return refuseOutput(deps, 'reply_limits')

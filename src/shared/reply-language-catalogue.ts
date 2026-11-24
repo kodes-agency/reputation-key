@@ -2,6 +2,7 @@ import {
   AI_REVIEW_LANGUAGE_CANONICAL_REGIONS_V1,
   isCanonicalAiReviewLanguageRegion,
 } from './generated/ai-review-language-canonical-regions-v1'
+import { isStructurallyValidLanguageTag } from './ai-review-source/ai-text-checks'
 
 /**
  * Browser-safe, product-facing subset of the governed AI language catalogue.
@@ -93,37 +94,6 @@ export function parseCanonicalReplyLanguageTag(
     tag: value as CanonicalSupportedBcp47Tag,
     templateGroup,
   }) as ConcreteReplyLanguage
-}
-
-function isAsciiLetter(codePoint: number): boolean {
-  return (
-    (codePoint >= 0x41 && codePoint <= 0x5a) || (codePoint >= 0x61 && codePoint <= 0x7a)
-  )
-}
-
-function isAsciiAlphanumeric(codePoint: number): boolean {
-  return isAsciiLetter(codePoint) || (codePoint >= 0x30 && codePoint <= 0x39)
-}
-
-function isStructurallyValidLanguageTag(value: string): boolean {
-  const parts = value.split('-')
-  const primary = parts[0]
-  if (
-    primary === undefined ||
-    primary.length < 2 ||
-    primary.length > 8 ||
-    [...primary].some((scalar) => !isAsciiLetter(scalar.codePointAt(0)!))
-  ) {
-    return false
-  }
-  return parts
-    .slice(1)
-    .every(
-      (part) =>
-        part.length >= 1 &&
-        part.length <= 8 &&
-        [...part].every((scalar) => isAsciiAlphanumeric(scalar.codePointAt(0)!)),
-    )
 }
 
 const CONTROL_PATTERN = /[\p{Cc}\p{Cf}]/u

@@ -37,6 +37,7 @@
 // 4,096 because reasoning could use all of 2,048 and return no reply. Its output schema and
 // request shape are unchanged, and no consent or epoch moved (ADR 0074).
 
+import { openAiPreparationRegistry } from './provider-registry.test-fixtures'
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -176,6 +177,7 @@ function preparer() {
         reliable: true,
       }),
     },
+    providers: openAiPreparationRegistry(),
     provenanceKid: 'provenance-v1',
     provenancePrivateKey: generateKeyPairSync('ed25519').privateKey,
   })

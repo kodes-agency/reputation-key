@@ -178,6 +178,9 @@ export function createMonthTargetHarness(
     >(async (versionId) => findMetricVersionById(versionId)),
   }
   const subjects = {
+    ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
+    staffTargetProblem: vi.fn(async () => null),
+    staffTargetAllowed: vi.fn(async () => true),
     getTimezone: vi.fn<GoalProgramSubjectReader['getTimezone']>(async () => 'UTC'),
     subjectBelongsToProperty: vi.fn<GoalProgramSubjectReader['subjectBelongsToProperty']>(
       async () => true,

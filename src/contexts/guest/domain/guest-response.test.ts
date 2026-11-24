@@ -8,7 +8,6 @@ import {
   withdrawResponse,
   correctResponse,
   deleteResponse,
-  MAX_TEXT_LENGTH,
   MAX_RATING,
   MIN_RATING,
 } from './guest-response'
@@ -253,25 +252,9 @@ describe('GuestResponse', () => {
       if (!('code' in result)) {
         expect(result.rating).toBe(5)
         expect(result.submittedAt).toEqual(NOW)
+        expect(result.responseConsent).toBe(true)
+        expect(result.text).toBeNull()
       }
-    })
-
-    it('submits with text only', () => {
-      const r = createResponse(baseParams)
-      const result = submitResponse(r, { text: 'Great service' }, NOW)
-      expect(result).toHaveProperty('status', 'submitted')
-    })
-
-    it('rejects empty submission (no content)', () => {
-      const r = createResponse(baseParams)
-      const result = submitResponse(r, {}, NOW)
-      expect(result).toHaveProperty('code', 'no_content')
-    })
-
-    it('rejects whitespace-only text as no content', () => {
-      const r = createResponse(baseParams)
-      const result = submitResponse(r, { text: '   ' }, NOW)
-      expect(result).toHaveProperty('code', 'no_content')
     })
 
     it('rejects rating out of range (high)', () => {
@@ -284,28 +267,6 @@ describe('GuestResponse', () => {
       const r = createResponse(baseParams)
       const result = submitResponse(r, { rating: MIN_RATING - 1 }, NOW)
       expect(result).toHaveProperty('code', 'rating_out_of_range')
-    })
-
-    it('rejects text too long', () => {
-      const r = createResponse(baseParams)
-      const result = submitResponse(r, { text: 'x'.repeat(MAX_TEXT_LENGTH + 1) }, NOW)
-      expect(result).toHaveProperty('code', 'text_too_long')
-    })
-
-    it('normalizes private-feedback line endings and preserves paragraphs', () => {
-      const r = createResponse(baseParams)
-      const result = submitResponse(
-        r,
-        {
-          rating: 2,
-          text: '  First line\r\nsecond line\r\r\nThird paragraph  ',
-          responseConsent: true,
-          textConsent: true,
-        },
-        NOW,
-      ) as GuestResponse
-
-      expect(result.text).toBe('First line\nsecond line\n\nThird paragraph')
     })
 
     it('rejects submission on deleted response', () => {
@@ -323,23 +284,6 @@ describe('GuestResponse', () => {
       expect(submitResponse(submitted, { rating: 4 }, NOW)).toEqual({
         code: 'already_submitted',
       })
-    })
-
-    it('requires consent for each submitted rating and feedback body', () => {
-      expect(
-        submitResponse(
-          createResponse(baseParams),
-          { rating: 4, responseConsent: false },
-          NOW,
-        ),
-      ).toEqual({ code: 'no_content' })
-      expect(
-        submitResponse(
-          createResponse(baseParams),
-          { text: 'A private note', textConsent: false },
-          NOW,
-        ),
-      ).toEqual({ code: 'no_content' })
     })
   })
 
@@ -404,73 +348,6 @@ describe('GuestResponse', () => {
         })
       },
     )
-
-    it('rejects corrected private feedback above the Unicode character limit', () => {
-      const submitted = submitResponse(
-        createResponse(baseParams),
-        { rating: 3 },
-        NOW,
-      ) as GuestResponse
-
-      expect(
-        correctResponse(submitted, { text: '😀'.repeat(MAX_TEXT_LENGTH + 1) }, NOW),
-      ).toEqual({
-        code: 'text_too_long',
-        length: MAX_TEXT_LENGTH + 1,
-        max: MAX_TEXT_LENGTH,
-      })
-    })
-
-    it('rejects a correction that removes every substantive response field', () => {
-      const submitted = submitResponse(
-        createResponse(baseParams),
-        { rating: 3 },
-        NOW,
-      ) as GuestResponse
-
-      expect(correctResponse(submitted, { rating: null, text: null }, NOW)).toEqual({
-        code: 'no_content',
-      })
-    })
-
-    it('preserves the rating while adding first-time feedback as revision two', () => {
-      const submitted = submitResponse(
-        createResponse(baseParams),
-        { rating: 2, category: 'room' },
-        NOW,
-      ) as GuestResponse
-      const result = correctResponse(
-        { ...submitted, submittedAt: null },
-        { text: 'A newly added private note.' },
-        NOW,
-      )
-
-      expect(result).toMatchObject({
-        status: 'corrected',
-        rating: 2,
-        category: 'room',
-        text: 'A newly added private note.',
-        feedbackSubmissionRevision: 2,
-      })
-    })
-
-    it('can clear feedback while explicitly changing its category', () => {
-      const submitted = submitResponse(
-        createResponse(baseParams),
-        { rating: 2, category: 'room', text: 'Initial private note.' },
-        NOW,
-      ) as GuestResponse
-
-      expect(
-        correctResponse(submitted, { category: 'service', text: null }, NOW),
-      ).toMatchObject({
-        status: 'corrected',
-        rating: 2,
-        category: 'service',
-        text: null,
-        feedbackSubmissionRevision: 1,
-      })
-    })
   })
 
   describe('deleteResponse', () => {

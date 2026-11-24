@@ -211,6 +211,23 @@ describe('getInboxItemDetail', () => {
     expect(replyCalls).toHaveLength(1)
   })
 
+  it('hands the item it already loaded to the detail read', async () => {
+    const { repo, staffApi, replyLookup, findDetailById, setDetail } = setup()
+    const detail = makeDetail(makeItem())
+    setDetail(detail)
+
+    await getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })(
+      { inboxItemId: ITEM_ID },
+      ctxFor('AccountAdmin'),
+    )
+
+    expect(findDetailById).toHaveBeenCalledWith(
+      ITEM_ID,
+      detail.item.organizationId,
+      detail.item,
+    )
+  })
+
   // ── reviewRating on the payload ─────────────────────────────────────
   // The eligibility rule itself (null for `expired` / `not_found`) belongs to
   // the repository, which is the only thing holding the `ReviewSnippet`, and is

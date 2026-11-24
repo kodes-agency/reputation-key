@@ -1,3 +1,4 @@
+import type { GoalRequestApi } from './monthly-goals/goal-request-api.server'
 import { metricRegistry } from './readings/contracts'
 import { createPortalRatingGoalGuard } from './monthly-goals/portal-rating-goal-guard.server'
 import { createGoalMetricBatchReader } from './readings/goal-metric-batch-reader.server'
@@ -43,10 +44,7 @@ import { registerCurrentGoogleReputationConsumer } from './readings/current-goog
 import { createGoalProgramSubjectReader } from './monthly-goals/goal-program-subject-reader.server'
 import { createGoalProgramVisibilityAdapter } from './monthly-goals/goal-program-visibility.adapter.server'
 import { createGoalProgramRepository } from './monthly-goals/goal-program-repository.server'
-import {
-  createGoalProgramService,
-  type GoalProgramRequestApi,
-} from './monthly-goals/goal-programs.server'
+import { createGoalProgramService } from './monthly-goals/goal-programs.server'
 import { type GoalExecutionPolicy } from './application/use-cases/goal-program-shared'
 import { withGoalProgramVisibility } from './monthly-goals/goal-program-visibility.server'
 import { createGoalsForSubjects } from './monthly-goals/goal-bulk-create.server'
@@ -82,14 +80,8 @@ import {
   type PortalGoalSinglePageRequestApi,
 } from './monthly-goals/get-portal-goal-page.server'
 import { readGoalRecommendationCounts } from './monthly-goals/goal-recommendation-readings.server'
-import {
-  createGoalProgressReader,
-  type GoalProgressRequestApi,
-} from './monthly-goals/goal-progress.server'
-import {
-  createGoalListProgressReader,
-  type GoalListProgressRequestApi,
-} from './monthly-goals/goal-list-progress.server'
+import { createGoalProgressReader } from './monthly-goals/goal-progress.server'
+import { createGoalListProgressReader } from './monthly-goals/goal-list-progress.server'
 import type { GoalProgramRepository } from './application/ports/goal-program.repository'
 import {
   createPropertyRatingGoalRepository,
@@ -300,7 +292,7 @@ function buildGoalModule(
                   assignment.effectiveTo > input.clock()),
             )
             .map(({ subject }) =>
-              goalProgramSubjects.staffTargetProblem!(
+              goalProgramSubjects.staffTargetProblem(
                 actor.organizationId,
                 propertyId,
                 subject,
@@ -449,14 +441,9 @@ function buildGoalModule(
     Object.freeze({
       page: (policy, ...args) => readPortalGoalSinglePage(goalPageDeps(policy), ...args),
     })
-  const programs: GoalProgramRequestApi &
-    GoalProgressRequestApi &
-    GoalListProgressRequestApi &
-    MonthlyPortalGoalRequestApi &
-    PortalGoalAddRequestApi &
-    PortalGoalSinglePageRequestApi = Object.freeze({
+  const programs: GoalRequestApi = Object.freeze({
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
-    history: (policy, ...args) => readGoalPrograms(policy).history!(...args),
+    history: (policy, ...args) => readGoalPrograms(policy).history(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
     listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
     monthlyPortalGoal,
@@ -471,7 +458,7 @@ function buildGoalModule(
       propertyId: string,
       portalId: string,
     ) => {
-      const programs = await goalProgramRepo.listSummaries(organizationId, propertyId)
+      const programs = await goalProgramRepo.list(organizationId, propertyId)
       return findPortalRatingGoalBlock(programs, portalId, input.clock(), (subject) =>
         input.portalApi.listPortalRatingFacts(
           toOrganizationId(organizationId),

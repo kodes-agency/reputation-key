@@ -8,7 +8,6 @@ export const connectGoogleInputSchema = z
   .object({
     exchangeAttemptId: z.uuid(),
     code: z.string().min(1, 'Authorization code is required'),
-    visibility: z.enum(['private', 'organization']).default('private'),
     purpose: z.enum(['reviews', 'import_gbp_v2', 'performance_reauth']),
     connectionMode: z.enum(['new', 'reauth', 'reconnect']),
     targetConnectionId: z.string().min(1).max(255).nullable(),

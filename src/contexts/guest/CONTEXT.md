@@ -161,8 +161,7 @@ correctness; Redis provides abuse control and observation-loss monitoring. State
 source-event identities, and identifier-only outbox facts commit atomically.
 
 Response and private-feedback withdrawals journal to the bucket through
-`responses/guest-withdrawal-journal.server.ts`, switched on by
-`GUEST_WITHDRAWAL_JOURNAL_ACTIVE`. The command store checks the existing
+`responses/guest-withdrawal-journal.server.ts`, always on. The command store checks the existing
 session/state predicate, writes an IDs-only intent outside the deletion
 transaction, then rechecks that predicate in the transaction. A failed bucket
 write refuses the withdrawal before anything is deleted and produces a

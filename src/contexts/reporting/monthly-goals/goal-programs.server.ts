@@ -246,7 +246,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         propertyId: input.propertyId,
         action: 'goal.read',
       })
-      const bundle = await (deps.repository.getHistory ?? deps.repository.get)(
+      const bundle = await deps.repository.getHistory(
         actor.organizationId,
         input.propertyId,
         input.programId,
@@ -271,7 +271,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         propertyId: input.propertyId,
         action: 'goal.read',
       })
-      if (!deps.repository.listHistory) throw new Error('Goal history reader is missing')
       const program = await deps.repository.get(
         actor.organizationId,
         input.propertyId,

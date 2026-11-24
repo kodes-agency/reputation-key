@@ -23,12 +23,9 @@
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  googleReplyObservationHeads,
-  googleReplyObservations,
   replies,
   replyPublicationAuthorizations,
   replyPublicationAttempts,
-  reviews,
 } from '#/shared/db/schema/review.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
@@ -65,7 +62,11 @@ import type { ConditionalReplyUpdate } from './reply-repository.port.server'
 import type { ReplyCommandStore } from './reply-command-store.port.server'
 import type { PublicationAuthorizationFacts } from './reply-command-store.port.server'
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
-import { lockReplyTruthScope } from '../reviews/reply-truth-serialization.server'
+import {
+  lockCurrentReplyTruthHead,
+  lockReplyTruthReview,
+  lockReplyTruthScope,
+} from '../reviews/reply-truth-serialization.server'
 import { attemptMayHaveDispatched } from '../publication/reply-publication-dispatch-evidence.server'
 import {
   lockPublicationProperty,
@@ -178,51 +179,10 @@ async function lockCurrentReplyTruthScope(
   }>,
 ): Promise<LockedReplyTruthScope | null> {
   await lockReplyTruthScope(tx, input.organizationId, input.reviewId)
-  const reviewRows = await tx
-    .select({
-      propertyId: reviews.propertyId,
-      sourceEpoch: reviews.sourceEpoch,
-      materialReviewRevision: reviews.sourceRevision,
-      sourceContentState: reviews.sourceContentState,
-    })
-    .from(reviews)
-    .where(
-      and(
-        eq(reviews.id, input.reviewId),
-        eq(reviews.organizationId, input.organizationId),
-        eq(reviews.propertyId, input.propertyId),
-      ),
-    )
-    .for('update')
-    .limit(1)
-  const review = reviewRows[0]
+  const review = await lockReplyTruthReview(tx, input)
   if (!review) return null
 
-  const headRows = await tx
-    .select({
-      observationRevision: googleReplyObservationHeads.observationRevision,
-      sourceEpoch: googleReplyObservationHeads.sourceEpoch,
-      materialReviewRevision: googleReplyObservationHeads.materialReviewRevision,
-      state: googleReplyObservationHeads.state,
-      source: googleReplyObservations.source,
-      contentState: googleReplyObservations.contentState,
-      observedAt: googleReplyObservations.observedAt,
-    })
-    .from(googleReplyObservationHeads)
-    .innerJoin(
-      googleReplyObservations,
-      eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
-    )
-    .where(
-      and(
-        eq(googleReplyObservationHeads.reviewId, input.reviewId),
-        eq(googleReplyObservationHeads.organizationId, input.organizationId),
-        eq(googleReplyObservationHeads.propertyId, input.propertyId),
-      ),
-    )
-    .for('update', { of: googleReplyObservationHeads })
-    .limit(1)
-
+  const headRows = await lockCurrentReplyTruthHead(tx, input)
   return { review, head: headRows[0] ?? null }
 }
 

@@ -303,10 +303,7 @@ async function seedRunningGoalMonth(month: RunningGoalMonth): Promise<void> {
 
 describe('fleet overview projection integration', () => {
   it('pages the real getFleetOverview projection at constant query count for 5,000 properties', async () => {
-    const observed: unknown[] = []
-    const projection = createFleetOverviewProjectionAdapter(db, {
-      onRead: (evidence) => observed.push(evidence),
-    })
+    const projection = createFleetOverviewProjectionAdapter(db)
     const getFleet = getFleetOverview({
       projection,
       resolveAccessiblePropertyIds: async () => null,
@@ -354,11 +351,6 @@ describe('fleet overview projection integration', () => {
     // the same.
     expect(fleetStatements).toBe(5)
     expect(fleetStatements).toBeLessThanOrEqual(FLEET_TRANSACTION_STATEMENT_BOUND)
-    expect(observed).toContainEqual({
-      propertyCount: PROPERTY_COUNT,
-      returnedRows: 50,
-      durationMs: expect.any(Number),
-    })
 
     const explained = await client.query(
       `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${listQuery.query}`,

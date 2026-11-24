@@ -57,7 +57,7 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
       'UPDATE staff_participations SET personal_portal_id = NULL WHERE id = $1',
       [h.row.participationId],
     )
-    const management = createStaffManagementStore(env.db, () => NOW)
+    const management = createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000)
     expect(
       await management.target(h.row.organizationId, h.row.participationId),
     ).toBeNull()
@@ -195,7 +195,7 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
         result.participationId,
       ]),
     ).toEqual([])
-    const management = createStaffManagementStore(env.db, () => NOW)
+    const management = createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000)
     const target = (await management.target(
       h.row.organizationId,
       result.participationId,
@@ -219,7 +219,7 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
         { ...h.input, email: h.row.email },
         h.ctx,
       )
-      const management = createStaffManagementStore(env.db, () => NOW)
+      const management = createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000)
       const row = async () =>
         (await management.list(h.row.organizationId, h.row.propertyId)).find(
           (member) => member.participationId === result.participationId,
@@ -247,10 +247,11 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
     it('has no joined date for someone who has not joined', async () => {
       const h = await setup()
       const added = await addStaffMember(h.deps)(h.input, h.ctx)
-      const roster = await createStaffManagementStore(env.db, () => NOW).list(
-        h.row.organizationId,
-        h.row.propertyId,
-      )
+      const roster = await createStaffManagementStore(
+        env.db,
+        () => NOW,
+        7 * 86_400_000,
+      ).list(h.row.organizationId, h.row.propertyId)
       expect(
         roster.find((member) => member.participationId === added.participationId),
       ).toMatchObject({ access: 'invited', joinedAt: null })
@@ -309,7 +310,7 @@ describe.sequential('invitation correction and delivery problems (PostgreSQL)', 
   it('replaces an invitation in one transaction and preserves the Portal and participation', async () => {
     const h = await setup()
     const added = await addStaffMember(h.deps)(h.input, h.ctx)
-    const management = createStaffManagementStore(env.db, () => NOW)
+    const management = createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000)
     const email = `corrected-${randomUUID()}@example.com`
     const corrected = await replace(h, added, email)
     expect(corrected.portalId).toBe(added.portalId)
@@ -361,7 +362,7 @@ describe.sequential('invitation correction and delivery problems (PostgreSQL)', 
     const h = await setup()
     const added = await addStaffMember(h.deps)(h.input, h.ctx)
     const email = `concurrent-${randomUUID()}@example.com`
-    const management = createStaffManagementStore(env.db, () => NOW)
+    const management = createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000)
     const deps = { ...h.deps, management, removeLogin: async () => undefined }
     const outcomes = await Promise.allSettled([
       changeStaffInvitationEmail(deps)(
@@ -402,7 +403,7 @@ it('two concurrent email corrections share the bounded pool without nested addre
   )
   const deps = {
     ...h.deps,
-    management: createStaffManagementStore(env.db, () => NOW),
+    management: createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000),
     removeLogin: async () => undefined,
   }
   const results = await Promise.all([
@@ -443,7 +444,7 @@ it('reads the current Group rather than the original Add choice', async () => {
       NOW,
     ],
   )
-  const management = createStaffManagementStore(env.db, () => NOW)
+  const management = createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000)
   expect(
     (await management.list(h.row.organizationId, h.row.propertyId))[0]?.group,
   ).toEqual({

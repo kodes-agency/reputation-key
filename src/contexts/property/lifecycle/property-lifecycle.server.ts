@@ -1,8 +1,6 @@
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { propertyId, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
-import { canForContext } from '#/shared/domain/permissions'
+import { type OrganizationId, type PropertyId } from '#/shared/domain/ids'
 import { propertyError } from '../domain/errors'
 import { propertyArchived, propertyRestored } from '../domain/events'
 import {
@@ -11,6 +9,7 @@ import {
 } from '../domain/property-lifecycle'
 import type { PropertyLifecycleCommandStore } from './transition-store.port.server'
 import type { PropertyRepository } from '../profile/property-repository.port.server'
+import { loadAccessibleProperty } from '../profile/load-accessible-property.server'
 import {
   PropertyGoogleBindingError,
   type PropertyGoogleBindingStore,
@@ -28,6 +27,8 @@ const normalizeArchiveReason = (value: string): string => {
   return reason
 }
 
+const LIFECYCLE_DENIED = 'this role cannot change Property lifecycle'
+
 type LifecycleAccessDeps = Readonly<{
   propertyRepo: PropertyRepository
   staffPublicApi: Pick<StaffPublicApi, 'getAccessiblePropertyIds'>
@@ -36,33 +37,6 @@ type LifecycleAccessDeps = Readonly<{
 
 type LifecycleCommandDeps = LifecycleAccessDeps &
   Readonly<{ lifecycleStore: PropertyLifecycleCommandStore }>
-
-const loadAccessibleProperty = async (
-  deps: LifecycleAccessDeps,
-  rawPropertyId: string,
-  ctx: AuthContext,
-  permission: 'property.archive' | 'property.restore' | 'property.disconnect',
-) => {
-  if (!canForContext(ctx, permission)) {
-    throw propertyError('forbidden', 'this role cannot change Property lifecycle')
-  }
-  const pid = propertyId(rawPropertyId)
-  const property = await deps.propertyRepo.findById(ctx.organizationId, pid)
-  if (!property) throw propertyError('property_not_found', 'property not found')
-  const accessible = await isPropertyAccessibleForPermission(
-    (organizationId, userId, organizationWide) =>
-      deps.staffPublicApi.getAccessiblePropertyIds(
-        organizationId,
-        userId,
-        organizationWide,
-      ),
-    ctx,
-    permission,
-    pid,
-  )
-  if (!accessible) throw propertyError('forbidden', 'No access to this property')
-  return property
-}
 
 export type ArchivePropertyInput = Readonly<{
   propertyId: string
@@ -77,6 +51,7 @@ export const archiveProperty =
       input.propertyId,
       ctx,
       'property.archive',
+      LIFECYCLE_DENIED,
     )
     if (property.lifecycleState === 'archived') return property
     if (property.lifecycleState !== 'active' && property.lifecycleState !== 'suspended') {
@@ -139,6 +114,7 @@ export const restoreProperty =
       input.propertyId,
       ctx,
       'property.restore',
+      LIFECYCLE_DENIED,
     )
     const googleBindingReadiness: PropertyGoogleBindingReadiness =
       property.googleBindingState === 'active' ? 'ready' : 'reconnect_required'
@@ -240,6 +216,7 @@ export const disconnectPropertyGoogleBinding =
       input.propertyId,
       ctx,
       'property.disconnect',
+      LIFECYCLE_DENIED,
     )
     if (property.lifecycleState !== 'archived') {
       throw propertyError(

@@ -82,7 +82,7 @@ function staffDeps(
   portalStep: () => Promise<void> = async () => undefined,
 ): ManageStaffDeps {
   const deps: StaffAccountDeps = {
-    store: createStaffAccountStore(database, () => NOW, randomUUID),
+    store: createStaffAccountStore(database, () => NOW, randomUUID, 7 * 86_400_000),
     spendAddressCheckBudget: async () => undefined,
     reportDeliveryFailure: () => undefined,
     idGen: randomUUID,
@@ -111,7 +111,7 @@ function staffDeps(
   }
   return {
     ...deps,
-    management: createStaffManagementStore(database, () => NOW),
+    management: createStaffManagementStore(database, () => NOW, 7 * 86_400_000),
     removeLogin: async () => undefined,
   }
 }

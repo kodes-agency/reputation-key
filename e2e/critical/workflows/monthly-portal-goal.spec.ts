@@ -127,7 +127,7 @@ import { checkInOfferOf } from '../../../src/contexts/reporting/monthly-goals/mo
 import { checkInMonthAt } from '../../../src/contexts/reporting/domain/portal-goal-check-in'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../../src/contexts/reporting/domain/goal-start'
 import { goalMonthDays, goalPace } from '../../../src/contexts/reporting/domain/goal-pace'
-import { addLocalDays } from '../../../src/contexts/reporting/domain/local-days'
+import { addLocalDays } from '../../../src/shared/domain/local-days'
 import { calendarPeriodRange } from '../../../src/shared/domain/period-range'
 import {
   formatLocalDate,

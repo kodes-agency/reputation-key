@@ -87,7 +87,7 @@ export type GoalProgressInput = Readonly<{
 
 export type GoalProgressDeps = Readonly<{
   reads: Pick<GoalProgramService, 'list'>
-  metrics: Pick<GoalMetricReadPort, 'queryGoalMetric' | 'queryGoalMetrics'>
+  metrics: Pick<GoalMetricReadPort, 'queryGoalMetric'>
   now: () => Date
 }>
 

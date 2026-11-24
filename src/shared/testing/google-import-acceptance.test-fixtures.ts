@@ -232,15 +232,12 @@ export function createGoogleImportAcceptanceFixture(input: {
     deliveries: () => queue.enqueuedJobs.map((job) => deliverySchema.parse(job.data)),
     recover: () => container.integrationWorkerRuntime.recoverImports(),
     process: async (delivery: z.infer<typeof deliverySchema>) => {
-      const process = container.integrationWorkerRuntime.processImportItem
-      if (!process) throw new Error('Import worker was not composed')
-      await process({ ...delivery, attemptOrdinal: 1 })
+      await container.integrationWorkerRuntime.processImportItem({
+        ...delivery,
+        attemptOrdinal: 1,
+      })
     },
-    sweep: async () => {
-      const sweep = container.integrationWorkerRuntime.sweepImportLifecycle
-      if (!sweep) throw new Error('Import lifecycle was not composed')
-      return sweep()
-    },
+    sweep: () => container.integrationWorkerRuntime.sweepImportLifecycle(),
     disconnect: () =>
       container.integrationPublicApi.connections.disconnect({ connectionId }, actor),
   }

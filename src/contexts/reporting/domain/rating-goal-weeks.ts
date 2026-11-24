@@ -2,10 +2,8 @@
 // matching PostgreSQL date_trunc('week', ts AT TIME ZONE tz). The server decides
 // today and weekday so first paint agrees; DST must not change calendar-day counts.
 
-import {
-  propertyWallClockAt,
-  propertyWallClockToInstant,
-} from '#/shared/domain/property-calendar'
+import { propertyWallClockAt } from '#/shared/domain/property-calendar'
+import { localDateOf, localMidnight } from '#/shared/domain/local-days'
 
 /** The detail's chart starts this many weeks before the week a goal was set. */
 const CHART_WEEKS_BEFORE_SET = 4
@@ -50,10 +48,7 @@ const keyOf = (date: CivilDate): string =>
   `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`
 
 const instantOf = (date: CivilDate, timezone: string): Date =>
-  propertyWallClockToInstant(
-    { ...date, hour: 0, minute: 0, second: 0, millisecond: 0 },
-    timezone,
-  )
+  localMidnight(date.year, date.month, date.day, timezone)
 
 /** The Property-local Monday of the week an instant falls in. */
 export const weekStartKey = (instant: Date, timezone: string): string =>
@@ -77,11 +72,11 @@ export const daysFromToday = (dateKey: string, now: Date, timezone: string): num
 
 /** Whole Property-local days from today to the local date an instant falls on. */
 export const dayOfInstant = (instant: Date, now: Date, timezone: string): number =>
-  daysFromToday(keyOf(civilDateAt(instant, timezone)), now, timezone)
+  daysFromToday(localDateOf(instant, timezone), now, timezone)
 
 /** The Property-local date an instant falls on, `YYYY-MM-DD`. */
 export const localDateKey = (instant: Date, timezone: string): string =>
-  keyOf(civilDateAt(instant, timezone))
+  localDateOf(instant, timezone)
 
 /** A date `YYYY-MM-DD` moved by whole days. */
 export const shiftDateKey = (dateKey: string, days: number): string =>

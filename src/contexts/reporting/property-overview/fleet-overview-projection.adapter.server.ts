@@ -11,17 +11,6 @@ import type { RatingGoalMode, RatingGoalStatus } from '../domain/rating-goal'
 import { DASHBOARD_READ_BUDGET_MS, withStatementTimeout } from './read-facade.server'
 import { readRunningCountMonths } from './goal-running-months.server'
 
-export type FleetOverviewProjectionInstrumentation = Readonly<{
-  onRead(
-    value: Readonly<{
-      propertyCount: number
-      returnedRows: number
-      /** Actual wall-clock duration of the bounded projection read. */
-      durationMs: number
-    }>,
-  ): void
-}>
-
 type MainRow = Readonly<{
   property_id: string | null
   name: string | null
@@ -80,10 +69,8 @@ function ratingGoalOf(row: MainRow): FleetOverviewProjectionRow['ratingGoal'] {
 
 export const createFleetOverviewProjectionAdapter = (
   db: Database,
-  instrumentation?: FleetOverviewProjectionInstrumentation,
 ): FleetOverviewProjectionPort => ({
   async read(input) {
-    const readStartedAt = performance.now()
     const cursorName = input.cursor?.lowerName ?? null
     const cursorId = input.cursor?.propertyId ?? null
     const accessFilter =
@@ -287,11 +274,6 @@ export const createFleetOverviewProjectionAdapter = (
             propertyId: propertyId(last.property_id),
           }
         : null
-    instrumentation?.onRead({
-      propertyCount,
-      returnedRows: rows.length,
-      durationMs: Math.max(0, performance.now() - readStartedAt),
-    })
 
     return {
       rows,

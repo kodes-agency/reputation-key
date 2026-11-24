@@ -137,7 +137,6 @@ function services() {
       authorizeManagement,
       authorize: async () => true,
       isCurrentAccountAdmin: async () => true,
-      verifyStepUp: async () => false,
       clock,
       idGen: randomUUID,
       ...SERVED_NOTICE,

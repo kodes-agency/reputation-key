@@ -102,14 +102,11 @@ export const downloadPortalPrintInputSchema = z
     },
   )
 
-type ParsedInput = z.infer<typeof downloadPortalPrintInputSchema>
+type ParsedInput = z.output<typeof downloadPortalPrintInputSchema>
 
-/** The parsed input, with the languages read-only; a caller that has not parsed it may leave the spares, the crop marks and the back page out. */
+/** The parsed input, with the languages read-only. */
 export type DownloadPortalPrintInput = Readonly<
-  Omit<ParsedInput, 'languages' | 'fillSpares' | 'cropMarks' | 'backPage'> & {
+  Omit<ParsedInput, 'languages'> & {
     languages: readonly ParsedInput['languages'][number][]
-    fillSpares?: boolean
-    cropMarks?: boolean
-    backPage?: boolean
   }
 >

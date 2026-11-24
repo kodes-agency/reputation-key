@@ -138,6 +138,25 @@ async function recordDestinationChange(
   })
 }
 
+/** Records the change and publishes the destination's new state, inside the caller's transaction. */
+async function announceDestinationChange(
+  tx: Tx,
+  row: DestinationRow,
+  approvalState: PortalApprovedDestination['approvalState'],
+  actorUserId: string | null,
+): Promise<void> {
+  await recordDestinationChange(tx, row, actorUserId)
+  const event = portalApprovedDestinationUpdated({
+    approvedDestinationId: portalApprovedDestinationId(row.id),
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.propertyId),
+    approvalState,
+    sourceAggregateVersion: row.updatedAt.toISOString(),
+    occurredAt: row.updatedAt,
+  })
+  await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
+}
+
 function fromRow(row: DestinationRow): PortalApprovedDestination {
   if (row.validationVersion !== PORTAL_DESTINATION_VALIDATION_VERSION) {
     throw new Error('Stored Portal destination validation version is unsupported')
@@ -235,16 +254,12 @@ export const createPortalApprovedDestinationRepository = (
           .limit(1)
         if (!row) throw new Error('Approved destination disappeared after request')
         if (!changed) return fromRow(row)
-        await recordDestinationChange(tx, row, unbrand(input.requestedBy))
-        const event = portalApprovedDestinationUpdated({
-          approvedDestinationId: portalApprovedDestinationId(row.id),
-          organizationId: organizationId(row.organizationId),
-          propertyId: propertyId(row.propertyId),
-          approvalState: row.approvalState as PortalApprovedDestination['approvalState'],
-          sourceAggregateVersion: row.updatedAt.toISOString(),
-          occurredAt: row.updatedAt,
-        })
-        await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
+        await announceDestinationChange(
+          tx,
+          row,
+          row.approvalState as PortalApprovedDestination['approvalState'],
+          unbrand(input.requestedBy),
+        )
         return fromRow(row)
       })
 
@@ -405,16 +420,7 @@ export const createPortalApprovedDestinationRepository = (
         if (!row || result.outcome !== 'unsafe') {
           return row ? fromRow(row) : null
         }
-        await recordDestinationChange(tx, row, null)
-        const event = portalApprovedDestinationUpdated({
-          approvedDestinationId: portalApprovedDestinationId(row.id),
-          organizationId: organizationId(row.organizationId),
-          propertyId: propertyId(row.propertyId),
-          approvalState: 'quarantined',
-          sourceAggregateVersion: row.updatedAt.toISOString(),
-          occurredAt: row.updatedAt,
-        })
-        await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
+        await announceDestinationChange(tx, row, 'quarantined', null)
         return fromRow(row)
       })
 
@@ -455,16 +461,7 @@ export const createPortalApprovedDestinationRepository = (
           )
           .returning()
         if (!row) return null
-        await recordDestinationChange(tx, row, unbrand(input.approvedBy))
-        const event = portalApprovedDestinationUpdated({
-          approvedDestinationId: portalApprovedDestinationId(row.id),
-          organizationId: organizationId(row.organizationId),
-          propertyId: propertyId(row.propertyId),
-          approvalState: 'approved',
-          sourceAggregateVersion: row.updatedAt.toISOString(),
-          occurredAt: row.updatedAt,
-        })
-        await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
+        await announceDestinationChange(tx, row, 'approved', unbrand(input.approvedBy))
         return fromRow(row)
       })
 
@@ -501,16 +498,7 @@ export const createPortalApprovedDestinationRepository = (
           )
           .returning()
         if (!row) return null
-        await recordDestinationChange(tx, row, unbrand(input.disabledBy))
-        const event = portalApprovedDestinationUpdated({
-          approvedDestinationId: portalApprovedDestinationId(row.id),
-          organizationId: organizationId(row.organizationId),
-          propertyId: propertyId(row.propertyId),
-          approvalState: 'disabled',
-          sourceAggregateVersion: row.updatedAt.toISOString(),
-          occurredAt: row.updatedAt,
-        })
-        await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
+        await announceDestinationChange(tx, row, 'disabled', unbrand(input.disabledBy))
         return fromRow(row)
       })
 

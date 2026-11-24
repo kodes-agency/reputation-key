@@ -256,20 +256,12 @@ export function withdrawResponse(
 }
 
 /**
- * Submit a response. Validates rating, text length, and consent.
- * Per ADR 0044: optional rating, optional category, optional text —
- * but at least one meaningful field must be present.
+ * Submit the initial rating. Per ADR 0044 the initial command carries only the
+ * rating; private feedback is a separate command.
  */
 export function submitResponse(
   response: GuestResponse,
-  params: {
-    rating?: number | null
-    category?: string | null
-    text?: string | null
-    responseConsent?: boolean
-    textConsent?: boolean
-    mediaConsent?: boolean
-  },
+  params: Readonly<{ rating: number }>,
   now: Date,
 ): GuestResponse | ResponseError {
   if (response.status === 'deleted') {
@@ -280,66 +272,26 @@ export function submitResponse(
     return { code: 'already_submitted' }
   }
 
-  const hasContent =
-    params.rating != null ||
-    (params.text != null &&
-      unicodeCodePointLength(normalizePrivateFeedbackText(params.text)) > 0)
-
-  if (!hasContent) {
-    return { code: 'no_content' }
-  }
-
-  if (
-    params.rating != null &&
-    (params.rating < MIN_RATING || params.rating > MAX_RATING)
-  ) {
+  if (params.rating < MIN_RATING || params.rating > MAX_RATING) {
     return { code: 'rating_out_of_range', rating: params.rating }
   }
 
-  const text =
-    params.text === undefined || params.text === null
-      ? ''
-      : normalizePrivateFeedbackText(params.text)
-  const textLength = unicodeCodePointLength(text)
-  if (textLength > MAX_TEXT_LENGTH) {
-    return { code: 'text_too_long', length: textLength, max: MAX_TEXT_LENGTH }
-  }
-
-  if (params.rating != null && params.responseConsent === false) {
-    return { code: 'no_content' }
-  }
-  if (text && params.textConsent === false) {
-    return { code: 'no_content' }
-  }
   return {
     ...response,
     status: 'submitted',
-    rating: params.rating ?? null,
-    category: params.category ?? null,
-    text: text || null,
-    responseConsent: params.responseConsent ?? params.rating != null,
-    textConsent: params.textConsent ?? text.length > 0,
-    mediaConsent: params.mediaConsent ?? false,
+    rating: params.rating,
+    responseConsent: true,
     submittedAt: now,
-    feedbackSubmittedAt: text ? now : null,
-    feedbackSubmissionRevision: text ? 1 : null,
   }
 }
 
 /**
- * Correct a submitted response within the correction window.
+ * Correct the rating of a submitted response within the correction window.
  * Per ADR 0044: one bounded correction through the same signed session.
  */
 export function correctResponse(
   response: GuestResponse,
-  params: {
-    rating?: number | null
-    category?: string | null
-    text?: string | null
-    responseConsent?: boolean
-    textConsent?: boolean
-    mediaConsent?: boolean
-  },
+  params: Readonly<{ rating: number }>,
   now: Date,
   correctionWindowMs: number = DEFAULT_CORRECTION_WINDOW_MS,
 ): GuestResponse | ResponseError {
@@ -359,39 +311,18 @@ export function correctResponse(
     }
   }
 
-  // Re-validate
-  if (
-    params.rating != null &&
-    (params.rating < MIN_RATING || params.rating > MAX_RATING)
-  ) {
+  if (params.rating < MIN_RATING || params.rating > MAX_RATING) {
     return { code: 'rating_out_of_range', rating: params.rating }
   }
 
-  const text =
-    params.text === undefined || params.text === null
-      ? ''
-      : normalizePrivateFeedbackText(params.text)
-  const textLength = unicodeCodePointLength(text)
-  if (textLength > MAX_TEXT_LENGTH) {
-    return { code: 'text_too_long', length: textLength, max: MAX_TEXT_LENGTH }
-  }
-
-  const rating = params.rating === undefined ? response.rating : params.rating
-  const nextText = params.text === undefined ? response.text : text || null
-  if (rating == null && nextText == null) return { code: 'no_content' }
   return {
     ...response,
     status: 'corrected',
-    rating,
-    category: params.category === undefined ? response.category : params.category,
-    text: nextText,
-    responseConsent: params.responseConsent ?? response.responseConsent,
-    textConsent: params.textConsent ?? response.textConsent,
-    mediaConsent: params.mediaConsent ?? response.mediaConsent,
+    rating: params.rating,
     correctionCount: 1,
     correctedAt: now,
     feedbackSubmissionRevision:
-      response.feedbackSubmissionRevision ?? (nextText !== null ? 2 : null),
+      response.feedbackSubmissionRevision ?? (response.text !== null ? 2 : null),
   }
 }
 

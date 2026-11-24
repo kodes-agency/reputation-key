@@ -8,7 +8,6 @@ import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { can } from '#/shared/domain/permissions'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
   disconnectGoogle,
   getGoogleAuthUrl,
@@ -20,7 +19,7 @@ import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 export const Route = createFileRoute('/_authenticated/settings/integrations')({
   staticData: { page: { title: 'Integrations', tier: 'narrow', under: 'settings' } },
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'integration.manage')) {
       throw roleUnavailable('Integrations', 'profile')
     }

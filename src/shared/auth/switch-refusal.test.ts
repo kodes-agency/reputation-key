@@ -60,7 +60,7 @@ async function workerDecision(
       'portal.guest_response',
     )
   }
-  const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+  const policy = createDelayedExecutionPolicy()
   return policy.decide({
     principal: { kind: 'system', id: 'worker:default' },
     executionKind: 'worker',
@@ -178,7 +178,7 @@ describe.each(SWITCHES)('the %s switch', (featureSwitch) => {
 describe('optional email off', () => {
   it('still sends mandatory notices from the worker', async () => {
     runCapabilityBootGuard({ BETA_CAPABILITIES_OFF: 'optional_email' }, quietLogger)
-    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const policy = createDelayedExecutionPolicy()
     const decision = await policy.decide({
       principal: { kind: 'system', id: 'worker:default' },
       executionKind: 'worker',

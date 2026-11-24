@@ -5,7 +5,7 @@
 
 import type { GoalProgramStatus } from './goal-program'
 import type { Choices } from './goal-recommendation-types'
-import { localDateOf } from './local-days'
+import { localDateOf } from '#/shared/domain/local-days'
 
 /** The check-in is open through this local day of the month. */
 const CHECK_IN_LAST_DAY = 7
