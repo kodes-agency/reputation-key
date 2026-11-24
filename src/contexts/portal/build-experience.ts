@@ -9,7 +9,6 @@ import {
   savePortalLocalizedOverride,
   savePropertyDefaultGuestLocales,
   savePropertyPortalBrandContent,
-  savePropertyPortalBrandProfile,
   savePropertyPublicDisplayName,
 } from './editor/manage-portal-experience.server'
 import {
@@ -37,7 +36,6 @@ type ExperienceDeps = Readonly<{
 
 export const buildExperienceUseCases = (deps: ExperienceDeps) => ({
   getPropertyPortalExperience: getPropertyPortalExperience(deps),
-  savePropertyPortalBrandProfile: savePropertyPortalBrandProfile(deps),
   savePropertyLook: savePropertyLook(deps),
   savePropertyHero: savePropertyHero(deps),
   savePropertyLogo: savePropertyLogo(deps),

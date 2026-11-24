@@ -84,7 +84,6 @@ import {
 } from './monthly-goals/get-portal-goal-page.server'
 import { readGoalRecommendationCounts } from './monthly-goals/goal-recommendation-readings.server'
 import {
-  createGoalProgramProgressReader,
   createGoalProgressReader,
   type GoalProgressRequestApi,
 } from './monthly-goals/goal-progress.server'
@@ -133,10 +132,6 @@ import {
 } from './portal-results/get-portal-analytics.server'
 import { SCHEDULED_RETENTION_ACTIVE } from '#/shared/db/retention/scheduled-retention-activation'
 import { getPortalResultsOverview } from './portal-results/get-portal-results-overview.server'
-import {
-  getAttentionSignals,
-  type GetAttentionSignals,
-} from './property-overview/get-attention-signals.server'
 import {
   getPropertyOverview,
   type GetPropertyOverview,
@@ -344,8 +339,6 @@ function buildGoalModule(
   })
   const readGoalProgress = (policy: GoalExecutionPolicy) =>
     createGoalProgressReader(goalProgressDeps(policy))
-  const readGoalProgramProgress = (policy: GoalExecutionPolicy) =>
-    createGoalProgramProgressReader(goalProgressDeps(policy))
   const readGoalListProgress = (policy: GoalExecutionPolicy) =>
     createGoalListProgressReader(goalProgressDeps(policy))
   const goalRecommendationFacts: GoalRecommendationFactsPort = {
@@ -471,7 +464,6 @@ function buildGoalModule(
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
     history: (policy, ...args) => readGoalPrograms(policy).history!(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
-    programProgress: (policy, ...args) => readGoalProgramProgress(policy)(...args),
     listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
     monthlyPortalGoal,
     portalGoalAdd,
@@ -601,13 +593,6 @@ function buildDashboardModule(
     now: input.clock,
     propertyAccess,
   })
-  const getAttention: GetAttentionSignals = getAttentionSignals({
-    signals: attentionSignals,
-    reviewStats: input.reviewServingStats,
-    inboxTargets: input.inboxTargets,
-    clock: input.clock,
-    propertyAccess,
-  })
   const getOverview: GetPropertyOverview = getPropertyOverview({
     getDashboardData: getDashboard,
     propertyAccess,
@@ -644,11 +629,9 @@ function buildDashboardModule(
         input.staffScanTargetsEnabled ?? false,
       ),
       readPropertyGoogleNumbers,
-      getDashboardData: getDashboard,
       getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
       getPortalAnalytics: getPortal,
       getPortalResultsOverview: getResultsOverview,
-      getAttentionSignals: getAttention,
       getPropertyOverview: getOverview,
       getFleetOverview: getFleet,
       getPropertySetup: getPropertySetupRead,
@@ -657,11 +640,9 @@ function buildDashboardModule(
     internal: {
       repos: { dashboardRepo, propertySetupRepo },
       useCases: {
-        getDashboardData: getDashboard,
         getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
         getPortalAnalytics: getPortal,
         getPortalResultsOverview: getResultsOverview,
-        getAttentionSignals: getAttention,
         getPropertyOverview: getOverview,
         getFleetOverview: getFleet,
         getPropertySetup: getPropertySetupRead,

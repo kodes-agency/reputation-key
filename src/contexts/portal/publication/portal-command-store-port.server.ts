@@ -495,7 +495,6 @@ export type PortalCommandStore = Readonly<{
   republishPortal(command: RepublishPortalCommand): Promise<void>
   createPortalGroup(command: CreatePortalGroupCommand): Promise<void>
   updatePortalGroup(command: UpdatePortalGroupCommand): Promise<void>
-  addPortalToGroup(command: AddPortalToGroupCommand): Promise<void>
   removePortalFromGroup(command: RemovePortalFromGroupCommand): Promise<void>
   movePortalToGroup(command: MovePortalToGroupCommand): Promise<void>
   createPortalLink(command: CreatePortalLinkCommand): Promise<void>

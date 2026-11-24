@@ -22,18 +22,6 @@ export type IdentityOrganizationCreated = Readonly<{
   occurredAt: Date
   correlationId: string | null
 }>
-export const identityOrganizationCreated = (
-  args: IdentityEventArgs<IdentityOrganizationCreated>,
-): IdentityOrganizationCreated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.organizationName.length > 0, 'organizationName required')
-  return {
-    _tag: 'identity.organization.created',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
 
 export type IdentityMemberInvited = Readonly<{
   _tag: 'identity.member.invited'

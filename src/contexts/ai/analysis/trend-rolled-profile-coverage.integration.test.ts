@@ -24,6 +24,7 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { seedEnabledReviewAnalysis } from '#/shared/db/testing/enabled-review-analysis-fixture'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { seedReviewContent } from './review-content.test-fixtures'
+import { readAggregateWindow } from './property-aggregate.test-fixtures'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter.server'
 
 const ORG = 'ai-rolled-profile-test'
@@ -210,7 +211,7 @@ describe.sequential('trend coverage of a rolled profile generation (PostgreSQL)'
   })
 
   it('reads the rolled generation as awaiting what only the ledger settled', async () => {
-    const window = await aggregates.readWindow({
+    const window = await readAggregateWindow(db, {
       organizationId: organizationId(ORG),
       propertyId: propertyId(propertyOf(ROLLED)),
       sourceEpoch: 0,

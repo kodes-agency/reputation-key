@@ -94,7 +94,6 @@ import { createPortalGroup } from './groups/create-portal-group.server'
 import { updatePortalGroup } from './groups/update-portal-group.server'
 import { listPortalGroups } from './groups/list-portal-groups.server'
 import { softDeletePortalGroup } from './groups/soft-delete-portal-group.server'
-import { addPortalToGroup } from './groups/add-portal-to-group.server'
 import { removePortalFromGroup } from './groups/remove-portal-from-group.server'
 import { movePortalToGroup } from './groups/move-portal-to-group.server'
 import { listPortalGroupHistory } from './groups/list-portal-group-history.server'
@@ -527,10 +526,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       commandStore: portalCommandStore,
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
-    }),
-    addPortalToGroup: addPortalToGroup({
-      ...commandDeps,
-      portalGroupRepo,
     }),
     removePortalFromGroup: removePortalFromGroup({
       portalGroupRepo,

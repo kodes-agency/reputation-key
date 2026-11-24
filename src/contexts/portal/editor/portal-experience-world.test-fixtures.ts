@@ -13,7 +13,6 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { staffApiOf } from '#/shared/testing/staff-public-api-stub'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import type { savePropertyPortalBrandProfile } from './manage-portal-experience.server'
 import { isPortalError } from '../domain/errors'
 import { createPortalLookRepository } from '../look/portal-look-repository.server'
 import { createPortalExperienceRepository } from './portal-experience-repository.server'
@@ -119,21 +118,3 @@ export async function scene() {
   const otherProperty = await seedMediaProperty(getPool(), ORG_A)
   return { property, otherProperty }
 }
-
-export const brandProfileInput = (
-  property: PropertyId,
-  overrides: Readonly<Record<string, unknown>> = {},
-): Parameters<ReturnType<typeof savePropertyPortalBrandProfile>>[0] =>
-  // The DTO types the two image fields as `null`, so a well-typed caller cannot
-  // supply a URL. The cast reproduces a caller that got past the DTO: the
-  // suppression has to hold on its own, not by grace of the type.
-  ({
-    propertyId: property,
-    displayName: '  Seaside Retreat  ',
-    primaryColor: '#6366f1',
-    backgroundColor: '#ffffff',
-    textColor: '#111827',
-    logoUrl: 'https://cdn.example.com/logo.png',
-    defaultHeroImageUrl: 'https://cdn.example.com/hero.png',
-    ...overrides,
-  }) as unknown as Parameters<ReturnType<typeof savePropertyPortalBrandProfile>>[0]
