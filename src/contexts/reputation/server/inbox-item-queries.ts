@@ -4,21 +4,12 @@ import { reviewId } from '#/shared/domain/ids'
 import type { InboxItemDetailResult } from '../public-api'
 // Inbox context — item detail query server functions
 
-import {
-  getExecutionPolicy,
-  requireExecutionAllowed,
-} from '#/shared/auth/execution-policy'
-import {
-  createServerFn,
-  isInboxError,
-  inboxErrorStatus,
-  inboxItemId,
-} from './inbox-shared'
+import { getExecutionPolicy } from '#/shared/auth/execution-policy'
+import { createServerFn } from '@tanstack/react-start'
+import { inboxItemId } from '#/shared/domain/ids'
+import { runInboxCommand } from './inbox-command'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import {
   getInboxItemDetailDto,
   getInboxItemHistoryDto,
@@ -31,13 +22,9 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
   .validator(getInboxItemDetailDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          const detail = await inboxPublicApi.getInboxItemDetail(
+      ({ data }) =>
+        runInboxCommand('inbox.read', async (inbox, ctx) => {
+          const detail = await inbox.getInboxItemDetail(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
             },
@@ -66,12 +53,7 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
             replyDraftingAvailable: policy?.allowed ?? false,
             replyBodyFrame: await savedReplyBodyFrame(detail, ctx.organizationId),
           }
-        } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+        }),
       'GET',
       'inbox.getInboxItemDetail',
     ),
@@ -83,24 +65,15 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
   .validator(getInboxNotesDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.getInboxNotes(
+      ({ data }) =>
+        runInboxCommand('inbox.read', (inbox, ctx) =>
+          inbox.getInboxNotes(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
             },
             ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'GET',
       'inbox.getInboxNotes',
     ),
@@ -112,24 +85,15 @@ export const getInboxItemHistoryFn = createServerFn({ method: 'GET' })
   .validator(getInboxItemHistoryDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.getInboxItemHistory(
+      ({ data }) =>
+        runInboxCommand('inbox.read', (inbox, ctx) =>
+          inbox.getInboxItemHistory(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
             },
             ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'GET',
       'inbox.getInboxItemHistory',
     ),
