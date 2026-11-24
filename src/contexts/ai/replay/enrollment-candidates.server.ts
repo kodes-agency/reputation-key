@@ -6,6 +6,7 @@ import { aiReviewAnalysisBackfillRequested } from '../domain/events'
 import type { ReviewAnalysisEnrollmentFence } from './contracts'
 import { ANALYSABLE_REVIEW_SQL } from './reopen-store.server'
 import { lockReviewAnalysisPropertyFence } from '../analysis/review-analysis-property-fence.server'
+import { rowValues } from './row-values'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
@@ -16,13 +17,9 @@ const REPLAYABLE_STATES = new Set(['queued', 'running', 'awaiting_assisted_appro
 
 export const AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE = 100
 
-function integer(value: unknown, field: string, minimum: number): number {
-  const parsed = typeof value === 'string' ? Number(value) : value
-  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed) || parsed < minimum) {
-    throw new Error(`Review Analysis enrollment read an invalid ${field}`)
-  }
-  return parsed
-}
+const { safeInteger: integer } = rowValues(
+  (field) => `Review Analysis enrollment read an invalid ${field}`,
+)
 
 /**
  * The reviews an enrollment snapshots and replays: current, unanalysed since
