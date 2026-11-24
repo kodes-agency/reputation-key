@@ -114,6 +114,5 @@ export type IdentityStoragePort = Readonly<{
   createPresignedUploadUrl: (
     key: string,
     contentType: string,
-    maxSizeBytes: number,
   ) => Promise<{ uploadUrl: string; key: string }>
 }>

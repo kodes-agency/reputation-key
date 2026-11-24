@@ -32,7 +32,7 @@ export type PortalPublicationHistory = Readonly<{
   current: PortalPublicationHistoryItem | null
   priorActivations: ReadonlyArray<PortalPublicationHistoryItem>
   hasPendingChanges: boolean
-  pendingChanges?: ReadonlyArray<
+  pendingChanges: ReadonlyArray<
     Readonly<{
       kind: import('../publication/portal-publication-repository.port.server').PortalPendingContentChange['kind']
       key: string
@@ -96,11 +96,11 @@ export const getPortalPublicationHistory =
         pid,
         { beforeSequence, limit },
       ),
-      deps.publicationRepo.listOpenPendingContentChanges?.(
+      deps.publicationRepo.listOpenPendingContentChanges(
         ctx.organizationId,
         portal.propertyId,
         pid,
-      ) ?? Promise.resolve([]),
+      ),
     ])
     if (!workingCopy) {
       throw portalError(

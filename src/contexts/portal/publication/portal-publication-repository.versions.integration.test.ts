@@ -513,7 +513,7 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
     await change('portal_links', 'settled', true)
 
     const repo = createPortalPublicationRepository(getDb())
-    const open = await repo.listOpenPendingContentChanges?.(ORG, PROPERTY, PORTAL)
+    const open = await repo.listOpenPendingContentChanges(ORG, PROPERTY, PORTAL)
 
     expect(open).toHaveLength(2)
     // Who made each change comes back with it; a change nobody is recorded for is null.

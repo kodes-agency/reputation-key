@@ -3,7 +3,6 @@
 import type { StoragePort } from '#/contexts/portal/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { assertUploadAllowed } from './upload-policy.server'
-import { MAX_UPLOAD_BYTES } from './identity-assets.contracts'
 
 export type RequestOrgLogoUploadInput = Readonly<{
   contentType: string
@@ -32,7 +31,6 @@ export const requestOrgLogoUpload =
     const { uploadUrl } = await deps.storage.createPresignedUploadUrl(
       key,
       input.contentType,
-      MAX_UPLOAD_BYTES,
     )
 
     return { uploadUrl, key }

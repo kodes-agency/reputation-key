@@ -51,9 +51,6 @@ export function createInMemoryStorage(): InMemoryStorage {
       if (!object) throw new Error(`No object at ${key}`)
       return { contentType: object.contentType, sizeBytes: object.body.length }
     },
-    confirmUpload: async (key) => {
-      if (!store.objects().has(key)) throw new Error(`No object at ${key}`)
-    },
     listObjects: async (prefix, maxKeys, startAfter) => {
       const keys = [...store.objects().keys()]
         .filter((key) => key.startsWith(prefix) && (!startAfter || key > startAfter))

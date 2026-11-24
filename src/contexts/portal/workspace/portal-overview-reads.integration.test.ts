@@ -331,7 +331,7 @@ describe('portal publication repository — countOpenPendingContentChanges', () 
       [BARE, 1],
     ])
     for (const pid of [FULL, BARE, FORMER]) {
-      const single = await repo.listOpenPendingContentChanges?.(ORG, PROPERTY, pid)
+      const single = await repo.listOpenPendingContentChanges(ORG, PROPERTY, pid)
       expect(rows.find((row) => row.portalId === pid)?.count ?? 0).toBe(single?.length)
     }
   })

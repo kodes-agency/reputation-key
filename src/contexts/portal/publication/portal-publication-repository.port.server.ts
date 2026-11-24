@@ -118,7 +118,7 @@ export type PortalPublicationRepository = Readonly<{
     organizationId: OrganizationId,
     portalIds: readonly PortalId[],
   ) => Promise<readonly PortalPublicationActivation[]>
-  listOpenPendingContentChanges?: (
+  listOpenPendingContentChanges: (
     organizationId: OrganizationId,
     propertyId: PropertyId,
     portalId: PortalId,
