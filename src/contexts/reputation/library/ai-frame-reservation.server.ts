@@ -6,10 +6,7 @@ import {
   reviews,
   replyAiFrameReservations,
 } from '#/shared/db/schema'
-import {
-  pickLeastRecentlyUsed,
-  type ReplyRotationUsage,
-} from '#/shared/reply-library/reply-rotation'
+import { orderOptions } from '#/shared/reply-library/reply-rotation'
 import type { ReplyLibraryRepository } from './reply-library-repository.port.server'
 import type { ReplyVoiceChoices } from '#/shared/reply/reply-drafting-v2-binding'
 
@@ -17,21 +14,6 @@ type ReservationInput = Parameters<ReplyLibraryRepository['reserveAiFrame']>[0]
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Field = 'closing' | 'signOff' | 'contactSentence' | 'emoji'
 type UsageRow = Readonly<{ choices: ReplyVoiceChoices | null; usedAt: number }>
-
-function orderOptions(
-  count: number,
-  usage: readonly ReplyRotationUsage[],
-  seed: string,
-): number[] {
-  const remaining = Array.from({ length: count }, (_, index) => String(index))
-  const ordered: number[] = []
-  while (remaining.length) {
-    const chosen = pickLeastRecentlyUsed(remaining, usage, seed)!
-    ordered.push(Number(chosen))
-    remaining.splice(remaining.indexOf(chosen), 1)
-  }
-  return ordered
-}
 
 function reservationScope(input: ReservationInput) {
   return [
