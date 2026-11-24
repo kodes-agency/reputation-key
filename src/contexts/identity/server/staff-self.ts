@@ -39,6 +39,18 @@ async function ownLookOrNone(
   }
 }
 
+async function ownStaff(participationId: string) {
+  const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
+  const own = requireOwnParticipation(person, participationId)
+  await requireExecutionAllowed({
+    actor: ctx,
+    action: 'staff.self',
+    capability: 'staff.accounts',
+    propertyId: own.propertyId,
+  })
+  return { ctx, person, own }
+}
+
 export const getMyStaffHomeHandler = createServerOnlyFn(async () => {
   setResponseHeader('Cache-Control', 'private, no-store')
   const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
@@ -71,14 +83,7 @@ export const getMyStaffHome = createServerFn({ method: 'GET' }).handler(
 export const getMyCodeHandler = createServerOnlyFn(
   async ({ data }: { data: { participationId: string } }) => {
     setResponseHeader('Cache-Control', 'private, no-store')
-    const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
-    const own = requireOwnParticipation(person, data.participationId)
-    await requireExecutionAllowed({
-      actor: ctx,
-      action: 'staff.self',
-      capability: 'staff.accounts',
-      propertyId: own.propertyId,
-    })
+    const { ctx, own } = await ownStaff(data.participationId)
     if (!own.propertyActive || own.portalState === 'paused')
       return { state: 'paused' as const }
     const container = getContainer()

@@ -8,7 +8,6 @@ import {
 } from '#/contexts/integration/connections/oauth-callback-abuse-gate.server'
 import { createRedisOAuthCallbackQuotaCounter } from '#/contexts/integration/connections/oauth-callback-quota-counter.server'
 import { getLogger } from '#/shared/observability/logger'
-import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
 import type { ReviewContextApi } from '#/contexts/reputation/build-review'
@@ -26,7 +25,6 @@ export function wireIntegration(
     infra,
     providerEndpoints,
   }: ContextWiringInput,
-  identity: ReturnType<typeof buildIdentityContext>,
   property: ReturnType<typeof buildPropertyContext>,
   portal: ReturnType<typeof buildPortalContext>,
   googleProviderAuthority: ReturnType<typeof buildGoogleProviderAuthority>,
@@ -104,7 +102,6 @@ export function wireIntegration(
     googleReviewCursorStore: options?.providers?.googleReviewCursorStore,
     oauthStateHandles,
     oauthCallbackAbuseGate,
-    refreshPolicyStoreRequired: identity.policy.refreshRequired,
     googleRefreshCoordination,
   })
 

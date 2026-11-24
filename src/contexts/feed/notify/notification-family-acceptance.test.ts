@@ -38,9 +38,7 @@ import type { QueuedNotice } from '../infrastructure/notification-consumer-test-
 beforeAll(registerAllEventSchemas)
 beforeEach(() => {
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-  initDelayedExecutionPolicy(
-    createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-  )
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 })
 afterEach(() => {
   resetDelayedExecutionPolicy()
