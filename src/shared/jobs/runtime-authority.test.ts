@@ -86,39 +86,6 @@ describe('job runtime authority', () => {
     })
   })
 
-  it('does not let a dark capability retain executable work', () => {
-    const result = assessJobRuntime({
-      contract: scheduledContract({ posture: 'dark' }),
-      observation: observation(),
-      runtimeStartedAt: STARTED,
-      now: NOW,
-    })
-
-    expect(result).toEqual({
-      ready: false,
-      reasons: [
-        'dark_handler_registered',
-        'dark_scheduler_registered',
-        'dark_execution_observed',
-      ],
-    })
-  })
-
-  it('detects dark work that started after boot even without a retained handler', () => {
-    expect(
-      assessJobRuntime({
-        contract: scheduledContract({ posture: 'dark' }),
-        observation: observation({
-          handlerRegistered: false,
-          schedulerRegistered: false,
-          lastStartedAt: new Date('2026-08-27T02:45:00.000Z'),
-        }),
-        runtimeStartedAt: STARTED,
-        now: NOW,
-      }),
-    ).toEqual({ ready: false, reasons: ['dark_execution_observed'] })
-  })
-
   it('allows a quarantined report handler but never a recurring scheduler', () => {
     expect(
       assessJobRuntime({
@@ -532,10 +499,10 @@ describe('job runtime authority', () => {
     ).toEqual({ ready: false, reasons: ['invalid_observation'] })
   })
 
-  it('requires an observation to prove that dark work is absent', () => {
+  it('requires an observation to prove a family is healthy', () => {
     expect(
       assessJobRuntime({
-        contract: scheduledContract({ posture: 'dark' }),
+        contract: scheduledContract({ posture: 'quarantined' }),
         observation: null,
         runtimeStartedAt: STARTED,
         now: NOW,

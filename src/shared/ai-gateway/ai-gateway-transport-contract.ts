@@ -1,4 +1,3 @@
-import { hasOnlyUnicodeScalars } from '../json/ai-json'
 import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import type { ReplyBodyIssueCode } from '../domain/reply-body-lint-policy'
 import type { ReplyDraftingV2Output } from '#/shared/reply/schema'
@@ -34,7 +33,7 @@ const positiveSafeInteger = z.number().int().positive().safe()
 const internalSubjectId = aiInternalSafeIdSchema
 
 function hasOnlyAllowedUnicodeScalars(value: string): boolean {
-  if (!hasOnlyUnicodeScalars(value)) return false
+  if (!value.isWellFormed()) return false
   for (const scalar of value) {
     const codePoint = scalar.codePointAt(0)!
     if ((codePoint >= 0xfdd0 && codePoint <= 0xfdef) || (codePoint & 0xffff) >= 0xfffe) {

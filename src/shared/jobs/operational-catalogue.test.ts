@@ -31,18 +31,13 @@ describe('job operational catalogue', () => {
         retention: 'completed:100,failed:50',
         routing: 'cell_local',
         schedule: family.schedule,
-        posture:
-          family.registration === 'enabled'
-            ? 'active'
-            : family.registration === 'quarantined'
-              ? 'quarantined'
-              : 'dark',
+        posture: family.registration === 'enabled' ? 'active' : 'quarantined',
       })
       expect(operational?.workerConcurrency).toBeGreaterThan(0)
     }
   })
 
-  it('derives the complete scheduler plan and excludes dark or quarantined work', () => {
+  it('derives the complete scheduler plan and excludes quarantined work', () => {
     const plan = createOperationalSchedulerPlan()
     const scheduledFamilies = JOB_FAMILY_ROWS.filter((row) => row.schedule !== 'none')
 

@@ -40,7 +40,7 @@ import { assertProductionSecrets } from '#/shared/config/production-secrets'
 import { migrationJournalPosition } from '#/shared/db/migration-journal-state'
 import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
-import { readyProbe, startupProbe, type ReadyProbe, type StartupProbe } from './probes'
+import { probeBody, type ReadyProbe, type StartupProbe } from './probes'
 import { withBudget } from './operations-snapshot'
 import { MIGRATION_COUNT_SQL } from './migration-version'
 import { createEnvCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
@@ -114,8 +114,10 @@ export type StartupProbes = Readonly<{
   policy: () => Promise<boolean>
 }>
 
+type ProbeFns = Readonly<Record<string, () => boolean | Promise<boolean>>>
+
 /**
- * Run every readiness probe under budget and assemble the probe body.
+ * Run every probe under budget and assemble the probe body.
  *
  * A degraded result is LOGGED with the names of the probes that reported
  * false. Without that, a failing activation gate is silent: the platform
@@ -130,53 +132,42 @@ export type StartupProbes = Readonly<{
  * here by construction, and pretending otherwise would be a worse lie than
  * naming both.
  */
-export async function runReadiness(
-  probes: ReadinessProbes,
-  budgetMs: number = READINESS_PROBE_BUDGET_MS,
+async function runProbes<Probes extends ProbeFns>(
+  probes: Probes,
+  label: 'readiness' | 'startup',
+  budgetMs: number,
   now?: () => Date,
-): Promise<ReadyProbe> {
-  const [container, keys, db, redis, migrations, policy] = await Promise.all([
-    withBudget(Promise.resolve().then(probes.container), budgetMs, () => false),
-    withBudget(Promise.resolve().then(probes.keys), budgetMs, () => false),
-    withBudget(Promise.resolve().then(probes.db), budgetMs, () => false),
-    withBudget(Promise.resolve().then(probes.redis), budgetMs, () => false),
-    withBudget(Promise.resolve().then(probes.migrations), budgetMs, () => false),
-    withBudget(Promise.resolve().then(probes.policy), budgetMs, () => false),
-  ])
-  const probe = readyProbe({ container, keys, db, redis, migrations, policy }, now)
+): Promise<ReturnType<typeof probeBody<Record<keyof Probes & string, boolean>>>> {
+  const names = Object.keys(probes) as Array<keyof Probes & string>
+  const results = await Promise.all(
+    names.map((name) =>
+      withBudget(Promise.resolve().then(probes[name]), budgetMs, () => false),
+    ),
+  )
+  const deps = Object.fromEntries(
+    names.map((name, index) => [name, results[index]]),
+  ) as Record<keyof Probes & string, boolean>
+  const probe = probeBody(deps, now)
   if (probe.status === 'degraded') {
-    const failing = Object.entries({ container, keys, db, redis, migrations, policy })
-      .filter(([, value]) => !value)
-      .map(([name]) => name)
+    const failing = names.filter((name) => !deps[name])
     getLogger().warn(
       { failing, budgetMs },
-      '[health] readiness degraded — probe(s) reported false or outran the budget',
+      `[health] ${label} degraded — probe(s) reported false or outran the budget`,
     )
   }
   return probe
 }
 
+/** Run the readiness probes: container, keys, db, redis, migrations, policy. */
+export const runReadiness = (
+  probes: ReadinessProbes,
+  budgetMs: number = READINESS_PROBE_BUDGET_MS,
+  now?: () => Date,
+): Promise<ReadyProbe> => runProbes(probes, 'readiness', budgetMs, now)
+
 /** Run the startup probes: container built + keys + migrations + policy, budgeted. */
-export async function runStartup(
+export const runStartup = (
   probes: StartupProbes,
   budgetMs: number = READINESS_PROBE_BUDGET_MS,
   now?: () => Date,
-): Promise<StartupProbe> {
-  const [container, keys, migrations, policy] = await Promise.all([
-    withBudget(Promise.resolve().then(probes.container), budgetMs, () => false),
-    withBudget(Promise.resolve().then(probes.keys), budgetMs, () => false),
-    withBudget(Promise.resolve().then(probes.migrations), budgetMs, () => false),
-    withBudget(Promise.resolve().then(probes.policy), budgetMs, () => false),
-  ])
-  const probe = startupProbe({ container, keys, migrations, policy }, now)
-  if (probe.status === 'degraded') {
-    const failing = Object.entries({ container, keys, migrations, policy })
-      .filter(([, value]) => !value)
-      .map(([name]) => name)
-    getLogger().warn(
-      { failing, budgetMs },
-      '[health] startup degraded — probe(s) reported false or outran the budget',
-    )
-  }
-  return probe
-}
+): Promise<StartupProbe> => runProbes(probes, 'startup', budgetMs, now)

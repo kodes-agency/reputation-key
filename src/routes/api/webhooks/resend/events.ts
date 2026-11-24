@@ -29,6 +29,7 @@ import {
 } from '#/shared/auth/svix-signature.verifier'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import { readBoundedBody } from '#/shared/security/read-bounded-body'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
 
@@ -91,33 +92,15 @@ const typeAboutNoMessage = (payload: unknown): string | null => {
 // refused before it is parsed, and before it is held in memory in full.
 const MAX_WEBHOOK_BODY_BYTES = 64 * 1024
 
-class WebhookBodyTooLarge extends Error {}
-
 /**
- * The raw body as text, read at most `MAX_WEBHOOK_BODY_BYTES`. A declared length
- * over the limit is refused without reading; an undeclared or understated one is
- * counted as the stream arrives and the read abandoned at the limit.
+ * The raw body as text, read at most `MAX_WEBHOOK_BODY_BYTES`. Decoded as bytes
+ * to UTF-8 without stripping a BOM, because the signature covers the exact body.
  */
-async function readBoundedBody(request: Request): Promise<string> {
-  const declared = Number(request.headers.get('content-length'))
-  if (Number.isFinite(declared) && declared > MAX_WEBHOOK_BODY_BYTES) {
-    throw new WebhookBodyTooLarge()
-  }
-  if (!request.body) return ''
-  const reader = request.body.getReader()
-  const chunks: Uint8Array[] = []
-  let received = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    received += value.byteLength
-    if (received > MAX_WEBHOOK_BODY_BYTES) {
-      await reader.cancel()
-      throw new WebhookBodyTooLarge()
-    }
-    chunks.push(value)
-  }
-  return Buffer.concat(chunks).toString('utf8')
+async function readRawBody(request: Request): Promise<string | 'too_large'> {
+  const body = await readBoundedBody(request, MAX_WEBHOOK_BODY_BYTES)
+  if (body.kind === 'too_large') return 'too_large'
+  if (body.kind === 'failed') throw new Error('Resend webhook body stream failed')
+  return Buffer.from(body.bytes).toString('utf8')
 }
 
 /** A provider timestamp we cannot parse is worse than our own receipt time. */
@@ -157,6 +140,14 @@ function eventInput(
     // Only a permanent bounce suppresses the address.
     ...(bounceType === undefined ? {} : { bounceType }),
   }
+}
+
+function bodyTooLarge(logger: ReturnType<typeof getLogger>): Response {
+  logger.warn('Resend webhook body over the size limit refused')
+  return Response.json(
+    { error: 'Payload Too Large', message: 'Webhook body too large' },
+    { status: 413 },
+  )
 }
 
 function invalidSignature(
@@ -202,7 +193,8 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
 
       // The RAW body, read once and bounded. Re-serialising parsed JSON changes bytes and
       // invalidates the signature.
-      const rawBody = await readBoundedBody(request)
+      const rawBody = await readRawBody(request)
+      if (rawBody === 'too_large') return bodyTooLarge(logger)
       const verification = verifySvixSignature({ rawBody, headers, signingSecret })
       if (!verification.ok) return invalidSignature(logger, verification.reason)
 
@@ -229,13 +221,6 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
       // and the handler has already logged why.
       return Response.json({ ok: true, ...result }, { status: 200 })
     } catch (err) {
-      if (err instanceof WebhookBodyTooLarge) {
-        logger.warn('Resend webhook body over the size limit refused')
-        return Response.json(
-          { error: 'Payload Too Large', message: 'Webhook body too large' },
-          { status: 413 },
-        )
-      }
       if (err instanceof ZodError || err instanceof SyntaxError) {
         logger.warn({ err }, 'Resend webhook received malformed payload')
         return Response.json(
