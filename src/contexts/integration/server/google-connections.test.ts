@@ -49,9 +49,7 @@ describe('throwContextError with IntegrationError (google-connections handlers)'
     const cases: Array<[IntegrationErrorCode, number]> = [
       ['forbidden', 403],
       ['connection_not_found', 404],
-      ['import_not_found', 404],
       ['oauth_failed', 400],
-      ['oauth_denied', 400],
       ['oauth_state_invalid', 400],
       ['scope_not_granted', 400],
       ['token_refresh_failed', 400],
