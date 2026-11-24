@@ -21,6 +21,7 @@ import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
 } from '../publication/resolve-public-portal-token.server'
+import { quietGuestReadDeps } from '../publication/resolve-public-portal-token.test-fixtures'
 import { createPortalMediaAssetRepository } from '../media/portal-media-asset-repository.server'
 import { createPortalPublicationRepository } from '../publication/portal-publication-repository.server'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
@@ -139,6 +140,7 @@ async function serve(id: PortalId) {
       profileVersion: snapshot.destinationProfileVersion,
     }),
     decidePublic: async () => ({ allowed: true }),
+    ...quietGuestReadDeps,
     resolvePortalMediaUrls: resolvePortalMediaUrls({
       mediaRepo: createPortalMediaAssetRepository(getDb()),
     }),

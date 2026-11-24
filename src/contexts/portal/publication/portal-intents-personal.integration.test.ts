@@ -11,6 +11,7 @@ import { printDocumentTitle, printFileName } from '#/shared/domain/portal-print-
 import type { Portal } from '../domain/types'
 import type { PortalPublicationSnapshot } from '../domain/portal-publication-snapshot'
 import { resolvePublicPortalToken } from './resolve-public-portal-token.server'
+import { quietGuestReadDeps } from './resolve-public-portal-token.test-fixtures'
 import { loadPortalPrintKitContext } from '../printing/load-portal-print-kit-context.server'
 import { createPortalPublicationRepository } from './portal-publication-repository.server'
 import { createPortalRepository } from './portal-repository.server'
@@ -90,6 +91,7 @@ async function expectPersonalPortalNameStaysPrivate(
       profileVersion: config.googleReviewBinding.profileVersion,
     }),
     decidePublic: async () => ({ allowed: true }),
+    ...quietGuestReadDeps,
     clock: () => snapshot.createdAt,
   })
   const resolved = await resolve('pt_key_secret')

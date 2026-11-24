@@ -72,28 +72,26 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
   decidePublic: (
     request: PublicPortalDecisionRequest,
   ) => Promise<PublicPortalExecutionDecision>
-  reportGoogleDestinationFailure?: (error: unknown) => void
+  reportGoogleDestinationFailure: (error: unknown) => void
   /**
    * Serving a Portal with no destinations is a visible degradation, and it is
    * indistinguishable from a Portal that legitimately has none. Without this,
    * the fail-closed empty list below is silent.
    */
-  reportApprovedDestinationFailure?: (error: unknown) => void
+  reportApprovedDestinationFailure: (error: unknown) => void
   /**
    * The URL of each Portal media asset that may be served right now, by asset
-   * id; an asset left out (taken down, unknown) is not served. Absent until
-   * Portal media exists, which serves nothing: a v3 page then shows its no-photo
-   * look.
+   * id; an asset left out (taken down, unknown) is not served.
    */
-  resolvePortalMediaUrls?: (
+  resolvePortalMediaUrls: (
     organizationId: OrganizationId,
     propertyId: PropertyId,
     assetIds: readonly string[],
   ) => Promise<ServableMediaUrls>
   /** Fired when the media lookup fails: the page degrades to no media instead of failing. */
-  reportPortalMediaFailure?: (error: unknown) => void
+  reportPortalMediaFailure: (error: unknown) => void
   /** Fired when approval filtering removes destinations the snapshot published. */
-  reportApprovedDestinationsDropped?: (
+  reportApprovedDestinationsDropped: (
     counts: Readonly<{ published: number; served: number }>,
   ) => void
   clock: () => Date
@@ -198,7 +196,7 @@ async function resolveGoogleReviewGateway(
   } catch (error) {
     // Keep the private gateway available, but never fall back to a raw Portal
     // link or leak the last-known/stale Property destination.
-    deps.reportGoogleDestinationFailure?.(error)
+    deps.reportGoogleDestinationFailure(error)
   }
   const destinationMatchesSnapshot =
     destination?.state === 'verified' &&
@@ -236,14 +234,14 @@ async function resolveApprovedLinks<L extends Readonly<{ url: string }>>(
       // Not an error — an approval can legitimately lapse — but a published
       // destination disappearing from a live Portal is invisible to the guest
       // and to the operator, so it is worth saying out loud.
-      deps.reportApprovedDestinationsDropped?.({
+      deps.reportApprovedDestinationsDropped({
         published: links.length,
         served: approved.length,
       })
     }
     return approved
   } catch (error) {
-    deps.reportApprovedDestinationFailure?.(error)
+    deps.reportApprovedDestinationFailure(error)
     return []
   }
 }
@@ -258,7 +256,7 @@ async function resolveMediaUrls(
   configuration: ImmersivePortalPublicationConfiguration,
 ): Promise<ServableMediaUrls> {
   const assetIds = immersiveAssetIds(configuration)
-  if (assetIds.length === 0 || !deps.resolvePortalMediaUrls) return {}
+  if (assetIds.length === 0) return {}
   try {
     return await deps.resolvePortalMediaUrls(
       organizationId(token.organizationId),
@@ -266,7 +264,7 @@ async function resolveMediaUrls(
       assetIds,
     )
   } catch (error) {
-    deps.reportPortalMediaFailure?.(error)
+    deps.reportPortalMediaFailure(error)
     return {}
   }
 }

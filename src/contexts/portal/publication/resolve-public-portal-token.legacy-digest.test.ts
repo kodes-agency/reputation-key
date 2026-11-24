@@ -6,6 +6,7 @@ import {
   GOLDEN_SNAPSHOT_ROWS,
 } from './publication-snapshots-golden.test-fixtures'
 import { resolvePublicPortalToken } from './resolve-public-portal-token.server'
+import { quietGuestReadDeps } from './resolve-public-portal-token.test-fixtures'
 
 async function resolveGolden(key: keyof typeof GOLDEN_SNAPSHOT_ROWS) {
   const row = GOLDEN_SNAPSHOT_ROWS[key]
@@ -54,6 +55,7 @@ async function resolveGolden(key: keyof typeof GOLDEN_SNAPSHOT_ROWS) {
       profileVersion: snapshot.destinationProfileVersion,
     }),
     decidePublic: async () => ({ allowed: true }),
+    ...quietGuestReadDeps,
     clock: () => GOLDEN_AT,
   })
   return resolve('pt_key_secret')

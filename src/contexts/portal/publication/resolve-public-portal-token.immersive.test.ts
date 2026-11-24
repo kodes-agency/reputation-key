@@ -16,6 +16,7 @@ import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
 } from './resolve-public-portal-token.server'
+import { quietGuestReadDeps } from './resolve-public-portal-token.test-fixtures'
 
 const MENU_URL = 'https://harbor.example.com/menu'
 const SPA_URL = 'https://harbor.example.com/spa'
@@ -80,6 +81,7 @@ function setup({ snapshot = immersiveSnapshot(), ...deps }: Overrides = {}) {
       profileVersion: 5,
     }),
     decidePublic: async () => ({ allowed: true }),
+    ...quietGuestReadDeps,
     clock: () => IMMERSIVE_FIXTURE_AT,
     ...deps,
   })
