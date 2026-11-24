@@ -13,7 +13,7 @@ import {
   type GoalExecutionPolicy,
 } from '../application/use-cases/goal-program-shared'
 import type { RatingGoalRequestApi } from '../rating-goals/rating-goals.server'
-import { requestActor, requestPolicy } from './goal-program-request.server'
+import { requestPolicy } from './goal-program-request.server'
 
 const ratingGoalStatus = (code: RatingGoalErrorCode): number => {
   switch (code) {
@@ -52,7 +52,7 @@ export async function withRatingGoals<T>(
   const ctx = await resolveTenantContext(await headersFromContext())
   const ratingGoals = getContainer().goalPublicApi.ratingGoals
   try {
-    return await run(ratingGoals, requestPolicy(ctx), requestActor(ctx), ctx)
+    return await run(ratingGoals, requestPolicy(ctx), ctx, ctx)
   } catch (error) {
     if (isRatingGoalError(error)) {
       throwContextError('RatingGoalError', error, ratingGoalStatus(error.code))
