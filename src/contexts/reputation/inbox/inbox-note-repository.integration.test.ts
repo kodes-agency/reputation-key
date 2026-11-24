@@ -52,6 +52,15 @@ async function seedItem(id: string, orgId: string, propId: string): Promise<void
   )
 }
 
+async function insertNote(note: InboxNote): Promise<InboxNote> {
+  await getPool().query(
+    `INSERT INTO inbox_notes (id, inbox_item_id, organization_id, author_user_id, text)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [note.id, note.inboxItemId, note.organizationId, note.userId, note.text],
+  )
+  return note
+}
+
 function makeNote(overrides: Partial<InboxNote> = {}): InboxNote {
   return {
     id: inboxNoteId(crypto.randomUUID()),
@@ -71,59 +80,16 @@ beforeEach(async () => {
 })
 
 describe('inboxNoteRepository (integration)', () => {
-  describe('create', () => {
-    it('persists a note and returns it mapped back to the domain shape', async () => {
-      const repo = createInboxNoteRepository(getDb())
-      const note = makeNote({ text: 'guest asked for a late checkout' })
-
-      const created = await repo.create(note, ORG_A)
-
-      expect(created.id).toBe(note.id)
-      expect(created.inboxItemId).toBe(ITEM_A)
-      expect(created.organizationId).toBe(ORG_A)
-      expect(created.userId).toBe(USER_A)
-      expect(created.text).toBe('guest asked for a late checkout')
-      expect(created.createdAt).toBeInstanceOf(Date)
-
-      const { rows } = await getPool().query(
-        `SELECT organization_id, author_user_id, text FROM inbox_notes WHERE id = $1`,
-        [note.id],
-      )
-      expect(rows).toEqual([
-        {
-          organization_id: ORG_A,
-          author_user_id: USER_A,
-          text: 'guest asked for a late checkout',
-        },
-      ])
-    })
-
-    it('refuses to write a note whose tenant differs from the caller tenant', async () => {
-      const repo = createInboxNoteRepository(getDb())
-      const note = makeNote({ organizationId: ORG_A, inboxItemId: ITEM_A })
-
-      await expect(repo.create(note, ORG_B)).rejects.toMatchObject({
-        _tag: 'InboxError',
-        code: 'forbidden',
-      })
-
-      const { rows } = await getPool().query(`SELECT id FROM inbox_notes WHERE id = $1`, [
-        note.id,
-      ])
-      expect(rows).toEqual([])
-    })
-  })
-
   describe('findByInboxItemId', () => {
     it('returns the notes for the item, newest first', async () => {
       const repo = createInboxNoteRepository(getDb())
-      const older = await repo.create(makeNote({ text: 'first' }), ORG_A)
+      const older = await insertNote(makeNote({ text: 'first' }))
       // createdAt is DB-assigned; separate the two writes so desc() is decidable.
       await getPool().query(
         `UPDATE inbox_notes SET created_at = created_at - INTERVAL '1 hour' WHERE id = $1`,
         [older.id],
       )
-      const newer = await repo.create(makeNote({ text: 'second' }), ORG_A)
+      const newer = await insertNote(makeNote({ text: 'second' }))
 
       const found = await repo.findByInboxItemId(ITEM_A, ORG_A)
 
@@ -134,16 +100,15 @@ describe('inboxNoteRepository (integration)', () => {
     it('withholds another tenant notes on the same inbox item', async () => {
       const repo = createInboxNoteRepository(getDb())
       // ORG_A's own note on its own item.
-      await repo.create(makeNote({ text: 'ORG_A private note' }), ORG_A)
+      await insertNote(makeNote({ text: 'ORG_A private note' }))
       // A note ORG_B legitimately owns, hung off the item ORG_B owns.
-      await repo.create(
+      await insertNote(
         makeNote({
           inboxItemId: ITEM_B,
           organizationId: ORG_B,
           userId: USER_B,
           text: 'ORG_B private note',
         }),
-        ORG_B,
       )
 
       // ORG_B asks for the notes on ORG_A's item. The FK does not stop it —
@@ -167,14 +132,14 @@ describe('inboxNoteRepository (integration)', () => {
     it('withholds a foreign tenant note attached to the caller own item', async () => {
       const repo = createInboxNoteRepository(getDb())
       // ORG_B's note pointed at ORG_A's item — the shape the FK permits.
-      // Written through the pool, because create() rejects the tenant mismatch.
+      // Written through the pool, like every note in this file.
       const foreignNoteId = crypto.randomUUID()
       await getPool().query(
         `INSERT INTO inbox_notes (id, inbox_item_id, organization_id, author_user_id, text)
          VALUES ($1, $2, $3, $4, 'ORG_B note on ORG_A item')`,
         [foreignNoteId, ITEM_A, ORG_B, USER_B],
       )
-      const own = await repo.create(makeNote({ text: 'ORG_A note' }), ORG_A)
+      const own = await insertNote(makeNote({ text: 'ORG_A note' }))
 
       const found = await repo.findByInboxItemId(ITEM_A, ORG_A)
 
@@ -184,8 +149,8 @@ describe('inboxNoteRepository (integration)', () => {
 
     it('does not bleed notes across inbox items of the same tenant', async () => {
       const repo = createInboxNoteRepository(getDb())
-      await repo.create(makeNote({ inboxItemId: ITEM_A, text: 'on item A' }), ORG_A)
-      await repo.create(makeNote({ inboxItemId: ITEM_A2, text: 'on item A2' }), ORG_A)
+      await insertNote(makeNote({ inboxItemId: ITEM_A, text: 'on item A' }))
+      await insertNote(makeNote({ inboxItemId: ITEM_A2, text: 'on item A2' }))
 
       expect((await repo.findByInboxItemId(ITEM_A, ORG_A)).map((n) => n.text)).toEqual([
         'on item A',

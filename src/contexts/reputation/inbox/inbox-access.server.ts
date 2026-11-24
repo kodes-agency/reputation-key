@@ -37,11 +37,6 @@ export const canHandleInboxSource = (ctx: AuthContext, sourceType: SourceType): 
   canForContext(ctx, 'inbox.write') &&
   canForContext(ctx, SOURCE_HANDLE_PERMISSION[sourceType])
 
-export const readableInboxSourceTypes = (ctx: AuthContext): SourceType[] =>
-  (['review', 'feedback'] as const).filter((sourceType) =>
-    canReadInboxSource(ctx, sourceType),
-  )
-
 type InboxSourceAccessKind = 'read' | 'handle'
 
 const intersectPropertyScopes = (

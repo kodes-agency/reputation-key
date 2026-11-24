@@ -6,39 +6,12 @@
 // import back from it (that would be a circular dependency).
 
 import { and, eq } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import { inboxEscalationHistory } from '#/shared/db/schema/inbox-triage-history.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import { inboxError } from '../domain/inbox-errors'
 import type { InboxItem } from '../domain/inbox-types'
 
-export const INBOX_ESCALATION_HISTORY_KINDS = ['escalated', 'resolved'] as const
-
-export type InboxEscalationHistoryKind = (typeof INBOX_ESCALATION_HISTORY_KINDS)[number]
-
-export type InboxEscalationHistoryEntry = Readonly<{
-  inboxItemId: string
-  resultingCommandRevision: number
-  handlingCycleNumber: number | null
-  kind: InboxEscalationHistoryKind
-  actorUserId: string | null
-  occurredAt: Date
-}>
-
-/**
- * `recorded` — every escalation decision on this item is present below.
- * `legacy_unknown` — the item carries escalation flags written before
- * migration 0169, so its earlier decisions have no actor and no time that this
- * system can honestly name. It is never back-filled with an invented value.
- */
-export type InboxEscalationProvenance = 'recorded' | 'legacy_unknown'
-
-export type InboxEscalationHistoryView = Readonly<{
-  provenance: InboxEscalationProvenance
-  currentlyEscalated: boolean
-  entries: readonly InboxEscalationHistoryEntry[]
-}>
+type InboxEscalationHistoryKind = 'escalated' | 'resolved'
 
 /**
  * Resolve the source Handling Cycle that owns a human assignment or
@@ -103,58 +76,4 @@ export async function appendEscalationHistory(
     actorUserId: decision.actorUserId,
     occurredAt: decision.occurredAt,
   })
-}
-
-/**
- * Read the complete escalation history of one Inbox item.
- *
- * Escalation is an independent workflow dimension (ADR 0055): this read grants
- * no access and never reports a status. An item whose flags predate migration
- * 0169 is still readable — it is reported as `legacy_unknown` so a manager
- * sees "escalated, provenance unknown" instead of a fabricated actor/time.
- */
-export async function readInboxEscalationHistory(
-  db: Database,
-  item: Readonly<{ id: string; organizationId: string }>,
-): Promise<InboxEscalationHistoryView> {
-  const [heads, rows] = await Promise.all([
-    db
-      .select({
-        isEscalated: inboxItems.isEscalated,
-        escalatedAt: inboxItems.escalatedAt,
-        escalationResolvedAt: inboxItems.escalationResolvedAt,
-      })
-      .from(inboxItems)
-      .where(
-        and(
-          eq(inboxItems.id, item.id),
-          eq(inboxItems.organizationId, item.organizationId),
-        ),
-      )
-      .limit(1),
-    db
-      .select()
-      .from(inboxEscalationHistory)
-      .where(eq(inboxEscalationHistory.inboxItemId, item.id))
-      .orderBy(
-        inboxEscalationHistory.occurredAt,
-        inboxEscalationHistory.resultingCommandRevision,
-      ),
-  ])
-  const head = heads[0]
-  if (!head) throw inboxError('not_found', 'Inbox item was not found')
-  const entries = rows.map((row) => ({
-    inboxItemId: row.inboxItemId,
-    resultingCommandRevision: row.resultingCommandRevision,
-    handlingCycleNumber: row.handlingCycleNumber,
-    kind: row.kind as InboxEscalationHistoryKind,
-    actorUserId: row.actorUserId,
-    occurredAt: row.occurredAt,
-  }))
-  const everEscalated = head.escalatedAt !== null || head.escalationResolvedAt !== null
-  return {
-    provenance: everEscalated && entries.length === 0 ? 'legacy_unknown' : 'recorded',
-    currentlyEscalated: head.isEscalated && head.escalationResolvedAt === null,
-    entries,
-  }
 }

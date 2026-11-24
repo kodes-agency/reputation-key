@@ -12,7 +12,6 @@ import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { readInboxEscalationHistory } from '#/contexts/reputation/inbox/inbox-escalation-history.server'
 import { testReviewRepository } from '#/contexts/reputation/reviews/review-stores.test-fixtures'
 import {
   ORG_A,
@@ -593,13 +592,17 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       'inbox.inbox_item.escalation_resolved',
     ])
 
-    const view = await readInboxEscalationHistory(db, {
-      id: item.id,
-      organizationId: item.organizationId,
-    })
-    expect(view.provenance).toBe('recorded')
-    expect(view.currentlyEscalated).toBe(false)
-    expect(view.entries.map((entry) => entry.kind)).toEqual(['escalated', 'resolved'])
+    const kinds = await pool.query(
+      `SELECT kind FROM inbox_escalation_history
+       WHERE inbox_item_id = $1 AND organization_id = $2
+       ORDER BY occurred_at, resulting_command_revision`,
+      [item.id, item.organizationId],
+    )
+    expect(kinds.rows.map((row) => row.kind)).toEqual(['escalated', 'resolved'])
+    const head = await pool.query('SELECT is_escalated FROM inbox_items WHERE id = $1', [
+      item.id,
+    ])
+    expect(head.rows[0]).toEqual({ is_escalated: false })
   })
 
   it('rolls the escalation history row back with the item when the fact insert fails', async () => {
@@ -633,31 +636,5 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       [item.id],
     )
     expect(rows.rows[0]).toEqual({ is_escalated: false, command_revision: '1' })
-  })
-
-  it('classifies a pre-0169 escalated item as legacy_unknown instead of inventing evidence', async () => {
-    await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db)
-    const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
-    // Exactly what an item escalated before migration 0169 looks like: flags
-    // on the projection row, no history row anywhere.
-    await pool.query(
-      `UPDATE inbox_items
-       SET is_escalated = true, escalated_at = $2, escalated_by = $3
-       WHERE id = $1`,
-      [item.id, NOW, USER_A],
-    )
-
-    const view = await readInboxEscalationHistory(db, {
-      id: item.id,
-      organizationId: item.organizationId,
-    })
-
-    expect(view).toEqual({
-      provenance: 'legacy_unknown',
-      currentlyEscalated: true,
-      entries: [],
-    })
   })
 })

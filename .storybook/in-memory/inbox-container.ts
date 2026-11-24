@@ -85,13 +85,16 @@ export function makeInboxItem(opts: {
   }
 }
 
-function createInMemoryNoteRepo(): InboxNoteRepository & { notes: InboxNote[] } {
+function createInMemoryNoteRepo(): InboxNoteRepository & {
+  notes: InboxNote[]
+  add: (note: InboxNote) => InboxNote
+} {
   const notes: InboxNote[] = []
   return {
     notes,
     findByInboxItemId: async (id, orgId) =>
       notes.filter((n) => n.inboxItemId === id && n.organizationId === orgId),
-    create: async (note) => {
+    add: (note) => {
       notes.push(note)
       return note
     },
