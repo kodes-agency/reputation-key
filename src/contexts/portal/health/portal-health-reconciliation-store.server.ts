@@ -22,22 +22,18 @@ import {
   type PortalHealthReason,
   type PortalHealthStatus,
 } from '../domain/portal-health'
-import type { PortalPublicationState } from '../domain/portal-publication'
-
-const PUBLICATION_STATES = new Set<PortalPublicationState>([
-  'draft',
-  'published',
-  'disabled',
-  'archived',
-])
+import {
+  isPortalPublicationState,
+  type PortalPublicationState,
+} from '../domain/portal-publication'
 
 const GOOGLE_DESTINATION_STATES = new Set(['verified', 'awaiting_refresh', 'unavailable'])
 
 function publicationState(value: string): PortalPublicationState {
-  if (!PUBLICATION_STATES.has(value as PortalPublicationState)) {
+  if (!isPortalPublicationState(value)) {
     throw new Error(`Stored Portal publication state is invalid: ${value}`)
   }
-  return value as PortalPublicationState
+  return value
 }
 
 function googleDestinationState(
