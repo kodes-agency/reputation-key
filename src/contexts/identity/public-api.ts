@@ -32,8 +32,3 @@ export type IdentityAccountAdminAuthorityPublicApi = Readonly<{
     }>,
   ) => Promise<boolean>
 }>
-
-export {
-  requireOwnStaffParticipation,
-  requireStaffSelfPerson,
-} from './application/staff-self-context'

@@ -44,12 +44,6 @@ export type PolicyStoreHandle = Readonly<{
   capabilityPolicyStore: CapabilityPolicyStore
   executionPolicy: ExecutionPolicy
   delayedExecutionPolicy: DelayedExecutionPolicy
-  /**
-   * Compatibility with the composition boot contract. Static policy is
-   * already current, so awaiting this is an immediate successful observation.
-   */
-  refresh: () => Promise<void>
-  refreshRequired: () => Promise<void>
   currentVersion: () => number
 }>
 
@@ -101,20 +95,14 @@ export function buildCapabilityPolicyHandle(deps: {
     }),
   )
 
-  const observeStaticPolicy = async (): Promise<void> => {}
   const delayedExecutionPolicy = Object.freeze(
-    createDelayedExecutionPolicy({
-      refreshPolicy: observeStaticPolicy,
-      hasActiveConsent,
-    }),
+    createDelayedExecutionPolicy({ hasActiveConsent }),
   )
 
   return {
     capabilityPolicyStore,
     executionPolicy,
     delayedExecutionPolicy,
-    refresh: observeStaticPolicy,
-    refreshRequired: observeStaticPolicy,
     currentVersion: () => STATIC_CAPABILITY_POLICY_VERSION,
   }
 }

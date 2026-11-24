@@ -44,7 +44,6 @@ const policyAdmin = buildIdentityContext({
     setActiveOrganization: async () => {},
     updateOrganization: async () => {},
     currentOrganizationName: async () => null,
-    verifyPassword: async () => false,
   },
   deleteAssetObject: async () => {},
   listAssetObjects: async () => ({ objects: [], truncated: false }),

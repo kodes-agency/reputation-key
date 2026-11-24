@@ -32,8 +32,7 @@ describe('ledger scope at the dispatch gate', () => {
 
   function dispatchFixture(env = {}) {
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
-    const refreshPolicy = vi.fn(async () => {})
-    initDelayedExecutionPolicy(createDelayedExecutionPolicy({ refreshPolicy }))
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
     const registry = createJobRegistry()
     const handler = vi.fn(async () => 'completed')
     registry.register(kind, handler)
@@ -49,12 +48,11 @@ describe('ledger scope at the dispatch gate', () => {
       undefined,
       resolveDispatch,
     )
-    return { dispatch, handler, resolveDispatch, resolveScope, refreshPolicy }
+    return { dispatch, handler, resolveDispatch, resolveScope }
   }
 
   it('resolves the ledger tenant and subject before current policy and keeps the IDs-only handler payload', async () => {
-    const { dispatch, handler, resolveDispatch, resolveScope, refreshPolicy } =
-      dispatchFixture()
+    const { dispatch, handler, resolveDispatch, resolveScope } = dispatchFixture()
     const queued = job()
     await expect(dispatch(queued)).resolves.toBe('completed')
     expect(resolveDispatch).toHaveBeenCalledWith('work-1')
@@ -63,7 +61,6 @@ describe('ledger scope at the dispatch gate', () => {
       organizationId: work.organizationId,
       subjectId: work.subjectId,
     })
-    expect(refreshPolicy).toHaveBeenCalledOnce()
     expect(handler).toHaveBeenCalledWith(queued, expect.any(AbortSignal))
     expect(queued.data).toEqual({ workId: 'work-1' })
   })
@@ -82,13 +79,6 @@ describe('ledger scope at the dispatch gate', () => {
         }),
       ),
     ).resolves.toMatchObject({ gate: 'denied', reason })
-    expect(handler).not.toHaveBeenCalled()
-  })
-
-  it('keeps policy unavailability retryable before any handler effect', async () => {
-    const { dispatch, handler, refreshPolicy } = dispatchFixture()
-    refreshPolicy.mockRejectedValue(new Error('unavailable'))
-    await expect(dispatch(job())).rejects.toThrow('policy_unavailable')
     expect(handler).not.toHaveBeenCalled()
   })
 
@@ -119,10 +109,9 @@ describe('ledger scope at the dispatch gate', () => {
   })
 
   it('propagates a ledger read failure without attempting work', async () => {
-    const { dispatch, handler, resolveDispatch, refreshPolicy } = dispatchFixture()
+    const { dispatch, handler, resolveDispatch } = dispatchFixture()
     resolveDispatch.mockRejectedValue(new Error('ledger unavailable'))
     await expect(dispatch(job())).rejects.toThrow('ledger unavailable')
-    expect(refreshPolicy).not.toHaveBeenCalled()
     expect(handler).not.toHaveBeenCalled()
   })
 

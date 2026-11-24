@@ -114,7 +114,6 @@ function buildContainer(
   const guest = wireGuest(input, identity, portal)
   const integration = wireIntegration(
     input,
-    identity,
     property,
     portal,
     googleProviderAuthority,

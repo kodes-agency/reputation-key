@@ -65,14 +65,13 @@ function mapMerchantAiError(error: unknown): never {
 }
 
 async function managementContext(propertyId: string | undefined) {
-  const headers = await headersFromContext()
-  const actor = await resolveTenantContext(headers)
+  const actor = await resolveTenantContext(await headersFromContext())
   await requireExecutionAllowed({
     actor,
     action: 'ai.manage',
     ...(propertyId ? { propertyId } : {}),
   })
-  return { headers, actor }
+  return { actor }
 }
 
 export const getMerchantAiAuthorizationFn = createServerFn({ method: 'GET' })
@@ -106,7 +105,7 @@ export const enableMerchantAiFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { headers, actor } = await managementContext(data.propertyId)
+        const { actor } = await managementContext(data.propertyId)
         try {
           return await getContainer().identityPublicApi.requests.merchantAiAuthorization.enable(
             {
@@ -116,7 +115,6 @@ export const enableMerchantAiFn = createServerFn({ method: 'POST' })
               idempotencyKey: data.idempotencyKey,
               expectedStateVersion: data.expectedStateVersion,
               acknowledgement: data.acknowledgement,
-              requestHeaders: headers,
               reasonCode: 'merchant_enabled',
             },
           )
@@ -139,7 +137,7 @@ export const enableMerchantAiForPropertiesFn = createServerFn({ method: 'POST' }
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { headers, actor } = await managementContext(undefined)
+        const { actor } = await managementContext(undefined)
         for (const propertyId of data.propertyIds) {
           await requireExecutionAllowed({ actor, action: 'ai.manage', propertyId })
         }
@@ -152,7 +150,6 @@ export const enableMerchantAiForPropertiesFn = createServerFn({ method: 'POST' }
               capabilities: data.capabilities,
               acknowledgement: data.acknowledgement,
               idempotencyKey: data.idempotencyKey,
-              requestHeaders: headers,
               reasonCode: 'merchant_enabled',
             },
           )
@@ -170,7 +167,7 @@ export const changeMerchantAiCapabilitiesFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { headers, actor } = await managementContext(data.propertyId)
+        const { actor } = await managementContext(data.propertyId)
         try {
           return await getContainer().identityPublicApi.requests.merchantAiAuthorization.change(
             {
@@ -180,7 +177,6 @@ export const changeMerchantAiCapabilitiesFn = createServerFn({ method: 'POST' })
               idempotencyKey: data.idempotencyKey,
               expectedStateVersion: data.expectedStateVersion,
               acknowledgement: data.acknowledgement,
-              requestHeaders: headers,
               reasonCode: 'capabilities_changed',
               capabilities: data.capabilities,
             },
@@ -199,7 +195,7 @@ export const revokeMerchantAiFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { headers, actor } = await managementContext(data.propertyId)
+        const { actor } = await managementContext(data.propertyId)
         try {
           return await getContainer().identityPublicApi.requests.merchantAiAuthorization.revoke(
             {
@@ -208,7 +204,6 @@ export const revokeMerchantAiFn = createServerFn({ method: 'POST' })
               actorUserId: actor.userId as string,
               idempotencyKey: data.idempotencyKey,
               expectedStateVersion: data.expectedStateVersion,
-              requestHeaders: headers,
               reasonCode: 'merchant_revoked',
             },
           )
