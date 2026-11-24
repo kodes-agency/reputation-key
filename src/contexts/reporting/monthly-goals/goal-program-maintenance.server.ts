@@ -16,6 +16,7 @@ import type {
 import { GOAL_MAINTENANCE_PAGE_SIZE } from '../application/ports/goal-program.repository'
 import {
   evaluateGoalMetric,
+  sameGoalEvaluation,
   isGoalResultReadyToClose,
   type GoalMetric,
   type GoalMetricEvaluation,
@@ -31,6 +32,7 @@ import {
   type GoalActor,
   type GoalProgramDependencies,
 } from '../application/use-cases/goal-program-shared'
+import { currentAssignments } from './subject-assignments.server'
 
 export type GoalProgramMaintenanceStats = Readonly<{
   inspected: number
@@ -116,19 +118,6 @@ function evaluationFromGovernedRead(
       sampleCount: reading.sampleCount,
     },
   })
-}
-
-function sameGoalEvaluation(
-  left: GoalMetricEvaluation,
-  right: GoalMetricEvaluation,
-): boolean {
-  return (
-    left.state === right.state &&
-    left.value === right.value &&
-    left.sampleCount === right.sampleCount &&
-    left.achieved === right.achieved &&
-    left.reason === right.reason
-  )
 }
 
 function sameInstant(left: Date | null, right: Date | null): boolean {
@@ -219,9 +208,7 @@ async function activateScheduledProgram(
   if (!(bundle.program.status === 'scheduled' && bundle.version.effectiveFrom <= now)) {
     return { kind: 'not_due' }
   }
-  const assignment = bundle.assignments.find(
-    (candidate) => candidate.programVersionId === bundle.version.id,
-  )
+  const assignment = currentAssignments(bundle).at(0)
   if (!assignment) return { kind: 'unavailable' }
   const periods = dueMonthlyPeriods(bundle.version, null, now)
   const period = periods[0]
@@ -418,7 +405,7 @@ export async function reconcileResult(
     propertyId: result.propertyId,
     action: 'goal.update',
   })
-  const program = await deps.repository.get(
+  const program = await deps.repository.getProgram(
     result.organizationId,
     result.propertyId,
     result.programId,
@@ -440,7 +427,7 @@ export async function reconcileResult(
   // Pausing or ending stops future period materialization, but an already
   // opened month remains evidence that must reconcile and close. Otherwise
   // a mid-lifecycle status change would strand an immutable result forever.
-  if (program.program.status === 'scheduled') {
+  if (program.status === 'scheduled') {
     throw new GoalProgramError('invalid_transition')
   }
   const reading = await deps.metrics.queryGoalMetric({

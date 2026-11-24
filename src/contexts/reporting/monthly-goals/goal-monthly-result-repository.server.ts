@@ -17,11 +17,9 @@ import {
 } from '#/shared/db/schema/goal.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { goalMetricSourceHead } from '../readings/goal-metric-source-head.server'
-import type {
-  GoalMonthlyResult,
-  GoalProgramRepository,
-} from '../application/ports/goal-program.repository'
+import type { GoalProgramRepository } from '../application/ports/goal-program.repository'
 import { GOAL_MAINTENANCE_PAGE_SIZE } from '../application/ports/goal-program.repository'
+import { sameGoalEvaluation } from '../domain/goal-program'
 import {
   goalMonthlyResultClosed,
   goalMonthlyResultReconciled,
@@ -30,24 +28,12 @@ import {
 import {
   hasPostgresErrorCode,
   mapAssignment,
+  mapProgram,
   mapResult,
   mapResultRevision,
   mapVersion,
   resultValues,
 } from './goal-program-rows.server'
-
-function sameEvaluation(
-  left: GoalMonthlyResult['evaluation'],
-  right: GoalMonthlyResult['evaluation'],
-): boolean {
-  return (
-    left.state === right.state &&
-    left.value === right.value &&
-    left.sampleCount === right.sampleCount &&
-    left.achieved === right.achieved &&
-    left.reason === right.reason
-  )
-}
 
 const sameDate = (left: Date | null, right: Date | null): boolean =>
   left?.getTime() === right?.getTime()
@@ -58,6 +44,7 @@ type GoalMonthlyResultRepository = Pick<
   | 'listDueResults'
   | 'findClosedResultIdsForMetricImpact'
   | 'getDueResult'
+  | 'getProgram'
   | 'getAssignment'
   | 'getVersion'
   | 'updateResult'
@@ -196,6 +183,21 @@ export const createGoalMonthlyResultRepository = (
         )
         .limit(1)
       return row ? mapResult(row) : null
+    },
+
+    async getProgram(organizationId, propertyId, programId) {
+      const [row] = await db
+        .select()
+        .from(goalPrograms)
+        .where(
+          and(
+            eq(goalPrograms.organizationId, organizationId),
+            eq(goalPrograms.propertyId, propertyId),
+            eq(goalPrograms.id, programId),
+          ),
+        )
+        .limit(1)
+      return row ? mapProgram(row) : null
     },
 
     async getAssignment(organizationId, propertyId, assignmentId) {
@@ -401,7 +403,7 @@ export const createGoalMonthlyResultRepository = (
           }
           const current = mapResult(base, latestRow)
           if (
-            sameEvaluation(current.evaluation, input.evaluation) &&
+            sameGoalEvaluation(current.evaluation, input.evaluation) &&
             sameDate(current.sourceCompleteThrough, input.sourceCompleteThrough)
           ) {
             return { status: 'unchanged' as const, result: current }

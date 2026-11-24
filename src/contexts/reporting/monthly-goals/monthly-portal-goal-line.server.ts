@@ -21,6 +21,7 @@ import {
   monthCountsOf,
   type MonthlyPortalGoalOnCardContext,
 } from './monthly-portal-goal-running.server'
+import { currentAssignments } from './subject-assignments.server'
 
 export type MonthlyPortalGoalLineDeps = Pick<
   MonthlyPortalGoalCardDeps,
@@ -29,9 +30,7 @@ export type MonthlyPortalGoalLineDeps = Pick<
 
 /** The Program's subjects as it names them now. */
 const currentSubjects = (bundle: GoalProgramBundle) =>
-  bundle.assignments
-    .filter(({ programVersionId }) => programVersionId === bundle.version.id)
-    .map(({ subject }) => subject)
+  currentAssignments(bundle).map(({ subject }) => subject)
 
 /** The earliest-set count goal that runs for this Portal alone, if one does. */
 function ownGoalOf(

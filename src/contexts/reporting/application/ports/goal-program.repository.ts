@@ -288,6 +288,11 @@ export type GoalProgramRepository = GoalProgramCurrentReads &
       resultId: string,
       now: Date,
     ): Promise<GoalMonthlyResult | null>
+    getProgram(
+      organizationId: string,
+      propertyId: string,
+      programId: string,
+    ): Promise<GoalProgram | null>
     getAssignment(
       organizationId: string,
       propertyId: string,
