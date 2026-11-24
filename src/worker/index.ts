@@ -338,7 +338,6 @@ async function main() {
         handlerMissing: runtimeReport.handlerMissing,
         schedulerMissing: runtimeReport.schedulerMissing,
         scheduleDenied: runtimeReport.scheduleDenied,
-        forbiddenDarkWork: runtimeReport.forbiddenDarkWork,
         quarantinedSchedulers: runtimeReport.quarantinedSchedulers,
         missedObjectives: runtimeReport.missedObjectives,
         queueAgeMissed: runtimeReport.queueAgeMissed,

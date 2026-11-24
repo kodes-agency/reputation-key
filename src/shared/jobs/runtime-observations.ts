@@ -584,7 +584,6 @@ export type JobRuntimeReport = Readonly<{
   ready: boolean
   total: number
   active: number
-  dark: number
   quarantined: number
   failing: number
   missingObservations: number
@@ -594,7 +593,6 @@ export type JobRuntimeReport = Readonly<{
   schedulerMissing: number
   /** Scheduled families whose latest firing the gate denied. */
   scheduleDenied: number
-  forbiddenDarkWork: number
   quarantinedSchedulers: number
   missedObjectives: number
   queueAgeMissed: number
@@ -621,13 +619,6 @@ function countReason(
 ): number {
   return rows.filter((row) => row.reasons.includes(reason)).length
 }
-
-const DARK_EXECUTION_REASONS: readonly JobRuntimeReadinessReason[] = [
-  'dark_handler_registered',
-  'dark_scheduler_registered',
-  'dark_queue_work_present',
-  'dark_execution_observed',
-]
 
 export function createJobRuntimeReportReader(
   input: Readonly<{
@@ -712,7 +703,6 @@ export function createJobRuntimeReportReader(
         total: rows.length,
         active: input.contracts.filter((contract) => contract.posture === 'active')
           .length,
-        dark: input.contracts.filter((contract) => contract.posture === 'dark').length,
         quarantined: input.contracts.filter(
           (contract) => contract.posture === 'quarantined',
         ).length,
@@ -722,9 +712,6 @@ export function createJobRuntimeReportReader(
         handlerMissing: countReason(rows, 'handler_missing'),
         schedulerMissing: countReason(rows, 'scheduler_missing'),
         scheduleDenied: countReason(rows, 'schedule_denied'),
-        forbiddenDarkWork: rows.filter((row) =>
-          row.reasons.some((reason) => DARK_EXECUTION_REASONS.includes(reason)),
-        ).length,
         quarantinedSchedulers: countReason(rows, 'quarantined_scheduler_registered'),
         missedObjectives:
           countReason(rows, 'success_never_observed') +

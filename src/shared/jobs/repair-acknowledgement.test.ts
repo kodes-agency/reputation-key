@@ -428,18 +428,6 @@ describe('acknowledging a failed family once its cause is fixed', () => {
       expect((await acknowledger.assess(FAMILY)).outcome).toBe('nothing_to_acknowledge')
     })
 
-    it('has nothing to acknowledge for a dark family, whose readiness never reads the latch', async () => {
-      const { acknowledger, failOnDemand } = await setup({
-        contracts: [contract({ posture: 'dark' })],
-      })
-      await failOnDemand(FAILED)
-
-      expect(await acknowledger.assess(FAMILY)).toMatchObject({
-        outcome: 'nothing_to_acknowledge',
-        family: { posture: 'dark' },
-      })
-    })
-
     // A failed firing is answered by a later success, never by an operator:
     // acknowledging must not hide a schedule that is still failing.
     describe('on an active schedule whose latest run is a failed firing', () => {
