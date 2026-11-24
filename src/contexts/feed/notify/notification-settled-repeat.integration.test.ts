@@ -95,6 +95,7 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
     await preferIn(inApp)
     return insertNotification({
       db,
+      onEmailQueued: () => {},
       clock: () => SETTLED_AT,
       idGen: () => notificationId(randomUUID()),
       emailIdGen: () => notificationEmailId(randomUUID()),
