@@ -16,8 +16,9 @@ import type {
 import { durableImportAuthorizationSchema } from './durable-import-reference-codec.server'
 import {
   invalidationScopesFor,
+  newHandle,
+  SERVER_ID_VERSION,
   type DurableImportReferenceAudience,
-  type DurableImportReferenceKeys,
 } from './durable-import-reference-keys.server'
 import {
   DurableImportReferenceCollision,
@@ -54,7 +55,7 @@ export type DurableReferenceDraft = Readonly<{
 export const createDurableImportReferencePublisher = (
   deps: Readonly<{
     db: Database
-    keys: DurableImportReferenceKeys
+    random: (bytes: number) => Buffer
     leasePrincipalKeys: VersionedHmacKeyring
     leases: ProviderAuthorizationLeaseService
     clock: () => Date
@@ -122,13 +123,13 @@ export const createDurableImportReferencePublisher = (
           affectedPropertyId: string | null = null,
           remainingRedemptions: number | null = null,
         ): DurableReferenceDraft | null => {
-          const reference = deps.keys.issue(audience)
-          return reference
+          const handle = newHandle(deps.random)
+          return handle
             ? {
-                handle: reference.handle,
+                handle,
                 record: {
-                  referenceKey: reference.key,
-                  keyVersion: reference.keyVersion,
+                  referenceKey: handle,
+                  keyVersion: SERVER_ID_VERSION,
                   audience,
                   authorization: authorization.data,
                   payload,
@@ -154,7 +155,6 @@ export const createDurableImportReferencePublisher = (
         try {
           await insertDurableImportRecords(
             deps.db,
-            deps.keys,
             built.records.map((record) => record.record),
             invalidationScopesFor(authorization.data, input.propertyIds),
             issuedAt,

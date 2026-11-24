@@ -10,7 +10,7 @@ import type {
   PortalGoalPageMeasure,
   PortalGoalPageMonth,
 } from './contracts'
-import { localDateOf } from '../domain/local-days'
+import { localDateOf } from '#/shared/domain/local-days'
 import { effectiveMonthTarget } from '../application/goal-effective-month-target'
 import { versionNoteOf } from './goal-version-reasons.server'
 import {

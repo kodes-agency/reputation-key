@@ -8,7 +8,7 @@ import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { goalMonthDays, goalPace } from '../domain/goal-pace'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
-import { addLocalDays, localDateOf } from '../domain/local-days'
+import { addLocalDays, localDateOf } from '#/shared/domain/local-days'
 import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalLastMonth,

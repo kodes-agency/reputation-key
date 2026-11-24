@@ -54,7 +54,6 @@ describe('throwContextError with IntegrationError (google-connections handlers)'
       ['scope_not_granted', 400],
       ['token_refresh_failed', 400],
       ['gbp_api_error', 400],
-      ['invalid_visibility', 400],
       ['encryption_error', 400],
       ['gbp_api_rate_limited', 429],
       ['connection_disconnected', 409],
@@ -85,12 +84,9 @@ describe('getAuthUrlInputSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('defaults visibility to "organization" when omitted', () => {
+  it('accepts an omitted visibility', () => {
     const result = googleAuthUrlInputSchema.safeParse({})
     expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.visibility).toBe('organization')
-    }
   })
 
   it('rejects invalid visibility value', () => {
@@ -115,20 +111,9 @@ const validConnectInput = () => ({
 })
 
 describe('opaque OAuth callback connect input', () => {
-  it('accepts valid input with code and visibility', () => {
-    const result = connectGoogleInputSchema.safeParse({
-      ...validConnectInput(),
-      visibility: 'organization',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('defaults visibility to private', () => {
+  it('accepts valid input with code', () => {
     const result = connectGoogleInputSchema.safeParse(validConnectInput())
     expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.visibility).toBe('private')
-    }
   })
 
   it('rejects missing verifier material', () => {
@@ -149,10 +134,10 @@ describe('opaque OAuth callback connect input', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects invalid visibility value', () => {
+  it('rejects a visibility the callback no longer carries', () => {
     const result = connectGoogleInputSchema.safeParse({
       ...validConnectInput(),
-      visibility: 'public',
+      visibility: 'organization',
     })
     expect(result.success).toBe(false)
   })

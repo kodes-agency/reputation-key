@@ -1,5 +1,5 @@
 // Convert instants to Property-local dates before calendar arithmetic, so DST
-// does not change day counts. Shared by Results series and monthly goals.
+// does not change day counts. Shared by Results, monthly goals and the Google performance report.
 
 import {
   propertyWallClockAt,

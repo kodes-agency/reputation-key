@@ -3,7 +3,7 @@ import {
   propertyWallClockAt,
   shiftPropertyLocalDays,
 } from '#/shared/domain/property-calendar'
-import { localMidnight } from '../domain/local-days'
+import { localMidnight } from '#/shared/domain/local-days'
 import { isComparisonShowable } from '../domain/portal-results-thresholds'
 export const MS_PER_DAY = 86_400_000
 

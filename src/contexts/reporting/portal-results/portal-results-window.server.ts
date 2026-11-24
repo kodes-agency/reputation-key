@@ -2,7 +2,7 @@ import {
   propertyWallClockAt,
   shiftPropertyLocalDays,
 } from '#/shared/domain/property-calendar'
-import { localMidnight } from '../domain/local-days'
+import { localMidnight } from '#/shared/domain/local-days'
 import { localDaysWindow, priorPeriodDates } from './time-range.server'
 import type { PortalResultsTimeRange } from './get-portal-results-overview.server'
 

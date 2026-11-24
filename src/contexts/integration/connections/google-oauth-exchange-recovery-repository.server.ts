@@ -1,7 +1,7 @@
 import { and, asc, eq, or, sql } from 'drizzle-orm'
+import { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
-import type { Tx } from '#/shared/outbox/commit'
 import type {
   GoogleOAuthExchangeAttemptFacts,
   GoogleOAuthExchangeAttemptState,
@@ -12,6 +12,8 @@ import {
   GOOGLE_OAUTH_EXCHANGE_APPLY_LEASE_MS,
   GOOGLE_OAUTH_EXCHANGE_RESPONSE_TTL_MS,
 } from './google-oauth-exchange-recovery.server'
+
+import { createReceiptAttemptStore, receiptDate } from './google-receipt-attempt.server'
 
 const RECEIPT_SCOPE = 'google_oauth_exchange'
 const OUTCOME_CODE = /^[a-z0-9_.-]{1,100}$/u
@@ -27,41 +29,37 @@ const ATTEMPT_STATES: Readonly<Record<GoogleOAuthExchangeAttemptState, true>> = 
   expired: true,
 }
 
-type AttemptRow = GoogleOAuthExchangeAttemptFacts &
-  Readonly<{
-    state: GoogleOAuthExchangeAttemptState
-    encryptedResult: string | null
-    providerStartedAt: Date | null
-    preservedAt: Date | null
-    responseExpiresAt: Date | null
-    applyLeaseExpiresAt: Date | null
-    terminalAt: Date | null
-    outcomeCode: string | null
-    createdAt: Date
-    updatedAt: Date
-  }>
+const attemptSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  initiatorUserId: z.string(),
+  connectionId: z.string(),
+  connectionMode: z.enum(['new', 'reauth', 'reconnect']),
+  targetConnectionId: z.string().nullable(),
+  state: z.custom<GoogleOAuthExchangeAttemptState>(
+    (value) => typeof value === 'string' && value in ATTEMPT_STATES,
+  ),
+  expectedLifecycleVersion: z.number().int().min(0),
+  expectedAccessVersion: z.number().int().min(0),
+  expectedCredentialGeneration: z.number().int().min(0),
+  encryptedResult: z.string().nullable(),
+  providerStartedAt: receiptDate.nullable(),
+  preservedAt: receiptDate.nullable(),
+  responseExpiresAt: receiptDate.nullable(),
+  applyLeaseExpiresAt: receiptDate.nullable(),
+  terminalAt: receiptDate.nullable(),
+  outcomeCode: z.string().nullable(),
+  createdAt: receiptDate,
+  updatedAt: receiptDate,
+})
 
-type AttemptPayload = Readonly<{
-  id: string
-  organizationId: string
-  initiatorUserId: string
-  connectionId: string
-  connectionMode: 'new' | 'reauth' | 'reconnect'
-  targetConnectionId: string | null
-  state: GoogleOAuthExchangeAttemptState
-  expectedLifecycleVersion: number
-  expectedAccessVersion: number
-  expectedCredentialGeneration: number
-  encryptedResult: string | null
-  providerStartedAt: string | null
-  preservedAt: string | null
-  responseExpiresAt: string | null
-  applyLeaseExpiresAt: string | null
-  terminalAt: string | null
-  outcomeCode: string | null
-  createdAt: string
-  updatedAt: string
-}>
+type AttemptRow = z.infer<typeof attemptSchema>
+
+const attemptStore = createReceiptAttemptStore<AttemptRow>(
+  RECEIPT_SCOPE,
+  attemptSchema,
+  'google_oauth_exchange_receipt_invalid',
+)
 
 const fail = <T>(
   code: Exclude<GoogleOAuthExchangeRecoveryResult<T>, { ok: true }>['code'],
@@ -70,128 +68,6 @@ const success = <T>(value: T): GoogleOAuthExchangeRecoveryResult<T> => ({
   ok: true,
   value,
 })
-
-function requiredString(
-  payload: Readonly<Record<string, unknown>>,
-  field: string,
-): string {
-  const value = payload[field]
-  if (typeof value !== 'string') throw new Error('google_oauth_exchange_receipt_invalid')
-  return value
-}
-
-function nullableString(
-  payload: Readonly<Record<string, unknown>>,
-  field: string,
-): string | null {
-  const value = payload[field]
-  if (value === null) return null
-  if (typeof value !== 'string') throw new Error('google_oauth_exchange_receipt_invalid')
-  return value
-}
-
-function requiredInteger(
-  payload: Readonly<Record<string, unknown>>,
-  field: string,
-): number {
-  const value = payload[field]
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    throw new Error('google_oauth_exchange_receipt_invalid')
-  }
-  return value
-}
-
-function requiredDate(payload: Readonly<Record<string, unknown>>, field: string): Date {
-  const value = requiredString(payload, field)
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime()))
-    throw new Error('google_oauth_exchange_receipt_invalid')
-  return parsed
-}
-
-function nullableDate(
-  payload: Readonly<Record<string, unknown>>,
-  field: string,
-): Date | null {
-  const value = nullableString(payload, field)
-  if (value === null) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime()))
-    throw new Error('google_oauth_exchange_receipt_invalid')
-  return parsed
-}
-
-function attemptFromPayload(payload: Readonly<Record<string, unknown>>): AttemptRow {
-  const connectionMode = requiredString(payload, 'connectionMode')
-  const state = requiredString(payload, 'state')
-  if (
-    (connectionMode !== 'new' &&
-      connectionMode !== 'reauth' &&
-      connectionMode !== 'reconnect') ||
-    !(state in ATTEMPT_STATES)
-  ) {
-    throw new Error('google_oauth_exchange_receipt_invalid')
-  }
-  return {
-    id: requiredString(payload, 'id'),
-    organizationId: requiredString(payload, 'organizationId'),
-    initiatorUserId: requiredString(payload, 'initiatorUserId'),
-    connectionId: requiredString(payload, 'connectionId'),
-    connectionMode,
-    targetConnectionId: nullableString(payload, 'targetConnectionId'),
-    state: state as GoogleOAuthExchangeAttemptState,
-    expectedLifecycleVersion: requiredInteger(payload, 'expectedLifecycleVersion'),
-    expectedAccessVersion: requiredInteger(payload, 'expectedAccessVersion'),
-    expectedCredentialGeneration: requiredInteger(
-      payload,
-      'expectedCredentialGeneration',
-    ),
-    encryptedResult: nullableString(payload, 'encryptedResult'),
-    providerStartedAt: nullableDate(payload, 'providerStartedAt'),
-    preservedAt: nullableDate(payload, 'preservedAt'),
-    responseExpiresAt: nullableDate(payload, 'responseExpiresAt'),
-    applyLeaseExpiresAt: nullableDate(payload, 'applyLeaseExpiresAt'),
-    terminalAt: nullableDate(payload, 'terminalAt'),
-    outcomeCode: nullableString(payload, 'outcomeCode'),
-    createdAt: requiredDate(payload, 'createdAt'),
-    updatedAt: requiredDate(payload, 'updatedAt'),
-  }
-}
-
-const attemptPayload = (attempt: AttemptRow): AttemptPayload => ({
-  ...attempt,
-  providerStartedAt: attempt.providerStartedAt?.toISOString() ?? null,
-  preservedAt: attempt.preservedAt?.toISOString() ?? null,
-  responseExpiresAt: attempt.responseExpiresAt?.toISOString() ?? null,
-  applyLeaseExpiresAt: attempt.applyLeaseExpiresAt?.toISOString() ?? null,
-  terminalAt: attempt.terminalAt?.toISOString() ?? null,
-  createdAt: attempt.createdAt.toISOString(),
-  updatedAt: attempt.updatedAt.toISOString(),
-})
-
-async function readAttemptForUpdate(tx: Tx, id: string): Promise<AttemptRow | null> {
-  const [receipt] = await tx
-    .select({ payload: idempotencyReceipts.payload })
-    .from(idempotencyReceipts)
-    .where(
-      and(eq(idempotencyReceipts.scope, RECEIPT_SCOPE), eq(idempotencyReceipts.key, id)),
-    )
-    .for('update')
-    .limit(1)
-  return receipt ? attemptFromPayload(receipt.payload) : null
-}
-
-async function updateAttempt(tx: Tx, attempt: AttemptRow): Promise<void> {
-  await tx
-    .update(idempotencyReceipts)
-    .set({ payload: attemptPayload(attempt) })
-    .where(
-      and(
-        eq(idempotencyReceipts.scope, RECEIPT_SCOPE),
-        eq(idempotencyReceipts.key, attempt.id),
-      ),
-    )
-}
 
 function sameFacts(row: AttemptRow, input: GoogleOAuthExchangeAttemptFacts): boolean {
   return (
@@ -248,11 +124,11 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
           .values({
             scope: RECEIPT_SCOPE,
             key: input.id,
-            payload: attemptPayload(attempt),
+            payload: attemptStore.toPayload(attempt),
             recordedAt: input.now,
           })
           .onConflictDoNothing()
-        const row = await readAttemptForUpdate(tx, input.id)
+        const row = await attemptStore.readForUpdate(tx, input.id)
         if (!row) return fail('not_found')
         if (!sameFacts(row, input)) return fail('scope_mismatch')
         return row.state === 'prepared'
@@ -262,7 +138,7 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
 
     markProviderStarted: (input) =>
       db.transaction(async (tx) => {
-        const row = await readAttemptForUpdate(tx, input.id)
+        const row = await attemptStore.readForUpdate(tx, input.id)
         if (!row) return fail('not_found')
         if (!scopeMatches(row, input)) return fail('scope_mismatch')
         if (row.state !== 'prepared') {
@@ -270,7 +146,7 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
             ? fail('already_started')
             : fail('invalid_transition')
         }
-        await updateAttempt(tx, {
+        await attemptStore.update(tx, {
           ...row,
           state: 'provider_started',
           providerStartedAt: input.now,
@@ -288,11 +164,11 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
         ) {
           return fail('invalid_transition')
         }
-        const row = await readAttemptForUpdate(tx, input.id)
+        const row = await attemptStore.readForUpdate(tx, input.id)
         if (!row) return fail('not_found')
         if (!scopeMatches(row, input)) return fail('scope_mismatch')
         if (row.state !== 'provider_started') return fail('invalid_transition')
-        await updateAttempt(tx, {
+        await attemptStore.update(tx, {
           ...row,
           state: 'response_preserved',
           encryptedResult: input.encryptedResult,
@@ -307,7 +183,7 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
 
     claimPreservedResult: (input) =>
       db.transaction(async (tx) => {
-        const row = await readAttemptForUpdate(tx, input.id)
+        const row = await attemptStore.readForUpdate(tx, input.id)
         if (!row) return fail('not_found')
         if (!scopeMatches(row, input)) return fail('scope_mismatch')
         if (row.state === 'completed') return fail('completed')
@@ -324,7 +200,7 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
           row.responseExpiresAt <= input.now
         ) {
           if (row.state === 'response_preserved' || row.state === 'applying') {
-            await updateAttempt(tx, {
+            await attemptStore.update(tx, {
               ...row,
               state: 'expired',
               encryptedResult: null,
@@ -353,7 +229,7 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
             input.now.getTime() + GOOGLE_OAUTH_EXCHANGE_APPLY_LEASE_MS,
           ),
         )
-        await updateAttempt(tx, {
+        await attemptStore.update(tx, {
           ...row,
           state: 'applying',
           applyLeaseExpiresAt: leaseExpiresAt,
@@ -385,7 +261,7 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
         )
         .limit(1)
       if (!receipt) return null
-      const row = attemptFromPayload(receipt.payload)
+      const row = attemptStore.parse(receipt.payload)
       return row.state === 'completed' && scopeMatches(row, input)
         ? {
             id: row.id,
@@ -404,7 +280,7 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
     releaseClaim: (input) =>
       db.transaction(async (tx) => {
         if (!OUTCOME_CODE.test(input.outcomeCode)) return fail('invalid_transition')
-        const row = await readAttemptForUpdate(tx, input.id)
+        const row = await attemptStore.readForUpdate(tx, input.id)
         if (!row) return fail('not_found')
         if (!scopeMatches(row, input)) return fail('scope_mismatch')
         if (
@@ -415,7 +291,7 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
         ) {
           return fail('invalid_transition')
         }
-        await updateAttempt(tx, {
+        await attemptStore.update(tx, {
           ...row,
           state: 'response_preserved',
           applyLeaseExpiresAt: null,
@@ -428,11 +304,11 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
     discardClaim: (input) =>
       db.transaction(async (tx) => {
         if (!OUTCOME_CODE.test(input.outcomeCode)) return fail('invalid_transition')
-        const row = await readAttemptForUpdate(tx, input.id)
+        const row = await attemptStore.readForUpdate(tx, input.id)
         if (!row) return fail('not_found')
         if (!scopeMatches(row, input)) return fail('scope_mismatch')
         if (row.state !== 'applying') return fail('invalid_transition')
-        await updateAttempt(tx, {
+        await attemptStore.update(tx, {
           ...row,
           state: 'failed',
           encryptedResult: null,
@@ -448,13 +324,13 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
     finishWithoutResult: (input) =>
       db.transaction(async (tx) => {
         if (!OUTCOME_CODE.test(input.outcomeCode)) return fail('invalid_transition')
-        const row = await readAttemptForUpdate(tx, input.id)
+        const row = await attemptStore.readForUpdate(tx, input.id)
         if (!row) return fail('not_found')
         if (!scopeMatches(row, input)) return fail('scope_mismatch')
         if (row.state !== 'prepared' && row.state !== 'provider_started') {
           return fail('invalid_transition')
         }
-        await updateAttempt(tx, {
+        await attemptStore.update(tx, {
           ...row,
           state: input.outcome,
           encryptedResult: null,
@@ -490,9 +366,9 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
           .limit(input.limit)
           .for('update', { skipLocked: true })
         for (const receipt of rows) {
-          const row = attemptFromPayload(receipt.payload)
+          const row = attemptStore.parse(receipt.payload)
           const ambiguous = row.state === 'provider_started'
-          await updateAttempt(tx, {
+          await attemptStore.update(tx, {
             ...row,
             state: ambiguous ? 'provider_outcome_ambiguous' : 'expired',
             encryptedResult: null,
