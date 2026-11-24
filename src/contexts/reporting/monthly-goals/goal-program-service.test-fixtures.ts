@@ -220,6 +220,8 @@ export function createGoalProgramHarness(
   const policy: GoalExecutionPolicy = { authorize: vi.fn(async () => undefined) }
   const subjects: GoalProgramSubjectReader = {
     ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
+    staffTargetProblem: vi.fn(async () => null),
+    staffTargetAllowed: vi.fn(async () => true),
     getTimezone: vi.fn(async () => 'UTC'),
     subjectBelongsToProperty: vi.fn<GoalProgramSubjectReader['subjectBelongsToProperty']>(
       async () => true,
