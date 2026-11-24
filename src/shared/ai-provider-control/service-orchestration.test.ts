@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { openAiAdapterRegistry } from './provider-registry.test-fixtures'
 import { z } from 'zod/v4'
 import type {
   AiAdmissionDescriptorV1,
@@ -83,6 +84,7 @@ function preparedExecution(
 ): PreparedGatewayRouteExecution {
   const descriptor = descriptorFor(request)
   return {
+    providerId: 'openai',
     invocation: {
       descriptor,
       sdkRequest: {} as never,
@@ -207,7 +209,7 @@ function harness(
   } as AiAdmissionClient
   const service = createAiEgressGatewayService({
     admission,
-    connector,
+    providers: openAiAdapterRegistry(connector),
     preparer: { prepare } as AiGatewayRoutePreparer,
     now: () => NOW + 1_000,
   })

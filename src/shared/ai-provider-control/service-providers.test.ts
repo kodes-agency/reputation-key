@@ -5,6 +5,7 @@
 // `service-orchestration.test.ts`, which still passes unchanged on the legacy
 // single-connector wiring; this file shows the registry wiring agrees with it.
 
+import { openAiAdapterRegistry } from './provider-registry.test-fixtures'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 import type {
@@ -101,10 +102,10 @@ function descriptorFor(request: AiGatewayRouteRequestV1): AiAdmissionDescriptorV
 
 function preparedExecution(
   request: AiGatewayRouteRequestV1,
-  providerId?: AiProviderId,
+  providerId: AiProviderId = 'openai',
 ): PreparedGatewayRouteExecution {
   return {
-    ...(providerId === undefined ? {} : { providerId }),
+    providerId,
     invocation: {
       descriptor: descriptorFor(request),
       sdkRequest: {} as never,
@@ -271,14 +272,16 @@ const registryWiring = (adapters: readonly FakeAdapter[]) => ({
   providers: createAiProviderRegistry(adapters),
 })
 
-describe('the registry wiring agrees with the single connector it replaces', () => {
+describe('a registry of fake adapters agrees with the real OpenAI adapter around one connector', () => {
   it('answers the same, makes the same call and settles the same for OpenAI', async () => {
     const legacyConnector = {
       invoke: vi.fn(async () => outcomeOf('success')),
       readiness: vi.fn(() => true),
     }
     const legacy = run({
-      wiring: () => ({ connector: legacyConnector as unknown as OpenAiConnector }),
+      wiring: () => ({
+        providers: openAiAdapterRegistry(legacyConnector as unknown as OpenAiConnector),
+      }),
       adapters: [],
       pricing: OPENAI_PRICE_CATALOGUE_V2,
     })
@@ -310,24 +313,6 @@ describe('the registry wiring agrees with the single connector it replaces', () 
       registry.prepared.outputSchema,
     ])
     expect(registry.settle).toHaveBeenCalledTimes(1)
-  })
-
-  it('needs exactly one of the two', () => {
-    const base = {
-      admission: {} as AiAdmissionClient,
-      preparer: {} as AiGatewayRoutePreparer,
-    }
-
-    expect(() => createAiEgressGatewayService(base as never)).toThrow(
-      'the gateway needs a connector or a provider registry',
-    )
-    expect(() =>
-      createAiEgressGatewayService({
-        ...base,
-        connector: { invoke: vi.fn() },
-        providers: createAiProviderRegistry([]),
-      } as never),
-    ).toThrow('the gateway takes a connector or a provider registry, not both')
   })
 })
 
@@ -436,10 +421,10 @@ describe('no fallback', () => {
     async (disposition) => {
       const alone = run({
         wiring: () => ({
-          connector: {
+          providers: openAiAdapterRegistry({
             invoke: vi.fn(async () => outcomeOf(disposition)),
             readiness: vi.fn(() => true),
-          } as unknown as OpenAiConnector,
+          } as unknown as OpenAiConnector),
         }),
         adapters: [],
         pricing: OPENAI_PRICE_CATALOGUE_V2,

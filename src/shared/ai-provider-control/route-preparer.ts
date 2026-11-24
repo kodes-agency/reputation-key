@@ -40,11 +40,9 @@ import {
   type PreparedGatewayRouteExecution,
 } from './contracts'
 import type { DerivedDescriptorFacts } from './prepared-invocation'
-import { createOpenAiProviderPreparation } from './openai-provider-adapter'
 import type { AiProviderId, AiProviderPreparation } from './provider-contracts'
 import {
   AiProviderSelectionError,
-  createAiProviderRegistry,
   selectAiProvider,
   type AiProviderRegistry,
 } from './provider-selection'
@@ -294,9 +292,9 @@ export function createAiGatewayRoutePreparer(
     profiles?: readonly RoutePreparationProfile[]
     /**
      * The providers that can shape a request, and the operator's choice among
-     * them. Defaults to OpenAI alone, which is every v2 route.
+     * them.
      */
-    providers?: AiProviderRegistry<AiProviderPreparation>
+    providers: AiProviderRegistry<AiProviderPreparation>
     /**
      * Content-free notice of WHICH output rule refused a reply draft.
      *
@@ -314,9 +312,7 @@ export function createAiGatewayRoutePreparer(
   const now = dependencies.now ?? Date.now
   const profiles: readonly RoutePreparationProfile[] =
     dependencies.profiles ?? AI_OPERATION_PROFILES
-  const registry =
-    dependencies.providers ??
-    createAiProviderRegistry([createOpenAiProviderPreparation()])
+  const registry = dependencies.providers
   return Object.freeze({
     prepare: (request): PreparedGatewayRouteExecution => {
       const profile = profileFor(profiles, request)

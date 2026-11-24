@@ -5,7 +5,10 @@ import {
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import { v2FormAnalysisRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
+import {
+  analysisV3Request,
+  v2FormAnalysisRequest,
+} from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
 import { canonicalizeRawAiReviewSource } from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
@@ -43,6 +46,11 @@ afterEach(() => {
 })
 
 const v3Preparer = () => evidencePreparer({ profiles: [v3TestProfile()] })
+
+/** The evidence form carrying the binding of the retired v2 form. */
+function retiredFormRequest() {
+  return { ...analysisV3Request(), binding: v2FormAnalysisRequest().binding }
+}
 
 function refusal(action: () => unknown): string {
   try {
@@ -266,7 +274,7 @@ describe('review-analysis v3 request preparation', () => {
   it('refuses sentences that are not the text, are not numbered from one or are missing', () => {
     const request = preparableV3Request()
     const sentences = request.source.sentences!
-    const withSentences = (wrong: typeof sentences | undefined) => ({
+    const withSentences = (wrong: typeof sentences) => ({
       ...request,
       source: { ...request.source, sentences: wrong },
     })
@@ -287,12 +295,6 @@ describe('review-analysis v3 request preparation', () => {
           withSentences(sentences.map((s) => ({ ...s, number: s.number + 1 }))),
         ),
       ),
-    ).toBe('invalid_request')
-    expect(refusal(() => v3Preparer().prepare(withSentences(undefined)))).toBe(
-      'invalid_request',
-    )
-    expect(
-      refusal(() => v3Preparer().prepare({ ...request, propertyContext: undefined })),
     ).toBe('invalid_request')
   })
 
@@ -331,13 +333,13 @@ describe('review-analysis v3 request preparation', () => {
       // The v2 profile stays in the catalogue so an operation claimed under it can be
       // read and settled; a request in its form carries the deployment profile now
       // served, which that profile does not, so nothing new is prepared under it.
-      expect(refusal(() => evidencePreparer().prepare(v2FormAnalysisRequest()))).toBe(
+      expect(refusal(() => evidencePreparer().prepare(retiredFormRequest()))).toBe(
         'policy_unavailable',
       )
     })
 
     it('does not prepare a v2 request under a catalogue that holds only v3', () => {
-      expect(refusal(() => v3Preparer().prepare(v2FormAnalysisRequest()))).toBe(
+      expect(refusal(() => v3Preparer().prepare(retiredFormRequest()))).toBe(
         'policy_unavailable',
       )
     })

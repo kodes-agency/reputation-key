@@ -4,6 +4,7 @@
 // OpenAI), with the real prompt, schema and limits, and add what a test needs, such
 // as a second attested provider.
 
+import { openAiPreparationRegistry } from './provider-registry.test-fixtures'
 import { generateKeyPairSync } from 'node:crypto'
 import { operationProfileForCatalogue } from '#/shared/ai-operation/ai-operation-profile'
 import { LANGUAGE_CATALOGUE_DIGEST } from '#/shared/ai-review-language-catalogue'
@@ -68,7 +69,7 @@ export function evidencePreparer(
     provenanceKid: 'provenance-v1',
     provenancePrivateKey: provenance.privateKey,
     ...(options.profiles === undefined ? {} : { profiles: options.profiles }),
-    ...(options.providers === undefined ? {} : { providers: options.providers }),
+    providers: options.providers ?? openAiPreparationRegistry(),
   })
 }
 
