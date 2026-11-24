@@ -7,13 +7,6 @@ export const PROVIDER_EPHEMERAL_NAMESPACES = [
 ] as const
 export type ProviderEphemeralNamespace = (typeof PROVIDER_EPHEMERAL_NAMESPACES)[number]
 
-const PROVIDER_EPHEMERAL_NAMESPACE_ALLOWED: Readonly<
-  Record<ProviderEphemeralNamespace, true>
-> = {
-  'oauth-state': true,
-  'opaque-reference': true,
-  'authorization-lease': true,
-}
 const SAFE_KEY = /^[A-Za-z0-9_-]{32,128}$/
 const MAX_VALUE_BYTES = 5 * 1024 * 1024
 
@@ -23,7 +16,7 @@ export function assertProviderEphemeralLocation(
 ): void {
   if (
     typeof namespace !== 'string' ||
-    !Object.prototype.hasOwnProperty.call(PROVIDER_EPHEMERAL_NAMESPACE_ALLOWED, namespace)
+    !(PROVIDER_EPHEMERAL_NAMESPACES as readonly string[]).includes(namespace)
   ) {
     throw new Error('provider ephemeral namespace is malformed')
   }
@@ -50,7 +43,7 @@ export type ProviderEphemeralCompareAndSwapEntry = Readonly<{
   next: Readonly<{ value: string; ttlSeconds: number }> | null
 }>
 
-function assertCompareAndSwapEntries(
+export function assertCompareAndSwapEntries(
   namespace: ProviderEphemeralNamespace,
   entries: readonly ProviderEphemeralCompareAndSwapEntry[],
 ): void {
