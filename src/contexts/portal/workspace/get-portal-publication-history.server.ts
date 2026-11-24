@@ -16,6 +16,7 @@ import {
   type PortalVersionActor,
 } from './portal-version-actors.server'
 import { portalError } from '../domain/errors'
+import { historyPageSize } from '../domain/portal-history'
 
 export type PortalPublicationHistoryItem = Readonly<{
   activationSequence: number
@@ -43,9 +44,6 @@ export type PortalPublicationHistory = Readonly<{
   >
   nextCursor: number | null
 }>
-
-const DEFAULT_HISTORY_PAGE_SIZE = 20
-const MAX_HISTORY_PAGE_SIZE = 50
 
 type Deps = Readonly<{
   portalRepo: PortalRepository
@@ -80,10 +78,7 @@ export const getPortalPublicationHistory =
       permission: 'portal.read',
       forbiddenMessage: 'Insufficient permissions to view Portal publication history',
     })
-    const requestedLimit = input.limit ?? DEFAULT_HISTORY_PAGE_SIZE
-    const limit = Number.isSafeInteger(requestedLimit)
-      ? Math.min(MAX_HISTORY_PAGE_SIZE, Math.max(1, requestedLimit))
-      : DEFAULT_HISTORY_PAGE_SIZE
+    const limit = historyPageSize(input.limit)
     const beforeSequence =
       input.cursor !== undefined && Number.isSafeInteger(input.cursor) && input.cursor > 0
         ? input.cursor

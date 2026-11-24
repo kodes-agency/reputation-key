@@ -322,7 +322,6 @@ describe('buildDraftPortalPreview', () => {
             locale: 'en',
             title: null,
             shortDescription: null,
-            heroImageUrl: 'https://photos.example.test/override.jpg',
           },
         ],
       }),
@@ -395,9 +394,7 @@ describe('buildDraftPortalPreview', () => {
 
   it('prefers the Portal override over the Property wording', () => {
     const preview = draft({
-      overrides: [
-        { locale: 'en', title: 'Pool side', shortDescription: null, heroImageUrl: null },
-      ],
+      overrides: [{ locale: 'en', title: 'Pool side', shortDescription: null }],
     })
 
     expect(experienceOf(preview, 'en').content.title.value).toBe('Pool side')
@@ -462,9 +459,7 @@ describe('buildDraftPortalPreview', () => {
         },
         { locale: 'bg', title: '', shortDescription: '', heroAltText: 'Басейн' },
       ],
-      overrides: [
-        { locale: 'bg', title: 'Басейн', shortDescription: null, heroImageUrl: null },
-      ],
+      overrides: [{ locale: 'bg', title: 'Басейн', shortDescription: null }],
     })
 
     expect(experienceOf(preview, 'bg').content.title).toEqual({
