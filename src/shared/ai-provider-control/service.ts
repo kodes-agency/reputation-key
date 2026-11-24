@@ -19,7 +19,6 @@ import { GatewayPreparationError } from './contracts'
 import type {
   AiAdmissionClient,
   AiGatewayRoutePreparer,
-  OpenAiConnector,
   OpenAiConnectorOutcome,
 } from './contracts'
 import { createAiSettlementSignal } from './settlement-signal'
@@ -29,9 +28,8 @@ import {
   isMintedAiExecutionAdmission,
   type AiExecutionAdmission,
 } from './execution-admission'
-import { createOpenAiProviderAdapter } from './openai-provider-adapter'
 import type { AiProviderAdapter } from './provider-contracts'
-import { createAiProviderRegistry, type AiProviderRegistry } from './provider-selection'
+import type { AiProviderRegistry } from './provider-selection'
 
 const ZERO_USAGE = Object.freeze({
   inputTokens: 0,
@@ -273,44 +271,22 @@ export type AiEgressGatewayService = Readonly<{
   ): Promise<AiGatewayRouteResponseV1>
 }>
 
-/**
- * Where provider calls go: one OpenAI connector (every v2 route, as before the
- * seam), or the registry of provider adapters (contract section 7.1). The
- * registry's selection is the operator's choice and nothing here consults it: the
- * preparer has chosen already, and a call goes to the adapter of the provider that
- * prepared it or to none.
- */
-export type AiEgressProviders =
-  | Readonly<{ connector: OpenAiConnector; providers?: undefined }>
-  | Readonly<{ providers: AiProviderRegistry<AiProviderAdapter>; connector?: undefined }>
-
-function providerRegistryOf(
-  dependencies: AiEgressProviders,
-): AiProviderRegistry<AiProviderAdapter> {
-  if (dependencies.providers !== undefined) {
-    if (dependencies.connector !== undefined) {
-      throw new TypeError(
-        'the gateway takes a connector or a provider registry, not both',
-      )
-    }
-    return dependencies.providers
-  }
-  if (dependencies.connector === undefined) {
-    throw new TypeError('the gateway needs a connector or a provider registry')
-  }
-  return createAiProviderRegistry([createOpenAiProviderAdapter(dependencies.connector)])
-}
-
 export function createAiEgressGatewayService(
   dependencies: Readonly<{
     admission: AiAdmissionClient
     preparer: AiGatewayRoutePreparer
+    /**
+     * The registry of provider adapters (contract section 7.1). Its selection is
+     * the operator's choice and nothing here consults it: the preparer has chosen
+     * already, and a call goes to the adapter of the provider that prepared it or
+     * to none.
+     */
+    providers: AiProviderRegistry<AiProviderAdapter>
     now?: () => number
-  }> &
-    AiEgressProviders,
+  }>,
 ): AiEgressGatewayService {
   const now = dependencies.now ?? Date.now
-  const registry = providerRegistryOf(dependencies)
+  const registry = dependencies.providers
   return Object.freeze({
     execute: async (lease, signal, progress) => {
       let attemptedRoute: string = 'review-analysis'
@@ -353,7 +329,7 @@ export function createAiEgressGatewayService(
       // The call goes to the adapter of the provider that prepared it. A provider
       // this process holds no adapter for is a refusal before anything is reserved,
       // never a call to another provider's adapter.
-      const adapter = registry.adapters.get(prepared.providerId ?? 'openai')
+      const adapter = registry.adapters.get(prepared.providerId)
       if (adapter === undefined) {
         prepared.invocation.canonicalProviderBytes.fill(0)
         return errorResponse(route, 'policy_unavailable')
