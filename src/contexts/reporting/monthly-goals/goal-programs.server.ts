@@ -37,6 +37,7 @@ import {
   type GoalActor,
   type GoalProgramDependencies,
 } from '../application/use-cases/goal-program-shared'
+import { currentAssignments } from './subject-assignments.server'
 
 // The command families live in flat sibling modules and the shared pieces in a
 // leaf; this module composes them behind the one service.
@@ -270,7 +271,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         propertyId: input.propertyId,
         action: 'goal.read',
       })
-      const program = await deps.repository.get(
+      const program = await deps.repository.getProgram(
         actor.organizationId,
         input.propertyId,
         input.programId,
@@ -330,9 +331,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         await assertRatingSubjectsAllowed(deps, actor.organizationId, {
           propertyId: input.propertyId,
           metric: current.version.metric,
-          subjects: current.assignments
-            .filter((assignment) => assignment.programVersionId === current.version.id)
-            .map((assignment) => assignment.subject),
+          subjects: currentAssignments(current).map((assignment) => assignment.subject),
         })
       }
       if (

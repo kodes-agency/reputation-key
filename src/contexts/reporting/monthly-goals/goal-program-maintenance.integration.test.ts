@@ -336,7 +336,7 @@ describe('canonical Goal Program service', () => {
     // Not a lost race: nothing settled the result, a row it points to is gone.
     // That is a broken reference and the run must say so.
     it.each([
-      ['program', 'get'],
+      ['program', 'getProgram'],
       ['assignment', 'getAssignment'],
       ['version', 'getVersion'],
     ] as const)(
