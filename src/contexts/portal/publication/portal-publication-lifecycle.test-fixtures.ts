@@ -20,7 +20,6 @@ import { staffApiOf } from '#/shared/testing/staff-public-api-stub'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { issuePortalToken } from '../addresses/issue-portal-token.server'
 import {
-  previewPortalChanges,
   publishPortalChanges,
   publishPortalsChanges,
 } from './publish-portal-changes.server'
@@ -147,7 +146,6 @@ export function wire(options: Options = {}) {
   return {
     publish: publishPortalChanges(deps),
     publishMany: publishPortalsChanges(deps),
-    preview: previewPortalChanges(deps),
     rollback: rollbackPortalPublication({
       portalRepo: deps.portalRepo,
       publicationRepo: deps.publicationRepo,
@@ -383,7 +381,7 @@ export const markResponsibilityNeeded = (live: Live) =>
     [live.org, live.portal, NOW],
   )
 
-/** The readiness gates a publication and its preview share. */
+/** The readiness gates a publication asks. */
 export const READINESS_GATES: ReadonlyArray<{
   key: string
   title: string

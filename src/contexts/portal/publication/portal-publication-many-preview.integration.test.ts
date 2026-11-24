@@ -1,4 +1,4 @@
-// Publish changes while live, preview them, make an earlier version live again
+// Publish changes while live, make an earlier version live again
 // and complete a content review, on real PostgreSQL with two organizations: the
 // results a manager sees, the refusals, the snapshots and activations written
 // and the facts recorded. The real use cases run over the real stores and
@@ -297,66 +297,39 @@ describe.sequential('publishPortalsChanges (real PostgreSQL, two tenants)', () =
   })
 })
 
-describe.sequential('previewPortalChanges (real PostgreSQL, two tenants)', () => {
-  it('says what a publication would write and writes nothing', async () => {
-    const live = await seedReady(ORG_A)
-    await openChanges(live, 1)
+describe.sequential(
+  'publishPortalChanges refusals (real PostgreSQL, two tenants)',
+  () => {
+    it.each(READINESS_GATES.map((gate) => [gate.key, gate] as const))(
+      'refuses a Portal the readiness gate stops (%s) and writes nothing',
+      async (_key, gate) => {
+        const live = await seedReady(ORG_A, gate.seed)
+        await openChanges(live, 1)
+        await gate.sabotage?.(live)
 
-    const result = await wire().preview({ portalId: live.portal }, ctxOf(ORG_A))
+        await expect(
+          wire(gate.wire).publish({ portalId: live.portal }, ctxOf(ORG_A)),
+        ).rejects.toMatchObject({ code: gate.code })
+        await expectNothingWritten(live)
+      },
+    )
 
-    expect(result).toEqual({ outcome: 'would_publish', version: 2, pendingEdits: 1 })
-    await expectNothingWritten(live)
-  })
+    it('refuses a Portal that is not live, a role that cannot edit Portals and another organization', async () => {
+      const draft = await seedReady(ORG_A)
+      await openChanges(draft, 1)
+      await setState(draft, 'draft')
+      await expect(
+        wire().publish({ portalId: draft.portal }, ctxOf(ORG_A)),
+      ).rejects.toMatchObject({ code: 'invalid_publication_transition' })
 
-  it('reads nothing pending as unchanged', async () => {
-    const live = await seedReady(ORG_A)
-
-    await expect(
-      wire().preview({ portalId: live.portal }, ctxOf(ORG_A)),
-    ).resolves.toEqual({ outcome: 'unchanged', version: 1, pendingEdits: 0 })
-  })
-
-  it("counts the manager's open unpublished edits, so a caller can tell a draft from a bare upgrade", async () => {
-    const live = await seedReady(ORG_A)
-    await openChanges(live, 3)
-
-    await expect(
-      wire().preview({ portalId: live.portal }, ctxOf(ORG_A)),
-    ).resolves.toMatchObject({ outcome: 'would_publish', pendingEdits: 3 })
-  })
-
-  it.each(READINESS_GATES.map((gate) => [gate.key, gate] as const))(
-    'refuses what the real publication refuses (%s), so a dry run predicts the apply',
-    async (_key, gate) => {
-      const live = await seedReady(ORG_A, gate.seed)
+      const live = await seedReady(ORG_A)
       await openChanges(live, 1)
-      await gate.sabotage?.(live)
-      const stack = wire(gate.wire)
-
       await expect(
-        stack.preview({ portalId: live.portal }, ctxOf(ORG_A)),
-      ).rejects.toMatchObject({ code: gate.code })
+        wire().publish({ portalId: live.portal }, ctxOf(ORG_A, 'Member')),
+      ).rejects.toMatchObject({ code: 'forbidden' })
       await expect(
-        stack.publish({ portalId: live.portal }, ctxOf(ORG_A)),
-      ).rejects.toMatchObject({ code: gate.code })
-    },
-  )
-
-  it('refuses a Portal that is not live, a role that cannot edit Portals and another organization', async () => {
-    const draft = await seedReady(ORG_A)
-    await openChanges(draft, 1)
-    await setState(draft, 'draft')
-    await expect(
-      wire().preview({ portalId: draft.portal }, ctxOf(ORG_A)),
-    ).rejects.toMatchObject({ code: 'invalid_publication_transition' })
-
-    const live = await seedReady(ORG_A)
-    await openChanges(live, 1)
-    await expect(
-      wire().preview({ portalId: live.portal }, ctxOf(ORG_A, 'Member')),
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    await expect(
-      wire().preview({ portalId: live.portal }, ctxOf(ORG_B)),
-    ).rejects.toMatchObject({ code: 'portal_not_found' })
-  })
-})
+        wire().publish({ portalId: live.portal }, ctxOf(ORG_B)),
+      ).rejects.toMatchObject({ code: 'portal_not_found' })
+    })
+  },
+)

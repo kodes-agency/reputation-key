@@ -11,7 +11,6 @@ import {
   applyPortalLook,
   facetReachesPortal,
   lookGroupsOfFacet,
-  lookGroupsOfFacets,
   lookSourcesOf,
   nextPortalLook,
   portalHeroAltTextsOf,
@@ -219,15 +218,6 @@ describe('facets and groups', () => {
     expect(lookGroupsOfFacet('logo')).toEqual(['identity'])
     expect(lookGroupsOfFacet('photo')).toEqual(['photo'])
     expect(lookGroupsOfFacet('images')).toEqual(['photo', 'identity'])
-  })
-
-  it('lists the groups of several facets once each, in group order', () => {
-    expect(lookGroupsOfFacets(['wordmark', 'accent', 'field', 'logo'])).toEqual([
-      'colours',
-      'identity',
-    ])
-    expect(lookGroupsOfFacets(['images'])).toEqual(['photo', 'identity'])
-    expect(lookGroupsOfFacets([])).toEqual([])
   })
 
   it('lets a Property change reach only a Portal that follows its group', () => {

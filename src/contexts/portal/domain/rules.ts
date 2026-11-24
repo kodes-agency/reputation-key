@@ -103,11 +103,6 @@ export const validatePrivateFeedbackThreshold = (
 
 // ── URL validation ─────────────────────────────────────────────────
 
-/** Check whether a URL is a valid external HTTPS URL. */
-export const isValidExternalUrl = (url: string): boolean => {
-  return isPublicHttpsDestination(url)
-}
-
 /**
  * Whether a link tile may send a guest to `url`: a public HTTPS address, or a
  * phone number or email address in its stored form (`tel:+15551234567`,
@@ -126,7 +121,9 @@ export const linkAddressRefusal = (value: string): string | null => {
   if (contact !== null) {
     return contact.ok ? null : PORTAL_LINK_ADDRESS_REFUSALS[contact.kind]
   }
-  return isValidExternalUrl(value.trim()) ? null : PORTAL_LINK_ADDRESS_REFUSALS.website
+  return isPublicHttpsDestination(value.trim())
+    ? null
+    : PORTAL_LINK_ADDRESS_REFUSALS.website
 }
 
 /**
