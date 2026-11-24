@@ -1,13 +1,13 @@
 // Property context — update property use case
 
 import type { PropertyRepository } from './property-repository.port.server'
+import { loadAccessibleProperty } from './load-accessible-property.server'
 import type { PropertyCommandStore } from './update-store.port.server'
 import type { Property } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { PropertyId } from '#/shared/domain/ids'
 import type { UpdatePropertyInput } from './contracts'
 export type { UpdatePropertyInput } from './contracts'
-import { canForContext } from '#/shared/domain/permissions'
-import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import {
   normalizeCountryCode,
   validatePropertyName,
@@ -17,7 +17,6 @@ import {
 import { propertyError } from '../domain/errors'
 import { propertyUpdated } from '../domain/events'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
 export type UpdatePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
@@ -26,30 +25,11 @@ export type UpdatePropertyDeps = Readonly<{
   clock: () => Date
 }>
 
-function authorize(ctx: AuthContext): void {
-  if (!canForContext(ctx, 'property.update')) {
-    throw propertyError('forbidden', 'this role cannot edit properties')
-  }
-}
-
-async function resolveExisting(
-  deps: UpdatePropertyDeps,
-  ctx: AuthContext,
-  propertyIdStr: string,
-) {
-  const propertyId = toPropertyId(propertyIdStr)
-  const existing = await deps.propertyRepo.findById(ctx.organizationId, propertyId)
-  if (!existing) {
-    throw propertyError('property_not_found', 'property not found in this organization')
-  }
-  return { propertyId, existing }
-}
-
 async function assertSlugAvailable(
   deps: UpdatePropertyDeps,
   input: UpdatePropertyInput,
   existing: Property,
-  propertyId: ReturnType<typeof toPropertyId>,
+  propertyId: PropertyId,
   organizationId: AuthContext['organizationId'],
 ): Promise<string> {
   const newSlug = input.slug ?? existing.slug
@@ -86,7 +66,7 @@ async function validateUpdateFields(
   deps: UpdatePropertyDeps,
   input: UpdatePropertyInput,
   existing: Property,
-  propertyId: ReturnType<typeof toPropertyId>,
+  propertyId: PropertyId,
   organizationId: AuthContext['organizationId'],
 ) {
   const newSlug = await assertSlugAvailable(
@@ -168,22 +148,15 @@ function changedColumns(
 export const updateProperty =
   (deps: UpdatePropertyDeps) =>
   async (input: UpdatePropertyInput, ctx: AuthContext): Promise<Property> => {
-    authorize(ctx)
-    const { propertyId, existing } = await resolveExisting(deps, ctx, input.propertyId)
-
-    // Enforce property-assignment scoping for PropertyManager (AccountAdmin
-    // bypasses via getAccessiblePropertyIds returning null). Mirrors the
-    // list-properties read path. (D6-001.)
-    const accessible = await isPropertyAccessibleForPermission(
-      (orgId, userId, orgWide) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+    const existing = await loadAccessibleProperty(
+      deps,
+      input.propertyId,
       ctx,
       'property.update',
-      propertyId,
+      'this role cannot edit properties',
     )
-    if (!accessible) {
-      throw propertyError('forbidden', 'No access to this property', { propertyId })
-    }
+    const propertyId = existing.id
+
     const updatedAt = deps.clock()
     const fields = await validateUpdateFields(
       deps,
