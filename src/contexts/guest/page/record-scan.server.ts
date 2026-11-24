@@ -8,8 +8,8 @@ import type {
   QualifiedScanId,
 } from '#/shared/domain/ids'
 import type { PortalPublicApi } from '#/contexts/portal/public-api'
+import type { ScanEvent } from '../domain/types'
 import { guestQualifiedScanRecorded, guestScanRecorded } from '../domain/events'
-import { buildScanEvent } from '../domain/constructors'
 import { classifyQualifiedScanRequest } from '../domain/qualified-scan'
 import type { ResolvePrimaryStaffAttribution } from '#/contexts/guest/responses/contracts'
 import type { GuestObservationLossReporter } from './guest-observation-loss-monitor.port.server'
@@ -121,7 +121,7 @@ export const recordScan =
 
       try {
         const scanId = deps.idGen()
-        const scanResult = buildScanEvent({
+        const scan: ScanEvent = {
           id: scanId,
           organizationId: input.organizationId,
           portalId: input.portalId,
@@ -129,10 +129,8 @@ export const recordScan =
           source: artifact?.channel ?? 'direct',
           sessionId: input.sessionId,
           ipHash: null,
-          now: occurredAt,
-        })
-        if (scanResult.isErr()) throw scanResult.error
-        const scan = scanResult.value
+          createdAt: occurredAt,
+        }
         await deps.observationStore.commitScan(
           scan,
           guestScanRecorded({

@@ -30,9 +30,8 @@ const GUEST_OUTBOX_SOURCE_CONTEXT = 'guest'
  * The explicit, static Guest purge plan, innermost dependency first.
  *
  * Deliberately NOT here:
- * - the `guest_contact_purge` idempotency receipt: a single global cursor for
- *   the serialized 30-day retention authority. It has no tenant scope and
- *   holds no tenant content; deleting it would corrupt an unrelated sweep.
+ * - the `guest_contact_purge` idempotency receipt: a global row left by an
+ *   earlier retention sweep. It has no tenant scope and holds no tenant content.
  * - `portals`, `portal_publication_snapshots`, `properties`, Staff
  *   participants: other owners' rows that Guest only references.
  * - `user` rows: a person who submitted nothing here and may be a member of

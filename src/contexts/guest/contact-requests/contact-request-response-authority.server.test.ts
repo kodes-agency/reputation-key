@@ -13,10 +13,8 @@ const SESSION = Object.freeze({
   sessionId: 'session-1',
   csrfNonce: '10000000-0000-4000-8000-000000000004',
   ...SCOPE,
-  tokenVersion: 0,
   issuedAt: new Date('2026-08-28T11:00:00.000Z'),
   expiresAt: new Date('2026-08-29T11:00:00.000Z'),
-  campaignMediumHint: null,
   guestLocale: 'en' as const,
 })
 

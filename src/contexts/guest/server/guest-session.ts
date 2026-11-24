@@ -166,7 +166,6 @@ export function createGuestSessionManager(
         organizationId: organizationId(scope.organizationId),
         propertyId: propertyId(scope.propertyId),
         portalId: portalId(scope.portalId),
-        tokenVersion: 0,
         guestLocale,
         now: input.clock(),
       })
@@ -229,10 +228,8 @@ export function createGuestSessionManager(
           organizationId: organizationId(payload.org),
           propertyId: propertyId(payload.property),
           portalId: portalId(payload.portal),
-          tokenVersion: 0,
           issuedAt: new Date(payload.issued),
           expiresAt: new Date(payload.expires),
-          campaignMediumHint: null,
           guestLocale: parseGuestLocale(payload.locale),
         }
         if (
@@ -261,21 +258,20 @@ export function createGuestSessionManager(
   }
 }
 export function guestRateLimitKey(
-  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media' | 'click',
-  sessionId: string | null,
-  ipHash: string,
+  kind: 'scan' | 'response' | 'click',
+  sessionId: string,
 ): string {
-  return sessionId ? `${kind}:${sessionId}` : `${kind}:ip:${ipHash}`
+  return `${kind}:${sessionId}`
 }
 
 export function guestRateLimitKeys(
-  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media' | 'click',
-  sessionId: string | null,
+  kind: 'scan' | 'response' | 'click',
+  sessionId: string,
   ipHash: string,
   portalId: string,
 ): Readonly<{ session: string; networkPortal: string }> {
   return {
-    session: guestRateLimitKey(kind, sessionId, ipHash),
+    session: guestRateLimitKey(kind, sessionId),
     networkPortal: `${kind}:network:${ipHash}:portal:${portalId}`,
   }
 }
