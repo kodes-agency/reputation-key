@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalAccessArtifacts, portalTokens } from '#/shared/db/schema/portal.schema'
 import type { PortalTokenRepository } from './portal-token-repository.port.server'
@@ -64,32 +64,7 @@ const resolvableAsOf = (asOf: Date) =>
 // A rotation writes `gracePeriodEnds` on the outgoing token only, so the newer
 // (current) token carries none. The window a reader cares about is the one the
 // older, printed code is still inside: the latest end among those older tokens.
-async function outgoingGraceEnd(
-  db: Database,
-  organizationId: OrganizationId,
-  portalId: PortalId,
-  currentVersion: number,
-  asOf: Date,
-): Promise<Date | null> {
-  const [row] = await db
-    .select({ gracePeriodEnds: portalTokens.gracePeriodEnds })
-    .from(portalTokens)
-    .where(
-      and(
-        eq(portalTokens.organizationId, unbrand(organizationId)),
-        eq(portalTokens.portalId, unbrand(portalId)),
-        eq(portalTokens.status, 'rotating'),
-        lt(portalTokens.version, currentVersion),
-        gte(portalTokens.gracePeriodEnds, asOf),
-      ),
-    )
-    .orderBy(desc(portalTokens.gracePeriodEnds))
-    .limit(1)
-  return row?.gracePeriodEnds ?? null
-}
-
-// The batched form of outgoingGraceEnd: one statement for many Portals, each
-// keyed to its own current version.
+// One statement for many Portals, each keyed to its own current version.
 async function outgoingGraceEnds(
   db: Database,
   organizationId: OrganizationId,
@@ -127,6 +102,68 @@ async function outgoingGraceEnds(
   return latest
 }
 
+// Each Portal's current resolvable token, highest version first: during a
+// rotation grace window the outgoing token is also resolvable, but the Portal's
+// current token is the newer one. DISTINCT ON keeps that one per Portal.
+async function resolvableSummaries(
+  db: Database,
+  organizationId: OrganizationId,
+  portalIds: readonly PortalId[],
+  asOf: Date,
+) {
+  if (portalIds.length === 0) return []
+  const rows = await db
+    .selectDistinctOn([portalTokens.portalId], {
+      portalId: portalTokens.portalId,
+      version: portalTokens.version,
+      issuedAt: portalTokens.issuedAt,
+      gracePeriodEnds: portalTokens.gracePeriodEnds,
+      addressKeyVersion: portalTokens.addressEncryptionKeyVersion,
+      issuedBy: portalTokens.issuedBy,
+      accessArtifactId: portalAccessArtifacts.id,
+    })
+    .from(portalTokens)
+    .leftJoin(
+      portalAccessArtifacts,
+      and(
+        eq(portalAccessArtifacts.portalTokenId, portalTokens.id),
+        eq(portalAccessArtifacts.organizationId, portalTokens.organizationId),
+        eq(portalAccessArtifacts.propertyId, portalTokens.propertyId),
+        eq(portalAccessArtifacts.portalId, portalTokens.portalId),
+        eq(portalAccessArtifacts.status, 'published'),
+        isNull(portalAccessArtifacts.retiredAt),
+      ),
+    )
+    .where(
+      and(
+        eq(portalTokens.organizationId, unbrand(organizationId)),
+        inArray(
+          portalTokens.portalId,
+          portalIds.map((id) => unbrand(id)),
+        ),
+        resolvableAsOf(asOf),
+      ),
+    )
+    .orderBy(asc(portalTokens.portalId), desc(portalTokens.version))
+  // The outgoing grace, for every Portal whose current token carries none
+  // of its own, in one extra statement.
+  const outgoing = await outgoingGraceEnds(
+    db,
+    organizationId,
+    rows.filter((row) => row.gracePeriodEnds === null),
+    asOf,
+  )
+  return rows.map((row) => ({
+    portalId: toPortalId(row.portalId),
+    version: row.version,
+    issuedAt: row.issuedAt,
+    gracePeriodEnds: row.gracePeriodEnds ?? outgoing.get(row.portalId) ?? null,
+    hasPublishedAccessArtifact: row.accessArtifactId !== null,
+    addressKeyVersion: row.addressKeyVersion,
+    issuedBy: row.issuedBy,
+  }))
+}
+
 export const createPortalTokenRepository = (db: Database): PortalTokenRepository => ({
   findLatestForPortal: async (organizationId, portalId) =>
     trace('portalToken.findLatestForPortal', async () => {
@@ -144,105 +181,14 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
 
   findResolvableSummaryForPortal: async (organizationId, portalId, asOf) =>
     trace('portalToken.findResolvableSummaryForPortal', async () => {
-      // Highest version wins: during a rotation grace window the outgoing token
-      // is also resolvable, but the portal's current token is the newer one.
-      const [row] = await db
-        .select({
-          version: portalTokens.version,
-          issuedAt: portalTokens.issuedAt,
-          gracePeriodEnds: portalTokens.gracePeriodEnds,
-          addressKeyVersion: portalTokens.addressEncryptionKeyVersion,
-          issuedBy: portalTokens.issuedBy,
-          accessArtifactId: portalAccessArtifacts.id,
-        })
-        .from(portalTokens)
-        .leftJoin(
-          portalAccessArtifacts,
-          and(
-            eq(portalAccessArtifacts.portalTokenId, portalTokens.id),
-            eq(portalAccessArtifacts.organizationId, portalTokens.organizationId),
-            eq(portalAccessArtifacts.propertyId, portalTokens.propertyId),
-            eq(portalAccessArtifacts.portalId, portalTokens.portalId),
-            eq(portalAccessArtifacts.status, 'published'),
-            isNull(portalAccessArtifacts.retiredAt),
-          ),
-        )
-        .where(
-          and(
-            eq(portalTokens.organizationId, unbrand(organizationId)),
-            eq(portalTokens.portalId, unbrand(portalId)),
-            resolvableAsOf(asOf),
-          ),
-        )
-        .orderBy(desc(portalTokens.version))
-        .limit(1)
+      const [row] = await resolvableSummaries(db, organizationId, [portalId], asOf)
       if (!row) return null
-      return {
-        version: row.version,
-        issuedAt: row.issuedAt,
-        gracePeriodEnds:
-          row.gracePeriodEnds ??
-          (await outgoingGraceEnd(db, organizationId, portalId, row.version, asOf)),
-        hasPublishedAccessArtifact: row.accessArtifactId !== null,
-        addressKeyVersion: row.addressKeyVersion,
-        issuedBy: row.issuedBy,
-      }
+      const { portalId: _portalId, ...summary } = row
+      return summary
     }),
 
   findResolvableSummariesForPortals: async (organizationId, portalIds, asOf) =>
-    trace('portalToken.findResolvableSummariesForPortals', async () => {
-      if (portalIds.length === 0) return []
-      // The same predicate and ordering as findResolvableSummaryForPortal; DISTINCT
-      // ON keeps each Portal's highest resolvable version.
-      const rows = await db
-        .selectDistinctOn([portalTokens.portalId], {
-          portalId: portalTokens.portalId,
-          version: portalTokens.version,
-          issuedAt: portalTokens.issuedAt,
-          gracePeriodEnds: portalTokens.gracePeriodEnds,
-          addressKeyVersion: portalTokens.addressEncryptionKeyVersion,
-          issuedBy: portalTokens.issuedBy,
-          accessArtifactId: portalAccessArtifacts.id,
-        })
-        .from(portalTokens)
-        .leftJoin(
-          portalAccessArtifacts,
-          and(
-            eq(portalAccessArtifacts.portalTokenId, portalTokens.id),
-            eq(portalAccessArtifacts.organizationId, portalTokens.organizationId),
-            eq(portalAccessArtifacts.propertyId, portalTokens.propertyId),
-            eq(portalAccessArtifacts.portalId, portalTokens.portalId),
-            eq(portalAccessArtifacts.status, 'published'),
-            isNull(portalAccessArtifacts.retiredAt),
-          ),
-        )
-        .where(
-          and(
-            eq(portalTokens.organizationId, unbrand(organizationId)),
-            inArray(
-              portalTokens.portalId,
-              portalIds.map((id) => unbrand(id)),
-            ),
-            resolvableAsOf(asOf),
-          ),
-        )
-        .orderBy(asc(portalTokens.portalId), desc(portalTokens.version))
-      // The outgoing-grace rule of the single read, for every Portal whose
-      // current token carries no grace of its own, in one extra statement.
-      const outgoing = await outgoingGraceEnds(
-        db,
-        organizationId,
-        rows.filter((row) => row.gracePeriodEnds === null),
-        asOf,
-      )
-      return rows.map((row) => ({
-        portalId: toPortalId(row.portalId),
-        version: row.version,
-        issuedAt: row.issuedAt,
-        gracePeriodEnds: row.gracePeriodEnds ?? outgoing.get(row.portalId) ?? null,
-        hasPublishedAccessArtifact: row.accessArtifactId !== null,
-        addressKeyVersion: row.addressKeyVersion,
-        issuedBy: row.issuedBy,
-      }))
-    }),
+    trace('portalToken.findResolvableSummariesForPortals', () =>
+      resolvableSummaries(db, organizationId, portalIds, asOf),
+    ),
 })

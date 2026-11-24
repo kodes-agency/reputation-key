@@ -35,7 +35,7 @@ type Input = Readonly<{
   portalId: string
   view: PortalPrintKitView | null
   print: PrintSharePrint | null
-  saveMutation: PortalPrintKitResources['saveWordingMutation']
+  saveMutation: PortalPrintKitResources['saveWordingMutation'] | undefined
   /** Sets the choice's wording and own words: the opening one. */
   open: (wording: PrintSavedWording) => void
   /** Called once the server holds the words: the read is asked again, so a later visit opens on them. */
