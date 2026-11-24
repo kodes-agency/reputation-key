@@ -31,7 +31,6 @@ export type AiPropertyAggregateStorePort = Readonly<{
       analysisSequence: number
       reviewAnalysisEpoch: number
       propertyProfileVersion: number
-      calendarProfileVersion: 'property-calendar-v1'
     }>,
   ): Promise<
     | Readonly<{ status: 'applied'; aggregateRevision: number }>

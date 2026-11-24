@@ -140,7 +140,6 @@ export async function loadGuestVoiceReadContext(
   const endLocalDate = await deps.calendar.resolveLocalDate({
     reviewedAtEpochMillis: deps.nowEpochMillis(),
     timezone: gate.profile.timezone,
-    calendarProfileVersion: 'property-calendar-v1',
   })
   if (endLocalDate === null) return { status: 'preparing' }
   const scopes = guestVoiceScopes(input, gate, endLocalDate)
