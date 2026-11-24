@@ -26,15 +26,14 @@ import {
 } from '#/shared/domain/ids'
 import type { GoalMetricAggregateQuery } from './metric-repository.port.server'
 import { recordMetrics } from './record-metric.server'
-import { retractMetrics } from './retract-metric.server'
 import { METRIC_VERSION_IDS, metricRegistry } from './contracts'
 import { createAtomicMetricCommandStore } from './metric-command-store.server'
 import {
   onRatingRetractedDurably,
   onRatingSubmittedDurably,
 } from './record-portal-metric.server'
-import { createGoalMetricSourceStatus } from './goal-metric-source-status.server'
-import { createMetricRepository } from './metric-repository.server'
+import { inspectGoalMetricSourceStatus } from './goal-metric-source-status.server'
+import { queryGoalAggregate } from './metric-repository.server'
 import { createPortalAnalyticsRepository } from '../portal-results/portal-analytics.repository.server'
 import { createPropertyLocalDateResolver } from './property-local-date.server'
 
@@ -189,7 +188,7 @@ async function withdrawRating(
     factId,
   )
   await onRatingRetractedDurably({
-    retractMetrics: retractMetrics(metricDeps(db, occurredAt).commandStore),
+    retractMetrics: metricDeps(db, occurredAt).commandStore.retractMetrics,
   })({
     _tag: 'guest.rating.retracted',
     eventId,
@@ -275,13 +274,12 @@ describe.sequential('Rating correction readings (integration)', () => {
   it('counts the corrected rating once, for the count and for the average', async () => {
     await submitRating(ORIGINAL_EVENT, ORIGINAL_STARS, ORIGINAL_AT, null)
     await submitRating(CORRECTION_EVENT, CORRECTED_STARS, CORRECTION_AT, ORIGINAL_EVENT)
-    const repository = createMetricRepository(db)
 
-    await expect(repository.queryGoalAggregate(COUNT_QUERY)).resolves.toMatchObject({
+    await expect(queryGoalAggregate(db, COUNT_QUERY)).resolves.toMatchObject({
       readingCount: 1,
       sum: 1,
     })
-    await expect(repository.queryGoalAggregate(AVERAGE_QUERY)).resolves.toMatchObject({
+    await expect(queryGoalAggregate(db, AVERAGE_QUERY)).resolves.toMatchObject({
       readingCount: 1,
       sum: CORRECTED_STARS,
     })
@@ -290,14 +288,17 @@ describe.sequential('Rating correction readings (integration)', () => {
   it('leaves a Goal on either measure readable after a correction, not quarantined', async () => {
     await submitRating(ORIGINAL_EVENT, ORIGINAL_STARS, ORIGINAL_AT, null)
     await submitRating(CORRECTION_EVENT, CORRECTED_STARS, CORRECTION_AT, ORIGINAL_EVENT)
-    const status = createGoalMetricSourceStatus(db)
     const events = ['guest.rating.submitted', 'guest.rating.retracted']
 
-    await expect(status.inspect(COUNT_QUERY, events)).resolves.toMatchObject({
+    await expect(
+      inspectGoalMetricSourceStatus(db, COUNT_QUERY, events),
+    ).resolves.toMatchObject({
       state: 'complete',
       relevantFactCount: 2,
     })
-    await expect(status.inspect(AVERAGE_QUERY, events)).resolves.toMatchObject({
+    await expect(
+      inspectGoalMetricSourceStatus(db, AVERAGE_QUERY, events),
+    ).resolves.toMatchObject({
       state: 'complete',
       relevantFactCount: 2,
     })
@@ -345,12 +346,11 @@ describe.sequential('Rating correction readings (integration)', () => {
     await submitRating(ORIGINAL_EVENT, ORIGINAL_STARS, ORIGINAL_AT, null)
     await submitRating(CORRECTION_EVENT, CORRECTED_STARS, CORRECTION_AT, ORIGINAL_EVENT)
     await retractRating()
-    const repository = createMetricRepository(db)
 
-    await expect(repository.queryGoalAggregate(COUNT_QUERY)).resolves.toMatchObject({
+    await expect(queryGoalAggregate(db, COUNT_QUERY)).resolves.toMatchObject({
       readingCount: 0,
     })
-    await expect(repository.queryGoalAggregate(AVERAGE_QUERY)).resolves.toMatchObject({
+    await expect(queryGoalAggregate(db, AVERAGE_QUERY)).resolves.toMatchObject({
       readingCount: 0,
     })
   })
@@ -412,10 +412,9 @@ describe.sequential('Results and Goal rating counts (integration)', () => {
 
   /** The Goal's rating count measure and rating average measure, read as its page does. */
   async function goalTally(): Promise<RatingTally & Readonly<{ averageCount: number }>> {
-    const goals = createMetricRepository(db)
     const [count, average] = await Promise.all([
-      goals.queryGoalAggregate(COUNT_QUERY),
-      goals.queryGoalAggregate(AVERAGE_QUERY),
+      queryGoalAggregate(db, COUNT_QUERY),
+      queryGoalAggregate(db, AVERAGE_QUERY),
     ])
     expect(count.readingCount).toBe(count.sum)
     return { count: count.sum, stars: average.sum, averageCount: average.readingCount }

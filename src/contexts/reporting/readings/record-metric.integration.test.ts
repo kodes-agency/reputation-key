@@ -4,11 +4,8 @@ import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import {
-  recordMetric,
-  type RecordMetricDeps,
-  type RecordMetricInput,
-} from './record-metric.server'
+import { type RecordMetricDeps, type RecordMetricInput } from './record-metric.server'
+import { recordMetric } from './single-reading.test-fixtures'
 import type {
   MetricSourceReceipt,
   RecordMetricsCommand,

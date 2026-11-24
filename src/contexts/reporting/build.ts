@@ -31,8 +31,7 @@ import type { MetricPublicApi, PortalRatingGoalReadApi } from './public-api'
 import { createPropertyLocalDateResolver } from './readings/property-local-date.server'
 import { createGoalMetricSnapshotReader } from './readings/goal-metric-snapshot.server'
 import { createAtomicMetricCommandStore } from './readings/metric-command-store.server'
-import { recordMetric, recordMetrics } from './readings/record-metric.server'
-import { retractMetrics } from './readings/retract-metric.server'
+import { recordMetrics } from './readings/record-metric.server'
 import { registerGuestMetricConsumers } from './readings/guest-outbox-consumers.server'
 import { queryGoalMetric } from './readings/query-goal-metric.server'
 import { createPortalAnalyticsRepository } from './portal-results/portal-analytics.repository.server'
@@ -207,9 +206,7 @@ function buildMetricModule(input: ReportingContextBuildInput) {
     registry,
     resolvePropertyLocalDate: createPropertyLocalDateResolver(input.db),
   }
-  const record = recordMetric(recordDeps)
   const recordBatch = recordMetrics(recordDeps)
-  const retractBatch = retractMetrics(commandStore)
 
   const findGroupForPortal = async (
     organizationId: OrganizationId,
@@ -227,7 +224,7 @@ function buildMetricModule(input: ReportingContextBuildInput) {
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry): void => {
     registerGuestMetricConsumers(consumerRegistry, {
       recordMetrics: recordBatch,
-      retractMetrics: retractBatch,
+      retractMetrics: commandStore.retractMetrics,
       findGroupForPortal,
     })
     registerCurrentGoogleReputationConsumer(consumerRegistry, currentGoogleReputation)
@@ -255,7 +252,7 @@ function buildMetricModule(input: ReportingContextBuildInput) {
     worker: Object.freeze({ registerOutboxConsumers }),
     internal: {
       repos: {} as const,
-      useCases: { recordMetric: record },
+      useCases: {},
     },
   } as const
 }

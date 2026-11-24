@@ -23,6 +23,7 @@ import {
   type MetricReading,
   type ReadingResult,
 } from '../domain/metric-reading'
+import { recordOne, retractOne } from './single-reading.test-fixtures'
 import { createAtomicMetricCommandStore } from './metric-command-store.server'
 import type {
   GuestReviewLinkClicked,
@@ -288,7 +289,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     const store = createAtomicMetricCommandStore(db, randomUUID)
     const reading = makeReading()
 
-    const inserted = await store.recordMetric({ reading })
+    const inserted = await recordOne(store, { reading })
 
     expect(inserted).toEqual({ status: 'recorded', reading })
     const rows = await pool.query(
@@ -394,13 +395,13 @@ describe.sequential('metricCommandStore (integration)', () => {
       value: 1,
       definitionVersionId: '11111111-1111-4111-8111-111111111204',
     })
-    await store.recordMetric({
+    await recordOne(store, {
       reading: original,
       destinationKind: 'secondary_link',
     })
     const otherLinkReading = { ...original, portalLinkId: randomUUID() }
     await expect(
-      store.recordMetric({
+      recordOne(store, {
         reading: otherLinkReading,
         destinationKind: 'secondary_link',
       }),
@@ -411,7 +412,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       sourceEventId: 'wrong-link-replacement',
     }
     await expect(
-      store.recordMetric({
+      recordOne(store, {
         reading: wrongReplacement,
         destinationKind: 'secondary_link',
         supersedesSourceEventId: original.sourceEventId,
@@ -422,7 +423,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       id: metricReadingId(randomUUID()),
       sourceEventId: 'replacement-link-tap',
     }
-    await store.recordMetric({
+    await recordOne(store, {
       reading: replacement,
       destinationKind: 'secondary_link',
       supersedesSourceEventId: original.sourceEventId,
@@ -438,7 +439,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     ])
     expect(
       (
-        await store.recordMetric({
+        await recordOne(store, {
           reading: original,
           destinationKind: 'secondary_link',
         })
@@ -678,7 +679,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       retentionClass: 'guest_gateway_24_month',
       staffAttribution: STAFF_ATTRIBUTION,
     })
-    await store.recordMetric({ reading })
+    await recordOne(store, { reading })
 
     const command = {
       organizationId: ORG_ID,
@@ -690,11 +691,11 @@ describe.sequential('metricCommandStore (integration)', () => {
       occurredAt: new Date('2026-06-01T12:30:00.000Z'),
       staffAttribution: reading.staffAttribution,
     }
-    await expect(store.retractMetric(command)).resolves.toEqual({
+    await expect(retractOne(store, command)).resolves.toEqual({
       status: 'retracted',
       correctedReadingId: READING_ID,
     })
-    await expect(store.retractMetric(command)).resolves.toEqual({
+    await expect(retractOne(store, command)).resolves.toEqual({
       status: 'duplicate',
       correctedReadingId: READING_ID,
     })
@@ -755,14 +756,14 @@ describe.sequential('metricCommandStore (integration)', () => {
       sourcePolicy: 'first_party_guest_gateway_metric',
       retentionClass: 'guest_gateway_24_month',
     })
-    await store.recordMetric({
+    await recordOne(store, {
       reading: otherReading,
     })
 
     // Property, Portal, definition and superseded source all name the other
     // tenant's reading; only the organization is the caller's own.
     await expect(
-      store.retractMetric({
+      retractOne(store, {
         organizationId: ORG_ID,
         propertyId: OTHER_PROP_ID,
         portalId: OTHER_PORTAL_ID,
