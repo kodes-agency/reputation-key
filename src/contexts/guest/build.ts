@@ -19,12 +19,9 @@ import {
   type GuestWithdrawalJournalConfig,
 } from './responses/guest-withdrawal-journal.server'
 import { createAtomicGuestObservationStore } from './page/guest-observation-store.server'
-import { createPortalContextResolver } from './page/portal-context-resolver.server'
-import { createPublicPortalLookup } from './page/public-portal-lookup.server'
 import { recordScan } from './page/record-scan.server'
 import { trackReviewLinkClick } from './page/track-review-link-click.server'
 import { resolveLinkAndTrack } from './page/resolve-link-and-track.server'
-import { resolvePortalContext } from './page/resolve-portal-context.server'
 import { getPublicPortal } from './page/get-public-portal.server'
 import {
   guestResponseLifecycle,
@@ -175,8 +172,6 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     operatorAuthority: deps.operatorErasureAuthority,
     resolvePrimaryStaffAttribution: deps.resolvePrimaryStaffAttribution,
   })
-  const portalContextResolver = createPortalContextResolver(deps.portalApi)
-  const publicPortalLookup = createPublicPortalLookup(deps.portalApi)
   const trackClick = trackReviewLinkClick({
     observationStore: guestObservationStore,
     clock: deps.clock,
@@ -195,14 +190,13 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     }),
     trackReviewLinkClick: trackClick,
     resolveLinkAndTrack: resolveLinkAndTrack({
-      publicPortalLookup,
+      findPublicPortalByToken: deps.portalApi.findPublicPortalByToken,
       trackClick,
       reportObservationLoss,
     }),
-    resolvePortalContext: resolvePortalContext({
-      portalContextResolver,
+    getPublicPortal: getPublicPortal({
+      findPublicPortalByToken: deps.portalApi.findPublicPortalByToken,
     }),
-    getPublicPortal: getPublicPortal({ publicPortalLookup }),
     responseLifecycle,
     responseCeiling,
     guestSessions,
@@ -233,7 +227,6 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
      * controls that must stay composed with Guest-owned persistence. */
     requests: Object.freeze(useCases),
     getPublicPortal: useCases.getPublicPortal,
-    resolvePortalContext: useCases.resolvePortalContext,
     ...attributionPublicApi,
     ...integrityPublicApi,
   }

@@ -110,13 +110,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/guest/page/portal-context-resolver.server.ts',
-    symbol: 'resolve',
-    reason:
-      'Unauthenticated guest resolution starts from an unguessable Portal UUID capability and must discover the owning tenant before any scoped operation.',
-    category: 'PUBLIC-TOKEN',
-  },
-  {
     file: 'src/contexts/identity/infrastructure/repositories/capability-refusal.repository.ts',
     symbol: 'loadPermitOutcomes',
     reason:
