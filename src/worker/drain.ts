@@ -11,24 +11,12 @@
 // so the platform records an unclean stop (Railway's drainingSeconds is the
 // outer bound; DRAIN_BUDGET_MS must stay below it).
 
+import type { ContainerShutdown } from '#/composition/container-lifecycle'
 import { disposeResources, type DisposalResult } from '#/shared/lifecycle/disposer'
 
 export interface NamedCloseable {
   readonly label: string
   readonly close: () => Promise<void>
-}
-
-/**
- * Map an optional BullMQ worker/queue to a NamedCloseable, or undefined when
- * the resource was never created (no Redis, or the gated domain-events lane).
- * Lives here (not inline in the entry point) so the mapping is unit-tested —
- * the worker entry point itself has no hermetic coverage path.
- */
-export function namedCloseable<T extends { close(): Promise<void> }>(
-  label: string,
-  resource: T | undefined,
-): NamedCloseable | undefined {
-  return resource ? { label, close: () => resource.close() } : undefined
 }
 
 /** Narrow structural subset of the pino logger used by the drain loop. */
@@ -37,27 +25,21 @@ export interface DrainLogger {
   error: (obj: Record<string, unknown>, msg: string) => void
 }
 
-/** The container's own release seam: the worker built the container, so the drain releases it. */
-export interface ContainerRelease {
-  readonly run: () => Promise<void>
-}
-
 /** `failed` names the closes that rejected; `stuck` the labels unfinished when the budget fired. */
 export type DrainResult = DisposalResult
 
 /**
  * Close the workers together, release the container, then close `resources` in
- * the order given. Undefined entries (lanes that were never started) are
- * skipped silently. A rejecting close is logged and does not stop the sequence;
+ * the order given. A rejecting close is logged and does not stop the sequence;
  * it is reported in `failed` so the caller can exit nonzero. The whole sequence
  * races `budgetMs`; on expiry the labels not yet closed are reported in
  * `stuck`. The loop itself is not cancellable — a hung close keeps its promise
  * pending in the background until the process exits.
  */
 export function drainWorkerResources(options: {
-  readonly workers: ReadonlyArray<NamedCloseable | undefined>
-  readonly resources: ReadonlyArray<NamedCloseable | undefined>
-  readonly shutdown?: ContainerRelease
+  readonly workers: ReadonlyArray<NamedCloseable>
+  readonly resources: ReadonlyArray<NamedCloseable>
+  readonly shutdown?: ContainerShutdown
   readonly budgetMs: number
   readonly logger: DrainLogger
 }): Promise<DrainResult> {
@@ -74,20 +56,18 @@ export function drainWorkerResources(options: {
       }
     },
   })
-  const present = (items: ReadonlyArray<NamedCloseable | undefined>) =>
-    items.filter((item): item is NamedCloseable => item !== undefined)
   const container: NamedCloseable[] = shutdown
     ? [{ label: 'container', close: () => shutdown.run() }]
     : []
   return disposeResources(
     [
-      present(options.workers).map((worker) =>
+      options.workers.map((worker) =>
         hook(worker, 'Worker drained successfully', 'Error draining worker'),
       ),
       ...container.map((item) => [
         hook(item, 'Container resources released', 'Error releasing container resources'),
       ]),
-      ...present(options.resources).map((resource) => [
+      ...options.resources.map((resource) => [
         hook(resource, 'Resource closed successfully', 'Error closing resource'),
       ]),
     ],
