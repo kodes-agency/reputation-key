@@ -286,7 +286,6 @@ describe('reply v2 provider preparation and acceptance', () => {
       now: () => NOW,
       preparer: { prepare: () => prepared },
       admission: {
-        readiness: async () => true,
         settle: charge,
         authorize: async () => ({
           status: 'authorized',

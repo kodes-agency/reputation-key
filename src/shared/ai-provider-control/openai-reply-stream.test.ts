@@ -146,7 +146,6 @@ function harness(mode: Mode) {
     now: () => NOW,
     preparer: { prepare: () => prepared },
     admission: {
-      readiness: async () => true,
       authorize: async () => ({ status: 'authorized', admission }),
       settle,
     },
