@@ -7,7 +7,9 @@ import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
 import {
+  itemFromRow,
   sourceCommandPermission,
+  validCycleNumber,
   webActorId,
 } from '#/contexts/reputation/inbox/inbox-command-guards.server'
 import type {
@@ -15,7 +17,7 @@ import type {
   InboxCommandAuthorityPrincipal,
   InboxCommandAuthorityRequirement,
 } from '#/contexts/reputation/inbox/inbox-command-authority.server'
-import { updateItemRow } from '#/contexts/reputation/inbox/inbox-source-projection.server'
+import { updatePersistedItemRow } from '#/contexts/reputation/inbox/inbox-source-projection.server'
 
 export type CommandRuntime = Readonly<{
   db: Database
@@ -43,7 +45,11 @@ export type CommandRuntime = Readonly<{
     notFoundMessage: string,
     event: DomainEvent | null,
     at: Date,
-    appendHistory?: (tx: Tx, row: InboxItem) => Promise<void>,
+    appendHistory?: (
+      tx: Tx,
+      row: InboxItem,
+      handlingCycleNumber: number | null,
+    ) => Promise<void>,
     lent?: Tx,
   ) => Promise<InboxItem>
 }>
@@ -104,7 +110,8 @@ export const createCommandRuntime = (
    *
    * `appendHistory` runs between the compare-and-swap and the outbox insert so
    * an append-only history row, the projection update and the fact either all
-   * commit or none do.
+   * commit or none do. It receives the cycle number the compare-and-swap row
+   * carries, which is the cycle the decision landed in.
    */
   const transition = async (
     span: string,
@@ -113,7 +120,11 @@ export const createCommandRuntime = (
     notFoundMessage: string,
     event: DomainEvent | null,
     at: Date,
-    appendHistory?: (tx: Tx, row: InboxItem) => Promise<void>,
+    appendHistory?: (
+      tx: Tx,
+      row: InboxItem,
+      handlingCycleNumber: number | null,
+    ) => Promise<void>,
     lent?: Tx,
   ): Promise<InboxItem> => {
     return trace(span, async () => {
@@ -124,8 +135,11 @@ export const createCommandRuntime = (
           event?.occurredAt ?? at,
           authorityRequirements(item, actorPrincipals(item, event)),
         )
-        const row = await updateItemRow(tx, item, set, notFoundMessage)
-        if (appendHistory) await appendHistory(tx, row)
+        const persisted = await updatePersistedItemRow(tx, item, set, notFoundMessage)
+        const row = itemFromRow(persisted)
+        if (appendHistory) {
+          await appendHistory(tx, row, validCycleNumber(persisted.currentCycleNumber))
+        }
         if (event) await insertOutboxRow(tx, event)
         return row
       })

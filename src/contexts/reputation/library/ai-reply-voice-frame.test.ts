@@ -11,10 +11,10 @@ const ORGANIZATION = organizationId('org-1')
 const PROPERTY = propertyId('10000000-0000-4000-8000-000000000001')
 const TX = {} as Tx
 
-function api(loader: ReplyLibraryRepository['loadVoiceOverridesForShare'] | undefined) {
+function api(loader: ReplyLibraryRepository['loadVoiceOverridesForShare']) {
   const repository = {
     loadSnapshot: vi.fn(),
-    ...(loader ? { loadVoiceOverridesForShare: loader } : {}),
+    loadVoiceOverridesForShare: loader,
   } as unknown as ReplyLibraryRepository
   const reviews = { findById: vi.fn() } as unknown as ReviewRepository
   return createAiReplyVoicePublicApi({ repository, reviews })
@@ -46,12 +46,6 @@ describe('isCurrentVoice', () => {
   it('rejects when no voice record can be read', async () => {
     const voice = api(vi.fn(async () => null))
     await expect(voice.isCurrentVoice(TX, input(currentDigest))).resolves.toBe(false)
-  })
-
-  it('rejects when the repository cannot read voices inside the transaction', async () => {
-    await expect(api(undefined).isCurrentVoice(TX, input(currentDigest))).resolves.toBe(
-      false,
-    )
   })
 
   it('rejects a language group without a built-in voice without reading storage', async () => {

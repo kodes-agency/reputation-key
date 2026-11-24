@@ -78,7 +78,7 @@ export type GooglePerformanceRuntimeDeps = Readonly<{
   encryption: ActiveConnectionTokenProviderDeps['encryption']
   refreshGoogleToken: ActiveConnectionTokenProviderDeps['refreshGoogleToken']
   resolveActiveMember: ActiveMemberAuthResolver
-  propertyBindingApi: PropertyGoogleBindingPublicApi | undefined
+  propertyBindingApi: PropertyGoogleBindingPublicApi
   executor: GoogleAuthorizedProviderExecutor | undefined
   withSingle401Refresh: GoogleRefreshingProviderExecutorFactory
   authorizeContent: PerformanceContentAuthorizer | undefined
@@ -113,13 +113,7 @@ export const createGooglePerformanceRuntime = (
     leases,
     resolveActiveMember,
   } = deps
-  if (
-    !propertyBindingApi ||
-    !executor ||
-    !authorizeContent ||
-    !principalKeys ||
-    !leases
-  ) {
+  if (!executor || !authorizeContent || !principalKeys || !leases) {
     return UNAVAILABLE
   }
   const tokenProvider = createActiveConnectionTokenProvider({

@@ -19,6 +19,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ReviewId } from '#/shared/domain/ids'
 import type { Reply } from '../domain/review-types'
 import { reviewError } from '../domain/review-errors'
+import { isTerminalAmbiguity } from '../domain/reply-command-preconditions'
 import type { ReplyRepository } from '../replies/reply-repository.port.server'
 import type { ReviewRepository } from '../reviews/review-repository.port.server'
 import type { ReplyCommandStore } from '../replies/reply-command-store.port.server'
@@ -89,9 +90,7 @@ function isCheckable(reply: Reply): boolean {
   }
   return (
     reply.status === 'publish_failed' &&
-    (reply.publicationState === 'ambiguous' ||
-      (reply.publicationState === 'terminal' &&
-        reply.publicationLastErrorClass === 'ambiguous'))
+    (reply.publicationState === 'ambiguous' || isTerminalAmbiguity(reply))
   )
 }
 

@@ -111,7 +111,6 @@ export const reconnectCommand = (
   encryptedAccessToken: 'enc-a2',
   encryptedRefreshToken: 'enc-r2',
   tokenExpiresAt: new Date('2026-06-01T14:00:00.000Z'),
-  visibility: 'organization',
   event: connectedEvent(),
 })
 

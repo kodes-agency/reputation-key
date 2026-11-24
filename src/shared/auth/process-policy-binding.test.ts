@@ -240,8 +240,6 @@ describe('buildCapabilityPolicyHandle returns instead of installing', () => {
       'currentVersion',
       'delayedExecutionPolicy',
       'executionPolicy',
-      'refresh',
-      'refreshRequired',
     ])
     expect(initExecutionPolicySpy).toHaveBeenCalledTimes(0)
     expect(initDelayedExecutionPolicySpy).toHaveBeenCalledTimes(0)

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createGoalProgramService } from './goal-programs.server'
 import {
-  createGoalProgramService,
   GoalProgramError,
   type GoalProgramDependencies,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import { propertyGoal, NOV_1, DEC_1 } from './monthly-portal-goal.test-fixtures'
 
 const now = new Date('2026-12-02T12:00:00Z')

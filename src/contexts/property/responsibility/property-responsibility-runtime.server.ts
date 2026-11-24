@@ -14,13 +14,3 @@ export type PropertyResponsibilityRuntime = Readonly<{
   /** End the user's intervals (all, or the named properties) and return the facts. */
   releaseForUser: PropertyResponsibleManagerRepository['releaseForUser']
 }>
-
-export function createPropertyResponsibilityRuntime(
-  repo: PropertyResponsibleManagerRepository,
-): PropertyResponsibilityRuntime {
-  return Object.freeze({
-    listActiveForUser: (organizationId, userId) =>
-      repo.listActiveForUser(organizationId, userId),
-    releaseForUser: (input) => repo.releaseForUser(input),
-  })
-}

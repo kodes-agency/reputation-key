@@ -1,7 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Pool } from 'pg'
-import { bulkUpdateInboxStatus } from './bulk-update-inbox-status.server'
-import type { BulkUpdateInboxStatusInput } from '#/contexts/reputation/inbox/inbox-status-commands.server'
+import {
+  bulkUpdateInboxStatus,
+  type BulkUpdateInboxStatusInput,
+} from './bulk-update-inbox-status.server'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import {

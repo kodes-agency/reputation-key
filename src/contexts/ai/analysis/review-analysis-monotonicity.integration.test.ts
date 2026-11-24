@@ -125,8 +125,10 @@ async function settleWithoutProvider(
 const dependencies = {
   analyzeReviewEvent: settleWithoutProvider,
   receipts,
-
   backlog: { enqueue: async () => {} },
+  applyAiAuthorizationLifecycle: async () => {
+    throw new Error('authorization lifecycle is not under test')
+  },
   nowEpochMillis: () => Date.now(),
 } satisfies RegisterAiConsumersInput
 

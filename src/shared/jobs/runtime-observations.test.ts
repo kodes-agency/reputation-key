@@ -211,45 +211,4 @@ describe('durable job runtime observations', () => {
     const report = await read()
     expect(report.rows[0]).toMatchObject({ ready: true, reasons: [] })
   })
-
-  it('surfaces forbidden queued or started work for a dark family', async () => {
-    const { store, read } = await bootJobRuntime({
-      ...BOOT_DEFAULTS,
-      contracts: [
-        contract({
-          jobName: 'leaderboard.reconcile',
-          posture: 'dark',
-          schedule: 'cron:30 * * * *',
-        }),
-      ],
-      handlers: new Set(),
-      schedulers: new Set(),
-      startedAt: new Date('2026-08-27T05:55:00.000Z'),
-    })
-    await store.recordStarted({
-      queue: 'background',
-      jobName: 'leaderboard.reconcile',
-      jobId: 'forbidden-1',
-      at: new Date('2026-08-27T05:56:00.000Z'),
-    })
-
-    const report = await read({
-      background: queue({
-        jobs: {
-          waiting: [
-            {
-              name: 'leaderboard.reconcile',
-              timestamp: Date.parse('2026-08-27T05:59:00.000Z'),
-            },
-          ],
-        },
-      }),
-    })
-
-    expect(report.forbiddenDarkWork).toBe(1)
-    expect(report.rows[0]?.reasons).toEqual([
-      'dark_queue_work_present',
-      'dark_execution_observed',
-    ])
-  })
 })

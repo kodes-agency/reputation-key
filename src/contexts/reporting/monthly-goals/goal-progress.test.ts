@@ -10,7 +10,7 @@ import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import { METRIC_VERSION_IDS } from '../readings/contracts'
 import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.server'
 import { createGoalProgressReader, type GoalProgressDeps } from './goal-progress.server'
-import type { GoalActor } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 
 const actor: GoalActor = {
   organizationId: 'org-1',

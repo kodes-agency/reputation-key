@@ -4,11 +4,11 @@ import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { findMetricVersionById } from '../readings/contracts'
+import { createGoalProgramService } from './goal-programs.server'
 import {
-  createGoalProgramService,
   type GoalActor,
   type GoalMetricReadPort,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import { createGoalProgramRepository } from './goal-program-repository.server'
 import { readGoalMetricSourceHead } from '../readings/goal-metric-source-head.server'
 
@@ -81,6 +81,9 @@ describe.sequential(
         },
         policy: { authorize: async () => undefined },
         subjects: {
+          ratingSubjectsSkipPrivateRating: async () => false,
+          staffTargetProblem: async () => null,
+          staffTargetAllowed: async () => true,
           getTimezone: async () => clock.timezone,
           subjectBelongsToProperty: async () => true,
         },

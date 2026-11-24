@@ -24,7 +24,7 @@ import { HTTP_STATUS } from '#/shared/http/status'
 import { portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { getPortalResultsOverviewDto } from '../property-overview/contracts'
 import type { PortalResultsRosterEntry, PortalResultsTimeRange } from '../public-api'
-import { isDashboardError } from '../domain/dashboard-errors'
+import { dashboardError, isDashboardError } from '../domain/dashboard-errors'
 import {
   organizationRoster,
   readablePropertyIds,
@@ -78,13 +78,7 @@ async function readProperty(
     propertyPublicApi.getPropertyTimezone(ctx.organizationId, pid),
   ])
   if (!timezone) {
-    // Server helpers construct the public error shape without importing a
-    // domain error constructor across the server/domain boundary.
-    throw {
-      _tag: 'DashboardError' as const,
-      code: 'not_found' as const,
-      message: 'Property timezone unavailable',
-    }
+    throw dashboardError('not_found', 'Property timezone unavailable')
   }
   const portals: PortalResultsRosterEntry[] = rows.map((row) => ({
     portalId: portalId(row.portalId),

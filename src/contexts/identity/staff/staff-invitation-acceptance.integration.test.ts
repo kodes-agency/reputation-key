@@ -231,7 +231,11 @@ it('serializes acceptance with an email correction in invitation-first lock orde
       userId: userId(row.userId),
       headers: new Headers(),
     }),
-    replaceStaffInvitation(db, () => NOW)(
+    replaceStaffInvitation(
+      db,
+      () => NOW,
+      7 * 86_400_000,
+    )(
       {
         organizationId: row.organizationId,
         participationId: row.participationId,

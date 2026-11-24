@@ -40,7 +40,6 @@ const property = buildPropertyContext({
   repo: createPropertyRepository(db),
   outboxRepo: createOutboxRepository(db),
   clock: () => RESTORED_AT,
-  idGen: () => 'f5200000-0000-4000-8000-0000000000ff',
   staffPublicApi: {
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],

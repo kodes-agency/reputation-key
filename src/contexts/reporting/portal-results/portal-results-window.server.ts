@@ -1,8 +1,8 @@
 import {
   propertyWallClockAt,
-  propertyWallClockToInstant,
   shiftPropertyLocalDays,
 } from '#/shared/domain/property-calendar'
+import { localMidnight } from '#/shared/domain/local-days'
 import { localDaysWindow, priorPeriodDates } from './time-range.server'
 import type { PortalResultsTimeRange } from './get-portal-results-overview.server'
 
@@ -19,30 +19,15 @@ export function portalResultsWindow(
   )
     return localDaysWindow(preset, now, timezone)
   const day = propertyWallClockAt(now, timezone)
-  const midnight = (year: number, month: number, date: number) => {
-    const normalized = new Date(Date.UTC(year, month - 1, date))
-    return propertyWallClockToInstant(
-      {
-        year: normalized.getUTCFullYear(),
-        month: normalized.getUTCMonth() + 1,
-        day: normalized.getUTCDate(),
-        hour: 0,
-        minute: 0,
-        second: 0,
-        millisecond: 0,
-      },
-      timezone,
-    )
-  }
   if (preset === 'last-month')
     return {
-      startDate: midnight(day.year, day.month - 1, 1),
-      endDate: midnight(day.year, day.month, 1),
+      startDate: localMidnight(day.year, day.month - 1, 1, timezone),
+      endDate: localMidnight(day.year, day.month, 1, timezone),
     }
   const weekday = new Date(Date.UTC(day.year, day.month - 1, day.day)).getUTCDay()
   const date =
     preset === 'month' ? 1 : preset === 'week' ? day.day - ((weekday + 6) % 7) : day.day
-  return { startDate: midnight(day.year, day.month, date), endDate: now }
+  return { startDate: localMidnight(day.year, day.month, date, timezone), endDate: now }
 }
 
 export function portalResultsPrior(

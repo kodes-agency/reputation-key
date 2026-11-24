@@ -171,7 +171,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       authorizationLineageId: LINEAGE_ID,
       reviewAnalysisEpoch: 1,
       propertyProfileVersion: 1,
-      analysisProfileVersion: 'review-analysis-v3',
       derivative: DERIVATIVE,
       generatedAtEpochMillis: COMPLETED_AT.getTime(),
       expiresAtEpochMillis: ANALYSIS_EXPIRES_AT.getTime(),
@@ -229,23 +228,20 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     })
 
   const read = (analysisSequence = 1, outputStore = outputs) =>
-    outputStore.readAnalysisForDelivery(
-      {
-        organizationId: ORGANIZATION_ID,
-        actorUserId: userId(ACTOR_USER_ID),
-        propertyId: PROPERTY_ID,
-        reviewId: REVIEW_ID,
-        authorizationLineageId: LINEAGE_ID,
-        reviewAnalysisEpoch: 1,
-        sourceEpoch: SOURCE_EPOCH,
-        sourceRevision: SOURCE_REVISION,
-        analysisSequence,
-        propertyProfileVersion: 1,
-        analysisProfileVersion: 'review-analysis-v3',
-        nowEpochMillis: COMPLETED_AT.getTime(),
-      },
-      async (result) => result,
-    )
+    outputStore.readAnalysisForDelivery({
+      organizationId: ORGANIZATION_ID,
+      actorUserId: userId(ACTOR_USER_ID),
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      authorizationLineageId: LINEAGE_ID,
+      reviewAnalysisEpoch: 1,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      analysisSequence,
+      propertyProfileVersion: 1,
+      analysisProfileVersion: 'review-analysis-v3',
+      nowEpochMillis: COMPLETED_AT.getTime(),
+    })
 
   const analysesOf = (id: string) =>
     db.select().from(aiReviewAnalyses).where(eq(aiReviewAnalyses.reviewId, id))
@@ -465,7 +461,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
 
   it('writes nothing, and leaves the operation executing, when a fence does not hold', async () => {
     const refusals = [
-      { analysisProfileVersion: 'review-analysis-v2' },
       { analysisSequence: 2 },
       {
         providerCompletion: {

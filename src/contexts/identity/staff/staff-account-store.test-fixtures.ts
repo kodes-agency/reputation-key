@@ -99,7 +99,7 @@ export function useStaffAccountEnv() {
         })
       }
     }
-    const base = createStaffAccountStore(db, () => NOW, newTestId)
+    const base = createStaffAccountStore(db, () => NOW, newTestId, 7 * 86_400_000)
     const decorate = (store: typeof base): typeof base => ({
       ...store,
       withAddressLock: (email, run) =>
@@ -215,7 +215,11 @@ export function useStaffAccountEnv() {
     email = 'corrected@example.com',
     spend: () => Promise<void> = async () => undefined,
   ) {
-    return replaceStaffInvitation(db, () => NOW)(
+    return replaceStaffInvitation(
+      db,
+      () => NOW,
+      7 * 86_400_000,
+    )(
       {
         organizationId: h.row.organizationId,
         participationId: added.participationId,

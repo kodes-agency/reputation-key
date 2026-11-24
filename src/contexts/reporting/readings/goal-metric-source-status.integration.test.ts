@@ -16,7 +16,7 @@ import {
 } from '#/shared/domain/ids'
 import type { GoalMetricAggregateQuery } from './metric-repository.port.server'
 import { createGoalMetricSnapshotReader } from './goal-metric-snapshot.server'
-import { createGoalMetricSourceStatus } from './goal-metric-source-status.server'
+import { inspectGoalMetricSourceStatus } from './goal-metric-source-status.server'
 import { createAtomicMetricCommandStore } from './metric-command-store.server'
 import { createPropertyLocalDateResolver } from './property-local-date.server'
 import { recordMetrics } from './record-metric.server'
@@ -249,12 +249,12 @@ describe.sequential('Goal metric durable source status (integration)', () => {
   })
 
   it('treats an empty source period as complete, not as an implicit reading', async () => {
-    const status = createGoalMetricSourceStatus(db)
     await expect(
-      status.inspect(query({ kind: 'property', propertyId: PROPERTY }), [
-        'guest.rating.submitted',
-        'guest.rating.retracted',
-      ]),
+      inspectGoalMetricSourceStatus(
+        db,
+        query({ kind: 'property', propertyId: PROPERTY }),
+        ['guest.rating.submitted', 'guest.rating.retracted'],
+      ),
     ).resolves.toEqual({
       state: 'complete',
       relevantFactCount: 0,
@@ -290,7 +290,8 @@ describe.sequential('Goal metric durable source status (integration)', () => {
     })
 
     await expect(
-      createGoalMetricSourceStatus(db).inspect(
+      inspectGoalMetricSourceStatus(
+        db,
         {
           ...query({ kind: 'portal', portalId: PORTAL }),
           periodStart: new Date('2026-09-01T00:00:00.000Z'),
@@ -306,18 +307,17 @@ describe.sequential('Goal metric durable source status (integration)', () => {
   })
 
   it('requires a durable receipt and the exact subject attribution', async () => {
-    const status = createGoalMetricSourceStatus(db)
     await insertSource(SUBMITTED_EVENT, 'guest.rating.submitted')
 
     await expect(
-      status.inspect(query({ kind: 'portal', portalId: PORTAL }), [
+      inspectGoalMetricSourceStatus(db, query({ kind: 'portal', portalId: PORTAL }), [
         'guest.rating.submitted',
       ]),
     ).resolves.toMatchObject({ state: 'pending', pendingFactCount: 1 })
 
     await receipt(SUBMITTED_EVENT, 'obsolete')
     await expect(
-      status.inspect(query({ kind: 'portal', portalId: PORTAL }), [
+      inspectGoalMetricSourceStatus(db, query({ kind: 'portal', portalId: PORTAL }), [
         'guest.rating.submitted',
       ]),
     ).resolves.toMatchObject({ state: 'unavailable', reason: 'source_fact_obsolete' })
@@ -328,9 +328,11 @@ describe.sequential('Goal metric durable source status (integration)', () => {
     `)
     await insertReading()
     await expect(
-      status.inspect(query({ kind: 'portal_group', portalGroupId: GROUP }), [
-        'guest.rating.submitted',
-      ]),
+      inspectGoalMetricSourceStatus(
+        db,
+        query({ kind: 'portal_group', portalGroupId: GROUP }),
+        ['guest.rating.submitted'],
+      ),
     ).resolves.toMatchObject({ state: 'complete', relevantFactCount: 1 })
 
     await db.execute(sql`
@@ -341,9 +343,11 @@ describe.sequential('Goal metric durable source status (integration)', () => {
       WHERE id = ${SUBMITTED_EVENT}::uuid
     `)
     await expect(
-      status.inspect(query({ kind: 'portal_group', portalGroupId: GROUP }), [
-        'guest.rating.submitted',
-      ]),
+      inspectGoalMetricSourceStatus(
+        db,
+        query({ kind: 'portal_group', portalGroupId: GROUP }),
+        ['guest.rating.submitted'],
+      ),
     ).resolves.toMatchObject({ state: 'quarantined', reason: 'correction_missing' })
     await insertPriorReading()
     await db.execute(sql`
@@ -357,18 +361,22 @@ describe.sequential('Goal metric durable source status (integration)', () => {
       )
     `)
     await expect(
-      status.inspect(query({ kind: 'portal_group', portalGroupId: GROUP }), [
-        'guest.rating.submitted',
-      ]),
+      inspectGoalMetricSourceStatus(
+        db,
+        query({ kind: 'portal_group', portalGroupId: GROUP }),
+        ['guest.rating.submitted'],
+      ),
     ).resolves.toMatchObject({ state: 'complete', relevantFactCount: 1 })
 
     await db.execute(sql`
       UPDATE metric_readings SET group_id = NULL WHERE id = ${READING}::uuid
     `)
     await expect(
-      status.inspect(query({ kind: 'portal_group', portalGroupId: GROUP }), [
-        'guest.rating.submitted',
-      ]),
+      inspectGoalMetricSourceStatus(
+        db,
+        query({ kind: 'portal_group', portalGroupId: GROUP }),
+        ['guest.rating.submitted'],
+      ),
     ).resolves.toMatchObject({
       state: 'quarantined',
       reason: 'group_attribution_mismatch',
@@ -376,7 +384,6 @@ describe.sequential('Goal metric durable source status (integration)', () => {
   })
 
   it('requires an applied retraction to have its append-only correction', async () => {
-    const status = createGoalMetricSourceStatus(db)
     await insertSource(SUBMITTED_EVENT, 'guest.rating.submitted')
     await receipt(SUBMITTED_EVENT)
     await insertReading()
@@ -384,10 +391,11 @@ describe.sequential('Goal metric durable source status (integration)', () => {
     await receipt(RETRACTED_EVENT)
 
     await expect(
-      status.inspect(query({ kind: 'property', propertyId: PROPERTY }), [
-        'guest.rating.submitted',
-        'guest.rating.retracted',
-      ]),
+      inspectGoalMetricSourceStatus(
+        db,
+        query({ kind: 'property', propertyId: PROPERTY }),
+        ['guest.rating.submitted', 'guest.rating.retracted'],
+      ),
     ).resolves.toMatchObject({ state: 'quarantined', reason: 'projection_missing' })
 
     await db.execute(sql`
@@ -401,15 +409,15 @@ describe.sequential('Goal metric durable source status (integration)', () => {
       )
     `)
     await expect(
-      status.inspect(query({ kind: 'property', propertyId: PROPERTY }), [
-        'guest.rating.submitted',
-        'guest.rating.retracted',
-      ]),
+      inspectGoalMetricSourceStatus(
+        db,
+        query({ kind: 'property', propertyId: PROPERTY }),
+        ['guest.rating.submitted', 'guest.rating.retracted'],
+      ),
     ).resolves.toMatchObject({ state: 'complete', relevantFactCount: 2 })
   })
 
   it('uses Qualified Scan captured group attribution instead of current membership', async () => {
-    const status = createGoalMetricSourceStatus(db)
     await insertSource(SUBMITTED_EVENT, 'guest.qualified_scan.recorded')
     await db.execute(sql`
       UPDATE outbox_events
@@ -434,7 +442,8 @@ describe.sequential('Goal metric durable source status (integration)', () => {
       )
       expect(await groups.findGroupForPortal(ORG, PORTAL, OCCURRED)).toBeNull()
       await expect(
-        status.inspect(
+        inspectGoalMetricSourceStatus(
+          db,
           {
             ...query({ kind: 'portal_group', portalGroupId: GROUP }),
             definitionVersionId: QUALIFIED_SCAN_VERSION,

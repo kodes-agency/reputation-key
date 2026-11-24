@@ -254,7 +254,7 @@ cancelled, used or unknown link renders a state card with a next step instead of
 form. `/accept-invitation` without an id stays as the signed-in list of pending
 invitations, which `/unavailable` links to; its query is primed in the same
 `beforeLoad` (`-pending-invitations-query.ts`), so the route file carries no
-`loader`. After registration signs the member in, `-join-entry.ts` makes the
+`loader`. After registration signs the member in, `join.tsx` makes the
 Organization active and navigates; a failure there shows a retry, because the
 session already exists.
 

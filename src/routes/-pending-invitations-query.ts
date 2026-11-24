@@ -11,7 +11,7 @@ import { type TenantScope } from '#/shared/queries/tenant-scope'
 
 import { queryOptions } from '@tanstack/react-query'
 import { createKeys } from '#/shared/queries/query-keys'
-import { listUserInvitations } from '#/contexts/identity/server/organizations'
+import { listUserInvitations } from '#/contexts/identity/server/organizations.registration'
 
 export const pendingInvitationsQuery = (scope: TenantScope) =>
   queryOptions({

@@ -92,7 +92,7 @@ export type RegisterAiConsumersInput = Readonly<{
    * That store commits the enrollment intent (or exact obsolete/no-op
    * decision) and this consumer's receipt atomically.
    */
-  applyAiAuthorizationLifecycle?: (
+  applyAiAuthorizationLifecycle: (
     input: AiAuthorizationLifecycleTrigger,
   ) => Promise<AiAuthorizationLifecycleApplyResult>
   /**
@@ -308,9 +308,6 @@ export async function handleAiAuthorizationLifecycleChanged(
   if (!Number.isFinite(occurredAt.getTime())) {
     throw new Error('AI authorization lifecycle trigger timestamp is invalid')
   }
-  if (!dependencies.applyAiAuthorizationLifecycle) {
-    throw new Error('AI authorization lifecycle command store is unavailable')
-  }
   const result = await dependencies.applyAiAuthorizationLifecycle({
     eventEnvelopeId: event.eventId,
     organizationId: organizationId(payload.organizationId),
@@ -349,14 +346,12 @@ export function registerAiConsumers(
   dependencies: RegisterAiConsumersInput,
 ): void {
   const { registerConsumer } = registry
-  if (dependencies.applyAiAuthorizationLifecycle) {
-    registerConsumer({
-      eventType: 'identity.merchant_ai.changed',
-      consumerName: 'ai.enroll-review-analysis',
-      module: 'ai.review-analysis-enrollment',
-      handler: (event) => handleAiAuthorizationLifecycleChanged(dependencies, event),
-    })
-  }
+  registerConsumer({
+    eventType: 'identity.merchant_ai.changed',
+    consumerName: 'ai.enroll-review-analysis',
+    module: 'ai.review-analysis-enrollment',
+    handler: (event) => handleAiAuthorizationLifecycleChanged(dependencies, event),
+  })
   registerConsumer({
     eventType: 'review.created',
     consumerName: 'ai.analyze-review-event',

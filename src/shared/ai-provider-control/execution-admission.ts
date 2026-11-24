@@ -6,7 +6,7 @@ import type {
   AiSettlementPermit,
   AiSettlementReceiptV1,
 } from '#/shared/ai-gateway/ai-internal-transport-contract'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 
 const DESCRIPTOR_DOMAIN = 'ai-admission-descriptor-v1\0'
 const admissionBrand: unique symbol = Symbol('AiExecutionAdmission')

@@ -341,7 +341,7 @@ export function createGoalProgramCurrentReads(db: Database): GoalProgramCurrentR
         ),
       }
     },
-    async getSummary(organizationId, propertyId, programId) {
+    async get(organizationId, propertyId, programId) {
       const rows = await db
         .select()
         .from(goalPrograms)
@@ -349,7 +349,7 @@ export function createGoalProgramCurrentReads(db: Database): GoalProgramCurrentR
         .limit(1)
       return (await hydrateCurrentGoalPrograms(db, rows))[0] ?? null
     },
-    async listSummaries(organizationId, propertyId) {
+    async list(organizationId, propertyId) {
       const rows = await db
         .select()
         .from(goalPrograms)

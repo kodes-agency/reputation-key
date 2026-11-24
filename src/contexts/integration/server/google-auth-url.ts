@@ -32,7 +32,6 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
           // BQC-7.6: the state is bound to the initiating user (sub) — the
           // callback rejects a state redeemed by any other session.
           return await integrationPublicApi.oauth.getAuthorizationUrl({
-            visibility: data.visibility,
             userId: ctx.userId,
             organizationId: ctx.organizationId,
             sessionId: session.session.id,

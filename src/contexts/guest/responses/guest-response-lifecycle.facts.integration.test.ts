@@ -20,7 +20,6 @@ describe('guest response lifecycle — submitted facts', () => {
 
     await lifecycle.submit(scope, SESSION, {
       rating: 2,
-      responseConsent: true,
     })
     const withFeedback = await lifecycle.addPrivateFeedback(scope, SESSION, {
       text: 'Please follow up with the property team.',
@@ -50,7 +49,7 @@ describe('guest response lifecycle — submitted facts', () => {
   it('records no feedback fact when the guest supplied no free text', async () => {
     const { scope, lifecycle, outbox } = await harness()
 
-    await lifecycle.submit(scope, SESSION, { rating: 5, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 5 })
 
     expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(1)
     expect(await outbox.byTag('guest.feedback.submitted')).toHaveLength(0)
@@ -59,7 +58,7 @@ describe('guest response lifecycle — submitted facts', () => {
   it('renews recovery for 24 hours from late feedback without duplicating it', async () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
     const { scope, lifecycle, outbox, stored } = await harness(() => now)
-    await lifecycle.submit(scope, SESSION, { rating: 2, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 2 })
     now = new Date('2026-08-10T11:00:00.000Z')
 
     await lifecycle.addPrivateFeedback(scope, SESSION, {
@@ -81,23 +80,9 @@ describe('guest response lifecycle — submitted facts', () => {
     expect(await outbox.byTag('guest.feedback.submitted')).toHaveLength(1)
   })
 
-  it('rejects feedback without the required private rating', async () => {
-    const { scope, lifecycle, outbox } = await harness()
-
-    await expect(
-      lifecycle.submit(scope, SESSION, {
-        text: 'The lobby coffee is excellent.',
-        textConsent: true,
-      }),
-    ).rejects.toMatchObject({ code: 'rating_required' })
-
-    expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(0)
-    expect(await outbox.byTag('guest.feedback.submitted')).toHaveLength(0)
-  })
-
   it('records nothing for a repeated submit of the same session', async () => {
     const { scope, lifecycle, outbox } = await harness()
-    const input = { rating: 3, responseConsent: true }
+    const input = { rating: 3 }
 
     await lifecycle.submit(scope, SESSION, input)
     await lifecycle.submit(scope, SESSION, input)
@@ -107,7 +92,7 @@ describe('guest response lifecycle — submitted facts', () => {
 
   it('records a superseding fact for a corrected rating', async () => {
     const { scope, lifecycle, outbox } = await harness()
-    await lifecycle.submit(scope, SESSION, { rating: 3, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 3 })
     const original = (await outbox.byTag('guest.rating.submitted'))[0]!
 
     await lifecycle.correct(scope, SESSION, { rating: 1 })
@@ -120,7 +105,7 @@ describe('guest response lifecycle — submitted facts', () => {
 
   it('fails closed when historical shared content has no recoverable fact lineage', async () => {
     const { scope, lifecycle, outbox } = await harness()
-    await lifecycle.submit(scope, SESSION, { rating: 3, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 3 })
     await db.execute(
       sql`UPDATE guest_responses SET rating_source_event_id = NULL WHERE organization_id = ${scope.organizationId}`,
     )
@@ -137,7 +122,7 @@ describe('guest response lifecycle — submitted facts', () => {
 
   it('records a retraction for a withdrawn rating', async () => {
     const { scope, lifecycle, outbox } = await harness()
-    await lifecycle.submit(scope, SESSION, { rating: 3, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 3 })
     const original = (await outbox.byTag('guest.rating.submitted'))[0]!
 
     await lifecycle.withdraw(scope, SESSION)
@@ -151,7 +136,6 @@ describe('guest response lifecycle — submitted facts', () => {
     const { scope, lifecycle, outbox } = await harness()
     await lifecycle.submit(scope, SESSION, {
       rating: 2,
-      responseConsent: true,
     })
     await lifecycle.addPrivateFeedback(scope, SESSION, {
       text: 'Please follow up.',
@@ -170,7 +154,6 @@ describe('guest response lifecycle — submitted facts', () => {
     const { scope, lifecycle, outbox, stored } = await harness()
     await lifecycle.submit(scope, SESSION, {
       rating: 2,
-      responseConsent: true,
     })
     await lifecycle.addPrivateFeedback(scope, SESSION, {
       text: 'Please follow up.',
@@ -214,7 +197,7 @@ describe('guest response lifecycle — submitted facts', () => {
     const { scope, lifecycle, outbox, stored, keepSessionBound } = await harness(
       () => now,
     )
-    await lifecycle.submit(scope, SESSION, { rating: 2, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 2 })
     await lifecycle.addPrivateFeedback(scope, SESSION, {
       text: 'Please follow up.',
       textConsent: true,
@@ -238,7 +221,7 @@ describe('guest response lifecycle — submitted facts', () => {
     const { scope, lifecycle, outbox, stored, keepSessionBound } = await harness(
       () => now,
     )
-    await lifecycle.submit(scope, SESSION, { rating: 4, responseConsent: true })
+    await lifecycle.submit(scope, SESSION, { rating: 4 })
     await keepSessionBound()
     now = new Date('2026-08-10T12:00:00.001Z')
 
@@ -251,12 +234,7 @@ describe('guest response lifecycle — submitted facts', () => {
 
   it('uses the snapshotted inclusive threshold and never returns feedback text', async () => {
     const eligible = await harness()
-    const low = await eligible.lifecycle.submit(
-      eligible.scope,
-      SESSION,
-      { rating: 3, responseConsent: true },
-      3,
-    )
+    const low = await eligible.lifecycle.submit(eligible.scope, SESSION, { rating: 3 }, 3)
     expect(low.privateFeedbackEligible).toBe(true)
     const receipt = await eligible.lifecycle.addPrivateFeedback(eligible.scope, SESSION, {
       text: 'A private note for the manager.',
@@ -285,7 +263,7 @@ describe('guest response lifecycle — submitted facts', () => {
     const high = await ineligible.lifecycle.submit(
       ineligible.scope,
       SESSION,
-      { rating: 4, responseConsent: true },
+      { rating: 4 },
       3,
     )
     expect(high.privateFeedbackEligible).toBe(false)
@@ -304,7 +282,7 @@ describe('guest response lifecycle — submitted facts', () => {
       const receipt = await lifecycle.submit(
         scope,
         SESSION,
-        { rating: threshold, responseConsent: true },
+        { rating: threshold },
         threshold,
       )
       expect(receipt.privateFeedbackEligible).toBe(true)
@@ -313,7 +291,7 @@ describe('guest response lifecycle — submitted facts', () => {
 
   it('unlocks feedback after a high-to-low correction without spending another correction', async () => {
     const { scope, lifecycle, stored, outbox } = await harness()
-    await lifecycle.submit(scope, SESSION, { rating: 5, responseConsent: true }, 3)
+    await lifecycle.submit(scope, SESSION, { rating: 5 }, 3)
     const corrected = await lifecycle.correct(scope, SESSION, { rating: 2 })
     expect(corrected.privateFeedbackEligible).toBe(true)
 

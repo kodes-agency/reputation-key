@@ -102,9 +102,7 @@ describe.sequential('Inbox workflow delivery races (real PostgreSQL)', () => {
     now = OCCURRED_AT
     commandRevision = 1
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-    )
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
     await db.insert(properties).values({
       id: PROPERTY,
       organizationId: ORG,

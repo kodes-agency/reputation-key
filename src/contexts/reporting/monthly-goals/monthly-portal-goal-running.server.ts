@@ -8,7 +8,7 @@ import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { goalMonthDays, goalPace } from '../domain/goal-pace'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
-import { addLocalDays, localDateOf } from '../domain/local-days'
+import { addLocalDays, localDateOf } from '#/shared/domain/local-days'
 import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalLastMonth,
@@ -30,7 +30,10 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../application/ports/goal-program.repository'
-import type { GoalActor, GoalMetricReadPort } from './goal-programs.server'
+import type {
+  GoalActor,
+  GoalMetricReadPort,
+} from '../application/use-cases/goal-program-shared'
 import { progressOf, readSubjectMonth } from './goal-progress.server'
 import { changeFactsOf, newGoalFromOf } from './monthly-portal-goal-change-facts.server'
 import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in.server'

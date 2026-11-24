@@ -152,9 +152,7 @@ describe.sequential(
         cadence: 'immediate',
       })
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-      initDelayedExecutionPolicy(
-        createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-      )
+      initDelayedExecutionPolicy(createDelayedExecutionPolicy())
     })
     afterEach(() => {
       resetDelayedExecutionPolicy()

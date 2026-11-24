@@ -34,7 +34,7 @@ import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 type InboxPage = {
   items: ReadonlyArray<InboxItem>
   nextCursor: Cursor | null
-  totalCount: number
+  totalCount: number | null
   responseCutoff: Date
   viewedUpTo: Date | null
 }

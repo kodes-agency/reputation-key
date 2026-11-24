@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { propertyWallClockToInstant } from '#/shared/domain/property-calendar'
-import { addLocalDays } from './local-days'
+import { addLocalDays } from '#/shared/domain/local-days'
 import {
   narrowedRecommendation,
   recommendationWindow,

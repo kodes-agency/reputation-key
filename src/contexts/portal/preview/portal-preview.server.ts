@@ -129,7 +129,6 @@ type PreviewOverride = Readonly<{
   locale: GuestLocale
   title: string | null
   shortDescription: string | null
-  heroImageUrl: string | null
 }>
 
 export type DraftPortalPreviewInput = Readonly<{

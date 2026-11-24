@@ -159,7 +159,7 @@ describe.sequential('Goal Program listing for maintenance (integration)', () => 
   it('reads current figures independently of the ledger and pages every retained month', async () => {
     const goal = await activeGoalWithMonths(7)
     const repository = createGoalProgramRepository(db)
-    const summary = await repository.getSummary(
+    const summary = await repository.get(
       goal.program.organizationId,
       goal.program.propertyId,
       goal.program.id,
@@ -190,11 +190,7 @@ describe.sequential('Goal Program listing for maintenance (integration)', () => 
       '2026-01-01T00:00:00.000Z',
     ])
     expect(
-      await repository.getSummary(
-        'another-tenant',
-        goal.program.propertyId,
-        goal.program.id,
-      ),
+      await repository.get('another-tenant', goal.program.propertyId, goal.program.id),
     ).toBeNull()
     expect(
       (

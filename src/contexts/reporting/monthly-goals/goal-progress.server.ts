@@ -44,12 +44,12 @@ import {
 } from '../application/goal-month-target-marker'
 import { goalTargetProvenance } from '../application/goal-target-provenance'
 import { metricSubject } from '../application/use-cases/goal-program-shared'
+import type { GoalProgramService } from './goal-programs.server'
 import type {
   GoalActor,
   GoalExecutionPolicy,
   GoalMetricReadPort,
-  GoalProgramService,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.server'
 
 export type GoalProgress = Readonly<{
@@ -87,7 +87,7 @@ export type GoalProgressInput = Readonly<{
 
 export type GoalProgressDeps = Readonly<{
   reads: Pick<GoalProgramService, 'list'>
-  metrics: Pick<GoalMetricReadPort, 'queryGoalMetric' | 'queryGoalMetrics'>
+  metrics: Pick<GoalMetricReadPort, 'queryGoalMetric'>
   now: () => Date
 }>
 

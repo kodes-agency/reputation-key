@@ -244,7 +244,6 @@ export async function createReplyWorkflowHarness(
     db,
     clock,
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   const reviewCommandStore = createAtomicReviewCommandStore(
@@ -520,7 +519,7 @@ export async function createReplyWorkflowHarness(
   }
 
   const replyDeps: ReplyDeps = {
-    replyLibrary: input.replyLibrary,
+    replyLibrary: input.replyLibrary ?? { loadSnapshot: async () => null },
     replyRepo,
     reviewRepo,
     queue: {

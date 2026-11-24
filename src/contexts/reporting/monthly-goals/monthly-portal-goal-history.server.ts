@@ -10,7 +10,7 @@ import type {
   PortalGoalPageMeasure,
   PortalGoalPageMonth,
 } from './contracts'
-import { localDateOf } from '../domain/local-days'
+import { localDateOf } from '#/shared/domain/local-days'
 import { effectiveMonthTarget } from '../application/goal-effective-month-target'
 import { versionNoteOf } from './goal-version-reasons.server'
 import {
@@ -22,7 +22,7 @@ import type {
   GoalProgramBundle,
   GoalProgramVersion,
 } from '../application/ports/goal-program.repository'
-import type { GoalActor } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import { readSubjectMonth } from './goal-progress.server'
 import {
   finalFigureOn,

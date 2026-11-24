@@ -102,9 +102,7 @@ beforeEach(() => {
   // Every capability a route needs is granted, so the only thing left for the
   // gate to judge is the scope each envelope and job carries.
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-  initDelayedExecutionPolicy(
-    createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-  )
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 })
 
 afterEach(() => {

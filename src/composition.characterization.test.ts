@@ -100,7 +100,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'providerEphemeralRedis',
   'rateLimiter',
   'redis',
-  'refreshPolicyStore',
   'refreshReviewProviderSubjectKeys',
   'registerOutboxConsumers',
   'registerReviewWorkerJobs',
@@ -304,7 +303,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
   })
 
   it('exposes readiness/runtime contributions as functions', () => {
-    expect(typeof container.refreshPolicyStore).toBe('function')
     expect(typeof container.refreshReviewProviderSubjectKeys).toBe('function')
     expect(typeof container.registerOutboxConsumers).toBe('function')
     expect(typeof container.registerReviewWorkerJobs).toBe('function')
@@ -352,7 +350,7 @@ describe('provider DI slots (BQC-6.1)', () => {
 
   const fakeStorage: StoragePort = {
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
-    confirmUpload: async () => {},
+    inspectObject: async () => ({ contentType: 'image/png', sizeBytes: 1024 }),
     deleteObject: async () => {},
     listObjects: async () => ({ objects: [], truncated: false }),
     getObject: async () => null,

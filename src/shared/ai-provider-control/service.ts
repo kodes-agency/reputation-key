@@ -13,15 +13,10 @@ import type {
   AiGatewayRouteRequestV1,
   AiGatewayRouteResponseV1,
 } from '#/shared/ai-gateway/ai-gateway-transport-contract'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { SensitiveSourceLease } from './source-lease'
 import { GatewayPreparationError } from './contracts'
-import type {
-  AiAdmissionClient,
-  AiGatewayRoutePreparer,
-  OpenAiConnector,
-  OpenAiConnectorOutcome,
-} from './contracts'
+import type { AiAdmissionClient, AiGatewayRoutePreparer } from './contracts'
 import { createAiSettlementSignal } from './settlement-signal'
 import { enforceOutboundFetchDisposition } from './dispositions'
 import {
@@ -29,17 +24,10 @@ import {
   isMintedAiExecutionAdmission,
   type AiExecutionAdmission,
 } from './execution-admission'
-import { createOpenAiProviderAdapter } from './openai-provider-adapter'
-import type { AiProviderAdapter } from './provider-contracts'
-import { createAiProviderRegistry, type AiProviderRegistry } from './provider-selection'
-
-const ZERO_USAGE = Object.freeze({
-  inputTokens: 0,
-  cachedTokens: 0,
-  outputTokens: 0,
-  reasoningTokens: 0,
-  totalTokens: 0,
-})
+import type { AiProviderAdapter, AiProviderOutcome } from './provider-contracts'
+import { PROVIDER_ZERO_USAGE } from './connector-boundary'
+import type { AiProviderRegistry } from './provider-selection'
+import { writeGatewayEvent } from './connector-diagnostics'
 
 export function isGatewayOuterDeadlineValid(
   deadlineEpochMillis: number,
@@ -192,9 +180,7 @@ function errorResponse(
   return { route, status: 'error', code, retryAfterEpochMillis }
 }
 
-function settlementOutcome(
-  outcome: OpenAiConnectorOutcome<unknown>,
-): AiSettlementOutcome {
+function settlementOutcome(outcome: AiProviderOutcome<unknown>): AiSettlementOutcome {
   return {
     disposition: outcome.disposition,
     reportedDisposition: outcome.reportedDisposition,
@@ -273,44 +259,22 @@ export type AiEgressGatewayService = Readonly<{
   ): Promise<AiGatewayRouteResponseV1>
 }>
 
-/**
- * Where provider calls go: one OpenAI connector (every v2 route, as before the
- * seam), or the registry of provider adapters (contract section 7.1). The
- * registry's selection is the operator's choice and nothing here consults it: the
- * preparer has chosen already, and a call goes to the adapter of the provider that
- * prepared it or to none.
- */
-export type AiEgressProviders =
-  | Readonly<{ connector: OpenAiConnector; providers?: undefined }>
-  | Readonly<{ providers: AiProviderRegistry<AiProviderAdapter>; connector?: undefined }>
-
-function providerRegistryOf(
-  dependencies: AiEgressProviders,
-): AiProviderRegistry<AiProviderAdapter> {
-  if (dependencies.providers !== undefined) {
-    if (dependencies.connector !== undefined) {
-      throw new TypeError(
-        'the gateway takes a connector or a provider registry, not both',
-      )
-    }
-    return dependencies.providers
-  }
-  if (dependencies.connector === undefined) {
-    throw new TypeError('the gateway needs a connector or a provider registry')
-  }
-  return createAiProviderRegistry([createOpenAiProviderAdapter(dependencies.connector)])
-}
-
 export function createAiEgressGatewayService(
   dependencies: Readonly<{
     admission: AiAdmissionClient
     preparer: AiGatewayRoutePreparer
+    /**
+     * The registry of provider adapters (contract section 7.1). Its selection is
+     * the operator's choice and nothing here consults it: the preparer has chosen
+     * already, and a call goes to the adapter of the provider that prepared it or
+     * to none.
+     */
+    providers: AiProviderRegistry<AiProviderAdapter>
     now?: () => number
-  }> &
-    AiEgressProviders,
+  }>,
 ): AiEgressGatewayService {
   const now = dependencies.now ?? Date.now
-  const registry = providerRegistryOf(dependencies)
+  const registry = dependencies.providers
   return Object.freeze({
     execute: async (lease, signal, progress) => {
       let attemptedRoute: string = 'review-analysis'
@@ -353,7 +317,7 @@ export function createAiEgressGatewayService(
       // The call goes to the adapter of the provider that prepared it. A provider
       // this process holds no adapter for is a refusal before anything is reserved,
       // never a call to another provider's adapter.
-      const adapter = registry.adapters.get(prepared.providerId ?? 'openai')
+      const adapter = registry.adapters.get(prepared.providerId)
       if (adapter === undefined) {
         prepared.invocation.canonicalProviderBytes.fill(0)
         return errorResponse(route, 'policy_unavailable')
@@ -381,16 +345,14 @@ export function createAiEgressGatewayService(
           // outage to retry, not an ambiguous provider outcome. Reporting it as
           // ambiguous spent the caller's provider attempts on retries that
           // never reached the provider.
-          process.stderr.write(
-            `${JSON.stringify({
-              event: 'gateway_admission_unavailable',
-              route,
-              operationId: prepared.invocation.descriptor.operationId,
-              permitId: prepared.invocation.descriptor.permitId,
-              attempt: prepared.invocation.descriptor.attemptNumber,
-              error: summarizeError(error),
-            })}\n`,
-          )
+          writeGatewayEvent({
+            event: 'gateway_admission_unavailable',
+            route,
+            operationId: prepared.invocation.descriptor.operationId,
+            permitId: prepared.invocation.descriptor.permitId,
+            attempt: prepared.invocation.descriptor.attemptNumber,
+            error: summarizeError(error),
+          })
           prepared.invocation.canonicalProviderBytes.fill(0)
           return errorResponse(route, 'provider_unavailable')
         }
@@ -405,7 +367,7 @@ export function createAiEgressGatewayService(
         }
         const providerDeadlineMillis = 60_000
         const providerAndSettlementMillis = providerDeadlineMillis + 5_000
-        let outcome: OpenAiConnectorOutcome<unknown>
+        let outcome: AiProviderOutcome<unknown>
         // This branch skips the connector entirely, so the connector's own
         // `gateway_no_dispatch` diagnostic never fires for it. Both conditions were
         // silent, which made a real closed-beta failure undiagnosable: the caller
@@ -413,22 +375,20 @@ export function createAiEgressGatewayService(
         const admissionTtlMillis = admission.expiresAtEpochMillis - now()
         const deadlineAborted = deadline.signal.aborted
         if (admissionTtlMillis < providerAndSettlementMillis || deadlineAborted) {
-          process.stderr.write(
-            `${JSON.stringify({
-              event: 'gateway_no_dispatch',
-              stage: 'pre_connector',
-              route,
-              operationId: prepared.invocation.descriptor.operationId,
-              permitId: prepared.invocation.descriptor.permitId,
-              attempt: prepared.invocation.descriptor.attemptNumber,
-              admissionTtlMillis,
-              requiredTtlMillis: providerAndSettlementMillis,
-              deadlineAborted,
-              reason: deadlineAborted
-                ? 'caller_deadline_aborted'
-                : 'admission_ttl_too_short',
-            })}\n`,
-          )
+          writeGatewayEvent({
+            event: 'gateway_no_dispatch',
+            stage: 'pre_connector',
+            route,
+            operationId: prepared.invocation.descriptor.operationId,
+            permitId: prepared.invocation.descriptor.permitId,
+            attempt: prepared.invocation.descriptor.attemptNumber,
+            admissionTtlMillis,
+            requiredTtlMillis: providerAndSettlementMillis,
+            deadlineAborted,
+            reason: deadlineAborted
+              ? 'caller_deadline_aborted'
+              : 'admission_ttl_too_short',
+          })
           prepared.invocation.canonicalProviderBytes.fill(0)
           outcome = {
             disposition: 'no_dispatch',
@@ -436,7 +396,7 @@ export function createAiEgressGatewayService(
             result: null,
             usageKnown: false,
             providerRetryable: false,
-            usage: ZERO_USAGE,
+            usage: PROVIDER_ZERO_USAGE,
             retryAfterSeconds: null,
             outboundFetchUsed: false,
           }
@@ -463,7 +423,7 @@ export function createAiEgressGatewayService(
               result: null,
               usageKnown: false,
               providerRetryable: false,
-              usage: ZERO_USAGE,
+              usage: PROVIDER_ZERO_USAGE,
               retryAfterSeconds: null,
               outboundFetchUsed: true,
             }
@@ -508,29 +468,25 @@ export function createAiEgressGatewayService(
           // charged, so `operation_ambiguous` is the honest code — but which
           // half failed decides whether to look at admission or at binding,
           // and this exit reported neither.
-          process.stderr.write(
-            `${JSON.stringify({
-              event: 'gateway_settlement_rejected',
-              route,
-              settlementStatus: settlement.status,
-              receiptBound,
-              disposition:
-                settlement.status === 'settled' ? settlement.receipt.disposition : null,
-            })}\n`,
-          )
+          writeGatewayEvent({
+            event: 'gateway_settlement_rejected',
+            route,
+            settlementStatus: settlement.status,
+            receiptBound,
+            disposition:
+              settlement.status === 'settled' ? settlement.receipt.disposition : null,
+          })
           return errorResponse(route, 'operation_ambiguous')
         }
         if (!settleRequest.usageKnown && settleRequest.disposition !== 'no_dispatch') {
           // Charged at the reservation, since it may have been billed. Whatever the
           // connector called it, it is neither a refusal to retry nor a billed
           // answer to settle on: the outcome is ambiguous.
-          process.stderr.write(
-            `${JSON.stringify({
-              event: 'gateway_usage_unknown',
-              route,
-              disposition: settleRequest.disposition,
-            })}\n`,
-          )
+          writeGatewayEvent({
+            event: 'gateway_usage_unknown',
+            route,
+            disposition: settleRequest.disposition,
+          })
           return errorResponse(route, 'operation_ambiguous')
         }
         const releaseNow = now()
@@ -547,25 +503,23 @@ export function createAiEgressGatewayService(
           // provider has already answered and been charged at this point, so
           // knowing WHICH clock ran out is the difference between a caller
           // deadline, an admission TTL and a reply-token TTL.
-          process.stderr.write(
-            `${JSON.stringify({
-              event: 'gateway_post_settlement_expiry',
-              route,
-              successSettled,
-              aborted: signal.aborted,
-              pastOuterDeadline: releaseNow >= outerDeadlineEpochMillis,
-              settledAfterAdmissionExpiry:
-                settlement.receipt.settledAtEpochMillis >= admission.expiresAtEpochMillis,
-              replyTokenExpired:
-                route === 'reply-suggestion' &&
-                (admission.replyTokenExpiresAtEpochMillis === null ||
-                  admission.replyTokenExpiresAtEpochMillis <= releaseNow),
-              replyTokenTtlMillis:
-                admission.replyTokenExpiresAtEpochMillis === null
-                  ? null
-                  : admission.replyTokenExpiresAtEpochMillis - releaseNow,
-            })}\n`,
-          )
+          writeGatewayEvent({
+            event: 'gateway_post_settlement_expiry',
+            route,
+            successSettled,
+            aborted: signal.aborted,
+            pastOuterDeadline: releaseNow >= outerDeadlineEpochMillis,
+            settledAfterAdmissionExpiry:
+              settlement.receipt.settledAtEpochMillis >= admission.expiresAtEpochMillis,
+            replyTokenExpired:
+              route === 'reply-suggestion' &&
+              (admission.replyTokenExpiresAtEpochMillis === null ||
+                admission.replyTokenExpiresAtEpochMillis <= releaseNow),
+            replyTokenTtlMillis:
+              admission.replyTokenExpiresAtEpochMillis === null
+                ? null
+                : admission.replyTokenExpiresAtEpochMillis - releaseNow,
+          })
           return errorResponse(
             route,
             successSettled ? 'completed_without_delivery' : 'operation_ambiguous',
@@ -609,15 +563,13 @@ export function createAiEgressGatewayService(
         // already called and been charged for the provider, so swallowing the
         // class of failure here is what made a settled-but-undelivered reply
         // indistinguishable from a policy refusal.
-        process.stderr.write(
-          `${JSON.stringify({
-            event: 'gateway_execute_threw',
-            route,
-            successSettled,
-            authorizationInvoked,
-            error: summarizeError(error),
-          })}\n`,
-        )
+        writeGatewayEvent({
+          event: 'gateway_execute_threw',
+          route,
+          successSettled,
+          authorizationInvoked,
+          error: summarizeError(error),
+        })
         return errorResponse(
           route,
           successSettled
@@ -670,7 +622,7 @@ function invokeProviderWithProgress(
 
 function reportReplyChecking(
   prepared: ReturnType<AiGatewayRoutePreparer['prepare']>,
-  outcome: OpenAiConnectorOutcome<unknown>,
+  outcome: AiProviderOutcome<unknown>,
   sink?: ReplyDraftingProgressSink,
 ): void {
   if (

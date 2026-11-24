@@ -25,6 +25,8 @@ import {
   STAFF_PARTICIPATION,
   STAFF_PARTICIPATION_REPLACEMENT,
   arrangeSubmitted,
+  commitSubmittedWithFeedback,
+  ratingOnlyResponse,
   buildGuestResponse,
   createAtomicGuestResponseCommandStore,
   createGuestResponseRepository,
@@ -59,7 +61,7 @@ describe.sequential('atomic Guest response submission', () => {
     const originalRating = ratingFact({ staffAttribution: STAFF_ATTRIBUTION })
     const originalFeedback = feedbackFact({ staffAttribution: STAFF_ATTRIBUTION })
     await expect(
-      store.commitSubmitted(attributed, [originalRating, originalFeedback]),
+      commitSubmittedWithFeedback(store, attributed, [originalRating, originalFeedback]),
     ).resolves.toBe('applied')
 
     const reassignedAt = new Date('2026-08-26T00:00:00.000Z')
@@ -144,7 +146,7 @@ describe.sequential('atomic Guest response submission', () => {
     const submissionFacts = facts()
 
     await expect(
-      store.commitSubmitted(buildGuestResponse(), submissionFacts),
+      commitSubmittedWithFeedback(store, buildGuestResponse(), submissionFacts),
     ).resolves.toBe('applied')
 
     const rows = await responseRow('id, rating_source_event_id, feedback_source_event_id')
@@ -308,7 +310,9 @@ describe.sequential('atomic Guest response submission', () => {
     const store = createAtomicGuestResponseCommandStore(db)
 
     await expect(
-      store.commitSubmitted(buildGuestResponse({ experienceSnapshot: null }), facts()),
+      store.commitSubmitted(ratingOnlyResponse({ experienceSnapshot: null }), [
+        facts()[0],
+      ]),
     ).rejects.toThrow('Guest response submission snapshot is required')
 
     expect(await responseRow()).toHaveLength(0)
@@ -316,13 +320,14 @@ describe.sequential('atomic Guest response submission', () => {
 
   it('returns duplicate without recording new facts for the session anchor', async () => {
     const store = createAtomicGuestResponseCommandStore(db)
-    await store.commitSubmitted(buildGuestResponse(), facts())
+    const [rating] = facts()
+    await store.commitSubmitted(ratingOnlyResponse(), [rating])
 
-    await expect(store.commitSubmitted(buildGuestResponse(), facts())).resolves.toBe(
+    await expect(store.commitSubmitted(ratingOnlyResponse(), [facts()[0]])).resolves.toBe(
       'duplicate',
     )
 
-    expect(await outboxTypes()).toHaveLength(2)
+    expect(await outboxTypes()).toHaveLength(1)
   })
 
   it('atomically audits eligibility changes and their correction facts', async () => {
@@ -441,7 +446,7 @@ describe.sequential('atomic Guest response submission', () => {
 
   it('denies stale reads and expires each storage class independently', async () => {
     const store = createAtomicGuestResponseCommandStore(db)
-    await store.commitSubmitted(buildGuestResponse(), facts())
+    await commitSubmittedWithFeedback(store)
     const scope = {
       organizationId: ORG,
       propertyId: PROPERTY,

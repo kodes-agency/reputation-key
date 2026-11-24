@@ -521,7 +521,6 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       db,
       () => new Date(),
       async () => true,
-      undefined,
       replyScopeEffects,
     )
     const authorizedReply = await replyCommandStore.markPublicationAuthorized(

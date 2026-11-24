@@ -6,7 +6,6 @@ import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
@@ -36,7 +35,7 @@ export const Route = createFileRoute(
         propertyId: params.propertyId,
       },
     })
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'portal.update')) {
       // The portal itself opens on its Page tab, which a reader can see.
       throw roleUnavailable('Review and publish', 'portal')

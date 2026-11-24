@@ -9,7 +9,7 @@ import {
   propertyId as toPropertyId,
 } from '#/shared/domain/ids'
 import type { GoalSubjectNameReader } from './goal-bulk-create.server'
-import type { GoalProgramSubjectReader } from './goal-programs.server'
+import type { GoalProgramSubjectReader } from '../application/use-cases/goal-program-shared'
 
 /** Cross-context, tenant-bound subject validation for canonical Goal Programs. */
 export const createGoalProgramSubjectReader = (

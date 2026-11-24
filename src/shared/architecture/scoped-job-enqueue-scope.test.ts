@@ -213,7 +213,7 @@ describe('scoped job families are enqueued with the scope the gate decides on', 
     resetCapabilityPolicyStore()
     // Every controlled capability open: a denial here can only be about scope.
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const policy = createDelayedExecutionPolicy()
     initDelayedExecutionPolicy({
       decide: (request) => {
         requests.push(request)

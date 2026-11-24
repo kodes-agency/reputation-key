@@ -7,21 +7,12 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
+import type { GoalRequestApi } from '../monthly-goals/goal-request-api.server'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
-  type GoalProgramRequestApi,
-} from '../monthly-goals/goal-programs.server'
-import type { GoalProgressRequestApi } from '../monthly-goals/goal-progress.server'
-import type { GoalListProgressRequestApi } from '../monthly-goals/goal-list-progress.server'
-import type { MonthlyPortalGoalRequestApi } from '../monthly-goals/monthly-portal-goal-page.server'
-import type { PortalGoalAddRequestApi } from '../monthly-goals/portal-goal-add.server'
-import type { PortalGoalSinglePageRequestApi } from '../monthly-goals/get-portal-goal-page.server'
-
-export const requestActor = (
-  ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
-): GoalActor => ctx
+} from '../application/use-cases/goal-program-shared'
 
 /**
  * The request's Goal policy: the caller acts only as themselves in their own
@@ -82,12 +73,7 @@ const goalProgramStatus = (error: GoalProgramError): number => {
  */
 export async function withGoalPrograms<T>(
   run: (
-    programs: GoalProgramRequestApi &
-      GoalProgressRequestApi &
-      GoalListProgressRequestApi &
-      MonthlyPortalGoalRequestApi &
-      PortalGoalAddRequestApi &
-      PortalGoalSinglePageRequestApi,
+    programs: GoalRequestApi,
     policy: GoalExecutionPolicy,
     actor: GoalActor,
   ) => Promise<T>,
@@ -96,7 +82,7 @@ export async function withGoalPrograms<T>(
   const programs = getContainer().goalPublicApi.programs
   const policy = requestPolicy(ctx)
   try {
-    return await run(programs, policy, requestActor(ctx))
+    return await run(programs, policy, ctx)
   } catch (error) {
     if (error instanceof GoalProgramError) {
       throwContextError('GoalProgramError', error, goalProgramStatus(error))

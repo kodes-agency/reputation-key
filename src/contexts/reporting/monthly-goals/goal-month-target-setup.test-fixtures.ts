@@ -17,11 +17,11 @@ import {
   PROPERTY_ID,
   useScenarioTransaction,
 } from './goal-program-service.test-fixtures'
+import { createGoalProgramService } from './goal-programs.server'
 import {
-  createGoalProgramService,
   type GoalMetricReadPort,
   type GoalProgramSubjectReader,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 
 const LOBBY_ID = '00000000-0000-4000-8000-00000000b001'
 export const POOL_ID = '00000000-0000-4000-8000-00000000b002'
@@ -178,6 +178,9 @@ export function createMonthTargetHarness(
     >(async (versionId) => findMetricVersionById(versionId)),
   }
   const subjects = {
+    ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
+    staffTargetProblem: vi.fn(async () => null),
+    staffTargetAllowed: vi.fn(async () => true),
     getTimezone: vi.fn<GoalProgramSubjectReader['getTimezone']>(async () => 'UTC'),
     subjectBelongsToProperty: vi.fn<GoalProgramSubjectReader['subjectBelongsToProperty']>(
       async () => true,

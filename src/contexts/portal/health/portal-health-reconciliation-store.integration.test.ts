@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
@@ -125,5 +125,45 @@ describe.sequential('Portal Health reconciliation store (real PostgreSQL)', () =
       .from(eventConsumerReceipts)
       .where(eq(eventConsumerReceipts.eventId, SOURCE_EVENT))
     expect(receipts).toHaveLength(1)
+  })
+
+  it('decides each Portal of the Property from its own facts', async () => {
+    const SECOND = '89000000-0000-4000-8000-000000000012'
+    await getPool().query(
+      `INSERT INTO portals
+         (id, organization_id, property_id, entity_type, entity_id, name, slug,
+          theme, private_feedback_threshold, publication_state, created_at, updated_at)
+       VALUES ($1, $2, $3::uuid, 'property', $3::text, 'Spa', 'spa', '{}'::jsonb, 3,
+               'draft', $4, $4)`,
+      [SECOND, ORG, PROPERTY, NOW],
+    )
+    const store = createPortalHealthReconciliationStore(getDb(), {
+      clock: () => new Date(NOW.getTime() + 1_000),
+      idGen: () => crypto.randomUUID(),
+    })
+
+    await store.reconcile({
+      eventId: SOURCE_EVENT,
+      consumerName: 'portal.reconcile-health-dependencies',
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: null,
+      sourceVersion: `${SOURCE_EVENT}:property`,
+      occurredAt: new Date(NOW.getTime() + 1_000),
+    })
+
+    const open = await getDb()
+      .select()
+      .from(portalHealthIntervals)
+      .where(
+        and(
+          eq(portalHealthIntervals.organizationId, ORG),
+          isNull(portalHealthIntervals.effectiveTo),
+        ),
+      )
+    expect(open.map((row) => [row.portalId, row.status, row.reason]).sort()).toEqual([
+      [PORTAL, 'unavailable', 'publication_draft'],
+      [SECOND, 'unavailable', 'publication_draft'],
+    ])
   })
 })

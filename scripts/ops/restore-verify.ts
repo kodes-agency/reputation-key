@@ -108,15 +108,10 @@ async function main(): Promise<void> {
           )
           return report.lifecycle.expired
         },
-        inspectGoogleImportLifecycle: async () => {
-          const inspect = container.integrationMaintenanceRuntime.imports.inspectBacklog
-          if (!inspect) throw new Error('Google import lifecycle unavailable')
-          return inspect()
-        },
+        inspectGoogleImportLifecycle: () =>
+          container.integrationMaintenanceRuntime.imports.inspectBacklog(),
         sweepGoogleImportLifecycle: async () => {
-          const sweep = container.integrationMaintenanceRuntime.imports.sweep
-          if (!sweep) throw new Error('Google import lifecycle unavailable')
-          await sweep()
+          await container.integrationMaintenanceRuntime.imports.sweep()
         },
         inspectRetentionBacklog: async () => {
           const now = container.clock()

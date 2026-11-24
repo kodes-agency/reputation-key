@@ -45,8 +45,7 @@ Reputation-owned and reads the named AI public contract. The prompt still treats
 guest accounts as unverified and never states a reported problem as fact.
 
 - `analysis/`: Review Analysis. It holds:
-  - `analyze-review-event.server.ts` with `review-analysis-contract.server.ts` and
-    `review-analysis-contract-v3.server.ts`
+  - `analyze-review-event.server.ts` with `review-analysis-steps.server.ts`
   - the claim-conflict rule and the operation reaper
   - the output, Property aggregate, review-event and mention-correction stores
   - issue groups and the Urgent alert
@@ -604,17 +603,15 @@ Nothing can run on Anthropic until it is selected, so nothing is exposed today.
 ### Analysing, storing and aggregating v3
 
 `analysis/analyze-review-event.server.ts` is one skeleton (authorize, read the source, claim, call the provider,
-store, settle). A `ReviewAnalysisContract` (`analysis/review-analysis-contract.server.ts`) names the points that
-depend on the analysis profile: the profile facts the binding and the authorization gate compare,
-whether the source read also returns the numbered sentences, what is prepared before the claim,
-what the provider request carries beyond the review, whether a Property's authorization was
-recorded under the contract this one serves, and how the answer is accepted and stored. The use
-case takes the contract as a dependency and knows none of it; `build.ts` always builds v3. The
+store, settle). The steps either side of the provider call are plain functions in
+`analysis/review-analysis-steps.server.ts` (`prepareReviewAnalysis`, `acceptReviewAnalysis`), and the
+profile facts the binding and the request deadline read are its `REVIEW_ANALYSIS_OPERATION_PROFILE`;
+the use case takes the vocabulary and provider-choice ports as dependencies. The
 runtime catalogue holds `review-analysis-v3` alone for `review_analysis` and its parser refuses
 anything else. The v2 analysis code is gone; rows and operations it left behind stay readable
 through the profile catalogue and the stored-provenance readers.
 
-What the v3 contract (`analysis/review-analysis-contract-v3.server.ts`) does:
+What those steps (`analysis/review-analysis-steps.server.ts`) do:
 
 - Before the claim it reads the Property's Google primary category through
   `PropertyVocabularyContextPort`, resolves the vocabulary hints, and asks `AiProviderChoicePort`

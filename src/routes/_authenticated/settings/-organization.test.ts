@@ -10,9 +10,13 @@ const server = vi.hoisted(() => ({
   google: vi.fn(),
   feedback: vi.fn(),
 }))
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.query', () => ({
   getActiveOrganization: server.organization,
+}))
+vi.mock('#/contexts/identity/server/organizations.update', () => ({
   updateOrganization: vi.fn(),
+}))
+vi.mock('#/contexts/identity/server/organizations.upload', () => ({
   requestOrgLogoUpload: vi.fn(),
   finalizeOrgLogoUpload: vi.fn(),
 }))

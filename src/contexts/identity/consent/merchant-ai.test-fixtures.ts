@@ -19,7 +19,7 @@ import {
   type MerchantAiSnapshot,
 } from './merchant-ai-authorization.server'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import { createAiAdvisoryScope } from '#/shared/ai-operation/ai-lock-order-v1'
+import { providerSourceAdvisoryScope } from './provider-source-advisory-scope.server'
 import {
   getAiRuntimeCapability,
   isExecutionCompatibleWithConsent,
@@ -317,7 +317,7 @@ export async function replaceSourceEpoch(
 
 export async function advanceAnalysisHead(): Promise<number> {
   return db.transaction(async (tx) => {
-    const scope = createAiAdvisoryScope('provider-source', [ORG, PROPERTY, 3])
+    const scope = providerSourceAdvisoryScope(ORG, PROPERTY, 3)
     await tx.execute(sql`SELECT pg_advisory_xact_lock(ai_advisory_lock_key_v1(${scope}))`)
     await tx.execute(sql`
       SELECT id

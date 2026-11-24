@@ -223,7 +223,6 @@ function reconnect(
       {
         exchangeAttemptId: OAUTH_ATTEMPT,
         code: 'synthetic-code',
-        visibility: 'organization',
         purpose: 'reviews',
         connectionMode: 'reconnect',
         targetConnectionId: CONNECTION,

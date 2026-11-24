@@ -10,7 +10,7 @@ import { eq } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 
 import type { AiOperationId } from '../domain/types'
-import { createAiOrganizationSpendAdapter } from '../execution/ai-organization-spend.adapter.server'
+import { readOrganizationAiSpend } from '../execution/ai-organization-spend.server'
 
 it('admits and settles drafts against each tenant budget independently in the same month', async () => {
   const first = await createHarness()
@@ -29,9 +29,10 @@ it('admits and settles drafts against each tenant budget independently in the sa
     propertyId: otherIdentity.propertyId,
     reviewId: otherIdentity.reviewId,
   }
-  const spend = createAiOrganizationSpendAdapter(first.persistence.db)
+  const spend = (input: Parameters<typeof readOrganizationAiSpend>[1]) =>
+    readOrganizationAiSpend(first.persistence.db, input)
   const read = (organizationId: typeof ORGANIZATION_ID) =>
-    spend.readCurrentMonth({ organizationId, nowEpochMillis: NOW })
+    spend({ organizationId, nowEpochMillis: NOW })
 
   const results = await Promise.all([first.generate(INPUT), other.generate(otherInput)])
   expect(results.map((result) => result.status)).toEqual(['ready', 'ready'])

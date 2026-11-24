@@ -26,7 +26,7 @@ import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,
 } from '#/contexts/property/server/property-responsible-managers'
-import { setMemberPropertyAccess } from '#/contexts/identity/server/organizations'
+import { setMemberPropertyAccess } from '#/contexts/identity/server/organizations.member-access'
 import { responsibleManagersQuery } from '#/routes/_authenticated/properties/$propertyId/-settings-queries'
 import { propertyKeys, createKeys } from '#/shared/queries/query-keys'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'

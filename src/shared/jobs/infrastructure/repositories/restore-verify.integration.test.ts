@@ -248,7 +248,6 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     // ARC-03-T8: the real operator boot now binds the handle explicitly —
     // building it installs nothing.
     bindProcessPolicies(handle)
-    await handle.refresh()
     runtime = {
       decide: (request: DecisionRequest) => getExecutionPolicy().decide(request),
     }

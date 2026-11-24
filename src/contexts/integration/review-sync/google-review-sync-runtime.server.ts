@@ -45,7 +45,7 @@ export type GoogleReviewSyncRuntimeDeps = Readonly<{
   findLinkedPropertyIds: Parameters<
     typeof createGoogleNotificationProviderAuthorizer
   >[0]['findLinkedPropertyIds']
-  propertyBindingApi: PropertyGoogleBindingPublicApi | undefined
+  propertyBindingApi: PropertyGoogleBindingPublicApi
   executor: GoogleAuthorizedProviderExecutor | undefined
   authorizeReviewSyncContent: GoogleReviewSyncContentAuthorizer | undefined
   authorizeReplyPublicationContent: GoogleReplyPublicationContentAuthorizer | undefined
@@ -127,26 +127,24 @@ export const createGoogleReviewSyncRuntime = (
         })
       : createUnavailableGoogleReviewCursorStore())
 
-  const reviewSyncAuthorizer =
-    binding && deps.authorizeReviewSyncContent
-      ? createGoogleReviewSyncAuthorizer({
-          readBinding: binding.readInternal,
-          findConnection: deps.connectionRepo.findById,
-          getAccessToken: deps.getAccessToken,
-          authorizeGoogleContent: deps.authorizeReviewSyncContent,
-          warn: (fields, message) => deps.logger.warn(fields, message),
-        })
-      : null
-  const replyPublicationAuthorizer =
-    binding && deps.authorizeReplyPublicationContent
-      ? createGoogleReplyPublicationAuthorizer({
-          readBinding: binding.readInternal,
-          findConnection: deps.connectionRepo.findById,
-          getAccessToken: deps.getAccessToken,
-          authorizeGoogleContent: deps.authorizeReplyPublicationContent,
-          warn: (fields, message) => deps.logger.warn(fields, message),
-        })
-      : null
+  const reviewSyncAuthorizer = deps.authorizeReviewSyncContent
+    ? createGoogleReviewSyncAuthorizer({
+        readBinding: binding.readInternal,
+        findConnection: deps.connectionRepo.findById,
+        getAccessToken: deps.getAccessToken,
+        authorizeGoogleContent: deps.authorizeReviewSyncContent,
+        warn: (fields, message) => deps.logger.warn(fields, message),
+      })
+    : null
+  const replyPublicationAuthorizer = deps.authorizeReplyPublicationContent
+    ? createGoogleReplyPublicationAuthorizer({
+        readBinding: binding.readInternal,
+        findConnection: deps.connectionRepo.findById,
+        getAccessToken: deps.getAccessToken,
+        authorizeGoogleContent: deps.authorizeReplyPublicationContent,
+        warn: (fields, message) => deps.logger.warn(fields, message),
+      })
+    : null
 
   const authorizeReviewSyncProviderCall:
     | Parameters<
@@ -242,14 +240,11 @@ export const createGoogleReviewSyncRuntime = (
         replyToReview: refuseWithoutProvider,
       })
 
-  const googleReviewPushTargetResolver: TargetedGoogleReviewReferenceResolver = binding
-    ? createGoogleReviewPushTargetResolver({
-        readBinding: binding.readInternal,
-        references: deps.pushReferences,
-      })
-    : Object.freeze({
-        resolve: async () => ({ status: 'obsolete' as const }),
-      })
+  const googleReviewPushTargetResolver: TargetedGoogleReviewReferenceResolver =
+    createGoogleReviewPushTargetResolver({
+      readBinding: binding.readInternal,
+      references: deps.pushReferences,
+    })
 
   const googleConnectionStatus: GoogleConnectionStatusPort = {
     findStatus: async (organizationId, connectionId) =>

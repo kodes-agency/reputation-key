@@ -209,6 +209,7 @@ function setupLocalized(options?: Readonly<{ workingDisplayName?: string }>) {
       current: record,
       nextCursor: null,
     })),
+    listOpenPendingContentChanges: vi.fn(async () => []),
   } as unknown as PortalPublicationRepository
 
   return getPortalPublicationHistory({

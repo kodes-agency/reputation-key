@@ -18,8 +18,7 @@ import type {
   GoalSubjectAssignment,
 } from '../application/ports/goal-program.repository'
 import { createGoalListProgressReader } from './goal-list-progress.server'
-import type { GoalProgressDeps } from './goal-progress.server'
-import type { GoalActor } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.server'
 
 type CountMetric = Exclude<GoalMetric, 'portal_rating_average'>
@@ -137,11 +136,14 @@ type Verdicts = Case &
   }>
 
 async function verdictsOf(now: Date, item: Case): Promise<Verdicts> {
-  const deps: GoalProgressDeps = {
+  const deps: Parameters<typeof createGoalListProgressReader>[0] = {
     reads: {
       list: async () => [goalOf(item.metric, item.target)],
     },
-    metrics: { queryGoalMetric: async () => counted(item.metric, item.value) },
+    metrics: {
+      queryGoalMetrics: async (queries) =>
+        queries.map(() => counted(item.metric, item.value)),
+    },
     now: () => now,
   }
   const listed = await createGoalListProgressReader(deps)(

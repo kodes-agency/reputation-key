@@ -110,11 +110,11 @@ const planPortalRepublish =
       deps.publicationRepo.loadWorkingCopyWithLook(ctx.organizationId, pid),
       deps.publicationRepo.findActiveForPortal(ctx.organizationId, pid),
       deps.publicationRepo.getCursor(ctx.organizationId, pid),
-      deps.publicationRepo.listOpenPendingContentChanges?.(
+      deps.publicationRepo.listOpenPendingContentChanges(
         ctx.organizationId,
         portal.propertyId,
         pid,
-      ) ?? Promise.resolve([]),
+      ),
     ])
     const workingCopy = workingCopyWithLook?.source
     if (workingCopyWithLook)

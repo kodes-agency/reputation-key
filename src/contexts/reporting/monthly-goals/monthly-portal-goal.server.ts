@@ -38,13 +38,13 @@ import type {
 } from '../application/ports/goal-program.repository'
 import type { PortalGoalPromptDeferralStore } from './portal-goal-prompt-deferrals-repository.port.server'
 import type { GoalMonthTargetChangeResult } from './goal-month-target.server'
+import { type GoalProgramService } from './goal-programs.server'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
-  type GoalProgramService,
   type GoalProgramSubjectReader,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import {
   gatherPortalGoalFacts,
   gatherPortalGoalRecommendation,

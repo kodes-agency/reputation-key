@@ -91,9 +91,19 @@ export function createReplyWorkflowAiFixture(
   const { organizationId, propertyId, reviewId, actorUserId } = input
   const db = getDb()
   const { privateKey, publicKey } = generateKeyPairSync('ed25519')
-  const store = createAiSuggestedDraftStore(db, new Map([[KEY_ID, publicKey]]), {
-    isCurrentAiReplyBrandProfile: async () => true,
-  })
+  const store = createAiSuggestedDraftStore(
+    db,
+    new Map([[KEY_ID, publicKey]]),
+    {
+      isCurrentAiReplyBrandProfile: async () => true,
+    },
+    {
+      resolveSavedFrame: async () => null,
+      resolveV2Frame: async () => null,
+      resolveLocalFrame: async () => null,
+      isCurrentVoice: async () => false,
+    },
+  )
   let operationSequence = 0
   let replyControlBefore: ControlState | null = null
 

@@ -17,7 +17,10 @@ import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/do
 import { sha256Hex } from '#/shared/domain/sha256'
 import type { GoogleConnection } from '../domain/types'
 import type { ActiveConnectionTokenProvider } from '../connections/active-connection-token-provider.server'
-import type { GoogleReplyPublicationProviderCallAuthorization } from '../provider/contracts'
+import type {
+  GoogleContentAuthorizationResult,
+  GoogleReplyPublicationProviderCallAuthorization,
+} from '../provider/contracts'
 
 export const GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL =
   'reply-publication-worker-v1' as const
@@ -37,19 +40,9 @@ export type GoogleReplyPublicationIdentity = Readonly<{
   attemptNumber: number
 }>
 
-export type GoogleReplyPublicationContentAuthorizationResult =
-  | Readonly<{
-      ok: true
-      authorizationVector: Readonly<Record<string, string | number | boolean | null>>
-    }>
-  | Readonly<{
-      ok: false
-      code: 'authorization_denied' | 'runtime_unavailable'
-    }>
-
 export type GoogleReplyPublicationContentAuthorizer = (
   input: GoogleReplyPublicationIdentity & Readonly<{ operationKey: 'reply.publish' }>,
-) => Promise<GoogleReplyPublicationContentAuthorizationResult>
+) => Promise<GoogleContentAuthorizationResult>
 
 export type GoogleReplyPublicationAuthorizationResult =
   | Readonly<{
@@ -118,7 +111,7 @@ function expectedSystemVector(
   input: GoogleReplyPublicationIdentity,
   binding: GooglePropertyAuthorizationView,
   connection: GoogleConnection,
-  content: Extract<GoogleReplyPublicationContentAuthorizationResult, { ok: true }>,
+  content: Extract<GoogleContentAuthorizationResult, { ok: true }>,
 ) {
   const vector = content.authorizationVector
   if (!validPublicationVector(input, vector)) return null
@@ -147,7 +140,7 @@ function validSystemContent(
   input: GoogleReplyPublicationIdentity,
   binding: GooglePropertyAuthorizationView,
   connection: GoogleConnection,
-  content: Extract<GoogleReplyPublicationContentAuthorizationResult, { ok: true }>,
+  content: Extract<GoogleContentAuthorizationResult, { ok: true }>,
 ): boolean {
   const expected = expectedSystemVector(input, binding, connection, content)
   return Boolean(
@@ -174,44 +167,28 @@ export function createGoogleReplyPublicationAuthorizer(
       warn?: (fields: Readonly<Record<string, unknown>>, message: string) => void
     }>,
 ): GoogleReplyPublicationAuthorizer {
-  return async (input) => {
-    if (!validIdentity(input)) return { ok: false, code: 'authorization_denied' }
-    const initial = await readGooglePropertyAuthorization(deps, input)
-    if (!initial.ok) return initial
-    const { binding: initialBinding, connection: initialConnection } = initial
-    if (!googleConnectionHasUsableCredential(initialConnection)) {
-      return { ok: false, code: 'authorization_denied' }
-    }
+  type Pass = Extract<
+    Awaited<ReturnType<typeof readGooglePropertyAuthorization>>,
+    { ok: true }
+  > &
+    Readonly<{ content: Extract<GoogleContentAuthorizationResult, { ok: true }> }>
 
-    let initialContent: GoogleReplyPublicationContentAuthorizationResult
-    try {
-      initialContent = await deps.authorizeGoogleContent({
-        ...input,
-        operationKey: 'reply.publish',
-      })
-    } catch {
-      return { ok: false, code: 'runtime_unavailable' }
-    }
-    if (!initialContent.ok) return initialContent
-    if (!validSystemContent(input, initialBinding, initialConnection, initialContent)) {
-      return { ok: false, code: 'authorization_denied' }
-    }
-
-    let accessToken: string
-    try {
-      accessToken = await deps.getAccessToken(input.organizationId, input.connectionId)
-    } catch {
-      return { ok: false, code: 'runtime_unavailable' }
-    }
-
-    const current = await readGooglePropertyAuthorization(deps, input)
-    if (!current.ok) return current
-    const { binding, connection } = current
+  // One authority read: the Property binding and connection, the usable
+  // credential, the content authorizer and the permit vector.
+  const authorizeOnce = async (
+    input: GoogleReplyPublicationIdentity,
+    warnOnDrift: boolean,
+  ): Promise<
+    Pass | Extract<GoogleReplyPublicationAuthorizationResult, { ok: false }>
+  > => {
+    const read = await readGooglePropertyAuthorization(deps, input)
+    if (!read.ok) return read
+    const { binding, connection } = read
     if (!googleConnectionHasUsableCredential(connection)) {
       return { ok: false, code: 'authorization_denied' }
     }
 
-    let content: GoogleReplyPublicationContentAuthorizationResult
+    let content: GoogleContentAuthorizationResult
     try {
       content = await deps.authorizeGoogleContent({
         ...input,
@@ -221,26 +198,46 @@ export function createGoogleReplyPublicationAuthorizer(
       return { ok: false, code: 'runtime_unavailable' }
     }
     if (!content.ok) return content
-    const expected = expectedSystemVector(input, binding, connection, content)
-    if (!expected || !validSystemContent(input, binding, connection, content)) {
-      deps.warn?.(
-        {
-          event: 'google_reply_publication_authorization_vector_changed',
-          drift: expected
-            ? exactVectorDrift(content.authorizationVector, expected)
-            : ['publicationVector'],
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-          reviewId: input.reviewId,
-          replyId: input.replyId,
-          publicationCycle: input.publicationCycle,
-          attemptNumber: input.attemptNumber,
-        },
-        'Google reply publication authorization changed',
-      )
+    if (!validSystemContent(input, binding, connection, content)) {
+      if (warnOnDrift) {
+        const expected = expectedSystemVector(input, binding, connection, content)
+        deps.warn?.(
+          {
+            event: 'google_reply_publication_authorization_vector_changed',
+            drift: expected
+              ? exactVectorDrift(content.authorizationVector, expected)
+              : ['publicationVector'],
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            connectionId: input.connectionId,
+            reviewId: input.reviewId,
+            replyId: input.replyId,
+            publicationCycle: input.publicationCycle,
+            attemptNumber: input.attemptNumber,
+          },
+          'Google reply publication authorization changed',
+        )
+      }
       return { ok: false, code: 'authorization_denied' }
     }
+    return { ok: true, binding, connection, content }
+  }
+
+  return async (input) => {
+    if (!validIdentity(input)) return { ok: false, code: 'authorization_denied' }
+    const initial = await authorizeOnce(input, false)
+    if (!initial.ok) return initial
+
+    let accessToken: string
+    try {
+      accessToken = await deps.getAccessToken(input.organizationId, input.connectionId)
+    } catch {
+      return { ok: false, code: 'runtime_unavailable' }
+    }
+
+    const current = await authorizeOnce(input, true)
+    if (!current.ok) return current
+    const { connection, content } = current
 
     return {
       ok: true,

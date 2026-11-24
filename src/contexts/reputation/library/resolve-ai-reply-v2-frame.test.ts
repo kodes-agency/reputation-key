@@ -17,7 +17,6 @@ const REVIEW = reviewId('20000000-0000-4000-8000-000000000001')
 function deps(
   options: Readonly<{
     reviewProperty?: typeof PROPERTY
-    withReservation?: boolean
     rating?: number
     propertyVoice?: StoredReplyVoice
   }> = {},
@@ -46,7 +45,10 @@ function deps(
     saveTemplate: vi.fn(),
     setHidden: vi.fn(),
     archiveCustomization: vi.fn(),
-    ...(options.withReservation === false ? {} : { reserveAiFrame }),
+    reserveAiFrame,
+    loadVoiceOverridesForShare: vi.fn(),
+    findPublishedUsage: vi.fn(async () => []),
+    findRecentLiveReplyTexts: vi.fn(async () => []),
   }
   const review = {
     id: REVIEW,
@@ -85,13 +87,6 @@ describe('AI reply v2 frame resolution', () => {
     const { repository, reviews } = deps({ reviewProperty: OTHER_PROPERTY })
     await expect(
       readAiReplyVoiceSnapshot({ repository, reviews }, INPUT),
-    ).resolves.toBeNull()
-  })
-
-  it('builds no frame when the repository cannot reserve one', async () => {
-    const { repository, reviews } = deps({ withReservation: false })
-    await expect(
-      resolveAiReplyV2Frame({ repository, reviews }, INPUT),
     ).resolves.toBeNull()
   })
 

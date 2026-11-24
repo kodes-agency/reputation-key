@@ -11,13 +11,13 @@
 // at every call site, and repositories independently fail closed on [] so a
 // future caller cannot accidentally widen an empty scope.
 
-import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { inboxError } from '../domain/inbox-errors'
+import type { PropertyScopeApi } from './inbox-access.server'
 
 export type VisibleProperties = 'all' | 'none' | ReadonlyArray<PropertyId>
 
@@ -27,7 +27,7 @@ export type VisibleProperties = 'all' | 'none' | ReadonlyArray<PropertyId>
  * fail-closed), or the assigned property id set.
  */
 export async function resolveVisiblePropertyIds(
-  peopleApi: StaffPublicApi,
+  peopleApi: PropertyScopeApi,
   ctx: AuthContext,
   permission: Permission,
 ): Promise<VisibleProperties> {

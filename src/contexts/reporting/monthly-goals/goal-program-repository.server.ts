@@ -21,7 +21,6 @@ import type {
   GoalAssignmentConflict,
   GoalProgram,
   GoalProgramBundle,
-  GoalProgramCurrentReads,
   GoalProgramRepository,
 } from '../application/ports/goal-program.repository'
 import { GOAL_MAINTENANCE_PAGE_SIZE } from '../application/ports/goal-program.repository'
@@ -272,7 +271,7 @@ async function endingBoundary(
 export const createGoalProgramRepository = (
   db: Database,
   id: () => string = randomUUID,
-): GoalProgramRepository & GoalProgramCurrentReads => {
+): GoalProgramRepository => {
   /**
    * Runs a status change in a transaction. Ending a Program that finds its
    * version history changed under it throws GoalProgramRevisionConflict; the
@@ -339,9 +338,6 @@ export const createGoalProgramRepository = (
       }
       return 'created'
     },
-
-    get: currentReads.getSummary,
-    list: currentReads.listSummaries,
 
     async listOperational(after) {
       const rows = await db

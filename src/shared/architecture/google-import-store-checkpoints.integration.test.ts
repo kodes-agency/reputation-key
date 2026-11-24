@@ -37,7 +37,7 @@ import * as bindingModule from '#/contexts/property/profile/google-binding-store
 import * as importStoreModule from '#/contexts/integration/imports/import-store.server'
 import { createTokenEncryptionAdapter } from '#/contexts/integration/connections/token-encryption.adapter.server'
 import {
-  createDurableImportReferenceKeys,
+  invalidationDigest,
   invalidationScopeFor,
 } from '#/contexts/integration/imports/durable-import-reference-keys.server'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
@@ -121,9 +121,9 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
     const otherUserId = randomUUID()
     const connectionId = randomUUID()
     const now = IMPORT_TEST_NOW
-    const invalidationKeys = createDurableImportReferenceKeys({})
-      .invalidationKeys(invalidationScopeFor('connection', [orgId, connectionId]))
-      .map((fence) => fence.key)
+    const invalidationKeys = [
+      invalidationDigest(invalidationScopeFor('connection', [orgId, connectionId])),
+    ]
     const encryptionKey = IMPORT_TEST_ENCRYPTION_KEY
     const encryption = createTokenEncryptionAdapter({
       activeVersion: 'v1',

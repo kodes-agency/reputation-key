@@ -22,7 +22,7 @@ import { qualifiedScansSince } from './qualified-scans-since.server'
 import type { PortalResponseIntegritySummary } from '#/contexts/guest/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import { PORTAL_RESULTS_THRESHOLDS } from '../domain/portal-results-thresholds'
-import { localDateOf } from '../domain/local-days'
+import { localDateOf } from '#/shared/domain/local-days'
 import {
   buildPortalResultsSeries,
   portalSeriesBucketDays,

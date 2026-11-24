@@ -11,7 +11,6 @@ import {
   replies,
   replyPublicationAuthorizations,
   replyPublicationAttempts,
-  reviews,
 } from '#/shared/db/schema/review.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
@@ -43,8 +42,12 @@ import {
   confirmReplyPublished,
   deleteGoogleSyncMirrors,
   supersedePublicationAttemptById,
-} from '#/contexts/reputation/public-api'
-import { lockReplyTruthScope } from '../reviews/reply-truth-serialization.server'
+} from '../replies/row-commands.server'
+import {
+  lockCurrentReplyTruthHead,
+  lockReplyTruthReview,
+  lockReplyTruthScope,
+} from '../reviews/reply-truth-serialization.server'
 import { assertObservationFence } from './google-reply-observation-fence.server'
 import { renewHeadContentClock } from './google-reply-observation-clock.server'
 import { resolveSupersededReplyRead } from './google-reply-superseded-read.server'
@@ -63,31 +66,6 @@ const UNCERTAIN_PUBLICATION_STATES = [
 ] as const
 
 const CLAIMABLE_PUBLICATION_STATUSES = ['approved', 'publish_failed'] as const
-
-/** The Review this observation names, locked for the rest of the transaction. */
-async function lockObservationSubject(tx: Tx, input: RecordGoogleReplyObservation) {
-  const reviewRows = await tx
-    .select({
-      id: reviews.id,
-      propertyId: reviews.propertyId,
-      sourceEpoch: reviews.sourceEpoch,
-      sourceRevision: reviews.sourceRevision,
-      sourceContentState: reviews.sourceContentState,
-    })
-    .from(reviews)
-    .where(
-      and(
-        eq(reviews.id, input.reviewId),
-        eq(reviews.organizationId, input.organizationId),
-        eq(reviews.propertyId, input.propertyId),
-      ),
-    )
-    .for('update')
-    .limit(1)
-  const review = reviewRows[0]
-  if (!review) throw reviewError('review_not_found', 'Review not found')
-  return review
-}
 
 /**
  * A committed idempotency key names immutable provider evidence, not the
@@ -123,32 +101,7 @@ async function findReplayedObservation(
   return replayed
 }
 
-function selectCurrentHead(tx: Tx, input: RecordGoogleReplyObservation) {
-  return tx
-    .select({
-      observationRevision: googleReplyObservationHeads.observationRevision,
-      sourceEpoch: googleReplyObservationHeads.sourceEpoch,
-      materialReviewRevision: googleReplyObservationHeads.materialReviewRevision,
-      readGeneration: googleReplyObservations.readGeneration,
-      state: googleReplyObservationHeads.state,
-      normalizedDigest: googleReplyObservations.normalizedDigest,
-    })
-    .from(googleReplyObservationHeads)
-    .innerJoin(
-      googleReplyObservations,
-      eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
-    )
-    .where(
-      and(
-        eq(googleReplyObservationHeads.organizationId, input.organizationId),
-        eq(googleReplyObservationHeads.reviewId, input.reviewId),
-      ),
-    )
-    .for('update', { of: googleReplyObservationHeads })
-    .limit(1)
-}
-
-type ObservationHeadRow = Awaited<ReturnType<typeof selectCurrentHead>>[number]
+type ObservationHeadRow = Awaited<ReturnType<typeof lockCurrentReplyTruthHead>>[number]
 
 /** The attempt this observation may attribute: the exact attempt a targeted
  * read names, otherwise the newest attempt of the Reply's current cycle. */
@@ -719,7 +672,8 @@ export const createGoogleReplyObservationStore = (
         return db.transaction(async (tx) => {
           await lockReplyTruthScope(tx, input.organizationId, input.reviewId)
 
-          const review = await lockObservationSubject(tx, input)
+          const review = await lockReplyTruthReview(tx, input)
+          if (!review) throw reviewError('review_not_found', 'Review not found')
           const replayed = await findReplayedObservation(tx, input, inputDigest)
           if (replayed) {
             return resultFromRow(replayed, true)
@@ -728,7 +682,7 @@ export const createGoogleReplyObservationStore = (
           // New evidence still has to satisfy the current source fences.
           if (
             review.sourceEpoch !== input.sourceEpoch ||
-            review.sourceRevision !== input.materialReviewRevision
+            review.materialReviewRevision !== input.materialReviewRevision
           ) {
             throw reviewError(
               'invalid_transition',
@@ -736,7 +690,7 @@ export const createGoogleReplyObservationStore = (
             )
           }
 
-          const headRows = await selectCurrentHead(tx, input)
+          const headRows = await lockCurrentReplyTruthHead(tx, input)
           const head = headRows[0]
           if (head && input.readGeneration <= head.readGeneration) {
             return resolveSupersededReplyRead(input, head)

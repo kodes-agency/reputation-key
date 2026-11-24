@@ -54,13 +54,18 @@ const replyCommandStore = createAtomicReplyCommandStore(
   db,
   () => new Date(),
   async () => true,
-  undefined,
   replyScopeEffects,
 )
 const draftStore = createAiSuggestedDraftStore(
   db,
   new Map([['provenance-v1', publicKey]]),
   { isCurrentAiReplyBrandProfile: async () => true },
+  {
+    resolveSavedFrame: async () => null,
+    resolveV2Frame: async () => null,
+    resolveLocalFrame: async () => null,
+    isCurrentVoice: async () => false,
+  },
 )
 const profiles = createPropertyProcessingProfileAdapter(
   db,

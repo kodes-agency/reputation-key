@@ -805,8 +805,8 @@ schedulers and retained jobs, Queue Redis boot/success/failure heads, and the
 quarantine. A firing alert therefore means the report is unavailable, at least
 one active family has a missing handler or scheduler, had a schedule firing
 denied by the delayed-execution gate, missed its last-success or queue-age
-objective, stalled, needs repair, or has a dead letter; or a dark/quarantined
-family has forbidden executable work. A gate-denied job completes in BullMQ
+objective, stalled, needs repair, or has a dead letter; or a quarantined
+family has a recurring scheduler. A gate-denied job completes in BullMQ
 without retrying, but nothing ran: it is recorded as a denial (`lastDeniedAt`),
 never as a success, so it cannot keep a dead family fresh. `jobs.gateDenials`
 and each row's `deniedCount` count gate-denied jobs among the retained completed
@@ -843,8 +843,7 @@ each family. It contains no tenant or payload content.
    a recent heartbeat or an empty queue.
 2. For `handler_missing` or `scheduler_missing`, compare the deployed release
    identity and capability policy with the row's processor/capability/schedule.
-   A dark/quarantined family with a handler, scheduler, queued item, or
-   post-boot execution is a containment failure; do not redrive it. Review the
+   A quarantined family with a scheduler is a containment failure; do not redrive it. Review the
    entry, then dry-run `pnpm ops quarantine discard <id> --operator
 <registered-operator>` before applying it with `--reason <incident-reason>
 --apply --yes ops:quarantine`.
@@ -902,7 +901,7 @@ each family. It contains no tenant or payload content.
 
 **Remediate:** repair configuration/handler/scheduler drift by promoting a
 reviewed immutable release; never register an ad-hoc handler or repeat entry in
-Redis. Remove forbidden dark/quarantined schedules through normal scheduler
+Redis. Remove forbidden quarantined schedules through normal scheduler
 reconciliation and discard their queued work without executing it. For an
 active poison item, fix the handler cause first, review the quarantine report,
 then execute the row's report-linked redrive command. A failed firing needs no
@@ -914,13 +913,13 @@ reconciliation or rebuild remains authoritative when its runbook says replaying
 one queue item cannot reconstruct the projection.
 
 **Verification:** `jobs.ready` is true; `jobs.failing`, missing handler/scheduler,
-schedule-denied, forbidden-dark-work, missed-objective, queue-age, stalled,
+schedule-denied, quarantined-scheduler, missed-objective, queue-age, stalled,
 repair-required, and dead-letter counts are all zero; every active scheduled row
 has a recent `lastSucceededAt`; and a second health-check cadence remains green
 after a worker restart. `jobs.terminalFailures` is informational: it falls only
 as BullMQ trims its retained failed jobs, so watch that it stops growing.
 
-**Escalation:** Bozhidar Denev. A dark family that executed, or an active family
+**Escalation:** Bozhidar Denev. A quarantined family that is scheduled, or an active family
 that cannot be deterministically repaired, is a release blocker.
 
 ---

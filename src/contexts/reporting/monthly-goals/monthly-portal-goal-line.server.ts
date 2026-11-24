@@ -11,7 +11,10 @@ import {
 } from './monthly-portal-goal-identity.server'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import { progressOf } from './goal-progress.server'
-import type { GoalActor, GoalExecutionPolicy } from './goal-programs.server'
+import type {
+  GoalActor,
+  GoalExecutionPolicy,
+} from '../application/use-cases/goal-program-shared'
 import {
   gatherMonthlyPortalGoal,
   type MonthlyPortalGoalCardDeps,

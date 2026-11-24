@@ -11,7 +11,7 @@ import {
   portalUuid,
   useGoalProgramsScenario,
 } from './goal-program-service.test-fixtures'
-import { type GoalMetricReadPort } from './goal-programs.server'
+import { type GoalMetricReadPort } from '../application/use-cases/goal-program-shared'
 
 const { db, setup, versionWindows } = useGoalProgramsScenario()
 

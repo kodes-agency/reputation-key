@@ -133,10 +133,9 @@ code imports these server files directly. Its server functions are in
 `replies/store.server.ts` builds the Reply writer (`createReplyWriter`): draft
 writes and guarded command updates. Each interactive write takes the observation
 fence, then locks Review before Reply; a draft save that names the revision it
-read is refused when the row has moved. The `ReplyWriter` port is
-`replies/reply-writer.port.server.ts`; `replies/reply-writer.server.ts` supplies
-the row helpers when it builds the writer, and Review's build receives the
-writer from there.
+read is refused when the row has moved. The `ReplyWriter` type is derived from
+it in `replies/reply-writer.port.server.ts`; the command store and the reply
+repository each build the writer from `db` and the clock.
 
 `replies/scope-effects.server.ts` holds the effects that need no Review helper:
 bulk AI-draft withdrawal, restore fencing and Organization closing and scrub.
@@ -153,8 +152,8 @@ cannot authorize stale text and delayed responses cannot revive a deleted draft.
 `replies/row-commands.server.ts` holds the writes that need only the caller's
 transaction: the provider mirror refresh and removal, cancellation and
 confirmation at an observation, source-change and guest-edit returns to draft,
-and AI adoption. Review's stores call them through
-`public-api.ts` under the Review lock they already hold; the source,
+and AI adoption. Reputation's stores import them directly, under the Review
+lock they already hold; the source,
 attempt and measurement fences stay in those stores. Nothing outside
 `replies/` writes the `replies` table, and `shared/architecture/reply-single-writer.test.ts`
 fails on a new writer. Shared code reaches the effects only through the port.
@@ -273,7 +272,7 @@ and `snapshot-failure-backoff` modules.
 
 | Feature                          | Server function (file in `server/`)                                                                                                     | Use case or store                                                                                                                           |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Draft, submit, confirm, edit     | `draftReplyFn`, `submitReplyFn`, `approveReplyFn`, `editPublishedReplyFn` (`reply-draft.ts`)                                            | `replies/reply-operations.server.ts`, `replies/reply-command-store.server.ts`, `replies/reply-writer.server.ts`                             |
+| Draft, submit, confirm, edit     | `draftReplyFn`, `submitReplyFn`, `approveReplyFn`, `editPublishedReplyFn` (`reply-draft.ts`)                                            | `replies/reply-operations.server.ts`, `replies/reply-command-store.server.ts`, `replies/store.server.ts`                                    |
 | Reject, delete, try again        | `rejectReplyFn`, `deleteReplyFn`, `retryPublishFn` (`reply.ts`)                                                                         | `replies/reply-operations.server.ts`, `replies/reply-command-store.server.ts`                                                               |
 | Check Google again               | `checkReplyPublicationFn` (`reply.ts`)                                                                                                  | `publication/check-reply-publication.server.ts`, `publication/reconcile-reply-publication.server.ts`                                        |
 | Reply library (voice, templates) | `getReplyLibraryFn`, `saveReplyVoiceFn`, `saveReplyTemplateFn`, `setReplyTemplateHiddenFn`, `resetReplyTemplateFn` (`reply-library.ts`) | `library/reply-library-layer-operations.server.ts`, `library/reply-library-resolver.contracts.ts`                                           |

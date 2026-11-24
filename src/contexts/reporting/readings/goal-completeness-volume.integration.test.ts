@@ -9,7 +9,7 @@ import { createPortalGroupPublicApi } from '#/contexts/portal/groups/portal-grou
 import { createPortalGroupRepository } from '#/contexts/portal/groups/portal-group-repository.server'
 import { METRIC_VERSION_IDS } from './contracts'
 import {
-  createGoalMetricSourceStatus,
+  inspectGoalMetricSourceStatus,
   goalMetricSourceStatusQuery,
 } from './goal-metric-source-status.server'
 
@@ -126,7 +126,6 @@ describe.sequential('Goal source completeness at volume (integration)', () => {
     const current = await groups.findGroupForPortal(org, portalId(portal), moved)
     expect(previous?.id).toBe(previousGroup)
     expect(current?.id).toBe(currentGroup)
-    const inspect = createGoalMetricSourceStatus(held.db).inspect
     statements = 0
 
     const query = {
@@ -139,7 +138,7 @@ describe.sequential('Goal source completeness at volume (integration)', () => {
       periodStart: start,
       periodEnd: end,
     }
-    const answer = await inspect(query, [
+    const answer = await inspectGoalMetricSourceStatus(held.db, query, [
       'guest.rating.submitted',
       'guest.rating.retracted',
     ])

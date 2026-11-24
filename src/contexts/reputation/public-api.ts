@@ -9,10 +9,8 @@
  */
 import type { Tx } from '#/shared/outbox/commit'
 import type { ResponseTargetStore } from './response-targets/store.port.server'
-import type {
-  UpdateInboxStatus,
-  BulkUpdateInboxStatus,
-} from './inbox/inbox-status-commands.server'
+import type { UpdateInboxStatus } from './inbox/update-inbox-status.server'
+import type { BulkUpdateInboxStatus } from './inbox/bulk-update-inbox-status.server'
 import type { BulkAssignInboxItems } from './inbox/bulk-assign-inbox-items.server'
 import type { EscalateInboxItem } from './inbox/escalate-inbox-item.server'
 import type { ResolveEscalation } from './inbox/resolve-escalation.server'
@@ -39,12 +37,9 @@ import type {
 import type { SetResponseTargetPolicy } from './response-targets/set-response-target-policy.server'
 
 // ── Reply and content storage ───────────────────────────────────────
-// Review builds the Reply writer with its own row helpers, and any context
-// that must end or withdraw Replies inside its transaction uses the scope
-// effects.
-export { createReplyWriter } from './replies/store.server'
+// Any context that must end or withdraw Replies inside its transaction uses
+// the scope effects.
 export { replyScopeEffects } from './replies/scope-effects.server'
-export type { ReplyWriterDeps, ReplyWriterRows } from './replies/store.server'
 export {
   cancelReplyAtProviderTruth,
   confirmPublicationAttempt,

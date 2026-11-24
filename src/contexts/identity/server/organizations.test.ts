@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import { identityError, isIdentityError } from '#/contexts/identity/domain/errors'
 import type { IdentityErrorCode } from '#/contexts/identity/domain/errors'
-import { identityErrorStatus } from '#/contexts/identity/server/organizations'
+import { identityErrorStatus } from '#/contexts/identity/server/organizations.shared'
 import { throwContextError } from '#/shared/auth/server-errors'
 
 // ── Error → HTTP status mapping (production code) ─────────────────

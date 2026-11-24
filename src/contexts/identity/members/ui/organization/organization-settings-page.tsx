@@ -11,11 +11,11 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { OrganizationSettingsForm } from './organization-settings-form'
+import type { updateOrganization } from '#/contexts/identity/server/organizations.update'
 import type {
-  updateOrganization,
   requestOrgLogoUpload,
   finalizeOrgLogoUpload,
-} from '#/contexts/identity/server/organizations'
+} from '#/contexts/identity/server/organizations.upload'
 
 type OrgData = Readonly<{
   id: string

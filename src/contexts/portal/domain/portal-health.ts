@@ -1,18 +1,30 @@
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { PortalPublicationState } from './portal-publication'
 
-export type PortalHealthStatus = 'healthy' | 'degraded' | 'unavailable'
-export type PortalHealthReason =
-  | 'operational'
-  | 'publication_draft'
-  | 'publication_disabled'
-  | 'publication_archived'
-  | 'property_unavailable'
-  | 'publication_snapshot_unavailable'
-  | 'public_address_unavailable'
-  | 'responsibility_needed'
-  | 'google_destination_awaiting_refresh'
-  | 'google_destination_unavailable'
+export const PORTAL_HEALTH_STATUSES = ['healthy', 'degraded', 'unavailable'] as const
+export type PortalHealthStatus = (typeof PORTAL_HEALTH_STATUSES)[number]
+
+export const PORTAL_HEALTH_REASONS = [
+  'operational',
+  'publication_draft',
+  'publication_disabled',
+  'publication_archived',
+  'property_unavailable',
+  'publication_snapshot_unavailable',
+  'public_address_unavailable',
+  'responsibility_needed',
+  'google_destination_awaiting_refresh',
+  'google_destination_unavailable',
+] as const
+export type PortalHealthReason = (typeof PORTAL_HEALTH_REASONS)[number]
+
+export function isPortalHealthStatus(value: string): value is PortalHealthStatus {
+  return (PORTAL_HEALTH_STATUSES as readonly string[]).includes(value)
+}
+
+export function isPortalHealthReason(value: string): value is PortalHealthReason {
+  return (PORTAL_HEALTH_REASONS as readonly string[]).includes(value)
+}
 
 export type PortalHealth = Readonly<{
   status: PortalHealthStatus

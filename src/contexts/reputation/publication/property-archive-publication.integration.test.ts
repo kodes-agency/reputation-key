@@ -185,7 +185,6 @@ async function authorizeReply(sourceEpoch = 0): Promise<void> {
     db,
     () => NOW,
     async () => true,
-    undefined,
     replyScopeEffects,
   ).markPublicationAuthorized(
     pending,
@@ -391,7 +390,6 @@ function publishWorker() {
       db,
       () => ARCHIVED_AT,
       async () => true,
-      undefined,
       replyScopeEffects,
     ),
     dispatchEvidence: { findDispatchEvidence: vi.fn() } as never,

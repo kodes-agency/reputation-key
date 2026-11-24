@@ -105,7 +105,6 @@ function makeWorld() {
     authorizeManagement,
     isCurrentAccountAdmin: async () => true,
     authorize: async () => true,
-    verifyStepUp: async () => true,
     clock,
     idGen: () => 'c0000000-0000-4000-8000-0000000000d1',
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,

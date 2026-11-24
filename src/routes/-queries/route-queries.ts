@@ -21,7 +21,7 @@ import {
 } from '#/contexts/reporting/server/property-setup'
 import { queryOptions } from '@tanstack/react-query'
 import { listProperties, getProperty } from '#/contexts/property/server/properties'
-import { listMembers } from '#/contexts/identity/server/organizations'
+import { listMembers } from '#/contexts/identity/server/organizations.query'
 import { listGoogleConnections } from '#/contexts/integration/server/google-connections'
 import { getNotificationUserSettingsFn } from '#/contexts/feed/server/notifications'
 import { aiKeys, propertyKeys, createKeys } from '#/shared/queries/query-keys'

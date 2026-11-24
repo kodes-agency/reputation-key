@@ -179,7 +179,6 @@ async function claimOneAttempt() {
     db,
     () => new Date(),
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   const review = await reviewRepo.upsert(makeReview())

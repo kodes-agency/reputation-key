@@ -23,15 +23,17 @@
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  googleReplyObservationHeads,
-  googleReplyObservations,
   replies,
   replyPublicationAuthorizations,
   replyPublicationAttempts,
-  reviews,
 } from '#/shared/db/schema/review.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import {
+  carryDraftMeasurement,
+  submitDraftMeasurement,
+  submittedMeasurementIdentity,
+} from '#/shared/db/ai/draft-measurement-lineage'
 import { trace } from '#/shared/observability/trace'
 import type { Reply } from '../domain/review-types'
 import { reviewError } from '../domain/review-errors'
@@ -46,10 +48,9 @@ import {
 } from '../domain/reply-publication-workflow'
 import {
   UNCERTAIN_ATTEMPT_OUTCOMES,
-  type ReplyWriter,
   type UncertainSendSnapshot,
 } from './reply-writer.port.server'
-import { createReviewReplyWriter } from './reply-writer.server'
+import { createReplyWriter } from './store.server'
 import { cancelUnclaimablePublication } from '../publication/unclaimable-publication.server'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import {
@@ -61,7 +62,11 @@ import type { ConditionalReplyUpdate } from './reply-repository.port.server'
 import type { ReplyCommandStore } from './reply-command-store.port.server'
 import type { PublicationAuthorizationFacts } from './reply-command-store.port.server'
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
-import { lockReplyTruthScope } from '../reviews/reply-truth-serialization.server'
+import {
+  lockCurrentReplyTruthHead,
+  lockReplyTruthReview,
+  lockReplyTruthScope,
+} from '../reviews/reply-truth-serialization.server'
 import { attemptMayHaveDispatched } from '../publication/reply-publication-dispatch-evidence.server'
 import {
   lockPublicationProperty,
@@ -70,7 +75,7 @@ import {
 import {
   insertPublicationAttempt,
   insertPublicationAuthorization,
-} from '#/contexts/reputation/public-api'
+} from './row-commands.server'
 
 /**
  * Identity-owned, transaction-bound decision injected at composition. The
@@ -174,51 +179,10 @@ async function lockCurrentReplyTruthScope(
   }>,
 ): Promise<LockedReplyTruthScope | null> {
   await lockReplyTruthScope(tx, input.organizationId, input.reviewId)
-  const reviewRows = await tx
-    .select({
-      propertyId: reviews.propertyId,
-      sourceEpoch: reviews.sourceEpoch,
-      materialReviewRevision: reviews.sourceRevision,
-      sourceContentState: reviews.sourceContentState,
-    })
-    .from(reviews)
-    .where(
-      and(
-        eq(reviews.id, input.reviewId),
-        eq(reviews.organizationId, input.organizationId),
-        eq(reviews.propertyId, input.propertyId),
-      ),
-    )
-    .for('update')
-    .limit(1)
-  const review = reviewRows[0]
+  const review = await lockReplyTruthReview(tx, input)
   if (!review) return null
 
-  const headRows = await tx
-    .select({
-      observationRevision: googleReplyObservationHeads.observationRevision,
-      sourceEpoch: googleReplyObservationHeads.sourceEpoch,
-      materialReviewRevision: googleReplyObservationHeads.materialReviewRevision,
-      state: googleReplyObservationHeads.state,
-      source: googleReplyObservations.source,
-      contentState: googleReplyObservations.contentState,
-      observedAt: googleReplyObservations.observedAt,
-    })
-    .from(googleReplyObservationHeads)
-    .innerJoin(
-      googleReplyObservations,
-      eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
-    )
-    .where(
-      and(
-        eq(googleReplyObservationHeads.reviewId, input.reviewId),
-        eq(googleReplyObservationHeads.organizationId, input.organizationId),
-        eq(googleReplyObservationHeads.propertyId, input.propertyId),
-      ),
-    )
-    .for('update', { of: googleReplyObservationHeads })
-    .limit(1)
-
+  const headRows = await lockCurrentReplyTruthHead(tx, input)
   return { review, head: headRows[0] ?? null }
 }
 
@@ -342,9 +306,9 @@ export const createAtomicReplyCommandStore = (
   db: Database,
   clock: () => Date,
   publicationActorAuthority: ReplyPublicationActorAuthority = missingPublicationActorAuthority,
-  writer: ReplyWriter = createReviewReplyWriter(db, clock),
   replyEffects?: ReplyScopeEffects,
 ): ReplyCommandStore => {
+  const writer = createReplyWriter(db, clock)
   const {
     aiTextMayBeClaimed,
     casUncertainAttempt,
@@ -352,8 +316,34 @@ export const createAtomicReplyCommandStore = (
     guardedPublicationUpdate,
     guardedReplyUpdate,
     updateCurrentAttempt,
-    submitMeasuredReply,
   } = writer
+  const cancelUnclaimable = (
+    tx: Tx,
+    reply: Reply,
+    attempt: PublicationAttemptStart,
+    at: Date,
+    cause: 'policy' | 'ai_draft_withdrawn',
+  ) => cancelUnclaimablePublication(writer, tx, reply, attempt, at, cause, replyEffects)
+  /** Submit and its scalar measurement share the same guarded transaction. */
+  const submitReply: ReplyCommandStore['submitReply'] = (
+    reply,
+    updates,
+    event,
+    now,
+    measurement,
+  ) =>
+    trace('reply.commandStore.submitReply', () =>
+      db.transaction(async (tx) => {
+        const row = await guardedReplyUpdate(tx, reply, 'submit', updates, now ?? clock())
+        if (!row) return null
+        const identity = submittedMeasurementIdentity(reply, measurement)
+        await carryDraftMeasurement(tx, reply, row, identity)
+        await submitDraftMeasurement(tx, reply, row, measurement)
+        await insertOutboxRow(tx, event)
+        return row
+      }),
+    )
+
   /** Shared runner for the guarded-transition commands. */
   const transition = async (
     span: string,
@@ -473,7 +463,7 @@ export const createAtomicReplyCommandStore = (
   }
 
   return {
-    submitReply: (...args) => submitMeasuredReply(...args),
+    submitReply,
     rejectReply: (reply, updates, event, now) =>
       transition('reply.commandStore.rejectReply', reply, 'reject', updates, event, now),
 
@@ -567,15 +557,7 @@ export const createAtomicReplyCommandStore = (
           // sent, by this cycle or by a retry of it: the Reply is withdrawn,
           // as the AI draft purge withdraws one it reaches first.
           if (!(await aiTextMayBeClaimed(tx, reply))) {
-            return cancelUnclaimablePublication(
-              writer,
-              tx,
-              reply,
-              attempt,
-              at,
-              'ai_draft_withdrawn',
-              replyEffects,
-            )
+            return cancelUnclaimable(tx, reply, attempt, at, 'ai_draft_withdrawn')
           }
           const authorization = await readCurrentPublicationAuthorization(
             tx,
@@ -585,15 +567,7 @@ export const createAtomicReplyCommandStore = (
           )
           if (!authorization) return null
           if (!propertyAdmitsCycle(property, authorization)) {
-            return cancelUnclaimablePublication(
-              writer,
-              tx,
-              reply,
-              attempt,
-              at,
-              'policy',
-              replyEffects,
-            )
+            return cancelUnclaimable(tx, reply, attempt, at, 'policy')
           }
           const actorAllowed = await publicationActorAuthority(tx, {
             organizationId: authorization.organizationId,
@@ -602,15 +576,7 @@ export const createAtomicReplyCommandStore = (
             at,
           })
           if (!actorAllowed) {
-            return cancelUnclaimablePublication(
-              writer,
-              tx,
-              reply,
-              attempt,
-              at,
-              'policy',
-              replyEffects,
-            )
+            return cancelUnclaimable(tx, reply, attempt, at, 'policy')
           }
           const duplicate = await tx
             .select({ id: replyPublicationAttempts.id })

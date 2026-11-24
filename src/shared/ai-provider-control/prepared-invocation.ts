@@ -3,7 +3,7 @@ import {
   aiAdmissionDescriptorSchema,
   type AiAdmissionDescriptorV1,
 } from '#/shared/ai-gateway/ai-internal-transport-contract'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import {
   OPENAI_PROMPT_VERSIONS,
   type AiGatewayRoute,
