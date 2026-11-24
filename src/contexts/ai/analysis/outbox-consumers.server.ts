@@ -34,7 +34,7 @@ export const AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER = 'ai.enroll-review-analysis
 
 // Not `.strict()`: every emitted payload also carries envelope fields
 // (`correlationId`, `occurredAt`, and `platform` for review events — see the
-// canonical registry in shared/events/schema-registrations.ts). BQR-2.5
+// canonical registry in shared/events/registry.server.ts). BQR-2.5
 // allowlist-validates at insert, so only registered fields are ever persisted;
 // a consumer re-asserting "no other keys" adds no safety and turns any envelope
 // addition into a total outage. It did: every `review.created` for a freshly

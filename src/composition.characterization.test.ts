@@ -19,7 +19,6 @@ import type { Clock } from '#/shared/domain/clock'
 import { createInMemoryQueue, type InMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 
 const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
@@ -336,7 +335,6 @@ describe('provider DI slots (BQC-6.1)', () => {
     // createContainer registers all event schemas at construction; the
     // registry is process-global and single-shot, so each additional
     // construction in this describe starts from a clean registry.
-    clearEventSchemas()
     return createContainer({
       clock,
       queue: createInMemoryQueue({ clock }),

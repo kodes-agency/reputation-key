@@ -10,7 +10,7 @@
 // One held transaction per test, always rolled back.
 
 import { randomUUID } from 'node:crypto'
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getFleetOverview } from '#/contexts/reporting/property-overview/get-fleet-overview.server'
 import { createRatingGoalEvaluator } from '#/contexts/reporting/rating-goals/rating-goals.server'
 import { createFleetOverviewProjectionAdapter } from '#/contexts/reporting/property-overview/fleet-overview-projection.adapter.server'
@@ -27,7 +27,6 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import {
   ensureGoogleNumbers,
@@ -165,10 +164,6 @@ async function relayedFact(eventId: string) {
   )
   return buildConsumerEvent(rows.rows[0])
 }
-
-beforeAll(() => {
-  registerAllEventSchemas()
-})
 
 beforeEach(async () => {
   held = await holdTransaction()

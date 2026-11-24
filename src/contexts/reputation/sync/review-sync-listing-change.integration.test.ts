@@ -25,8 +25,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { GoogleReview } from '../domain/review-types'
 import type { GoogleReviewPage } from './google-review-api.port.server'
@@ -358,8 +356,6 @@ async function expectLoudOnThirdRun(listing: Listing, code: string): Promise<voi
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clear()
   await deleteTestOrganizations(db, [ORG])
   await insertTestOrganization(db, ORG, 'Listing change test')
@@ -393,7 +389,6 @@ afterAll(async () => {
   await clear()
   await subjectKeys.removeInserted()
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 describe('a listing that changes between the two scans of a run (real PostgreSQL)', () => {

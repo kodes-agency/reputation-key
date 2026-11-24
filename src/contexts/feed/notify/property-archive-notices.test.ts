@@ -7,9 +7,8 @@
 // author were told to approve a reply again that nobody can approve on an
 // archived Property.
 
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { unbrand } from '#/shared/domain/ids'
 import {
   createNotificationConsumerDeps,
@@ -19,10 +18,6 @@ import {
 import { handleWorkflowNotificationEvent } from './inbox-workflow.server'
 
 const PROPERTY = '30000000-0000-4000-8000-0000000000c3'
-
-beforeAll(() => {
-  registerAllEventSchemas()
-})
 
 const envelope = (
   eventType: string,

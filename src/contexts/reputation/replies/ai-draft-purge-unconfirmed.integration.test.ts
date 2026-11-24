@@ -26,8 +26,6 @@ import {
   type SeededReply,
 } from './ai-reply-adoption-seeder.test-fixtures'
 import { organizationId, userId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createAiControlAdapter } from '#/contexts/ai/infrastructure/adapters/ai-control.adapter'
 import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/analysis/property-processing-profile.adapter.server'
 import { reviewReplyPublicationCancelled } from '../domain/review-events'
@@ -121,8 +119,6 @@ const purgeProperty = (seeded: Pick<SeededReply, 'property'>): Promise<void> =>
 let initialReplyDrafting: 'enabled' | 'killed'
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   const head = await controlHead('capability:reply_drafting')
   initialReplyDrafting = head.executionState === 'enabled' ? 'enabled' : 'killed'
   await setReplyDrafting('enabled')
@@ -131,7 +127,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await clean()
   await setReplyDrafting(initialReplyDrafting)
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

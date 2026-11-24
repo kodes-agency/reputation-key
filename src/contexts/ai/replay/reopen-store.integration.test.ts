@@ -12,8 +12,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   aiOperations,
   aiPropertyAggregateSettlements,
@@ -355,8 +353,6 @@ describe('reopening Review Analysis abandoned by a transient failure (real Postg
   })
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearScope(scope)
     await seedEnabledProperty(scope)
 
@@ -391,7 +387,6 @@ describe('reopening Review Analysis abandoned by a transient failure (real Postg
 
   afterAll(async () => {
     await clearScope(scope)
-    clearEventSchemas()
   })
 
   it('queues an abandoned review again under a fresh sequence, and nothing else', async () => {
@@ -537,8 +532,6 @@ describe('Review Analysis enrollment catch-up with an abandoned review (real Pos
     })
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearScope(scope)
     await seedEnabledProperty(scope)
     await db.insert(outboxEvents).values({
@@ -559,7 +552,6 @@ describe('Review Analysis enrollment catch-up with an abandoned review (real Pos
 
   afterAll(async () => {
     await clearScope(scope)
-    clearEventSchemas()
   })
 
   it('stays running while an enrolled review was abandoned, and catches up once it is analysed', async () => {
@@ -730,8 +722,6 @@ describe('reopening a review whose operation was claimed before a control stop (
   }
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearScope(scope)
     await seedEnabledProperty(scope)
     await fixture.review({ id: heldReview, analysisSequence: 1 })
@@ -740,7 +730,6 @@ describe('reopening a review whose operation was claimed before a control stop (
 
   afterAll(async () => {
     await clearScope(scope)
-    clearEventSchemas()
   })
 
   it('answers conflict with the stored operation, closes it as suspended, and reopens the review', async () => {

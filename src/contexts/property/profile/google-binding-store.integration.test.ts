@@ -5,8 +5,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../domain/types'
 import {
   PROPERTY_OPERATION_RECEIPT_TTL_MS,
@@ -93,8 +91,6 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 4 })
   const client = await pool.connect()
   client.release()
-  clearEventSchemas()
-  registerAllEventSchemas()
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, $2, $3, NOW())
@@ -126,7 +122,6 @@ afterAll(async () => {
   await cleanup()
   await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG_ID])
   await deleteTestOrganizations(pool, [ORG_ID])
-  clearEventSchemas()
   await pool.end()
 })
 

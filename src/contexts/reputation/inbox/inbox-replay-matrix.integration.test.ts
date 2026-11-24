@@ -16,8 +16,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { PrerequisiteNotReadyError, type ConsumerRegistry } from '#/shared/outbox'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
@@ -65,13 +63,10 @@ let lease: TestLease
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 4)
   bindReplayPool(lease.pool)
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
   await cleanAll()
-  clearEventSchemas()
   await lease.release()
 })
 

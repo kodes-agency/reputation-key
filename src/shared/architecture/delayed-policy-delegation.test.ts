@@ -14,7 +14,6 @@ import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { walk } from '#/shared/testing/source-tree'
 import { createContainer } from '#/composition'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import {
@@ -73,7 +72,6 @@ describe('ARC-03-T8 container-owned policy objects', () => {
   ) as unknown as Database
 
   function build() {
-    clearEventSchemas()
     return createContainer({
       clock,
       queue: createInMemoryQueue({ clock }),

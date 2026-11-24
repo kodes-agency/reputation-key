@@ -17,8 +17,6 @@ import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createAtomicIdentityCommandStore } from '../members/identity-command-store.server'
 import { createInvitationReadModel } from '../members/invitation-read-model.server'
 import { acceptInvitation } from '../members/accept-invitation.server'
@@ -34,15 +32,12 @@ let fixtures: StaffAccountFixture[] = []
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   db = drizzle(lease.pool) as Database
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 afterEach(async () => {
   for (const row of fixtures) await cleanStaffAccountFixture(lease.pool, row)
   fixtures = []
 })
 afterAll(async () => {
-  clearEventSchemas()
   await lease.release()
 })
 

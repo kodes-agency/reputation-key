@@ -5,8 +5,6 @@ import type { Database } from '#/shared/db/index'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { identityInvitationAccepted } from '../domain/events'
 import { invitationId, userId, type InvitationId } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
@@ -139,14 +137,11 @@ async function cleanFixtures(): Promise<void> {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   db = drizzle(lease.pool) as Database
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterEach(cleanFixtures)
 
 afterAll(async () => {
-  clearEventSchemas()
   await cleanFixtures()
   await lease.release()
 })

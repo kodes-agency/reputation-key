@@ -16,7 +16,6 @@ import {
   releaseProcessContainer,
   type Container,
 } from '#/composition'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import type { Database } from '#/shared/db'
@@ -369,7 +368,6 @@ describe('ARC-03-T7: container-scoped consumer registry', () => {
   ) as unknown as Database
 
   function build(): Container {
-    clearEventSchemas()
     return createContainer({
       clock,
       queue: createInMemoryQueue({ clock }),

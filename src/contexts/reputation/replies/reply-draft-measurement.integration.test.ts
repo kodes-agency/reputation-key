@@ -14,8 +14,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { recordDraftMeasurementEvent } from '#/shared/db/ai/draft-measurement-events'
 import { readDraftMeasurementReport } from '#/shared/db/ai/draft-measurement-report'
 import {
@@ -35,8 +33,6 @@ let pool: Pool
 let harness: ReplyWorkflowHarness
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 5 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   harness = await createReplyWorkflowHarness({
     pool,
     locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -46,7 +42,6 @@ beforeAll(async () => {
 }, WORKFLOW_HOOK_TIMEOUT_MS)
 afterAll(async () => {
   await harness.remove()
-  clearEventSchemas()
   await pool.end()
 }, WORKFLOW_HOOK_TIMEOUT_MS)
 beforeEach(async () => {

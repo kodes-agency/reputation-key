@@ -25,13 +25,12 @@ import {
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
 import type { DomainEvent } from '#/shared/events/events'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createJobExecutionEnvelope,
   gateDispatcherConsumer,
   gateJob,
 } from '#/shared/jobs/delayed-execution-gate'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   assertBetaNotificationTriggerMatrix,
   BETA_NOTIFICATION_TRIGGER_MATRIX,
@@ -98,10 +97,6 @@ function mandatoryEmailJob() {
     }),
   }
 }
-
-beforeAll(() => {
-  registerAllEventSchemas()
-})
 
 beforeEach(() => {
   // Every capability a route needs is granted, so the only thing left for the

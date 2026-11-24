@@ -13,7 +13,6 @@ import { Pool } from 'pg'
 import { rebuildInboxProjection } from './rebuild-inbox-projection.server'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createInboxDatabaseStores,
   dropInboxOrganization,
@@ -202,8 +201,6 @@ function setup(opts: {
 }
 
 describe.sequential('rebuildInboxProjection', () => {
-  registerAllEventSchemas()
-
   beforeEach(async () => {
     seq = 0
     await dropInboxOrganization(pool, ORG)

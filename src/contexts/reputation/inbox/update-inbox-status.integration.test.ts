@@ -1,9 +1,8 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Pool } from 'pg'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { updateInboxStatus } from './update-inbox-status.server'
 import { getEnv } from '#/shared/config/env'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type {
@@ -135,10 +134,6 @@ const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
 }
 
 describe.sequential('updateInboxStatus', () => {
-  beforeAll(async () => {
-    registerAllEventSchemas()
-  })
-
   beforeEach(() => dropInboxOrganization(pool, ORG_ID))
 
   afterAll(async () => {

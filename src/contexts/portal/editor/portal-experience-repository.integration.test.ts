@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR } from '../domain/portal-experience'
 import { createPortalExperienceRepository } from './portal-experience-repository.server'
@@ -26,8 +24,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await getPool().query(
     `INSERT INTO properties
        (id, organization_id, name, slug, timezone, created_at, updated_at)

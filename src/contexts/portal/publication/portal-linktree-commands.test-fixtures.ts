@@ -3,8 +3,6 @@ import { getDb } from '#/shared/db'
 import { newTestUuid } from '#/shared/db/testing/test-ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortal, buildTestPortalLink } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   portalId,
@@ -338,8 +336,6 @@ export function setupLinktreeCommandsTestDb() {
 
   beforeEach(async () => {
     tickCount = 0
-    clearEventSchemas()
-    registerAllEventSchemas()
     const portal = buildTestPortal({
       id: PORTAL_A,
       organizationId: ORG_A,

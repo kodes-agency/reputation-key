@@ -10,8 +10,6 @@ import { getDb } from '#/shared/db'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalLinkCategoryId } from '#/shared/domain/ids'
 import { createLink } from '../links/create-link.server'
 import { isPortalError } from '../domain/errors'
@@ -80,8 +78,6 @@ const textsOf = (linkId: string) =>
   )
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedLinkTenant(getPool(), A, { additionalGuestLocales: ['bg'] })
   await seedLinkTenant(getPool(), B)
   await seedLinkTenant(getPool(), A_OTHER)

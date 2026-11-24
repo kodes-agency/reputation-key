@@ -73,8 +73,6 @@ import {
   resetDelayedExecutionPolicy,
   type DelayedDecision,
 } from '#/shared/auth/system-execution-policy'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   organizationId,
   propertyId,
@@ -444,8 +442,6 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
   }
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await cleanOrgC()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -466,7 +462,6 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
   })
 
   afterAll(async () => {
-    clearEventSchemas()
     await cleanOrgC()
   })
 

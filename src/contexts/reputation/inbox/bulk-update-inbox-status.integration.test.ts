@@ -4,7 +4,6 @@ import { bulkUpdateInboxStatus } from './bulk-update-inbox-status.server'
 import type { BulkUpdateInboxStatusInput } from '#/contexts/reputation/inbox/inbox-status-commands.server'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   inboxItemId,
   organizationId,
@@ -161,8 +160,6 @@ const bulkCommands = (...labels: string[]) =>
   }))
 
 describe.sequential('bulkUpdateInboxStatus', () => {
-  registerAllEventSchemas()
-
   beforeEach(() => dropInboxOrganization(pool, ORG_ID))
 
   afterAll(async () => {

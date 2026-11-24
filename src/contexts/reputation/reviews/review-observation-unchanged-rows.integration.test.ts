@@ -11,8 +11,6 @@ import { reviewCreated, reviewUpdated } from '../domain/review-events'
 import type { Review } from '../domain/review-types'
 import { getDb } from '#/shared/db'
 import { reviews } from '#/shared/db/schema/review.schema'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createReviewRepository } from './review-repository.server'
@@ -152,8 +150,6 @@ const stamps = async () => {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Unchanged rows property', 'review-unchanged-rows-property', 'UTC')

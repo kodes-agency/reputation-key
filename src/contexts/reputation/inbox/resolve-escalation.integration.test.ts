@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, it, expect } from 'vitest'
 import type { Pool } from 'pg'
 import { resolveEscalation } from './resolve-escalation.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   clearInboxOrganization,
   createUseCaseCommandStore,
@@ -122,15 +120,12 @@ describe.sequential('resolveEscalation', () => {
 
   beforeAll(async () => {
     pool = openFixturePool()
-    clearEventSchemas()
-    registerAllEventSchemas()
     await seedInboxOrganization(pool, ORG_ID, [PROP_1, PROP_OTHER])
   })
 
   beforeEach(() => clearInboxOrganization(pool, ORG_ID))
 
   afterAll(async () => {
-    clearEventSchemas()
     await dropInboxOrganization(pool, ORG_ID)
     await pool.end()
   })

@@ -18,8 +18,6 @@ import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   type MerchantAiSnapshot,
 } from './merchant-ai-authorization.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { createAiAdvisoryScope } from '#/shared/ai-operation/ai-lock-order-v1'
 import {
@@ -361,8 +359,6 @@ export function useMerchantAiFixture(): { cleanupPool: () => Pool } {
     await withLastOwnerGuardDisabled(cleanupPool, async (client) => {
       await client.query('DELETE FROM member WHERE "organizationId" = $1', [ORG])
     })
-    clearEventSchemas()
-    registerAllEventSchemas()
     await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY}::uuid`)
     await db.execute(sql`DELETE FROM google_connections WHERE id = ${CONNECTION}::uuid`)
     await db.execute(sql`DELETE FROM "user" WHERE id = ${USER}`)

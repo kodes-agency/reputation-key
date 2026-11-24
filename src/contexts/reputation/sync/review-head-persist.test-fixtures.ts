@@ -11,8 +11,6 @@ import {
   organizationId,
   propertyId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import type {
@@ -227,8 +225,6 @@ async function clear(): Promise<void> {
 /** Registers the suite's database setup and cleanup for the file that calls it. */
 export function useHeadPersistDatabase(): void {
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clear()
     await deleteTestOrganizations(db, [ORG, OTHER_ORG])
     for (const org of [ORG, OTHER_ORG]) {
@@ -265,6 +261,5 @@ export function useHeadPersistDatabase(): void {
     await clear()
     await subjectKeys.removeInserted()
     await deleteTestOrganizations(db, [ORG, OTHER_ORG])
-    clearEventSchemas()
   })
 }

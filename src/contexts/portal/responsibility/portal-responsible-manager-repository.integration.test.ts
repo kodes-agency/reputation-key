@@ -6,8 +6,6 @@ import { getDb } from '#/shared/db'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { createPortalResponsibleManagerRepository } from './portal-responsible-manager-repository.server'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createPostgresPortalFixtureStore } from '../infrastructure/testing/postgres-portal-fixture-store'
 
 const ORG = 'org-portal-responsible-manager'
@@ -23,8 +21,6 @@ const FUTURE_REVISION = new Date('2026-08-25T13:00:00.000Z')
 let pool: Pool
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
@@ -49,7 +45,6 @@ afterAll(async () => {
   await pool.query('DELETE FROM properties WHERE id = $1', [PROPERTY])
   await deleteTestOrganizations(pool, [ORG])
   await pool.end()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

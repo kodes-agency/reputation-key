@@ -4,8 +4,6 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { isPortalError } from '../domain/errors'
 import { codeOf } from './portal-creation-queries.test-fixtures'
 import {
@@ -45,8 +43,6 @@ const {
 } = createIntentsHarness(getPool)
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedIntentProperties(getPool())
 })
 

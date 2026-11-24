@@ -7,8 +7,6 @@ import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { createPortalAiReplyBrandProfileAuthority } from '../look/ai-reply-brand-profile-authority.server'
 import { createPortalExperienceRepository } from './portal-experience-repository.server'
@@ -67,8 +65,6 @@ async function seedPortal(id: string, slug: string, published: boolean) {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
      VALUES ($1, $2, 'Harbour House', 'harbour-house', 'UTC', $3, $3),

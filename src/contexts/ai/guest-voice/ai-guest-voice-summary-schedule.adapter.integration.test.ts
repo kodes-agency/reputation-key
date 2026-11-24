@@ -14,7 +14,6 @@ import {
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -165,7 +164,6 @@ describe.sequential('the Monday sweep store (PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
-    registerAllEventSchemas()
     await clear()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")

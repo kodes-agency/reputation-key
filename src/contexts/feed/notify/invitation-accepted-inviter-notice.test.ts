@@ -1,7 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { parseNotificationAudience } from './notification-audience.server'
 import {
   handleInvitationAcceptedInviterNotice,
@@ -55,14 +53,6 @@ const makeDeps = () => {
 // An accepted invitation tells its inviter, at the Organization, and never says
 // who accepted it (ADR 0046 r.8).
 describe('the accepted-invitation notice to the inviter', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-  afterEach(() => {
-    clearEventSchemas()
-  })
-
   it('queues an Organization-scoped notice for the inviter, admitted as an AccountAdmin', async () => {
     const deps = makeDeps()
     deps.fakes.displayNames.findOrganizationName.mockResolvedValue('Riverside Group')

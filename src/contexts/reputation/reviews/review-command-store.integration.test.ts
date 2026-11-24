@@ -5,8 +5,6 @@ import {
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createReviewObservationRepository } from './review-observation-repository.server'
 import { readObservationHistory } from './review-observation-history.test-fixtures'
@@ -38,8 +36,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   vi.clearAllMocks()
   await seedReobserveProperties(getPool())
 })

@@ -1,10 +1,8 @@
 // Integration context — refresh Google token use case tests
 
-import { afterAll, beforeAll, beforeEach, describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { refreshGoogleToken } from './refresh-google-token.server'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
   createGoogleConnectionTestStore,
@@ -32,9 +30,6 @@ setupIntegrationDb({
   orgB: OTHER_ORG_ID,
   tables: ['google_connections', 'outbox_events'],
 })
-
-beforeAll(registerAllEventSchemas)
-afterAll(clearEventSchemas)
 
 const sealed = createTestTokenEncryption()
 const openAccessToken = (connection: { encryptedAccessToken: string }) =>

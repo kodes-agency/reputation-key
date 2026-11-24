@@ -3,7 +3,6 @@ import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from './integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
@@ -107,8 +106,6 @@ export const ACTIVE_PROPERTY_VECTOR = Object.freeze({
   propertyProfileSource: 'tenant_confirmed',
   propertyTimezoneConfirmed: true,
 })
-
-registerAllEventSchemas()
 
 let pool: Pool
 let originalControl: CapabilityControlRow | undefined

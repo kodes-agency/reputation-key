@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   holdTransaction,
   type HeldTransaction,
@@ -24,13 +22,10 @@ describe.sequential('Goal history pages (integration)', () => {
   let held: HeldTransaction | undefined
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     held = await holdTransaction()
   })
   afterAll(async () => {
     await held?.rollBack()
-    clearEventSchemas()
   })
 
   it('crosses same-month subject ties, preserving pinned history, latest revisions and Stop', async () => {

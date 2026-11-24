@@ -1,7 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { registerInboxMemberOffboardingConsumers } from './member-offboarding-outbox-consumers.server'
 
 const ORG = 'org-inbox-offboarding'
@@ -40,15 +38,6 @@ function setup() {
   const [registration] = registry.listFor('identity.member.removed')
   return { deps, values, run: registration!.handler }
 }
-
-beforeAll(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
-afterAll(() => {
-  clearEventSchemas()
-})
 
 describe('inbox member offboarding consumer', () => {
   it('releases the removed member with the offboarded reason, then records the receipt', async () => {

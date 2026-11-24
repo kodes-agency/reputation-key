@@ -22,8 +22,6 @@ import {
   reviewAiAnalysisReleasedSequences,
 } from '#/shared/db/schema'
 import { createAlertAuxReader } from '#/shared/observability/alert-aux-reads'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { seedEnabledReviewAnalysis } from '#/shared/db/testing/enabled-review-analysis-fixture'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -222,8 +220,6 @@ describe.sequential('coverage subtracts released analysis sequences (PostgreSQL)
   let baseline: Awaited<ReturnType<ReturnType<typeof alertReader>['read']>>
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearFixture()
     baseline = await alertReader().read()
     await db.execute(sql`
@@ -236,7 +232,6 @@ describe.sequential('coverage subtracts released analysis sequences (PostgreSQL)
 
   afterAll(async () => {
     await clearFixture()
-    clearEventSchemas()
   })
 
   async function coverageOf(target: Case) {

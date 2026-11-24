@@ -10,8 +10,6 @@ import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortal, buildTestPortalLink } from '#/shared/testing/fixtures'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   portalId,
@@ -157,8 +155,6 @@ async function insertAsset(property = PROPERTY_A) {
 
 beforeEach(async () => {
   tickCount = 0
-  clearEventSchemas()
-  registerAllEventSchemas()
   const portal = buildTestPortal({
     id: PORTAL_A,
     organizationId: ORG_A,

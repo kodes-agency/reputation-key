@@ -9,11 +9,9 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/
 // did before Portals could have a look, and that a look moving between the read
 // and the commit stops the commit.
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { PROPERTY_LOOK_SOURCES } from '../domain/portal-look'
 import {
   brandProfileOf,
@@ -83,11 +81,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const SIBLING_PORTAL = 'c2000000-0000-4000-8000-0000000000a1'

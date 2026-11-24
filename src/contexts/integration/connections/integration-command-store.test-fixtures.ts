@@ -4,8 +4,6 @@ import { afterAll, beforeAll, beforeEach, expect } from 'vitest'
 import type { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { GOOGLE_BUSINESS_MANAGE_SCOPE } from '../provider/contracts'
@@ -238,11 +236,8 @@ export function useCommandStoreDatabase() {
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 2)
     pool = lease.pool
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
   afterAll(async () => {
-    clearEventSchemas()
     await truncateAll(pool)
     await lease.release()
   })

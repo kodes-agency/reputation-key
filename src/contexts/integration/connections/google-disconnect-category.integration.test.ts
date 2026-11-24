@@ -1,5 +1,5 @@
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
-import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from 'vitest'
+import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
@@ -22,8 +22,6 @@ import { createRefreshBoundGoogleCategories } from '../imports/refresh-bound-goo
 import { createGoogleBusinessInformationAdapter } from '../imports/google-business-information.adapter.server'
 import { createGoogleConnectionRepository } from './google-connection-repository.server'
 import { createGoogleOAuthExchangeRecoveryRepository } from './google-oauth-exchange-recovery-repository.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   integrationGoogleAccountDisconnected,
   integrationGoogleAccountReauthorizationRequired,
@@ -282,10 +280,6 @@ const providerCategory = (category: string | null) => ({
   ],
 })
 
-beforeAll(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
 beforeEach(async () => {
   await cleanup()
   for (const [index, connectionId] of [
@@ -321,7 +315,6 @@ beforeEach(async () => {
 })
 afterAll(async () => {
   await cleanup()
-  clearEventSchemas()
 })
 
 describe('Google account category cleanup (PostgreSQL)', () => {

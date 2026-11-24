@@ -8,8 +8,6 @@ import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -95,8 +93,6 @@ const PURPOSE = {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   db = drizzle(lease.pool) as Database
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 afterAll(async () => {
   await lease.release()

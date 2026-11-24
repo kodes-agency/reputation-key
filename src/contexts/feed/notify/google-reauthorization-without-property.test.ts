@@ -2,10 +2,8 @@
 // the whole window between connecting Google and the first successful import,
 // and an Organization whose Properties are all archived. The notice then has
 // no Property to anchor its mail on, and used to reach nobody at all.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import {
   createNotificationConsumerDeps,
@@ -40,12 +38,6 @@ const event = (): ConsumerEvent => ({
 })
 
 describe('Google reauthorization with no active Property', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-  afterEach(() => clearEventSchemas())
-
   it('tells every AccountAdmin in the bell at Organization scope', async () => {
     const fakes = createNotificationConsumerDeps()
     fakes.userLookup.findByRole.mockResolvedValue([ADMIN, OTHER_ADMIN])

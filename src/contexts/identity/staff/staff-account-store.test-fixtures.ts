@@ -5,8 +5,6 @@ import type { Database } from '#/shared/db/index'
 import { newTestId, testDatabaseUrl } from '#/shared/testing/ambient-test-runtime'
 import type { Tx } from '#/shared/outbox/commit'
 import { organizationId, userId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
   seedStaffAccountFixture,
@@ -36,15 +34,12 @@ export function useStaffAccountEnv() {
   beforeAll(async () => {
     lease = await acquireTestLease(testDatabaseUrl())
     db = drizzle(lease.pool) as Database
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
   afterEach(async () => {
     for (const row of fixtures) await cleanStaffAccountFixture(lease.pool, row)
     fixtures = []
   })
   afterAll(async () => {
-    clearEventSchemas()
     await lease.release()
   })
 

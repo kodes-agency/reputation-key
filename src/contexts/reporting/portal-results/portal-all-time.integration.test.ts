@@ -13,8 +13,6 @@ import {
 } from '#/shared/domain/ids'
 import { asAccountAdmin } from '#/shared/testing/authorized-reads'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { recordMetric, type RecordMetricInput } from '../readings/record-metric.server'
 import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
 import { METRIC_VERSION_IDS, metricRegistry } from '../readings/contracts'
@@ -128,8 +126,6 @@ async function clean() {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   for (const [organization, property] of [
     [ORG, PROPERTY],
     [OTHER_ORG, OTHER_PROPERTY],
@@ -164,7 +160,6 @@ afterAll(async () => {
     sql`DELETE FROM properties WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
   )
   await deleteTestOrganizations(db, [ORG, OTHER_ORG])
-  clearEventSchemas()
 })
 
 describe.sequential('All Time from retained effective readings', () => {

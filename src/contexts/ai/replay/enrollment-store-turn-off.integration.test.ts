@@ -26,8 +26,6 @@ import { createGoogleConnectionCeremonyFixture } from '#/contexts/integration/co
 import { requestGooglePrimaryCategoryRefresh } from '#/shared/db/google-primary-category-refresh'
 import { createRefreshBoundGoogleCategories } from '#/contexts/integration/imports/refresh-bound-google-categories.server'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -311,8 +309,6 @@ async function reconnectRefresh() {
 describe('turning review analysis off (real PostgreSQL)', () => {
   beforeEach(async () => {
     await clearUp()
-    clearEventSchemas()
-    registerAllEventSchemas()
     await seed.setUp()
     await db
       .update(properties)
@@ -357,7 +353,6 @@ describe('turning review analysis off (real PostgreSQL)', () => {
 
   afterAll(async () => {
     await clearUp()
-    clearEventSchemas()
   })
 
   it('starts with every kind of row the notice lists, so the deletions below are not vacuous', async () => {

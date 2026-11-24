@@ -20,8 +20,6 @@ import { Pool, type PoolClient } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   organizationId,
   propertyId,
@@ -340,12 +338,9 @@ async function insertRecoveryRun(client: PoolClient, completedAt: Date) {
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 5 })
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
-  clearEventSchemas()
   await pool.end()
 })
 

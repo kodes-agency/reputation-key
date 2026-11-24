@@ -6,8 +6,6 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db/index'
 import { getEnv } from '#/shared/config/env'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -140,8 +138,6 @@ beforeAll(async () => {
   await withLastOwnerGuardDisabled(cleanupPool, async (client) => {
     await client.query('DELETE FROM member WHERE "organizationId" = $1', [ORG])
   })
-  clearEventSchemas()
-  registerAllEventSchemas()
   await resetProperties()
   await db.execute(sql`DELETE FROM google_connections WHERE id = ${CONNECTION}::uuid`)
   await db.execute(sql`DELETE FROM "user" WHERE id IN (${OWNER}, ${MANAGER})`)

@@ -10,7 +10,6 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { findMetricVersionById, METRIC_VERSION_IDS } from '../readings/contracts'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import { createGoalProgramRepository } from './goal-program-repository.server'
@@ -123,9 +122,6 @@ async function seedGoalProgramsScenario(client: Client) {
 
 /** The scenario of the Goal Program service suites, with its service wiring. */
 export function useGoalProgramsScenario() {
-  beforeAll(() => {
-    registerAllEventSchemas()
-  })
   const scenario = useScenarioTransaction(seedGoalProgramsScenario)
   return {
     ...scenario,

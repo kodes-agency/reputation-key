@@ -1,4 +1,4 @@
-// Goal event schemas, registered by ./schema-registrations.ts.
+// Goal event schemas, listed in ./registry.server.ts.
 //
 // The three monthly-result facts share one base contract and its two
 // cross-field rules (the period is ordered; achievement matches the evaluation

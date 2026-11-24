@@ -1,6 +1,5 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   handlePropertyBindingAuthorizationInvalidation,
   PROVIDER_AUTHORIZATION_INVALIDATION_CONSUMER,
@@ -26,10 +25,6 @@ const EVENT: ConsumerEvent = {
     change: 'relinked',
   },
 }
-
-beforeAll(() => {
-  registerAllEventSchemas()
-})
 
 describe('property binding provider-authorization invalidation consumer', () => {
   it('delivers the identifier-only event before recording its durable receipt', async () => {

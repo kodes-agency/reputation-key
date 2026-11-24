@@ -11,8 +11,6 @@ import {
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -214,8 +212,6 @@ async function clearFixture(): Promise<void> {
 
 describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', () => {
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearFixture()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -277,7 +273,6 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
 
   afterAll(async () => {
     await clearFixture()
-    clearEventSchemas()
   })
 
   it('keeps exact coverage when reviews are imported before the merchant enables AI', async () => {

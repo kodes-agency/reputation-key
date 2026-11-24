@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { registerWorkflowNotificationConsumers } from './inbox-notice-routes.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createConsumerRegistry,
   type ConsumerRegistry,
@@ -71,13 +69,10 @@ type RoutingRow = {
 describe('durable workflow notification consumers', () => {
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers every recorded beta workflow trigger under a stable identity', () => {

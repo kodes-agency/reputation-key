@@ -3,10 +3,8 @@
 // recorded and the ledger written.
 
 import { randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type { OrganizationId, PortalId } from '#/shared/domain/ids'
 import type { Permission } from '#/shared/domain/permissions'
@@ -32,11 +30,6 @@ const { getPool } = setupIntegrationDb({
 })
 const { seedProperty, seedPortal, seedGroup, factsOf } =
   createGroupLifecycleHarness(getPool)
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
 
 describe.sequential('listPortalGroupHistory (real PostgreSQL, two tenants)', () => {
   const readOnly = (org: OrganizationId) =>

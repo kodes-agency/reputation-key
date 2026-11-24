@@ -63,8 +63,16 @@ import { getRequestContext } from '#/shared/observability/request-context'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
-import { registerEventSchema } from '#/shared/events/schema-registry'
 import { z } from 'zod/v4'
+import { overrideEventDescriptor } from '#/shared/testing/event-descriptor-overrides'
+
+vi.mock('#/shared/events/registry.server', async (importOriginal) => {
+  const { withEventDescriptorOverrides } =
+    await import('#/shared/testing/event-descriptor-overrides')
+  return withEventDescriptorOverrides(
+    await importOriginal<typeof import('#/shared/events/registry.server')>(),
+  )
+})
 
 type FakeWorker = Worker & {
   listeners: Map<string, (...args: unknown[]) => void>
@@ -80,7 +88,7 @@ describe('worker observability', () => {
     'alerts through quarantine, runtime observations and Sentry only for terminal ledger delivery: %s',
     async (failureKind) => {
       if (failureKind === 'malformed') {
-        registerEventSchema({
+        overrideEventDescriptor({
           aggregate: { type: 'event', id: 'eventId' },
           type: 'test.malformed_payload',
           version: 1,

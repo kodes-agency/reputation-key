@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   portalApprovedDestinationId,
@@ -45,8 +43,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   for (const [orgIdValue, propertyIdValue, portalIdValue, suffix] of [
     [ORG_A, PROPERTY_A, PORTAL_A, 'a'],
     [ORG_B, PROPERTY_B, PORTAL_B, 'b'],

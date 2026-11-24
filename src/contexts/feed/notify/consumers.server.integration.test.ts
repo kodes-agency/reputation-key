@@ -26,7 +26,6 @@ import {
 } from '#/shared/db/schema'
 import { notificationEmailId, notificationId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
@@ -131,7 +130,6 @@ describe.sequential(
     beforeAll(async () => {
       lease = await acquireTestLease(getEnv().DATABASE_URL)
       db = drizzle(lease.pool) as Database
-      registerAllEventSchemas()
       await seedOrgs(lease.pool, [ORG])
       await db.insert(properties).values({
         id: PROPERTY,

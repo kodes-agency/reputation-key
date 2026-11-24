@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { integrationGoogleReviewPushAccepted } from '../domain/events'
 import { createGbpReviewPushReceiptStore } from './gbp-review-push-receipt-store.server'
@@ -47,7 +46,6 @@ describe('PostgreSQL GBP review push receipt store', () => {
   let lease: TestLease
 
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL)
     await lease.pool.query(
       `DELETE FROM idempotency_receipts WHERE scope = 'gbp_webhook'

@@ -8,8 +8,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   aiOperations,
@@ -267,7 +265,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
   beforeAll(async () => {
     // An Urgent analysis writes an identifier-only fact to the outbox, which admits only
     // registered facts; the app registers them at boot.
-    registerAllEventSchemas()
     await clear()
     controls = await openAiExecutionControls(db, {
       actorUserId: ACTOR_USER_ID,
@@ -324,7 +321,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     try {
       await clear()
     } finally {
-      clearEventSchemas()
       await controls?.restore()
     }
   })

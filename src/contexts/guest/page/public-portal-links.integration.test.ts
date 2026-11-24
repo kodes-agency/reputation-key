@@ -8,8 +8,6 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId, portalLinkId } from '#/shared/domain/ids'
 import { portalPublicationSnapshots } from '#/shared/db/schema/portal-publication.schema'
@@ -207,8 +205,6 @@ let own: Seeded
 let other: Seeded
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   for (const id of [ORG, OTHER_ORG]) {
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -241,7 +237,6 @@ afterAll(async () => {
     }
   }
   await deleteTestOrganizations(db, [ORG, OTHER_ORG])
-  clearEventSchemas()
 })
 
 describe('getPublicPortal', () => {

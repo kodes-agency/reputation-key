@@ -27,8 +27,6 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
 import type { OutboxRepository } from '#/shared/outbox'
@@ -135,14 +133,11 @@ function deps(current: Reply | null = reply()) {
 }
 
 beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   consumerRegistry = createConsumerRegistry()
 })
 
 afterEach(() => {
   consumerRegistry = createConsumerRegistry()
-  clearEventSchemas()
 })
 
 describe('reply publication requested durable consumer', () => {

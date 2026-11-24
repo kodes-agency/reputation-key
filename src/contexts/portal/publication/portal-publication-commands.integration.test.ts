@@ -13,8 +13,6 @@ import {
   waitForDatabaseCondition,
   withTriggerLockGate,
 } from '#/shared/db/testing/lock-gate'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { portalLinkCategoryId, portalLinkId, userId } from '#/shared/domain/ids'
 import { portalPublicationPublished, portalUpdated } from '../domain/events'
 import { portalLinkDeleted } from '../domain/portal-link-events'
@@ -65,11 +63,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())

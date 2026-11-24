@@ -71,8 +71,6 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { AI_REVIEW_LANGUAGE_REGION_NODE_VERSION } from '#/shared/generated/ai-review-language-canonical-regions-v1'
 import {
   createGatedJobHandler,
@@ -573,7 +571,6 @@ const PLATFORM_STOPS: ReadonlyArray<readonly [string, Readonly<Record<string, st
   ]
 
 beforeEach(() => {
-  registerAllEventSchemas()
   // The analysis fails closed on a language runtime other than the pinned
   // one, which would hide the provider call this suite is looking for.
   Object.defineProperty(process, 'versions', {
@@ -598,7 +595,6 @@ afterEach(() => {
   })
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
-  clearEventSchemas()
 })
 
 export {

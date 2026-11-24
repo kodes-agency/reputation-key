@@ -8,8 +8,6 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   clearInboxOrganization,
   createUseCaseDatabase,
@@ -97,8 +95,6 @@ describe.sequential('Response Target manager reads', () => {
 
   beforeAll(async () => {
     pool = openFixturePool()
-    clearEventSchemas()
-    registerAllEventSchemas()
     await seedInboxOrganization(pool, ORG, [PROPERTY, OTHER_PROPERTY])
   })
 
@@ -111,7 +107,6 @@ describe.sequential('Response Target manager reads', () => {
   })
 
   afterAll(async () => {
-    clearEventSchemas()
     await pool.query(
       'DELETE FROM inbox_response_target_organization_policies WHERE organization_id = $1',
       [ORG],

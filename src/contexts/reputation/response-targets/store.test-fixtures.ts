@@ -8,8 +8,6 @@ import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   feedbackId,
   inboxItemId,
@@ -117,12 +115,9 @@ export function useResponseTargetDatabase(): void {
   beforeAll(async () => {
     const client = await pool.connect()
     client.release()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
   afterAll(async () => {
     await clean()
-    clearEventSchemas()
     await pool.end()
   })
   beforeEach(async () => {

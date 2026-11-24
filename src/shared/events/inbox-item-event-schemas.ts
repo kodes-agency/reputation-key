@@ -1,4 +1,4 @@
-// Inbox item event schemas, registered by ./schema-registrations.ts.
+// Inbox item event schemas, listed in ./registry.server.ts.
 //
 // The facts about one Inbox item that carry who acted and nothing else:
 // assignment, escalation, and the manager priority change (ADR 0071).

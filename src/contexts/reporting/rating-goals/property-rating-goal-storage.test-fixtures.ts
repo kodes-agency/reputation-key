@@ -2,8 +2,7 @@
 // transaction per test, always rolled back, with two Organizations and three
 // Properties seeded in it.
 
-import { afterEach, beforeAll, beforeEach } from 'vitest'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { afterEach, beforeEach } from 'vitest'
 import {
   holdTransaction,
   type HeldTransaction,
@@ -79,10 +78,6 @@ export async function refused(
 
 /** Opens the held transaction around each test and seeds the Organizations and Properties. */
 export function useRatingGoalStorageTransaction(): void {
-  beforeAll(() => {
-    registerAllEventSchemas()
-  })
-
   beforeEach(async () => {
     current = await holdTransaction()
     for (const org of [ORG, OTHER_ORG]) {

@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   organizationId,
@@ -52,8 +50,6 @@ function scanFact(value: ScanEvent): GuestScanRecorded {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Guest Observation Store', ${ORG}, now())
@@ -94,7 +90,6 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM portals WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 describe.sequential('atomic Guest observations', () => {

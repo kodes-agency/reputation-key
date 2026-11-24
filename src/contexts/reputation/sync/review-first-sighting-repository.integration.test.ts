@@ -10,8 +10,6 @@ import { reviewCreated, reviewUpdated } from '../domain/review-events'
 import type { Review } from '../domain/review-types'
 import type { ReviewFirstSighting } from '../reviews/review-command-store.port.server'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { PUSH_PAIRING_WINDOW_MS } from '#/shared/domain/push-health'
@@ -123,8 +121,6 @@ function writeFirst(sighting: ReviewFirstSighting | undefined, key = '1'.repeat(
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   vi.clearAllMocks()
   for (const [id, org, slug] of [
     [PROPERTY, ORG, 'review-sighting-property'],

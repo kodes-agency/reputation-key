@@ -13,8 +13,6 @@ import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   createRetentionSweepHandler,
   createScheduledRetentionSweepHandler,
@@ -371,13 +369,10 @@ async function resendDecision(): Promise<'settled' | 'refused'> {
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 3 })
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
   await clearTenant(pool)
-  clearEventSchemas()
   await pool.end()
 })
 

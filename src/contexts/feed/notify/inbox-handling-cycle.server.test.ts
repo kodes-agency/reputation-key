@@ -5,8 +5,6 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import {
   handleNotificationBulkReopenCompleted,
@@ -146,13 +144,10 @@ const makeDeps = () => {
 describe('Handling Cycle notification durable consumers', () => {
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers opened, reopened and bulk-reopen facts under stable durable identities', () => {

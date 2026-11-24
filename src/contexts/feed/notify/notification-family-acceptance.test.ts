@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -10,7 +10,6 @@ import {
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
 import { notificationId, notificationPreferenceId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   currentRouteDeps,
   dispatch,
@@ -35,7 +34,6 @@ import { resolveCategoryPreference } from '../domain/notification-preference-res
 import type { NotificationCategory, NotificationType } from '../domain/notification-types'
 import type { QueuedNotice } from '../infrastructure/notification-consumer-test-fixtures'
 
-beforeAll(registerAllEventSchemas)
 beforeEach(() => {
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
   initDelayedExecutionPolicy(

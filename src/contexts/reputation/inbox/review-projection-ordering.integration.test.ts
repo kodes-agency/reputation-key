@@ -2,8 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 import type { ConsumerEvent } from '#/shared/outbox'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -277,13 +275,10 @@ async function deliver(candidate: ConsumerEvent): Promise<void> {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 4)
   pool = lease.pool
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
   await cleanAll()
-  clearEventSchemas()
   await lease.release()
 })
 

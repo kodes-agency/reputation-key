@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   changeGuestResponseIntegrity,
   initialGuestResponseIntegrityDecision,
@@ -45,8 +43,6 @@ import {
 const db = getDb()
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedGuestResponseTenants(true)
 })
 
@@ -54,7 +50,6 @@ beforeEach(resetGuestResponseState)
 
 afterAll(async () => {
   await deleteGuestResponseTenants()
-  clearEventSchemas()
 })
 
 describe.sequential('atomic Guest response submission', () => {

@@ -8,8 +8,6 @@
 // arrival onto the user's unread row.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   createConsumerRegistry,
   type ConsumerRegistry,
@@ -78,13 +76,10 @@ const makeDeps = (): Deps => {
 describe('notification durable outbox consumer', () => {
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers the durable consumer identity declared in governance', () => {

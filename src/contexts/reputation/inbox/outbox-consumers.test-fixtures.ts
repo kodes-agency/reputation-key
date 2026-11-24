@@ -46,8 +46,6 @@ import type {
   FeedbackSnippet,
 } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 export const NOW = new Date('2026-06-15T12:00:00Z')
 // Every id is random per run: the integration files share one database.
@@ -170,8 +168,6 @@ export let pool: Pool
 export const useOutboxConsumersDatabase = (): void => {
   beforeAll(() => {
     pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(async () => {
@@ -179,7 +175,6 @@ export const useOutboxConsumersDatabase = (): void => {
   })
 
   afterAll(async () => {
-    clearEventSchemas()
     await pool.end()
   })
 }

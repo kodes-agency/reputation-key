@@ -10,11 +10,9 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/
 // brand and its colours, the photo the page and og:image draw, the photo's
 // description and the response digests).
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, type PortalId } from '#/shared/domain/ids'
 import { resolvePortalMediaUrls } from '../media/resolve-portal-media-urls.server'
 import { loadPortalPrintKitContext } from '../printing/load-portal-print-kit-context.server'
@@ -70,11 +68,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const NOW = new Date('2026-10-01T12:00:00.000Z')

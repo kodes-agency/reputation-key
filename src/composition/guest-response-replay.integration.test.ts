@@ -9,7 +9,6 @@ import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createGuestRightsExecutor } from '#/contexts/guest/rights/guest-rights.adapter.server'
 import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
 import { runRightsExecutors } from '#/shared/ops/rights/rights-executor'
@@ -211,7 +210,6 @@ async function state(tenant: Tenant) {
 
 describe('guest response erasure replay', () => {
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL, 3)
     db = drizzle(lease.pool) as Database
   })

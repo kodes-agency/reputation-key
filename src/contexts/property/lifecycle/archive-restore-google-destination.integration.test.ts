@@ -24,8 +24,6 @@ import {
   userId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
@@ -347,8 +345,6 @@ async function cleanup(): Promise<void> {
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'Archive Restore Google', $1, NOW())
@@ -375,7 +371,6 @@ afterAll(async () => {
   await cleanup()
   await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
-  clearEventSchemas()
   await pool.end()
 })
 

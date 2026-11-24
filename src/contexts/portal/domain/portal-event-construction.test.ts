@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import * as events from './events'
 import type { PortalEventArgs } from './portal-event-base'
 import {
@@ -12,8 +12,6 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 
 const occurredAt = new Date('2026-06-01T12:00:00.000Z')
@@ -198,11 +196,6 @@ const examples = [
 ]
 
 describe('Portal event construction contracts', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   it.each(examples)(
     '$tag preserves its exact payload and supplies a fresh event ID',
     ({ tag, args, create }) => {

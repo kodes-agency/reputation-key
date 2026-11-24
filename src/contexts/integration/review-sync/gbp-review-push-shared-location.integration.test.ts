@@ -31,8 +31,6 @@ import {
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -217,8 +215,6 @@ async function cleanup(): Promise<void> {
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   for (const tenant of TENANTS) {
     await pool.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
@@ -250,7 +246,6 @@ afterAll(async () => {
     ORGANIZATION_IDS,
   ])
   await deleteTestOrganizations(pool, ORGANIZATION_IDS)
-  clearEventSchemas()
   await pool.end()
 })
 

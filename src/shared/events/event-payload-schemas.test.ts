@@ -1,14 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
-import { registerAllEventSchemas } from './schema-registrations'
-import { clearEventSchemas, validateEventPayload } from './schema-registry'
+import { validateEventPayload } from './schema-registry'
 
 describe('registered Portal semantic lifecycle schemas', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   const lifecycle = {
     organizationId: 'organization-1',
     propertyId: '22222222-2222-4222-8222-222222222222',
@@ -69,11 +63,6 @@ const baseObservedPayload = {
 } as const
 
 describe('registered review.reply.observed schema', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   it.each([
     {
       name: 'confirmed resolution without RepKey provenance',
@@ -157,11 +146,6 @@ describe('registered review.reply.observed schema', () => {
 })
 
 describe('registered review.reply.publication_cancelled schema', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   const validPayload = {
     replyId: '33333333-3333-4333-8333-333333333333',
     reviewId: '11111111-1111-4111-8111-111111111111',
@@ -208,11 +192,6 @@ describe('registered review.reply.publication_cancelled schema', () => {
 })
 
 describe('registered Goal monthly-result schemas', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   const validClosedPayload = {
     organizationId: 'organization-1',
     propertyId: '10000000-0000-4000-8000-000000000002',
@@ -290,11 +269,6 @@ describe('registered Goal monthly-result schemas', () => {
 })
 
 describe('registered review.reply.publication_requested schemas', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   const validV2Payload = {
     replyId: '33333333-3333-4333-8333-333333333333',
     reviewId: '11111111-1111-4111-8111-111111111111',
@@ -346,11 +320,6 @@ describe('registered review.reply.publication_requested schemas', () => {
 })
 
 describe('registered Portal guest locale schemas', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   const localeFact = {
     organizationId: 'organization-1',
     propertyId: '22222222-2222-4222-8222-222222222222',
@@ -400,11 +369,6 @@ describe('registered Portal guest locale schemas', () => {
 })
 
 describe('registered Google reputation snapshot verified schema', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   const written = '2026-10-21T12:10:00.000Z'
   const verified = {
     organizationId: 'organization-1',
@@ -443,11 +407,6 @@ describe('registered Google reputation snapshot verified schema', () => {
 })
 
 describe('registered Inbox assignment ordering', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   const assignment = {
     inboxItemId: 'item-1',
     organizationId: 'organization-1',

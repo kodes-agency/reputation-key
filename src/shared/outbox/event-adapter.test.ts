@@ -9,13 +9,8 @@ import {
   withEnvelopeIdentifiers,
 } from './event-adapter'
 import { buildConsumerEvent } from './envelope'
-import {
-  clearEventSchemas,
-  isEventRegistered,
-  registerEventSchema,
-  validateEventPayload,
-} from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { getEventDescriptor } from '#/shared/events/registry.server'
+import { validateEventPayload } from '#/shared/events/schema-registry'
 import { reviewReplyPublicationRequested } from '#/contexts/reputation/domain/review-events'
 import {
   inboxBulkAssignmentCompleted,
@@ -41,6 +36,15 @@ import {
   scanEventId,
   userId,
 } from '#/shared/domain/ids'
+import { overrideEventDescriptor } from '#/shared/testing/event-descriptor-overrides'
+
+vi.mock('#/shared/events/registry.server', async (importOriginal) => {
+  const { withEventDescriptorOverrides } =
+    await import('#/shared/testing/event-descriptor-overrides')
+  return withEventDescriptorOverrides(
+    await importOriginal<typeof import('#/shared/events/registry.server')>(),
+  )
+})
 
 const NOW = new Date('2025-06-01T12:00:00.000Z')
 
@@ -62,8 +66,7 @@ function makeReviewCreated(): DomainEvent {
 
 describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   beforeEach(() => {
-    clearEventSchemas()
-    registerEventSchema({
+    overrideEventDescriptor({
       aggregate: { type: 'review', id: 'reviewId' },
       type: 'review.created',
       version: 1,
@@ -81,8 +84,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('preserves explicit import follow-ups while retained binding facts remain unmarked', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const binding = propertyGoogleBindingChanged({
       organizationId: organizationId('org-1'),
       propertyId: propertyId('20000000-0000-4000-8000-000000000002'),
@@ -142,8 +143,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('carries identifiers through every strict fact schema', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const strictEvents: readonly Readonly<{
       event: DomainEvent
       aggregateType: string
@@ -266,8 +265,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('persists connected events only as canonical identifier-only v3', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const row = toOutboxEvent({
       _tag: 'integration.google_account.connected',
       eventId: 'evt-connected',
@@ -296,8 +293,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('keeps publication intent adapter and schemas on strict v2 with a live consumer', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const event = reviewReplyPublicationRequested({
       replyId: replyId('33333333-3333-4333-8333-333333333333'),
       reviewId: reviewId('11111111-1111-4111-8111-111111111111'),
@@ -335,9 +330,9 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     expect(catalogue?.consumers.map((consumer) => consumer.name)).toEqual([
       'review.on-reply-publication-requested',
     ])
-    expect(isEventRegistered(event._tag, 1)).toBe(true)
+    expect(getEventDescriptor(event._tag, 1)).toBeDefined()
     if (row.eventVersion === undefined) throw new Error('event version is missing')
-    expect(isEventRegistered(event._tag, row.eventVersion)).toBe(true)
+    expect(getEventDescriptor(event._tag, row.eventVersion)).toBeDefined()
   })
 
   it.each([
@@ -350,8 +345,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   ])(
     'rejects malformed publication intent at the outbox adapter: %s',
     (_name, override) => {
-      clearEventSchemas()
-      registerAllEventSchemas()
       const malformed = {
         _tag: 'review.reply.publication_requested',
         eventId: '44444444-4444-4444-8444-444444444444',
@@ -374,8 +367,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   )
 
   it('retains the allowlisted Portal Health reason while stripping arbitrary reasons', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const row = toOutboxEvent({
       _tag: 'portal.health.changed',
       eventId: '77777777-7777-4777-8777-777777777777',
@@ -415,8 +406,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   ])(
     'emits strict $tag facts as v2 while retaining legacy v1 replay',
     ({ tag, aggregate }) => {
-      clearEventSchemas()
-      registerAllEventSchemas()
       const common = {
         ...aggregate,
         _tag: tag,
@@ -455,8 +444,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   )
 
   it('starts responsible-manager update facts at strict v2', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const row = toOutboxEvent({
       _tag: 'portal.responsible_managers.updated',
       eventId: 'evt-responsible-managers-updated',
@@ -485,8 +472,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     'portal.configuration_completeness.recorded',
     'portal.approved_destination_ratio.recorded',
   ] as const)('emits %s as strict v2 while retaining its legacy v1 decoder', (tag) => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const event = {
       _tag: tag,
       eventId: `evt-${tag}`,
@@ -531,8 +516,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('emits an Immersive Hub completeness count as v3, naming the fields it counted', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const event = {
       _tag: 'portal.configuration_completeness.recorded',
       eventId: 'evt-completeness-immersive-hub',
@@ -570,8 +553,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('registers only the content-minimal invitation v2 shape', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const base = {
       invitationId: 'invitation-1',
       organizationId: 'org-1',
@@ -587,8 +568,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('registers the emitted Guest vocabulary with content-minimal payloads', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const common = {
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
@@ -648,8 +627,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('defaults legacy Guest review-link facts to secondary-link semantics', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const row = toOutboxEvent({
       _tag: 'guest.review_link.clicked',
       eventId: 'evt-legacy-click',
@@ -668,9 +645,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('routes active AI facts through the master allowlist adapter', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-
     const trend = toOutboxEvent({
       _tag: 'ai.property_trend.generation_requested',
       eventId: '71000000-0000-4000-8000-000000000201',
@@ -756,7 +730,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
 
   it('rejects content-only smuggling via unregistered field names not in schema', () => {
     // Even if denylist missed a field named "comment", Zod allowlist drops it.
-    registerEventSchema({
+    overrideEventDescriptor({
       aggregate: { type: 'event', id: 'eventId' },
       type: 'test.smuggle',
       version: 1,
@@ -778,8 +752,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('normalizes a portal rotation grace deadline before allowlist validation', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const gracePeriodEnds = new Date('2025-06-01T12:05:00.000Z')
     const row = toOutboxEvent({
       _tag: 'portal.token.rotated',
@@ -800,8 +772,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('preserves schema-governed nested bulk transitions without content fields', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const event = inboxBulkAssignmentCompleted({
       organizationId: organizationId('org-1'),
       userId: userId('actor-1'),
@@ -831,8 +801,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('keeps the reopened cycles of a bulk reopen as identifiers and revisions', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const reopened = {
       inboxItemId: inboxItemId('6a000000-0000-4000-8000-000000000010'),
       propertyId: propertyId('6a000000-0000-4000-8000-000000000020'),
@@ -869,8 +837,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('keeps the mark on a cycle opened by the command that created its item', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const event = inboxHandlingCycleOpened({
       inboxItemId: inboxItemId('6a000000-0000-4000-8000-000000000010'),
       cycleNumber: 2,
@@ -892,8 +858,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('keeps the bulk command on a reopen fact that belongs to one', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const event = inboxHandlingCycleReopened({
       inboxItemId: inboxItemId('6a000000-0000-4000-8000-000000000010'),
       cycleNumber: 3,
@@ -918,8 +882,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   })
 
   it('adapts a monthly-result close as an identifier-only result aggregate fact', () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     const monthlyResultId = '10000000-0000-4000-8000-000000000006'
     const event = goalMonthlyResultClosed({
       organizationId: 'organization-1',
