@@ -17,8 +17,15 @@ import type {
 import type { PortalGoalOfCard, PortalGoalRunningMonth } from './contracts'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import type { GoalSubjectNameReader } from './goal-bulk-create.server'
-import { inParallel, listProgressOf } from './goal-list-progress.server'
-import type { GoalActor, GoalExecutionPolicy } from './goal-programs.server'
+import {
+  inParallel,
+  listProgressOf,
+  type GoalListProgressMetrics,
+} from './goal-list-progress.server'
+import type {
+  GoalActor,
+  GoalExecutionPolicy,
+} from '../application/use-cases/goal-program-shared'
 import {
   gatherMonthlyPortalGoal,
   monthlyPortalGoalCardOf,
@@ -41,11 +48,7 @@ import { monthCountsOf } from './monthly-portal-goal-running.server'
 
 export type MonthlyPortalGoalPageDeps = MonthlyPortalGoalCardDeps &
   Readonly<{
-    history?: (
-      programId: string,
-      propertyId: string,
-      actor: GoalActor,
-    ) => Promise<GoalProgramBundle>
+    metrics: GoalListProgressMetrics
     /** The names of the other Portal goals' Portal Groups, and of Portals not listed. */
     subjectNames: Pick<GoalSubjectNameReader, 'getSubjectName'>
     /** A side read that failed: the page still draws, without it. */
@@ -226,7 +229,15 @@ async function extrasOf(
 }
 
 export async function readMonthlyPortalGoalPage(
-  deps: MonthlyPortalGoalPageDeps,
+  deps: MonthlyPortalGoalPageDeps &
+    Readonly<{
+      /** A Program with its complete definition history. */
+      history: (
+        programId: string,
+        propertyId: string,
+        actor: GoalActor,
+      ) => Promise<GoalProgramBundle>
+    }>,
   input: Readonly<{ propertyId: string }>,
   actor: GoalActor,
 ): Promise<PortalGoalPageView> {
@@ -243,14 +254,12 @@ export async function readMonthlyPortalGoalPage(
   // After the card: its governed figures are the months it shows, so only a
   // month it does not show is read again.
   const currentSuccession = successionOf(programs, goal)
-  const succession = deps.history
-    ? await Promise.all(
-        currentSuccession.map(async (candidate) => ({
-          ...candidate,
-          ...(await deps.history!(candidate.program.id, input.propertyId, actor)),
-        })),
-      )
-    : currentSuccession
+  const succession = await Promise.all(
+    currentSuccession.map(async (candidate) => ({
+      ...candidate,
+      ...(await deps.history(candidate.program.id, input.propertyId, actor)),
+    })),
+  )
   const shown: ShownMonths =
     card.state === 'goal'
       ? { month: card.goal.month, lastMonth: card.goal.lastMonth }

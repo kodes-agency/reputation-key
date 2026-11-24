@@ -109,10 +109,8 @@ describe('Google provider authority wiring', () => {
     )
   })
 
-  it('activates a durable, non-empty provider-authorization invalidation handler set', () => {
+  it('registers the provider-authorization invalidation consumer', () => {
     const build = read(`${INTEGRATION}/build.ts`)
-    expect(build).toContain('createProviderAuthorizationInvalidationFanout')
-    expect(build).toContain("id: 'google_import_references'")
     expect(build).toContain('registerProviderAuthorizationInvalidationConsumer')
   })
 })

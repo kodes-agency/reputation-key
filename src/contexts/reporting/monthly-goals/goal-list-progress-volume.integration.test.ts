@@ -6,7 +6,7 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
-import type { GoalActor } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import { listProgressOf } from './goal-list-progress.server'
 import { subjectMonthQuery } from './goal-progress.server'
 import { queryGoalMetric } from '../readings/query-goal-metric.server'

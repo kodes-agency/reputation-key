@@ -3,7 +3,6 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { PrivateFeedbackTargetCard } from '#/contexts/reputation/response-targets/ui/private-feedback-target-card'
 import { setResponseTargetPolicyFn } from '#/contexts/reputation/server/inbox'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { inboxKeys } from '#/shared/queries/query-keys'
@@ -13,7 +12,7 @@ export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/targets',
 )({
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'organization.update')) {
       // The section is hidden from a role without it, so this is a stale link.
       throw roleUnavailable('Target settings', 'propertySettings')

@@ -4,7 +4,6 @@ import type { Database } from '#/shared/db'
 import { notificationEmailQueue, notifications } from '#/shared/db/schema'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { BETA_NOTIFICATION_TRIGGER_MATRIX } from './beta-notification-trigger-matrix.server'
-import { notificationDeliveryReceiptPrefixes } from './notification-delivery-receipts.server'
 import { notificationRouteValues as routeValues } from './notification-route-values.server'
 import {
   assertStatementTimeoutMs,
@@ -20,7 +19,7 @@ export type NotificationDeliveryLagWindow = Readonly<{
   recordedAtOrAfter: Date
   /** Exclusive grace edge; fresher asynchronous work is not yet late. */
   recordedBefore: Date
-  /** Per-stage saturation bound. */
+  /** Saturation bound for each bounded sample. */
   scanLimit: number
   /**
    * PostgreSQL statement timeout for each of the read's statements (ms): the
@@ -66,15 +65,8 @@ export type NotificationDeliveryLagReport = Readonly<{
    * oldest facts in the window when `sourceSaturated`.
    */
   sourceReceiptPendingByEventType: Readonly<Record<string, number>>
-  /** Redis-accepted deliveries without their atomic Postgres materialization receipt. */
-  materializationPending: number
   oldestSourceRecordedAt: Date | null
-  /** Durable-source clock for end-to-end in-app latency. */
-  oldestMaterializationSourceRecordedAt: Date | null
-  /** Redis acceptance clock for isolating the Redis→Postgres stage. */
-  oldestMaterializationEnqueuedAt: Date | null
   sourceSaturated: boolean
-  materializationSaturated: boolean
   /** Source-clock evidence for the five-minute immediate-email acceptance target. */
   immediateEmailAcceptance: ImmediateEmailAcceptanceReport
 }>
@@ -83,12 +75,6 @@ type PendingRow = Readonly<{
   eventType: string
   pending: number
   oldest: Date | string | null
-}>
-
-type MaterializationPendingRow = Readonly<{
-  pending: number
-  oldestSource: Date | string | null
-  oldestEnqueued: Date | string | null
 }>
 
 type ImmediateEmailAcceptanceRow = Readonly<{
@@ -326,48 +312,6 @@ const readSourceReceiptPending = async (
   return result.rows
 }
 
-/** Redis-accepted deliveries still without their materialization receipt (bounded). */
-const readMaterializationPending = async (
-  db: Pick<Database, 'execute'>,
-  window: NotificationDeliveryLagWindow,
-): Promise<MaterializationPendingRow | undefined> => {
-  const result = await db.execute<MaterializationPendingRow>(sql`
-    WITH routes(event_type, consumer_name) AS (VALUES ${routeValues})
-    SELECT
-      count(*)::int AS pending,
-      min(candidate.source_created_at) AS "oldestSource",
-      min(candidate.enqueued_at) AS "oldestEnqueued"
-    FROM (
-      SELECT
-        event.created_at AS source_created_at,
-        enqueued.created_at AS enqueued_at
-      FROM ${eventConsumerReceipts} AS enqueued
-      JOIN ${outboxEvents} AS event ON event.id = enqueued.event_id
-      JOIN routes
-        ON routes.event_type = event.event_type
-       AND split_part(enqueued.consumer_name, ':', 2) = routes.consumer_name
-      WHERE event.created_at >= ${window.recordedAtOrAfter}::timestamptz
-        AND event.created_at < ${window.recordedBefore}::timestamptz
-        AND event.recovery_fenced_at IS NULL
-        AND enqueued.consumer_name LIKE ${`${notificationDeliveryReceiptPrefixes.enqueue}%`}
-        AND enqueued.status = 'applied'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM ${eventConsumerReceipts} AS materialized
-          WHERE materialized.event_id = enqueued.event_id
-            AND materialized.consumer_name = replace(
-              enqueued.consumer_name,
-              ${notificationDeliveryReceiptPrefixes.enqueue},
-              ${notificationDeliveryReceiptPrefixes.materialized}
-            )
-        )
-      ORDER BY event.created_at, enqueued.event_id, enqueued.consumer_name
-      LIMIT ${window.scanLimit}
-    ) AS candidate
-  `)
-  return result.rows[0]
-}
-
 /**
  * Reads only identifiers, receipt names, route event type names (a closed set
  * the notification routes name), and timestamps. Event payload never reaches
@@ -407,23 +351,24 @@ export const readNotificationDeliveryLag = async (
   // One read-only transaction under a PostgreSQL statement timeout: a
   // stalled statement is cancelled and ends the read, so nothing keeps
   // running once the health snapshot has stopped waiting for it.
-  const { sourceRows, materializationRow, immediateEmailRows } =
-    await withHealthReadTimeout(db, window.statementTimeoutMs, async (transaction) => ({
+  const { sourceRows, immediateEmailRows } = await withHealthReadTimeout(
+    db,
+    window.statementTimeoutMs,
+    async (transaction) => ({
       sourceRows: await readSourceReceiptPending(transaction, window),
-      materializationRow: await readMaterializationPending(transaction, window),
       immediateEmailRows: await readSendableImmediateEmailRows(
         transaction,
         isEmailDeliveryAllowed,
         window,
       ),
-    }))
+    }),
+  )
 
   const sourceReceiptPending = sourceRows.reduce((sum, row) => sum + row.pending, 0)
   const sourceReceiptPendingByEventType = Object.fromEntries(
     sourceRows.map((row) => [row.eventType, row.pending]),
   )
   const oldestSourceRecordedAt = earliest(sourceRows.map((row) => asDate(row.oldest)))
-  const materializationPending = materializationRow?.pending ?? 0
   const immediateEmailSaturated = immediateEmailRows.length > window.scanLimit
   const immediateEmailSample = immediateEmailRows.slice(0, window.scanLimit)
   const awaitingImmediateEmail = immediateEmailSample.filter(isAwaitingProviderAcceptance)
@@ -436,12 +381,8 @@ export const readNotificationDeliveryLag = async (
   return {
     sourceReceiptPending,
     sourceReceiptPendingByEventType,
-    materializationPending,
     oldestSourceRecordedAt,
-    oldestMaterializationSourceRecordedAt: asDate(materializationRow?.oldestSource),
-    oldestMaterializationEnqueuedAt: asDate(materializationRow?.oldestEnqueued),
     sourceSaturated: sourceReceiptPending >= window.scanLimit,
-    materializationSaturated: materializationPending >= window.scanLimit,
     immediateEmailAcceptance: {
       awaitingProviderAcceptance: awaitingImmediateEmail.length,
       attemptedAwaitingProviderAcceptance: awaitingImmediateEmail.filter(

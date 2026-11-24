@@ -77,10 +77,6 @@
   ],
   "ignoreExports": [
     {
-      "file": "src/contexts/reputation/inbox/inbox-escalation-history.server.ts",
-      "exports": ["INBOX_ESCALATION_HISTORY_KINDS"]
-    },
-    {
       "file": "src/contexts/integration/provider/contracts.ts",
       "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION"]
     },
@@ -114,14 +110,7 @@
     },
     {
       "file": "src/contexts/reporting/public-api.ts",
-      "exports": [
-        "findMetricVersionById",
-        "GOOGLE_PERFORMANCE_ERROR_CODES",
-        "PROPERTY_PERFORMANCE_PRESETS",
-        "goalMonthlyResultClosed",
-        "isGooglePerformanceErrorCode",
-        "isPropertyPerformancePreset"
-      ]
+      "exports": ["findMetricVersionById", "goalMonthlyResultClosed"]
     },
     {
       "file": "src/contexts/guest/public-api.ts",
@@ -150,7 +139,7 @@
     },
     {
       "file": "src/contexts/portal/server/portals.ts",
-      "exports": ["rollbackPortalPublication", "savePropertyPortalBrandProfile"]
+      "exports": ["rollbackPortalPublication"]
     },
     {
       "file": "src/contexts/property/server/properties.ts",
@@ -213,7 +202,6 @@
         "createPortalGroup",
         "updatePortalGroup",
         "softDeletePortalGroup",
-        "addPortalToGroup",
         "removePortalFromGroup"
       ]
     },

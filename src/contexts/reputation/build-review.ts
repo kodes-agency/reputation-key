@@ -55,7 +55,6 @@ import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/publi
 import { createReviewRepository } from './reviews/review-repository.server'
 import { createReviewObservationRepository } from './reviews/review-observation-repository.server'
 import { createReplyRepository } from './replies/reply-repository.server'
-import { createReviewReplyWriter } from './replies/reply-writer.server'
 import { createReplyLibraryRepository } from './library/reply-library-repository.server'
 import {
   createAiReplyVoicePublicApi,
@@ -330,8 +329,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     input.replyEffects,
   )
   const observationRepo = createReviewObservationRepository(input.db)
-  const replyWriter = createReviewReplyWriter(input.db, input.clock)
-  const replyRepo = createReplyRepository(input.db, input.clock, replyWriter)
+  const replyRepo = createReplyRepository(input.db, input.clock)
   const replyLibraryRepo = createReplyLibraryRepository(input.db, input.clock)
   const aiReplyVoice = createAiReplyVoicePublicApi({
     repository: replyLibraryRepo,
@@ -479,7 +477,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     input.db,
     input.clock,
     input.publicationActorAuthority,
-    replyWriter,
     input.replyEffects,
   )
   const googleReplyObservationStore = createGoogleReplyObservationStore(input.db)

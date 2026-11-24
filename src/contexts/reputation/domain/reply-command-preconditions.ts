@@ -32,8 +32,6 @@ export type ReplyCommand =
   /** Edit a published reply and republish it. */
   | 'edit_published'
   | 'delete'
-  /** Record a reply as published on provider confirmation. */
-  | 'confirm_published'
 
 /** The part of a reply a command's precondition reads. */
 export type ReplyCommandSubject = Pick<
@@ -49,14 +47,6 @@ type ReplyCommandStart = Readonly<{
 /** No publication cycle is open: none was ever authorized, or the last one was
  * cancelled and the reply went back to draft. */
 const NO_OPEN_PUBLICATION: ReadonlyArray<PublicationStateInput> = [null, 'cancelled']
-
-/** A cycle whose write may have reached Google, or did and was not confirmed. */
-const UNCONFIRMED_PUBLICATION: ReadonlyArray<PublicationStateInput> = [
-  'sending',
-  'pending_observation',
-  'ambiguous',
-  'terminal',
-]
 
 const REPLY_COMMAND_STARTS: Readonly<Record<ReplyCommand, ReplyCommandStart>> = {
   save_draft: { statuses: ['draft', 'rejected'], publicationStates: NO_OPEN_PUBLICATION },
@@ -75,15 +65,11 @@ const REPLY_COMMAND_STARTS: Readonly<Record<ReplyCommand, ReplyCommandStart>> = 
     statuses: ['draft', 'rejected', 'publish_failed'],
     publicationStates: [null, 'terminal'],
   },
-  confirm_published: {
-    statuses: ['approved', 'publish_failed'],
-    publicationStates: UNCONFIRMED_PUBLICATION,
-  },
 }
 
 /** Terminal ambiguity: the automatic checks ended without learning whether
  * Google has the reply. It is `terminal`, and still not safe to send again. */
-const endedWithoutAnAnswer = (reply: ReplyCommandSubject): boolean =>
+export const isTerminalAmbiguity = (reply: ReplyCommandSubject): boolean =>
   reply.publicationState === 'terminal' && reply.publicationLastErrorClass === 'ambiguous'
 
 /** A reply that was ever authorized for publication has authorization, and
@@ -106,10 +92,10 @@ export function replyCommandMayStart(
   reply: ReplyCommandSubject,
 ): boolean {
   if (!isAtCommandStart(command, reply)) return false
-  if (command === 'retry_publication') return !endedWithoutAnAnswer(reply)
+  if (command === 'retry_publication') return !isTerminalAmbiguity(reply)
   if (command === 'delete') {
     return reply.status === 'publish_failed'
-      ? reply.publicationState === 'terminal' && !endedWithoutAnAnswer(reply)
+      ? reply.publicationState === 'terminal' && !isTerminalAmbiguity(reply)
       : reply.publicationState === null && !hasPublicationRecord(reply)
   }
   return true
@@ -132,7 +118,6 @@ const REPLY_COMMAND_REFUSALS: Readonly<Record<ReplyCommand, string>> = {
   retry_publication: 'Only a reply that failed to publish can be sent again',
   edit_published: 'Only a published reply can be edited and republished',
   delete: 'Can only delete draft or rejected replies',
-  confirm_published: 'Only a reply sent to Google can be recorded as published',
 }
 
 /** Refuse, in the command's own words, a reply it may not start from. */
@@ -242,6 +227,6 @@ export function takenBackByGuestEdit(
   return {
     status: 'draft',
     publicationState: 'cancelled',
-    supersedesAttempt: endedWithoutAnAnswer(reply),
+    supersedesAttempt: isTerminalAmbiguity(reply),
   }
 }

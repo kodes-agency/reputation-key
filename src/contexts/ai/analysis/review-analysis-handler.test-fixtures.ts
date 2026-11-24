@@ -22,8 +22,8 @@ import { afterEach, vi } from 'vitest'
 import {
   TEST_REVIEW_SENTENCES,
   VALID_V3_ANSWER,
-  createTestReviewAnalysisContract,
-} from '#/contexts/ai/analysis/review-analysis-contract.test-fixtures'
+  createTestReviewAnalysisPorts,
+} from '#/contexts/ai/analysis/review-analysis-steps.test-fixtures'
 const handlerDatabase = useAiHandlerDatabase()
 
 /**
@@ -309,7 +309,7 @@ async function createHarness(
         },
   )
   const dependencies = {
-    contract: createTestReviewAnalysisContract({ storeAnalysisV3 }),
+    ...createTestReviewAnalysisPorts(),
     authorization: persistence.authorization,
     control: persistence.control,
     inference: {
@@ -326,7 +326,6 @@ async function createHarness(
     aggregates: {
       applyReviewAnalysis,
       advanceWithoutAnalysis,
-      readWindow: vi.fn(),
     },
     admission: {
       acquire: vi.fn(async () =>

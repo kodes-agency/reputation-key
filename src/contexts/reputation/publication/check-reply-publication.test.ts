@@ -102,7 +102,6 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
-    expiresAt: NOW,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW,

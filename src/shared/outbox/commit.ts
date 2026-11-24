@@ -20,19 +20,27 @@ async function lockGuestMetricSource(tx: Tx, event: DomainEvent): Promise<void> 
   }
 }
 
+async function outboxRow(
+  tx: Tx,
+  event: DomainEvent,
+  options: Readonly<{ recordedAt?: Date }>,
+) {
+  await lockGuestMetricSource(tx, event)
+  const contextualEvent = withEnvelopeIdentifiers(event, getRequestContext())
+  return {
+    ...toOutboxEvent(contextualEvent),
+    id: event.eventId,
+    ...(options.recordedAt ? { createdAt: options.recordedAt } : {}),
+  }
+}
+
 /** Insert the durable outbox row for a domain event inside the command transaction. */
 export async function insertOutboxRow(
   tx: Tx,
   event: DomainEvent,
   options: Readonly<{ recordedAt?: Date }> = {},
 ): Promise<void> {
-  await lockGuestMetricSource(tx, event)
-  const contextualEvent = withEnvelopeIdentifiers(event, getRequestContext())
-  await tx.insert(outboxEvents).values({
-    ...toOutboxEvent(contextualEvent),
-    id: event.eventId,
-    ...(options.recordedAt ? { createdAt: options.recordedAt } : {}),
-  })
+  await tx.insert(outboxEvents).values(await outboxRow(tx, event, options))
 }
 
 /**
@@ -44,15 +52,9 @@ export async function insertOutboxRowIfNew(
   event: DomainEvent,
   options: Readonly<{ recordedAt?: Date }> = {},
 ): Promise<boolean> {
-  await lockGuestMetricSource(tx, event)
-  const contextualEvent = withEnvelopeIdentifiers(event, getRequestContext())
   const rows = await tx
     .insert(outboxEvents)
-    .values({
-      ...toOutboxEvent(contextualEvent),
-      id: event.eventId,
-      ...(options.recordedAt ? { createdAt: options.recordedAt } : {}),
-    })
+    .values(await outboxRow(tx, event, options))
     .onConflictDoNothing()
     .returning({ id: outboxEvents.id })
   return rows.length === 1

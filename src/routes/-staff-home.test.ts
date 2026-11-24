@@ -17,7 +17,7 @@ vi.mock('#/contexts/identity/server/staff-self', () => ({
   getMyCode: vi.fn(),
   acknowledgeStaffNotice: vi.fn(),
 }))
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.query', () => ({
   getActiveOrganization: mocks.organization,
 }))
 vi.mock('#/contexts/reporting/server/staff-self-results', () => ({

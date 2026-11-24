@@ -99,7 +99,7 @@ export type GoalProgramMaintenanceCursor = Readonly<{
 
 export type GoalDueResultCursor = Readonly<{ periodEnd: Date; id: string }>
 
-export type GoalProgramRepository = Partial<GoalProgramCurrentReads> &
+export type GoalProgramRepository = GoalProgramCurrentReads &
   Readonly<{
     /**
      * `subject_has_goal` when a subject already holds the metric inside the new
@@ -115,15 +115,6 @@ export type GoalProgramRepository = Partial<GoalProgramCurrentReads> &
         auditAction: string
       }>,
     ): Promise<'created' | 'subject_has_goal'>
-    get(
-      organizationId: string,
-      propertyId: string,
-      programId: string,
-    ): Promise<GoalProgramBundle | null>
-    list(
-      organizationId: string,
-      propertyId: string,
-    ): Promise<readonly GoalProgramBundle[]>
     /**
      * The Programs maintenance works on: scheduled and active ones. At most
      * GOAL_MAINTENANCE_PAGE_SIZE, ordered by Organization, Property and Program id.
@@ -358,15 +349,12 @@ export type GoalProgramCurrentReads = Readonly<{
     propertyId: string,
     programId: string,
   ): Promise<GoalProgramBundle | null>
-  getSummary(
+  get(
     organizationId: string,
     propertyId: string,
     programId: string,
   ): Promise<GoalProgramBundle | null>
-  listSummaries(
-    organizationId: string,
-    propertyId: string,
-  ): Promise<readonly GoalProgramBundle[]>
+  list(organizationId: string, propertyId: string): Promise<readonly GoalProgramBundle[]>
   listHistory(
     organizationId: string,
     propertyId: string,

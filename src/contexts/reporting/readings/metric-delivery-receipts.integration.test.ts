@@ -16,7 +16,8 @@ import {
   propertyId,
   scanEventId,
 } from '#/shared/domain/ids'
-import { recordMetric, recordMetrics } from './record-metric.server'
+import { recordMetrics } from './record-metric.server'
+import { recordMetric } from './single-reading.test-fixtures'
 import type { GovernedMetricVersion } from './contracts'
 import { createAtomicMetricCommandStore } from './metric-command-store.server'
 import { onScanRecordedDurably } from './record-portal-metric.server'

@@ -14,8 +14,7 @@ import {
 import { denyControlledRoute } from './controlled-route-gate'
 import { createDelayedExecutionPolicy } from './system-execution-policy'
 import {
-  assertGlobalCapability,
-  BetaCapabilityError,
+  checkGlobalCapability,
   createEnvCapabilityPolicyStore,
   checkScopedCapability,
   initCapabilityPolicyStore,
@@ -125,7 +124,7 @@ describe('switched-off feature containment matrix', () => {
   })
 
   describe('public handlers: the guest surface refuses while guest pages are off', () => {
-    it('assertGlobalCapability throws for every guest capability and nothing else', () => {
+    it('checkGlobalCapability refuses every guest capability and nothing else', () => {
       install({ BETA_CAPABILITIES_OFF: 'guest_pages' })
       const scope = { organizationId: 'org-dark-matrix' }
       for (const capability of [
@@ -133,9 +132,7 @@ describe('switched-off feature containment matrix', () => {
         'portal.guest_response',
         'portal.guest_text',
       ] as const) {
-        expect(() => assertGlobalCapability(capability), capability).toThrow(
-          BetaCapabilityError,
-        )
+        expect(checkGlobalCapability(capability).allowed, capability).toBe(false)
         expect(checkScopedCapability(scope, capability).reason, capability).toBe(
           'capability_disabled',
         )
@@ -176,7 +173,7 @@ describe('switched-off feature containment matrix', () => {
         'ai.generate_reply',
         'ai.detect_trends',
       ] as const) {
-        expect(() => assertGlobalCapability(cap), cap).toThrow(BetaCapabilityError)
+        expect(checkGlobalCapability(cap).allowed, cap).toBe(false)
         expect(checkScopedCapability(scope, cap).allowed, cap).toBe(false)
       }
       install({})

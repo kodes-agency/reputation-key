@@ -21,11 +21,6 @@ vi.mock('#/shared/auth/headers', () => ({
 vi.mock('#/shared/auth/middleware', () => ({
   resolveTenantContext: mocks.resolveTenantContext,
 }))
-vi.mock('#/shared/auth/beta-capabilities', () => ({
-  assertBetaCapability: vi.fn(),
-  assertGlobalCapability: vi.fn(),
-  BetaCapabilityError: class BetaCapabilityError extends Error {},
-}))
 vi.mock('#/shared/auth/execution-policy', () => ({
   requireExecutionAllowed: mocks.requireExecutionAllowed,
   getExecutionPolicy: vi.fn(() => ({ decide: vi.fn() })),

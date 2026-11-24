@@ -367,10 +367,8 @@ describe('health checker content safety (BQC-4.3)', () => {
           materializationPending: 0,
           oldestSourceRecordedAt: null,
           oldestSourceAgeMs: null,
-          oldestMaterializationSourceRecordedAt: null,
-          oldestMaterializationSourceAgeMs: null,
-          oldestMaterializationEnqueuedAt: null,
-          oldestMaterializationEnqueuedAgeMs: null,
+          oldestMaterializationSourceAgeMs: 0,
+          oldestMaterializationEnqueuedAgeMs: 0,
           sourceSaturated: false,
           materializationSaturated: false,
           immediateEmailAcceptance: {
@@ -747,7 +745,6 @@ describe('health checker notification delivery metrics', () => {
   it('surfaces bounded content-free delivery lag clocks, ages, and saturation', async () => {
     const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW, NOTIFICATION_ROW])
     const source = new Date(Date.now() - 61_000)
-    const enqueued = new Date(Date.now() - 30_000)
 
     const snapshot = await createHealthChecker(db, undefined, {
       readNotificationDeliveryLag: async () => ({
@@ -756,12 +753,8 @@ describe('health checker notification delivery metrics', () => {
           'inbox.handling_cycle.closed': 1,
           'inbox.inbox_item.created': 1,
         },
-        materializationPending: 3,
         oldestSourceRecordedAt: source,
-        oldestMaterializationSourceRecordedAt: source,
-        oldestMaterializationEnqueuedAt: enqueued,
         sourceSaturated: true,
-        materializationSaturated: false,
         immediateEmailAcceptance: {
           awaitingProviderAcceptance: 4,
           attemptedAwaitingProviderAcceptance: 2,
@@ -782,13 +775,11 @@ describe('health checker notification delivery metrics', () => {
         'inbox.handling_cycle.closed': 1,
         'inbox.inbox_item.created': 1,
       },
-      materializationPending: 3,
+      materializationPending: 0,
       oldestSourceRecordedAt: source.toISOString(),
       oldestSourceAgeMs: expect.any(Number),
-      oldestMaterializationSourceRecordedAt: source.toISOString(),
-      oldestMaterializationSourceAgeMs: expect.any(Number),
-      oldestMaterializationEnqueuedAt: enqueued.toISOString(),
-      oldestMaterializationEnqueuedAgeMs: expect.any(Number),
+      oldestMaterializationSourceAgeMs: 0,
+      oldestMaterializationEnqueuedAgeMs: 0,
       sourceSaturated: true,
       materializationSaturated: false,
       immediateEmailAcceptance: {

@@ -39,12 +39,9 @@ import type {
 import type { SetResponseTargetPolicy } from './response-targets/set-response-target-policy.server'
 
 // ── Reply and content storage ───────────────────────────────────────
-// Review builds the Reply writer with its own row helpers, and any context
-// that must end or withdraw Replies inside its transaction uses the scope
-// effects.
-export { createReplyWriter } from './replies/store.server'
+// Any context that must end or withdraw Replies inside its transaction uses
+// the scope effects.
 export { replyScopeEffects } from './replies/scope-effects.server'
-export type { ReplyWriterDeps, ReplyWriterRows } from './replies/store.server'
 export {
   cancelReplyAtProviderTruth,
   confirmPublicationAttempt,
@@ -183,8 +180,6 @@ export {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
 } from './content/run-source-content-lifecycle.server'
-// Lifecycle purge port consumed by integration + property use cases.
-export type { SourceContentPurge } from './content/source-content-purge.port.server'
 export type { ReviewReplyObservationAuthority } from './reviews/reply-observation-authority.port.server'
 export type {
   ReviewInboxProjectionExpectation,

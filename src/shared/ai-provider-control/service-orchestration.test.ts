@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { openAiAdapterRegistry } from './provider-registry.test-fixtures'
 import { z } from 'zod/v4'
 import type {
   AiAdmissionDescriptorV1,
@@ -83,6 +84,7 @@ function preparedExecution(
 ): PreparedGatewayRouteExecution {
   const descriptor = descriptorFor(request)
   return {
+    providerId: 'openai',
     invocation: {
       descriptor,
       sdkRequest: {} as never,
@@ -200,16 +202,14 @@ function harness(
   )
   const connector = {
     invoke,
-    readiness: vi.fn(() => true),
   } as unknown as OpenAiConnector
   const admission = {
     authorize,
     settle,
-    readiness: vi.fn(async () => true),
   } as AiAdmissionClient
   const service = createAiEgressGatewayService({
     admission,
-    connector,
+    providers: openAiAdapterRegistry(connector),
     preparer: { prepare } as AiGatewayRoutePreparer,
     now: () => NOW + 1_000,
   })
@@ -493,18 +493,5 @@ describe('AI gateway execution orchestration', () => {
     expect(
       value.prepared.invocation.canonicalProviderBytes.every((byte) => byte === 0),
     ).toBe(true)
-  })
-
-  it('uses provider-free readiness checks only', async () => {
-    const value = harness()
-    await expect(value.service.readiness(new AbortController().signal)).resolves.toBe(
-      true,
-    )
-    expect(value.connector.readiness).toHaveBeenCalledTimes(1)
-    expect(value.admission.readiness).toHaveBeenCalledTimes(1)
-    expect(value.prepare).not.toHaveBeenCalled()
-    expect(value.invoke).not.toHaveBeenCalled()
-    expect(value.authorize).not.toHaveBeenCalled()
-    expect(value.settle).not.toHaveBeenCalled()
   })
 })

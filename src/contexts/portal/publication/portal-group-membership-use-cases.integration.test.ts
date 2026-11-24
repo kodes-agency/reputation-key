@@ -23,7 +23,6 @@ import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { isPortalError } from '../domain/errors'
 import { portalCreated } from '../domain/events'
-import { addPortalToGroup } from '../groups/add-portal-to-group.server'
 import { removePortalFromGroup } from '../groups/remove-portal-from-group.server'
 import { movePortalToGroup } from '../groups/move-portal-to-group.server'
 import { createPortalRepository } from './portal-repository.server'
@@ -208,72 +207,69 @@ beforeEach(async () => {
 
 const input = (group: PortalGroupId) => ({ portalGroupId: group, portalId: PORTAL })
 
-describe.sequential('addPortalToGroup (real PostgreSQL)', () => {
-  it('adds an ungrouped Portal and records the fact and the history', async () => {
-    await addPortalToGroup(deps())(input(GROUP_A), manager())
+describe.sequential(
+  'movePortalToGroup for a Portal in no group (real PostgreSQL)',
+  () => {
+    it('adds an ungrouped Portal and records the fact and the history', async () => {
+      await movePortalToGroup(deps())(input(GROUP_A), manager())
 
-    expect(await openMemberships()).toEqual([GROUP_A])
-    expect(await groupFacts()).toEqual([
-      {
-        event_type: 'portal_group.portal_added',
-        group_id: GROUP_A,
-        portal_id: PORTAL,
-        property_id: PROPERTY,
-      },
-    ])
-    expect(await historyKinds()).toEqual([
-      { group: GROUP_A, kind: 'portal_added', other: null, actor_user_id: MANAGER },
-    ])
-    expect(await revisionOf(GROUP_A)).toEqual(NOW)
-  })
+      expect(await openMemberships()).toEqual([GROUP_A])
+      expect(await groupFacts()).toEqual([
+        {
+          event_type: 'portal_group.portal_added',
+          group_id: GROUP_A,
+          portal_id: PORTAL,
+          property_id: PROPERTY,
+        },
+      ])
+      expect(await historyKinds()).toEqual([
+        { group: GROUP_A, kind: 'portal_added', other: null, actor_user_id: MANAGER },
+      ])
+      expect(await revisionOf(GROUP_A)).toEqual(NOW)
+    })
 
-  it('refuses a manager who is not assigned to the Property', async () => {
-    await expect(addPortalToGroup(deps([]))(input(GROUP_A), manager())).rejects.toSatisfy(
-      (e: unknown) => codeOf(e) === 'forbidden',
-    )
-    await expectNothingWritten(GROUP_A, [])
-  })
+    it('refuses a manager who is not assigned to the Property', async () => {
+      await expect(
+        movePortalToGroup(deps([]))(input(GROUP_A), manager()),
+      ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
+      await expectNothingWritten(GROUP_A, [])
+    })
 
-  it('refuses a role that cannot update Portals', async () => {
-    await expect(
-      addPortalToGroup(deps())(input(GROUP_A), manager({ role: 'Member' })),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
-    await expectNothingWritten(GROUP_A, [])
-  })
+    it('refuses a role that cannot update Portals', async () => {
+      await expect(
+        movePortalToGroup(deps())(input(GROUP_A), manager({ role: 'Member' })),
+      ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
+      await expectNothingWritten(GROUP_A, [])
+    })
 
-  it('refuses a missing group and a missing Portal', async () => {
-    await expect(
-      addPortalToGroup(deps())(
-        { portalGroupId: '8f000000-0000-4000-8000-0000000000ee', portalId: PORTAL },
-        manager(),
-      ),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'group_not_found')
-    await expect(
-      addPortalToGroup(deps())(
-        { portalGroupId: GROUP_A, portalId: '8b000000-0000-4000-8000-0000000000ee' },
-        manager(),
-      ),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'portal_not_found')
-    await expectNothingWritten(GROUP_A, [])
-  })
+    it('refuses a missing group and a missing Portal', async () => {
+      await expect(
+        movePortalToGroup(deps())(
+          { portalGroupId: '8f000000-0000-4000-8000-0000000000ee', portalId: PORTAL },
+          manager(),
+        ),
+      ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'group_not_found')
+      await expect(
+        movePortalToGroup(deps())(
+          { portalGroupId: GROUP_A, portalId: '8b000000-0000-4000-8000-0000000000ee' },
+          manager(),
+        ),
+      ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'portal_not_found')
+      await expectNothingWritten(GROUP_A, [])
+    })
 
-  it('refuses a Portal that already has a group', async () => {
-    await seedMembership(PORTAL, GROUP_A)
-
-    await expect(addPortalToGroup(deps())(input(GROUP_B), manager())).rejects.toSatisfy(
-      (e: unknown) => codeOf(e) === 'portal_already_grouped',
-    )
-    await expectNothingWritten(GROUP_B, [GROUP_A])
-  })
-
-  it("refuses a group of another Property than the Portal's", async () => {
-    await expect(
-      addPortalToGroup(deps([PROPERTY, OTHER_PROPERTY]))(input(GROUP_OTHER), manager()),
-    ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
-    expect(await openMemberships()).toEqual([])
-    expect(await groupFacts()).toEqual([])
-  })
-})
+    it("refuses a group of another Property than the Portal's", async () => {
+      await expect(
+        movePortalToGroup(deps([PROPERTY, OTHER_PROPERTY]))(
+          input(GROUP_OTHER),
+          manager(),
+        ),
+      ).rejects.toSatisfy((e: unknown) => codeOf(e) === 'forbidden')
+      expect(await openMemberships()).toEqual([])
+      expect(await groupFacts()).toEqual([])
+    })
+  },
+)
 
 describe.sequential('removePortalFromGroup (real PostgreSQL)', () => {
   it('ends the membership and records the fact and the history', async () => {

@@ -5,17 +5,11 @@ import {
   refuseDecision,
   requireExecutionAllowed,
 } from '#/shared/auth/execution-policy'
-import {
-  createServerFn,
-  isInboxError,
-  inboxErrorStatus,
-  propertyId,
-} from './inbox-shared'
+import { createServerFn } from '@tanstack/react-start'
+import { propertyId } from '#/shared/domain/ids'
+import { inboxCaller, rethrowInboxError, runInboxCommand } from './inbox-command'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import {
   getInboxItemsDto,
   getLastVisitCountDto,
@@ -106,13 +100,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'inbox.read',
-          propertyId: data.propertyId,
-        })
+        const ctx = await inboxCaller('inbox.read', data.propertyId)
         const replyQueuesEnabled = await replyQueuesEnabledFor(
           ctx,
           data.queue,
@@ -165,9 +153,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
             ctx,
           )
         } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
+          return rethrowInboxError(e)
         }
       },
       'GET',
@@ -181,19 +167,8 @@ export const getLastVisitCountFn = createServerFn({ method: 'GET' })
   .validator(getLastVisitCountDto)
   .handler(
     tracedHandler(
-      async () => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.getLastVisitCount({}, ctx)
-        } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+      () =>
+        runInboxCommand('inbox.read', (inbox, ctx) => inbox.getLastVisitCount({}, ctx)),
       'GET',
       'inbox.getLastVisitCount',
     ),
@@ -205,22 +180,10 @@ export const stampLastInboxViewFn = createServerFn({ method: 'POST' })
   .validator(stampLastInboxViewDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.stampLastInboxView(
-            { responseCutoff: data.responseCutoff },
-            ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+      ({ data }) =>
+        runInboxCommand('inbox.read', (inbox, ctx) =>
+          inbox.stampLastInboxView({ responseCutoff: data.responseCutoff }, ctx),
+        ),
       'POST',
       'inbox.stampLastInboxView',
     ),
@@ -233,13 +196,7 @@ export const getInboxQueueCountsFn = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'inbox.read',
-          propertyId: data?.propertyId,
-        })
+        const ctx = await inboxCaller('inbox.read', data?.propertyId)
         const replyQueuesEnabled = await replyStagesAvailable(ctx, data?.propertyId)
         const { inboxPublicApi } = getContainer()
         try {
@@ -248,9 +205,7 @@ export const getInboxQueueCountsFn = createServerFn({ method: 'GET' })
             ctx,
           )
         } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
+          return rethrowInboxError(e)
         }
       },
       'GET',
@@ -265,11 +220,9 @@ export const getInboxPropertyCountsFn = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
         // Counted across every visible property, so authorized at organization
         // level — with the list's own reply authority for a reply-stage queue.
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
+        const ctx = await inboxCaller('inbox.read')
         const replyQueuesEnabled = await replyQueuesEnabledFor(ctx, data.queue, undefined)
         const { inboxPublicApi } = getContainer()
         try {
@@ -278,9 +231,7 @@ export const getInboxPropertyCountsFn = createServerFn({ method: 'GET' })
             ctx,
           )
         } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
+          return rethrowInboxError(e)
         }
       },
       'GET',

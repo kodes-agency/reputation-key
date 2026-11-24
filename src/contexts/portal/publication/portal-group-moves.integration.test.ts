@@ -681,14 +681,19 @@ describe.sequential(
         sourceAggregateVersion: at.toISOString(),
         occurredAt: at,
       })
-      await store().addPortalToGroup({
-        ...base,
+      await store().movePortalToGroup({
+        organizationId: ORG_A,
+        propertyId: PROPERTY,
         portalId: PORTAL_1,
-        expectedUpdatedAt: GROUP_REVISION,
-        revision: MOVED_AT,
-        occurredAt: MOVED_AT,
         changedBy: MANAGER,
-        event: portalAddedToGroup(fact(MOVED_AT)),
+        occurredAt: MOVED_AT,
+        to: {
+          portalGroupId: GROUP_A,
+          expectedUpdatedAt: GROUP_REVISION,
+          revision: MOVED_AT,
+          event: portalAddedToGroup(fact(MOVED_AT)),
+        },
+        from: null,
       })
       await store().removePortalFromGroup({
         ...base,

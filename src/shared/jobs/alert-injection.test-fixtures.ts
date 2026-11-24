@@ -71,10 +71,8 @@ export function healthySnapshot(): MutableSnapshot {
         materializationPending: 0,
         oldestSourceRecordedAt: null,
         oldestSourceAgeMs: null,
-        oldestMaterializationSourceRecordedAt: null,
-        oldestMaterializationSourceAgeMs: null,
-        oldestMaterializationEnqueuedAt: null,
-        oldestMaterializationEnqueuedAgeMs: null,
+        oldestMaterializationSourceAgeMs: 0,
+        oldestMaterializationEnqueuedAgeMs: 0,
         sourceSaturated: false,
         materializationSaturated: false,
         immediateEmailAcceptance: {

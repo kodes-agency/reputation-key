@@ -89,7 +89,7 @@ export type ReplyLibraryRepository = Readonly<{
     organizationId: OrganizationId,
     propertyId: PropertyId,
   ): Promise<ReplyLibrarySnapshot | null>
-  loadVoiceOverridesForShare?(
+  loadVoiceOverridesForShare(
     tx: Tx,
     organizationId: OrganizationId,
     propertyId: PropertyId,
@@ -116,7 +116,7 @@ export type ReplyLibraryRepository = Readonly<{
     ref: ReplyLibraryRef
     actorId: string
   }): Promise<boolean>
-  reserveAiFrame?(
+  reserveAiFrame(
     input: Readonly<{
       organizationId: OrganizationId
       propertyId: PropertyId
@@ -133,7 +133,7 @@ export type ReplyLibraryRepository = Readonly<{
       }>
     }>,
   ): Promise<AiFrameReservation | null>
-  findPublishedUsage?(input: {
+  findPublishedUsage(input: {
     organizationId: OrganizationId
     propertyId: PropertyId
     templateRef?: string
@@ -150,7 +150,7 @@ export type ReplyLibraryRepository = Readonly<{
       }> | null
     }>[]
   >
-  findRecentLiveReplyTexts?(input: {
+  findRecentLiveReplyTexts(input: {
     organizationId: OrganizationId
     propertyId: PropertyId
     excludeReviewId: string

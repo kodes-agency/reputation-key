@@ -1,7 +1,6 @@
-import { createHash, createHmac } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 
 const SAFETY_DOMAIN = 'repkey-ai-safety-identifier-v1\0'
-const CANARY_DOMAIN = 'repkey-synthetic-canary-safety-v1\0'
 const encoder = new TextEncoder()
 
 function containsControlCharacter(value: string): boolean {
@@ -62,12 +61,4 @@ export function derivePropertySafetyIdentifier(
   appendLengthPrefixed(hmac, input.propertyId)
   if (input.kind === 'interactive') appendLengthPrefixed(hmac, input.actorId)
   return `rk1_${hmac.digest('base64url')}`
-}
-
-const CANARY_SAFETY_IDENTIFIER = `rk1_${createHash('sha256')
-  .update(CANARY_DOMAIN, 'utf8')
-  .digest('base64url')}` as const
-
-export function deriveCanarySafetyIdentifier(): typeof CANARY_SAFETY_IDENTIFIER {
-  return CANARY_SAFETY_IDENTIFIER
 }

@@ -71,7 +71,6 @@ function review(
     translatedText: content.translatedText,
     languageCode: null,
     reviewedAt: CREATED_AT,
-    expiresAt: new Date('2027-10-29T14:53:45.961Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: CREATED_AT,

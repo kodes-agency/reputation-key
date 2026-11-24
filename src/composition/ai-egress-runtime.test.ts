@@ -83,7 +83,6 @@ describe('the in-process admission client', () => {
         status: 'denied' as const,
         code: 'permit_mismatch' as const,
       })),
-      readiness: async () => true,
       ...overrides,
     }
   }

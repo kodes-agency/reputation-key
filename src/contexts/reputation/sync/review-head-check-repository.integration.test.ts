@@ -81,7 +81,6 @@ function makeReview(
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
-    expiresAt: EXPIRES,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: ago(10 * DAY_MS),

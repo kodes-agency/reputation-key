@@ -208,7 +208,6 @@ export type ReplyRepository = Readonly<{
     organizationId: OrganizationId,
     limit: number,
   ): Promise<ReadonlyArray<Reply>>
-  upsert(reply: Omit<Reply, 'createdAt' | 'updatedAt'>, now?: Date): Promise<Reply>
   /**
    * Insert a review's first internal reply as a draft. Null when the review
    * already has one (it was created after the caller looked): the insert never
@@ -235,11 +234,6 @@ export type ReplyRepository = Readonly<{
    * stale. Publication evidence always keeps its reply row.
    */
   deleteDraft(reply: Reply): Promise<boolean | Pick<Reply, 'id' | 'stateRevision'>>
-  deleteByReviewIdAndSource(
-    reviewId: ReviewId,
-    source: ReplySource,
-    organizationId: OrganizationId,
-  ): Promise<void>
 }>
 
 /**

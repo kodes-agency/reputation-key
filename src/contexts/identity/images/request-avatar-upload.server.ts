@@ -3,7 +3,7 @@
 
 import type { IdentityStoragePort } from '../members/auth-identity.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { assertUploadAllowed, MAX_UPLOAD_BYTES } from './upload-policy.server'
+import { assertUploadAllowed } from './upload-policy.server'
 export type RequestAvatarUploadInput = Readonly<{
   contentType: string
   fileSize: number
@@ -31,7 +31,6 @@ export const requestAvatarUpload =
     const { uploadUrl } = await deps.storage.createPresignedUploadUrl(
       key,
       input.contentType,
-      MAX_UPLOAD_BYTES,
     )
 
     return { uploadUrl, key }

@@ -14,7 +14,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type { GoalMetricAggregateQuery } from './metric-repository.port.server'
 import { METRIC_VERSION_IDS } from './contracts'
-import { createGoalMetricSourceStatus } from './goal-metric-source-status.server'
+import { inspectGoalMetricSourceStatus } from './goal-metric-source-status.server'
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..')
 const MIGRATION = readFileSync(
@@ -325,19 +325,22 @@ describe.sequential('migration 0055 (retract replaced rating readings)', () => {
       periodStart: new Date('2026-09-01T00:00:00.000Z'),
       periodEnd: new Date('2026-10-01T00:00:00.000Z'),
     }
-    const status = createGoalMetricSourceStatus(db)
     const events = ['guest.rating.submitted', 'guest.rating.retracted']
 
-    await expect(status.inspect(query, events)).resolves.toMatchObject({
-      state: 'quarantined',
-      reason: 'correction_missing',
-    })
+    await expect(inspectGoalMetricSourceStatus(db, query, events)).resolves.toMatchObject(
+      {
+        state: 'quarantined',
+        reason: 'correction_missing',
+      },
+    )
 
     await runMigration()
 
-    await expect(status.inspect(query, events)).resolves.toMatchObject({
-      state: 'complete',
-      relevantFactCount: 2,
-    })
+    await expect(inspectGoalMetricSourceStatus(db, query, events)).resolves.toMatchObject(
+      {
+        state: 'complete',
+        relevantFactCount: 2,
+      },
+    )
   })
 })

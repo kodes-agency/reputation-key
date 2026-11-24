@@ -22,12 +22,12 @@ import {
   type GoalBulkCreateResult,
   type GoalSubjectNameReader,
 } from './goal-bulk-create.server'
+import { type GoalProgramService } from './goal-programs.server'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
-  type GoalProgramService,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import {
   gatherPortalGoalFacts,
   recommendationFrom,

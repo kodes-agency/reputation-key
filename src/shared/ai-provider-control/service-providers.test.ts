@@ -5,6 +5,7 @@
 // `service-orchestration.test.ts`, which still passes unchanged on the legacy
 // single-connector wiring; this file shows the registry wiring agrees with it.
 
+import { openAiAdapterRegistry } from './provider-registry.test-fixtures'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 import type {
@@ -101,10 +102,10 @@ function descriptorFor(request: AiGatewayRouteRequestV1): AiAdmissionDescriptorV
 
 function preparedExecution(
   request: AiGatewayRouteRequestV1,
-  providerId?: AiProviderId,
+  providerId: AiProviderId = 'openai',
 ): PreparedGatewayRouteExecution {
   return {
-    ...(providerId === undefined ? {} : { providerId }),
+    providerId,
     invocation: {
       descriptor: descriptorFor(request),
       sdkRequest: {} as never,
@@ -209,17 +210,14 @@ function lease(request: AiGatewayRouteRequestV1) {
   return value
 }
 
-type FakeAdapter = AiProviderAdapter &
-  Readonly<{ invoke: ReturnType<typeof vi.fn>; readinessSpy: ReturnType<typeof vi.fn> }>
+type FakeAdapter = AiProviderAdapter & Readonly<{ invoke: ReturnType<typeof vi.fn> }>
 
 function fakeAdapter(
   providerId: AiProviderId,
   pricing: AiProviderPriceCatalogue,
   result: () => Promise<OpenAiConnectorOutcome<unknown>>,
-  ready = true,
 ): FakeAdapter {
   const invoke = vi.fn(result)
-  const readinessSpy = vi.fn(() => ready)
   return {
     providerId,
     requestProfile: {
@@ -232,8 +230,6 @@ function fakeAdapter(
       throw new Error('the service never prepares')
     },
     invoke,
-    readiness: readinessSpy,
-    readinessSpy,
   } as FakeAdapter
 }
 
@@ -264,7 +260,6 @@ function run(
     admission: {
       authorize,
       settle,
-      readiness: vi.fn(async () => true),
     } as AiAdmissionClient,
     preparer: { prepare: () => prepared } as AiGatewayRoutePreparer,
     now: () => NOW + 1_000,
@@ -277,14 +272,16 @@ const registryWiring = (adapters: readonly FakeAdapter[]) => ({
   providers: createAiProviderRegistry(adapters),
 })
 
-describe('the registry wiring agrees with the single connector it replaces', () => {
+describe('a registry of fake adapters agrees with the real OpenAI adapter around one connector', () => {
   it('answers the same, makes the same call and settles the same for OpenAI', async () => {
     const legacyConnector = {
       invoke: vi.fn(async () => outcomeOf('success')),
       readiness: vi.fn(() => true),
     }
     const legacy = run({
-      wiring: () => ({ connector: legacyConnector as unknown as OpenAiConnector }),
+      wiring: () => ({
+        providers: openAiAdapterRegistry(legacyConnector as unknown as OpenAiConnector),
+      }),
       adapters: [],
       pricing: OPENAI_PRICE_CATALOGUE_V2,
     })
@@ -316,24 +313,6 @@ describe('the registry wiring agrees with the single connector it replaces', () 
       registry.prepared.outputSchema,
     ])
     expect(registry.settle).toHaveBeenCalledTimes(1)
-  })
-
-  it('needs exactly one of the two', () => {
-    const base = {
-      admission: {} as AiAdmissionClient,
-      preparer: {} as AiGatewayRoutePreparer,
-    }
-
-    expect(() => createAiEgressGatewayService(base as never)).toThrow(
-      'the gateway needs a connector or a provider registry',
-    )
-    expect(() =>
-      createAiEgressGatewayService({
-        ...base,
-        connector: { invoke: vi.fn() },
-        providers: createAiProviderRegistry([]),
-      } as never),
-    ).toThrow('the gateway takes a connector or a provider registry, not both')
   })
 })
 
@@ -442,10 +421,10 @@ describe('no fallback', () => {
     async (disposition) => {
       const alone = run({
         wiring: () => ({
-          connector: {
+          providers: openAiAdapterRegistry({
             invoke: vi.fn(async () => outcomeOf(disposition)),
             readiness: vi.fn(() => true),
-          } as unknown as OpenAiConnector,
+          } as unknown as OpenAiConnector),
         }),
         adapters: [],
         pricing: OPENAI_PRICE_CATALOGUE_V2,
@@ -500,36 +479,5 @@ describe('no fallback', () => {
     expect(response).toMatchObject({ status: 'error', code: 'operation_ambiguous' })
     expect(chosen.invoke).toHaveBeenCalledTimes(1)
     expect(other.invoke).not.toHaveBeenCalled()
-  })
-})
-
-describe('readiness', () => {
-  it('is the readiness of every adapter it holds and of admission', async () => {
-    const ready = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V2, async () =>
-      outcomeOf('success'),
-    )
-    const unready = fakeAdapter(
-      'anthropic',
-      SECOND_PRICES,
-      async () => outcomeOf('success'),
-      false,
-    )
-    const admission = {
-      readiness: vi.fn(async () => true),
-    } as unknown as AiAdmissionClient
-    const build = (adapters: readonly FakeAdapter[]) =>
-      createAiEgressGatewayService({
-        admission,
-        preparer: {} as AiGatewayRoutePreparer,
-        providers: createAiProviderRegistry(adapters),
-      })
-    const signal = new AbortController().signal
-
-    await expect(build([ready]).readiness(signal)).resolves.toBe(true)
-    await expect(build([ready, unready]).readiness(signal)).resolves.toBe(false)
-    await expect(build([unready]).readiness(signal)).resolves.toBe(false)
-    const aborted = new AbortController()
-    aborted.abort()
-    await expect(build([ready]).readiness(aborted.signal)).resolves.toBe(false)
   })
 })

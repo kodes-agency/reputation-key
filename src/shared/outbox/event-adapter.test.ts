@@ -6,7 +6,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   OutboxPayloadError,
   toOutboxEvent,
-  tryToOutboxEvent,
   withEnvelopeIdentifiers,
 } from './event-adapter'
 import { buildConsumerEvent } from './envelope'
@@ -733,14 +732,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
       expect(e).toBeInstanceOf(OutboxPayloadError)
       expect((e as OutboxPayloadError).code).toBe('unregistered')
     }
-  })
-
-  it('tryToOutboxEvent returns null for unregistered types', () => {
-    const event = {
-      ...makeReviewCreated(),
-      _tag: 'unknown.orphan',
-    } as unknown as DomainEvent
-    expect(tryToOutboxEvent(event)).toBeNull()
   })
 
   it('throws invalid_payload when required allowlist field is missing', () => {

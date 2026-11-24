@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { buildIntegrationContext } from '#/contexts/integration/build'
 import { googleOAuthCallbackUrl } from '#/contexts/integration/application/google-authorize-request'
 import {
@@ -66,7 +66,6 @@ export function wireIntegration(
     outboxRepo,
     clock,
     idGen: randomUUID,
-    invalidationOwnerGen: () => randomBytes(32).toString('base64url'),
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
     propertyBindingApi: property.googleBinding,

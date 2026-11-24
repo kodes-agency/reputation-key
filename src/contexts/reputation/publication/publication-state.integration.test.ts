@@ -1,3 +1,4 @@
+import { seedReply } from '../replies/reply-seed.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Publication state machine integration tests (real Postgres).
 //
@@ -122,7 +123,6 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
-    expiresAt: new Date(NOW.getTime() + 25 * 24 * 60 * 60 * 1000),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW,
@@ -248,7 +248,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       undefined,
       replyScopeEffects,
     ).upsert(makeReview())
-    await createReplyRepository(db, () => new Date()).upsert(makeReply())
+    await seedReply(getDb(), makeReply())
 
     await expect(
       pool.query(`UPDATE replies SET publication_state = 'teleporting' WHERE id = $1`, [
@@ -272,11 +272,9 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       undefined,
       replyScopeEffects,
     )
-    const replyRepo = createReplyRepository(db, () => new Date())
     const store = createAtomicReplyCommandStore(
       db,
       () => new Date(),
-      undefined,
       undefined,
       replyScopeEffects,
     )
@@ -284,14 +282,15 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     await reviewRepo.upsert(makeReview())
     // One review, three replies is impossible (unique review+source+org) —
     // seed three reviews with one reply each instead.
-    await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))
+    await seedReply(getDb(), makeReply({ publicationState: 'authorized' }))
     await reviewRepo.upsert(
       makeReview({
         id: reviewId('3c000000-0000-0000-0000-000000000011'),
         externalId: 'ext-pub-state-2',
       }),
     )
-    await replyRepo.upsert(
+    await seedReply(
+      getDb(),
       makeReply({
         id: REPLY_B,
         reviewId: reviewId('3c000000-0000-0000-0000-000000000011'),
@@ -305,7 +304,8 @@ describe.sequential('publication state machine (integration, migration 0015)', (
         externalId: 'ext-pub-state-3',
       }),
     )
-    await replyRepo.upsert(
+    await seedReply(
+      getDb(),
       makeReply({
         id: REPLY_C,
         reviewId: reviewId('3c000000-0000-0000-0000-000000000012'),
@@ -387,24 +387,23 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       undefined,
       replyScopeEffects,
     )
-    const replyRepo = createReplyRepository(db, () => new Date())
     const store = createAtomicReplyCommandStore(
       db,
       () => new Date(),
-      undefined,
       undefined,
       replyScopeEffects,
     )
 
     await reviewRepo.upsert(makeReview())
-    await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))
+    await seedReply(getDb(), makeReply({ publicationState: 'authorized' }))
     await reviewRepo.upsert(
       makeReview({
         id: reviewId('3c000000-0000-0000-0000-000000000011'),
         externalId: 'ext-pub-state-2',
       }),
     )
-    await replyRepo.upsert(
+    await seedReply(
+      getDb(),
       makeReply({
         id: REPLY_B,
         reviewId: reviewId('3c000000-0000-0000-0000-000000000011'),
@@ -471,7 +470,6 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       db,
       () => new Date(),
       async () => true,
-      undefined,
       replyScopeEffects,
     )
 
@@ -481,7 +479,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       publicationState: null,
       publicationCycle: 0,
     })
-    await replyRepo.upsert(pending)
+    await seedReply(getDb(), pending)
 
     const expectDueBoundary = async (dueAt: Date) => {
       await expect(
@@ -665,7 +663,6 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       db,
       () => new Date(),
       undefined,
-      undefined,
       replyScopeEffects,
     )
 
@@ -699,12 +696,11 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       db,
       () => new Date(),
       undefined,
-      undefined,
       replyScopeEffects,
     )
 
     await reviewRepo.upsert(makeReview())
-    await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))
+    await seedReply(getDb(), makeReply({ publicationState: 'authorized' }))
 
     // Disconnect cancels the publication…
     const count = await store.cancelPublications([

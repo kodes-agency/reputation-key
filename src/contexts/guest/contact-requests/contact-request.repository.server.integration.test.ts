@@ -48,9 +48,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  await getPool().query(
-    "DELETE FROM idempotency_receipts WHERE scope = 'guest_contact_purge'",
-  )
   await getPool().query('DELETE FROM retention_runs WHERE subject = $1', [
     GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
   ])
@@ -144,9 +141,6 @@ afterEach(async () => {
   )
   await getPool().query(`DELETE FROM portals WHERE organization_id = $1`, [ORG_A])
   await getPool().query(`DELETE FROM properties WHERE organization_id = $1`, [ORG_A])
-  await getPool().query(
-    "DELETE FROM idempotency_receipts WHERE scope = 'guest_contact_purge'",
-  )
   await getPool().query('DELETE FROM retention_runs WHERE subject = $1', [
     GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
   ])
@@ -604,7 +598,7 @@ describe('Contact Request repository', () => {
     expect(audits.rowCount).toBe(0)
   })
 
-  it('denies expired reads before cleanup and advances a restart-safe bounded purge checkpoint', async () => {
+  it('denies expired reads before cleanup and purges in bounded batches', async () => {
     const submittedAt = new Date('2026-07-01T09:00:00.000Z')
     const secondResponse = 'ca000000-0000-4000-8000-000000000031'
     const secondRequest = 'ca000000-0000-4000-8000-000000000041'
@@ -650,7 +644,7 @@ describe('Contact Request repository', () => {
     const completed = await repository().purgeExpired({ through: NOW, batchSize: 1 })
     expect(first.processed).toBe(1)
     expect(second.processed).toBe(1)
-    expect(completed).toMatchObject({ processed: 0, completedThrough: NOW })
+    expect(completed).toEqual({ processed: 0 })
 
     const rows = await getPool().query<{
       status: string
@@ -664,23 +658,8 @@ describe('Contact Request repository', () => {
       { status: 'expired', encrypted_contact: null },
       { status: 'expired', encrypted_contact: null },
     ])
-    const checkpoint = await getPool().query<{
-      processed_count: number
-      completed_through: Date
-    }>(
-      `SELECT
-         (payload->>'processedCount')::int AS processed_count,
-         (payload->>'completedThrough')::timestamptz AS completed_through
-       FROM idempotency_receipts
-       WHERE scope = 'guest_contact_purge' AND key = 'guest-contact-30d-v1'`,
-    )
-    expect(checkpoint.rows[0]).toEqual({
-      processed_count: 2,
-      completed_through: NOW,
-    })
-
-    // A restored/backfilled older row cannot hide behind the saved cursor:
-    // every run rechecks the authoritative active+expiry predicate.
+    // A restored/backfilled older row is still found: every run rechecks the
+    // authoritative active+expiry predicate.
     const lateResponse = 'ca000000-0000-4000-8000-000000000032'
     const lateRequest = 'ca000000-0000-4000-8000-000000000042'
     await seedResponse(lateResponse, new Date(submittedAt.getTime() + 2))

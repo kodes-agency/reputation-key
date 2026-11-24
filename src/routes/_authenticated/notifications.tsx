@@ -13,7 +13,6 @@ import { parseNotificationFilter } from '#/contexts/feed/feed/ui/notification-fi
 import { notificationFns } from '#/routes/-notification-fns'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { partitionWorkspaceProperties } from '#/contexts/property/lifecycle/ui/property-workspace'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -35,7 +34,7 @@ export const Route = createFileRoute('/_authenticated/notifications')({
 })
 
 function NotificationsRoute() {
-  const context = authRoute.useRouteContext() as AuthRouteContext
+  const context = authRoute.useRouteContext()
   const organizationId = context.activeOrganization?.id ?? 'no-active-organization'
   const search = Route.useSearch()
   const navigate = Route.useNavigate()

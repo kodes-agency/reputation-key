@@ -340,18 +340,4 @@ describe.sequential('an erased Review in the cross-tenant lifecycle sweeps', () 
 
     expect(batch.map((review) => review.id)).toEqual([SWEEP_LIVE])
   })
-
-  it('findExpiredBatchBeforeAcrossTenants does not offer a tombstone for purge', async () => {
-    const batch = await repo.findExpiredBatchBeforeAcrossTenants(
-      SWEEP_THRESHOLD,
-      null,
-      10,
-    )
-
-    expect(batch.map((review) => review.id)).toEqual([SWEEP_LIVE])
-  })
-
-  it('countExpiredBeforeAcrossTenants counts live rows only, so the drill probe can reach zero', async () => {
-    await expect(repo.countExpiredBeforeAcrossTenants(SWEEP_THRESHOLD)).resolves.toBe(1)
-  })
 })

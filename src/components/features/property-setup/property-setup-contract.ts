@@ -4,7 +4,7 @@ import type {
   getMerchantAiAuthorizationFn,
   listMerchantAiOverviewFn,
 } from '#/contexts/identity/server/merchant-ai'
-import type { listMembers } from '#/contexts/identity/server/organizations'
+import type { listMembers } from '#/contexts/identity/server/organizations.query'
 import type {
   listProperties,
   updateProperty,

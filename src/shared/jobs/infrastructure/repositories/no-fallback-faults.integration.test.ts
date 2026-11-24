@@ -1,3 +1,4 @@
+import { seedReply } from '../../../../contexts/reputation/replies/reply-seed.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // BQC-4.6 — no-fallback fault proof (real PostgreSQL + real Redis/BullMQ).
 //
@@ -349,7 +350,6 @@ function makeReviewC(): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW_C,
-    expiresAt: new Date('2027-07-18T12:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW_C,
@@ -518,7 +518,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       observedAt: NOW_C,
       contentExpiresAt: new Date(NOW_C.getTime() + 24 * 60 * 60 * 1000),
     })
-    const pendingReply = await replyRepo.upsert(makeReplyC(), NOW_C)
+    const pendingReply = await seedReply(getDb(), makeReplyC(), NOW_C)
     // Identity authority itself is outside this provider-fault proof. The
     // fixture grants the seeded manager explicitly; production composition
     // injects the real transaction-bound, fail-closed authority.
@@ -526,7 +526,6 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       db,
       () => new Date(),
       async () => true,
-      undefined,
       replyScopeEffects,
     )
     const authorizedReply = await replyCommandStore.markPublicationAuthorized(

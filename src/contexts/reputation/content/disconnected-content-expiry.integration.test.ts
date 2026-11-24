@@ -103,7 +103,6 @@ async function setup() {
       translatedText: null,
       languageCode: 'en',
       reviewedAt: FETCHED_AT,
-      expiresAt: DEADLINE,
       sentimentLabel: null,
       sentimentScore: null,
       sourceCreatedAt: FETCHED_AT,

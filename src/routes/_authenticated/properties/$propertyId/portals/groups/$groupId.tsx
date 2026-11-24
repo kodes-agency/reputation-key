@@ -13,7 +13,6 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import {
@@ -85,7 +84,7 @@ export const Route = createFileRoute(
         propertyId: params.propertyId,
       },
     })
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'portal.read')) throw roleUnavailable('Portal group', 'properties')
   },
   staleTime: 30_000,

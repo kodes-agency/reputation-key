@@ -39,7 +39,6 @@ const IDENTITY_BANS = [
 
 /** Single modules that must stay on their injected dependencies. */
 const MODULE_BANS: ReadonlyArray<readonly [string, readonly RegExp[]]> = [
-  ['src/contexts/feed/rights/recent-activity-repository.server.ts', [LOGGER]],
   ['src/contexts/feed/notify/notification-outbox-consumers.server.ts', [LOGGER]],
   ['src/contexts/feed/build.ts', [/(?:crypto\.)?randomUUID/u]],
   ['src/contexts/feed/build-activity.ts', [/(?:crypto\.)?randomUUID/u]],

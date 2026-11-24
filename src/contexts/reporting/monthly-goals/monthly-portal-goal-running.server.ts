@@ -30,7 +30,10 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../application/ports/goal-program.repository'
-import type { GoalActor, GoalMetricReadPort } from './goal-programs.server'
+import type {
+  GoalActor,
+  GoalMetricReadPort,
+} from '../application/use-cases/goal-program-shared'
 import { progressOf, readSubjectMonth } from './goal-progress.server'
 import { changeFactsOf, newGoalFromOf } from './monthly-portal-goal-change-facts.server'
 import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in.server'

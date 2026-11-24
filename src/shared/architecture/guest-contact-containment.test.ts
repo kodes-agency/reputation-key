@@ -173,16 +173,13 @@ describe('Contact Request containment', () => {
     ).rejects.toMatchObject(refused)
   })
 
-  it('keeps the withdrawal and expiry paths open when the launch switch is off', async () => {
+  it('keeps the withdrawal path open when the launch switch is off', async () => {
     await expect(
       withdrawalOpen.withdraw({
         ...SCOPE,
         authority: { signedSession: 'cookie', csrfNonce: 'nonce' },
       }),
     ).rejects.toThrow('repository.withdraw was reached')
-    await expect(withdrawalOpen.purgeExpired({ batchSize: 1 })).rejects.toThrow(
-      'repository.purgeExpired was reached',
-    )
   })
 
   it('keeps contact fields out of facts, notifications, analytics, inbox, AI, and search-owned code', () => {

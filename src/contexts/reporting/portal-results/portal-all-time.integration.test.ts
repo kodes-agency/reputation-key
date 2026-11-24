@@ -15,7 +15,8 @@ import { asAccountAdmin } from '#/shared/testing/authorized-reads'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { recordMetric, type RecordMetricInput } from '../readings/record-metric.server'
+import type { RecordMetricInput } from '../readings/record-metric.server'
+import { recordMetric, retractOne } from '../readings/single-reading.test-fixtures'
 import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
 import { METRIC_VERSION_IDS, metricRegistry } from '../readings/contracts'
 import { createPropertyLocalDateResolver } from '../readings/property-local-date.server'
@@ -259,15 +260,15 @@ describe.sequential('All Time from retained effective readings', () => {
       occurredAt: NOW,
       staffAttribution: null,
     }
-    expect((await store.retractMetric(command)).status).toBe('retracted')
-    expect((await store.retractMetric(command)).status).toBe('duplicate')
+    expect((await retractOne(store, command)).status).toBe('retracted')
+    expect((await retractOne(store, command)).status).toBe('duplicate')
     for (const [definitionVersionId, supersedesSourceEventId] of [
       [METRIC_VERSION_IDS.qualifiedScanGoal, scan],
       [METRIC_VERSION_IDS.portalFeedbackAnalytics, feedback],
     ] as const) {
       expect(
         (
-          await store.retractMetric({
+          await retractOne(store, {
             ...command,
             definitionVersionId,
             supersedesSourceEventId,
@@ -307,7 +308,7 @@ describe.sequential('All Time from retained effective readings', () => {
       ) {
         expect(
           (
-            await store.retractMetric({
+            await retractOne(store, {
               organizationId: ORG,
               propertyId: PROPERTY,
               portalId: PORTAL,

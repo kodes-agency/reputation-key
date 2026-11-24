@@ -6,16 +6,22 @@ const server = vi.hoisted(() => ({
   listMemberPropertyAccess: vi.fn(async () => ({ access: [] })),
 }))
 
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.query', () => ({
   listMembers: server.listMembers,
+}))
+vi.mock('#/contexts/identity/server/organizations.invitations', () => ({
   listInvitations: server.listInvitations,
+  resendInvitation: vi.fn(),
+  cancelInvitation: vi.fn(),
+}))
+vi.mock('#/contexts/identity/server/organizations.member-access', () => ({
   listMemberPropertyAccess: server.listMemberPropertyAccess,
   setMemberPropertyAccess: vi.fn(),
+}))
+vi.mock('#/contexts/identity/server/organizations.members', () => ({
   inviteMember: vi.fn(),
   updateMemberRole: vi.fn(),
   removeMember: vi.fn(),
-  resendInvitation: vi.fn(),
-  cancelInvitation: vi.fn(),
 }))
 vi.mock('#/contexts/property/server/property-responsible-managers', () => ({
   listPropertyResponsibleManagers: vi.fn(),

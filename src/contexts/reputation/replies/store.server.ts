@@ -1,17 +1,12 @@
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
-import {
-  carryDraftMeasurement,
-  submitDraftMeasurement,
-  submittedMeasurementIdentity,
-} from '#/shared/db/ai/draft-measurement-lineage'
+import { carryDraftMeasurement } from '#/shared/db/ai/draft-measurement-lineage'
 import {
   replies,
   replyPublicationAttempts,
   reviews,
 } from '#/shared/db/schema/review.schema'
-import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import type { Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { aiTextRuleOf } from '../domain/reply-ai-text'
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
@@ -23,13 +18,21 @@ import {
 import type { PersistedPublicationState } from '../domain/reply-publication-workflow'
 import { reviewError } from '../domain/review-errors'
 import type { Reply } from '../domain/review-types'
-import type { ReplyCommandStore } from './reply-command-store.port.server'
-import type { ConditionalReplyUpdate } from './reply-repository.port.server'
+import type {
+  ConditionalReplyUpdate,
+  ReplyRepository,
+} from './reply-repository.port.server'
 import {
   UNCERTAIN_ATTEMPT_OUTCOMES,
-  type ReplyWriter,
   type UncertainSendSnapshot,
 } from './reply-writer.port.server'
+import {
+  aiDraftInputsAreCurrent,
+  assertCurrentAiDraftBinding,
+} from './ai-draft-binding.server'
+import { replyFromRow, replyToRow } from './reply-mapper.server'
+import { buildReplySetClause } from './reply-set-clause.server'
+import { lockReplyTruthScope } from '../reviews/reply-truth-serialization.server'
 
 /**
  * The commands whose write puts the reply's text forward: submit hands it to
@@ -128,49 +131,8 @@ function uncertainAttemptWhere(reply: Reply, snapshot: UncertainSendSnapshot) {
   )
 }
 
-/** Review's row mapping, SET-clause and serialization helpers, which the writer applies to every Reply write. */
-export type ReplyWriterRows = Readonly<{
-  replyFromRow: (row: typeof replies.$inferSelect) => Reply
-  replyToRow: (
-    reply: Omit<Reply, 'createdAt' | 'updatedAt'>,
-  ) => typeof replies.$inferInsert
-  buildReplySetClause: (
-    updates: ConditionalReplyUpdate,
-    updatedAt: Date,
-  ) => Record<string, unknown>
-  lockReplyTruthScope: (
-    tx: Tx,
-    organizationId: OrganizationId,
-    reviewId: ReviewId,
-  ) => Promise<void>
-  /** Locks the reply row; 'stale' means the AI draft is no longer the one reviewed. */
-  assertCurrentAiDraftBinding: (
-    tx: Tx,
-    input: Readonly<{ organizationId: string; replyId: string }>,
-  ) => Promise<'current' | 'not_ai' | 'stale'>
-  aiDraftInputsAreCurrent: (
-    tx: Tx,
-    input: Readonly<{ organizationId: string; replyId: string }>,
-  ) => Promise<boolean>
-}>
-
-export type ReplyWriterDeps = Readonly<{
-  db: Database
-  clock: () => Date
-  rows: ReplyWriterRows
-}>
-
-/** Builds the writer of Reply rows. Review supplies its row mapping and serialization helpers as `rows`. */
-export function createReplyWriter({ db, clock, rows }: ReplyWriterDeps): ReplyWriter {
-  const {
-    replyFromRow,
-    replyToRow,
-    buildReplySetClause,
-    lockReplyTruthScope,
-    assertCurrentAiDraftBinding,
-    aiDraftInputsAreCurrent,
-  } = rows
-
+/** Builds the writer of Reply rows. */
+export function createReplyWriter(db: Database, clock: () => Date) {
   /**
    * Whether unedited AI text may move toward Google now: true for a reply a
    * human authored, and for an AI-assisted one whose binding is current. Locks
@@ -330,29 +292,6 @@ export function createReplyWriter({ db, clock, rows }: ReplyWriterDeps): ReplyWr
     }
   }
 
-  /** Submit and its scalar measurement share the same guarded transaction. */
-  function submitMeasuredReply(
-    ...[reply, updates, event, now, measurement]: Parameters<
-      ReplyCommandStore['submitReply']
-    >
-  ): Promise<Reply | null> {
-    return trace('reply.commandStore.submitReply', () =>
-      db.transaction(async (tx) => {
-        const row = await guardedReplyUpdate(tx, reply, 'submit', updates, now ?? clock())
-        if (!row) return null
-        await carryDraftMeasurement(
-          tx,
-          reply,
-          row,
-          submittedMeasurementIdentity(reply, measurement),
-        )
-        await submitDraftMeasurement(tx, reply, row, measurement)
-        await insertOutboxRow(tx, event)
-        return row
-      }),
-    )
-  }
-
   /** The Review trigger advances its reply revision on writes, so take that row
    * before a Reply row. Use the observation advisory fence before either row. */
   async function withReplyReviewLock<T>(
@@ -366,51 +305,7 @@ export function createReplyWriter({ db, clock, rows }: ReplyWriterDeps): ReplyWr
     })
   }
 
-  const drafts: ReplyWriter['drafts'] = {
-    upsert: async (reply, now) => {
-      return trace('reply.upsert', () =>
-        withReplyReviewLock(reply.organizationId, reply.reviewId, async (tx) => {
-          const row = replyToRow(reply)
-          const updatedAt = now ?? clock()
-          const result = await tx
-            .insert(replies)
-            .values(row)
-            .onConflictDoUpdate({
-              target: [replies.reviewId, replies.source, replies.organizationId],
-              set: {
-                text: row.text,
-                replyLanguageTag: row.replyLanguageTag,
-                templateLayer: row.templateLayer,
-                templateRef: row.templateRef,
-                templateRevision: row.templateRevision,
-                templateWordingKey: row.templateWordingKey,
-                voiceDigest: row.voiceDigest,
-                voiceChoices: row.voiceChoices,
-                status: row.status,
-                approvedBy: row.approvedBy,
-                rejectedBy: row.rejectedBy,
-                rejectionReason: row.rejectionReason,
-                aiGenerated: row.aiGenerated,
-                stateRevision: row.stateRevision,
-                submittedAt: row.submittedAt,
-                approvedAt: row.approvedAt,
-                publishedAt: row.publishedAt,
-                updatedAt,
-              },
-            })
-            .returning()
-
-          if (!result[0]) {
-            throw reviewError(
-              'repo_upsert_failed',
-              'Reply upsert failed — no row returned',
-            )
-          }
-          return replyFromRow(result[0])
-        }),
-      )
-    },
-
+  const drafts: Pick<ReplyRepository, 'createDraft' | 'saveDraft' | 'deleteDraft'> = {
     createDraft: async (reply) => {
       return trace('reply.createDraft', () =>
         withReplyReviewLock(reply.organizationId, reply.reviewId, async (tx) => {
@@ -497,22 +392,6 @@ export function createReplyWriter({ db, clock, rows }: ReplyWriterDeps): ReplyWr
         }),
       )
     },
-
-    deleteByReviewIdAndSource: async (reviewId, source, organizationId) => {
-      return trace('reply.deleteByReviewIdAndSource', () =>
-        withReplyReviewLock(organizationId, reviewId, async (tx) => {
-          await tx
-            .delete(replies)
-            .where(
-              and(
-                eq(replies.reviewId, reviewId),
-                eq(replies.source, source),
-                eq(replies.organizationId, organizationId),
-              ),
-            )
-        }),
-      )
-    },
   }
 
   /** Publication and draft commands share the observation fence and row order. */
@@ -594,7 +473,6 @@ export function createReplyWriter({ db, clock, rows }: ReplyWriterDeps): ReplyWr
     guardedReplyUpdate,
     guardedPublicationUpdate,
     updateCurrentAttempt,
-    submitMeasuredReply,
     casUncertainAttempt,
     lockUncertainAttempt,
   }

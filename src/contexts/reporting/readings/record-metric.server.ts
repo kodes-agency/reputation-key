@@ -271,16 +271,3 @@ export const recordMetrics =
       sourceReceipt: input.sourceReceipt,
     })
   }
-
-export const recordMetric = (deps: RecordMetricDeps): RecordMetric => {
-  const recordBatch = recordMetrics(deps)
-  return async (input) => {
-    const { sourceReceipt, ...reading } = input
-    const [result] = await recordBatch({
-      readings: [reading],
-      sourceReceipt,
-    })
-    if (!result) throw new Error('Metric command produced no result')
-    return result
-  }
-}

@@ -4,7 +4,6 @@ import type { PortalRatingGoalBlock } from './monthly-goals/running-portal-ratin
 // and dashboard reads. Implementation modules inside this context import one
 // another directly through the normal layer rules rather than through this file.
 
-import type { GoalMetricCorrectionImpactLookup } from './monthly-goals/goal-metric-correction-impact-lookup.port.server'
 import type { CurrentGoogleReputationSnapshotStore } from './readings/current-google-reputation-snapshot-repository.port.server'
 import type { PortalAnalyticsRepository } from './portal-results/portal-analytics.repository.port.server'
 import type {
@@ -32,17 +31,11 @@ export type {
   SeededMetricRegistryEntry,
 } from './readings/contracts'
 
-export type {
-  FindGoalMetricCorrectionImpactsInput,
-  GoalMetricCorrectionImpact,
-} from './monthly-goals/goal-metric-correction-impact-lookup.port.server'
-
 export type MetricPublicApi = Readonly<{
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
   portalAnalytics: PortalAnalyticsRepository
   getCurrentOnGoogle: CurrentGoogleReputationSnapshotStore['getCurrentOnGoogle']
-  findGoalMetricCorrectionImpacts: GoalMetricCorrectionImpactLookup['findGoalMetricCorrectionImpacts']
-  getApprovedGoalVersion?: (
+  getApprovedGoalVersion: (
     definitionVersionId: string,
   ) => Promise<GovernedMetricVersion | null>
 }>
@@ -155,21 +148,6 @@ export type {
 } from './domain/property-setup'
 export type { PropertySetupSummary } from './property-overview/list-property-setup-summaries.server'
 export type { DashboardError } from './domain/dashboard-errors'
-export {
-  GOOGLE_PERFORMANCE_ERROR_CODES,
-  PROPERTY_PERFORMANCE_PRESETS,
-  isGooglePerformanceErrorCode,
-  isPropertyPerformancePreset,
-} from '../../shared/google-contracts/google-performance-report-contract'
-export type {
-  GooglePerformanceErrorCode,
-  PerformanceAvailability,
-  PerformanceMetricValue,
-  PerformanceSeries,
-  PropertyGooglePerformanceReportV1,
-  PropertyGooglePerformanceResultV1,
-  PropertyPerformancePreset,
-} from '../../shared/google-contracts/google-performance-report-contract'
 
 export type {
   ReadPropertyGoogleNumbersInput,

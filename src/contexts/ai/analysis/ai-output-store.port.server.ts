@@ -50,7 +50,6 @@ type AiAnalysisWrite = Readonly<{
   authorizationLineageId: string
   reviewAnalysisEpoch: number
   propertyProfileVersion: number
-  analysisProfileVersion: string
   generatedAtEpochMillis: number
   expiresAtEpochMillis: number
 }>
@@ -102,7 +101,7 @@ export type AiOutputStorePort = Readonly<{
     }>,
   ): Promise<readonly ReviewId[]>
 
-  readAnalysisForDelivery<T>(
+  readAnalysisForDelivery(
     input: Readonly<{
       organizationId: OrganizationId
       actorUserId: UserId
@@ -117,6 +116,5 @@ export type AiOutputStorePort = Readonly<{
       analysisProfileVersion: string
       nowEpochMillis: number
     }>,
-    deliver: (result: ReviewAnalysisReadV1) => Promise<T>,
-  ): Promise<T>
+  ): Promise<ReviewAnalysisReadV1>
 }>

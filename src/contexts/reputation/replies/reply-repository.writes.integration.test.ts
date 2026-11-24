@@ -1,3 +1,4 @@
+import { seedReply } from './reply-seed.test-fixtures'
 // Reply repository writes — integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 import { describe, it, expect } from 'vitest'
@@ -19,12 +20,12 @@ import {
 const getPool = useReplyRepositoryDatabase()
 
 describe.sequential('replyRepository (integration)', () => {
-  describe('upsert and findByReviewId', () => {
+  describe('findByReviewId', () => {
     it('inserts and retrieves a reply', async () => {
       const { repo } = await arrangeRepo()
       const reply = makeReply()
 
-      const created = await repo.upsert(reply)
+      const created = await seedReply(getDb(), reply)
       const found = await repo.findByReviewId(reply.reviewId, ORG_A)
 
       expect(found).toHaveLength(1)
@@ -33,7 +34,7 @@ describe.sequential('replyRepository (integration)', () => {
     })
 
     it('persists a library template as a human-authored manual draft', async () => {
-      const { db, repo } = await arrangeRepo()
+      const { db } = await arrangeRepo()
       const draft = makeReply({
         id: '2a000000-0000-4000-8000-000000000099',
         status: 'draft',
@@ -47,7 +48,7 @@ describe.sequential('replyRepository (integration)', () => {
         publishedAt: null,
       })
 
-      await repo.upsert(draft)
+      await seedReply(getDb(), draft)
       const [persisted] = await db
         .select({
           aiGenerated: replies.aiGenerated,
@@ -80,28 +81,13 @@ describe.sequential('replyRepository (integration)', () => {
     })
   })
 
-  describe('upsert with conflict resolution', () => {
-    it('updates existing reply on conflict (reviewId + source + org)', async () => {
-      const { repo } = await arrangeRepo()
-
-      const reply = makeReply({ text: 'Original reply' })
-      await repo.upsert(reply)
-
-      const updated = await repo.upsert({
-        ...reply,
-        text: 'Updated reply',
-      })
-
-      expect(updated.text).toBe('Updated reply')
-      expect(updated.id).toBe(reply.id)
-    })
-
+  describe('state revision', () => {
     it('increments the durable state revision on every internal reply update', async () => {
-      const { repo } = await arrangeRepo()
+      await arrangeRepo()
       const reply = makeReply({ text: 'Original reply', source: 'internal' })
 
-      const created = await repo.upsert(reply)
-      const updated = await repo.upsert({ ...reply, text: 'Updated reply' })
+      const created = await seedReply(getDb(), reply)
+      const updated = await seedReply(getDb(), { ...reply, text: 'Updated reply' })
 
       expect(created.stateRevision).toBe(1)
       expect(updated.stateRevision).toBe(2)
@@ -120,7 +106,8 @@ describe.sequential('replyRepository (integration)', () => {
       })
       const repo = createReplyRepository(db, () => new Date())
 
-      await repo.upsert(
+      await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000001',
           reviewId: reviewA.id,
@@ -128,7 +115,8 @@ describe.sequential('replyRepository (integration)', () => {
           text: 'Reply from org A',
         }),
       )
-      await repo.upsert(
+      await seedReply(
+        getDb(),
         makeReply({
           id: '2a000000-0000-0000-0000-000000000002',
           organizationId: ORG_B,
@@ -149,34 +137,6 @@ describe.sequential('replyRepository (integration)', () => {
       expect(foundB[0]?.text).toBe('Reply from org B')
       expect(crossTenantA).toEqual([])
       expect(crossTenantB).toEqual([])
-    })
-  })
-
-  describe('deleteByReviewIdAndSource', () => {
-    it('deletes only matching source', async () => {
-      const { repo } = await arrangeRepo()
-
-      await repo.upsert(makeReply({ source: 'google_sync' }))
-      await repo.upsert(
-        makeReply({
-          id: '2a000000-0000-0000-0000-000000000002',
-          source: 'internal',
-          status: 'draft',
-        }),
-      )
-
-      await repo.deleteByReviewIdAndSource(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        'google_sync',
-        ORG_A,
-      )
-
-      const remaining = await repo.findByReviewId(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        ORG_A,
-      )
-      expect(remaining).toHaveLength(1)
-      expect(remaining[0]?.source).toBe('internal')
     })
   })
 
@@ -226,7 +186,8 @@ describe.sequential('replyRepository (integration)', () => {
 
     it('never rewrites a reply the review already has', async () => {
       const { repo } = await arrangeRepo()
-      const confirmed = await repo.upsert(
+      const confirmed = await seedReply(
+        getDb(),
         internalDraft({
           status: 'approved',
           publicationState: 'authorized',
@@ -266,7 +227,7 @@ describe.sequential('replyRepository (integration)', () => {
   describe('saveDraft', () => {
     it('rewrites a draft, and a rejected reply as a draft with its rejection cleared', async () => {
       const { repo } = await arrangeRepo()
-      const draft = await repo.upsert(internalDraft({ text: 'Original' }))
+      const draft = await seedReply(getDb(), internalDraft({ text: 'Original' }))
 
       const saved = await repo.saveDraft(draft, {
         text: 'Rewritten',
@@ -298,7 +259,8 @@ describe.sequential('replyRepository (integration)', () => {
 
     it('rewrites a draft whose publication was cancelled', async () => {
       const { repo } = await arrangeRepo()
-      const cancelled = await repo.upsert(
+      const cancelled = await seedReply(
+        getDb(),
         internalDraft({ publicationState: 'cancelled', publicationCycle: 1 }),
       )
 
@@ -317,7 +279,8 @@ describe.sequential('replyRepository (integration)', () => {
       ['failed', { status: 'publish_failed', publicationState: 'terminal' }],
     ] as const)('changes nothing for a reply that is %s', async (_name, state) => {
       const { repo } = await arrangeRepo()
-      const stored = await repo.upsert(
+      const stored = await seedReply(
+        getDb(),
         internalDraft({ ...state, publicationCycle: 1, text: 'Confirmed text' }),
       )
 
@@ -328,7 +291,7 @@ describe.sequential('replyRepository (integration)', () => {
 
     it('loses to a reply that was submitted after the caller read it', async () => {
       const { repo } = await arrangeRepo()
-      const draft = await repo.upsert(internalDraft({ text: 'Original' }))
+      const draft = await seedReply(getDb(), internalDraft({ text: 'Original' }))
       await getPool().query(
         `UPDATE replies SET status = 'pending_approval' WHERE id = $1`,
         [draft.id],
@@ -342,7 +305,7 @@ describe.sequential('replyRepository (integration)', () => {
 
     it('does not rewrite a reply through another organization', async () => {
       const { repo } = await arrangeRepo()
-      const draft = await repo.upsert(internalDraft({ text: 'Original' }))
+      const draft = await seedReply(getDb(), internalDraft({ text: 'Original' }))
 
       await expect(
         repo.saveDraft({ ...draft, organizationId: ORG_B }, { text: 'Intruder' }),
@@ -357,7 +320,7 @@ describe.sequential('replyRepository (integration)', () => {
       'deletes a %s reply that was never authorized',
       async (status) => {
         const { repo } = await arrangeRepo()
-        const reply = await repo.upsert(internalDraft({ status }))
+        const reply = await seedReply(getDb(), internalDraft({ status }))
 
         await expect(repo.deleteDraft(reply)).resolves.toBe(true)
 
@@ -387,7 +350,10 @@ describe.sequential('replyRepository (integration)', () => {
       ['a rejected reply that was confirmed before', { status: 'rejected' }],
     ] as const)('keeps a reply that is %s', async (_name, state) => {
       const { repo } = await arrangeRepo()
-      const stored = await repo.upsert(internalDraft({ ...state, publicationCycle: 1 }))
+      const stored = await seedReply(
+        getDb(),
+        internalDraft({ ...state, publicationCycle: 1 }),
+      )
 
       await expect(repo.deleteDraft(stored)).resolves.toBe(false)
 
@@ -396,7 +362,8 @@ describe.sequential('replyRepository (integration)', () => {
 
     it('clears a settled failed reply and keeps its row for publication evidence', async () => {
       const { repo } = await arrangeRepo()
-      const failed = await repo.upsert(
+      const failed = await seedReply(
+        getDb(),
         internalDraft({
           status: 'publish_failed',
           publicationState: 'terminal',
@@ -426,7 +393,7 @@ describe.sequential('replyRepository (integration)', () => {
 
     it('keeps a reply that was submitted after the caller read it', async () => {
       const { repo } = await arrangeRepo()
-      const draft = await repo.upsert(internalDraft())
+      const draft = await seedReply(getDb(), internalDraft())
       await getPool().query(
         `UPDATE replies SET status = 'pending_approval' WHERE id = $1`,
         [draft.id],
@@ -443,7 +410,7 @@ describe.sequential('replyRepository (integration)', () => {
   describe('cross-org delete protection', () => {
     it('deleteDraft through another organization does not delete the reply', async () => {
       const { repo } = await arrangeRepo()
-      const reply = await repo.upsert(internalDraft())
+      const reply = await seedReply(getDb(), internalDraft())
 
       // The same reply, addressed through ORG_B.
       await expect(repo.deleteDraft({ ...reply, organizationId: ORG_B })).resolves.toBe(
@@ -454,27 +421,6 @@ describe.sequential('replyRepository (integration)', () => {
       const found = await repo.findByReviewId(reply.reviewId, ORG_A)
       expect(found).toHaveLength(1)
       expect(found[0]!.id).toBe(reply.id)
-    })
-
-    it('deleteByReviewIdAndSource with wrong org does not delete the reply', async () => {
-      const { repo } = await arrangeRepo()
-
-      await repo.upsert(makeReply({ source: 'google_sync' }))
-
-      // Attempt delete with ORG_B (wrong org)
-      await repo.deleteByReviewIdAndSource(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        'google_sync',
-        ORG_B,
-      )
-
-      // Reply should still exist for ORG_A
-      const found = await repo.findByReviewId(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        ORG_A,
-      )
-      expect(found).toHaveLength(1)
-      expect(found[0]!.source).toBe('google_sync')
     })
   })
 })

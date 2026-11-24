@@ -18,7 +18,6 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
@@ -42,11 +41,13 @@ import {
   inviteMember,
   updateMemberRole,
   removeMember,
+} from '#/contexts/identity/server/organizations.members'
+import {
   listInvitations,
-  listMemberPropertyAccess,
   resendInvitation,
   cancelInvitation,
-} from '#/contexts/identity/server/organizations'
+} from '#/contexts/identity/server/organizations.invitations'
+import { listMemberPropertyAccess } from '#/contexts/identity/server/organizations.member-access'
 import { ChangeRoleDialog } from '#/contexts/identity/members/ui/change-role-dialog'
 import { InviteMemberForm } from '#/contexts/identity/members/ui/invite-member-form'
 import { MemberTable, type MemberRow } from '#/contexts/identity/members/ui/member-table'
@@ -79,11 +80,11 @@ const memberPropertyAccessQuery = (scope: TenantScope) =>
 export const Route = createFileRoute('/_authenticated/settings/members')({
   staticData: { page: { title: 'Members', tier: 'narrow', under: 'settings' } },
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'member.list')) throw roleUnavailable('Members', 'profile')
   },
   loader: async ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     // Each read is issued only for a role the server would answer: a Property
     // Manager reads the member list and nothing about invitations or grants.
     await Promise.all([

@@ -43,7 +43,7 @@ import {
   confirmReplyPublished,
   deleteGoogleSyncMirrors,
   supersedePublicationAttemptById,
-} from '#/contexts/reputation/public-api'
+} from '../replies/row-commands.server'
 import { lockReplyTruthScope } from '../reviews/reply-truth-serialization.server'
 import { assertObservationFence } from './google-reply-observation-fence.server'
 import { renewHeadContentClock } from './google-reply-observation-clock.server'

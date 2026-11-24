@@ -2,7 +2,7 @@
 //
 // Manual/operator recovery for an ambiguous publish outcome: make one targeted
 // provider read; if Google shows the reply, heal the
-// divergence atomically (markPublished + durable fact); otherwise the reply
+// divergence atomically (published state + durable fact); otherwise the reply
 // records absent/divergent truth without publishing. Never calls the publish endpoint —
 // never duplicates a Google-visible reply.
 
@@ -98,7 +98,6 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
-    expiresAt: NOW,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW,

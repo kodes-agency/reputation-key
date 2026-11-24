@@ -66,16 +66,6 @@ export type ReviewRepository = Readonly<{
     organizationId: OrganizationId,
     reviewId: ReviewId,
   ): Promise<number>
-  readAiAnalysisHead(
-    input: Readonly<{
-      organizationId: OrganizationId
-      propertyId: PropertyId
-      sourceEpoch: number
-    }>,
-  ): Promise<
-    | Readonly<{ status: 'current'; analysisSequence: number }>
-    | Readonly<{ status: 'not_found' | 'source_epoch_changed' | 'policy_unavailable' }>
-  >
   findByIds(
     ids: ReadonlyArray<ReviewId>,
     organizationId: OrganizationId,
@@ -150,26 +140,6 @@ export type ReviewRepository = Readonly<{
     cursor: Readonly<{ contentExpiresAt: Date; id: string }> | null,
     limit: number,
   ): Promise<ReadonlyArray<Review>>
-  /**
-   * ⚠️ CROSS-TENANT: keyset-bounded batch of expired reviews —
-   * non-null `contentExpiresAt < date` (exclusive; no post-expiry grace,
-   * ADR 0031), ordered (contentExpiresAt ASC, id ASC). `cursor` resumes
-   * strictly AFTER (contentExpiresAt, id). Used by purge-expired (pass
-   * `now`); replaces the one-shot 5,000-row scan
-   * (findAllExpiredBeforeAcrossTenants).
-   */
-  findExpiredBatchBeforeAcrossTenants(
-    date: Date,
-    cursor: Readonly<{ contentExpiresAt: Date; id: string }> | null,
-    limit: number,
-  ): Promise<ReadonlyArray<Review>>
-  /**
-   * ⚠️ CROSS-TENANT: exact count of purge-eligible rows (non-null
-   * `contentExpiresAt < date`, exclusive). The restore drill's
-   * dry-run/zero-remaining probe — a COUNT, not a bounded scan, so the
-   * number stays honest at any scale.
-   */
-  countExpiredBeforeAcrossTenants(date: Date): Promise<number>
 }>
 
 /**

@@ -72,7 +72,6 @@ export function scopeReview(overrides: Partial<Review> = {}): Review {
     translatedText: SCOPE_PROVIDER_REVIEW.translatedText,
     languageCode: SCOPE_PROVIDER_REVIEW.languageCode,
     reviewedAt: SCOPE_PROVIDER_REVIEW.reviewedAt,
-    expiresAt: new Date('2027-08-15T10:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: SCOPE_PROVIDER_REVIEW.reviewedAt,

@@ -8,9 +8,13 @@ const { getSession, getInvitationPreview } = vi.hoisted(() => ({
 }))
 
 vi.mock('#/shared/auth/auth.functions', () => ({ getSession }))
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.registration', () => ({
   listUserInvitations: vi.fn(),
+}))
+vi.mock('#/contexts/identity/server/organizations.invitations', () => ({
   acceptInvitation: vi.fn(),
+}))
+vi.mock('#/contexts/identity/server/invitation-preview', () => ({
   getInvitationPreview,
 }))
 

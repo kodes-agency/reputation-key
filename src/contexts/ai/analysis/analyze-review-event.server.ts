@@ -32,9 +32,16 @@ import {
   aiRequestFingerprint,
   aiRetryAt,
   aiReviewSourceProvenance,
+  isAiAuthorizationUnderServedContract,
   resolveAiExecutionStopFence,
 } from '../application/ai-workflow-support'
-import type { ReviewAnalysisContract } from './review-analysis-contract.server'
+import type { AiProviderChoicePort } from './ai-provider-choice.port.server'
+import type { PropertyVocabularyContextPort } from './property-vocabulary-context.port.server'
+import {
+  REVIEW_ANALYSIS_OPERATION_PROFILE,
+  acceptReviewAnalysis,
+  prepareReviewAnalysis,
+} from './review-analysis-steps.server'
 import { resolveAnalysisClaimConflict } from './analysis-claim-conflict.server'
 import {
   analysisExecutionBinding,
@@ -111,11 +118,8 @@ export type AnalyzeReviewEventResult =
   | Readonly<{ status: 'stopped' }>
 
 export type AnalyzeReviewEventDependencies = Readonly<{
-  /**
-   * How this build runs a review analysis: the profile facts, what is prepared
-   * before the claim and how an answer is stored.
-   */
-  contract: ReviewAnalysisContract
+  vocabularyContext: PropertyVocabularyContextPort
+  providerChoice: AiProviderChoicePort
   authorization: AiAuthorizationPort
   control: AiControlPort
   inference: AiInferencePort
@@ -211,7 +215,6 @@ export function createAnalyzeReviewEvent(
   const settlementDependencies = {
     aggregates: dependencies.aggregates,
   }
-  const contract = dependencies.contract
 
   function settleWithoutResult(
     input: AnalyzeReviewEventInput,
@@ -435,7 +438,7 @@ export function createAnalyzeReviewEvent(
         // Re-consent to a notice that changes analysis bumps its epoch and the
         // enrollment replay analyses the history again, so the review is
         // settled here rather than held.
-        contract.isServedContract(authorization),
+        isAiAuthorizationUnderServedContract(authorization, 'review_analysis'),
       ].every(Boolean)
     ) {
       return settleWithoutResult(
@@ -467,7 +470,7 @@ export function createAnalyzeReviewEvent(
         sourceRevision: input.sourceRevision,
         analysisSequence: input.analysisSequence,
       },
-      ...contract.sourceRead,
+      sentences: true,
     })
     if (source.status !== 'available') {
       return settleWithoutResult(
@@ -531,7 +534,7 @@ export function createAnalyzeReviewEvent(
       input,
       authorization,
       authorizationLineageId,
-      operationProfile: contract.operationProfile,
+      operationProfile: REVIEW_ANALYSIS_OPERATION_PROFILE,
       reviewAnalysisEpoch,
       evaluatedLanguage: language.language.group,
       reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
@@ -540,13 +543,12 @@ export function createAnalyzeReviewEvent(
       stopFence,
     })
     const requestFingerprint = aiRequestFingerprint({ identity, binding, provenance })
-    // What the contract adds before the claim (v3: the hints, the provider and
-    // the normalizer the operation is claimed under). A configuration refusal
-    // stays runnable: restoring it must not require replaying the history.
-    const prepared = await contract.prepare({
+    // The hints, the provider and the normalizer the operation is claimed
+    // under. A configuration refusal stays runnable: restoring it must not
+    // require replaying the history.
+    const prepared = await prepareReviewAnalysis(dependencies, {
       organizationId: input.organizationId,
       propertyId: input.propertyId,
-      reviewId: input.reviewId,
       observation,
     })
     if (prepared.status === 'refused') {
@@ -648,7 +650,7 @@ export function createAnalyzeReviewEvent(
             actorId: null,
             binding,
             deadlineEpochMillis:
-              nowEpochMillis + contract.operationProfile.requestDeadlineMs,
+              nowEpochMillis + REVIEW_ANALYSIS_OPERATION_PROFILE.requestDeadlineMs,
             redactionCountry: profile.countryCode,
             observedContentExpiresAtEpochMillis: observation.contentExpiresAtEpochMillis,
             source: {
@@ -657,23 +659,15 @@ export function createAnalyzeReviewEvent(
               rating: observation.rating,
               languageCode: observation.languageCode,
               reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
-              ...(preparation.request.sentences === undefined
-                ? {}
-                : {
-                    sentences: preparation.request.sentences.map((sentence) => ({
-                      number: sentence.number,
-                      text: sentence.text,
-                    })),
-                  }),
+              sentences: preparation.request.sentences.map((sentence) => ({
+                number: sentence.number,
+                text: sentence.text,
+              })),
             },
-            ...(preparation.request.propertyContext === undefined
-              ? {}
-              : { propertyContext: preparation.request.propertyContext }),
-            ...(preparation.request.provider === undefined
-              ? {}
-              : { provider: preparation.request.provider }),
+            propertyContext: preparation.request.propertyContext,
+            provider: preparation.request.provider,
           },
-          AbortSignal.timeout(contract.operationProfile.requestDeadlineMs),
+          AbortSignal.timeout(REVIEW_ANALYSIS_OPERATION_PROFILE.requestDeadlineMs),
         )
         if (response.status === 'error') {
           // ONE clock read for both instants. Anchoring the backoff to the pre-call
@@ -709,7 +703,7 @@ export function createAnalyzeReviewEvent(
             'policy_disabled',
           )
         }
-        const accepted = await contract.accept({
+        const accepted = await acceptReviewAnalysis(dependencies, {
           operationId: execution.id,
           expectedAttempt,
           organizationId: input.organizationId,
@@ -726,7 +720,7 @@ export function createAnalyzeReviewEvent(
           completedAtEpochMillis: response.settlementReceipt.settledAtEpochMillis,
           inputTokens: response.settlementReceipt.inputTokens,
           outputTokens: response.settlementReceipt.outputTokens,
-          preparation,
+          providerLineage: preparation.claim.providerLineage,
         })
         if (accepted === 'invalid') {
           // The gateway settled this answer as a success, so it is charged and

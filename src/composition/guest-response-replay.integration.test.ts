@@ -25,7 +25,6 @@ import {
   ratingId as toRatingId,
 } from '#/shared/domain/ids'
 import { recordMetrics } from '#/contexts/reporting/readings/record-metric.server'
-import { retractMetrics } from '#/contexts/reporting/readings/retract-metric.server'
 import { createAtomicMetricCommandStore } from '#/contexts/reporting/readings/metric-command-store.server'
 import {
   onRatingRetractedDurably,
@@ -344,7 +343,7 @@ describe('guest response erasure replay', () => {
     expect(await retractedReadings(erased)).toBe(0)
     const ratingFact = facts.find((fact) => fact.event_type === 'guest.rating.retracted')!
     await onRatingRetractedDurably({
-      retractMetrics: retractMetrics(metricDeps().commandStore),
+      retractMetrics: metricDeps().commandStore.retractMetrics,
     })({
       _tag: 'guest.rating.retracted',
       eventId: ratingFact.id,

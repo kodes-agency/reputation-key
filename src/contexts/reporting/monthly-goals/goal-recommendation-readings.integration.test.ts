@@ -14,7 +14,7 @@ import { findMetricVersionById, METRIC_VERSION_IDS } from '../readings/contracts
 import type { RecommendationPortal } from '../domain/goal-recommendation-types'
 import type { GoalRecommendationCountsQuery } from './goal-recommendation-facts.port.server'
 import { readPortalGoalRecommendation } from './goal-recommendation-read.server'
-import { createMetricRepository } from '../readings/metric-repository.server'
+import { queryGoalAggregate } from '../readings/metric-repository.server'
 import { readGoalRecommendationCounts } from './goal-recommendation-readings.server'
 
 const SOFIA = 'Europe/Sofia'
@@ -507,7 +507,7 @@ describe('the month a Property goal counts', () => {
     const recommendation = await recommendationOf(property, [
       listed(reception, 'Reception'),
     ])
-    const page = await createMetricRepository(db).queryGoalAggregate({
+    const page = await queryGoalAggregate(db, {
       organizationId: organizationId(ORG),
       propertyId: toPropertyId(property),
       definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,

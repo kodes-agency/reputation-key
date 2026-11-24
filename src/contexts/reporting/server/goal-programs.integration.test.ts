@@ -15,7 +15,7 @@ vi.mock(
   async () => (await import('#/shared/testing/compiled-server-fns')).startServerBuild,
 )
 
-import { GoalProgramError } from '../monthly-goals/goal-programs.server'
+import { GoalProgramError } from '../application/use-cases/goal-program-shared'
 import { withGoalPrograms } from './goal-program-request.server'
 import {
   getGoalListProgress,

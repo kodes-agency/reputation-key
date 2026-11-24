@@ -79,7 +79,6 @@ describe('analyze review event', () => {
       await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
       expect(harness.mocks.storeAnalysisV3).toHaveBeenCalledWith(
         expect.objectContaining({
-          analysisProfileVersion: 'review-analysis-v3',
           derivative: expect.objectContaining({
             sentiment: 'negative',
             attention: 'urgent',

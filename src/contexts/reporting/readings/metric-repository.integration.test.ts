@@ -5,15 +5,13 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { GoalMetricAggregateQuery } from './metric-repository.port.server'
-import { createMetricRepository } from './metric-repository.server'
+import { queryGoalAggregate } from './metric-repository.server'
 
 const ORG_ID = organizationId('org-metricrepo-0000-0000-0000-000000000001')
 const PROP_ID = propertyId('4f000000-0000-4000-8000-000000000001')
 const NOW = new Date('2026-08-08T12:00:00Z')
 const RATING_COUNT_VERSION = '11111111-1111-4111-8111-111111111302'
 const RATING_AVERAGE_VERSION = '11111111-1111-4111-8111-111111111303'
-const LEGACY_COMPLETENESS_VERSION = '11111111-1111-4111-8111-111111111102'
-const IMMERSIVE_COMPLETENESS_VERSION = '11111111-1111-4111-8111-111111113102'
 
 let pool: Pool
 let nextReading = 1
@@ -130,12 +128,9 @@ describe.sequential('governed metric aggregate reader (integration)', () => {
        )`,
       [ORG_ID, PROP_ID, new Date('2026-08-09T00:00:00.000Z'), RATING_COUNT_VERSION],
     )
-    const repository = createMetricRepository(getDb())
 
     await expect(
-      repository.queryGoalAggregate(
-        goalQuery(RATING_COUNT_VERSION, 'portal.rating_count'),
-      ),
+      queryGoalAggregate(getDb(), goalQuery(RATING_COUNT_VERSION, 'portal.rating_count')),
     ).resolves.toMatchObject({
       sum: 1,
       weightedSum: 1,
@@ -161,9 +156,9 @@ describe.sequential('governed metric aggregate reader (integration)', () => {
       value: 3,
       sampleCount: 1,
     })
-    const repository = createMetricRepository(getDb())
     await expect(
-      repository.queryGoalAggregate(
+      queryGoalAggregate(
+        getDb(),
         goalQuery(RATING_AVERAGE_VERSION, 'portal.rating_average'),
       ),
     ).resolves.toMatchObject({
@@ -186,7 +181,8 @@ describe.sequential('governed metric aggregate reader (integration)', () => {
     )
 
     await expect(
-      repository.queryGoalAggregate(
+      queryGoalAggregate(
+        getDb(),
         goalQuery(RATING_AVERAGE_VERSION, 'portal.rating_average'),
       ),
     ).resolves.toMatchObject({
@@ -196,34 +192,5 @@ describe.sequential('governed metric aggregate reader (integration)', () => {
       readingCount: 1,
       correctionHead: NOW,
     })
-  })
-
-  it('finds a reading by its source event under one version and Organization only', async () => {
-    const readingId = await insertReading({
-      versionId: LEGACY_COMPLETENESS_VERSION,
-      metricKey: 'portal.configuration_completeness',
-      sourcePolicy: 'first_party_workflow',
-      value: 80,
-    })
-    const sourceEventId = `metric-repository-source-${readingId}`
-    const repository = createMetricRepository(getDb())
-    const presence = (overrides: Partial<Parameters<typeof repository.hasReading>[0]>) =>
-      repository.hasReading({
-        organizationId: ORG_ID,
-        definitionVersionId: LEGACY_COMPLETENESS_VERSION,
-        sourceEventId,
-        ...overrides,
-      })
-
-    await expect(presence({})).resolves.toBe(true)
-    await expect(
-      presence({ definitionVersionId: IMMERSIVE_COMPLETENESS_VERSION }),
-    ).resolves.toBe(false)
-    await expect(presence({ sourceEventId: 'another-source-event' })).resolves.toBe(false)
-    await expect(
-      presence({
-        organizationId: organizationId('org-metricrepo-0000-0000-0000-000000000009'),
-      }),
-    ).resolves.toBe(false)
   })
 })

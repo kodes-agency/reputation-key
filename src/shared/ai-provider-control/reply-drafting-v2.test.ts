@@ -1,4 +1,8 @@
 import { replyRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
+import {
+  openAiAdapterRegistry,
+  openAiPreparationRegistry,
+} from './provider-registry.test-fixtures'
 import * as leakage from '#/shared/reply/ai-reply-output-leakage'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
@@ -44,6 +48,7 @@ function preparer(
       detect: () => ({ language, probability: 0.99, reliable: true }),
     },
     now: () => NOW,
+    providers: openAiPreparationRegistry(),
   })
 }
 
@@ -286,7 +291,6 @@ describe('reply v2 provider preparation and acceptance', () => {
       now: () => NOW,
       preparer: { prepare: () => prepared },
       admission: {
-        readiness: async () => true,
         settle: charge,
         authorize: async () => ({
           status: 'authorized',
@@ -297,7 +301,7 @@ describe('reply v2 provider preparation and acceptance', () => {
           }),
         }),
       },
-      connector: {
+      providers: openAiAdapterRegistry({
         invoke: async () => ({
           disposition: 'success',
           reportedDisposition: 'success',
@@ -314,7 +318,7 @@ describe('reply v2 provider preparation and acceptance', () => {
           retryAfterSeconds: null,
           outboundFetchUsed: true,
         }),
-      },
+      } as never),
     })
     const lease = createSensitiveSourceLease<typeof request>()
     lease.attachSource(structuredClone(request), (value) => value.source)

@@ -25,7 +25,10 @@ import {
   assertReplyTextSendable,
 } from './reply-content-policy.server'
 import { assertReplySlotsFilled } from '../domain/review-rules'
-import { assertReplyCommandMayStart } from '../domain/reply-command-preconditions'
+import {
+  assertReplyCommandMayStart,
+  isTerminalAmbiguity,
+} from '../domain/reply-command-preconditions'
 import {
   buildIdempotencyKey,
   nextPublicationCycle,
@@ -53,7 +56,7 @@ export type ReplyDeps = Readonly<{
   /** Atomic verification and persistence seam for browser-held AI suggestions. */
   aiSuggestedDraftStore?: AiSuggestedDraftStore
   /** Effective voice used by the final privacy/style safety fence. */
-  replyLibrary?: Pick<ReplyLibraryRepository, 'loadSnapshot'>
+  replyLibrary: Pick<ReplyLibraryRepository, 'loadSnapshot'>
   /**
    * D4: the only evidence that lets retryPublish send an uncertain attempt
    * again. Reply commands hold no Google client: checking Google is
@@ -758,9 +761,7 @@ export const retryPublish =
     // A settled published reply has returned above; a confirmation that wins
     // the settle race returns here without a new cycle.
     const requiresPositiveReconciliation =
-      reply.publicationState === 'ambiguous' ||
-      (reply.publicationState === 'terminal' &&
-        reply.publicationLastErrorClass === 'ambiguous')
+      reply.publicationState === 'ambiguous' || isTerminalAmbiguity(reply)
     const retryable = requiresPositiveReconciliation
       ? await reconcileUncertainPublicationBeforeRetry(deps, reply, review)
       : reply

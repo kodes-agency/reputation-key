@@ -8,48 +8,11 @@
 // Guest voice read (a chosen window, with the 12 months before it) and the Overview
 // read (30 days) share them so the two pages cannot disagree.
 //
-// Pure functions of an analysed-review list: no I/O, no clock.
-import { isAiIssueLabel } from '#/shared/analysis/ai-issue-label'
-import type {
-  AspectPolarityV1,
-  AspectTaxonomyV1Id,
-} from '#/shared/analysis/aspect-taxonomy'
+// Pure functions: no I/O, no clock.
 import { likelyChange, starsWhenMentioned } from '../domain/guest-voice-statistics'
-import type { AiPropertyAnalyzedReview } from '../analysis/ai-property-aggregate-store.port.server'
 
 /** How many reviews gave 1, 2, 3, 4 and 5 stars. */
 export type RatingCounts = readonly [number, number, number, number, number]
-
-export const NO_RATING_COUNTS: RatingCounts = Object.freeze([
-  0, 0, 0, 0, 0,
-]) as RatingCounts
-
-/** A topic and a polarity, as one key. */
-export function aspectKey(
-  aspect: AspectTaxonomyV1Id,
-  polarity: AspectPolarityV1,
-): string {
-  return `${aspect}:${polarity}`
-}
-
-/** One topic, one polarity, counted in reviews. */
-export type AspectReviewEvidence = Readonly<{
-  aspect: AspectTaxonomyV1Id
-  polarity: AspectPolarityV1
-  /** Mentions: a review that names the topic twice counts twice. */
-  mentionCount: number
-  /** Reviews: each review with at least one such mention counts once. */
-  reviewCount: number
-  /** The stars those reviews gave. */
-  ratingCounts: RatingCounts
-}>
-
-export type AspectReviewTotals = Readonly<{
-  /** One entry for each topic and polarity named in at least one review. */
-  byAspect: ReadonlyMap<string, AspectReviewEvidence>
-  /** Reviews that name each topic in any way: praise, complaint or neutral. */
-  reviewsByTopic: ReadonlyMap<AspectTaxonomyV1Id, number>
-}>
 
 /** The stars a rating counts as: a whole number from 1 to 5, as `aspect-impact` clamps it. */
 function starIndex(rating: number): number {
@@ -67,55 +30,6 @@ export function ratingCountsOf(
     counts[star] = (counts[star] ?? 0) + 1
   }
   return counts
-}
-
-type MutableEvidence = {
-  aspect: AspectTaxonomyV1Id
-  polarity: AspectPolarityV1
-  mentionCount: number
-  reviewCount: number
-  ratingCounts: [number, number, number, number, number]
-}
-
-export function collectAspectReviewEvidence(
-  reviews: readonly AiPropertyAnalyzedReview[],
-): AspectReviewTotals {
-  const byAspect = new Map<string, MutableEvidence>()
-  const reviewsByTopic = new Map<AspectTaxonomyV1Id, number>()
-  for (const review of reviews) {
-    const star = starIndex(review.rating)
-    const seenAspects = new Set<string>()
-    const seenTopics = new Set<AspectTaxonomyV1Id>()
-    for (const mention of review.aspects) {
-      const key = aspectKey(mention.aspect, mention.polarity)
-      const total = byAspect.get(key) ?? {
-        aspect: mention.aspect,
-        polarity: mention.polarity,
-        mentionCount: 0,
-        reviewCount: 0,
-        ratingCounts: [0, 0, 0, 0, 0],
-      }
-      total.mentionCount += 1
-      if (!seenAspects.has(key)) {
-        seenAspects.add(key)
-        total.reviewCount += 1
-        total.ratingCounts[star] = (total.ratingCounts[star] ?? 0) + 1
-      }
-      byAspect.set(key, total)
-      if (!seenTopics.has(mention.aspect)) {
-        seenTopics.add(mention.aspect)
-        reviewsByTopic.set(mention.aspect, (reviewsByTopic.get(mention.aspect) ?? 0) + 1)
-      }
-    }
-  }
-  const frozen = new Map<string, AspectReviewEvidence>()
-  for (const [key, total] of byAspect) {
-    frozen.set(
-      key,
-      Object.freeze({ ...total, ratingCounts: Object.freeze(total.ratingCounts) }),
-    )
-  }
-  return Object.freeze({ byAspect: frozen, reviewsByTopic })
 }
 
 /** The stars of every review in a window, and how many reviews that is. */
@@ -172,38 +86,4 @@ export function changeOfMentions(
     baselineMentions: baseline.reviewCount,
     baselineReviews: baseline.textReviews,
   })
-}
-
-// ── Recurring issues ───────────────────────────────────────────────────────
-
-/** An issue is recurring once two reviews name it; one review is an anecdote. */
-export const RECURRING_ISSUE_MIN_REVIEWS = 2
-export const MAX_RECURRING_ISSUES = 5
-
-export function countIssueLabels(
-  reviews: readonly AiPropertyAnalyzedReview[],
-): ReadonlyMap<string, number> {
-  const counts = new Map<string, number>()
-  for (const review of reviews) {
-    if (review.issueLabel !== null && isAiIssueLabel(review.issueLabel)) {
-      counts.set(review.issueLabel, (counts.get(review.issueLabel) ?? 0) + 1)
-    }
-  }
-  return counts
-}
-
-/** The labels named in two or more reviews, most-named first, at most five. */
-export function recurringIssues(
-  counts: ReadonlyMap<string, number>,
-): ReadonlyArray<Readonly<{ label: string; count: number }>> {
-  return Object.freeze(
-    [...counts]
-      .filter(([, count]) => count >= RECURRING_ISSUE_MIN_REVIEWS)
-      .map(([label, count]) => Object.freeze({ label, count }))
-      .sort(
-        (left, right) =>
-          right.count - left.count || left.label.localeCompare(right.label),
-      )
-      .slice(0, MAX_RECURRING_ISSUES),
-  )
 }

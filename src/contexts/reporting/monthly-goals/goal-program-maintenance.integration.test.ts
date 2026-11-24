@@ -15,7 +15,7 @@ import {
   portalUuid,
   useGoalProgramsScenario,
 } from './goal-program-service.test-fixtures'
-import type { GoalActor } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 
 const { client, setup } = useGoalProgramsScenario()
 

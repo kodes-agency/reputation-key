@@ -29,14 +29,6 @@ export type ChannelPrintCodes = Readonly<
   Record<PortalAccessArtifactChannel, string | null>
 >
 
-export type PortalPublicUrlInput = Readonly<{
-  appOrigin: string
-  printOrigin: string
-  rawToken: string
-  artifacts: Readonly<Record<PortalAccessArtifactChannel, string>>
-  printCodes: ChannelPrintCodes
-}>
-
 /** How a code's addresses are written, from the environment (ADR 0069). */
 export type PortalAddressFormat = Readonly<{
   /** `BETTER_AUTH_URL`: where the guest page lives. */
@@ -45,15 +37,24 @@ export type PortalAddressFormat = Readonly<{
   printOrigin: string
 }>
 
-export function buildPortalPublicUrls(input: PortalPublicUrlInput): PortalPublicUrls {
-  const { appOrigin, rawToken } = input
+/** Verified print codes are shown; absent or mismatched codes retain the issued long address. */
+export function portalPublicUrls(
+  format: PortalAddressFormat,
+  input: Readonly<{
+    rawToken: string
+    artifacts: Readonly<Record<PortalAccessArtifactChannel, string>>
+    printCodes: ChannelPrintCodes
+  }>,
+): PortalPublicUrls {
+  const { rawToken } = input
+  const { appOrigin } = format
   const direct = new URL(`/p/${rawToken}`, appOrigin).toString()
   const longFor = (artifactId: string): string => {
     const url = new URL(direct)
     url.searchParams.set('accessArtifact', artifactId)
     return url.toString()
   }
-  const printBase = new URL(input.printOrigin).origin
+  const printBase = new URL(format.printOrigin).origin
   const { qr, nfc } = input.printCodes
   return {
     // The scheme and host are uppercase so the whole address but the one `p`
@@ -65,22 +66,4 @@ export function buildPortalPublicUrls(input: PortalPublicUrlInput): PortalPublic
     nfc: nfc === null ? longFor(input.artifacts.nfc) : `${printBase}/p/${nfc}`,
     direct,
   }
-}
-
-/** Verified print codes are shown; absent or mismatched codes retain the issued long address. */
-export function portalPublicUrls(
-  format: PortalAddressFormat,
-  input: Readonly<{
-    rawToken: string
-    artifacts: PortalPublicUrlInput['artifacts']
-    printCodes: ChannelPrintCodes
-  }>,
-): PortalPublicUrls {
-  return buildPortalPublicUrls({
-    appOrigin: format.appOrigin,
-    printOrigin: format.printOrigin,
-    rawToken: input.rawToken,
-    artifacts: input.artifacts,
-    printCodes: input.printCodes,
-  })
 }
