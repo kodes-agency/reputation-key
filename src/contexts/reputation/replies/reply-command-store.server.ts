@@ -32,6 +32,11 @@ import {
 } from '#/shared/db/schema/review.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import {
+  carryDraftMeasurement,
+  submitDraftMeasurement,
+  submittedMeasurementIdentity,
+} from '#/shared/db/ai/draft-measurement-lineage'
 import { trace } from '#/shared/observability/trace'
 import type { Reply } from '../domain/review-types'
 import { reviewError } from '../domain/review-errors'
@@ -46,10 +51,9 @@ import {
 } from '../domain/reply-publication-workflow'
 import {
   UNCERTAIN_ATTEMPT_OUTCOMES,
-  type ReplyWriter,
   type UncertainSendSnapshot,
 } from './reply-writer.port.server'
-import { createReviewReplyWriter } from './reply-writer.server'
+import { createReplyWriter } from './store.server'
 import { cancelUnclaimablePublication } from '../publication/unclaimable-publication.server'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import {
@@ -70,7 +74,7 @@ import {
 import {
   insertPublicationAttempt,
   insertPublicationAuthorization,
-} from '#/contexts/reputation/public-api'
+} from './row-commands.server'
 
 /**
  * Identity-owned, transaction-bound decision injected at composition. The
@@ -342,9 +346,9 @@ export const createAtomicReplyCommandStore = (
   db: Database,
   clock: () => Date,
   publicationActorAuthority: ReplyPublicationActorAuthority = missingPublicationActorAuthority,
-  writer: ReplyWriter = createReviewReplyWriter(db, clock),
   replyEffects?: ReplyScopeEffects,
 ): ReplyCommandStore => {
+  const writer = createReplyWriter(db, clock)
   const {
     aiTextMayBeClaimed,
     casUncertainAttempt,
@@ -352,8 +356,34 @@ export const createAtomicReplyCommandStore = (
     guardedPublicationUpdate,
     guardedReplyUpdate,
     updateCurrentAttempt,
-    submitMeasuredReply,
   } = writer
+  const cancelUnclaimable = (
+    tx: Tx,
+    reply: Reply,
+    attempt: PublicationAttemptStart,
+    at: Date,
+    cause: 'policy' | 'ai_draft_withdrawn',
+  ) => cancelUnclaimablePublication(writer, tx, reply, attempt, at, cause, replyEffects)
+  /** Submit and its scalar measurement share the same guarded transaction. */
+  const submitReply: ReplyCommandStore['submitReply'] = (
+    reply,
+    updates,
+    event,
+    now,
+    measurement,
+  ) =>
+    trace('reply.commandStore.submitReply', () =>
+      db.transaction(async (tx) => {
+        const row = await guardedReplyUpdate(tx, reply, 'submit', updates, now ?? clock())
+        if (!row) return null
+        const identity = submittedMeasurementIdentity(reply, measurement)
+        await carryDraftMeasurement(tx, reply, row, identity)
+        await submitDraftMeasurement(tx, reply, row, measurement)
+        await insertOutboxRow(tx, event)
+        return row
+      }),
+    )
+
   /** Shared runner for the guarded-transition commands. */
   const transition = async (
     span: string,
@@ -473,7 +503,7 @@ export const createAtomicReplyCommandStore = (
   }
 
   return {
-    submitReply: (...args) => submitMeasuredReply(...args),
+    submitReply,
     rejectReply: (reply, updates, event, now) =>
       transition('reply.commandStore.rejectReply', reply, 'reject', updates, event, now),
 
@@ -567,15 +597,7 @@ export const createAtomicReplyCommandStore = (
           // sent, by this cycle or by a retry of it: the Reply is withdrawn,
           // as the AI draft purge withdraws one it reaches first.
           if (!(await aiTextMayBeClaimed(tx, reply))) {
-            return cancelUnclaimablePublication(
-              writer,
-              tx,
-              reply,
-              attempt,
-              at,
-              'ai_draft_withdrawn',
-              replyEffects,
-            )
+            return cancelUnclaimable(tx, reply, attempt, at, 'ai_draft_withdrawn')
           }
           const authorization = await readCurrentPublicationAuthorization(
             tx,
@@ -585,15 +607,7 @@ export const createAtomicReplyCommandStore = (
           )
           if (!authorization) return null
           if (!propertyAdmitsCycle(property, authorization)) {
-            return cancelUnclaimablePublication(
-              writer,
-              tx,
-              reply,
-              attempt,
-              at,
-              'policy',
-              replyEffects,
-            )
+            return cancelUnclaimable(tx, reply, attempt, at, 'policy')
           }
           const actorAllowed = await publicationActorAuthority(tx, {
             organizationId: authorization.organizationId,
@@ -602,15 +616,7 @@ export const createAtomicReplyCommandStore = (
             at,
           })
           if (!actorAllowed) {
-            return cancelUnclaimablePublication(
-              writer,
-              tx,
-              reply,
-              attempt,
-              at,
-              'policy',
-              replyEffects,
-            )
+            return cancelUnclaimable(tx, reply, attempt, at, 'policy')
           }
           const duplicate = await tx
             .select({ id: replyPublicationAttempts.id })

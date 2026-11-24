@@ -276,7 +276,6 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       db,
       () => new Date(),
       undefined,
-      undefined,
       replyScopeEffects,
     )
 
@@ -392,7 +391,6 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       db,
       () => new Date(),
       undefined,
-      undefined,
       replyScopeEffects,
     )
 
@@ -472,7 +470,6 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       db,
       () => new Date(),
       async () => true,
-      undefined,
       replyScopeEffects,
     )
 
@@ -666,7 +663,6 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       db,
       () => new Date(),
       undefined,
-      undefined,
       replyScopeEffects,
     )
 
@@ -699,7 +695,6 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     const store = createAtomicReplyCommandStore(
       db,
       () => new Date(),
-      undefined,
       undefined,
       replyScopeEffects,
     )

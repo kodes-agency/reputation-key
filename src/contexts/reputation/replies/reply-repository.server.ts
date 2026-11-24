@@ -1,8 +1,7 @@
 // Review context — Drizzle reply repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 
-import { createReviewReplyWriter } from './reply-writer.server'
-import type { ReplyWriter } from './reply-writer.port.server'
+import { createReplyWriter } from './store.server'
 import {
   and,
   getTableColumns,
@@ -128,7 +127,6 @@ async function findDuePublicationBatch(
 export const createReplyRepository = (
   db: Database,
   clock: () => Date,
-  writer: Pick<ReplyWriter, 'drafts'> = createReviewReplyWriter(db, clock),
 ): ReplyRepository => ({
   findById: async (id: ReplyId, organizationId: OrganizationId) => {
     return trace('reply.findById', async () => {
@@ -508,5 +506,5 @@ export const createReplyRepository = (
     })
   },
 
-  ...writer.drafts,
+  ...createReplyWriter(db, clock).drafts,
 })

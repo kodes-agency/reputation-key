@@ -150,7 +150,6 @@ async function replyAt(stage: 'authorized' | 'sending' | 'pending_observation') 
     db,
     () => NOW,
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   const saved = await reviewRepo.upsert(review())
@@ -278,7 +277,6 @@ describe('what a disconnect cancellation leaves on the reply', () => {
       getDb(),
       () => NOW,
       async () => true,
-      undefined,
       replyScopeEffects,
     ).cancelPublications([
       {
