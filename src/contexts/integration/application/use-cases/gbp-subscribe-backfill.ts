@@ -169,33 +169,15 @@ export const createGbpSubscribeBackfill = (
   }
 }
 
-/** Outcomes that leave nothing for an operator to repair. */
-const SETTLED_OUTCOMES: ReadonlySet<GbpSubscribeConnectionOutcome> = new Set([
-  'subscribed',
-  'already_subscribed',
-  'skipped_inactive',
-  'account_unresolved',
-])
-
 /** The subset of the harness context/io this action reads (structural). */
-type GbpSubscribeOperatorContext = Readonly<{
-  organizationId?: string
-  dryRun: boolean
-}>
+type GbpSubscribeOperatorContext = Readonly<{ organizationId?: string }>
 type GbpSubscribeOperatorIO = Readonly<{ out: (line: string) => void }>
 
 /**
  * The ops:gbp-subscribe action — structurally compatible with the harness's
- * OperatorAction. The harness sets ctx.dryRun for a mutation invoked without
- * --apply, and then nothing calls Google at all. That is the only way the
- * harness runs this action today: it refuses --apply on this command and
- * prints what subscribes the accounts instead, so the report ends there.
- *
- * Exit code 1 when an applied run left any connection neither subscribed nor
- * with nothing to subscribe (`skipped_inactive`, or `account_unresolved`: no
- * bound Property yet), so a backfill that quietly achieved nothing is not
- * mistaken for a successful one. `topic_unset` lands there too: it means
- * GBP_PUBSUB_TOPIC is empty in the environment the command ran in.
+ * OperatorAction. The harness refuses --apply on this command and prints what
+ * subscribes the accounts instead, so the action only reports the plan and
+ * nothing calls Google.
  */
 export function createGbpSubscribeOperatorAction(
   backfill: GbpSubscribeBackfill,
@@ -208,19 +190,7 @@ export function createGbpSubscribeOperatorAction(
     // The harness rejects the invocation before the action runs when a
     // scope-'org' command is missing --org.
     const organization = toOrganizationId(ctx.organizationId ?? '')
-    if (ctx.dryRun) {
-      io.out(JSON.stringify(await backfill.plan(organization), null, 2))
-      return 0
-    }
-    const report = await backfill.apply(organization)
-    io.out(JSON.stringify(report, null, 2))
-    const unresolved = report.connectionOutcomes.filter(
-      (entry) => entry.outcome === null || !SETTLED_OUTCOMES.has(entry.outcome),
-    )
-    if (unresolved.length === 0) return 0
-    io.out(
-      `${unresolved.length} connection(s) did not reach 'subscribed' or 'already_subscribed' — safe to re-run; see the per-connection outcomes above`,
-    )
-    return 1
+    io.out(JSON.stringify(await backfill.plan(organization), null, 2))
+    return 0
   }
 }

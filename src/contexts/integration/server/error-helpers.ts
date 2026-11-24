@@ -9,18 +9,15 @@ import { isIntegrationError } from '../domain/errors'
 export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
   match(code)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
-    .with('connection_not_found', 'import_not_found', () => HTTP_STATUS.NOT_FOUND)
+    .with('connection_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with(
       'oauth_failed',
-      'oauth_denied',
       'oauth_state_invalid',
       'scope_not_granted',
       'token_refresh_failed',
       'gbp_api_error',
       'invalid_visibility',
       'encryption_error',
-      'invalid_cache_entry',
-      'invalid_event',
       () => 400,
     )
     .with('gbp_api_rate_limited', () => 429)
@@ -30,7 +27,6 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
       'reauthorization_required',
       'account_already_connected',
       'invalid_transition',
-      'region_unresolved',
       () => HTTP_STATUS.CONFLICT,
     )
     .exhaustive()
