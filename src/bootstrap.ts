@@ -21,9 +21,10 @@ import { isDbHealthy } from '#/shared/health/db-probe'
 import { areRedisDependenciesHealthy } from '#/shared/health/redis-dependencies'
 import { createAlertAuxReader } from '#/shared/observability/alert-aux-reads'
 import { createRedisAlertStateStore } from '#/shared/health/alert-state'
+import { JOB_DEFINITIONS } from '#/shared/jobs/job-definitions'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { readAllQueueDepths } from '#/shared/health/queue-depth'
-import { isCapabilityJobEnabled, type Capability } from '#/shared/auth/beta-capabilities'
+import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import { createGoogleImportItemJobHandler } from '#/contexts/integration/imports/import-gbp-property-item-job.server'
 import {
   createRetiredImportItemHandler,
@@ -131,14 +132,36 @@ export const createBootstrapRuntimeConfig = (env: Env): BootstrapRuntimeConfig =
 })
 
 /**
- * BQR-0: registers a job only when its capability is globally enabled.
- * Dark/blocked work has no executable handler.
+ * BQR-0: Register a job only when its capability is globally enabled. The
+ * capability is the one the job's definition declares. Dark/blocked work has no
+ * executable handler. Scheduler reconciliation removes repeat registrations;
+ * any already-queued remnant fails unknown-job admission and is quarantined
+ * instead of being acknowledged as successful.
  */
-type CapabilityGatedJobRegistrar = (
+function registerCapabilityGatedJob(
+  container: Container,
   jobName: string,
-  capability: Capability,
   handler: (job: import('bullmq').Job) => Promise<void>,
-) => void
+): void {
+  const capability = JOB_DEFINITIONS.find(
+    (definition) => definition.name === jobName,
+  )?.capability
+  if (capability === undefined || capability === 'none') {
+    throw new Error(`Job ${jobName} declares no capability gate`)
+  }
+  if (!isCapabilityJobEnabled(capability)) {
+    container.logger.info(
+      { job: jobName, capability },
+      'job handler not registered (capability dark/blocked)',
+    )
+    return
+  }
+  container.jobRegistry.register(jobName, handler)
+  container.logger.info(
+    { job: jobName, capability },
+    'registered capability-gated job handler',
+  )
+}
 
 export async function bootstrap(
   container: Container,
@@ -150,28 +173,6 @@ export async function bootstrap(
   assertContainerCanBuild()
   const logger = container.logger
   const runtime = options.runtime
-
-  /**
-   * BQR-0: Register a job only when its capability is globally enabled.
-   * Dark/blocked work has no executable handler. Scheduler reconciliation
-   * removes repeat registrations; any already-queued remnant fails unknown-job
-   * admission and is quarantined instead of being acknowledged as successful.
-   */
-  function registerCapabilityGatedJob(
-    jobName: string,
-    capability: Capability,
-    handler: (job: import('bullmq').Job) => Promise<void>,
-  ): void {
-    if (!isCapabilityJobEnabled(capability)) {
-      logger.info(
-        { job: jobName, capability },
-        'job handler not registered (capability dark/blocked)',
-      )
-      return
-    }
-    container.jobRegistry.register(jobName, handler)
-    logger.info({ job: jobName, capability }, 'registered capability-gated job handler')
-  }
 
   // ── Register background job handlers ─────────────────────────────
   // BQC-7.4: the alert evaluation wiring — the container-owned snapshot
@@ -207,8 +208,8 @@ export async function bootstrap(
   logger.info({ job: JOB_NAME }, 'registered health-check job handler')
 
   registerCapabilityGatedJob(
+    container,
     PORTAL_DESTINATION_REVALIDATION_JOB,
-    'portal.write',
     createRevalidateApprovedDestinationsHandler({
       revalidate: container.portalWorkerRuntime.revalidateApprovedDestinations,
       authorizeScope: createScheduledScopeAuthorizer(
@@ -218,10 +219,6 @@ export async function bootstrap(
       logger: container.logger,
       alertDispatcher: container.alertDispatcher,
     }),
-  )
-  logger.info(
-    { job: PORTAL_DESTINATION_REVALIDATION_JOB },
-    'registered Portal approved-destination revalidation job handler',
   )
 
   // Not capability-gated, on purpose: the sweep removes objects of taken-down
@@ -253,8 +250,8 @@ export async function bootstrap(
   // Its tenant-cross schedule only enumerates: each registration's own
   // Organization is decided under current policy before it is accepted.
   registerCapabilityGatedJob(
+    container,
     RECOVER_INVITED_REGISTRATIONS_JOB,
-    'identity.invite',
     createRecoverInvitedRegistrationsHandler({
       recover: container.identityWorkerRuntime.recoverInvitedRegistrations,
       authorizeScope: createScheduledScopeAuthorizer('system:identity.accept_invitation'),
@@ -266,8 +263,8 @@ export async function bootstrap(
   if (processGoogleImportItem) {
     const importV2Handler = createGoogleImportItemJobHandler(processGoogleImportItem)
     registerCapabilityGatedJob(
+      container,
       GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
-      'property.import_gbp_v2',
       async (job) => {
         await importV2Handler(
           job as import('bullmq').Job<
@@ -291,8 +288,8 @@ export async function bootstrap(
 
   // Recovery owns a durable appointment even when Queue Redis loses a job.
   registerCapabilityGatedJob(
+    container,
     GOOGLE_IMPORT_CLAIM_REAPER_JOB,
-    'property.import_gbp_v2',
     createGoogleImportClaimReaperHandler({
       reap: container.integrationWorkerRuntime.recoverImports,
       logger: container.logger,
@@ -302,8 +299,8 @@ export async function bootstrap(
   // Daily GBP push reconciliation (the tenant-cross schedule only enumerates;
   // each organization is decided again under current policy before any call).
   registerCapabilityGatedJob(
+    container,
     RECONCILE_GBP_NOTIFICATION_SUBSCRIPTIONS_JOB,
-    'property.connect_gbp',
     createReconcileGbpNotificationSubscriptionsHandler({
       reconcile: container.integrationWorkerRuntime.reconcileNotificationSubscriptions,
       authorizeScope: createScheduledScopeAuthorizer(
@@ -337,8 +334,8 @@ export async function bootstrap(
   // tenant-cross and only enumerates: it decides each claimed entry's own
   // Organization and Property under current policy before any provider call.
   registerCapabilityGatedJob(
+    container,
     DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME,
-    'ai.analyze',
     createDrainReviewAnalysisBacklogJobHandler({
       drain: container.aiWorkerRuntime.drainReviewAnalysisBacklog.drain,
       authorizeScope: createScheduledScopeAuthorizer(
@@ -352,8 +349,8 @@ export async function bootstrap(
   // and decides each one's Organization and Property under the schedule's own action
   // before it reads anything of theirs. Feed mails what it records.
   registerCapabilityGatedJob(
+    container,
     GUEST_VOICE_SUMMARY_SWEEP_JOB_NAME,
-    'ai.analyze',
     createGuestVoiceSummarySweepJobHandler({
       sweep: container.aiWorkerRuntime.runGuestVoiceSummarySweep,
       authorizeScope: createScheduledScopeAuthorizer('system:ai.guest_voice_summary'),
@@ -361,8 +358,8 @@ export async function bootstrap(
     }),
   )
   registerCapabilityGatedJob(
+    container,
     ANALYZE_REVIEW_NOW_JOB_NAME,
-    'ai.analyze',
     createAnalyzeReviewNowJobHandler({
       drainReview: container.aiWorkerRuntime.drainReviewAnalysisBacklog.drainReview,
     }),
@@ -386,21 +383,17 @@ export async function bootstrap(
   }
   const goalProgramMaintenanceHandler =
     goalProgramMaintenance.createHandler(goalProgramPolicy)
-  registerCapabilityGatedJob(goalProgramMaintenance.jobName, 'goal.use', async (job) => {
+  registerCapabilityGatedJob(container, goalProgramMaintenance.jobName, async (job) => {
     await goalProgramMaintenanceHandler(job)
   })
-  logger.info(
-    { job: goalProgramMaintenance.jobName },
-    'registered canonical Goal Program maintenance job handler',
-  )
 
   // ── Daily Property Google rating goal evaluation (ADR 0067) ──────
   // Tenant-cross enumeration only: every goal's Organization and Property are
   // decided under the schedule's own action before the goal is evaluated.
   const ratingGoalEvaluation = container.goalWorkerRuntime.ratingGoalEvaluation
   registerCapabilityGatedJob(
+    container,
     ratingGoalEvaluation.jobName,
-    'goal.use',
     ratingGoalEvaluation.createHandler(
       createScheduledScopeAuthorizer('system:goal.evaluate_rating_goals'),
     ),
@@ -538,7 +531,7 @@ export async function bootstrap(
     'registered AI Review Analysis enrollment sweep job handler',
   )
 
-  await registerNotificationJobs(container, runtime, registerCapabilityGatedJob)
+  await registerNotificationJobs(container, runtime)
 }
 
 /**
@@ -552,7 +545,6 @@ export async function bootstrap(
 async function registerNotificationJobs(
   container: Container,
   runtime: BootstrapRuntimeConfig,
-  registerCapabilityGatedJob: CapabilityGatedJobRegistrar,
 ): Promise<void> {
   const logger = container.logger
   // Outbound email transport is chosen ONCE, here, and logged loudly. Before
@@ -630,21 +622,9 @@ async function registerNotificationJobs(
   // even for an Organization ordinary product mail is still dark for.
   const { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } =
     await import('#/contexts/feed/email/notification-delivery-processors.server')
-  registerCapabilityGatedJob(
-    URGENT_EMAIL_JOB_NAME,
-    'notification.send_email',
-    processors.email,
-  )
-  registerCapabilityGatedJob(
-    MANDATORY_EMAIL_JOB_NAME,
-    'notification.send_mandatory_email',
-    processors.email,
-  )
+  registerCapabilityGatedJob(container, URGENT_EMAIL_JOB_NAME, processors.email)
+  registerCapabilityGatedJob(container, MANDATORY_EMAIL_JOB_NAME, processors.email)
   const { DIGEST_JOB_NAME } =
     await import('#/contexts/feed/email/digest-notification-job.server')
-  registerCapabilityGatedJob(
-    DIGEST_JOB_NAME,
-    'notification.send_email',
-    processors.digest,
-  )
+  registerCapabilityGatedJob(container, DIGEST_JOB_NAME, processors.digest)
 }

@@ -15,6 +15,7 @@ import {
   DARK_CONTEXT_CAPABILITIES,
   PORTAL_DARK_CAPABILITIES,
 } from '#/shared/auth/beta-capabilities'
+import { JOB_DEFINITIONS } from '#/shared/jobs/job-definitions'
 import {
   JOB_OPERATIONAL_CONTRACTS,
   createOperationalSchedulerPlan,
@@ -129,17 +130,16 @@ describe('BQR-0: Dark job / schedule containment', () => {
     expect(bootstrapSrc).toContain('registerCapabilityGatedJob')
     expect(bootstrapSrc).toContain('job handler not registered (capability dark/blocked)')
     expect(bootstrapSrc).not.toContain('registered no-op job handler')
-    // Match job name + capability even if prettier wraps arguments across lines
-    const gated = (job: string, cap: string) => {
-      const re = new RegExp(
-        `registerCapabilityGatedJob\\(\\s*${job}\\s*,\\s*'${cap}'`,
-        'm',
-      )
-      expect(bootstrapSrc, `expected gated job ${job} / ${cap}`).toMatch(re)
-    }
     expect(bootstrapSrc).not.toContain("'leaderboard.reconcile'")
-    gated('PORTAL_DESTINATION_REVALIDATION_JOB', 'portal.write')
-    gated('URGENT_EMAIL_JOB_NAME', 'notification.send_email')
-    gated('DIGEST_JOB_NAME', 'notification.send_email')
+    const capabilityOf = (name: string) =>
+      JOB_DEFINITIONS.find((definition) => definition.name === name)?.capability
+    expect(capabilityOf('portal-approved-destination-revalidation')).toBe('portal.write')
+    expect(capabilityOf('urgent-email')).toBe('notification.send_email')
+    expect(capabilityOf('digest-notification')).toBe('notification.send_email')
+    // The gate reads the capability from the definition and refuses a job that has none.
+    expect(bootstrapSrc).toMatch(/registerCapabilityGatedJob\(\s*container,/)
+    expect(bootstrapSrc).not.toMatch(
+      /registerCapabilityGatedJob\([^)]*'[a-z_]+\.[a-z_0-9]+'/,
+    )
   })
 })
