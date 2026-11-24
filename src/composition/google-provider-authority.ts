@@ -26,7 +26,10 @@ import { createGoogleExecutionPermitIssuer } from '#/shared/auth/google-executio
 import { createInProcessGoogleEgressRuntime } from './google-egress-runtime'
 import { createGoogleContentAuthorityRepository } from '#/contexts/identity/policy/google-content-authority-repository.server'
 import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/provider/google-content-authorization-check.server'
-import { createGoogleContentAuthorizer } from '#/contexts/integration/provider/google-content-authorizer.server'
+import {
+  checkLiveGoogleAuthorization,
+  createGoogleContentAuthorizer,
+} from '#/contexts/integration/provider/google-content-authorizer.server'
 import {
   permitAdmissionCode,
   createGoogleAuthorizedProviderExecutor,
@@ -164,97 +167,93 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
 
   let providerEphemeralRedis: Redis | undefined
   let providerEphemeralStore = options?.providerEphemeralStore
-  let oauthStateHandles: ReturnType<typeof createOAuthStateHandleService> | undefined
   let providerEphemeralReadiness: Promise<ProviderRedisReadiness> | undefined
-  let googleImportReplayKeys: ReturnType<typeof createVersionedHmacKeyring> | undefined
-  let googleOpaqueReferenceKeys: ReturnType<typeof createVersionedHmacKeyring> | undefined
-  {
-    if (!providerEphemeralStore && env.PROVIDER_EPHEMERAL_REDIS_URL) {
-      if (env.NODE_ENV === 'production') {
-        const urlFailure = validateProviderEphemeralRedisUrls(
-          env.PROVIDER_EPHEMERAL_REDIS_URL,
-          env.REDIS_URL,
-          env.QUEUE_REDIS_URL,
-        )
-        if (urlFailure) {
-          throw new Error(`Provider-ephemeral Redis denied: ${urlFailure.code}`)
+  if (!providerEphemeralStore && env.PROVIDER_EPHEMERAL_REDIS_URL) {
+    if (env.NODE_ENV === 'production') {
+      const urlFailure = validateProviderEphemeralRedisUrls(
+        env.PROVIDER_EPHEMERAL_REDIS_URL,
+        env.REDIS_URL,
+        env.QUEUE_REDIS_URL,
+      )
+      if (urlFailure) {
+        throw new Error(`Provider-ephemeral Redis denied: ${urlFailure.code}`)
+      }
+    }
+    providerEphemeralRedis = createProviderEphemeralRedis(
+      env.PROVIDER_EPHEMERAL_REDIS_URL,
+      env.PROVIDER_EPHEMERAL_REDIS_CA_PEM,
+    )
+    providerEphemeralStore = createRedisProviderEphemeralStore(providerEphemeralRedis)
+    providerEphemeralReadiness =
+      verifyProviderEphemeralRedisRuntime(providerEphemeralRedis)
+  }
+  if (!providerEphemeralStore) {
+    if (env.NODE_ENV === 'production') {
+      throw new Error('Opaque OAuth state requires provider-ephemeral Redis')
+    }
+    providerEphemeralStore = createInMemoryProviderEphemeralStore()
+  }
+  const ensureProviderEphemeralReady = providerEphemeralReadiness
+    ? async () => {
+        const readiness = await providerEphemeralReadiness
+        if (!readiness.ok) {
+          throw new Error(`Provider-ephemeral Redis denied: ${readiness.code}`)
         }
       }
-      providerEphemeralRedis = createProviderEphemeralRedis(
-        env.PROVIDER_EPHEMERAL_REDIS_URL,
-        env.PROVIDER_EPHEMERAL_REDIS_CA_PEM,
-      )
-      providerEphemeralStore = createRedisProviderEphemeralStore(providerEphemeralRedis)
-      providerEphemeralReadiness =
-        verifyProviderEphemeralRedisRuntime(providerEphemeralRedis)
-    }
-    if (!providerEphemeralStore) {
-      if (env.NODE_ENV === 'production') {
-        throw new Error('Opaque OAuth state requires provider-ephemeral Redis')
-      }
-      providerEphemeralStore = createInMemoryProviderEphemeralStore()
-    }
-    // Non-production fallback keyrings, derived per purpose.
-    //
-    // This used to be one `sha256(OAUTH_STATE_SECRET)` shared by BOTH keyrings,
-    // which had two problems. A single fast hash is not a key-derivation
-    // function, and — the one that actually matters — two distinct HMAC
-    // purposes were signing with the same key, so a reference token and a
-    // replay token were interchangeable even in development.
-    //
-    // HKDF with the variable name as `info` gives real domain separation: each
-    // keyring gets a different key, and neither is the configured secret.
-    // Production never reaches this: it throws for a missing keyring above.
-    const fallbackKeyFor = (name: string): string =>
-      Buffer.from(
-        hkdfSync(
-          'sha256',
-          env.OAUTH_STATE_SECRET,
-          'repkey/google-provider-authority/local-fallback',
-          name,
-          32,
-        ),
-      ).toString('hex')
-    const requiredKeyring = (raw: string | undefined, name: string): string => {
-      if (raw) return raw
-      if (env.NODE_ENV === 'production') {
-        throw new Error(`${name} is required for opaque OAuth state`)
-      }
-      return `local:${fallbackKeyFor(name)}`
-    }
-    googleOpaqueReferenceKeys = createVersionedHmacKeyring(
-      requiredKeyring(
-        env.GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS,
-        'GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS',
+    : undefined
+  // Non-production fallback keyrings, derived per purpose.
+  //
+  // This used to be one `sha256(OAUTH_STATE_SECRET)` shared by BOTH keyrings,
+  // which had two problems. A single fast hash is not a key-derivation
+  // function, and — the one that actually matters — two distinct HMAC
+  // purposes were signing with the same key, so a reference token and a
+  // replay token were interchangeable even in development.
+  //
+  // HKDF with the variable name as `info` gives real domain separation: each
+  // keyring gets a different key, and neither is the configured secret.
+  // Production never reaches this: it throws for a missing keyring above.
+  const fallbackKeyFor = (name: string): string =>
+    Buffer.from(
+      hkdfSync(
+        'sha256',
+        env.OAUTH_STATE_SECRET,
+        'repkey/google-provider-authority/local-fallback',
+        name,
+        32,
       ),
-    )
-    googleImportReplayKeys = createVersionedHmacKeyring(
-      requiredKeyring(env.GOOGLE_REPLAY_HMAC_KEYS, 'GOOGLE_REPLAY_HMAC_KEYS'),
-    )
-    oauthStateHandles = createOAuthStateHandleService({
-      store: providerEphemeralStore,
-      handleKeys: createVersionedHmacKeyring(
-        requiredKeyring(
-          env.GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS,
-          'GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS',
-        ),
-      ),
-      sessionKeys: createVersionedHmacKeyring(
-        requiredKeyring(
-          env.GOOGLE_SESSION_BINDING_HMAC_KEYS,
-          'GOOGLE_SESSION_BINDING_HMAC_KEYS',
-        ),
-      ),
-      ensureRuntimeReady: providerEphemeralReadiness
-        ? async () => {
-            const readiness = await providerEphemeralReadiness!
-            if (!readiness.ok) {
-              throw new Error(`Provider-ephemeral Redis denied: ${readiness.code}`)
-            }
-          }
-        : undefined,
-    })
+    ).toString('hex')
+  const requiredKeyring = (raw: string | undefined, name: string): string => {
+    if (raw) return raw
+    if (env.NODE_ENV === 'production') {
+      throw new Error(`${name} is required for opaque OAuth state`)
+    }
+    return `local:${fallbackKeyFor(name)}`
   }
+  const googleOpaqueReferenceKeys = createVersionedHmacKeyring(
+    requiredKeyring(
+      env.GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS,
+      'GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS',
+    ),
+  )
+  const googleImportReplayKeys = createVersionedHmacKeyring(
+    requiredKeyring(env.GOOGLE_REPLAY_HMAC_KEYS, 'GOOGLE_REPLAY_HMAC_KEYS'),
+  )
+  const oauthStateHandles = createOAuthStateHandleService({
+    store: providerEphemeralStore,
+    handleKeys: createVersionedHmacKeyring(
+      requiredKeyring(
+        env.GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS,
+        'GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS',
+      ),
+    ),
+    sessionKeys: createVersionedHmacKeyring(
+      requiredKeyring(
+        env.GOOGLE_SESSION_BINDING_HMAC_KEYS,
+        'GOOGLE_SESSION_BINDING_HMAC_KEYS',
+      ),
+    ),
+    ensureRuntimeReady: ensureProviderEphemeralReady,
+  })
 
   if (env.NODE_ENV === 'production' && !redis) {
     throw new Error('Production Google credential refresh coordination requires Redis')
@@ -289,14 +288,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     nowMs: performance.now.bind(performance),
     logger,
   })
-  const ensureProviderEphemeralReady = providerEphemeralReadiness
-    ? async () => {
-        const readiness = await providerEphemeralReadiness
-        if (!readiness.ok) {
-          throw new Error(`Provider-ephemeral Redis denied: ${readiness.code}`)
-        }
-      }
-    : undefined
   const defaultProviderAuthorizationLeases =
     providerEphemeralStore && googleOpaqueReferenceKeys
       ? createProviderAuthorizationLeaseService({
@@ -306,12 +297,10 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           ensureRuntimeReady: ensureProviderEphemeralReady,
           revalidate: async (record) => {
             try {
-              const result = await googleContentControlStore.transaction(async (tx) => {
-                const control = await googleContentControlStore.loadControl(tx)
-                if (control.killedCapabilities.includes(record.capability)) {
-                  return { ok: false as const, code: 'capability_killed' as const }
-                }
-                const decision = await googleContentAuthorizationCheck(tx, {
+              const result = await checkLiveGoogleAuthorization(
+                googleContentControlStore,
+                googleContentAuthorizationCheck,
+                {
                   capability: record.capability,
                   scope: {
                     organizationId: record.organizationId,
@@ -320,11 +309,8 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
                     initiatorUserId: record.initiatorUserId,
                   },
                   operationKey: `${record.audience}.lease_renewal`,
-                })
-                return decision.allowed
-                  ? { ok: true as const, authorizationVector: decision.vector }
-                  : { ok: false as const, code: 'authorization_denied' as const }
-              })
+                },
+              )
               if (!result.ok) {
                 return { allowed: false, authorizationFenceSha256: null }
               }
@@ -448,12 +434,10 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       // Every denial is logged with the deciding code before the content-free
       // error reaches the OAuth callback, where authorization internals must
       // remain flattened to `connection_failed`.
-      const result = await googleContentControlStore.transaction(async (tx) => {
-        const control = await googleContentControlStore.loadControl(tx)
-        if (control.killedCapabilities.includes('property.import_gbp_v2')) {
-          return { ok: false as const, code: 'capability_killed' as const }
-        }
-        const decision = await googleContentAuthorizationCheck(tx, {
+      const result = await checkLiveGoogleAuthorization(
+        googleContentControlStore,
+        googleContentAuthorizationCheck,
+        {
           capability: 'property.import_gbp_v2',
           scope: {
             organizationId: input.organizationId,
@@ -462,11 +446,8 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
             initiatorUserId: input.initiatorUserId,
           },
           operationKey: input.operation,
-        })
-        return decision.allowed
-          ? { ok: true as const, authorizationVector: decision.vector }
-          : { ok: false as const, code: 'authorization_denied' as const }
-      })
+        },
+      )
       const credentialGeneration = result.ok
         ? result.authorizationVector.credentialGeneration
         : null
