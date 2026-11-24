@@ -1,7 +1,9 @@
 import { z } from 'zod/v4'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
-import type { OpenAiUsageV1, PreparedAiInvocation } from './contracts'
+import type { PreparedAiInvocation } from './contracts'
+import type { AiProviderUsage } from './provider-contracts'
 import { providerUsageOfDecodedBody } from './connector-boundary'
+import { writeGatewayEvent } from './connector-diagnostics'
 
 function inputTokenCeiling(invocation: PreparedAiInvocation): number | null {
   const operationProfileVersion =
@@ -31,9 +33,7 @@ function usageRejected(
   counts?: Readonly<Record<string, number>>,
 ): null {
   if (invocation.descriptor.route === 'synthetic-canary') {
-    process.stderr.write(
-      `${JSON.stringify({ event: 'canary_usage_rejected', invariant, ...(counts ?? {}) })}\n`,
-    )
+    writeGatewayEvent({ event: 'canary_usage_rejected', invariant, ...(counts ?? {}) })
   }
   return null
 }
@@ -41,7 +41,7 @@ function usageRejected(
 export function parseUsage(
   value: unknown,
   invocation: PreparedAiInvocation,
-): OpenAiUsageV1 | null {
+): AiProviderUsage | null {
   // `input_tokens_details` / `output_tokens_details` are optional in the
   // Responses payload. Requiring them classified an otherwise successful,
   // fully-accounted call as `output_invalid` with usage unknown, which failed
@@ -114,6 +114,6 @@ export function parseUsage(
 export function usageOfDecodedBody(
   bytes: Uint8Array | null,
   invocation: PreparedAiInvocation,
-): OpenAiUsageV1 | null {
+): AiProviderUsage | null {
   return providerUsageOfDecodedBody(bytes, invocation, parseUsage)
 }

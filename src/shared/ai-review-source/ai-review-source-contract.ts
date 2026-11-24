@@ -1,5 +1,6 @@
 import { AI_UNICODE_CASE_FOLDING_V17 } from '../generated/ai-unicode-case-folding-v17'
 import { splitReviewSentences } from './review-sentences'
+import { isNoncharacter, isStructurallyValidLanguageTag } from './ai-text-checks'
 
 export const AI_REVIEW_SOURCE_CONTRACT_VERSION = 'ai-source-v1' as const
 export const MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 = 16_384
@@ -63,11 +64,6 @@ function isWhitespaceControl(codePoint: number): boolean {
   return (codePoint >= 0x09 && codePoint <= 0x0d) || codePoint === 0x85
 }
 
-/** U+FDD0..U+FDEF and the last two code points of every plane. */
-function isNoncharacter(codePoint: number): boolean {
-  return (codePoint >= 0xfdd0 && codePoint <= 0xfdef) || (codePoint & 0xfffe) === 0xfffe
-}
-
 const REPLACEMENT_CHARACTER = '\ufffd'
 const WHITESPACE_SCALAR = /^\s$/u
 
@@ -114,37 +110,6 @@ function containsNoncharacter(value: string): boolean {
   return false
 }
 
-function isAsciiLetter(codePoint: number): boolean {
-  return (
-    (codePoint >= 0x41 && codePoint <= 0x5a) || (codePoint >= 0x61 && codePoint <= 0x7a)
-  )
-}
-
-function isAsciiAlphanumeric(codePoint: number): boolean {
-  return isAsciiLetter(codePoint) || (codePoint >= 0x30 && codePoint <= 0x39)
-}
-
-function isBoundedLanguageTag(value: string): boolean {
-  let segmentStart = 0
-  let segmentIndex = 0
-  for (let index = 0; index <= value.length; index += 1) {
-    if (index < value.length && value.charCodeAt(index) !== 0x2d) continue
-    const segmentLength = index - segmentStart
-    const minimum = segmentIndex === 0 ? 2 : 1
-    if (segmentLength < minimum || segmentLength > 8) return false
-    for (let cursor = segmentStart; cursor < index; cursor += 1) {
-      const codePoint = value.charCodeAt(cursor)
-      if (
-        segmentIndex === 0 ? !isAsciiLetter(codePoint) : !isAsciiAlphanumeric(codePoint)
-      ) {
-        return false
-      }
-    }
-    segmentIndex += 1
-    segmentStart = index + 1
-  }
-  return segmentIndex > 0
-}
 const CLOSED_PLACEHOLDER = /\[(PERSON|CONTACT|ADDRESS|FINANCIAL|IDENTIFIER|SECRET)\]/gu
 const FORBIDDEN_CANONICAL_PLACEHOLDER =
   /\[(CONTACT|ADDRESS|FINANCIAL|IDENTIFIER|SECRET)\]/u
@@ -273,7 +238,7 @@ function validateFields(
     if (
       input.languageCode.length === 0 ||
       input.languageCode.length > 35 ||
-      !isBoundedLanguageTag(input.languageCode)
+      !isStructurallyValidLanguageTag(input.languageCode)
     ) {
       fail('languageCode is not a bounded BCP 47 language tag')
     }

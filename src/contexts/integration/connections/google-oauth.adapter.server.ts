@@ -11,6 +11,7 @@ import type {
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import { integrationError } from '../domain/errors'
 import { trace } from '#/shared/observability/trace'
+import { readBoundedStream } from '#/shared/security/read-bounded-body'
 import { isGoogleCallError } from '../domain/google-call-error'
 import { executeGoogleProviderResponse } from '../provider/google-client.server'
 import {
@@ -164,39 +165,25 @@ async function readBoundedJson(response: Response, maxBytes: number): Promise<un
   if (!response.body) {
     throw integrationError('oauth_failed', 'Google OAuth response body was missing')
   }
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let total = 0
-  try {
-    while (true) {
-      const next = await reader.read()
-      if (next.done) break
-      total += next.value.byteLength
-      if (total > maxBytes) {
-        await reader.cancel()
-        throw integrationError(
-          'oauth_failed',
-          'Google OAuth response exceeded the size limit',
-        )
-      }
-      chunks.push(next.value)
-    }
-  } finally {
-    reader.releaseLock()
+  const read = await readBoundedStream(response.body, maxBytes, {
+    zeroChunks: true,
+  })
+  if (read.kind === 'too_large') {
+    throw integrationError(
+      'oauth_failed',
+      'Google OAuth response exceeded the size limit',
+    )
   }
-  const bytes = new Uint8Array(total)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.byteLength
+  if (read.kind === 'failed') {
+    throw integrationError('oauth_failed', 'Google OAuth response could not be read')
   }
+  const { bytes } = read
   try {
     return JSON.parse(new TextDecoder().decode(bytes))
   } catch {
     throw integrationError('oauth_failed', 'Google OAuth response was malformed')
   } finally {
     bytes.fill(0)
-    for (const chunk of chunks) chunk.fill(0)
   }
 }
 

@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db/index'
 import type { Tx } from '#/shared/outbox/commit'
 import { toDomainRole } from '#/shared/domain/roles'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import {
   MerchantAiAuthorizationStoreError,
   type MerchantAiConsentCeremonyInput,

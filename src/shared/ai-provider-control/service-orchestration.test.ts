@@ -19,9 +19,9 @@ import type {
   AiAdmissionClient,
   AiGatewayRoutePreparer,
   OpenAiConnector,
-  OpenAiConnectorOutcome,
   PreparedGatewayRouteExecution,
 } from './contracts'
+import type { AiProviderOutcome } from './provider-contracts'
 import { settlementPermitOf, type AiExecutionAdmission } from './execution-admission'
 import { admitForTest } from './execution-admission.test-fixtures'
 import { createAiEgressGatewayService } from './service'
@@ -116,7 +116,7 @@ function admitted(
   return admitForTest(descriptor, { issuedAtEpochMillis: NOW, ...issued })
 }
 
-const successOutcome: OpenAiConnectorOutcome<unknown> = {
+const successOutcome: AiProviderOutcome<unknown> = {
   disposition: 'success',
   reportedDisposition: 'success',
   result: { accepted: true },

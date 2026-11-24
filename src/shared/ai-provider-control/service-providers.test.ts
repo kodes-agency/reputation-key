@@ -34,10 +34,13 @@ import type {
   AiAdmissionClient,
   AiGatewayRoutePreparer,
   OpenAiConnector,
-  OpenAiConnectorOutcome,
   PreparedGatewayRouteExecution,
 } from './contracts'
-import type { AiProviderAdapter, AiProviderId } from './provider-contracts'
+import type {
+  AiProviderAdapter,
+  AiProviderId,
+  AiProviderOutcome,
+} from './provider-contracts'
 import { createAiProviderRegistry } from './provider-selection'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
@@ -143,7 +146,7 @@ const usage = {
 
 function outcomeOf(
   disposition: AiSettlementRequestV1['disposition'],
-): OpenAiConnectorOutcome<unknown> {
+): AiProviderOutcome<unknown> {
   const succeeded = disposition === 'success'
   const unknownUsage =
     disposition === 'transport_ambiguous' || disposition === 'no_dispatch'
@@ -215,7 +218,7 @@ type FakeAdapter = AiProviderAdapter & Readonly<{ invoke: ReturnType<typeof vi.f
 function fakeAdapter(
   providerId: AiProviderId,
   pricing: AiProviderPriceCatalogue,
-  result: () => Promise<OpenAiConnectorOutcome<unknown>>,
+  result: () => Promise<AiProviderOutcome<unknown>>,
 ): FakeAdapter {
   const invoke = vi.fn(result)
   return {

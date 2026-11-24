@@ -4,6 +4,7 @@ import type { AiProviderOutcome } from '../provider-contracts'
 import { PROVIDER_ZERO_USAGE, providerConnectorOutcome } from '../connector-boundary'
 import type { PreparedAnthropicInvocation } from './prepared-invocation'
 import { parseAnthropicUsage } from './usage'
+import { writeGatewayEvent } from '../connector-diagnostics'
 
 // Every field but the usage is read leniently: the provider adds stop reasons and
 // refusal categories over time, and a billed answer must never lose its usage
@@ -66,13 +67,11 @@ export function interpretAnthropicMessage(
     return invalidOutcome(reportedRefusal ? 'provider_refused' : 'success', null)
   }
   if (reportedRefusal) {
-    process.stderr.write(
-      `${JSON.stringify({
-        event: 'anthropic_refusal',
-        route: invocation.descriptor.route,
-        category: refusalCategoryOf(message.stop_details?.category),
-      })}\n`,
-    )
+    writeGatewayEvent({
+      event: 'anthropic_refusal',
+      route: invocation.descriptor.route,
+      category: refusalCategoryOf(message.stop_details?.category),
+    })
     return providerConnectorOutcome({
       disposition: 'provider_refused',
       result: null,
@@ -87,16 +86,14 @@ export function interpretAnthropicMessage(
     message.stop_reason === 'max_tokens' ||
     message.stop_reason === 'model_context_window_exceeded'
   ) {
-    process.stderr.write(
-      `${JSON.stringify({
-        event: 'anthropic_output_truncated',
-        route: invocation.descriptor.route,
-        stopReason: message.stop_reason,
-        outputTokens: usage.outputTokens,
-        thinkingTokens: usage.reasoningTokens,
-        maxOutputTokens: invocation.sdkRequest.max_tokens,
-      })}\n`,
-    )
+    writeGatewayEvent({
+      event: 'anthropic_output_truncated',
+      route: invocation.descriptor.route,
+      stopReason: message.stop_reason,
+      outputTokens: usage.outputTokens,
+      thinkingTokens: usage.reasoningTokens,
+      maxOutputTokens: invocation.sdkRequest.max_tokens,
+    })
     return providerConnectorOutcome({
       disposition: 'output_truncated',
       reportedDisposition: 'success',

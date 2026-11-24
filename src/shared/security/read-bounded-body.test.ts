@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readBoundedBody } from './read-bounded-body'
+import { readBoundedBody, readBoundedStream } from './read-bounded-body'
 
 const post = (body: BodyInit | null) =>
   new Request('http://localhost/x', { method: 'POST', body })
@@ -53,5 +53,31 @@ describe('readBoundedBody', () => {
       duplex: 'half',
     } as RequestInit)
     expect(await readBoundedBody(failing, 100)).toEqual({ kind: 'failed' })
+  })
+})
+
+describe('readBoundedStream zeroChunks', () => {
+  const streamOf = (parts: readonly Uint8Array[]) =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const part of parts) controller.enqueue(part)
+        controller.close()
+      },
+    })
+
+  it('wipes the raw chunks but keeps the joined bytes', async () => {
+    const parts = [Uint8Array.of(1, 2), Uint8Array.of(3, 4)]
+    const read = await readBoundedStream(streamOf(parts), 10, { zeroChunks: true })
+    expect(read.kind === 'ok' && Array.from(read.bytes)).toEqual([1, 2, 3, 4])
+    expect(parts.map((part) => Array.from(part))).toEqual([
+      [0, 0],
+      [0, 0],
+    ])
+  })
+
+  it('leaves the chunks alone by default', async () => {
+    const parts = [Uint8Array.of(1, 2)]
+    await readBoundedStream(streamOf(parts), 10)
+    expect(Array.from(parts[0]!)).toEqual([1, 2])
   })
 })
