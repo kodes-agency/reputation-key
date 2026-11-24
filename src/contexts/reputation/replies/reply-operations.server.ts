@@ -53,7 +53,7 @@ export type ReplyDeps = Readonly<{
   /** Atomic verification and persistence seam for browser-held AI suggestions. */
   aiSuggestedDraftStore?: AiSuggestedDraftStore
   /** Effective voice used by the final privacy/style safety fence. */
-  replyLibrary?: Pick<ReplyLibraryRepository, 'loadSnapshot'>
+  replyLibrary: Pick<ReplyLibraryRepository, 'loadSnapshot'>
   /**
    * D4: the only evidence that lets retryPublish send an uncertain attempt
    * again. Reply commands hold no Google client: checking Google is

@@ -54,7 +54,12 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     db,
     new Map([['provenance-v1', publicKey]]),
     { isCurrentAiReplyBrandProfile: async () => true },
-    { resolveLocalFrame: async () => null, isCurrentVoice: async () => true },
+    {
+      resolveSavedFrame: async () => null,
+      resolveV2Frame: async () => null,
+      resolveLocalFrame: async () => null,
+      isCurrentVoice: async () => true,
+    },
   )
   let initialReplyControl: Awaited<ReturnType<typeof readReplyControl>> | undefined
 

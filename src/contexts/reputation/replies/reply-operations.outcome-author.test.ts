@@ -109,6 +109,7 @@ const makeDeps = (current: Reply) => {
           facts.lifecycleEvent,
         ),
     },
+    replyLibrary: { loadSnapshot: async () => null },
     clock: () => NOW,
     idGen: () => REPLY,
   } as unknown as ReplyDeps
