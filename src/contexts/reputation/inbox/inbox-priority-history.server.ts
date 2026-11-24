@@ -15,7 +15,6 @@ import { inboxError } from '../domain/inbox-errors'
 import type { InboxItemPriorityChanged } from '../domain/inbox-events'
 import type { InboxItem, InboxPriority } from '../domain/inbox-types'
 import { webActorId } from './inbox-command-guards.server'
-import { readCurrentCycleNumber } from './inbox-escalation-history.server'
 
 type PriorityUpdate = Readonly<{ priority: InboxPriority | null; setBy: UserId }>
 
@@ -68,19 +67,19 @@ export function guardPriorityCommand(
  * Append one priority decision, keyed by the command revision it produced.
  * `previousPriority` is the loaded item's level: the compare-and-swap that
  * produced `row` proves it was still the one in force. The Handling Cycle is
- * read after the item lock, as escalation history reads it.
+ * the one on the returned row, as escalation history records it.
  */
 export async function appendPriorityHistory(
   tx: Tx,
   item: InboxItem,
   row: InboxItem,
+  handlingCycleNumber: number | null,
   decision: Readonly<{
     priority: InboxPriority | null
     actorUserId: UserId
     occurredAt: Date
   }>,
 ): Promise<void> {
-  const handlingCycleNumber = await readCurrentCycleNumber(tx, item)
   await tx.insert(inboxPriorityHistory).values({
     inboxItemId: row.id,
     resultingCommandRevision: row.commandRevision,

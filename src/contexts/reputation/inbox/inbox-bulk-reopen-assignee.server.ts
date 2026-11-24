@@ -13,6 +13,7 @@ import { inboxItemUnassigned } from '../domain/inbox-events'
 import type { InboxItem } from '../domain/inbox-types'
 import type { InboxCommandAuthority } from './inbox-command-authority.server'
 import {
+  isAuthorityContractChange,
   sourceCommandPermission,
   type PersistedItem,
 } from './inbox-command-guards.server'
@@ -52,10 +53,7 @@ export async function resolveBulkReopenAssignee(
     ],
   })
   if (eligibility.allowed) return { assignedTo, unassignedFact: null }
-  if (
-    eligibility.reason.includes('authority_changed') ||
-    eligibility.reason.includes('contract_mismatch')
-  ) {
+  if (isAuthorityContractChange(eligibility.reason)) {
     throw inboxError(
       'revision_conflict',
       'Inbox assignment authority changed during bulk reopen',

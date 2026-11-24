@@ -16,7 +16,9 @@ import { inboxError } from '../domain/inbox-errors'
 import { resolveVisiblePropertyIds } from './visible-properties.server'
 import {
   propertyIdsForInboxSource,
+  onceAccessiblePropertyIds,
   resolveInboxSourceScopes,
+  type PropertyScopeApi,
 } from './inbox-access.server'
 import { canForContext } from '#/shared/domain/permissions'
 import type { ReplyLookupPort } from './reply-lookup.port.server'
@@ -69,11 +71,11 @@ const emptyInboxPage = (
 })
 
 async function scopedPropertyIds(
-  deps: GetInboxItemsDeps,
+  people: PropertyScopeApi,
   input: GetInboxItemsInput,
   ctx: AuthContext,
 ): Promise<ReadonlyArray<PropertyId> | null | undefined> {
-  const visible = await resolveVisiblePropertyIds(deps.staffPublicApi, ctx, 'inbox.read')
+  const visible = await resolveVisiblePropertyIds(people, ctx, 'inbox.read')
   if (visible === 'none') return null
   if (visible === 'all') return undefined
   if (
@@ -170,7 +172,8 @@ export const getInboxItems =
     const viewedUpTo = input.cursor
       ? null
       : await deps.viewRepo.getLastInboxView(ctx.organizationId, ctx.userId)
-    const sourceScopes = await resolveInboxSourceScopes(deps.staffPublicApi, ctx, 'read')
+    const people = onceAccessiblePropertyIds(deps.staffPublicApi)
+    const sourceScopes = await resolveInboxSourceScopes(people, ctx, 'read')
     const readableSources = sourceScopes.map((scope) => scope.sourceType)
     if (readableSources.length === 0) return emptyInboxPage(responseCutoff, viewedUpTo)
 
@@ -178,7 +181,7 @@ export const getInboxItems =
     // 'all'; assigned scope (PropertyManager/Staff) → their staff_assignment
     // set; 'none' → fail-closed empty page (a scoped user with no assignments
     // must not see org-wide items).
-    const propertyIds = await scopedPropertyIds(deps, input, ctx)
+    const propertyIds = await scopedPropertyIds(people, input, ctx)
     if (propertyIds === null) return emptyInboxPage(responseCutoff, viewedUpTo)
 
     const canManageReplies =
