@@ -6,7 +6,6 @@ import { reviewSourceContents } from '#/shared/db/schema/review-source-content.s
 
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import {
@@ -25,10 +24,7 @@ import { reviewError } from '../domain/review-errors'
 import { isGuestEdit } from '../domain/material-review-revision'
 import { rowReplyAuthor } from '../domain/reply-author'
 import { takenBackByGuestEdit } from '../domain/reply-command-preconditions'
-import type {
-  ReviewCommandStore,
-  ReviewFirstSighting,
-} from './review-command-store.port.server'
+import type { ReviewCommandStore } from './review-command-store.port.server'
 import {
   reviewReplyPublicationCancelled,
   reviewSourceTransitioned,
@@ -578,105 +574,6 @@ export const createAtomicReviewCommandStore = (
         if (written.restatement) onProviderRestatement(written.restatement)
         return written.saved
       })
-    },
-  }
-}
-
-/**
- * Non-transactional store for unit tests. Upserts via the repository and
- * records outbox facts through the optional test seam.
- * Not for production — production must use createAtomicReviewCommandStore.
- */
-export const createSequentialReviewCommandStore = (deps: {
-  upsert: (
-    review: Omit<Review, 'createdAt' | 'updatedAt'>,
-    now?: Date,
-    observationKey?: string,
-    observationOrigin?: ReviewProviderObservationOrigin,
-    providerUpdateTimeReported?: boolean,
-  ) => Promise<Review>
-  clock: () => Date
-  recordOutbox?: (event: DomainEvent) => Promise<void>
-  recordFirstSighting?: (
-    review: Review,
-    firstSeenAt: Date,
-    sighting: ReviewFirstSighting,
-  ) => Promise<void>
-}): ReviewCommandStore => {
-  return {
-    upsertAndRecord: async (
-      review,
-      event,
-      now,
-      observationKey,
-      observationOrigin,
-      firstSighting,
-      providerUpdateTimeReported,
-    ) => {
-      const saved = await deps.upsert(
-        review,
-        now,
-        observationKey,
-        observationOrigin,
-        providerUpdateTimeReported,
-      )
-      const recordedEvent = typeof event === 'function' ? event(saved) : event
-      if (deps.recordOutbox) {
-        await deps.recordOutbox(recordedEvent)
-      }
-      if (
-        deps.recordFirstSighting &&
-        firstSighting != null &&
-        recordedEvent._tag === 'review.created'
-      ) {
-        await deps.recordFirstSighting(saved, now ?? deps.clock(), firstSighting)
-      }
-      return saved
-    },
-    reobserveExpiredAndRecord: async (
-      review,
-      now,
-      observationKey,
-      observationOrigin,
-      providerUpdateTimeReported,
-    ) => {
-      const occurredAt = now ?? deps.clock()
-      const expiredEvent = reviewSourceTransitioned({
-        reviewId: review.id,
-        organizationId: review.organizationId,
-        propertyId: review.propertyId,
-        sourceEpoch: review.sourceEpoch,
-        sourceRevision: review.sourceRevision,
-        analysisSequence: review.analysisSequence + 1,
-        change: 'source_expired',
-        occurredAt,
-      })
-      const recreated = {
-        ...review,
-        analysisSequence: review.analysisSequence + 2,
-      }
-      const saved = await deps.upsert(
-        recreated,
-        occurredAt,
-        observationKey,
-        observationOrigin,
-        providerUpdateTimeReported,
-      )
-      const updatedEvent = reviewUpdated({
-        reviewId: saved.id,
-        organizationId: saved.organizationId,
-        propertyId: saved.propertyId,
-        platform: saved.platform,
-        sourceEpoch: saved.sourceEpoch,
-        sourceRevision: saved.sourceRevision,
-        analysisSequence: saved.analysisSequence,
-        occurredAt,
-      })
-      if (deps.recordOutbox) {
-        await deps.recordOutbox(expiredEvent)
-        await deps.recordOutbox(updatedEvent)
-      }
-      return saved
     },
   }
 }

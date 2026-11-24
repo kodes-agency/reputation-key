@@ -41,7 +41,6 @@ function review(overrides: Partial<Review> = {}): Review {
     translatedText: null,
     languageCode: null,
     reviewedAt: NOW,
-    expiresAt: NOW,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW,

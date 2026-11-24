@@ -57,7 +57,6 @@ const storedReview = (overrides: Partial<Review> = {}): Review => ({
   translatedText: null,
   languageCode: 'en',
   reviewedAt: new Date('2026-08-27T07:00:00.000Z'),
-  expiresAt: new Date('2027-08-27T07:00:00.000Z'),
   sentimentLabel: null,
   sentimentScore: null,
   sourceCreatedAt: null,

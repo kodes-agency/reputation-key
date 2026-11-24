@@ -58,7 +58,6 @@ function review(
     translatedText: null,
     languageCode: 'en',
     reviewedAt: new Date('2026-10-20T11:00:00.000Z'),
-    expiresAt: new Date('2027-10-20T11:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: new Date('2026-10-20T11:00:00.000Z'),

@@ -58,7 +58,6 @@ function makeRefreshDueReview(overrides: Partial<Review> = {}): Review {
     translatedText: null,
     languageCode: null,
     reviewedAt: lastFetchedAt,
-    expiresAt: contentExpiresAt,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: lastFetchedAt,

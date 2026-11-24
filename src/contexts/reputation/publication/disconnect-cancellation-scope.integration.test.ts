@@ -98,7 +98,6 @@ const review = (): Review => ({
   translatedText: null,
   languageCode: 'en',
   reviewedAt: NOW,
-  expiresAt: new Date(NOW.getTime() + 25 * 86_400_000),
   sentimentLabel: null,
   sentimentScore: null,
   sourceCreatedAt: NOW,

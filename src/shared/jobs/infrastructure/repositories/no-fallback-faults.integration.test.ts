@@ -350,7 +350,6 @@ function makeReviewC(): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW_C,
-    expiresAt: new Date('2027-07-18T12:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW_C,
