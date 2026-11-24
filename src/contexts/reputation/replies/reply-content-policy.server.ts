@@ -19,7 +19,7 @@ export function assertReplyTextSendable(text: string): void {
 
 /** Every new publication uses the current effective voice, including retries. */
 export async function assertReplyContentPublishable(
-  library: Pick<ReplyLibraryRepository, 'loadSnapshot'> | undefined,
+  library: Pick<ReplyLibraryRepository, 'loadSnapshot'>,
   reply: Reply,
   review: Review,
 ): Promise<void> {
@@ -35,7 +35,7 @@ export async function assertReplyContentPublishable(
       ? mappedReviewLanguage.language?.templateGroup
       : undefined) ??
     'en-Latn'
-  const snapshot = await library?.loadSnapshot(review.organizationId, review.propertyId)
+  const snapshot = await library.loadSnapshot(review.organizationId, review.propertyId)
   const voice = snapshot
     ? resolveVoice(BUILTIN_REPLY_VOICE, snapshot.accountVoice, snapshot.propertyVoice)
     : null

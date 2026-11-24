@@ -212,13 +212,12 @@ async function checkDraft(
     privacyMode,
     emojiAllowed,
   })
-  const recent =
-    (await deps.repository.findRecentLiveReplyTexts?.({
-      organizationId: review.organizationId,
-      propertyId: review.propertyId,
-      excludeReviewId: review.id,
-      limit: 20,
-    })) ?? []
+  const recent = await deps.repository.findRecentLiveReplyTexts({
+    organizationId: review.organizationId,
+    propertyId: review.propertyId,
+    excludeReviewId: review.id,
+    limit: 20,
+  })
   const similarity = maxSimilarity(text, recent)
   return {
     ...findings,
@@ -262,12 +261,11 @@ export const loadReplyTemplate =
     if (allowed.length === 0) {
       throw reviewError('invalid_input', 'No other template wording is available')
     }
-    const usage =
-      (await deps.repository.findPublishedUsage?.({
-        organizationId: review.organizationId,
-        propertyId: review.propertyId,
-        templateRef: template.ref,
-      })) ?? []
+    const usage = await deps.repository.findPublishedUsage({
+      organizationId: review.organizationId,
+      propertyId: review.propertyId,
+      templateRef: template.ref,
+    })
     const wording = pickLeastRecentlyUsed<(typeof allowed)[number]>(
       allowed,
       usage.flatMap(({ wordingKey, publishedAt }) =>
@@ -281,11 +279,10 @@ export const loadReplyTemplate =
       isBuiltinReplyVoiceLanguageGroup(languageGroup) ? languageGroup : null
     let rendered: ReturnType<typeof renderReply> | null = null
     if (voiceLanguageGroup !== null) {
-      const recentVoice =
-        (await deps.repository.findPublishedUsage?.({
-          organizationId: review.organizationId,
-          propertyId: review.propertyId,
-        })) ?? []
+      const recentVoice = await deps.repository.findPublishedUsage({
+        organizationId: review.organizationId,
+        propertyId: review.propertyId,
+      })
       const band = replyBand(review.rating, Boolean(review.text?.trim()))
       const locale = scope.voice.localized[voiceLanguageGroup]
       const choiceUsage = (field: 'closing' | 'signOff' | 'contactSentence' | 'emoji') =>

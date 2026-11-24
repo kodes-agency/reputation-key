@@ -35,6 +35,10 @@ function deps() {
     saveTemplate: vi.fn(),
     setHidden: vi.fn(),
     archiveCustomization: vi.fn(),
+    loadVoiceOverridesForShare: vi.fn(),
+    reserveAiFrame: vi.fn(),
+    findPublishedUsage: vi.fn(async () => []),
+    findRecentLiveReplyTexts: vi.fn(async () => []),
   }
   const staffPublicApi = {
     getAccessiblePropertyIds: vi.fn(async () => [PROPERTY]),

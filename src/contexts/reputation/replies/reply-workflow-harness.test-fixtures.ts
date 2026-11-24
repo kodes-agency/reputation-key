@@ -519,7 +519,7 @@ export async function createReplyWorkflowHarness(
   }
 
   const replyDeps: ReplyDeps = {
-    replyLibrary: input.replyLibrary,
+    replyLibrary: input.replyLibrary ?? { loadSnapshot: async () => null },
     replyRepo,
     reviewRepo,
     queue: {

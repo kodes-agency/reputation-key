@@ -31,10 +31,10 @@ export type AiReplyLocalFrame = Readonly<{
 }>
 
 export type AiReplyVoicePublicApi = Readonly<{
-  resolveSavedFrame?(
+  resolveSavedFrame(
     input: ResolveSavedReplyFrameInput,
   ): Promise<Readonly<{ prefix: string; suffix: string }> | null>
-  resolveV2Frame?(input: ResolveAiReplyV2FrameInput): Promise<ReplyDraftingV2Frame | null>
+  resolveV2Frame(input: ResolveAiReplyV2FrameInput): Promise<ReplyDraftingV2Frame | null>
   resolveLocalFrame(
     input: Readonly<{
       organizationId: OrganizationId
@@ -100,12 +100,7 @@ export function createAiReplyVoicePublicApi(
       }
     },
     isCurrentVoice: async (tx, input) => {
-      if (
-        !isBuiltinReplyVoiceLanguageGroup(input.languageGroup) ||
-        deps.repository.loadVoiceOverridesForShare === undefined
-      ) {
-        return false
-      }
+      if (!isBuiltinReplyVoiceLanguageGroup(input.languageGroup)) return false
       const stored = await deps.repository.loadVoiceOverridesForShare(
         tx,
         input.organizationId,

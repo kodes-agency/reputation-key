@@ -315,6 +315,7 @@ export function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
       })),
     },
     commandStore: undefined as unknown as ReplyCommandStore,
+    replyLibrary: { loadSnapshot: vi.fn(async () => null) },
     aiSuggestedDraftStore: {
       accept: vi.fn(async () => {
         throw new Error('accept is not configured for this test')
