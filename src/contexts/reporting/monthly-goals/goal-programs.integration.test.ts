@@ -12,7 +12,7 @@ import {
   readiness,
   useGoalProgramsScenario,
 } from './goal-program-service.test-fixtures'
-import { GoalProgramError } from './goal-programs.server'
+import { GoalProgramError } from '../application/use-cases/goal-program-shared'
 
 const { setup } = useGoalProgramsScenario()
 

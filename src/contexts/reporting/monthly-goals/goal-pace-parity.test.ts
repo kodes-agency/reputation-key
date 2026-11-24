@@ -19,7 +19,7 @@ import type {
 } from '../application/ports/goal-program.repository'
 import { createGoalListProgressReader } from './goal-list-progress.server'
 import type { GoalProgressDeps } from './goal-progress.server'
-import type { GoalActor } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.server'
 
 type CountMetric = Exclude<GoalMetric, 'portal_rating_average'>

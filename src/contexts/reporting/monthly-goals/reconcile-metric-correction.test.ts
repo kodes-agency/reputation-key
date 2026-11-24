@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GoalMetricCorrectionImpact } from './goal-metric-correction-impact-lookup.port.server'
+import type { GoalMetricCorrectionImpact } from './goal-metric-correction-impact-lookup.server'
 import { reconcileMetricCorrection } from './reconcile-metric-correction.server'
 
 const original: GoalMetricCorrectionImpact = {
@@ -98,30 +98,6 @@ describe('reconcileMetricCorrection', () => {
       unchanged: 0,
     })
     expect(reconcileClosedResult).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when Metric returns an incomplete or cross-scope impact set', async () => {
-    const deps = {
-      findCandidates: vi.fn(async () => []),
-      reconcileClosedResult: vi.fn(),
-    }
-
-    await expect(
-      reconcileMetricCorrection({
-        ...deps,
-        findImpacts: vi.fn(async () => [original]),
-      })(input),
-    ).rejects.toThrow('Metric correction impact set is incomplete')
-    await expect(
-      reconcileMetricCorrection({
-        ...deps,
-        findImpacts: vi.fn(async () => [
-          { ...original, organizationId: 'other-org' },
-          replacement,
-        ]),
-      })(input),
-    ).rejects.toThrow('Metric correction impact scope mismatch')
-    expect(deps.findCandidates).not.toHaveBeenCalled()
   })
 
   it('requests durable retry while a closed result source is updating', async () => {

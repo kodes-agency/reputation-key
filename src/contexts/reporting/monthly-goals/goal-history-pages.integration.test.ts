@@ -12,7 +12,8 @@ import {
   scopeGoalProgramsForMember,
   withGoalProgramVisibility,
 } from './goal-program-visibility.server'
-import { createGoalProgramService, type GoalActor } from './goal-programs.server'
+import { createGoalProgramService } from './goal-programs.server'
+import { type GoalActor } from '../application/use-cases/goal-program-shared'
 import { goalTargetProvenance } from '../application/goal-target-provenance'
 import type {
   GoalMonthlyResult,

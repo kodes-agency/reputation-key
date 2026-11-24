@@ -5,7 +5,10 @@ import type {
   GoalProgramBundle,
   GoalProgramHistoryPage,
 } from '../application/ports/goal-program.repository'
-import { GoalProgramError, type GoalActor } from './goal-programs.server'
+import {
+  GoalProgramError,
+  type GoalActor,
+} from '../application/use-cases/goal-program-shared'
 import {
   scopeGoalProgramsForMember,
   withGoalProgramVisibility,

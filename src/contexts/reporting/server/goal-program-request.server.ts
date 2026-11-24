@@ -7,12 +7,12 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
+import { type GoalProgramRequestApi } from '../monthly-goals/goal-programs.server'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
-  type GoalProgramRequestApi,
-} from '../monthly-goals/goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import type { GoalProgressRequestApi } from '../monthly-goals/goal-progress.server'
 import type { GoalListProgressRequestApi } from '../monthly-goals/goal-list-progress.server'
 import type { MonthlyPortalGoalRequestApi } from '../monthly-goals/monthly-portal-goal-page.server'

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { createGoalMetricCorrectionImpactLookup } from './goal-metric-correction-impact-lookup.server'
+import { findGoalMetricCorrectionImpacts } from './goal-metric-correction-impact-lookup.server'
 
 const input = {
   organizationId: 'org-1',
@@ -37,9 +37,7 @@ describe('Goal metric correction impact lookup', () => {
       select: vi.fn(() => ({ from: vi.fn(() => ({ where })) })),
     } as unknown as Database
 
-    await expect(
-      createGoalMetricCorrectionImpactLookup(db).findGoalMetricCorrectionImpacts(input),
-    ).resolves.toEqual([
+    await expect(findGoalMetricCorrectionImpacts(db, input)).resolves.toEqual([
       expect.objectContaining({ readingId: input.correctedReadingId }),
       expect.objectContaining({ readingId: input.replacementReadingId }),
     ])
@@ -55,9 +53,9 @@ describe('Goal metric correction impact lookup', () => {
       })),
     } as unknown as Database
 
-    await expect(
-      createGoalMetricCorrectionImpactLookup(db).findGoalMetricCorrectionImpacts(input),
-    ).rejects.toThrow('corrected Metric reading impact is unavailable')
+    await expect(findGoalMetricCorrectionImpacts(db, input)).rejects.toThrow(
+      'corrected Metric reading impact is unavailable',
+    )
   })
 
   it('fails closed when a returned impact has drifted attribution', async () => {
@@ -80,7 +78,7 @@ describe('Goal metric correction impact lookup', () => {
     } as unknown as Database
 
     await expect(
-      createGoalMetricCorrectionImpactLookup(db).findGoalMetricCorrectionImpacts({
+      findGoalMetricCorrectionImpacts(db, {
         ...input,
         replacementReadingId: null,
       }),

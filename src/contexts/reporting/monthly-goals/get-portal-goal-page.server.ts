@@ -22,12 +22,12 @@ import {
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import { listProgressOf } from './goal-list-progress.server'
 import { dueResultsForProgram } from '../application/use-cases/goal-program-shared'
+import { type GoalProgramService } from './goal-programs.server'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
-  type GoalProgramService,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import { progressOf } from './goal-progress.server'
 import {
   gatherPortalGoalFacts,

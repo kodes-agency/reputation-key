@@ -5,11 +5,11 @@ import { getDb } from '#/shared/db'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { findMetricVersionById } from '../readings/contracts'
+import { createGoalProgramService } from './goal-programs.server'
 import {
-  createGoalProgramService,
   type GoalActor,
   type GoalMetricReadPort,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import { createGoalProgramRepository } from './goal-program-repository.server'
 import { readGoalMetricSourceHead } from '../readings/goal-metric-source-head.server'
 
