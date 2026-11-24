@@ -1,10 +1,8 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { strictlyAfter } from '#/shared/domain/clock'
-import { canForContext } from '#/shared/domain/permissions'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
-import { propertyId } from '#/shared/domain/ids'
 import { MANAGER_BECAME_INELIGIBLE_END_REASON } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PropertyRepository } from '../profile/property-repository.port.server'
+import { loadAccessibleProperty } from '../profile/load-accessible-property.server'
 import type { PropertyResponsibleManagerRepository } from './manager-repository.port.server'
 import type { PropertyManagerEligibilityDeps } from './property-manager-eligibility.server'
 import {
@@ -22,28 +20,7 @@ type QueryDeps = PropertyManagerEligibilityDeps &
     clock: () => Date
   }>
 
-async function loadAccessibleProperty(
-  deps: QueryDeps,
-  rawPropertyId: string,
-  ctx: AuthContext,
-  permission: 'property.read' | 'property.update',
-) {
-  if (!canForContext(ctx, permission)) {
-    throw propertyError('forbidden', 'this role cannot manage Property responsibility')
-  }
-  const pid = propertyId(rawPropertyId)
-  const property = await deps.propertyRepo.findById(ctx.organizationId, pid)
-  if (!property) throw propertyError('property_not_found', 'property not found')
-  const accessible = await isPropertyAccessibleForPermission(
-    (orgId, userId, organizationWide) =>
-      deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, organizationWide),
-    ctx,
-    permission,
-    pid,
-  )
-  if (!accessible) throw propertyError('forbidden', 'No access to this property')
-  return property
-}
+const RESPONSIBILITY_DENIED = 'this role cannot manage Property responsibility'
 
 export const listPropertyResponsibleManagers =
   (deps: QueryDeps) =>
@@ -53,6 +30,7 @@ export const listPropertyResponsibleManagers =
       input.propertyId,
       ctx,
       'property.read',
+      RESPONSIBILITY_DENIED,
     )
     const [assignments, eligibleManagers] = await Promise.all([
       deps.managerRepo.listActive(ctx.organizationId, property.id),
@@ -132,6 +110,7 @@ export const updatePropertyResponsibleManagers =
       input.propertyId,
       ctx,
       'property.update',
+      RESPONSIBILITY_DENIED,
     )
     const managerUserIds = [...new Set(input.managerUserIds)]
     if (managerUserIds.length !== input.managerUserIds.length) {
