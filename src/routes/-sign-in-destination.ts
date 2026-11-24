@@ -1,4 +1,4 @@
-import { getActiveOrganization } from '#/contexts/identity/server/organizations'
+import { getActiveOrganization } from '#/contexts/identity/server/organizations.query'
 
 export async function signInDestination(): Promise<'/my' | '/properties'> {
   try {

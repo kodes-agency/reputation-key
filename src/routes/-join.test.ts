@@ -8,9 +8,11 @@ const { getSession, getInvitationPreview } = vi.hoisted(() => ({
 }))
 
 vi.mock('#/shared/auth/auth.functions', () => ({ getSession, ensureActiveOrg: vi.fn() }))
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.registration', () => ({
   registerMember: vi.fn(),
   listUserInvitations: vi.fn(),
+}))
+vi.mock('#/contexts/identity/server/invitation-preview', () => ({
   getInvitationPreview,
 }))
 

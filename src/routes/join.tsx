@@ -19,7 +19,7 @@ import { InvitationLinkStateCard } from '#/contexts/identity/members/ui/registra
 import { InvitationSummary } from '#/contexts/identity/members/ui/registration/invitation-summary'
 import { RegisterForm } from '#/contexts/identity/members/ui/registration/register-form'
 import { JoinEntryCard } from '#/contexts/identity/members/ui/registration/join-entry-card'
-import { registerMember } from '#/contexts/identity/server/organizations'
+import { registerMember } from '#/contexts/identity/server/organizations.registration'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { InlineLink } from '#/components/ui/inline-link'
 import { enterWorkspace } from './-join-entry'

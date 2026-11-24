@@ -42,11 +42,13 @@ import {
   inviteMember,
   updateMemberRole,
   removeMember,
+} from '#/contexts/identity/server/organizations.members'
+import {
   listInvitations,
-  listMemberPropertyAccess,
   resendInvitation,
   cancelInvitation,
-} from '#/contexts/identity/server/organizations'
+} from '#/contexts/identity/server/organizations.invitations'
+import { listMemberPropertyAccess } from '#/contexts/identity/server/organizations.member-access'
 import { ChangeRoleDialog } from '#/contexts/identity/members/ui/change-role-dialog'
 import { InviteMemberForm } from '#/contexts/identity/members/ui/invite-member-form'
 import { MemberTable, type MemberRow } from '#/contexts/identity/members/ui/member-table'

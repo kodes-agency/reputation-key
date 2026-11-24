@@ -19,12 +19,12 @@ import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { getActiveOrganization } from '#/contexts/identity/server/organizations.query'
+import { updateOrganization } from '#/contexts/identity/server/organizations.update'
 import {
-  getActiveOrganization,
-  updateOrganization,
   requestOrgLogoUpload,
   finalizeOrgLogoUpload,
-} from '#/contexts/identity/server/organizations'
+} from '#/contexts/identity/server/organizations.upload'
 import {
   getGoogleReviewTargetAnalyticsFn,
   getPrivateFeedbackTargetAnalyticsFn,
