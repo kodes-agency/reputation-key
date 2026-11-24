@@ -140,7 +140,6 @@ async function clean() {
   ]) {
     await pool.query(`DELETE FROM ${table} WHERE organization_id = $1`, [ORG_A])
   }
-  await pool.query("DELETE FROM idempotency_receipts WHERE scope = 'guest_contact_purge'")
 }
 
 afterEach(clean)
@@ -510,14 +509,9 @@ describe('contact requests through the public commands', () => {
   })
 
   it('refuses a purge batch outside its bounds', async () => {
-    const { commands, sweep } = build()
-    await expect(commands.purgeExpired({ batchSize: 0 })).rejects.toMatchObject({
-      code: 'invalid_batch_size',
-    })
-    await expect(commands.purgeExpired({ batchSize: 1_001 })).rejects.toMatchObject({
-      code: 'invalid_batch_size',
-    })
+    const { sweep } = build()
     await expect(sweep({ batchSize: 0 })).rejects.toThrow('retention bounds')
+    await expect(sweep({ batchSize: 1_001 })).rejects.toThrow('retention bounds')
   })
 
   it('writes no audit row and shows nothing when the sealed value cannot be opened', async () => {

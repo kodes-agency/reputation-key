@@ -3,8 +3,6 @@ import type {
   PortalId,
   PropertyId,
   ScanEventId,
-  RatingId,
-  FeedbackId,
   PortalLinkId,
   PortalAccessArtifactId,
   PortalGroupId,
@@ -50,29 +48,4 @@ export type GuestDestinationAction = Readonly<{
   destinationKind: 'google_review' | 'secondary_link'
   occurredAt: Date
   expiresAt: Date
-}>
-
-export type Rating = Readonly<{
-  id: RatingId
-  organizationId: OrganizationId
-  portalId: PortalId
-  propertyId: PropertyId
-  sessionId: string | null
-  value: number
-  source: ScanSource
-  ipHash: string | null
-  createdAt: Date
-}>
-
-export type Feedback = Readonly<{
-  id: FeedbackId
-  organizationId: OrganizationId
-  portalId: PortalId
-  propertyId: PropertyId
-  sessionId: string | null
-  ratingId: RatingId | null
-  comment: string
-  source: ScanSource
-  ipHash: string | null
-  createdAt: Date
 }>

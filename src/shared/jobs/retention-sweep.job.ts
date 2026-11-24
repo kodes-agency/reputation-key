@@ -408,7 +408,6 @@ type RetentionSweepDeps = Readonly<{
       batches: number
       processed: number
       capped: boolean
-      completedThrough: Date | null
     }>
   >
   /** Review blanks the provider content of superseded observation copies. */

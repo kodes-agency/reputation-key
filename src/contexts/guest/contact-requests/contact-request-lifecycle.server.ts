@@ -260,29 +260,6 @@ export function contactRequestLifecycle(
       }
       return { status: 'withdrawn' as const }
     },
-
-    purgeExpired: async (input: Readonly<{ batchSize: number }>) => {
-      if (!isBatchSize(input.batchSize)) {
-        throw contactRequestError(
-          'invalid_batch_size',
-          'Contact Request purge batch is invalid',
-        )
-      }
-      const result = await deps.repo.purgeExpired({
-        through: deps.clock(),
-        batchSize: input.batchSize,
-      })
-      return {
-        processed: result.processed,
-        checkpoint: result.checkpoint
-          ? {
-              expiresAt: result.checkpoint.expiresAt.toISOString(),
-              id: result.checkpoint.id,
-            }
-          : null,
-        completedThrough: result.completedThrough?.toISOString() ?? null,
-      }
-    },
   }
 }
 
@@ -290,7 +267,6 @@ export type ContactRequestRetentionSweepResult = Readonly<{
   batches: number
   processed: number
   capped: boolean
-  completedThrough: Date | null
 }>
 
 /** Bounded sweep over expired contact material; runs whether or not the launch switch is on. */
@@ -316,21 +292,19 @@ export const contactRequestRetentionSweep = (
     const through = deps.clock()
     let batches = 0
     let processed = 0
-    let completedThrough: Date | null = null
 
     while (batches < maxBatches) {
       const result = await deps.repo.purgeExpired({
         through,
         batchSize: input.batchSize,
       })
-      completedThrough = result.completedThrough
       if (result.processed === 0) {
-        return { batches, processed, capped: false, completedThrough }
+        return { batches, processed, capped: false }
       }
       batches += 1
       processed += result.processed
     }
 
-    return { batches, processed, capped: true, completedThrough }
+    return { batches, processed, capped: true }
   }
 }

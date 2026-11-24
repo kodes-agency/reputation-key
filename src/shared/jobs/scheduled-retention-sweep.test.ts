@@ -27,7 +27,6 @@ describe('scheduled retention activation', () => {
         batches: 1,
         processed: 2,
         capped: false,
-        completedThrough: null,
       }))
       const reviewSweep = vi.fn()
       const snapshotRunSweep = vi.fn()

@@ -2,7 +2,7 @@
 // Other contexts (metric, inbox) and shared infrastructure consume
 // event types from this barrel. Per ADR-0001.
 
-export type { ScanEvent, Rating, Feedback } from './domain/types'
+export type { ScanEvent } from './domain/types'
 
 export type {
   PortalRatingLanguageBreakdown,
