@@ -8,8 +8,6 @@ import type { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   propertyId,
@@ -117,13 +115,10 @@ async function resetFixture(): Promise<void> {
 export function installObservationFixture(): void {
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 4)
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
   beforeEach(resetFixture)
   afterAll(async () => {
     await resetFixture()
-    clearEventSchemas()
     await lease?.release()
     lease = undefined
   })

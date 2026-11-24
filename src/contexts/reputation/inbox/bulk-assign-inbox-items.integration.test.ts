@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
 import { bulkAssignInboxItems } from './bulk-assign-inbox-items.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   clearInboxOrganization,
   createUseCaseCommandStore,
@@ -115,15 +113,12 @@ describe.sequential('bulkAssignInboxItems', () => {
 
   beforeAll(async () => {
     pool = openFixturePool()
-    clearEventSchemas()
-    registerAllEventSchemas()
     await seedInboxOrganization(pool, ORG, [PROP_A, PROP_B])
   })
 
   beforeEach(() => clearInboxOrganization(pool, ORG))
 
   afterAll(async () => {
-    clearEventSchemas()
     await dropInboxOrganization(pool, ORG)
     await pool.end()
   })

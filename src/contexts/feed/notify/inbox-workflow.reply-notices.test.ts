@@ -1,6 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it } from 'vitest'
 import { handleWorkflowNotificationEvent } from './inbox-workflow.server'
 import { NOTIF_TEST_IDS } from '../infrastructure/notification-consumer-test-fixtures'
 import {
@@ -22,15 +20,6 @@ const makeDeps = makeWorkflowDeps
 const IDS = NOTIF_TEST_IDS
 
 describe('durable workflow notification consumers', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
-  afterEach(() => {
-    clearEventSchemas()
-  })
-
   describe('a reply that failed to publish', () => {
     const publishFailed = (authorId: string | null) =>
       event('review.reply.publish_failed', publishFailedPayload(authorId))

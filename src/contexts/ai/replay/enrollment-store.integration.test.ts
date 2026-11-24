@@ -3,8 +3,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   aiExecutionControlHeads,
   aiOperations,
@@ -66,8 +64,6 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clear()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -167,7 +163,6 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
 
   afterAll(async () => {
     await clear()
-    clearEventSchemas()
   })
 
   it('enrols an enabled property by snapshotting its eligible revisions with the built-in sha256', async () => {

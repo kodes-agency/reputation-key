@@ -1,12 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod/v4'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { portalId, propertyId, unbrand, userId } from '#/shared/domain/ids'
 import type { PortalDestinationApprovalFacts } from '#/contexts/portal/public-api'
 import {
@@ -82,12 +80,6 @@ describe('a site waiting for approval tells the account admins', () => {
 
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
-  afterEach(() => {
-    clearEventSchemas()
   })
 
   it('registers under its own consumer identity', () => {

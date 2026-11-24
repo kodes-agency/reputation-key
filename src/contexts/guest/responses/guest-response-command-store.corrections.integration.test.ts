@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { sql } from 'drizzle-orm'
 import type { GuestResponse } from '../domain/guest-response'
 import {
@@ -38,8 +36,6 @@ const FEEDBACK_TEXT = 'Please contact the front desk.'
 const WITHDRAWN_AT = new Date('2026-08-25T12:45:00.000Z')
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedGuestResponseTenants()
 })
 
@@ -47,7 +43,6 @@ beforeEach(resetGuestResponseState)
 
 afterAll(async () => {
   await deleteGuestResponseTenants()
-  clearEventSchemas()
 })
 
 describe.sequential('atomic Guest response submission', () => {

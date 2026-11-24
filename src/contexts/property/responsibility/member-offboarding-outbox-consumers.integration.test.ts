@@ -15,8 +15,6 @@ import { capabilityForSystemAction } from '#/shared/auth/system-execution-policy
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
@@ -184,15 +182,12 @@ async function clean(): Promise<void> {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
 })
 
 afterAll(async () => {
   await clean()
   await pool.end()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

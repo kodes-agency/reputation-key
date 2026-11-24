@@ -2,8 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, it, expect } from 'vitest'
 import { Pool } from 'pg'
 import { setInboxItemPriority } from './set-inbox-item-priority.server'
 import { getEnv } from '#/shared/config/env'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { isInboxError, PRIORITY_CHANGED_MESSAGE } from '../domain/inbox-errors'
 import {
@@ -89,8 +87,6 @@ let pool: Pool
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedInboxOrganization(pool, ORG_ID, [PROP_ID, PROP_ELSEWHERE])
 })
 
@@ -98,7 +94,6 @@ beforeEach(() => clearInboxOrganization(pool, ORG_ID))
 
 afterAll(async () => {
   await dropInboxOrganization(pool, ORG_ID)
-  clearEventSchemas()
   await pool.end()
 })
 

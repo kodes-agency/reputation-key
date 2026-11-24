@@ -15,8 +15,6 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   metricReadingId,
   organizationId,
@@ -230,8 +228,6 @@ async function clean(): Promise<void> {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Rating Correction', ${ORG}, now())
@@ -260,7 +256,6 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM portals WHERE id = ${PORTAL}`)
   await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY}`)
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 describe.sequential('Rating correction readings (integration)', () => {

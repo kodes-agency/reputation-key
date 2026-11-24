@@ -1,4 +1,4 @@
-import { beforeEach, expect } from 'vitest'
+import { expect } from 'vitest'
 import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/public-api'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
@@ -13,8 +13,6 @@ import {
   type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { staffApiOf } from '#/shared/testing/staff-public-api-stub'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
@@ -96,10 +94,6 @@ export function setupLifecycleDb(): void {
       'properties',
     ],
   }).getPool
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
 }
 
 export const ratingGoalGuard = createPortalRatingGoalGuard()

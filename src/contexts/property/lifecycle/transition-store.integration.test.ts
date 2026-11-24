@@ -4,8 +4,6 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { propertyArchived, propertyRestored } from '../domain/events'
 import { createPropertyLifecycleCommandStore } from './transition-store.server'
 
@@ -106,8 +104,6 @@ async function resetProperty() {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (

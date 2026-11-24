@@ -5,8 +5,6 @@
 import { describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { createPropertyRepository } from '../profile/property-repository.server'
@@ -67,8 +65,6 @@ const recoveryFacts = async () =>
  * them as eligible and before its own write commits.
  */
 const setup = async (removedWhileSaving: readonly string[] = []) => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedTestProperty(db, PROPERTY)
   const realManagerRepo = createPropertyResponsibleManagerRepository(db)
   const gone = new Set<string>()

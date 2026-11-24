@@ -3,8 +3,6 @@ import { createReviewResponseTargetAuthority } from '#/contexts/reputation/revie
 import { createReviewRepository } from './review-repository.server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { readObservationHistory } from './review-observation-history.test-fixtures'
 import { createGoogleReplyObservationStore } from '../publication/google-reply-observation-store.server'
@@ -35,8 +33,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   vi.clearAllMocks()
   await seedReobserveProperties(getPool())
 })

@@ -7,8 +7,6 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { userId } from '#/shared/domain/ids'
 import { portalPublicationPublished, portalUpdated } from '../domain/events'
@@ -71,11 +69,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())

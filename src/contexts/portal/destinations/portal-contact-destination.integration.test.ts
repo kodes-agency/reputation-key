@@ -8,8 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   portalApprovedDestinationId,
@@ -82,8 +80,6 @@ const request = (uri: string, at: Date = STORED_AT) =>
 
 beforeEach(async () => {
   ids = 0
-  clearEventSchemas()
-  registerAllEventSchemas()
   const portal = buildTestPortal({
     id: PORTAL_A,
     organizationId: ORG_A,

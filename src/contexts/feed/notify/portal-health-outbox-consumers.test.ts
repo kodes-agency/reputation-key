@@ -4,8 +4,6 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
@@ -94,13 +92,10 @@ const makeDeps = () => {
 describe('Portal Health notification durable consumer', () => {
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers the exact durable Portal Health route', () => {

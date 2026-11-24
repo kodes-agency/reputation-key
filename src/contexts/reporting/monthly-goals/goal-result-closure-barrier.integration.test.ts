@@ -12,7 +12,6 @@ import {
   metricReadingId,
 } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
   checkScopedCapability,
@@ -41,7 +40,6 @@ const VERSION = METRIC_VERSION_IDS.portalRatingCountGoal
 describe.sequential('Goal result closure barriers (integration)', () => {
   let lease: TestLease
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL)
   })
   afterAll(async () => {

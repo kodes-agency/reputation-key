@@ -11,8 +11,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
@@ -186,8 +184,6 @@ async function resetFixture(): Promise<void> {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 4)
   pool = lease.pool
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 beforeEach(resetFixture)
@@ -195,7 +191,6 @@ beforeEach(resetFixture)
 afterAll(async () => {
   await resetFixture()
   await deleteTestOrganizations(pool, [ORG, OTHER_ORG])
-  clearEventSchemas()
   await lease.release()
 })
 

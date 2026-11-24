@@ -1,4 +1,4 @@
-// Portal workflow fact schemas, registered by ./schema-registrations.ts.
+// Portal workflow fact schemas, listed in ./registry.server.ts.
 //
 // A content review records three facts at once: the review itself, the
 // configuration completeness and the approved destination ratio. They share

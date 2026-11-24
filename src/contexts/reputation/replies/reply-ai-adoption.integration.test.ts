@@ -17,8 +17,6 @@ import { Pool } from 'pg'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { Reply } from '../domain/review-types'
 import {
   reviewReplyApproved,
@@ -53,8 +51,6 @@ let harness: ReplyWorkflowHarness
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 5 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   harness = await createReplyWorkflowHarness({
     pool,
     locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -65,7 +61,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await harness.remove()
-  clearEventSchemas()
   await pool.end()
 }, WORKFLOW_HOOK_TIMEOUT_MS)
 

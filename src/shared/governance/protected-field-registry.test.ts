@@ -2,12 +2,10 @@
 // live database schema and registered durable events.
 
 import { getTableColumns, getTableName, isTable } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import * as schema from '#/shared/db/schema'
 import * as outboxSchema from '#/shared/db/schema/outbox.schema'
 import { eventDescriptors } from '#/shared/events/registry.server'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas, isEventRegistered } from '#/shared/events/schema-registry'
 import {
   PROTECTED_FIELD_REGISTRY,
   type ProtectedFieldRule,
@@ -80,12 +78,6 @@ function registryKey([relation, field]: ProtectedFieldRule): string {
 }
 
 describe('protected-field registry', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-  afterEach(clearEventSchemas)
-
   it('has no duplicate entries', () => {
     const keys = PROTECTED_FIELD_REGISTRY.map(registryKey)
     const duplicates = keys.filter((key, index) => keys.indexOf(key) !== index)
@@ -138,11 +130,7 @@ describe('protected-field registry', () => {
       `event payload fields missing from the registry: ${missing.join(', ')}`,
     ).toEqual([])
 
-    const registeredTypes = new Set(
-      eventDescriptors
-        .filter(({ type, version }) => isEventRegistered(type, version))
-        .map(({ type }) => type),
-    )
+    const registeredTypes = new Set(eventDescriptors.map(({ type }) => type))
     const unknown = PROTECTED_FIELD_REGISTRY.filter(([relation]) =>
       relation.startsWith('event:'),
     )

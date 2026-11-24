@@ -32,8 +32,6 @@ import {
   acquireRedisTestLease,
   type RedisTestLease,
 } from '#/shared/testing/redis-test-lease'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   organizationId,
   propertyId,
@@ -374,9 +372,6 @@ beforeAll(async () => {
   const client = await pool.connect()
   client.release()
 
-  clearEventSchemas()
-  registerAllEventSchemas()
-
   await pool.query('DELETE FROM inbox_notes WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
   await pool.query(
@@ -524,7 +519,6 @@ afterAll(async () => {
     await deleteTestOrganizations(pool, [ORG])
     await pool.end()
   }
-  clearEventSchemas()
 })
 
 describe.sequential('outbox delivery end-to-end proof', () => {

@@ -42,8 +42,6 @@ import { createAtomicMetricCommandStore } from '../readings/metric-command-store
 import { createPropertyLocalDateResolver } from '../readings/property-local-date.server'
 import { recordMetrics } from '../readings/record-metric.server'
 import { onQualifiedScanRecordedDurably } from '../readings/record-portal-metric.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const ORG = organizationId('org-portal-metrics-integration')
 const PROP = propertyId('c1000000-0000-4000-8000-000000000001')
@@ -137,8 +135,6 @@ let pool: Pool
 let db: Database
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query(
@@ -275,7 +271,6 @@ afterAll(async () => {
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
-  clearEventSchemas()
   await pool.end()
 })
 

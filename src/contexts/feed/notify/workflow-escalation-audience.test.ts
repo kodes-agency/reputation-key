@@ -1,9 +1,7 @@
 // Who hears that an Inbox item was escalated when the person asking for help
 // is the only one its scope names.
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it } from 'vitest'
 import { unbrand, type UserId } from '#/shared/domain/ids'
 import { handleWorkflowNotificationEvent } from './inbox-workflow.server'
 import { NOTIF_TEST_IDS } from '../infrastructure/notification-consumer-test-fixtures'
@@ -21,12 +19,6 @@ const escalated = (actorId: UserId) =>
   })
 
 describe('an escalation raised by the only responsible manager', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-  afterEach(() => clearEventSchemas())
-
   it('reaches the AccountAdmins, who are who is left to help', async () => {
     const deps = makeWorkflowDeps()
     deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([

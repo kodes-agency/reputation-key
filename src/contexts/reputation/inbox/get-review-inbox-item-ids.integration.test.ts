@@ -4,8 +4,6 @@ import {
   getReviewInboxItemIds,
   REVIEW_INBOX_ITEM_LOOKUP_LIMIT,
 } from './get-review-inbox-item-ids.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   clearInboxOrganization,
   createUseCaseDatabase,
@@ -139,8 +137,6 @@ describe.sequential('getReviewInboxItemIds', () => {
 
   beforeAll(async () => {
     pool = openFixturePool()
-    clearEventSchemas()
-    registerAllEventSchemas()
     await seedInboxOrganization(pool, ORG_ID, [PROPERTY, OTHER_PROPERTY])
     await seedInboxOrganization(pool, OTHER_ORG_ID, [FOREIGN_ORG_PROPERTY])
   })
@@ -151,7 +147,6 @@ describe.sequential('getReviewInboxItemIds', () => {
   })
 
   afterAll(async () => {
-    clearEventSchemas()
     await dropInboxOrganization(pool, ORG_ID)
     await dropInboxOrganization(pool, OTHER_ORG_ID)
     await pool.end()

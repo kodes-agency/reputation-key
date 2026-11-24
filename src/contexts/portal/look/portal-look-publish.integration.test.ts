@@ -8,8 +8,6 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { userId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { portalPublicationPublished, portalUpdated } from '../domain/events'
@@ -191,8 +189,6 @@ async function untilWaitingOnLock(): Promise<void> {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedPortalWorkingCopy(getPool(), SCENARIO)
   await publishFirstVersion()
 })

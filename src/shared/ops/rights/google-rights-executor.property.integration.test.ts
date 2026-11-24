@@ -8,8 +8,6 @@ import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
 import { getImportProgress } from '#/contexts/integration/imports/import-progress-store.server'
 import { createImportRetention } from '#/contexts/integration/imports/import-retention.server'
-import { integrationEventDescriptors } from '#/shared/events/integration-event-descriptors'
-import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-registry'
 import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
 import {
@@ -122,24 +120,14 @@ describe.sequential('Google rights executor through the rights-request command',
     expect(progress?.totalCount).toBe(2)
     expect(progress?.items).toHaveLength(2)
 
-    const released = integrationEventDescriptors.find(
-      (descriptor) =>
-        descriptor.type === 'integration.property_import.retention_released',
-    )
-    if (!released) throw new Error('retention_released descriptor is missing')
-    registerEventSchema(released)
-    try {
-      const purged = await createImportRetention(harness.db).purgeParent({
-        organizationId: asked.organizationId,
-        importJobId: threeItemImportId,
-        expectedDeletionFence: 0,
-        now: NOW,
-        outboxEventId: randomUUID(),
-      })
-      expect(purged).toBe('purged')
-    } finally {
-      clearEventSchemas()
-    }
+    const purged = await createImportRetention(harness.db).purgeParent({
+      organizationId: asked.organizationId,
+      importJobId: threeItemImportId,
+      expectedDeletionFence: 0,
+      now: NOW,
+      outboxEventId: randomUUID(),
+    })
+    expect(purged).toBe('purged')
     const left = await harness.lease.pool.query(
       `SELECT count(*)::int AS count FROM google_import_items
        WHERE organization_id = $1 AND import_id = $2`,

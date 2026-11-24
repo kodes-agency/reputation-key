@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { integrationGoogleReviewPushAccepted } from './events'
 
 describe('integration.google_review_push.accepted', () => {
   it('serializes only routing identifiers and the opaque target reference', () => {
-    registerAllEventSchemas()
     const event = integrationGoogleReviewPushAccepted({
       organizationId: organizationId('org-google-push'),
       propertyId: '00000000-0000-4000-8000-000000000001',

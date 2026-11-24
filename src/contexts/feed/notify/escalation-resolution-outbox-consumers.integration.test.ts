@@ -20,8 +20,6 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { inboxItemId, propertyId, userId, type UserId } from '#/shared/domain/ids'
 import { registerEscalationResolutionNotificationConsumer } from './inbox-notice-routes.server'
 import {
@@ -135,12 +133,9 @@ describe.sequential(
 
     beforeEach(() => {
       consumerRegistry = createConsumerRegistry()
-      clearEventSchemas()
-      registerAllEventSchemas()
     })
     afterEach(async () => {
       consumerRegistry = createConsumerRegistry()
-      clearEventSchemas()
       await held.db.delete(notificationEmailQueue)
       await held.db.delete(notifications)
     })

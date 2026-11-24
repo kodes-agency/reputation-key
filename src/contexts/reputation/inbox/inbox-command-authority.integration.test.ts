@@ -5,8 +5,6 @@ import { getPool } from '#/shared/db/pool'
 import { raceAgainstGrantRevocation } from '#/shared/db/testing/lock-race'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 import {
   feedbackId,
@@ -139,8 +137,6 @@ beforeAll(async () => {
       ('member-inbox-batch-owner', ${OWNER}, ${ORG}, 'owner', now()),
       ('member-inbox-batch-manager', ${MANAGER}, ${ORG}, 'admin', now())
   `)
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 beforeEach(async () => {
@@ -156,7 +152,6 @@ beforeEach(async () => {
 })
 
 afterAll(async () => {
-  clearEventSchemas()
   await clearCommandRows()
   await dropAuthorityFixture()
   await deleteTestOrganizations(db, [ORG])

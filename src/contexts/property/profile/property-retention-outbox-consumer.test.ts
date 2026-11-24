@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   createConsumerRegistry,
   type ConsumerRegistry,
@@ -42,13 +40,10 @@ function store() {
 describe('Property import retention-release consumer', () => {
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers the durable consumer identity declared in governance', () => {

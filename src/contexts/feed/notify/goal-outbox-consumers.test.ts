@@ -4,8 +4,6 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { userId, type UserId } from '#/shared/domain/ids'
 import type {
   MonthlyResultNotificationFactsLookup,
@@ -196,13 +194,10 @@ const makeDeps = () => {
 describe('canonical Goal monthly-result notification consumer', () => {
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers closed and revised results, never reconciled or a notification type', () => {

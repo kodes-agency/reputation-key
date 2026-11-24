@@ -4,7 +4,6 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   holdTransaction,
   type HeldTransaction,
@@ -71,7 +70,6 @@ describe.sequential(
       })
 
     beforeAll(async () => {
-      registerAllEventSchemas()
       held = await holdTransaction()
       await seedProperty(held.db, { id: PROPERTY, organizationId: ORG })
       await seedProperty(held.db, { id: OTHER_PROPERTY, organizationId: ORG })

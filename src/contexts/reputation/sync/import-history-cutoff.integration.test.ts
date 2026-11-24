@@ -29,8 +29,6 @@ import {
   type OrganizationId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { GoogleReview } from '../domain/review-types'
 import type { GoogleReviewPage } from './google-review-api.port.server'
@@ -362,8 +360,6 @@ const measuredRevision = (startAt: Date | undefined) => ({
 const clear = () => clearReviewSnapshotData(db, ORG)
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clear()
   await deleteTestOrganizations(db, [ORG])
   await insertTestOrganization(db, ORG, 'History cutoff test')
@@ -397,7 +393,6 @@ afterAll(async () => {
   await clear()
   await subjectKeys.removeInserted()
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 describe('initial import history cutoff (real PostgreSQL)', () => {

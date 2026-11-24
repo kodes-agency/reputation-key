@@ -3,8 +3,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { trackReviewLinkClick } from './track-review-link-click.server'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId, portalLinkId } from '#/shared/domain/ids'
 import type { GuestObservationStore } from './guest-observation-store.port.server'
@@ -36,8 +34,6 @@ async function clickFacts() {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Review Link Click', ${ORG}, now())
@@ -66,7 +62,6 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM portals WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 describe('trackReviewLinkClick', () => {

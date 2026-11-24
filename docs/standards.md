@@ -52,7 +52,7 @@ Every event `_tag` follows `context.entity.verb`:
 and keep them: `goal.*` and `metric.*` (Reporting; context names before WP3.4) and
 `portal_group.*`, `portal_link.*` and `portal_link_category.*` (Portal; the
 standard form would be `portal.portal_link.*`). They are stored in
-`outbox.event_type` and keyed in `src/shared/events/schema-registrations.ts`, so
+`outbox.event_type` and keyed in `src/shared/events/registry.server.ts`, so
 renaming one is a data migration, not a find-and-replace. Do not model new events
 on them. Retired context names are not valid prefixes: `activity` and
 `notification` (now `feed`), `dashboard` (now `reporting`), `staff` (now

@@ -9,8 +9,8 @@
 
 import type { OutboxEventInsert } from '#/shared/db/schema/outbox.schema'
 import type { DomainEvent } from '#/shared/events/events'
-import { getEventSchema, validateEventPayload } from '#/shared/events/schema-registry'
-import { emittedEventVersion } from '#/shared/events/registry.server'
+import { validateEventPayload } from '#/shared/events/schema-registry'
+import { emittedEventVersion, getEventDescriptor } from '#/shared/events/registry.server'
 import { resolveEventAggregate } from '#/shared/events/descriptor'
 
 /**
@@ -106,7 +106,7 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
   const eventType = event._tag
   const eventVersion = emittedEventVersion(event)
 
-  const descriptor = getEventSchema(eventType, eventVersion)
+  const descriptor = getEventDescriptor(eventType, eventVersion)
   if (!descriptor) {
     throw new OutboxPayloadError(
       'unregistered',

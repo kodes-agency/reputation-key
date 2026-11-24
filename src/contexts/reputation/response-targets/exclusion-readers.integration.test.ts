@@ -2,8 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   GUEST_UPDATE_TIME,
@@ -104,14 +102,11 @@ async function excludeEveryRestatedCycle(): Promise<void> {
 
 beforeAll(() => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
   await cleanRestatedRevisionScope(pool, ORG)
   await pool.end()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

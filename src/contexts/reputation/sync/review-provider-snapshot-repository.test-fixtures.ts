@@ -3,8 +3,6 @@ import { afterAll, beforeAll } from 'vitest'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { getDb } from '#/shared/db'
 import { properties, reviewProviderSnapshotRuns } from '#/shared/db/schema'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteOrganizationReplies } from '#/shared/db/testing/test-organization-cleanup'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createReviewProviderSnapshotRepository } from './review-provider-snapshot-repository.server'
@@ -61,8 +59,6 @@ export function useSnapshotRepositoryDb() {
 
   beforeAll(async () => {
     await clear()
-    clearEventSchemas()
-    registerAllEventSchemas()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
       VALUES (${ORGANIZATION_ID}, 'Snapshot repo test', ${ORGANIZATION_ID}, ${STARTED_AT})
@@ -83,7 +79,6 @@ export function useSnapshotRepositoryDb() {
 
   afterAll(async () => {
     await clear()
-    clearEventSchemas()
   })
 
   return { db, repository, clear }

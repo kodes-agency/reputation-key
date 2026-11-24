@@ -9,8 +9,6 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import type { CreatePortalGroupCommand } from './portal-command-store-port.server'
@@ -47,8 +45,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Reception', 'reception', 'UTC')`,

@@ -3,11 +3,9 @@
 // reached the Inbox. Those projections run concurrently with the finished fact
 // and retry on their own backoff, so the summary waits for them — and past its
 // horizon drops the number rather than state a wrong one.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { PrerequisiteNotReadyError } from '#/shared/outbox'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { propertyId, unbrand } from '#/shared/domain/ids'
 import {
   createNotificationConsumerDeps,
@@ -75,12 +73,6 @@ const makeDeps = (now: Date) => {
 }
 
 describe('import summary waits for its Inbox projections', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-  afterEach(() => clearEventSchemas())
-
   it('retries instead of counting while the import is still reaching the Inbox', async () => {
     const deps = makeDeps(new Date(RECORDED_AT.getTime() + 5_000))
 

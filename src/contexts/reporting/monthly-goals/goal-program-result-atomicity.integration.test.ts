@@ -3,7 +3,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../readings/contracts'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type {
   GoalMonthlyResult,
@@ -44,7 +43,6 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
   let metricDefinitionId: string
 
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL, 8)
     organizationId = `goal-result-atomicity-${randomUUID()}`
     propertyId = randomUUID()

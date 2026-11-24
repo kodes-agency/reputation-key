@@ -7,8 +7,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { seedTenantPortal } from '#/shared/db/testing/tenant-seed'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   organizationId,
   portalId,
@@ -226,8 +224,6 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: env.DATABASE_URL, max: 2 })
   const client = await pool.connect()
   client.release()
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clearTenantRows(pool)
   await seedTenantPortal(pool, {
     orgId: ORG_ID,
@@ -274,7 +270,6 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  clearEventSchemas()
   await clearTenantRows(pool)
   await deleteTestOrganizations(pool, TENANT_IDS)
   await pool.end()

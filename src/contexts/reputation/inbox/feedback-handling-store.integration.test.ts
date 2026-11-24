@@ -4,8 +4,6 @@ import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import {
@@ -108,13 +106,10 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 4 })
   const client = await pool.connect()
   client.release()
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
   await clean()
-  clearEventSchemas()
   await pool.end()
 })
 

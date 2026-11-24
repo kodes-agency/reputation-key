@@ -30,8 +30,6 @@ import {
   reviewSourceContents,
 } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -250,8 +248,6 @@ const authorizationChange: ConcurrentWriter = {
 }
 
 beforeAll(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   replayPool = new Pool({
     connectionString: getEnv().DATABASE_URL,
     max: 2,
@@ -268,7 +264,6 @@ afterAll(async () => {
   await replayPool.end()
   await writerPool.end()
   await clear()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

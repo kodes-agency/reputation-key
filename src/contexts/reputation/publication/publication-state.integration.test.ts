@@ -22,8 +22,6 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { DomainEvent } from '#/shared/events/events'
 import {
   organizationId,
@@ -208,12 +206,9 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: env.DATABASE_URL, max: 5 })
   const client = await pool.connect()
   client.release()
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
-  clearEventSchemas()
   await pool.end()
 })
 

@@ -22,8 +22,6 @@ import {
   propertyId,
   reviewId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deriveReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -405,8 +403,6 @@ async function clear(): Promise<void> {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clear()
   await deleteTestOrganizations(db, [ORG])
   await db.execute(sql`
@@ -465,7 +461,6 @@ afterAll(async () => {
     `)
   }
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 const storedBy = {

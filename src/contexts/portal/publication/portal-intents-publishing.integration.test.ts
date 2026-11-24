@@ -5,8 +5,6 @@
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { getDb } from '#/shared/db'
 import {
   METRIC_DEFINITION_IDS,
@@ -45,8 +43,6 @@ const { portalRow, factsOf, snapshotsOf, activationsOf, footprint, seedPortal } 
   createIntentsHarness(getPool)
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedIntentProperties(getPool())
 })
 

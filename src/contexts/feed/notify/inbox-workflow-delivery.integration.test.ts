@@ -14,7 +14,6 @@ import {
 } from '#/shared/db/schema'
 import { notificationEmailId, notificationId, inboxItemId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import {
@@ -94,7 +93,6 @@ describe.sequential('Inbox workflow delivery races (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL, 5)
     db = drizzle(lease.pool) as Database
   })

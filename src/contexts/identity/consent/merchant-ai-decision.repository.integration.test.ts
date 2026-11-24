@@ -1,18 +1,17 @@
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db/index'
 import { getEnv } from '#/shared/config/env'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { hideEventDescriptors } from '#/shared/testing/event-descriptor-overrides'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from './merchant-ai-authorization.server'
 import { createMerchantAiAuthorizationStore } from './merchant-ai-authorization.repository.server'
 import { createMerchantAiDecisionDeferralStore } from './merchant-ai-decision.repository.server'
@@ -151,7 +150,6 @@ async function removeProperties(): Promise<void> {
 
 beforeAll(async () => {
   cleanupPool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 1 })
-  registerAllEventSchemas()
   for (const [organizationId, slug] of [
     [ORG, `ai-deferral-${SUFFIX}`],
     [OTHER_ORG, `ai-deferral-other-${SUFFIX}`],
@@ -185,7 +183,6 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  registerAllEventSchemas()
   await removeProperties()
   await insertProperty(ORG, PROPERTY, `deferral-${SUFFIX}`)
   await insertProperty(ORG, GRANTED_PROPERTY, `deferral-granted-${SUFFIX}`)
@@ -208,6 +205,14 @@ afterAll(async () => {
     await deleteTestOrganizations(client, [ORG, OTHER_ORG])
   })
   await cleanupPool.end()
+})
+
+vi.mock('#/shared/events/registry.server', async (importOriginal) => {
+  const { withEventDescriptorOverrides } =
+    await import('#/shared/testing/event-descriptor-overrides')
+  return withEventDescriptorOverrides(
+    await importOriginal<typeof import('#/shared/events/registry.server')>(),
+  )
 })
 
 describe('Merchant AI decision deferral store', () => {
@@ -268,13 +273,18 @@ describe('Merchant AI decision deferral store', () => {
 
     // An unregistered outbox fact fails the enable after the deferral delete
     // ran: the whole transaction must roll back with it.
-    clearEventSchemas()
-    await expect(
-      authorizations.mutate(enableCommand(PROPERTY, `deferral-rollback-${randomUUID()}`)),
-    ).rejects.toMatchObject({ name: 'OutboxPayloadError', code: 'unregistered' })
+    hideEventDescriptors(true)
+    try {
+      await expect(
+        authorizations.mutate(
+          enableCommand(PROPERTY, `deferral-rollback-${randomUUID()}`),
+        ),
+      ).rejects.toMatchObject({ name: 'OutboxPayloadError', code: 'unregistered' })
+    } finally {
+      hideEventDescriptors(false)
+    }
     expect(await deferralRows(PROPERTY)).toBe(1)
 
-    registerAllEventSchemas()
     await expect(
       authorizations.mutate(enableCommand(PROPERTY, `deferral-commit-${randomUUID()}`)),
     ).resolves.toMatchObject({ state: 'enabled' })

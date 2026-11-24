@@ -1,6 +1,5 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   handlePropertyBindingAuthorizationInvalidation,
   PROVIDER_AUTHORIZATION_INVALIDATION_CONSUMER,
@@ -26,10 +25,6 @@ const EVENT: ConsumerEvent = {
     change: 'relinked',
   },
 }
-
-beforeAll(() => {
-  registerAllEventSchemas()
-})
 
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
 const CONNECTION_ID = '00000000-0000-4000-8000-000000000002'

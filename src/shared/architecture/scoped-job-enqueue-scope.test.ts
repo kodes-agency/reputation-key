@@ -30,8 +30,6 @@ import {
   resetDelayedExecutionPolicy,
   type DelayedDecisionRequest,
 } from '#/shared/auth/system-execution-policy'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   ENTRY_POINT_CATALOGUE,
   type EntryPointRow,
@@ -211,8 +209,6 @@ describe('scoped job families are enqueued with the scope the gate decides on', 
   const requests: DelayedDecisionRequest[] = []
 
   beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     requests.length = 0
     resetCapabilityPolicyStore()
     // Every controlled capability open: a denial here can only be about scope.
@@ -229,7 +225,6 @@ describe('scoped job families are enqueued with the scope the gate decides on', 
   afterEach(() => {
     resetDelayedExecutionPolicy()
     resetCapabilityPolicyStore()
-    clearEventSchemas()
   })
 
   it('names how every organization- and property-scoped job family is enqueued', () => {

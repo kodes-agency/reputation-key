@@ -4,7 +4,6 @@ import type { Container } from '#/composition'
 import type { Database } from '#/shared/db'
 import { parseEnvironment, resetEnv } from '#/shared/config/env'
 import type { Clock } from '#/shared/domain/clock'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { clearTestContainerEnv } from '#/shared/testing/clear-container-env'
@@ -89,7 +88,6 @@ describe('operator container controls', () => {
   let container: Container | undefined
 
   beforeEach(() => {
-    clearEventSchemas()
     clearTestContainerEnv()
   })
 

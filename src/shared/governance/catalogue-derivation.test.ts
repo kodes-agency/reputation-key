@@ -158,6 +158,7 @@ describe('definitions stay below the catalogues', () => {
         'src/shared/jobs/job-definitions.ts',
         'src/shared/events/consumer-definitions.ts',
         'src/shared/events/consumer-entry-points.ts',
+        'src/shared/events/registry.server.ts',
       ].map((path) => join(root, path)),
     )
     const outside = sourceFiles('src/shared/governance').flatMap((file) =>

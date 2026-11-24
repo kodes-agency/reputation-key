@@ -23,8 +23,6 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { JOB_OPERATIONAL_QUEUE_CONCURRENCY } from '#/shared/jobs/operational-catalogue'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import type { ConsumerEvent } from '#/shared/outbox'
@@ -373,8 +371,6 @@ function createBurstPool(max: number): Pool {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 2)
   pool = createBurstPool(EXHAUSTIBLE_POOL_SIZE)
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
@@ -382,7 +378,6 @@ afterAll(async () => {
   await clean()
   await deleteTestOrganizations(lease.pool, [ORG])
   await lease.release()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

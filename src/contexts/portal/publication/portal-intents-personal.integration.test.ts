@@ -4,8 +4,6 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { getDb } from '#/shared/db'
 import { toPublicPortalLoaderData } from '#/contexts/guest/page/public-portal.contracts'
 import { printKitFileName } from '#/shared/domain/portal-print-kit'
@@ -39,8 +37,6 @@ const { portalRow, factsOf, snapshotsOf, footprint, seedPortal } =
   createIntentsHarness(getPool)
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedIntentProperties(getPool())
 })
 

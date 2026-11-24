@@ -1,17 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it } from 'vitest'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { affectedUserFromIdentityFact } from './organization-account-notification-authority.adapter.server'
 
 const ORG = organizationId('org-account-notice')
 
 describe('Organization account notification durable authority', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   it.each([
     {
       eventType: 'identity.invitation.accepted' as const,

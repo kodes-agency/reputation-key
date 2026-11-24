@@ -19,7 +19,6 @@ import { reviewGoogleReputationSnapshotFacts } from '../../src/shared/db/schema/
 import { reviews } from '../../src/shared/db/schema/review.schema'
 import { reviewSourceContents } from '../../src/shared/db/schema/review-source-content.schema'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
-import { registerAllEventSchemas } from '../../src/shared/events/schema-registrations'
 import { insertOutboxRow } from '../../src/shared/outbox/commit'
 import { computeAiReviewSourceProvenance } from '../../src/contexts/reputation/reviews/ai-review-source.server'
 import {
@@ -245,7 +244,6 @@ export async function ensureGoogleNumbers(
   propertyIds: readonly string[],
   now: Date = new Date(),
 ): Promise<readonly SeededGoogleNumbers[]> {
-  registerAllEventSchemas()
   const seeded: SeededGoogleNumbers[] = []
   for (const id of propertyIds) {
     const numbers = await verifyGoogleNumbers(db, id, now)

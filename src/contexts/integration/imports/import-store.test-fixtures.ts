@@ -32,7 +32,6 @@ import {
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -185,7 +184,6 @@ export function useImportStoreFixtures(options: { orgPrefix: string }) {
       readReceipt: propertyApi().readReceipt,
       prepareImportSync,
     })
-    registerAllEventSchemas()
     await clearWork()
     await db
       .delete(googleConnections)

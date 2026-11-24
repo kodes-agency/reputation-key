@@ -4,8 +4,6 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   BETA_FEEDBACK_OUTCOME_CONSUMER,
   handleBetaFeedbackOutcomeEvent,
@@ -61,12 +59,9 @@ const makeDeps = () => {
 describe('Identity account mandatory notification consumers', () => {
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers the durable affected-account facts and the inviter notice, and not an invitation being sent', () => {
@@ -368,12 +363,9 @@ describe('beta feedback outcome consumer (ADR 0059)', () => {
 
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('is registered beside the account notices', () => {

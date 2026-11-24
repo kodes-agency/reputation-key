@@ -4,8 +4,6 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { propertyResponsibilityNeeded } from '../domain/events'
 import { createPropertyResponsibleManagerRepository } from './manager-repository.server'
 
@@ -19,8 +17,6 @@ const UNASSIGNED = new Date('2026-08-25T12:00:00.000Z')
 let pool: Pool
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
@@ -44,7 +40,6 @@ afterAll(async () => {
   await clearTenants()
   await deleteTestOrganizations(pool, [ORG, OTHER_ORG])
   await pool.end()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

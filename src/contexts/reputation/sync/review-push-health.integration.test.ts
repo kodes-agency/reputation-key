@@ -19,8 +19,6 @@ import {
   type OrganizationId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deriveReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { ReviewFirstSeenVia } from '#/shared/domain/push-health'
@@ -259,8 +257,6 @@ async function clear(): Promise<void> {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clear()
   await deleteTestOrganizations(db, [ORG, OTHER_ORG])
   for (const org of [ORG, OTHER_ORG]) {
@@ -319,7 +315,6 @@ afterAll(async () => {
     `)
   }
   await deleteTestOrganizations(db, [ORG, OTHER_ORG])
-  clearEventSchemas()
 })
 
 describe('push health ledger (real PostgreSQL)', () => {

@@ -2,11 +2,19 @@ import type { ClientBase } from 'pg'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 import type { DomainEvent } from '#/shared/events/events'
-import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-registry'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { observeClient } from '#/shared/db/scope-observation.server'
 import { getRequestContext } from './request-context'
 import { tracedHandler } from './traced-server-fn'
+import { overrideEventDescriptor } from '#/shared/testing/event-descriptor-overrides'
+
+vi.mock('#/shared/events/registry.server', async (importOriginal) => {
+  const { withEventDescriptorOverrides } =
+    await import('#/shared/testing/event-descriptor-overrides')
+  return withEventDescriptorOverrides(
+    await importOriginal<typeof import('#/shared/events/registry.server')>(),
+  )
+})
 
 const observabilityMocks = vi.hoisted(() => ({
   end: vi.fn(),
@@ -26,8 +34,7 @@ vi.mock('#/shared/observability/trace', () => ({
 const EVENT_TYPE = 'test.server_command'
 
 beforeEach(() => {
-  clearEventSchemas()
-  registerEventSchema({
+  overrideEventDescriptor({
     aggregate: { type: 'event', id: 'eventId' },
     type: EVENT_TYPE,
     version: 1,

@@ -4,8 +4,6 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { registerBulkAssignmentNotificationConsumer } from './inbox-notice-routes.server'
 import {
   createNotificationConsumerDeps,
@@ -89,13 +87,10 @@ const makeDeps = () => {
 describe('bulk-assignment notification durable consumer', () => {
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers the completion fact as the sole grouped replay boundary', () => {

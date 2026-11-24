@@ -4,10 +4,8 @@
 // stores and command store; only the clock and ids are fixed.
 
 import { randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createGroupLifecycleHarness,
   ctxOf,
@@ -37,11 +35,6 @@ const {
   factsOf,
   historyRows,
 } = createGroupLifecycleHarness(getPool)
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
 
 describe.sequential('createPortalGroup (real PostgreSQL, two tenants)', () => {
   it('creates a group with its creator, its fact and its history entry', async () => {

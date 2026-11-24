@@ -1,5 +1,4 @@
 import type { DomainEvent } from './events'
-import { registerEventSchema, getEventSchema } from './schema-registry'
 import type { EventDescriptor } from './descriptor'
 import { reviewEventDescriptors } from './review-event-descriptors'
 import { inboxEventDescriptors } from './inbox-event-descriptors'
@@ -32,16 +31,32 @@ const descriptors = [
 export type DefinedEventType = (typeof descriptors)[number]['type']
 export const eventDescriptors: readonly EventDescriptor[] = descriptors
 
-const definitions = new Map<string, EventDescriptor>(
-  eventDescriptors.map((entry) => [`${entry.type}:v${entry.version}`, entry]),
+/** Every event type the outbox routes, with or without a durable consumer. */
+export const EVENT_TYPES: ReadonlySet<string> = new Set(
+  eventDescriptors.map(({ type }) => type),
 )
 
-/** Definitions remain available to the relay before container construction. */
+const definitions = new Map<string, EventDescriptor>()
+for (const entry of eventDescriptors) {
+  const key = `${entry.type}:v${entry.version}`
+  if (definitions.has(key)) {
+    throw new Error(
+      `Duplicate event schema: ${key} is defined twice. ` +
+        'Each event type+version must be defined exactly once.',
+    )
+  }
+  definitions.set(key, entry)
+}
+
+/**
+ * Look up the descriptor for an event type and version.
+ * Returns undefined for unknown types — the caller must reject.
+ */
 export function getEventDescriptor(
   type: string,
   version: number,
 ): EventDescriptor | undefined {
-  return getEventSchema(type, version) ?? definitions.get(`${type}:v${version}`)
+  return definitions.get(`${type}:v${version}`)
 }
 
 /** Select the issued format, retaining historical decoders separately. */
@@ -58,13 +73,4 @@ export function emittedEventVersion(
       version = entry.version
   }
   return version
-}
-
-/** Rebuilding a container may register the same fixed definitions again. */
-export function registerAllEventSchemas(): void {
-  for (const entry of eventDescriptors) {
-    const registered = getEventSchema(entry.type, entry.version)
-    if (registered === entry) continue
-    registerEventSchema(entry)
-  }
 }

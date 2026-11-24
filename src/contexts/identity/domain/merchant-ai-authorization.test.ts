@@ -1,6 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it } from 'vitest'
+import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   planMerchantAiConsentTransition,
@@ -45,13 +44,6 @@ const ENABLED: MerchantAiSnapshot = {
   providerDeploymentProfileVersion: DESIRED.providerDeploymentProfileVersion,
   redactionProfileFamily: DESIRED.redactionProfileFamily,
 }
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
-afterEach(() => clearEventSchemas())
 
 describe('Merchant AI authorization contract', () => {
   it('freezes the current opt-in capability set', () => {

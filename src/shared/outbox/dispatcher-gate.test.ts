@@ -19,7 +19,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
 import { z } from 'zod/v4'
-import { registerEventSchema, clearEventSchemas } from '#/shared/events/schema-registry'
 import { createDispatcherHandler } from './dispatcher'
 import { PrerequisiteNotReadyError } from './prerequisite-not-ready'
 import {
@@ -38,6 +37,15 @@ import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent, withEnvelopeIdentifiers } from './event-adapter'
 import { getRequestContext } from '#/shared/observability/request-context'
 import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
+import { overrideEventDescriptor } from '#/shared/testing/event-descriptor-overrides'
+
+vi.mock('#/shared/events/registry.server', async (importOriginal) => {
+  const { withEventDescriptorOverrides } =
+    await import('#/shared/testing/event-descriptor-overrides')
+  return withEventDescriptorOverrides(
+    await importOriginal<typeof import('#/shared/events/registry.server')>(),
+  )
+})
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -109,8 +117,7 @@ function fakeJob(envelope: ConsumerEvent): Job {
 }
 
 beforeEach(() => {
-  clearEventSchemas()
-  registerEventSchema({
+  overrideEventDescriptor({
     aggregate: { type: 'event', id: 'eventId' },
     type: TEST_EVENT_TYPE,
     version: TEST_EVENT_VERSION,
@@ -392,7 +399,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     // registered consumers means the deployment is misconfigured, so the job
     // must fail and retry (a redeploy fixes it), never silently complete.
     const DURABLE_TYPE = 'review.created'
-    registerEventSchema({
+    overrideEventDescriptor({
       aggregate: { type: 'event', id: 'eventId' },
       type: DURABLE_TYPE,
       version: 1,
@@ -412,7 +419,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
   it('audit-only event type (catalogued without consumers) completes with a debug log', async () => {
     // `metric.recorded` is recorded for audit and read by no consumer.
     const AUDIT_ONLY_TYPE = 'metric.recorded'
-    registerEventSchema({
+    overrideEventDescriptor({
       aggregate: { type: 'event', id: 'eventId' },
       type: AUDIT_ONLY_TYPE,
       version: 1,

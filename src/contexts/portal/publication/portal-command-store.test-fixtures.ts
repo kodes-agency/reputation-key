@@ -4,8 +4,6 @@ import { beforeEach } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortal } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   portalAccessArtifactId,
@@ -299,8 +297,6 @@ export function setupPortalCommandStoreTestDb() {
   activePool = poolOfRun
 
   beforeEach(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await getPool().query(
       `INSERT INTO properties
          (id, organization_id, name, slug, timezone, created_at, updated_at)

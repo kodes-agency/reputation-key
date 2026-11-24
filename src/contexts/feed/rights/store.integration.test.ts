@@ -49,7 +49,6 @@ import {
   organizationId as brandOrganization,
   userId as brandUser,
 } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/registry.server'
 import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 
 let lease: TestLease
@@ -60,7 +59,6 @@ describe.sequential('Notification rights reads and purge', () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 2)
     db = drizzle(lease.pool) as Database
     bindRightsDatabase(lease, db)
-    registerAllEventSchemas()
   })
 
   afterAll(async () => {

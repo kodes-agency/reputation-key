@@ -2,8 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import type { Pool } from 'pg'
 import { markFeedbackHandled } from './mark-feedback-handled.server'
 import { correctFeedbackHandlingOutcome } from './correct-feedback-handling-outcome.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   clearInboxOrganization,
   createUseCaseDatabase,
@@ -110,15 +108,12 @@ describe.sequential('feedback handling commands', () => {
 
   beforeAll(async () => {
     pool = openFixturePool()
-    clearEventSchemas()
-    registerAllEventSchemas()
     await seedInboxOrganization(pool, ORG_ID, [PROPERTY_ID])
   })
 
   beforeEach(() => clearInboxOrganization(pool, ORG_ID))
 
   afterAll(async () => {
-    clearEventSchemas()
     await dropInboxOrganization(pool, ORG_ID)
     await pool.end()
   })
