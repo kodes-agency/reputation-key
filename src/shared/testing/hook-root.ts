@@ -24,10 +24,11 @@ export function setupHookRoot() {
     environmentManager.setIsServer(() => false)
     ;({ createRoot } = await import('react-dom/client'))
   })
-  afterEach(async () => {
+  const unmount = async () => {
     await act(async () => root?.unmount())
     root = undefined
-  })
+  }
+  afterEach(unmount)
   afterAll(() => {
     vi.unstubAllGlobals()
     environmentManager.setIsServer(() => typeof window === 'undefined')
@@ -39,6 +40,7 @@ export function setupHookRoot() {
   }
   return {
     flush,
+    unmount,
     async render(node: ReactNode) {
       const container = Object.assign(new EventTarget(), {
         nodeType: 1,
