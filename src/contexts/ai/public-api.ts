@@ -52,7 +52,7 @@ export type {
 } from './domain/events'
 export type { ReviewAnalysisProgress } from './replay/read-review-analysis-progress.server'
 export type { RequestReviewAnalysisNowResult } from './replay/request-review-analysis-now.server'
-export type { AiOrganizationMonthSpend } from './execution/ai-organization-spend.port.server'
+export type { AiOrganizationMonthSpend } from './execution/ai-organization-spend.server'
 
 export type {
   GuestVoiceBasis,

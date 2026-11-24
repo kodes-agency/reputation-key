@@ -73,7 +73,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       authorizationLineageId: LINEAGE_ID,
       reviewAnalysisEpoch: 1,
       propertyProfileVersion: 1,
-      analysisProfileVersion: 'review-analysis-v3',
       derivative: {
         sentiment: 'positive',
         attention: 'low',
@@ -86,23 +85,20 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     })
 
   const readReviewA = (analysisProfileVersion = 'review-analysis-v2') =>
-    outputs.readAnalysisForDelivery(
-      {
-        organizationId: ORGANIZATION_ID,
-        actorUserId: userId(ACTOR_USER_ID),
-        propertyId: PROPERTY_ID,
-        reviewId: REVIEW_A_ID,
-        authorizationLineageId: LINEAGE_ID,
-        reviewAnalysisEpoch: 1,
-        sourceEpoch: SOURCE_EPOCH,
-        sourceRevision: SOURCE_REVISION,
-        analysisSequence: 1,
-        propertyProfileVersion: 1,
-        analysisProfileVersion,
-        nowEpochMillis: COMPLETED_AT.getTime(),
-      },
-      async (result) => result,
-    )
+    outputs.readAnalysisForDelivery({
+      organizationId: ORGANIZATION_ID,
+      actorUserId: userId(ACTOR_USER_ID),
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_A_ID,
+      authorizationLineageId: LINEAGE_ID,
+      reviewAnalysisEpoch: 1,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      analysisSequence: 1,
+      propertyProfileVersion: 1,
+      analysisProfileVersion,
+      nowEpochMillis: COMPLETED_AT.getTime(),
+    })
 
   const setGrantNotice = async (noticeVersion: string, noticeDigest: string) => {
     await db.transaction(async (tx) => {

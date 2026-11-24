@@ -24,7 +24,6 @@ import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabular
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiOperationId } from '../domain/types'
 import type { AiProviderChoicePort } from './ai-provider-choice.port.server'
-import { createReviewAnalysisContractV3 } from './review-analysis-contract-v3.server'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
   createAnalyzeReviewEvent,
@@ -228,11 +227,8 @@ async function harness(
     options.category === undefined ? 'Hotel' : options.category,
   )
   const dependencies = {
-    contract: createReviewAnalysisContractV3({
-      outputs: { storeAnalysisV3 } as never,
-      vocabularyContext: { readGooglePrimaryCategory },
-      providerChoice: { chooseForReviewAnalysis },
-    }),
+    vocabularyContext: { readGooglePrimaryCategory },
+    providerChoice: { chooseForReviewAnalysis },
     authorization: persistence.authorization,
     control: persistence.control,
     inference: { analyzeReview, generateReply: vi.fn() },
@@ -343,7 +339,6 @@ describe('the review analysis use case under the v3 contract', () => {
     })
     expect(mocks.storeAnalysisV3).toHaveBeenCalledTimes(1)
     expect(mocks.storeAnalysisV3.mock.calls[0]?.[0]).toMatchObject({
-      analysisProfileVersion: 'review-analysis-v3',
       providerCompletion: { modelSnapshot: PROVIDER_LINEAGE.model, inputTokens: 300 },
       derivative: {
         sentiment: 'mixed',
