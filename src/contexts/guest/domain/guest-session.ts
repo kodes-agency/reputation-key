@@ -23,10 +23,8 @@ export interface GuestSession {
   readonly portalId: PortalId
   readonly organizationId: OrganizationId
   readonly propertyId: PropertyId
-  readonly tokenVersion: number
   readonly issuedAt: Date
   readonly expiresAt: Date
-  readonly campaignMediumHint: string | null
   /** Human-reviewed public copy selected for this signed Portal session. */
   readonly guestLocale: GuestLocale | null
 }
@@ -42,7 +40,7 @@ export interface SessionCookieAttributes {
 }
 
 export const SESSION_COOKIE_NAME = 'rk_guest_session'
-const DEFAULT_SESSION_DURATION_MS = 24 * 60 * 60 * 1000
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000
 
 export function createSession(params: {
   sessionId: GuestSessionId
@@ -50,24 +48,18 @@ export function createSession(params: {
   portalId: PortalId
   organizationId: OrganizationId
   propertyId: PropertyId
-  tokenVersion: number
-  campaignMediumHint?: string
   guestLocale?: GuestLocale | null
-  durationMs?: number
   now: Date
 }): GuestSession {
   const now = params.now
-  const duration = params.durationMs ?? DEFAULT_SESSION_DURATION_MS
   return {
     csrfNonce: params.csrfNonce,
     sessionId: params.sessionId,
     portalId: params.portalId,
     organizationId: params.organizationId,
     propertyId: params.propertyId,
-    tokenVersion: params.tokenVersion,
     issuedAt: now,
-    expiresAt: new Date(now.getTime() + duration),
-    campaignMediumHint: params.campaignMediumHint ?? null,
+    expiresAt: new Date(now.getTime() + SESSION_DURATION_MS),
     guestLocale: params.guestLocale ?? null,
   }
 }
@@ -108,21 +100,5 @@ export function buildSetCookieHeader(attrs: SessionCookieAttributes): string {
   ]
   if (attrs.httpOnly) parts.push('HttpOnly')
   if (attrs.secure) parts.push('Secure')
-  return parts.join('; ')
-}
-
-/**
- * Build a cookie-clearing header (expires immediately).
- */
-export function buildClearCookieHeader(isHttps: boolean): string {
-  const parts = [
-    `${SESSION_COOKIE_NAME}=`,
-    'Path=/p/',
-    'Max-Age=0',
-    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
-    'SameSite=lax',
-    'HttpOnly',
-  ]
-  if (isHttps) parts.push('Secure')
   return parts.join('; ')
 }

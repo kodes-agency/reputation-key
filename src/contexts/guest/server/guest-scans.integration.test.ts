@@ -125,7 +125,7 @@ function networkFor(portal: TestPublishedPortal, last: number) {
   return {
     scope,
     pseudonym,
-    redisKey: guestRateLimitKeys('scan', null, pseudonym, portal.id).networkPortal,
+    redisKey: guestRateLimitKeys('scan', 'session', pseudonym, portal.id).networkPortal,
   }
 }
 

@@ -14,23 +14,7 @@ const repository = (
 
 describe('Contact Request retention sweep', () => {
   it('drains bounded batches against one fixed observation time and reports completion', async () => {
-    const repo = repository([
-      {
-        processed: 2,
-        checkpoint: { expiresAt: new Date('2026-08-01T00:00:00.000Z'), id: 'a' },
-        completedThrough: null,
-      },
-      {
-        processed: 1,
-        checkpoint: { expiresAt: new Date('2026-08-02T00:00:00.000Z'), id: 'b' },
-        completedThrough: null,
-      },
-      {
-        processed: 0,
-        checkpoint: { expiresAt: new Date('2026-08-02T00:00:00.000Z'), id: 'b' },
-        completedThrough: NOW,
-      },
-    ])
+    const repo = repository([{ processed: 2 }, { processed: 1 }, { processed: 0 }])
     const sweep = contactRequestRetentionSweep({
       repo,
       clock: () => NOW,
@@ -41,7 +25,6 @@ describe('Contact Request retention sweep', () => {
       batches: 2,
       processed: 3,
       capped: false,
-      completedThrough: NOW,
     })
     expect(repo.purgeExpired).toHaveBeenCalledTimes(3)
     expect(repo.purgeExpired).toHaveBeenNthCalledWith(1, {
@@ -55,10 +38,7 @@ describe('Contact Request retention sweep', () => {
   })
 
   it('stops at the configured batch ceiling and reports that work remains', async () => {
-    const repo = repository([
-      { processed: 2, checkpoint: null, completedThrough: null },
-      { processed: 2, checkpoint: null, completedThrough: null },
-    ])
+    const repo = repository([{ processed: 2 }, { processed: 2 }])
     const sweep = contactRequestRetentionSweep({
       repo,
       clock: () => NOW,
@@ -69,7 +49,6 @@ describe('Contact Request retention sweep', () => {
       batches: 2,
       processed: 4,
       capped: true,
-      completedThrough: null,
     })
     expect(repo.purgeExpired).toHaveBeenCalledTimes(2)
   })

@@ -470,14 +470,13 @@ describe.sequential('atomic Guest response submission', () => {
       createGuestResponseRepository(
         db,
         () => new Date(feedbackExpiry.getTime() - 1),
-      ).findSnippetForOrg(ORG, RESPONSE),
-    ).resolves.toMatchObject({ comment: buildGuestResponse().text, ratingValue: 2 })
+      ).findSnippetsForOrg(ORG, [RESPONSE]),
+    ).resolves.toMatchObject([{ comment: buildGuestResponse().text, ratingValue: 2 }])
     await expect(
-      createGuestResponseRepository(db, () => feedbackExpiry).findSnippetForOrg(
-        ORG,
+      createGuestResponseRepository(db, () => feedbackExpiry).findSnippetsForOrg(ORG, [
         RESPONSE,
-      ),
-    ).resolves.toMatchObject({ comment: null, ratingValue: 2 })
+      ]),
+    ).resolves.toMatchObject([{ comment: null, ratingValue: 2 }])
 
     const rule = (subject: string) => {
       const found = RETENTION_RULES.find((candidate) => candidate.subject === subject)

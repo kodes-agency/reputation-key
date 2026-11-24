@@ -133,49 +133,10 @@ export const createGuestResponseRepository = (
         : null
     },
 
-    // Org-scoped by design (see the port comment): an inbox item knows only its
-    // organization and the response id. Selects the two shared fields and
-    // nothing else — no session id, no IP hash, no media.
-    findSnippetForOrg: async (organizationId, responseId) => {
-      const [row] = await db
-        .select({
-          comment: guestResponsePrivateFeedback.body,
-          ratingValue: guestResponses.rating,
-          feedbackSubmissionRevision: guestResponses.feedbackSubmissionRevision,
-          textConsent: guestResponses.textConsent,
-          responseConsent: guestResponses.responseConsent,
-          status: guestResponses.status,
-        })
-        .from(guestResponses)
-        .leftJoin(
-          guestResponsePrivateFeedback,
-          and(
-            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
-            eq(
-              guestResponsePrivateFeedback.organizationId,
-              guestResponses.organizationId,
-            ),
-            gt(guestResponsePrivateFeedback.expiresAt, clock()),
-          ),
-        )
-        .where(
-          and(
-            eq(guestResponses.organizationId, organizationId),
-            eq(guestResponses.id, responseId),
-            isNull(guestResponses.deletedAt),
-          ),
-        )
-        .limit(1)
-      if (!row) return null
-      // Consent governs what staff may read, exactly as it governs what the
-      // metric handlers record: an unconsented field is withheld, not shown.
-      return {
-        comment: row.textConsent && row.status !== 'moderated' ? row.comment : null,
-        ratingValue: row.responseConsent ? row.ratingValue : null,
-        feedbackSubmissionRevision: row.feedbackSubmissionRevision,
-      }
-    },
-
+    // Org-scoped by design (see the port comment): selects the shared fields and
+    // nothing else — no session id, no IP hash, no media. Consent governs what
+    // staff may read, exactly as it governs what the metric handlers record: an
+    // unconsented field is withheld, not shown.
     findSnippetsForOrg: async (organizationId, responseIds) => {
       if (responseIds.length === 0) return []
       const rows = await db
