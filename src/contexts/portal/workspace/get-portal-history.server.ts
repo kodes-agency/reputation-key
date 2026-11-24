@@ -26,6 +26,7 @@ import {
   encodeHistoryCursor,
   historyBoundFor,
   historyCategoriesFor,
+  historyPageSize,
   pageHistory,
   type HistoryPosition,
   type PortalHistoryCategory,
@@ -35,9 +36,6 @@ import {
 } from '../domain/portal-history'
 import { describePageEdit } from '../domain/portal-page-edit'
 import type { Portal } from '../domain/types'
-
-const DEFAULT_HISTORY_PAGE_SIZE = 20
-const MAX_HISTORY_PAGE_SIZE = 50
 
 export type PortalHistoryEntry = Readonly<{
   /** Stable for the life of the entry: safe as a list key and as a cursor part. */
@@ -70,11 +68,6 @@ type Deps = Readonly<{
   actorDirectory: PortalActorDirectory
 }>
 
-const clampLimit = (requested: number | undefined): number =>
-  requested !== undefined && Number.isSafeInteger(requested)
-    ? Math.min(MAX_HISTORY_PAGE_SIZE, Math.max(1, requested))
-    : DEFAULT_HISTORY_PAGE_SIZE
-
 function createdRecord(
   portal: Portal,
   position: HistoryPosition | null,
@@ -99,7 +92,7 @@ export const getPortalHistory =
       permission: 'portal.read',
       forbiddenMessage: 'Insufficient permissions to view Portal history',
     })
-    const limit = clampLimit(input.limit)
+    const limit = historyPageSize(input.limit)
     const position = input.cursor ? decodeHistoryCursor(input.cursor) : null
     const categories = new Set(historyCategoriesFor(input.filter ?? 'all'))
     const { organizationId } = ctx

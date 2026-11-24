@@ -11,6 +11,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import {
   MAX_HISTORY_SOURCE_ROWS,
+  MAX_LISTED_VERSIONS,
   type PortalCodeDownloadRow,
   type PortalCodeIssuanceRow,
   type PortalCodeRevocationRow,
@@ -25,8 +26,8 @@ import { historyBoundCondition, historyIdOrder } from './portal-history-bound.se
 import { snapshotFromRow } from '../publication/portal-publication-repository.server'
 
 const MAX_SOURCE_ROWS = MAX_HISTORY_SOURCE_ROWS
-/** Versions one read lists; far more than a Portal is ever published. */
-const MAX_VERSION_ROWS = 201
+/** One more than a read lists, so the caller can tell the list was cut. */
+const MAX_VERSION_ROWS = MAX_LISTED_VERSIONS + 1
 
 const clamp = (page: PortalHistoryPage): number =>
   Number.isSafeInteger(page.limit)
