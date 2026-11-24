@@ -37,10 +37,7 @@ import type {
   ReviewRefreshRunRepository,
   RefreshRunCursor,
 } from './review-refresh-run-repository.port.server'
-import {
-  classifyReviewsForRefresh,
-  contentRefreshDueThreshold,
-} from '../content/source-content-lifecycle.server'
+import { contentRefreshDueThreshold } from '../content/source-content-lifecycle.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 
@@ -168,18 +165,14 @@ async function processSweepBatch(
   state.batches++
   state.seen += batch.length
 
-  // Classify with the same pure rules as unit tests: only refresh_due
-  // (already-expired rows are the purge job's responsibility).
-  const { refreshDue } = classifyReviewsForRefresh(
-    batch.map((r) => ({
-      id: r.id as string,
-      lastFetchedAt: r.lastFetchedAt,
-      contentExpiresAt: r.contentExpiresAt,
-    })),
-    now,
+  // Only rows that still hold content: already-expired rows are the purge
+  // job's responsibility.
+  const dueRows = batch.filter(
+    (r) =>
+      r.lastFetchedAt !== null &&
+      r.contentExpiresAt !== null &&
+      r.contentExpiresAt >= now,
   )
-  const dueIds = new Set(refreshDue)
-  const dueRows = batch.filter((r) => dueIds.has(r.id as string))
   state.dueCount += dueRows.length
   for (const r of dueRows) {
     if (
