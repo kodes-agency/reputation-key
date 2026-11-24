@@ -1,3 +1,4 @@
+import { createInMemoryWithdrawalJournal } from './guest-withdrawal-journal.test-fixtures'
 import { afterAll, beforeAll, expect } from 'vitest'
 import { sql } from 'drizzle-orm'
 import type { GuestResponseScope } from './guest-response.repository.port.server'
@@ -169,17 +170,8 @@ export async function harness(
   const repo = createGuestResponseRepository(db, clock)
   let resolvedStaffAttribution: PrimaryStaffAttributionSnapshot | null = staffAttribution
   let staffAttributionResolutionCount = 0
-  // The bucket is a provider transport: record what would be written, in order.
-  const journalWrites: string[] = []
-  const journal = operatorAuthority
-    ? {
-        idGen: () => newTestId(),
-        alert: () => undefined,
-        put: async (key: string) => {
-          journalWrites.push(key)
-        },
-      }
-    : undefined
+  const journal = createInMemoryWithdrawalJournal(() => newTestId())
+  const journalWrites = journal.writes
   const rawLifecycle = guestResponseLifecycle({
     repo,
     clock,
@@ -201,14 +193,12 @@ export async function harness(
       sessionId: GuestSessionId,
       input: Parameters<typeof rawLifecycle.submit>[2],
       privateFeedbackThreshold = 3,
-      sessionExpiresAt?: Date,
     ) =>
       rawLifecycle.submit(
         candidateScope,
         sessionId,
         input,
         experience(privateFeedbackThreshold),
-        sessionExpiresAt,
       ),
   }
   const responseIds = async () =>

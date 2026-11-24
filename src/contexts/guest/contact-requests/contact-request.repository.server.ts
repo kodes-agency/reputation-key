@@ -127,7 +127,7 @@ export const createContactRequestRepository = (
   db: Database,
   /** Absent without a sealing key: nothing can be stored or shown, but guests can still withdraw. */
   encryption: ContactRequestEncryption | undefined,
-  journal?: GuestWithdrawalJournal,
+  journal: GuestWithdrawalJournal,
 ): ContactRequestRepository => ({
   create: async (input) => {
     if (!encryption) return { outcome: 'contact_disabled' as const }
@@ -431,8 +431,6 @@ export const createContactRequestRepository = (
           outcome: updated[0] ? ('withdrawn' as const) : ('unavailable' as const),
         }
       })
-    if (!journal) return erase()
-
     // Replay honors accepted intents even if the deletion transaction fails, so
     // a request that cannot be withdrawn must never produce an intent.
     const [active] = await db

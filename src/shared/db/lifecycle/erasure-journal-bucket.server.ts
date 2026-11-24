@@ -7,9 +7,10 @@ import {
   PutObjectCommand,
   type LifecycleRule,
   type ListObjectsV2CommandOutput,
-  type S3Client,
+  S3Client,
   type TransitionDefaultMinimumObjectSize,
 } from '@aws-sdk/client-s3'
+import type { Env } from '#/shared/config/env'
 import {
   decodeErasureJournalEntry,
   erasureJournalKey,
@@ -236,5 +237,53 @@ export class ErasureJournalBucket {
       cursor = nextListingCursor(response, cursors)
     } while (cursor)
     return entries.sort((a, b) => a.id.localeCompare(b.id))
+  }
+}
+
+export type ErasureJournalBucketEnv = Partial<
+  Pick<
+    Env,
+    | 'RESTORE_MODE'
+    | 'AWS_S3_REGION'
+    | 'AWS_S3_ACCESS_KEY'
+    | 'AWS_S3_SECRET_ACCESS_KEY'
+    | 'AWS_S3_BUCKET_NAME'
+    | 'S3_INTERNAL_ENDPOINT'
+    | 'S3_PRESIGN_ENDPOINT'
+    | 'S3_FORCE_PATH_STYLE'
+  >
+>
+
+/**
+ * The journal bucket for this environment, built on the first write: a restore
+ * refuses it, and missing credentials fail the write rather than the boot.
+ */
+export function erasureJournalBucketFromEnv(env: ErasureJournalBucketEnv) {
+  let bucket: ErasureJournalBucket | undefined
+  return (): ErasureJournalBucket => {
+    if (env.RESTORE_MODE) throw new Error('Bucket access is refused during restore')
+    if (!bucket) {
+      if (
+        !env.AWS_S3_REGION ||
+        !env.AWS_S3_ACCESS_KEY ||
+        !env.AWS_S3_SECRET_ACCESS_KEY ||
+        !env.AWS_S3_BUCKET_NAME
+      ) {
+        throw new Error('Required bucket credentials are missing')
+      }
+      bucket = new ErasureJournalBucket(
+        new S3Client({
+          region: env.AWS_S3_REGION,
+          credentials: {
+            accessKeyId: env.AWS_S3_ACCESS_KEY,
+            secretAccessKey: env.AWS_S3_SECRET_ACCESS_KEY,
+          },
+          endpoint: env.S3_INTERNAL_ENDPOINT || env.S3_PRESIGN_ENDPOINT || undefined,
+          forcePathStyle: env.S3_FORCE_PATH_STYLE,
+        }),
+        env.AWS_S3_BUCKET_NAME,
+      )
+    }
+    return bucket
   }
 }
