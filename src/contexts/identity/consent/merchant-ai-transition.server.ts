@@ -6,7 +6,7 @@ import {
   type CapabilityRuntimeProfileVersions,
   type MerchantAiCapability,
 } from '#/shared/domain/merchant-ai-capability'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { Tx } from '#/shared/outbox/commit'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { STANDING_RENEWAL_REASON } from '../domain/merchant-ai-standing-renewal'

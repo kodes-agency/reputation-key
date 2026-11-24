@@ -1,5 +1,5 @@
 import { digestOf } from '#/shared/ai-operation/ai-digest'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import { AI_STRUCTURED_MARKER_DETECTORS_DIGEST } from '#/shared/ai-redaction/ai-structured-marker-detectors'
 import { AI_REDACTION_PROFILE_DIGEST } from '#/shared/ai-redaction/ai-deterministic-redactor'
@@ -13,6 +13,7 @@ import { REPLY_STREAM_SDK_ATTESTATION } from '#/shared/ai-provider-profile/ai-op
 import { openAiAttestationOf } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
 import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-review-source/ai-source-profile'
 import type { AiOperationProviderPairing } from '#/shared/ai-provider-profile/ai-provider-attestations'
+import { deepFreeze } from '../json/deep-freeze'
 
 // An operation profile, in one module. A profile is defined once, in no provider's
 // terms (`defineLogicalOperationProfile`): its prompt, the schema of its answer, the
@@ -24,14 +25,6 @@ import type { AiOperationProviderPairing } from '#/shared/ai-provider-profile/ai
 // domain, then the RFC 8785 form of the value.
 
 export { AI_SOURCE_CANONICALIZER_PROFILE_V1 }
-
-function deepFreeze<Value>(value: Value): Value {
-  if (typeof value === 'object' && value !== null) {
-    for (const child of Object.values(value)) deepFreeze(child)
-    Object.freeze(value)
-  }
-  return value
-}
 
 export const PROPERTY_CALENDAR_ATTESTATION = Object.freeze({
   profileVersion: 'property-calendar-v1',

@@ -2,7 +2,7 @@ import type { AiReplyOutputRefusal } from './reply-output-refusal'
 import { prepareReplyDraftingV2 } from './reply-drafting-v2'
 import { replyDynamicDeveloperBytes } from '#/shared/reply/request'
 import type { KeyObject } from 'node:crypto'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   LANGUAGE_CATALOGUE_DIGEST,

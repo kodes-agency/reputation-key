@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import process from 'node:process'
-import { canonicalizeRfc8785 } from '../src/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '../src/shared/json/canonical-json'
 import { computeAiLanguageProfileDigest } from './ai-language-attestation'
 import {
   AI_REVIEW_LANGUAGE_CANONICAL_REGION_TABLE_DIGEST,

@@ -11,11 +11,12 @@
 // differ from their head's, and a second apply finds nothing. It writes no other
 // column and deletes nothing. Every line is counts and ids.
 
-import type {
-  OperatorArgs,
-  OperatorCommandSpec,
-  OperatorContext,
-  OperatorIO,
+import {
+  planActionOnly,
+  type OperatorArgs,
+  type OperatorCommandSpec,
+  type OperatorContext,
+  type OperatorIO,
 } from './operator-command'
 
 const ACTION = 'backfill'
@@ -58,10 +59,7 @@ export const inboxCycleFactsCommandSpec: OperatorCommandSpec = Object.freeze({
 type Plan = Readonly<{ ok: true }> | Readonly<{ ok: false; error: string }>
 
 export function planInboxCycleFacts(args: OperatorArgs): Plan {
-  const [action, ...extra] = args.positionals
-  if (action !== ACTION) return { ok: false, error: `the only action is '${ACTION}'` }
-  if (extra.length > 0) return { ok: false, error: `'${ACTION}' takes no argument` }
-  return { ok: true }
+  return planActionOnly(args, ACTION)
 }
 
 type RunInput = Readonly<{

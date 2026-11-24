@@ -10,7 +10,7 @@ import {
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import type { OpenAiConnector, OpenAiConnectorOutcome } from './contracts'
+import type { OpenAiConnector } from './contracts'
 import { evidencePreparer, openAiRequestOf } from './review-evidence.test-fixtures'
 import {
   createOpenAiProviderAdapter,
@@ -19,6 +19,7 @@ import {
 import { computePromptCacheShard, type PreparedAiInvocation } from './prepared-invocation'
 import type {
   AiProviderConnection,
+  AiProviderOutcome,
   PrepareProviderInvocationInput,
 } from './provider-contracts'
 import { createAiProviderRegistry } from './provider-selection'
@@ -39,7 +40,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-const outcome: OpenAiConnectorOutcome<unknown> = Object.freeze({
+const outcome: AiProviderOutcome<unknown> = Object.freeze({
   disposition: 'success',
   reportedDisposition: 'success',
   result: { accepted: true },
