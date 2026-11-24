@@ -10,7 +10,6 @@ import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { requireGoogleImportRole } from './-route-access'
 import { ImportRatingGoalStep } from './-import-rating-goal-step'
 
@@ -24,7 +23,7 @@ export const Route = createFileRoute(
     },
   },
   beforeLoad: async ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     requireGoogleImportRole(role)
     await gateControlledRoute({
       context,

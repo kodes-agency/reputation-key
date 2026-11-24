@@ -3,7 +3,6 @@ import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { InboxPageV2 } from '#/contexts/reputation/inbox/ui/page/inbox-page-v2'
@@ -21,7 +20,7 @@ const authRoute = getRouteApi('/_authenticated')
 export const Route = createFileRoute('/_authenticated/inbox/')({
   staticData: { page: { title: 'Inbox', fullBleed: true, loading: 'inbox' } },
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     // Inbox triage is a manager surface (inbox.manage).
     // Staff have inbox.read for counts, not the triage surface.
     if (!can(role, 'inbox.manage')) throw roleUnavailable('Inbox', 'properties')
@@ -32,7 +31,7 @@ export const Route = createFileRoute('/_authenticated/inbox/')({
 })
 
 function InboxRoute() {
-  const ctx = authRoute.useRouteContext() as AuthRouteContext
+  const ctx = authRoute.useRouteContext()
   const { can: canDo } = usePermissions()
   // Member-directory access is separate from Inbox management authority.
   const { data: membersData } = useQuery({
