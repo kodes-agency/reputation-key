@@ -3,26 +3,20 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
 
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
+import { withDashboard } from './dashboard-request.server'
 import { getPortalAnalyticsDto } from '../portal-results/contracts'
 export type { PortalAnalyticsData } from '../portal-results/contracts'
 import { propertyId, portalId } from '#/shared/domain/ids'
-import { isDashboardError } from '../domain/dashboard-errors'
-import { dashboardErrorStatus } from './dashboard-error-status'
 import { resolvePropertyPeriod } from './resolve-property-period'
 
 export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
   .validator(getPortalAnalyticsDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        try {
-          const headers = await headersFromContext()
-          const ctx = await resolveTenantContext(headers)
+      async ({ data }) =>
+        withDashboard(async (ctx) => {
           await requireExecutionAllowed({
             actor: ctx,
             action: 'dashboard.read',
@@ -54,12 +48,7 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
             },
             ctx,
           )
-        } catch (e) {
-          if (isDashboardError(e))
-            throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+        }),
       'GET',
       'dashboard.getPortalAnalytics',
     ),
@@ -68,10 +57,8 @@ export const getPortalLinkTapsFn = createServerFn({ method: 'GET' })
   .validator(getPortalAnalyticsDto.pick({ propertyId: true, portalId: true }))
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        try {
-          const headers = await headersFromContext()
-          const ctx = await resolveTenantContext(headers)
+      async ({ data }) =>
+        withDashboard(async (ctx) => {
           await requireExecutionAllowed({
             actor: ctx,
             action: 'dashboard.read',
@@ -100,12 +87,7 @@ export const getPortalLinkTapsFn = createServerFn({ method: 'GET' })
             },
             ctx,
           )
-        } catch (e) {
-          if (isDashboardError(e))
-            throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+        }),
       'GET',
       'dashboard.getPortalLinkTaps',
     ),
