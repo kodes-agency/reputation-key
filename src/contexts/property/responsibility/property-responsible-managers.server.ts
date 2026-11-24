@@ -1,14 +1,15 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { strictlyAfter } from '#/shared/domain/clock'
-import { MANAGER_BECAME_INELIGIBLE_END_REASON } from '#/shared/responsible-manager/responsible-manager-eligibility'
+import {
+  listEligibleResponsibleManagers,
+  listIneligibleResponsibleManagers,
+  MANAGER_BECAME_INELIGIBLE_END_REASON,
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PropertyRepository } from '../profile/property-repository.port.server'
 import { loadAccessibleProperty } from '../profile/load-accessible-property.server'
 import type { PropertyResponsibleManagerRepository } from './manager-repository.port.server'
 import type { PropertyManagerEligibilityDeps } from './property-manager-eligibility.server'
-import {
-  listEligiblePropertyManagers,
-  listIneligiblePropertyManagers,
-} from './property-manager-eligibility.server'
+import { policyDeps } from './property-manager-eligibility.server'
 import type { Property } from '../domain/types'
 import { propertyError } from '../domain/errors'
 import { propertyResponsibilityNeeded } from '../domain/events'
@@ -34,7 +35,7 @@ export const listPropertyResponsibleManagers =
     )
     const [assignments, eligibleManagers] = await Promise.all([
       deps.managerRepo.listActive(ctx.organizationId, property.id),
-      listEligiblePropertyManagers(deps, ctx.organizationId, property.id),
+      listEligibleResponsibleManagers(policyDeps(deps), ctx.organizationId, property.id),
     ])
     return {
       assignments,
@@ -73,8 +74,8 @@ async function releaseAssignedNoLongerEligible(
   managerUserIds: readonly string[],
   assignedAt: Date,
 ): Promise<readonly string[]> {
-  const lost = await listIneligiblePropertyManagers(
-    deps,
+  const lost = await listIneligibleResponsibleManagers(
+    policyDeps(deps),
     property.organizationId,
     property.id,
     managerUserIds,
@@ -119,8 +120,8 @@ export const updatePropertyResponsibleManagers =
         'responsible manager selection contains duplicates',
       )
     }
-    const ineligible = await listIneligiblePropertyManagers(
-      deps,
+    const ineligible = await listIneligibleResponsibleManagers(
+      policyDeps(deps),
       ctx.organizationId,
       property.id,
       managerUserIds,
