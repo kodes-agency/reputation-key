@@ -49,14 +49,7 @@ import {
 } from '#/shared/domain/ids'
 import type { GuestResponseView, ResolvePrimaryStaffAttribution } from './contracts'
 
-export type GuestResponseInput = Readonly<{
-  rating?: number | null
-  category?: string | null
-  text?: string | null
-  responseConsent?: boolean
-  textConsent?: boolean
-  mediaConsent?: boolean
-}>
+export type GuestResponseInput = Readonly<{ rating: number }>
 
 type GuestResponseExperienceInput = Readonly<{
   portalPublicationState: 'published'
@@ -212,48 +205,27 @@ export function guestResponseLifecycle(
     return response ? toView(response, now) : null
   }
 
-  // The aggregate submission derives rating and feedback facts from the
-  // aggregate's resolved consent flags, never from raw input. submitResponse()
-  // normalizes those flags, and a row may legitimately retain a rating the
-  // guest declined to share; an unconsented fact must not become a metric
-  // reading (ADR 0044 consent scope).
+  // The aggregate submission derives its rating fact from the aggregate's
+  // resolved consent flag, never from raw input: an unconsented rating must not
+  // become a metric reading (ADR 0044 consent scope).
   //
-  // The aggregate row id is the identity of both facts: one successful submit
-  // records at most one rating and one feedback outbox row in the same
-  // transaction. Durable consumers use source-event identity, so replay
-  // converges without duplicate metric or Inbox projections.
+  // The aggregate row id is the identity of the fact: one successful submit
+  // records at most one rating outbox row in the same transaction. Durable
+  // consumers use source-event identity, so replay converges without duplicate
+  // metric projections.
   const submissionFacts = (response: GuestResponse): GuestSubmissionFact[] => {
-    const facts: GuestSubmissionFact[] = []
-    const scopeIds = {
-      organizationId: organizationId(response.organizationId),
-      portalId: portalId(response.portalId),
-      propertyId: propertyId(response.propertyId),
-    }
-    const occurredAt = response.submittedAt ?? deps.clock()
-    if (isRatingMetricEligible(response)) {
-      facts.push(
-        guestRatingSubmitted({
-          ratingId: ratingId(response.id),
-          ...scopeIds,
-          value: response.rating,
-          occurredAt,
-          staffAttribution: response.staffAttribution,
-        }),
-      )
-    }
-    if (response.text !== null && response.textConsent) {
-      facts.push(
-        guestFeedbackSubmitted({
-          feedbackId: feedbackId(response.id),
-          ...scopeIds,
-          ratingId: response.rating !== null ? ratingId(response.id) : null,
-          responseRevision: response.feedbackSubmissionRevision!,
-          occurredAt,
-          staffAttribution: response.staffAttribution,
-        }),
-      )
-    }
-    return facts
+    if (!isRatingMetricEligible(response)) return []
+    return [
+      guestRatingSubmitted({
+        ratingId: ratingId(response.id),
+        organizationId: organizationId(response.organizationId),
+        portalId: portalId(response.portalId),
+        propertyId: propertyId(response.propertyId),
+        value: response.rating,
+        occurredAt: response.submittedAt ?? deps.clock(),
+        staffAttribution: response.staffAttribution,
+      }),
+    ]
   }
 
   const correctionFacts = (
@@ -288,31 +260,6 @@ export function guestResponseLifecycle(
           ratingId: ratingId(corrected.id),
           ...scopeIds,
           supersedesSourceEventId: previous.ratingSourceEventId,
-          occurredAt,
-          staffAttribution: corrected.staffAttribution,
-        }),
-      )
-    }
-
-    const nextFeedbackShared = corrected.text !== null && corrected.textConsent
-    if (nextFeedbackShared && !previous.feedbackSourceEventId) {
-      facts.push(
-        guestFeedbackSubmitted({
-          feedbackId: feedbackId(corrected.id),
-          ...scopeIds,
-          ratingId: corrected.rating !== null ? ratingId(corrected.id) : null,
-          responseRevision: corrected.feedbackSubmissionRevision!,
-          occurredAt,
-          staffAttribution: corrected.staffAttribution,
-        }),
-      )
-    } else if (!nextFeedbackShared && previous.feedbackSourceEventId) {
-      facts.push(
-        guestFeedbackRetracted({
-          feedbackId: feedbackId(corrected.id),
-          ...scopeIds,
-          supersedesSourceEventId: previous.feedbackSourceEventId,
-          responseRevision: previous.feedbackSubmissionRevision!,
           occurredAt,
           staffAttribution: corrected.staffAttribution,
         }),
@@ -418,26 +365,11 @@ export function guestResponseLifecycle(
       sessionId: GuestSessionId,
       input: GuestResponseInput,
       experience: GuestResponseExperienceInput,
-      sessionExpiresAt?: Date,
       initialIntegrityAssessment: GuestResponseInitialIntegrityAssessment = DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT,
     ): Promise<GuestResponseView> => {
       const now = deps.clock()
-      const bindingExpiresAt =
-        sessionExpiresAt ?? new Date(now.getTime() + DEFAULT_RESPONSE_SESSION_WINDOW_MS)
-      if (
-        bindingExpiresAt.getTime() - now.getTime() !==
-        DEFAULT_RESPONSE_SESSION_WINDOW_MS
-      ) {
-        throw new GuestResponseLifecycleError('response_unavailable')
-      }
       const existing = await deps.repo.findForSession(scope, sessionId, now)
       if (existing) return toView(existing, now)
-      if (input.rating === null || input.rating === undefined) {
-        throw new GuestResponseLifecycleError('rating_required')
-      }
-      if (input.text?.trim()) {
-        throw new GuestResponseLifecycleError('feedback_must_follow_rating')
-      }
       const experienceSnapshot = captureExperience(experience, now)
       const staffAttribution = await deps.resolvePrimaryStaffAttribution({
         organizationId: organizationId(scope.organizationId),
@@ -451,7 +383,9 @@ export function guestResponseLifecycle(
             id: guestResponseId(deps.idGen()),
             ...scope,
             sessionId,
-            sessionExpiresAt: bindingExpiresAt,
+            sessionExpiresAt: new Date(
+              now.getTime() + DEFAULT_RESPONSE_SESSION_WINDOW_MS,
+            ),
             retentionDeadline: factRetentionDeadline(now),
             experienceSnapshot,
             staffAttribution,
@@ -555,9 +489,6 @@ export function guestResponseLifecycle(
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
-      if (input.text !== undefined) {
-        throw new GuestResponseLifecycleError('feedback_must_use_separate_action')
-      }
       requireKnownFactLineage(current)
       const corrected = unwrap(
         correctResponse(current, input, deps.clock(), CORRECTION_WINDOW_MS),

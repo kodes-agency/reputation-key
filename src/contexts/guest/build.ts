@@ -21,7 +21,7 @@ import {
 import { createAtomicGuestObservationStore } from './page/guest-observation-store.server'
 import { recordScan } from './page/record-scan.server'
 import { trackReviewLinkClick } from './page/track-review-link-click.server'
-import { resolveLinkAndTrack } from './page/resolve-link-and-track.server'
+import { resolvePortalLink } from './page/resolve-portal-link.server'
 import { getPublicPortal } from './page/get-public-portal.server'
 import {
   guestResponseLifecycle,
@@ -189,10 +189,8 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       reportObservationLoss,
     }),
     trackReviewLinkClick: trackClick,
-    resolveLinkAndTrack: resolveLinkAndTrack({
+    resolvePortalLink: resolvePortalLink({
       findPublicPortalByToken: deps.portalApi.findPublicPortalByToken,
-      trackClick,
-      reportObservationLoss,
     }),
     getPublicPortal: getPublicPortal({
       findPublicPortalByToken: deps.portalApi.findPublicPortalByToken,
