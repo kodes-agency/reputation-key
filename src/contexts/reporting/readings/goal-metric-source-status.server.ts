@@ -1,9 +1,6 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type {
-  GoalMetricSourceStatus,
-  GoalMetricSourceStatusPort,
-} from './goal-metric-source-status.port.server'
+import type { GoalMetricSourceStatus } from './goal-metric-source-status.port.server'
 import type { GoalMetricAggregateQuery } from './metric-repository.port.server'
 
 type SourceRow = Readonly<{
@@ -246,12 +243,17 @@ export function evaluateGoalMetricSourceRows(
   return evaluateRelevantRows(relevant, query.subject.kind === 'portal_group')
 }
 
-export const createGoalMetricSourceStatus = (
+/**
+ * Proves durable projection completeness from source facts and consumer
+ * receipts. A high timestamp alone is not sufficient because older jobs may
+ * still be pending.
+ */
+export async function inspectGoalMetricSourceStatus(
   db: Pick<Database, 'execute'>,
-): GoalMetricSourceStatusPort => ({
-  async inspect(query, eventTypes) {
-    if (eventTypes.length === 0) return result('unavailable', 0, 0, 'no_source')
-    const raw = await db.execute(goalMetricSourceStatusQuery(query, eventTypes))
-    return evaluateGoalMetricSourceRows(query, raw.rows as SourceRow[])
-  },
-})
+  query: GoalMetricAggregateQuery,
+  eventTypes: readonly string[],
+): Promise<GoalMetricSourceStatus> {
+  if (eventTypes.length === 0) return result('unavailable', 0, 0, 'no_source')
+  const raw = await db.execute(goalMetricSourceStatusQuery(query, eventTypes))
+  return evaluateGoalMetricSourceRows(query, raw.rows as SourceRow[])
+}

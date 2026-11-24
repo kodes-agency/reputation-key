@@ -1,5 +1,3 @@
-import type { GoalMetricAggregateQuery } from './metric-repository.port.server'
-
 export type GoalMetricSourceStatus = Readonly<{
   state: 'complete' | 'pending' | 'unavailable' | 'quarantined'
   relevantFactCount: number
@@ -7,17 +5,6 @@ export type GoalMetricSourceStatus = Readonly<{
   reason: string | null
 }>
 
-/**
- * Proves durable projection completeness from source facts and consumer
- * receipts. A high timestamp alone is not sufficient because older jobs may
- * still be pending.
- */
-export type GoalMetricSourceStatusPort = Readonly<{
-  inspect(
-    query: GoalMetricAggregateQuery,
-    eventTypes: readonly string[],
-  ): Promise<GoalMetricSourceStatus>
-}>
 export type GoalMetricSourceHead = Readonly<{
   value: string
   eventTypes: readonly string[]

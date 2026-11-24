@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { recordOne, retractOne } from '../readings/single-reading.test-fixtures'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getEnv } from '#/shared/config/env'
@@ -408,7 +409,7 @@ describe.sequential('Goal result closure barriers (integration)', () => {
                 }),
               )
             : change === 'projection'
-              ? store.recordMetric({
+              ? recordOne(store, {
                   reading: createReading({
                     id: metricReadingId(randomUUID()),
                     definitionVersionId: VERSION,
@@ -427,7 +428,7 @@ describe.sequential('Goal result closure barriers (integration)', () => {
                     now: NOW,
                   }),
                 })
-              : store.retractMetric({
+              : retractOne(store, {
                   organizationId: f.org,
                   propertyId: f.property,
                   portalId: portalId(f.portal),
