@@ -11,6 +11,7 @@ import type {
   PropertyPerformancePreset,
 } from '#/shared/google-contracts/google-performance-report-contract'
 import type { ProviderContentLeaseDto } from '#/shared/domain/provider-content-lease'
+import { addLocalDays, daysBetween, localDateOf } from '#/shared/domain/local-days'
 
 const PRESET_DAYS: Readonly<Record<PropertyPerformancePreset, number>> = Object.freeze({
   '7d': 7,
@@ -63,30 +64,6 @@ export class GooglePerformanceReportError extends Error {
   }
 }
 
-function localDateAt(now: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(now)
-  const values = new Map(parts.map((part) => [part.type, part.value]))
-  return `${values.get('year')}-${values.get('month')}-${values.get('day')}`
-}
-
-function addLocalDays(localDate: string, days: number): string {
-  const [year, month, day] = localDate.split('-').map(Number)
-  const date = new Date(Date.UTC(year!, month! - 1, day! + days))
-  return date.toISOString().slice(0, 10)
-}
-
-function localDateDistance(start: string, end: string): number {
-  return Math.round(
-    (Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) /
-      86_400_000,
-  )
-}
-
 function listLocalDates(start: string, count: number): readonly string[] {
   return Object.freeze(
     Array.from({ length: count }, (_, index) => addLocalDays(start, index)),
@@ -101,7 +78,7 @@ export function buildPropertyPerformancePeriod(
   }>,
 ): PropertyPerformancePeriod {
   const dayCount = PRESET_DAYS[input.preset]
-  const localToday = localDateAt(input.now, input.timezone)
+  const localToday = localDateOf(input.now, input.timezone)
   const currentEndLocalDate = addLocalDays(localToday, -1)
   const currentStartLocalDate = addLocalDays(currentEndLocalDate, -(dayCount - 1))
   const priorEndLocalDate = addLocalDays(currentStartLocalDate, -1)
@@ -358,7 +335,7 @@ function sourceHealth(
     (date, index) => date === currentDates[index],
   )
   const consistentCoverage = sameCoverage(index, CORE_IMPRESSION_METRICS, currentDates)
-  const dataLagDays = localDateDistance(latestCompleteCoreLocalDate, currentEnd)
+  const dataLagDays = daysBetween(latestCompleteCoreLocalDate, currentEnd)
   const state =
     !consistentCoverage || !contiguousPrefix
       ? 'partial'

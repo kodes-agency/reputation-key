@@ -14,7 +14,7 @@
 // Days are Property-local calendar days, as `property_local_date` records them.
 // Pure: only `shared/domain` and the local-day arithmetic are imported.
 
-import { addLocalDays, daysBetween, localDateOf } from './local-days'
+import { addLocalDays, daysBetween, localDateOf } from '#/shared/domain/local-days'
 
 /** Short windows keep each local day visible. */
 export function portalSeriesBucketDays(localDays: number): 1 | 7 {

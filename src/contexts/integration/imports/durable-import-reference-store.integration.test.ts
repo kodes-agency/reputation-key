@@ -9,7 +9,7 @@ import type {
   ImportDiscoveryCandidate,
 } from './durable-import-reference-store.port.server'
 import {
-  createDurableImportReferenceKeys,
+  invalidationDigest,
   invalidationScopeFor,
 } from './durable-import-reference-keys.server'
 import { createDurableGoogleImportReferenceStore } from './durable-import-reference-store.server'
@@ -100,9 +100,11 @@ const candidates = (start: number, count: number): ImportDiscoveryCandidate[] =>
 
 describe('durable Google import discovery checkpoint', () => {
   let lease: TestLease
-  const invalidationKeys = createDurableImportReferenceKeys({}).invalidationKeys(
-    invalidationScopeFor('connection', [ORGANIZATION_ID, CONNECTION_ID]),
-  )
+  const invalidationKeys = [
+    invalidationDigest(
+      invalidationScopeFor('connection', [ORGANIZATION_ID, CONNECTION_ID]),
+    ),
+  ]
 
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
@@ -134,7 +136,7 @@ describe('durable Google import discovery checkpoint', () => {
     await lease.pool.query(
       `DELETE FROM idempotency_receipts
        WHERE scope = 'google_import_discovery' AND key = ANY($1::text[])`,
-      [invalidationKeys.map((item) => item.key)],
+      [invalidationKeys],
     )
   })
 
@@ -145,7 +147,7 @@ describe('durable Google import discovery checkpoint', () => {
     await lease?.pool.query(
       `DELETE FROM idempotency_receipts
        WHERE scope = 'google_import_discovery' AND key = ANY($1::text[])`,
-      [invalidationKeys.map((item) => item.key)],
+      [invalidationKeys],
     )
     await lease?.release()
     leasePrincipalKeys.dispose()

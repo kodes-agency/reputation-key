@@ -29,7 +29,6 @@ const issue = (
     organizationId: 'org-1',
     userId: 'user-1',
     sessionId: 'session-secret-1',
-    visibility: 'private',
     purpose: 'reviews',
     connectionMode: 'new',
     targetConnectionId: null,
@@ -63,7 +62,6 @@ describe('OAuth state handles', () => {
       ok: true,
       kind: 'exchange',
       exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
-      visibility: 'private',
       purpose: 'reviews',
       verifierMaterial: { contractVersion: 'v2', codeVerifier: 'v'.repeat(43) },
     })

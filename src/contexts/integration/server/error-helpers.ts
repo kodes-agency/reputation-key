@@ -16,7 +16,6 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
       'scope_not_granted',
       'token_refresh_failed',
       'gbp_api_error',
-      'invalid_visibility',
       'encryption_error',
       () => 400,
     )

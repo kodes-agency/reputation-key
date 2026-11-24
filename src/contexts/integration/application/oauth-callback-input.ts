@@ -17,7 +17,6 @@ export function buildOpaqueOAuthConnectInput(
   return {
     exchangeAttemptId: redeemed.exchangeAttemptId,
     code,
-    visibility: redeemed.visibility,
     purpose: redeemed.purpose,
     connectionMode: redeemed.connectionMode,
     targetConnectionId: redeemed.targetConnectionId,

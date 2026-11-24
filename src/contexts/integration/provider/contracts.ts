@@ -27,6 +27,17 @@ export {
   MAX_GOOGLE_PERFORMANCE_RESPONSE_BYTES,
   isGooglePerformanceDailyMetric,
 } from '#/shared/google-provider-control/contracts'
+/** What a Google content authorizer answers: the permit vector, or a closed refusal. */
+export type GoogleContentAuthorizationResult =
+  | Readonly<{
+      ok: true
+      authorizationVector: Readonly<Record<string, string | number | boolean | null>>
+    }>
+  | Readonly<{
+      ok: false
+      code: 'authorization_denied' | 'runtime_unavailable'
+    }>
+
 export type GoogleDailyMetric = GooglePerformanceDailyMetric
 
 type GoogleProviderCallAuthorizationBase = Readonly<{

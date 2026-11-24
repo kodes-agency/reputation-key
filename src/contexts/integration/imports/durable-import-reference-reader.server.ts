@@ -8,8 +8,8 @@ import type {
   ImportReferenceResult,
 } from './durable-import-reference-store.port.server'
 import {
+  isHandle,
   type DurableImportReferenceAudience,
-  type DurableImportReferenceKeys,
 } from './durable-import-reference-keys.server'
 import {
   durableImportReferenceExists,
@@ -18,17 +18,10 @@ import {
 } from './durable-import-reference-persistence.server'
 
 const MAX_CLOCK_SKEW_MS = 60_000
-const AUDIENCES: readonly DurableImportReferenceAudience[] = [
-  'account_selection',
-  'accounts_cursor',
-  'locations_cursor',
-  'import_candidate',
-]
 
 export const createDurableImportReferenceReader = (
   deps: Readonly<{
     db: Database
-    keys: DurableImportReferenceKeys
     clock: () => Date
   }>,
 ) => {
@@ -40,32 +33,22 @@ export const createDurableImportReferenceReader = (
       schema: z.ZodType<T>
     }>,
   ): Promise<ImportReferenceResult<{ record: DurableImportRecord; payload: T }>> => {
-    const referenceKey = deps.keys.recordKey(input.audience, input.handle)
-    if (!referenceKey) return { ok: false, code: 'malformed' }
+    if (!isHandle(input.handle)) return { ok: false, code: 'malformed' }
     try {
       const loaded = await loadDurableImportRecord(
         deps.db,
-        referenceKey,
+        input.handle,
         input.audience,
         deps.clock(),
       )
       if (loaded.status !== 'found') {
         if (loaded.status === 'expired') return { ok: false, code: 'expired' }
-        const alternateKeys = AUDIENCES.filter(
-          (audience) => audience !== input.audience,
-        ).flatMap((audience) => {
-          const key = deps.keys.recordKey(audience, input.handle)
-          return key ? [key] : []
-        })
-        return (await durableImportReferenceExists(deps.db, alternateKeys))
+        return (await durableImportReferenceExists(deps.db, [input.handle]))
           ? { ok: false, code: 'binding_mismatch' }
           : { ok: false, code: 'not_found' }
       }
       const now = deps.clock()
-      if (
-        loaded.record.keyVersion !== deps.keys.keyVersion ||
-        loaded.record.issuedAt.getTime() > now.getTime() + MAX_CLOCK_SKEW_MS
-      ) {
+      if (loaded.record.issuedAt.getTime() > now.getTime() + MAX_CLOCK_SKEW_MS) {
         return { ok: false, code: 'malformed' }
       }
       if (!sameDiscoveryAuthorization(loaded.record.authorization, input.authorization)) {

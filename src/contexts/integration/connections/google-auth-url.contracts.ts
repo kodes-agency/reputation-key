@@ -2,7 +2,7 @@ import { z } from 'zod/v4'
 
 const newGoogleAuthorizationSchema = z
   .object({
-    visibility: z.literal('organization').default('organization'),
+    visibility: z.literal('organization').optional(),
     connectionMode: z.literal('new').default('new'),
     targetConnectionId: z.null().default(null),
   })
@@ -10,7 +10,7 @@ const newGoogleAuthorizationSchema = z
 
 const reauthorizeGoogleAuthorizationSchema = z
   .object({
-    visibility: z.literal('organization'),
+    visibility: z.literal('organization').optional(),
     connectionMode: z.literal('reauth'),
     targetConnectionId: z.string().min(1).max(255),
   })

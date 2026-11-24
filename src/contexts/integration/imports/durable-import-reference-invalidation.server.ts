@@ -4,9 +4,10 @@ import { googleImportDiscoveryRecords } from '#/shared/db/schema/google-import-d
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import type { GoogleImportReferenceStore } from './durable-import-reference-store.port.server'
 import {
+  invalidationDigest,
   invalidationScopeFor,
+  SERVER_ID_VERSION,
   type DurableImportInvalidationScope,
-  type DurableImportReferenceKeys,
 } from './durable-import-reference-keys.server'
 import { acquireDurableImportScopeLocks } from './durable-import-reference-persistence.server'
 
@@ -75,7 +76,6 @@ const deleteScope = async (
 export const createDurableImportReferenceInvalidation = (
   deps: Readonly<{
     db: Database
-    keys: DurableImportReferenceKeys
     clock: () => Date
   }>,
 ): Pick<GoogleImportReferenceStore, InvalidationMethod> => {
@@ -86,23 +86,19 @@ export const createDurableImportReferenceInvalidation = (
     try {
       await deps.db.transaction(async (tx) => {
         await acquireDurableImportScopeLocks(tx, [target])
-        const fences = deps.keys.invalidationKeys(target)
-        if (fences.length === 0) throw new Error('invalidation key unavailable')
         await tx
           .insert(idempotencyReceipts)
-          .values(
-            fences.map((fence) => ({
-              scope: 'google_import_discovery',
-              key: fence.key,
-              payload: {
-                keyVersion: fence.keyVersion,
-                scopeKind: fence.scopeKind,
-                invalidatedAt: now.toISOString(),
-                expiresAt: expiresAt.toISOString(),
-              },
-              recordedAt: now,
-            })),
-          )
+          .values({
+            scope: 'google_import_discovery',
+            key: invalidationDigest(target),
+            payload: {
+              keyVersion: SERVER_ID_VERSION,
+              scopeKind: target.kind,
+              invalidatedAt: now.toISOString(),
+              expiresAt: expiresAt.toISOString(),
+            },
+            recordedAt: now,
+          })
           .onConflictDoUpdate({
             target: [idempotencyReceipts.scope, idempotencyReceipts.key],
             set: {

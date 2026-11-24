@@ -25,7 +25,6 @@ export type IntegrationErrorCode =
   | 'reauthorization_required'
   | 'gbp_api_error'
   | 'gbp_api_rate_limited'
-  | 'invalid_visibility'
   | 'encryption_error'
   | 'invalid_transition'
 export type IntegrationError = Readonly<{
