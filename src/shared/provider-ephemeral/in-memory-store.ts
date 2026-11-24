@@ -1,4 +1,5 @@
 import {
+  assertCompareAndSwapEntries,
   assertProviderEphemeralLocation,
   assertProviderEphemeralTtl,
   assertProviderEphemeralValue,
@@ -69,24 +70,11 @@ export function createInMemoryProviderEphemeralStore(
       return 'replaced'
     },
     compareAndSwapMany: async (namespace, batch) => {
-      const observed = batch.map((entry) => {
-        assertProviderEphemeralLocation(namespace, entry.key)
-        if (entry.expectedValue !== null) {
-          assertProviderEphemeralValue(entry.expectedValue)
-        }
-        if (entry.next !== null) {
-          assertProviderEphemeralValue(entry.next.value)
-          assertProviderEphemeralTtl(entry.next.ttlSeconds)
-        }
-        return { entry, id: composite(namespace, entry.key) }
-      })
-      if (
-        batch.length < 1 ||
-        batch.length > 256 ||
-        new Set(observed.map(({ id }) => id)).size !== observed.length
-      ) {
-        throw new Error('provider ephemeral batch is outside the bounded range')
-      }
+      assertCompareAndSwapEntries(namespace, batch)
+      const observed = batch.map((entry) => ({
+        entry,
+        id: composite(namespace, entry.key),
+      }))
       const now = nowMs()
       for (const { entry, id } of observed) {
         const current = entries.get(id)
