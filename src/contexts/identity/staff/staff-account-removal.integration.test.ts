@@ -56,7 +56,7 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
     let fail = true
     const depart = removeStaffForMemberDeparture({
       ...h.deps,
-      management: createStaffManagementStore(env.db, () => NOW),
+      management: createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000),
       removeLogin: async () => {
         throw new Error('Manager cleanup must not remove the login itself')
       },
@@ -101,7 +101,7 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
         'INSERT INTO staff_user_links (organization_id, staff_participant_id, user_id, effective_from, created_by) VALUES ($1,$2,$3,$4,$5)',
         [h.row.organizationId, h.row.participantId, h.row.userId, NOW, h.row.inviterId],
       )
-      const management = createStaffManagementStore(env.db, () => NOW)
+      const management = createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000)
       const old = (await management.target(h.row.organizationId, h.row.participationId))!
       await management.denyAccess(h.row.organizationId, old)
       if (completed) {
@@ -242,7 +242,7 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
       { ...h.input, email: h.row.email },
       h.ctx,
     )
-    const management = createStaffManagementStore(env.db, () => NOW)
+    const management = createStaffManagementStore(env.db, () => NOW, 7 * 86_400_000)
     const target = (await management.target(
       h.row.organizationId,
       operation.participationId,

@@ -54,7 +54,7 @@ export type SavePrintWordingInput = {
 export type PortalPrintKitResources = Readonly<{
   read: PortalPrintKitReader
   /** The kit's download, used where the read says the server shows the kit. */
-  downloadPrintMutation?: Action<DownloadPrintInput, PortalPrintKitDownload>
-  /** The kit's "Save wording"; absent, Share offers none. It answers with the wording as stored. */
-  saveWordingMutation?: Action<SavePrintWordingInput, PrintSavedWording>
+  downloadPrintMutation: Action<DownloadPrintInput, PortalPrintKitDownload>
+  /** The kit's "Save wording". It answers with the wording as stored. */
+  saveWordingMutation: Action<SavePrintWordingInput, PrintSavedWording>
 }>

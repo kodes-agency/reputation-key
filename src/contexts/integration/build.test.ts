@@ -72,7 +72,6 @@ function buildDeps(overrides: {
   googlePerformancePrincipalKeys?: ReturnType<typeof createVersionedHmacKeyring>
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   oauthStateHandles?: OAuthStateHandleService
-  refreshPolicyStoreRequired?: () => Promise<void>
 }) {
   return {
     db: dbStub,
@@ -284,7 +283,7 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
   }
   const connectionId = googleConnectionId('11111111-1111-4111-8111-111111111111')
 
-  function discoveryWithRefresh(refreshPolicyStoreRequired: () => Promise<void>) {
+  function discoveryContext() {
     const decide = vi.fn(async (): Promise<ExecutionDecision> => ({
       allowed: true,
       reason: 'allowed',
@@ -303,7 +302,6 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
         }),
         propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
         googleImportReplayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
-        refreshPolicyStoreRequired,
       }),
     )
     const discovery = ctx.internal.useCases.googleImportDiscovery
@@ -311,8 +309,8 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
     return { discovery: discovery!, decide }
   }
 
-  it('reaches the execution policy after observing the static policy', async () => {
-    const { discovery, decide } = discoveryWithRefresh(async () => {})
+  it('reaches the execution policy', async () => {
+    const { discovery, decide } = discoveryContext()
 
     // The content authority is unavailable here, which is a dependency fault the
     // administrator can retry, not a change of their access.

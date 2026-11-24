@@ -32,14 +32,3 @@ export const createMerchantAiManagementAuthorizer =
       return false
     }
   }
-
-/** Step-up proof is the caller's own password, and needs the request's headers. */
-export const createStepUpVerifier =
-  (
-    verifyPassword: (
-      input: Readonly<{ headers: Headers; password: string }>,
-    ) => Promise<boolean>,
-  ) =>
-  async (input: Readonly<{ requestHeaders?: Headers; proof: string }>) =>
-    input.requestHeaders !== undefined &&
-    (await verifyPassword({ headers: input.requestHeaders, password: input.proof }))

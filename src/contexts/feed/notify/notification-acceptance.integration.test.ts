@@ -78,9 +78,7 @@ describe.sequential(
     beforeEach(async () => {
       await clearDeliveries()
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-      initDelayedExecutionPolicy(
-        createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-      )
+      initDelayedExecutionPolicy(createDelayedExecutionPolicy())
     })
     afterEach(() => {
       resetDelayedExecutionPolicy()

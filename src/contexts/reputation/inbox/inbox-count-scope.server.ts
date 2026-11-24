@@ -10,6 +10,7 @@ import type { PropertyId } from '#/shared/domain/ids'
 import { inboxError } from '../domain/inbox-errors'
 import {
   propertyIdsForInboxSource,
+  onceAccessiblePropertyIds,
   resolveInboxSourceScopes,
 } from './inbox-access.server'
 import type { InboxReplyStages } from './inbox-queues.contracts'
@@ -35,10 +36,11 @@ export async function resolveInboxCountScope(
   ctx: AuthContext,
   propertyId?: string,
 ): Promise<InboxCountScope | null> {
-  const visible = await resolveVisiblePropertyIds(staffPublicApi, ctx, 'inbox.read')
+  const people = onceAccessiblePropertyIds(staffPublicApi)
+  const visible = await resolveVisiblePropertyIds(people, ctx, 'inbox.read')
   if (visible === 'none') return null
 
-  const sourceScopes = await resolveInboxSourceScopes(staffPublicApi, ctx, 'read')
+  const sourceScopes = await resolveInboxSourceScopes(people, ctx, 'read')
   if (sourceScopes.length === 0) return null
 
   if (visible !== 'all' && propertyId && !visible.includes(propertyId as PropertyId)) {

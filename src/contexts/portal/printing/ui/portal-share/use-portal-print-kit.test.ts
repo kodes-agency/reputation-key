@@ -56,7 +56,9 @@ function resultFor(
     portalId: 'portal-1',
     publicationState: state,
     printKit:
-      options.withPrintKit === false ? undefined : { read, downloadMutation: vi.fn() },
+      options.withPrintKit === false
+        ? undefined
+        : { read, downloadPrintMutation: vi.fn(), saveWordingMutation: vi.fn() },
   } as unknown as PortalShareProps
   const client = new QueryClient()
   options.prime?.(client)

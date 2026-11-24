@@ -97,8 +97,6 @@ async function bootOperatorRuntime(): Promise<OperatorBoot> {
   claimProcessContainer('operator')
   try {
     const container = createOperatorContainer()
-    // Preserve the shared boot contract; static policy observation is immediate.
-    await policy.handle.refresh()
     return { ...policy, container }
   } catch (error) {
     releaseProcessContainer()

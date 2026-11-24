@@ -57,14 +57,14 @@ type Input = Readonly<{
   portalId: string
   /** The read `usePrintKit` made; null while it reads. */
   view: PortalPrintKitView | null
-  /** Off while the tab shows no print kit, or today's. */
+  /** Off while the tab shows no print kit. */
   enabled: boolean
   countryCode: string | null
   /** The live code's QR address, when it is in memory; the preview draws a sample otherwise. */
   qrAddress: string | null
-  downloadMutation: PortalPrintKitResources['downloadPrintMutation']
-  /** "Save wording"; absent, Share offers none. */
-  saveWordingMutation: PortalPrintKitResources['saveWordingMutation']
+  /** Absent while the tab has no print kit. */
+  downloadMutation: PortalPrintKitResources['downloadPrintMutation'] | undefined
+  saveWordingMutation: PortalPrintKitResources['saveWordingMutation'] | undefined
   /** Called once the server made a file: the print is now the Portal's last, which the read says. */
   onDownloaded: () => void
   /** Called once the server saved the wording, which the read says too: the next visit opens on it. */

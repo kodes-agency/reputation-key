@@ -20,13 +20,9 @@ function fakeLogger() {
   return { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }
 
-/** Mirror bootstrap.ts: blocked/dark work has no executable handler. */
 function fullyRegisteredRegistry() {
   const registry = createJobRegistry()
   for (const row of JOB_FAMILY_ROWS) {
-    if (row.registration === 'blocked_capability' || row.registration === 'denied_dark') {
-      continue
-    }
     registry.register(row.jobName, async () => {})
   }
   return registry
@@ -81,7 +77,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     ).toThrow(/health-chek/)
   })
 
-  it('contains exactly the governed dark and quarantined job registrations', () => {
+  it('contains exactly the governed quarantined job registrations', () => {
     expect(
       JOB_FAMILY_ROWS.filter((row) => row.registration !== 'enabled').map((row) => ({
         jobName: row.jobName,

@@ -145,7 +145,7 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | Alert                                          | Sev | Threshold / window                                                                                                                | Runbook |
 | ---------------------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | `worker.heartbeat.stale`                       | P1  | heartbeat missing or age > 10min                                                                                                  | §7      |
-| `worker.job-runtime-unready`                   | P1  | any governed family violates handler/scheduler, dark-work, freshness, queue-age, stall, repair, or dead-letter contract           | §17     |
+| `worker.job-runtime-unready`                   | P1  | any governed family violates handler/scheduler, quarantine, freshness, queue-age, stall, repair, or dead-letter contract          | §17     |
 | `guest.observation-loss`                       | P1  | any suppressed scan/review-link observation in trailing 24h, or the content-free monitor is unavailable                           | §18     |
 | `observability.snapshot-degraded`              | P1  | a degraded snapshot section blinds at least one alert on two consecutive evaluations (those alerts hold their state meanwhile)    | §23     |
 | `queue.oldest-age`                             | P2  | oldest unpublished outbox event > 15min                                                                                           | §7      |

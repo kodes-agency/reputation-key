@@ -155,9 +155,6 @@ async function main() {
   // refresh and every job.
   bindProcessPolicies(container)
 
-  // BQC-2.2: strong read of persisted policy state before any job runs —
-  // worker decisions see DB truth from the start (allowlist/suspension).
-  await container.refreshPolicyStore()
   // Review provider-subject writers may start only after the decoded worker
   // key set exactly matches the database's masked active/rotation inventory.
   await container.refreshReviewProviderSubjectKeys()
@@ -341,7 +338,6 @@ async function main() {
         handlerMissing: runtimeReport.handlerMissing,
         schedulerMissing: runtimeReport.schedulerMissing,
         scheduleDenied: runtimeReport.scheduleDenied,
-        forbiddenDarkWork: runtimeReport.forbiddenDarkWork,
         quarantinedSchedulers: runtimeReport.quarantinedSchedulers,
         missedObjectives: runtimeReport.missedObjectives,
         queueAgeMissed: runtimeReport.queueAgeMissed,
