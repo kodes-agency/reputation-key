@@ -561,7 +561,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.deliveryLag.materializationPending'],
     emitted: true,
     description:
-      'Redis-accepted Notification deliveries without an atomic PostgreSQL materialization receipt. Bounded; read materializationSaturated with it.',
+      'Always 0: kept so existing dashboards and alerts keep receiving data; materialization is no longer a separate stage.',
   }),
   def({
     name: 'notification.delivery.oldest_source_age_ms',
@@ -581,7 +581,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.deliveryLag.oldestMaterializationSourceAgeMs'],
     emitted: true,
     description:
-      'End-to-end age from durable source for the oldest Redis-accepted delivery still missing PostgreSQL materialization.',
+      'Always 0: kept so existing dashboards and alerts keep receiving data; materialization is no longer a separate stage.',
   }),
   def({
     name: 'notification.delivery.oldest_materialization_enqueue_age_ms',
@@ -591,7 +591,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.deliveryLag.oldestMaterializationEnqueuedAgeMs'],
     emitted: true,
     description:
-      'Redis→PostgreSQL stage age for the oldest accepted delivery still missing materialization.',
+      'Always 0: kept so existing dashboards and alerts keep receiving data; materialization is no longer a separate stage.',
   }),
   def({
     name: 'notification.delivery.source_saturated',
@@ -610,7 +610,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.deliveryLag.materializationSaturated'],
     emitted: true,
     description:
-      '1 when the bounded accepted-but-unmaterialized delivery scan reached its cap.',
+      'Always 0: kept so existing dashboards and alerts keep receiving data; materialization is no longer a separate stage.',
   }),
 
   // ── source.* — refresh-due / expiry / purge lifecycle ──

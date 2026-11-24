@@ -154,7 +154,6 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
       logger: input.logger,
       operationalHistoryIdGen: () =>
         operationalActionHistoryRecordId(crypto.randomUUID()),
-      operationalHistoryHoldIdGen: () => crypto.randomUUID(),
       operationalHistoryAccessAuthority: input.identity.publicApi.accountAdminAuthority,
     },
     notification: {
