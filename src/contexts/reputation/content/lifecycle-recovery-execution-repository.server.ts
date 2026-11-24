@@ -103,6 +103,92 @@ function exactIdentityCondition(identity: ReviewLifecycleRecoveryExecutionIdenti
   )
 }
 
+type RecoveryTransaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+/**
+ * Takes the recovery advisory lock, then refuses a conflicting, consumed,
+ * replayed or stale approval. Returns the durable execution row, if any.
+ */
+async function lockAndCheckApproval(
+  tx: RecoveryTransaction,
+  input: ReviewLifecycleRecoveryExecutionAuthorityInput,
+  reportExpired?: number,
+): Promise<ReviewLifecycleRecoveryExecutionRow | undefined> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('repkey.review-lifecycle-recovery'), 0)`,
+  )
+  const candidates = await tx
+    .select()
+    .from(reviewLifecycleRecoveryExecutions)
+    .where(
+      or(
+        eq(reviewLifecycleRecoveryExecutions.id, input.recoveryRunId),
+        eq(reviewLifecycleRecoveryExecutions.approvalId, input.approvalId),
+        eq(
+          reviewLifecycleRecoveryExecutions.approvalBundleSha256,
+          input.approvalBundleSha256,
+        ),
+        eq(
+          reviewLifecycleRecoveryExecutions.recoveryGeneration,
+          input.recoveryGeneration,
+        ),
+      ),
+    )
+    .for('update')
+  if (
+    candidates.length > 1 ||
+    (candidates[0] &&
+      (!sameExecutionBinding(candidates[0], input) ||
+        (reportExpired !== undefined && candidates[0].reportExpired !== reportExpired)))
+  ) {
+    throw new Error(
+      'Review lifecycle recovery approval conflicts with a durable target binding',
+    )
+  }
+  const existing = candidates[0]
+  if (existing?.state === 'completed') {
+    throw new Error('Review lifecycle recovery approval was already consumed')
+  }
+
+  const recoveryCandidates = await tx
+    .select({
+      id: recoveryRuns.id,
+      generation: recoveryRuns.generation,
+      sourceReleaseSha: recoveryRuns.sourceReleaseSha,
+      sourceManifestSha256: recoveryRuns.sourceManifestSha256,
+      restorePointAt: recoveryRuns.restorePointAt,
+    })
+    .from(recoveryRuns)
+    .where(
+      or(
+        eq(recoveryRuns.id, input.recoveryRunId),
+        eq(recoveryRuns.generation, input.recoveryGeneration),
+        and(
+          eq(recoveryRuns.sourceManifestSha256, input.releaseManifestSha256),
+          eq(recoveryRuns.restorePointAt, input.restorePointAt),
+        ),
+      ),
+    )
+    .for('update')
+  const exactRecovery = recoveryCandidates.find(
+    (row) =>
+      row.id === input.recoveryRunId &&
+      row.generation === input.recoveryGeneration &&
+      row.sourceReleaseSha === input.releaseSha &&
+      row.sourceManifestSha256 === input.releaseManifestSha256 &&
+      sameInstant(row.restorePointAt, input.restorePointAt),
+  )
+  if (
+    recoveryCandidates.length > 0 &&
+    (!exactRecovery ||
+      existing?.state !==
+        ('lifecycle_applied' satisfies ReviewLifecycleRecoveryExecutionState))
+  ) {
+    throw new Error('Review lifecycle recovery approval was replayed or is stale')
+  }
+  return existing
+}
+
 /** PostgreSQL one-shot/recovery-safe receipt for the sealed executor. */
 export const createReviewLifecycleRecoveryExecutionRepository = (
   db: Database,
@@ -129,154 +215,13 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
     },
     resume: async (input) =>
       db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtext('repkey.review-lifecycle-recovery'), 0)`,
-        )
-        const candidates = await tx
-          .select()
-          .from(reviewLifecycleRecoveryExecutions)
-          .where(
-            or(
-              eq(reviewLifecycleRecoveryExecutions.id, input.recoveryRunId),
-              eq(reviewLifecycleRecoveryExecutions.approvalId, input.approvalId),
-              eq(
-                reviewLifecycleRecoveryExecutions.approvalBundleSha256,
-                input.approvalBundleSha256,
-              ),
-              eq(
-                reviewLifecycleRecoveryExecutions.recoveryGeneration,
-                input.recoveryGeneration,
-              ),
-            ),
-          )
-          .for('update')
-        if (
-          candidates.length > 1 ||
-          (candidates[0] && !sameExecutionBinding(candidates[0], input))
-        ) {
-          throw new Error(
-            'Review lifecycle recovery approval conflicts with a durable target binding',
-          )
-        }
-        const existing = candidates[0]
-        if (existing?.state === 'completed') {
-          throw new Error('Review lifecycle recovery approval was already consumed')
-        }
-
-        const recoveryCandidates = await tx
-          .select({
-            id: recoveryRuns.id,
-            generation: recoveryRuns.generation,
-            sourceReleaseSha: recoveryRuns.sourceReleaseSha,
-            sourceManifestSha256: recoveryRuns.sourceManifestSha256,
-            restorePointAt: recoveryRuns.restorePointAt,
-          })
-          .from(recoveryRuns)
-          .where(
-            or(
-              eq(recoveryRuns.id, input.recoveryRunId),
-              eq(recoveryRuns.generation, input.recoveryGeneration),
-              and(
-                eq(recoveryRuns.sourceManifestSha256, input.releaseManifestSha256),
-                eq(recoveryRuns.restorePointAt, input.restorePointAt),
-              ),
-            ),
-          )
-          .for('update')
-        const exactRecovery = recoveryCandidates.find(
-          (row) =>
-            row.id === input.recoveryRunId &&
-            row.generation === input.recoveryGeneration &&
-            row.sourceReleaseSha === input.releaseSha &&
-            row.sourceManifestSha256 === input.releaseManifestSha256 &&
-            sameInstant(row.restorePointAt, input.restorePointAt),
-        )
-        if (
-          recoveryCandidates.length > 0 &&
-          (!exactRecovery ||
-            existing?.state !==
-              ('lifecycle_applied' satisfies ReviewLifecycleRecoveryExecutionState))
-        ) {
-          throw new Error('Review lifecycle recovery approval was replayed or is stale')
-        }
+        const existing = await lockAndCheckApproval(tx, input)
         return existing == null ? null : executionProgress(existing)
       }),
 
     begin: async (input) =>
       db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtext('repkey.review-lifecycle-recovery'), 0)`,
-        )
-
-        const candidates = await tx
-          .select()
-          .from(reviewLifecycleRecoveryExecutions)
-          .where(
-            or(
-              eq(reviewLifecycleRecoveryExecutions.id, input.recoveryRunId),
-              eq(reviewLifecycleRecoveryExecutions.approvalId, input.approvalId),
-              eq(
-                reviewLifecycleRecoveryExecutions.approvalBundleSha256,
-                input.approvalBundleSha256,
-              ),
-              eq(
-                reviewLifecycleRecoveryExecutions.recoveryGeneration,
-                input.recoveryGeneration,
-              ),
-            ),
-          )
-          .for('update')
-        if (
-          candidates.length > 1 ||
-          (candidates[0] &&
-            (!sameExecutionBinding(candidates[0], input) ||
-              candidates[0].reportExpired !== input.reportExpired))
-        ) {
-          throw new Error(
-            'Review lifecycle recovery approval conflicts with a durable target binding',
-          )
-        }
-        const existing = candidates[0]
-        if (existing?.state === 'completed') {
-          throw new Error('Review lifecycle recovery approval was already consumed')
-        }
-
-        const recoveryCandidates = await tx
-          .select({
-            id: recoveryRuns.id,
-            generation: recoveryRuns.generation,
-            sourceReleaseSha: recoveryRuns.sourceReleaseSha,
-            sourceManifestSha256: recoveryRuns.sourceManifestSha256,
-            restorePointAt: recoveryRuns.restorePointAt,
-          })
-          .from(recoveryRuns)
-          .where(
-            or(
-              eq(recoveryRuns.id, input.recoveryRunId),
-              eq(recoveryRuns.generation, input.recoveryGeneration),
-              and(
-                eq(recoveryRuns.sourceManifestSha256, input.releaseManifestSha256),
-                eq(recoveryRuns.restorePointAt, input.restorePointAt),
-              ),
-            ),
-          )
-          .for('update')
-        const exactRecovery = recoveryCandidates.find(
-          (row) =>
-            row.id === input.recoveryRunId &&
-            row.generation === input.recoveryGeneration &&
-            row.sourceReleaseSha === input.releaseSha &&
-            row.sourceManifestSha256 === input.releaseManifestSha256 &&
-            sameInstant(row.restorePointAt, input.restorePointAt),
-        )
-        if (
-          recoveryCandidates.length > 0 &&
-          (!exactRecovery ||
-            candidates[0]?.state !==
-              ('lifecycle_applied' satisfies ReviewLifecycleRecoveryExecutionState))
-        ) {
-          throw new Error('Review lifecycle recovery approval was replayed or is stale')
-        }
+        const existing = await lockAndCheckApproval(tx, input, input.reportExpired)
 
         if (existing) {
           return { ...executionProgress(existing), resumed: true }
