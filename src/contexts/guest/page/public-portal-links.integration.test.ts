@@ -22,7 +22,7 @@ import { snapshotToRow } from '#/contexts/portal/publication/portal-publication-
 import { immersiveSnapshot } from '#/contexts/portal/application/__fixtures__/immersive-snapshot'
 import { immersiveConfiguration } from '#/contexts/portal/domain/__fixtures__/immersive-configuration'
 import { resolvePublicPortalToken } from '#/contexts/portal/publication/resolve-public-portal-token.server'
-import type { PublicPortalLookup } from './public-portal-lookup.port.server'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import { createAtomicGuestObservationStore } from './guest-observation-store.server'
 import { getPublicPortal } from './get-public-portal.server'
 import { resolveLinkAndTrack } from './resolve-link-and-track.server'
@@ -142,7 +142,7 @@ async function seedPublishedPortal(
 type Gate = { allowed: boolean }
 
 /** The real public read, over the real stores; `gate` is the public execution decision. */
-const publicLookup = (gate: Gate): PublicPortalLookup => {
+const publicLookup = (gate: Gate): PortalPublicApi['findPublicPortalByToken'] => {
   const resolve = resolvePublicPortalToken({
     tokenCodec: codec,
     portalPublicationRepo: createPortalPublicationRepository(db),
@@ -160,11 +160,11 @@ const publicLookup = (gate: Gate): PublicPortalLookup => {
     decidePublic: async () => gate,
     clock: () => NOW,
   })
-  return {
-    findByToken: async (rawToken, preference) => {
-      const outcome = await resolve(rawToken, preference)
-      return outcome.status === 'found' ? outcome.data : null
-    },
+  return async (rawToken, preference) => {
+    const outcome = await resolve(rawToken, preference)
+    return outcome.status === 'found'
+      ? { status: 'found', result: outcome.data }
+      : { status: 'unavailable' }
   }
 }
 
@@ -188,7 +188,7 @@ const clickReceipts = async (org: string) => {
 
 const redirector = (gate: Gate, losses: string[] = []) =>
   resolveLinkAndTrack({
-    publicPortalLookup: publicLookup(gate),
+    findPublicPortalByToken: publicLookup(gate),
     trackClick: trackReviewLinkClick({
       observationStore: createAtomicGuestObservationStore(db),
       clock: () => NOW,
@@ -247,7 +247,7 @@ afterAll(async () => {
 describe('getPublicPortal', () => {
   it('serves the live Portal for its address, with only approved links and the Google gateway', async () => {
     const result = await getPublicPortal({
-      publicPortalLookup: publicLookup({ allowed: true }),
+      findPublicPortalByToken: publicLookup({ allowed: true }),
     })({
       token: own.rawToken,
     })
@@ -263,7 +263,7 @@ describe('getPublicPortal', () => {
 
   it('serves the language of the signed session over the browser header', async () => {
     const result = await getPublicPortal({
-      publicPortalLookup: publicLookup({ allowed: true }),
+      findPublicPortalByToken: publicLookup({ allowed: true }),
     })({
       token: own.rawToken,
       requestedLocale: null,
@@ -276,7 +276,7 @@ describe('getPublicPortal', () => {
 
   it('answers portal_not_found for an address that names no Portal', async () => {
     await expect(
-      getPublicPortal({ publicPortalLookup: publicLookup({ allowed: true }) })({
+      getPublicPortal({ findPublicPortalByToken: publicLookup({ allowed: true }) })({
         token: `pt_${'A'.repeat(16)}_${'B'.repeat(43)}`,
       }),
     ).rejects.toSatisfy(
@@ -286,7 +286,7 @@ describe('getPublicPortal', () => {
 
   it('answers portal_not_found when the public execution decision refuses the read', async () => {
     await expect(
-      getPublicPortal({ publicPortalLookup: publicLookup({ allowed: false }) })({
+      getPublicPortal({ findPublicPortalByToken: publicLookup({ allowed: false }) })({
         token: own.rawToken,
       }),
     ).rejects.toSatisfy(
@@ -308,7 +308,7 @@ describe('a Portal that must stay closed', () => {
       const closed = await seedPublishedPortal(ORG, options)
 
       await expect(
-        getPublicPortal({ publicPortalLookup: publicLookup({ allowed: true }) })({
+        getPublicPortal({ findPublicPortalByToken: publicLookup({ allowed: true }) })({
           token: closed.rawToken,
         }),
       ).rejects.toSatisfy(

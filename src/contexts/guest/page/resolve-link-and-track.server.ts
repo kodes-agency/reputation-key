@@ -5,7 +5,8 @@ import {
   propertyId,
   type PortalLinkId,
 } from '#/shared/domain/ids'
-import type { PublicPortalLookup } from './public-portal-lookup.port.server'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
+import { trace } from '#/shared/observability/trace'
 import type { GuestObservationLossReporter } from './guest-observation-loss-monitor.port.server'
 
 export type ResolveLinkAndTrackInput = Readonly<{
@@ -33,7 +34,7 @@ export type ResolvedLinkObservationSession = Readonly<{
 }>
 
 export type ResolveLinkAndTrackDeps = Readonly<{
-  publicPortalLookup: PublicPortalLookup
+  findPublicPortalByToken: PortalPublicApi['findPublicPortalByToken']
   trackClick: TrackReviewLinkClick
   reportObservationLoss?: GuestObservationLossReporter
 }>
@@ -55,8 +56,11 @@ export const resolveLinkAndTrack =
     // Token resolution performs the public ExecutionPolicy decision and returns
     // only the authoritative organization/property/Portal scope. A link ID can
     // never widen that scope: it must be present in this token's published data.
-    const portal = await deps.publicPortalLookup.findByToken(input.token)
-    if (!portal) return null
+    const outcome = await trace('publicPortal.findByToken', () =>
+      deps.findPublicPortalByToken(input.token),
+    )
+    if (outcome.status !== 'found') return null
+    const portal = outcome.result
 
     const link = portal.links.find((candidate) => candidate.id === input.linkId)
     if (!link) return null
