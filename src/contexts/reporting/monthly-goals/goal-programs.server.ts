@@ -35,7 +35,6 @@ import {
   noteOf,
   resolveGoalDefinition,
   type GoalActor,
-  type GoalExecutionPolicy,
   type GoalProgramDependencies,
 } from '../application/use-cases/goal-program-shared'
 
@@ -369,15 +368,3 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
 }
 
 export type GoalProgramService = ReturnType<typeof createGoalProgramService>
-
-/** Request-facing Goal Program reads. Each invocation receives its scoped policy. */
-export type GoalProgramRequestApi = Readonly<{
-  history: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['history']>
-  ) => ReturnType<GoalProgramService['history']>
-  list: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['list']>
-  ) => ReturnType<GoalProgramService['list']>
-}>

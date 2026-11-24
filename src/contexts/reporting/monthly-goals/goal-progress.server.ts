@@ -47,7 +47,6 @@ import { metricSubject } from '../application/use-cases/goal-program-shared'
 import type { GoalProgramService } from './goal-programs.server'
 import type {
   GoalActor,
-  GoalExecutionPolicy,
   GoalMetricReadPort,
 } from '../application/use-cases/goal-program-shared'
 import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.server'
@@ -101,14 +100,6 @@ export type GoalProgressReader = (
  * governed read; past this the page shows none rather than some.
  */
 export const MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS = 25
-
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type GoalProgressRequestApi = Readonly<{
-  progress: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgressReader>
-  ) => ReturnType<GoalProgressReader>
-}>
 
 type ShownStatus = GoalProgress['status']
 

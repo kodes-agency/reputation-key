@@ -20,7 +20,6 @@ import { createGoalCore } from './goal-program-create.server'
 import {
   GoalProgramError,
   type GoalActor,
-  type GoalExecutionPolicy,
   type GoalProgramDependencies,
 } from '../application/use-cases/goal-program-shared'
 
@@ -214,12 +213,3 @@ export async function createGoalsForSubjects(
   }
   return { outcomes }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type GoalBulkCreateRequestApi = Readonly<{
-  createForSubjects: (
-    policy: GoalExecutionPolicy,
-    input: GoalBulkCreateInput,
-    actor: GoalActor,
-  ) => Promise<GoalBulkCreateResult>
-}>

@@ -11,10 +11,7 @@ import {
 } from './monthly-portal-goal-identity.server'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import { progressOf } from './goal-progress.server'
-import type {
-  GoalActor,
-  GoalExecutionPolicy,
-} from '../application/use-cases/goal-program-shared'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import {
   gatherMonthlyPortalGoal,
   type MonthlyPortalGoalCardDeps,
@@ -134,12 +131,3 @@ export async function readMonthlyPortalGoalLine(
   if (monthlyGoal === null && ownGoal === null) return null
   return { month: recommendation.months.current.key, monthlyGoal, ownGoal }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program reads. */
-export type MonthlyPortalGoalLineRequestApi = Readonly<{
-  line: (
-    policy: GoalExecutionPolicy,
-    input: MonthlyPortalGoalLineRequest,
-    actor: GoalActor,
-  ) => Promise<PortalGoalLineView | null>
-}>

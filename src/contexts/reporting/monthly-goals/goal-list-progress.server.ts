@@ -26,10 +26,7 @@ import {
   type GoalProgressDeps,
   type GoalProgressReading,
 } from './goal-progress.server'
-import type {
-  GoalActor,
-  GoalExecutionPolicy,
-} from '../application/use-cases/goal-program-shared'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 
 /** The governed batch read the list's figures come from. */
 export type GoalListProgressMetrics = Readonly<{
@@ -49,14 +46,6 @@ export type GoalListProgressReader = (
   input: GoalListProgressInput,
   actor: GoalActor,
 ) => Promise<readonly GoalListProgress[]>
-
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type GoalListProgressRequestApi = Readonly<{
-  listProgress: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalListProgressReader>
-  ) => ReturnType<GoalListProgressReader>
-}>
 
 type Planned = Readonly<{
   bundle: GoalProgramBundle

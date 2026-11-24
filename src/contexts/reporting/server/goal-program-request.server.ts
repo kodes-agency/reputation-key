@@ -7,12 +7,19 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
-import type { GoalRequestApi } from '../monthly-goals/goal-request-api.server'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
 } from '../application/use-cases/goal-program-shared'
+
+type GoalPrograms = ReturnType<
+  ReturnType<typeof getContainer>['goalPublicApi']['programsFor']
+>
+
+export const requestActor = (
+  ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
+): GoalActor => ctx
 
 /**
  * The request's Goal policy: the caller acts only as themselves in their own
@@ -72,17 +79,12 @@ const goalProgramStatus = (error: GoalProgramError): number => {
  * policy, and maps a GoalProgramError to its HTTP status once.
  */
 export async function withGoalPrograms<T>(
-  run: (
-    programs: GoalRequestApi,
-    policy: GoalExecutionPolicy,
-    actor: GoalActor,
-  ) => Promise<T>,
+  run: (programs: GoalPrograms, actor: GoalActor) => Promise<T>,
 ): Promise<T> {
   const ctx = await resolveTenantContext(await headersFromContext())
-  const programs = getContainer().goalPublicApi.programs
-  const policy = requestPolicy(ctx)
+  const programs = getContainer().goalPublicApi.programsFor(requestPolicy(ctx))
   try {
-    return await run(programs, policy, ctx)
+    return await run(programs, requestActor(ctx))
   } catch (error) {
     if (error instanceof GoalProgramError) {
       throwContextError('GoalProgramError', error, goalProgramStatus(error))
