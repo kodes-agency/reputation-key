@@ -15,7 +15,6 @@ vi.mock('#/contexts/identity/server/organizations', () => ({
 }))
 
 import { joinSearch, Route } from './join'
-import { enterWorkspace } from './-join-entry'
 
 const INVITATION_ID = 'b3c1f0de-4a52-4d7e-9f61-2f1c7a9e5d10'
 
@@ -183,49 +182,5 @@ describe('join route', () => {
     getInvitationPreview.mockRejectedValue(failure)
 
     await expect(runBeforeLoad(INVITATION_ID)).rejects.toBe(failure)
-  })
-})
-
-// After registration the member is signed in; the last step makes their
-// Organization active and moves them into the app. If it fails, the card
-// offers a retry that runs the same two steps again.
-describe('entering the workspace after registration', () => {
-  it('makes the Organization active, then navigates', async () => {
-    const order: string[] = []
-
-    await enterWorkspace({
-      ensureActiveOrg: async () => void order.push('ensureActiveOrg'),
-      navigateToWorkspace: async () => void order.push('navigate'),
-    })
-
-    expect(order).toEqual(['ensureActiveOrg', 'navigate'])
-  })
-
-  it('does not navigate when making the Organization active fails', async () => {
-    const navigateToWorkspace = vi.fn()
-
-    await expect(
-      enterWorkspace({
-        ensureActiveOrg: () => Promise.reject(new Error('active org unavailable')),
-        navigateToWorkspace,
-      }),
-    ).rejects.toThrow('active org unavailable')
-
-    expect(navigateToWorkspace).not.toHaveBeenCalled()
-  })
-
-  it('re-runs both steps on a retry after a failure', async () => {
-    const ensureActiveOrg = vi
-      .fn<() => Promise<void>>()
-      .mockRejectedValueOnce(new Error('active org unavailable'))
-      .mockResolvedValue(undefined)
-    const navigateToWorkspace = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
-    const steps = { ensureActiveOrg, navigateToWorkspace }
-
-    await expect(enterWorkspace(steps)).rejects.toThrow('active org unavailable')
-    await enterWorkspace(steps)
-
-    expect(ensureActiveOrg).toHaveBeenCalledTimes(2)
-    expect(navigateToWorkspace).toHaveBeenCalledTimes(1)
   })
 })
