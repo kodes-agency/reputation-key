@@ -10,6 +10,16 @@
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
+import {
+  affected,
+  notFound,
+  organizationExists,
+  scopeOf,
+  toCount,
+  type RightsRow,
+  type RightsScope,
+  type RightsTarget,
+} from './rights-primitives'
 
 const INBOX_EXPORT_VERSION = 'inbox-rights-export/v1'
 
@@ -36,7 +46,7 @@ const INBOX_EXCLUDED_RECORD_CLASSES = Object.freeze([
   },
 ])
 
-type Row = Readonly<Record<string, unknown>>
+type Row = RightsRow
 
 /**
  * Every table closure changes. Item children go with their item through
@@ -73,13 +83,9 @@ export const INBOX_RIGHTS_TABLES = Object.freeze({
 })
 
 /** One Organization, or one Property inside it. */
-export type InboxRightsScope = Readonly<{ organizationId: string; propertyId?: string }>
+export type InboxRightsScope = RightsScope
 
-/** An Organization id or a scope, so the Organization entry points keep their shape. */
-export type InboxRightsTarget = string | InboxRightsScope
-
-const scopeOf = (target: InboxRightsTarget): InboxRightsScope =>
-  typeof target === 'string' ? { organizationId: target } : target
+export type InboxRightsTarget = RightsTarget
 
 /** Rows of a table that has `organization_id` and `property_id` columns. */
 const scopedRows = (scope: InboxRightsScope) =>
@@ -94,21 +100,6 @@ const scopedItemChildren = (scope: InboxRightsScope) =>
         AND inbox_item_id IN (SELECT id FROM inbox_items WHERE ${scopedRows(scope)})`
     : sql`organization_id = ${scope.organizationId}`
 
-function toCount(row: Row | undefined, field: string): number {
-  const value = Number(row?.[field])
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new Error(`Inbox rights count is unavailable: ${field}`)
-  }
-  return value
-}
-
-async function organizationExists(tx: Tx, organizationId: string): Promise<boolean> {
-  const result = await tx.execute(
-    sql`SELECT 1 AS present FROM organization WHERE id = ${organizationId}`,
-  )
-  return result.rows.length > 0
-}
-
 /** The Property belongs to the Organization: its row, or an item that names it. */
 async function scopeExists(tx: Tx, scope: InboxRightsScope): Promise<boolean> {
   if (!scope.propertyId) return organizationExists(tx, scope.organizationId)
@@ -120,9 +111,6 @@ async function scopeExists(tx: Tx, scope: InboxRightsScope): Promise<boolean> {
     LIMIT 1`)
   return result.rows.length > 0
 }
-
-const notFound = (scope: InboxRightsScope) =>
-  scope.propertyId ? 'property not found' : 'organization not found'
 
 /** Counts only. */
 export async function readInboxRightsReport(
@@ -142,7 +130,9 @@ export async function readInboxRightsReport(
           sql`SELECT count(*)::int AS held FROM ${sql.identifier(table)}
               WHERE ${rows}`,
         )
-        held.push(`${table}=${toCount(result.rows[0] as Row | undefined, 'held')}`)
+        held.push(
+          `${table}=${toCount('Inbox', result.rows[0] as Row | undefined, 'held')}`,
+        )
       }
       const reminders = await tx.execute(
         sql`SELECT count(*)::int AS held FROM inbox_response_target_reminders
@@ -151,7 +141,7 @@ export async function readInboxRightsReport(
       )
       return [
         held.join(' '),
-        `schedulable reminders: ${toCount(reminders.rows[0] as Row | undefined, 'held')}`,
+        `schedulable reminders: ${toCount('Inbox', reminders.rows[0] as Row | undefined, 'held')}`,
       ]
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
@@ -262,10 +252,6 @@ export async function readInboxRightsExport(db: Database, organizationId: string
 
 export type InboxClosureOutcome =
   Readonly<{ ok: true; deleted: number }> | Readonly<{ ok: false; error: string }>
-
-async function affected(tx: Tx, statement: SQL): Promise<number> {
-  return (await tx.execute(statement)).rowCount ?? 0
-}
 
 /** The reason a closure would be refused, or null. Writes nothing. */
 export async function inboxClosureRefusal(

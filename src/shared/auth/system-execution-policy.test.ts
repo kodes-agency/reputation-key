@@ -14,7 +14,6 @@ import {
   resetDelayedExecutionPolicy,
   requiresFreshRead,
   capabilityForSystemAction,
-  type DelayedPolicyDeps,
 } from './system-execution-policy'
 import { EXECUTION_POLICY_VERSION } from './execution-policy'
 import { DELAYED_CONTRACT_FIXTURES } from './system-execution-policy.fixtures'
@@ -35,9 +34,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       resetCapabilityPolicyStore()
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore(fixture.env))
 
-      const hasActiveConsent = vi.fn(async () => false)
-      const deps: DelayedPolicyDeps = { hasActiveConsent }
-      const policy = createDelayedExecutionPolicy(deps)
+      const policy = createDelayedExecutionPolicy()
       const decision = await policy.decide({
         ...fixture.request,
         now: new Date('2026-07-17T12:00:00Z'),
@@ -46,13 +43,6 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       expect(decision.outcome).toBe(fixture.expect.outcome)
       if (fixture.expect.reason) expect(decision.reason).toBe(fixture.expect.reason)
       expect(decision.freshRead).toBe(fixture.expect.freshRead)
-      if (fixture.request.consent) {
-        expect(hasActiveConsent).toHaveBeenCalledWith({
-          organizationId: fixture.request.organizationId,
-          ...fixture.request.consent,
-          at: new Date('2026-07-17T12:00:00Z'),
-        })
-      }
       // stale_context annotates — the fresh decision itself is never overridden.
       if (fixture.expect.outcome === 'stale_context') {
         expect(decision.allowed).toBe(true)

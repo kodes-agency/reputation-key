@@ -81,36 +81,6 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
     expect: { outcome: 'deny', reason: 'capability_disabled', freshRead: true },
   },
   {
-    name: 'deny — consent required and missing',
-    env: {},
-    request: {
-      ...BASE,
-      principal: { kind: 'system', id: 'worker:default' },
-      action: 'system:review.sync',
-      propertyId: 'd4000000-0000-4000-8000-000000000051',
-      consent: {
-        subjectType: 'property',
-        subjectId: 'd4000000-0000-4000-8000-000000000051',
-        purpose: 'ai.analyze',
-        expectedFence: {
-          authorizationLineageId: 'a4000000-0000-4000-8000-000000000001',
-          capabilityEpoch: 4,
-          authorizedSourceEpoch: 2,
-          stateVersion: 6,
-          noticeDigest: 'a'.repeat(64),
-          recordedRuntimeProfileVersion: 'review-analysis-runtime-v1',
-          servedExecution: {
-            runtimeProfileVersion: 'review-analysis-runtime-v1',
-            operationProfileVersion: 'review-analysis-v3',
-            providerDeploymentProfileVersion: 'private-beta-global-v2',
-          },
-        },
-      },
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
-    },
-    expect: { outcome: 'deny', reason: 'consent_required', freshRead: true },
-  },
-  {
     name: 'deny — missing scope (property-scoped action without propertyId)',
     env: {},
     request: {

@@ -18,8 +18,8 @@
 //      annotates the outcome as stale_context — an annotation only, never
 //      a decision override.
 //   5. Role permissions and grants do NOT apply to system principals (they
-//      were checked at the interactive enqueue boundary); capability,
-//      suspension, and consent are re-checked here.
+//      were checked at the interactive enqueue boundary); capability
+//      and suspension are re-checked here.
 
 import {
   ENTRY_POINT_CATALOGUE,
@@ -30,7 +30,7 @@ import {
   type Capability,
   type CapabilityDenyReason,
 } from './beta-capabilities'
-import { EXECUTION_POLICY_VERSION, type ConsentSelector } from './execution-policy'
+import { EXECUTION_POLICY_VERSION } from './execution-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -88,7 +88,6 @@ export type DelayedDecisionRequest = Readonly<{
   executionKind: 'worker' | 'consumer' | 'schedule'
   /** Who enqueued the work, when relevant (user or system). */
   initiator?: Readonly<{ kind: 'user' | 'system'; id: string }>
-  consent?: ConsentSelector
   /** Policy version recorded at enqueue — stale-context detection only. */
   policyVersionAtEnqueue?: string
   correlationId?: string
@@ -98,7 +97,6 @@ export type DelayedDecisionRequest = Readonly<{
 export type DelayedDenyReason =
   | CapabilityDenyReason
   | 'missing_scope'
-  | 'consent_required'
   | 'policy_unavailable'
   | 'capability_mismatch'
   | 'unknown_action'
@@ -119,24 +117,11 @@ export type DelayedDecision = Readonly<{
   freshRead: boolean
 }>
 
-export type DelayedPolicyDeps = Readonly<{
-  hasActiveConsent?: (
-    input: Readonly<
-      ConsentSelector & {
-        organizationId: string
-        at: Date
-      }
-    >,
-  ) => Promise<boolean>
-}>
-
 export type DelayedExecutionPolicy = Readonly<{
   decide(request: DelayedDecisionRequest): Promise<DelayedDecision>
 }>
 
-export function createDelayedExecutionPolicy(
-  deps: DelayedPolicyDeps = {},
-): DelayedExecutionPolicy {
+export function createDelayedExecutionPolicy(): DelayedExecutionPolicy {
   function finish(
     request: DelayedDecisionRequest,
     allowed: boolean,
@@ -211,30 +196,6 @@ export function createDelayedExecutionPolicy(
         const capDecision = checkBetaCapability(systemCtx, capability, request.propertyId)
         if (!capDecision.allowed) {
           return finish(request, false, capDecision.reason, freshRead)
-        }
-      }
-
-      // Explicit consent subject is forwarded from enqueue and rechecked now.
-      if (request.consent) {
-        const subjectMatchesRequest =
-          (request.consent.subjectType === 'organization' &&
-            request.consent.subjectId === request.organizationId) ||
-          (request.consent.subjectType === 'property' &&
-            request.propertyId !== undefined &&
-            request.consent.subjectId === request.propertyId) ||
-          (request.consent.subjectType === 'user' &&
-            request.initiator?.kind === 'user' &&
-            request.consent.subjectId === request.initiator.id)
-        const consented =
-          subjectMatchesRequest && deps.hasActiveConsent
-            ? await deps.hasActiveConsent({
-                organizationId: request.organizationId,
-                ...request.consent,
-                at: request.now,
-              })
-            : false
-        if (!consented) {
-          return finish(request, false, 'consent_required', freshRead)
         }
       }
 
