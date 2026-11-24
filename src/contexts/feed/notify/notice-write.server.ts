@@ -2,6 +2,7 @@ import type { Database, Tx } from '#/shared/db'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { NotificationEmailId, NotificationId } from '#/shared/domain/ids'
 import { unbrand } from '#/shared/domain/ids'
+import { emailCorrelationId } from '../email/delivery-correlation.server'
 import type { ReviewRatingForRouting } from './cross-context-lookups.port.server'
 import type { NotificationEmail } from '../domain/notification-types'
 import type { InsertNotificationInput } from './insert-notification.server'
@@ -45,7 +46,7 @@ export async function enqueueImmediateAfterCommit(
     deps.logger.error(
       {
         err,
-        correlationId: `notification-email:${unbrand(email.id)}`,
+        correlationId: emailCorrelationId(unbrand(email.id)),
         cadence: 'immediate',
       },
       'Immediate notification email enqueue failed after delivery settlement',

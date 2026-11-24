@@ -54,7 +54,7 @@ export type InsertNotificationDeps = Readonly<{
   /** The database client, or the transaction the notice is written on. */
   db: NotificationDb
   /** Told of each email-queue row written, so the caller can hand it on after commit. */
-  onEmailQueued?: (email: NotificationEmail) => void
+  onEmailQueued: (email: NotificationEmail) => void
   clock: () => Date
   idGen: () => NotificationId
   emailIdGen: () => NotificationEmailId
@@ -64,11 +64,6 @@ export type InsertNotificationDeps = Readonly<{
    * is a Low ratings one for the reader; compared and dropped, never stored.
    */
   ratingForRouting: ReviewRatingForRouting
-  enqueueImmediateEmail?: (data: {
-    notificationEmailId: string
-    organizationId: string
-    propertyId?: string
-  }) => Promise<void>
 }>
 
 type ChannelPreferences = Readonly<{
@@ -264,39 +259,6 @@ const retireReplacedRow = async (
 export const mandatoryRepeatEmailKey = (eventId: string, userId: string): string =>
   `event:${eventId}:${userId}:email`
 
-const enqueueImmediateEmailBestEffort = async (
-  deps: InsertNotificationDeps,
-  notification: DomainNotification,
-  emailId: NotificationEmailId,
-): Promise<void> => {
-  if (!deps.enqueueImmediateEmail) return
-  try {
-    await deps.enqueueImmediateEmail({
-      notificationEmailId: unbrand(emailId),
-      organizationId: unbrand(notification.organizationId),
-      ...(notification.propertyId === null
-        ? {}
-        : { propertyId: unbrand(notification.propertyId) }),
-    })
-  } catch (enqueueErr) {
-    // `correlationId` is the same opaque string the urgent-email job envelope
-    // carries, so this failure and the digest sweep's later re-enqueue join on
-    // one field. No tenant/entity ids (BQC-7.3, see below). Recovery "depends
-    // on" the sweep rather than being guaranteed by it: the sweep covers
-    // Organization-scoped mandatory rows as well as Property-scoped ones, but
-    // it is a no-op when outbound email is dark, when no queue is configured,
-    // and for non-active properties.
-    deps.logger.error(
-      {
-        err: enqueueErr,
-        correlationId: `notification-email:${unbrand(emailId)}`,
-        cadence: 'immediate',
-      },
-      'Immediate notification email enqueue failed — recovery depends on the digest sweep',
-    )
-  }
-}
-
 /**
  * A MANDATORY event that landed in an unread row another event created: a
  * second role change, a second purge-pending notice. ADR 0046 r.2 still
@@ -359,10 +321,7 @@ const enqueueEmailEntry = async (
   }
 
   const queued = await insertNotificationEmail(deps.db, emailResult.value)
-  deps.onEmailQueued?.(queued)
-  if (cadence === 'immediate') {
-    await enqueueImmediateEmailBestEffort(deps, notification, queued.id)
-  }
+  deps.onEmailQueued(queued)
 }
 
 /**
