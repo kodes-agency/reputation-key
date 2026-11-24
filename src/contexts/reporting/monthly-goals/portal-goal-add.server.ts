@@ -10,7 +10,6 @@ import type {
   AddPortalGoalRequest,
   AddPortalGoalsRequest,
   AddPortalGoalsResult,
-  PortalGoalAddOptions,
   PortalGoalAddSubject,
 } from './contracts'
 import { goalMetricLabel } from './goal-metric-label.contracts'
@@ -207,24 +206,3 @@ export async function addPortalGoals(
   }
   return { outcomes }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type PortalGoalAddRequestApi = Readonly<{
-  portalGoalAdd: Readonly<{
-    options: (
-      policy: GoalExecutionPolicy,
-      input: Readonly<{ propertyId: string }>,
-      actor: GoalActor,
-    ) => Promise<PortalGoalAddOptions>
-    one: (
-      policy: GoalExecutionPolicy,
-      input: AddPortalGoalRequest,
-      actor: GoalActor,
-    ) => Promise<GoalProgramBundle>
-    each: (
-      policy: GoalExecutionPolicy,
-      input: AddPortalGoalsRequest,
-      actor: GoalActor,
-    ) => Promise<AddPortalGoalsResult>
-  }>
-}>

@@ -22,22 +22,12 @@ import {
   listProgressOf,
   type GoalListProgressMetrics,
 } from './goal-list-progress.server'
-import type {
-  GoalActor,
-  GoalExecutionPolicy,
-} from '../application/use-cases/goal-program-shared'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import {
   gatherMonthlyPortalGoal,
   monthlyPortalGoalCardOf,
   type MonthlyPortalGoalCardDeps,
-  type MonthlyPortalGoalCardRequestApi,
 } from './monthly-portal-goal-card.server'
-import type {
-  MonthlyPortalGoalChangeRequestApi,
-  MonthlyPortalGoalPromptRequestApi,
-  MonthlyPortalGoalSetRequestApi,
-} from './monthly-portal-goal.server'
-import type { MonthlyPortalGoalLineRequestApi } from './monthly-portal-goal-line.server'
 import {
   goalChangesOf,
   goalMonthsOf,
@@ -288,19 +278,3 @@ export async function readMonthlyPortalGoalPage(
     rows: rowsOf(recommendation, card.goal.month),
   }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program reads. */
-export type MonthlyPortalGoalRequestApi = Readonly<{
-  monthlyPortalGoal: MonthlyPortalGoalCardRequestApi &
-    Readonly<{
-      page: (
-        policy: GoalExecutionPolicy,
-        input: Readonly<{ propertyId: string }>,
-        actor: GoalActor,
-      ) => Promise<PortalGoalPageView>
-    }> &
-    MonthlyPortalGoalSetRequestApi &
-    MonthlyPortalGoalChangeRequestApi &
-    MonthlyPortalGoalPromptRequestApi &
-    MonthlyPortalGoalLineRequestApi
-}>
