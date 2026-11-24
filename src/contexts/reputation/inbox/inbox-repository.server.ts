@@ -236,7 +236,11 @@ export const createInboxRepository = (
         log.debug({ limit }, 'querying inbox findFilteredPaginated')
         const conditions = await resolveFilterConditions(ports, orgId, filters)
         if (conditions === null)
-          return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult
+          return {
+            items: [],
+            nextCursor: null,
+            totalCount: cursor ? null : 0,
+          } as PaginatedResult
 
         const pageConditions = [...conditions]
         const sort = filters.sort ?? 'newest'
@@ -254,11 +258,14 @@ export const createInboxRepository = (
 
         // Count and page use the same governed filter predicates. The count is
         // intentionally evaluated before the cursor predicate.
+        // Only the first page carries the total: later pages skip the count.
         const [countRows, rows] = await Promise.all([
-          db
-            .select({ count: sql<number>`count(*)` })
-            .from(inboxItems)
-            .where(and(...conditions)),
+          cursor
+            ? null
+            : db
+                .select({ count: sql<number>`count(*)` })
+                .from(inboxItems)
+                .where(and(...conditions)),
           db
             .select()
             .from(inboxItems)
@@ -270,7 +277,7 @@ export const createInboxRepository = (
             )
             .limit(limit + 1),
         ])
-        const totalCount = Number(countRows[0]?.count ?? 0)
+        const totalCount = countRows ? Number(countRows[0]?.count ?? 0) : null
 
         const sliced = rows.slice(0, limit)
 
