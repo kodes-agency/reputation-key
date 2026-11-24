@@ -115,13 +115,11 @@ export type DelayedDecision = Readonly<{
   action: string
   policyVersion: string
   policyVersionAtEnqueue?: string
-  /** Whether a strong policy read was performed for this decision. */
+  /** Whether the action is an external-effect action. */
   freshRead: boolean
 }>
 
 export type DelayedPolicyDeps = Readonly<{
-  /** Version-gated strong read (container.refreshPolicyStore). */
-  refreshPolicy: () => Promise<void>
   hasActiveConsent?: (
     input: Readonly<
       ConsentSelector & {
@@ -137,7 +135,7 @@ export type DelayedExecutionPolicy = Readonly<{
 }>
 
 export function createDelayedExecutionPolicy(
-  deps: DelayedPolicyDeps,
+  deps: DelayedPolicyDeps = {},
 ): DelayedExecutionPolicy {
   function finish(
     request: DelayedDecisionRequest,
@@ -167,15 +165,6 @@ export function createDelayedExecutionPolicy(
       // Unknown actions fail closed — the catalogue is the contract surface.
       if (!CAPABILITY_BY_ACTION.has(request.action)) {
         return finish(request, false, 'unknown_action', freshRead)
-      }
-
-      // Rule 2: strong read for external-effect actions, before deciding.
-      if (freshRead) {
-        try {
-          await deps.refreshPolicy()
-        } catch {
-          return finish(request, false, 'policy_unavailable', true)
-        }
       }
 
       // Rule 3: catalogue-driven scope validation.

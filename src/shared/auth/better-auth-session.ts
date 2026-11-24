@@ -12,9 +12,6 @@ export type AuthSessionOperations = Readonly<{
   setActiveOrganization: (organizationId: string) => Promise<void>
   updateOrganization: (data: Record<string, unknown>) => Promise<void>
   currentOrganizationName: () => Promise<string | null>
-  verifyPassword: (
-    input: Readonly<{ headers: Headers; password: string }>,
-  ) => Promise<boolean>
 }>
 
 export type BetterAuthSessionDeps = Readonly<{
@@ -37,18 +34,6 @@ export function createBetterAuthSessionPort(
       const headers = await deps.requestContext.currentRequestHeaders()
       const organization = await getAuth().api.getFullOrganization({ headers })
       return organization?.name ?? null
-    },
-    verifyPassword: async ({
-      headers,
-      password,
-    }: Readonly<{ headers: Headers; password: string }>): Promise<boolean> => {
-      try {
-        const result = await getAuth().api.verifyPassword({ headers, body: { password } })
-        return result.status === true
-      } catch {
-        // A step-up that cannot be proven is not granted.
-        return false
-      }
     },
   })
 }
