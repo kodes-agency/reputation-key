@@ -171,12 +171,12 @@ export async function insertItemIdempotent(
   return { item: itemFromRow(existing[0]), created: false, openingFacts: [] }
 }
 
-/** Apply one human command only while its client-observed revision is current. */
-export async function tryUpdateItemRow(
+/** The persisted row, for callers that also need the cycle columns `itemFromRow` drops. */
+async function tryUpdatePersistedItemRow(
   tx: Tx,
   item: InboxItem,
   set: Record<string, unknown>,
-): Promise<InboxItem | null> {
+): Promise<PersistedItem | null> {
   if (!Number.isSafeInteger(item.commandRevision) || item.commandRevision < 1) {
     throw inboxError('revision_conflict', 'Inbox command revision is invalid')
   }
@@ -195,7 +195,17 @@ export async function tryUpdateItemRow(
       ),
     )
     .returning()
-  return result[0] ? itemFromRow(result[0]) : null
+  return result[0] ?? null
+}
+
+/** Apply one human command only while its client-observed revision is current. */
+export async function tryUpdateItemRow(
+  tx: Tx,
+  item: InboxItem,
+  set: Record<string, unknown>,
+): Promise<InboxItem | null> {
+  const row = await tryUpdatePersistedItemRow(tx, item, set)
+  return row ? itemFromRow(row) : null
 }
 
 /** Update one item under its command revision fence. */
@@ -205,7 +215,17 @@ export async function updateItemRow(
   set: Record<string, unknown>,
   notFoundMessage: string,
 ): Promise<InboxItem> {
-  const updated = await tryUpdateItemRow(tx, item, set)
+  return itemFromRow(await updatePersistedItemRow(tx, item, set, notFoundMessage))
+}
+
+/** `updateItemRow` that keeps the persisted row, whose cycle number stamps history. */
+export async function updatePersistedItemRow(
+  tx: Tx,
+  item: InboxItem,
+  set: Record<string, unknown>,
+  notFoundMessage: string,
+): Promise<PersistedItem> {
+  const updated = await tryUpdatePersistedItemRow(tx, item, set)
   if (!updated) {
     const current = await tx
       .select({
