@@ -148,7 +148,6 @@ describe.sequential('the submitter of a reply (integration)', () => {
       db,
       () => NOW,
       async () => true,
-      undefined,
       replyScopeEffects,
     ).submitReply(
       draft,

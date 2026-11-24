@@ -37,7 +37,7 @@ import {
 } from '../domain/review-events'
 import { domainError } from '#/shared/domain/errors'
 import { historyListedSince } from './review-provider-history-listed.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '../content/store.server'
 import { lockReviewSourceMutationScope } from '../reviews/review-source-mutation-serialization.server'
 import { createReviewSourceContentLifecycleStore } from '../content/source-content-lifecycle-store.server'
 import {

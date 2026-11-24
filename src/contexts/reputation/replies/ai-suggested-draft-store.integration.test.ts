@@ -589,7 +589,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         db,
         () => new Date(),
         async () => true,
-        undefined,
         replyScopeEffects,
       ).markPublicationAuthorized(
         pending,

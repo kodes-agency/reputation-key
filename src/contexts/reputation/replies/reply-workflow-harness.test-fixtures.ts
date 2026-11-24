@@ -245,7 +245,6 @@ export async function createReplyWorkflowHarness(
     db,
     clock,
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   const reviewCommandStore = createAtomicReviewCommandStore(

@@ -260,7 +260,6 @@ async function authorizeAgainstHead(input: Readonly<{ reviewAdvances: boolean }>
     db,
     () => new Date(),
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   return {
@@ -313,7 +312,6 @@ describe.sequential('replyCommandStore (integration)', () => {
       db,
       () => new Date(),
       async () => true,
-      undefined,
       replyScopeEffects,
     )
     const outboxRepo = createOutboxRepository(db)
@@ -462,7 +460,6 @@ describe.sequential('replyCommandStore (integration)', () => {
       db,
       () => new Date(),
       actorAuthority,
-      undefined,
       replyScopeEffects,
     )
 
@@ -589,7 +586,6 @@ describe.sequential('replyCommandStore (integration)', () => {
       db,
       () => new Date(),
       async () => true,
-      undefined,
       replyScopeEffects,
     )
 
@@ -656,7 +652,6 @@ describe.sequential('replyCommandStore (integration)', () => {
       db,
       () => new Date(),
       undefined,
-      undefined,
       replyScopeEffects,
     )
 
@@ -707,7 +702,6 @@ describe.sequential('replyCommandStore (integration)', () => {
     const store = createAtomicReplyCommandStore(
       db,
       () => new Date(),
-      undefined,
       undefined,
       replyScopeEffects,
     )

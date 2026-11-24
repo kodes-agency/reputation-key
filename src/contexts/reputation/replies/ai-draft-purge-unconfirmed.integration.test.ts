@@ -56,7 +56,6 @@ const replyCommandStore = createAtomicReplyCommandStore(
   db,
   () => new Date(),
   async () => true,
-  undefined,
   replyScopeEffects,
 )
 const draftStore = createAiSuggestedDraftStore(

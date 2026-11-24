@@ -47,7 +47,10 @@ export type UnclaimableCause = Extract<
  * null, the claim's own answer for a cycle it did not take.
  */
 export async function cancelUnclaimablePublication(
-  { guardedPublicationUpdate, updateCurrentAttempt }: ReplyWriter,
+  {
+    guardedPublicationUpdate,
+    updateCurrentAttempt,
+  }: Pick<ReplyWriter, 'guardedPublicationUpdate' | 'updateCurrentAttempt'>,
   tx: Tx,
   reply: Reply,
   attempt: Pick<PublicationAttemptStart, 'propertyId'>,
