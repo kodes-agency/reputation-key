@@ -15,7 +15,7 @@ import {
   GOAL_LIST_PROGRESS_CONCURRENCY,
   MAX_GOAL_LIST_PROGRESS_READS,
 } from './goal-list-progress.server'
-import type { GoalActor } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 
 const actor: GoalActor = {
   organizationId: 'org-1',

@@ -5,12 +5,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { GoalProgramMaintenanceError as MaintenanceModuleError } from './goal-program-maintenance.server'
 import { GoalProgramError as SharedGoalProgramError } from '../application/use-cases/goal-program-shared'
+import { createGoalProgramService } from './goal-programs.server'
 import {
-  createGoalProgramService,
   GoalProgramError,
-  GoalProgramMaintenanceError,
   type GoalProgramDependencies,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
+import { GoalProgramMaintenanceError } from './goal-program-maintenance.server'
 
 const SERVICE_METHODS = [
   'changeMonthTarget',

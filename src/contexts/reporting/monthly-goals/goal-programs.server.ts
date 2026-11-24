@@ -21,12 +21,10 @@ import { GOAL_VERSION_REASONS } from './goal-version-reasons.server'
 import { changeMonthTarget } from './goal-month-target.server'
 import { createGoal } from './goal-program-create.server'
 import {
-  GoalProgramMaintenanceError,
   loadCaughtUpProgram,
   maintain,
   reconcileClosedResult,
   reconcileResult,
-  type GoalProgramMaintenanceStats,
 } from './goal-program-maintenance.server'
 import {
   assertRatingSubjectsAllowed,
@@ -38,23 +36,11 @@ import {
   resolveGoalDefinition,
   type GoalActor,
   type GoalExecutionPolicy,
-  type GoalMetricReadPort,
   type GoalProgramDependencies,
-  type GoalProgramSubjectReader,
 } from '../application/use-cases/goal-program-shared'
 
 // The command families live in flat sibling modules and the shared pieces in a
-// leaf; this module composes them behind the one service and keeps re-exporting
-// every name its importers already use.
-export { GoalProgramError, GoalProgramMaintenanceError }
-export type {
-  GoalActor,
-  GoalExecutionPolicy,
-  GoalMetricReadPort,
-  GoalProgramDependencies,
-  GoalProgramMaintenanceStats,
-  GoalProgramSubjectReader,
-}
+// leaf; this module composes them behind the one service.
 
 type ReviseGoalInput = Readonly<{
   propertyId: string

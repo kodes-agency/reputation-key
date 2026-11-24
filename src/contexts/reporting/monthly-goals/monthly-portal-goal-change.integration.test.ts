@@ -25,7 +25,8 @@ import { findMetricVersionById } from '../readings/contracts'
 import { monthKeyOf } from '../domain/goal-start'
 import { monthlyPortalGoalOf } from './monthly-portal-goal-identity.server'
 import type { GoalProgramRepository } from '../application/ports/goal-program.repository'
-import { createGoalProgramService, type GoalActor } from './goal-programs.server'
+import { createGoalProgramService } from './goal-programs.server'
+import { type GoalActor } from '../application/use-cases/goal-program-shared'
 import {
   changeMonthlyPortalGoalNow,
   reviseMonthlyPortalGoal,

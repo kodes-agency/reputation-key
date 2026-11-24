@@ -19,11 +19,11 @@ import { subjectHolds } from './subject-assignments.server'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import type { GoalSubjectNameReader } from './goal-bulk-create.server'
 import { inParallel } from './goal-list-progress.server'
+import type { GoalProgramService } from './goal-programs.server'
 import type {
   GoalActor,
   GoalExecutionPolicy,
-  GoalProgramService,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import {
   gatherPortalGoalFacts,
   recommendationFrom,

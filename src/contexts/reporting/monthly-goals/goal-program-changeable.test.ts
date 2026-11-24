@@ -6,11 +6,11 @@ import type {
   GoalProgramRepository,
   GoalProgramVersion,
 } from '../application/ports/goal-program.repository'
+import { createGoalProgramService } from './goal-programs.server'
 import {
-  createGoalProgramService,
   type GoalActor,
   type GoalProgramDependencies,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 
 const actor: GoalActor = {
   organizationId: 'org-1',

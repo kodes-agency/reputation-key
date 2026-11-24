@@ -19,7 +19,8 @@ import {
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
-import { createGoalProgramService, GoalProgramError } from './goal-programs.server'
+import { createGoalProgramService } from './goal-programs.server'
+import { GoalProgramError } from '../application/use-cases/goal-program-shared'
 import { queryGoalMetric } from '../readings/query-goal-metric.server'
 import type { GoalMetricReadPort } from '../application/use-cases/goal-program-shared'
 import {
