@@ -11,7 +11,8 @@ import {
   windowsOf,
 } from './goal-program-bundle.test-fixtures'
 import { useGoalProgramRepositorySuite } from './goal-program-repository-suite.test-fixtures'
-import { createGoalProgramService, type GoalActor } from './goal-programs.server'
+import { createGoalProgramService } from './goal-programs.server'
+import { type GoalActor } from '../application/use-cases/goal-program-shared'
 
 describe.sequential('Goal Program repository races (integration)', () => {
   const suite = useGoalProgramRepositorySuite('goal-program-races')

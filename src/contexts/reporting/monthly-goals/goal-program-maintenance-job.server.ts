@@ -7,11 +7,11 @@
 
 import type { Job } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { type GoalProgramService } from './goal-programs.server'
 import {
   GoalProgramMaintenanceError,
   type GoalProgramMaintenanceStats,
-  type GoalProgramService,
-} from './goal-programs.server'
+} from './goal-program-maintenance.server'
 
 export const GOAL_PROGRAM_MAINTENANCE_JOB_NAME = 'goal-program.maintain' as const
 

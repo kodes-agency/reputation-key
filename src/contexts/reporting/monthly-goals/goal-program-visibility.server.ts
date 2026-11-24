@@ -5,11 +5,11 @@
 import { canForContext } from '#/shared/domain/permissions'
 import type { GoalSubject } from '../domain/goal-program'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import { type GoalProgramService } from './goal-programs.server'
 import {
   GoalProgramError,
   type GoalActor,
-  type GoalProgramService,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 
 /** The Portals an actor is responsible for at a Property, and their Portal Groups. */
 export type GoalProgramVisibilityPort = (

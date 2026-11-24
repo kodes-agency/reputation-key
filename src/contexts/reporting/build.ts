@@ -37,7 +37,7 @@ import { registerGuestMetricConsumers } from './readings/guest-outbox-consumers.
 import { queryGoalMetric } from './readings/query-goal-metric.server'
 import { createPortalAnalyticsRepository } from './portal-results/portal-analytics.repository.server'
 import { createPortalResultsOverviewRepository } from './portal-results/portal-results-overview-repository.server'
-import { createGoalMetricCorrectionImpactLookup } from './monthly-goals/goal-metric-correction-impact-lookup.server'
+import { findGoalMetricCorrectionImpacts } from './monthly-goals/goal-metric-correction-impact-lookup.server'
 import { createCurrentGoogleReputationSnapshotRepository } from './readings/current-google-reputation-snapshot-repository.server'
 import { registerCurrentGoogleReputationConsumer } from './readings/current-google-reputation-outbox-consumers.server'
 
@@ -46,9 +46,9 @@ import { createGoalProgramVisibilityAdapter } from './monthly-goals/goal-program
 import { createGoalProgramRepository } from './monthly-goals/goal-program-repository.server'
 import {
   createGoalProgramService,
-  type GoalExecutionPolicy,
   type GoalProgramRequestApi,
 } from './monthly-goals/goal-programs.server'
+import { type GoalExecutionPolicy } from './application/use-cases/goal-program-shared'
 import { withGoalProgramVisibility } from './monthly-goals/goal-program-visibility.server'
 import { createGoalsForSubjects } from './monthly-goals/goal-bulk-create.server'
 import {
@@ -123,7 +123,6 @@ import { createDashboardRepository } from './property-overview/dashboard-reposit
 import { createMetricStatsAdapter } from './property-overview/metric-stats.adapter.server'
 import { createAttentionSignalsAdapter } from './property-overview/attention-signals.adapter.server'
 import { createFleetOverviewProjectionAdapter } from './property-overview/fleet-overview-projection.adapter.server'
-import { createStaffPortalResolverAdapter } from './monthly-goals/staff-portal-resolver.adapter.server'
 import { getDashboardData } from './property-overview/get-dashboard-data.server'
 import type { DashboardPropertyAccess } from './property-overview/dashboard-property-access.server'
 import {
@@ -175,7 +174,6 @@ export type ReportingContextBuildInput = Readonly<{
 function buildMetricModule(input: ReportingContextBuildInput) {
   const registry = metricRegistry
   const portalAnalytics = createPortalAnalyticsRepository(input.db, input.clock)
-  const goalCorrectionImpacts = createGoalMetricCorrectionImpactLookup(input.db)
   const currentGoogleReputation = createCurrentGoogleReputationSnapshotRepository(
     input.db,
   )
@@ -241,8 +239,6 @@ function buildMetricModule(input: ReportingContextBuildInput) {
       queryGoalMetrics: createGoalMetricBatchReader(input.db, registry, input.clock),
       portalAnalytics,
       getCurrentOnGoogle: currentGoogleReputation.getCurrentOnGoogle,
-      findGoalMetricCorrectionImpacts:
-        goalCorrectionImpacts.findGoalMetricCorrectionImpacts,
       getApprovedGoalVersion: async (definitionVersionId: string) => {
         const governed = await registry.findVersionById(definitionVersionId)
         if (
@@ -289,7 +285,7 @@ function buildGoalModule(
   const buildGoalPrograms = (policy: GoalExecutionPolicy) =>
     createGoalProgramService(goalProgramDeps(policy))
   const goalProgramVisibility = createGoalProgramVisibilityAdapter(
-    createStaffPortalResolverAdapter(input.staffPublicApi),
+    input.staffPublicApi,
     input.portalGroupApi,
   )
   const readGoalPrograms = (policy: GoalExecutionPolicy) =>
@@ -325,7 +321,8 @@ function buildGoalModule(
     const goalPrograms = buildGoalPrograms(policy)
     registerGoalMetricCorrectionConsumer(consumerRegistry, {
       reconcile: reconcileMetricCorrection({
-        findImpacts: metricApi.findGoalMetricCorrectionImpacts,
+        findImpacts: (impactInput) =>
+          findGoalMetricCorrectionImpacts(input.db, impactInput),
         findCandidates: goalProgramRepo.findClosedResultIdsForMetricImpact,
         reconcileClosedResult: goalPrograms.reconcileClosedResult,
       }),

@@ -17,11 +17,11 @@ import {
   PROPERTY_ID,
   useScenarioTransaction,
 } from './goal-program-service.test-fixtures'
+import { createGoalProgramService } from './goal-programs.server'
 import {
-  createGoalProgramService,
   type GoalMetricReadPort,
   type GoalProgramSubjectReader,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 
 const LOBBY_ID = '00000000-0000-4000-8000-00000000b001'
 export const POOL_ID = '00000000-0000-4000-8000-00000000b002'

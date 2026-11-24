@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { GoalBulkCreateInput, GoalBulkCreateResult } from './goal-bulk-create.server'
 import { GoalProgramError } from '../application/use-cases/goal-program-shared'
-import type { GoalActor } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import {
   actor,
   days,

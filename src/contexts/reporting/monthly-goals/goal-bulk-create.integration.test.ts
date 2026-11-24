@@ -10,7 +10,7 @@ import {
   type GoalBulkCreateDependencies,
   type GoalBulkCreateInput,
 } from './goal-bulk-create.server'
-import type { GoalActor } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import type { GoalSubject } from '../domain/goal-program'
 import { findMetricVersionById } from '../readings/contracts'
 import { createGoalProgramRepository } from './goal-program-repository.server'

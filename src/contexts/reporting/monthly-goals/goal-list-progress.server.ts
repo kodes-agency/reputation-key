@@ -22,7 +22,10 @@ import {
   type GoalProgressDeps,
   type GoalProgressReading,
 } from './goal-progress.server'
-import type { GoalActor, GoalExecutionPolicy } from './goal-programs.server'
+import type {
+  GoalActor,
+  GoalExecutionPolicy,
+} from '../application/use-cases/goal-program-shared'
 
 /** The most figures one Goals page reads; past it a goal carries no live line. */
 export const MAX_GOAL_LIST_PROGRESS_READS = 60
