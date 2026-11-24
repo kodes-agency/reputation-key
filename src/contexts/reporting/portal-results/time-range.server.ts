@@ -1,9 +1,9 @@
 import type { TimeRangePreset } from '../property-overview/contracts'
 import {
   propertyWallClockAt,
-  propertyWallClockToInstant,
   shiftPropertyLocalDays,
 } from '#/shared/domain/property-calendar'
+import { localMidnight } from '../domain/local-days'
 import { isComparisonShowable } from '../domain/portal-results-thresholds'
 export const MS_PER_DAY = 86_400_000
 
@@ -48,21 +48,12 @@ export function timeRangeToDates(preset: TimeRangePreset, now: Date, timezone = 
 export function localDaysWindow(preset: TimeRangePreset, now: Date, timezone = 'UTC') {
   if (preset === 'all') return { startDate: new Date(0), endDate: now }
   const today = propertyWallClockAt(now, timezone)
-  // Date.UTC normalises a day before the 1st into the previous month.
-  const first = new Date(
-    Date.UTC(today.year, today.month - 1, today.day - (presetDays(preset) - 1)),
-  )
+  // localMidnight normalises a day before the 1st into the previous month.
   return {
-    startDate: propertyWallClockToInstant(
-      {
-        year: first.getUTCFullYear(),
-        month: first.getUTCMonth() + 1,
-        day: first.getUTCDate(),
-        hour: 0,
-        minute: 0,
-        second: 0,
-        millisecond: 0,
-      },
+    startDate: localMidnight(
+      today.year,
+      today.month,
+      today.day - (presetDays(preset) - 1),
       timezone,
     ),
     endDate: now,
