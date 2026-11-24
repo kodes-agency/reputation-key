@@ -354,7 +354,7 @@ describe('provider DI slots (BQC-6.1)', () => {
 
   const fakeStorage: StoragePort = {
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
-    confirmUpload: async () => {},
+    inspectObject: async () => ({ contentType: 'image/png', sizeBytes: 1024 }),
     deleteObject: async () => {},
     listObjects: async () => ({ objects: [], truncated: false }),
     getObject: async () => null,

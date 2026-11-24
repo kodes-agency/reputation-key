@@ -28,7 +28,6 @@ describe('Railway bucket (region auto, virtual-host style)', () => {
     const { uploadUrl, key } = await adapter.createPresignedUploadUrl(
       'avatars/user-1/asset-1',
       'image/png',
-      1024,
     )
 
     const url = new URL(uploadUrl)
@@ -39,14 +38,14 @@ describe('Railway bucket (region auto, virtual-host style)', () => {
   })
 
   it('leaves no checksum of an empty body in the signature, which a real upload would fail', async () => {
-    const { uploadUrl } = await adapter.createPresignedUploadUrl('k', 'image/png', 1024)
+    const { uploadUrl } = await adapter.createPresignedUploadUrl('k', 'image/png')
 
     const names = [...new URL(uploadUrl).searchParams.keys()].map((n) => n.toLowerCase())
     expect(names.filter((n) => n.includes('checksum'))).toEqual([])
   })
 
   it('lets the page connect to exactly the origin the upload is signed for', async () => {
-    const { uploadUrl } = await adapter.createPresignedUploadUrl('k', 'image/png', 1024)
+    const { uploadUrl } = await adapter.createPresignedUploadUrl('k', 'image/png')
 
     expect(
       storageConnectSources({
@@ -119,7 +118,6 @@ describe('the page may connect to wherever an upload is signed for', () => {
     const { uploadUrl } = await createS3StorageAdapter(config).createPresignedUploadUrl(
       'k',
       'image/png',
-      1024,
     )
 
     expect(
@@ -224,7 +222,6 @@ describe('against a local S3-compatible store (path style)', () => {
     const { uploadUrl } = await adapter.createPresignedUploadUrl(
       'avatars/u/1',
       'image/png',
-      1024,
     )
 
     const put = await fetch(uploadUrl, {
@@ -235,7 +232,7 @@ describe('against a local S3-compatible store (path style)', () => {
 
     expect(put.status).toBe(200)
     expect(requests.at(-1)?.path).toBe('/repkey-test/avatars/u/1')
-    expect(await adapter.inspectObject?.('avatars/u/1')).toEqual({
+    expect(await adapter.inspectObject('avatars/u/1')).toEqual({
       contentType: 'image/png',
       sizeBytes: 4,
     })
@@ -245,16 +242,9 @@ describe('against a local S3-compatible store (path style)', () => {
     })
   })
 
-  it('confirms an upload that is there without handing back a provider URL', async () => {
-    const adapter = createS3StorageAdapter(config)
-    await adapter.putObject('avatars/u/2', Buffer.from('x'), 'image/png')
-
-    await expect(adapter.confirmUpload('avatars/u/2')).resolves.toBeUndefined()
-  })
-
-  it('refuses to confirm an upload that never arrived', async () => {
+  it('refuses to inspect an upload that never arrived', async () => {
     await expect(
-      createS3StorageAdapter(config).confirmUpload('avatars/u/missing'),
+      createS3StorageAdapter(config).inspectObject('avatars/u/missing'),
     ).rejects.toMatchObject({ name: 'NotFound' })
   })
 
@@ -361,11 +351,7 @@ describe('against a store that stops answering', () => {
       'putObject',
       (adapter: Adapter) => adapter.putObject('k', Buffer.from('x'), 'image/webp'),
     ],
-    ['confirmUpload', (adapter: Adapter) => adapter.confirmUpload('k')],
-    [
-      'inspectObject',
-      (adapter: Adapter) => adapter.inspectObject?.('k') ?? Promise.resolve(),
-    ],
+    ['inspectObject', (adapter: Adapter) => adapter.inspectObject('k')],
     ['deleteObject', (adapter: Adapter) => adapter.deleteObject('k')],
     ['listObjects', (adapter: Adapter) => adapter.listObjects('avatars/', 10)],
   ] as const)('%s gives up at its deadline', async (_name, call) => {

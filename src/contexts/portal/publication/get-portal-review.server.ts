@@ -317,11 +317,7 @@ export const getPortalReview =
     ] = await Promise.all([
       deps.publicationRepo.loadWorkingCopyWithLook(organizationId, pid),
       deps.publicationRepo.getCursor(organizationId, pid),
-      deps.publicationRepo.listOpenPendingContentChanges?.(
-        organizationId,
-        propertyId,
-        pid,
-      ) ?? Promise.resolve([]),
+      deps.publicationRepo.listOpenPendingContentChanges(organizationId, propertyId, pid),
       deps.publicationRepo.listActivationHistoryPage(organizationId, propertyId, pid, {
         beforeSequence: null,
         limit: 1,

@@ -27,7 +27,6 @@ const mockStorage = {
     uploadUrl: 'https://example.com/upload',
     key: 'test',
   }),
-  confirmUpload: async () => {},
   inspectObject: async () => ({ contentType: 'image/png', sizeBytes: 1024 }),
   deleteObject: async () => {},
   listObjects: async () => ({ objects: [], truncated: false }),
