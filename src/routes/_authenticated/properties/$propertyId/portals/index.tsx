@@ -31,7 +31,7 @@ import { portalOverviewQuery } from './-portal-overview-data'
 import { useNewPortal } from './-use-new-portal'
 import { usePortalResultsControls } from './-portal-results-controls'
 import { usePortalInboxWaiting } from './-portal-inbox-waiting'
-import { portalGroupCachePolicy } from '#/contexts/portal/publication/ui/portal-group-cache-policy'
+import { invalidateGroupProjections } from '#/contexts/portal/publication/ui/portal-group-cache-policy'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
   staticData: { page: { title: 'Portals', tier: 'dashboard', under: 'property' } },
@@ -107,15 +107,15 @@ function PortalListRoute() {
   // shows a refusal itself, so none of these mutations toasts one as well.
   const createMutation = useActionMutation(createPortalGroup, {
     successMessage: 'Group created',
-    onSuccess: () => portalGroupCachePolicy.onGroupCreated(queryClient, propertyId),
+    onSuccess: () => invalidateGroupProjections(queryClient, propertyId),
   })
   const renameMutation = useActionMutation(updatePortalGroup, {
     successMessage: 'Group renamed',
-    onSuccess: () => portalGroupCachePolicy.onGroupUpdated(queryClient, propertyId),
+    onSuccess: () => invalidateGroupProjections(queryClient, propertyId),
   })
   const archiveGroupMutation = useActionMutation(softDeletePortalGroup, {
     successMessage: 'Group archived',
-    onSuccess: () => portalGroupCachePolicy.onGroupDeleted(queryClient, propertyId),
+    onSuccess: () => invalidateGroupProjections(queryClient, propertyId),
   })
 
   // `groups` is `PortalGroupWithPortals` (a flat PortalGroup plus `portalIds`):
