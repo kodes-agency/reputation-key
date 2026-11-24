@@ -149,7 +149,6 @@ describe('aggregate settlement delivery', () => {
         adapter.applyReviewAnalysis({
           ...INPUT,
           sourceRevision: 1,
-          calendarProfileVersion: 'property-calendar-v1',
         }),
       ).resolves.toEqual({ status: 'stale' })
       expect(heads.countSettledSequence).toHaveBeenCalledTimes(inserted ? 1 : 0)

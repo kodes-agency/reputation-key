@@ -449,7 +449,6 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
       analysisSequence: sequence,
       reviewAnalysisEpoch: REVIEW_ANALYSIS_EPOCH,
       propertyProfileVersion: PROPERTY_PROFILE_VERSION,
-      calendarProfileVersion: 'property-calendar-v1',
     })
     if (applied.status !== 'applied') {
       throw new Error(`The seed could not file review ${review.index}: ${applied.status}`)
