@@ -20,6 +20,7 @@ import { snapshotToRow } from '#/contexts/portal/publication/portal-publication-
 import { immersiveSnapshot } from '#/contexts/portal/application/__fixtures__/immersive-snapshot'
 import { immersiveConfiguration } from '#/contexts/portal/domain/__fixtures__/immersive-configuration'
 import { resolvePublicPortalToken } from '#/contexts/portal/publication/resolve-public-portal-token.server'
+import { quietGuestReadDeps } from '#/contexts/portal/publication/resolve-public-portal-token.test-fixtures'
 import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import { createAtomicGuestObservationStore } from './guest-observation-store.server'
 import { getPublicPortal } from './get-public-portal.server'
@@ -156,6 +157,7 @@ const publicLookup = (gate: Gate): PortalPublicApi['findPublicPortalByToken'] =>
       profileVersion: immersiveConfiguration().googleReviewBinding.profileVersion,
     }),
     decidePublic: async () => gate,
+    ...quietGuestReadDeps,
     clock: () => NOW,
   })
   return async (rawToken, preference) => {

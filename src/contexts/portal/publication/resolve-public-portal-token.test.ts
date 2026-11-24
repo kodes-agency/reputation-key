@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { quietGuestReadDeps } from './resolve-public-portal-token.test-fixtures'
 import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
@@ -115,7 +116,10 @@ function setup(
       isPropertyActive,
       getGoogleReviewDestination: getDestination,
       decidePublic: decide,
-      reportGoogleDestinationFailure: overrides.reportDestinationFailure,
+      ...quietGuestReadDeps,
+      reportGoogleDestinationFailure:
+        overrides.reportDestinationFailure ??
+        quietGuestReadDeps.reportGoogleDestinationFailure,
       clock: () => NOW,
     }),
     digest,

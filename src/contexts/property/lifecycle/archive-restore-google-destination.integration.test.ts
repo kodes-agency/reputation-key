@@ -31,6 +31,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { buildPortalPublicationSnapshot } from '#/contexts/portal/publication/portal-publication-snapshot.server'
 import { loadVerifiedGoogleReviewDestination } from '#/contexts/portal/publication/portal-publication-readiness.server'
 import { resolvePublicPortalToken } from '#/contexts/portal/publication/resolve-public-portal-token.server'
+import { quietGuestReadDeps } from '#/contexts/portal/publication/resolve-public-portal-token.test-fixtures'
 import { publicationSource } from '#/contexts/portal/domain/__fixtures__/publication-source'
 import type { PortalHealthInterval } from '#/contexts/portal/domain/portal-health'
 import { handlePortalHealthDependencyChanged } from '#/contexts/portal/health/portal-health-outbox-consumers.server'
@@ -272,6 +273,7 @@ const guestVisit = () =>
     isPropertyActive: property.publicApi.isPropertyActive,
     getGoogleReviewDestination: property.publicApi.getGoogleReviewDestination,
     decidePublic: async () => ({ allowed: true }),
+    ...quietGuestReadDeps,
     clock: () => GUEST_VISIT_AT,
   })('raw-address-is-not-read-by-the-stub-codec')
 
