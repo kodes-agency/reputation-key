@@ -20,16 +20,16 @@ import type {
   OrphanSequenceRelease,
   OrphanSequenceScan,
 } from '#/shared/db/review-analysis-orphan-sequences'
-import type {
-  OperatorArgs,
-  OperatorCommandSpec,
-  OperatorContext,
-  OperatorIO,
+import {
+  planActionWithPropertyId,
+  type OperatorArgs,
+  type OperatorCommandSpec,
+  type OperatorContext,
+  type OperatorIO,
 } from './operator-command'
 
 const COMMAND = 'ops:ai'
 const ACTION = 'release-orphan-sequences'
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * A mutation, so it reports by default and `--apply` needs a reason. Not
@@ -47,12 +47,7 @@ type Plan =
   Readonly<{ ok: true; propertyId: string }> | Readonly<{ ok: false; error: string }>
 
 export function planAiReleaseOrphanSequences(args: OperatorArgs): Plan {
-  const [action, propertyId, ...extra] = args.positionals
-  if (action !== ACTION) return { ok: false, error: `the only action is '${ACTION}'` }
-  if (!propertyId) return { ok: false, error: '<propertyId> is required' }
-  if (!UUID.test(propertyId)) return { ok: false, error: '<propertyId> must be a UUID' }
-  if (extra.length > 0) return { ok: false, error: 'one <propertyId> at a time' }
-  return { ok: true, propertyId: propertyId.toLowerCase() }
+  return planActionWithPropertyId(args, ACTION)
 }
 
 export type OrphanSequenceStore = Readonly<{

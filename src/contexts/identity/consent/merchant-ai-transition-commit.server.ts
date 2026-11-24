@@ -6,7 +6,7 @@ import type {
   CapabilityRuntimeProfileVersions,
   MerchantAiCapability,
 } from '#/shared/domain/merchant-ai-capability'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'

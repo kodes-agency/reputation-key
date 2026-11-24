@@ -5,6 +5,7 @@ import {
   type GoogleProviderRouteDescriptor,
   type GoogleProviderRouteTarget,
 } from './route-catalogue'
+import { readBoundedStream } from '../security/read-bounded-body'
 import { parseGoogleRetryAfterMs } from './provider-call'
 import type {
   GoogleAdmissionHandle,
@@ -103,31 +104,10 @@ async function readBoundedResponse(
       throw new ResponseTooLargeError()
     }
   }
-  if (!response.body) return new Uint8Array()
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let totalBytes = 0
-  try {
-    while (true) {
-      const next = await reader.read()
-      if (next.done) break
-      totalBytes += next.value.byteLength
-      if (totalBytes > maxBytes) {
-        await reader.cancel()
-        throw new ResponseTooLargeError()
-      }
-      chunks.push(next.value)
-    }
-  } finally {
-    reader.releaseLock()
-  }
-  const body = new Uint8Array(totalBytes)
-  let offset = 0
-  for (const chunk of chunks) {
-    body.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-  return body
+  const read = await readBoundedStream(response.body, maxBytes)
+  if (read.kind === 'too_large') throw new ResponseTooLargeError()
+  if (read.kind === 'failed') throw new Error('response_read_failed')
+  return read.bytes
 }
 
 type GatewayFailure = Extract<GoogleEgressGatewayResult, { ok: false }>

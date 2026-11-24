@@ -6,7 +6,7 @@ import { REPLY_STREAM_RESPONSE_MAX_BYTES } from '#/shared/ai-provider-profile/ai
 import { boundedProviderEventStream } from './bounded-event-stream'
 import { z } from 'zod/v4'
 import { parseAiInternalJsonBytes, parseAiProviderJsonBytes } from '#/shared/json/ai-json'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import {
   aiAdmissionDescriptorDigest,
   consumeAiExecutionAdmission,

@@ -6,6 +6,7 @@ import {
   foldAiMarkerText,
   scanStructuredMarkerCandidates,
 } from '../ai-redaction/ai-structured-marker-detectors'
+import { isNoncharacter } from '../ai-review-source/ai-text-checks'
 
 export const AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION =
   'gbp-reply-output-leakage-v1' as const
@@ -65,14 +66,6 @@ export type AiReplyOutputLeakageInput = Readonly<{
   expectedProfileDigest: string
   expectedDetectorProfileDigest: string
 }>
-
-function isNoncharacter(codePoint: number): boolean {
-  return (
-    (codePoint >= 0xfdd0 && codePoint <= 0xfdef) ||
-    (codePoint & 0xffff) === 0xfffe ||
-    (codePoint & 0xffff) === 0xffff
-  )
-}
 
 function containsPlaceholder(value: string): boolean {
   const folded = foldAiMarkerText(value)

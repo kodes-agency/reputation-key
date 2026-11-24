@@ -5,7 +5,7 @@ import {
 import { replyVoiceChoicesSchema } from './reply-drafting-v2-binding'
 import { createHash, sign, verify, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
-import { canonicalizeRfc8785 } from '../merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { aiInternalSafeIdSchema } from '../ai-gateway/ai-internal-transport-contract'
 import {
   OPENAI_KNOWN_MODEL_SNAPSHOTS,
