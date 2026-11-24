@@ -63,7 +63,6 @@ export type AiExecutionAdmissionAuthority = Readonly<{
     | Readonly<{ status: 'settled'; receipt: AiSettlementReceiptV1 }>
     | Readonly<{ status: 'denied'; code: AiSettlementDenialCode }>
   >
-  readiness(): Promise<boolean>
 }>
 
 const minted = new WeakSet<object>()

@@ -37,7 +37,6 @@ function recordingGateway() {
         retryAfterEpochMillis: null,
       }) as never
     },
-    readiness: async () => true,
   }
   return { seen, service }
 }

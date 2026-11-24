@@ -481,12 +481,5 @@ export function createAiExecutionAdmissionAdapter(
         }
       })
     },
-
-    readiness: async () => {
-      const result = await input.pool.query<{ ready: boolean }>(
-        'SELECT NOT pg_is_in_recovery() AS ready',
-      )
-      return result.rows[0]?.ready === true
-    },
   })
 }
