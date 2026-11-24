@@ -140,7 +140,6 @@ const ANALYSIS_READY: ReviewAnalysisReadV1 = Object.freeze({
 })
 
 type AnalysisReadRequest = Parameters<AiOutputStorePort['readAnalysisForDelivery']>[0]
-type AnalysisDeliver = (result: ReviewAnalysisReadV1) => Promise<ReviewAnalysisReadV1>
 
 function createHarness(
   options: Readonly<{
@@ -159,13 +158,11 @@ function createHarness(
   const readForAi = vi.fn(async () => options.runtime ?? AVAILABLE_RUNTIME)
   let deliveries = 0
 
-  const readAnalysisForDelivery = vi.fn(
-    async (_request: AnalysisReadRequest, deliver: AnalysisDeliver) => {
-      if (options.storeFailure) throw options.storeFailure
-      deliveries += 1
-      return deliver(options.analysisRead ?? ANALYSIS_READY)
-    },
-  )
+  const readAnalysisForDelivery = vi.fn(async (_request: AnalysisReadRequest) => {
+    if (options.storeFailure) throw options.storeFailure
+    deliveries += 1
+    return options.analysisRead ?? ANALYSIS_READY
+  })
 
   const dependencies = {
     propertyAccess: async () => options.grants ?? [],

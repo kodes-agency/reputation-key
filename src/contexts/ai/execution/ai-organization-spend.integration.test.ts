@@ -5,15 +5,16 @@ import { getDb } from '#/shared/db'
 import { ORGANIZATION_MONTHLY_CAP_MICROS } from '#/shared/db/ai/ai-budget'
 import { organizationId } from '#/shared/domain/ids'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { createAiOrganizationSpendAdapter } from './ai-organization-spend.adapter.server'
+import { readOrganizationAiSpend } from './ai-organization-spend.server'
 
 const ORGANIZATION = organizationId(`ai-spend-${randomUUID()}`)
 const OTHER_ORGANIZATION = organizationId(`ai-spend-${randomUUID()}`)
 const NOW = Date.parse('2026-09-15T12:00:00.000Z')
 
-describe.sequential('AI organization spend adapter (real PostgreSQL)', () => {
+describe.sequential('AI organization spend (real PostgreSQL)', () => {
   const db = getDb()
-  const spend = createAiOrganizationSpendAdapter(db)
+  const spend = (input: Parameters<typeof readOrganizationAiSpend>[1]) =>
+    readOrganizationAiSpend(db, input)
   // The budget writer truncates to the month in the database session, so the
   // expected window start is read the same way rather than assumed to be UTC.
   let monthStart = 0
@@ -41,7 +42,7 @@ describe.sequential('AI organization spend adapter (real PostgreSQL)', () => {
 
   it('reports nothing spent under the default cap before the first admission', async () => {
     await expect(
-      spend.readCurrentMonth({ organizationId: ORGANIZATION, nowEpochMillis: NOW }),
+      spend({ organizationId: ORGANIZATION, nowEpochMillis: NOW }),
     ).resolves.toEqual({
       monthStartEpochMillis: monthStart,
       settledMicros: 0,
@@ -61,7 +62,7 @@ describe.sequential('AI organization spend adapter (real PostgreSQL)', () => {
     `)
 
     await expect(
-      spend.readCurrentMonth({ organizationId: ORGANIZATION, nowEpochMillis: NOW }),
+      spend({ organizationId: ORGANIZATION, nowEpochMillis: NOW }),
     ).resolves.toEqual({
       monthStartEpochMillis: monthStart,
       settledMicros: 1_250_000,
@@ -79,7 +80,7 @@ describe.sequential('AI organization spend adapter (real PostgreSQL)', () => {
           49990000, 10000, 50000000)
     `)
     const read = (id: typeof ORGANIZATION) =>
-      spend.readCurrentMonth({ organizationId: id, nowEpochMillis: NOW })
+      spend({ organizationId: id, nowEpochMillis: NOW })
     const first = await read(ORGANIZATION)
 
     await expect(read(OTHER_ORGANIZATION)).resolves.toEqual({

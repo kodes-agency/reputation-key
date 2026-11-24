@@ -1,5 +1,3 @@
-import { createReviewAnalysisContractV3 } from '#/contexts/ai/analysis/review-analysis-contract-v3.server'
-import type { AiOutputStorePort } from '#/contexts/ai/analysis/ai-output-store.port.server'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
@@ -42,12 +40,9 @@ export const VALID_V3_ANSWER = Object.freeze({
   },
 })
 
-/** The v3 contract the use-case tests run under, with a fixed provider and no hints. */
-export function createTestReviewAnalysisContract(
-  outputs: Pick<AiOutputStorePort, 'storeAnalysisV3'>,
-) {
-  return createReviewAnalysisContractV3({
-    outputs,
+/** The vocabulary and provider ports the use-case tests run under: a fixed provider and no hints. */
+export function createTestReviewAnalysisPorts() {
+  return {
     vocabularyContext: { readGooglePrimaryCategory: async () => null },
     providerChoice: {
       chooseForReviewAnalysis: async () => ({
@@ -55,5 +50,5 @@ export function createTestReviewAnalysisContract(
         lineage: PROVIDER_LINEAGE,
       }),
     },
-  })
+  }
 }

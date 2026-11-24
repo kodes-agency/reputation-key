@@ -155,9 +155,10 @@ describe('stored analysis delivery after a notice lapses', () => {
       transaction: async (read: (tx: { select: typeof select }) => Promise<unknown>) =>
         read({ select }),
     } as unknown as Database)
-    await expect(
-      adapter.readAnalysisForDelivery(input, async (result) => result),
-    ).resolves.toMatchObject({ status: 'ready', sentiment: 'positive' })
+    await expect(adapter.readAnalysisForDelivery(input)).resolves.toMatchObject({
+      status: 'ready',
+      sentiment: 'positive',
+    })
     expect(
       isExecutionCompatibleWithConsent({
         capability: 'review_analysis',
