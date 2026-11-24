@@ -31,7 +31,7 @@ const FIXED_DATE = new Date('2026-06-10T10:00:00Z')
 
 /**
  * {@link InsertNotificationDeps} writing to `db`. Ids are fresh UUIDs, the
- * clock is fixed, and the rating lookup, immediate-email enqueue and logger
+ * clock is fixed, and the rating lookup, queued-email callback and logger
  * are doubles.
  */
 export function buildInsertNotificationDeps(
@@ -42,7 +42,7 @@ export function buildInsertNotificationDeps(
     clock: () => FIXED_DATE,
     idGen: () => notificationId(randomUUID()),
     emailIdGen: () => notificationEmailId(randomUUID()),
-    enqueueImmediateEmail: vi.fn(async () => {}),
+    onEmailQueued: vi.fn(),
     ratingForRouting: vi.fn(async () => null),
     logger: {
       info: vi.fn(),

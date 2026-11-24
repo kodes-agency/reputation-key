@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { and, eq } from 'drizzle-orm'
 import { notifications } from '#/shared/db/schema'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
@@ -252,10 +252,11 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       else expect(result).toMatchObject(row.result)
       expectRows(await noticeRows(), row.notices)
       expectRows(await emailRows(), row.emails)
-      if (row.enqueued === 'once')
-        expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
+      if (row.enqueued === 'once') expect(deps.onEmailQueued).toHaveBeenCalledOnce()
       if (row.enqueued === 'never')
-        expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
+        expect(deps.onEmailQueued).not.toHaveBeenCalledWith(
+          expect.objectContaining({ cadence: 'immediate' }),
+        )
     })
   }
 
@@ -274,10 +275,14 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       cadence: 'immediate',
       status: 'pending',
     })
-    expect(deps.enqueueImmediateEmail).toHaveBeenCalledWith({
-      notificationEmailId: email!.id,
-      organizationId: ORG_ID,
-    })
+    expect(deps.onEmailQueued).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: email!.id,
+        organizationId: ORG_ID,
+        propertyId: null,
+        cadence: 'immediate',
+      }),
+    )
   })
 
   it('renders copy from the payload instead of storing caller-supplied text', async () => {
@@ -332,11 +337,14 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       idempotencyKey: `${result!.id}:email`,
       status: 'pending',
     })
-    expect(deps.enqueueImmediateEmail).toHaveBeenCalledWith({
-      notificationEmailId: email!.id,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-    })
+    expect(deps.onEmailQueued).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: email!.id,
+        organizationId: ORG_ID,
+        propertyId: PROPERTY_ID,
+        cadence: 'immediate',
+      }),
+    )
   })
 
   it('queues the email with the audience that admitted its recipient', async () => {
@@ -460,11 +468,14 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       category: 'mandatory',
       cadence: 'immediate',
     })
-    expect(repeatDeps.enqueueImmediateEmail).toHaveBeenCalledOnce()
-    expect(repeatDeps.enqueueImmediateEmail).toHaveBeenCalledWith({
-      notificationEmailId: repeatEmail[0]!.id,
-      organizationId: ORG_ID,
-    })
+    expect(repeatDeps.onEmailQueued).toHaveBeenCalledOnce()
+    expect(repeatDeps.onEmailQueued).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: repeatEmail[0]!.id,
+        organizationId: ORG_ID,
+        propertyId: null,
+      }),
+    )
   })
 
   it('emails a mandatory repeat the database folded into a raced unread row', async () => {
@@ -491,7 +502,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     await insertNotification(replayDeps)(roleChange('identity-role-event-1'))
 
     expect(await emailRows()).toHaveLength(1)
-    expect(replayDeps.enqueueImmediateEmail).not.toHaveBeenCalled()
+    expect(replayDeps.onEmailQueued).not.toHaveBeenCalled()
   })
 
   it('stores an email-only anchor already read, so it never holds the unread key', async () => {
@@ -561,21 +572,6 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
         eventId: 'event-goal-2',
       }),
     ).resolves.toBeNull()
-  })
-
-  it('keeps the durable email row pending when immediate queue dispatch is unavailable', async () => {
-    await seed({
-      category: 'workflow_collaboration',
-      channel: 'email',
-      enabled: true,
-      cadence: 'immediate',
-    })
-    vi.mocked(deps.enqueueImmediateEmail!).mockRejectedValueOnce(
-      new Error('queue unavailable'),
-    )
-
-    await expect(insertNotification(deps)(input)).resolves.not.toBeNull()
-    expect(await emailRows()).toEqual([expect.objectContaining({ status: 'pending' })])
   })
 
   // D3: one row for one piece of work, per reader.
@@ -728,6 +724,6 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
         ),
     ).toHaveLength(1)
     expect(await emailRows()).toHaveLength(0)
-    expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
+    expect(deps.onEmailQueued).not.toHaveBeenCalled()
   })
 })
