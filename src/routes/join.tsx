@@ -22,7 +22,6 @@ import { JoinEntryCard } from '#/contexts/identity/members/ui/registration/join-
 import { registerMember } from '#/contexts/identity/server/organizations'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { InlineLink } from '#/components/ui/inline-link'
-import { enterWorkspace } from './-join-entry'
 
 /**
  * The link names one invitation. Anything the router parsed into something else
@@ -56,22 +55,19 @@ function JoinPage() {
   const queryClient = useQueryClient()
   // The session cookie is already set once registration returns, so a failed
   // follow-up has no form to land its error in: `enter` keeps it for the card.
-  const enter = useActionMutation(() =>
-    enterWorkspace({
-      ensureActiveOrg,
-      // /join never held an authenticated match, and the _authenticated layout
-      // re-reads the session on navigation, so no whole-router invalidation.
-      navigateToWorkspace: () =>
-        clearTenantCacheBeforeNavigation(queryClient, () =>
-          navigate({
-            to:
-              link?.state === 'pending' && link.details.role === 'Member'
-                ? '/my'
-                : '/properties',
-          }),
-        ),
-    }),
-  )
+  const enter = useActionMutation(async () => {
+    await ensureActiveOrg()
+    // /join never held an authenticated match, and the _authenticated layout
+    // re-reads the session on navigation, so no whole-router invalidation.
+    await clearTenantCacheBeforeNavigation(queryClient, () =>
+      navigate({
+        to:
+          link?.state === 'pending' && link.details.role === 'Member'
+            ? '/my'
+            : '/properties',
+      }),
+    )
+  })
   const retryEnter = () => void enter(undefined).catch(() => undefined)
 
   const mutation = useActionMutation(useServerFn(registerMember), {

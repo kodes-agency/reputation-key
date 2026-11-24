@@ -61,7 +61,7 @@ import {
   createJobRuntimeObservationStore,
   createJobRuntimeReportReader,
 } from '#/shared/jobs/runtime-observations'
-import { drainWorkerResources, namedCloseable } from './drain'
+import { drainWorkerResources } from './drain'
 import { WORKER_POOL_MAX_CONNECTIONS } from './pool-budget'
 import {
   createWorkerProcessFailurePolicy,
@@ -251,12 +251,10 @@ async function main() {
     container.clock,
   )
 
-  if (worker) {
-    logger.info(
-      { concurrency: DEFAULT_QUEUE_CONCURRENCY },
-      'BullMQ worker started on default queue',
-    )
-  }
+  logger.info(
+    { concurrency: DEFAULT_QUEUE_CONCURRENCY },
+    'BullMQ worker started on default queue',
+  )
 
   // ── Background queue — cron-scheduled maintenance jobs ────────────
   // Separate queue so retained background work never blocks user-facing jobs.
@@ -279,12 +277,10 @@ async function main() {
     container.clock,
   )
 
-  if (backgroundWorker) {
-    logger.info(
-      { concurrency: BACKGROUND_QUEUE_CONCURRENCY },
-      'BullMQ worker started on background queue',
-    )
-  }
+  logger.info(
+    { concurrency: BACKGROUND_QUEUE_CONCURRENCY },
+    'BullMQ worker started on background queue',
+  )
 
   // Every family is managed so a stale/accidental scheduler for
   // on-demand, dark, or quarantined work is removed.
@@ -464,9 +460,9 @@ async function main() {
             ])
           },
         },
-        namedCloseable('default', worker),
-        namedCloseable('background', backgroundWorker),
-        namedCloseable('domain-events', domainEventsWorker),
+        { label: 'default', close: () => worker.close() },
+        { label: 'background', close: () => backgroundWorker.close() },
+        { label: 'domain-events', close: () => domainEventsWorker.close() },
       ],
       shutdown: container.shutdown,
       resources: [
