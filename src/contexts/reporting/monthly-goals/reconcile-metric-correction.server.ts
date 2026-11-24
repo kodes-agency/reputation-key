@@ -1,7 +1,7 @@
 import type {
   FindGoalMetricCorrectionImpactsInput,
-  GoalMetricCorrectionImpact,
-} from './goal-metric-correction-impact-lookup.port.server'
+  findGoalMetricCorrectionImpacts,
+} from './goal-metric-correction-impact-lookup.server'
 import type {
   FindClosedGoalResultIdsForMetricImpactInput,
   GoalProgramRepository,
@@ -21,9 +21,9 @@ type ClosedResultReconciliation = Readonly<{
 }>
 
 export type ReconcileMetricCorrectionDependencies = Readonly<{
-  findImpacts(
+  findImpacts: (
     input: FindGoalMetricCorrectionImpactsInput,
-  ): Promise<readonly GoalMetricCorrectionImpact[]>
+  ) => ReturnType<typeof findGoalMetricCorrectionImpacts>
   findCandidates: GoalProgramRepository['findClosedResultIdsForMetricImpact']
   reconcileClosedResult(input: {
     organizationId: string
@@ -35,36 +35,6 @@ export type ReconcileMetricCorrectionDependencies = Readonly<{
 const compareIds = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0
 
-function assertExactImpacts(
-  input: ReconcileMetricCorrectionInput,
-  impacts: readonly GoalMetricCorrectionImpact[],
-): void {
-  const expectedIds = new Set([
-    input.correctedReadingId,
-    ...(input.replacementReadingId ? [input.replacementReadingId] : []),
-  ])
-  const actualIds = new Set(impacts.map((impact) => impact.readingId))
-  if (
-    actualIds.size !== expectedIds.size ||
-    impacts.length !== expectedIds.size ||
-    [...expectedIds].some((readingId) => !actualIds.has(readingId))
-  ) {
-    throw new Error('Metric correction impact set is incomplete')
-  }
-  if (
-    impacts.some(
-      (impact) =>
-        impact.organizationId !== input.organizationId ||
-        impact.propertyId !== input.propertyId ||
-        impact.definitionVersionId !== input.definitionVersionId ||
-        !(impact.eventAt instanceof Date) ||
-        Number.isNaN(impact.eventAt.getTime()),
-    )
-  ) {
-    throw new Error('Metric correction impact scope mismatch')
-  }
-}
-
 /**
  * Re-evaluates only the immutable, closed Goal results proven affected by a
  * Metric correction. Metric owns reading facts; Goal owns candidate selection
@@ -75,7 +45,6 @@ export function reconcileMetricCorrection(deps: ReconcileMetricCorrectionDepende
     input: ReconcileMetricCorrectionInput,
   ): Promise<ReconcileMetricCorrectionResult> => {
     const impacts = await deps.findImpacts(input)
-    assertExactImpacts(input, impacts)
 
     const candidateIds = new Set<string>()
     for (const impact of impacts) {

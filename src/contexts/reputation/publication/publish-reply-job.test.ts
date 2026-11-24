@@ -67,7 +67,6 @@ describe('publish-reply job handler', () => {
       },
       NOW,
     )
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
@@ -81,7 +80,6 @@ describe('publish-reply job handler', () => {
 
     expect(deps.replyCommandStore.markPublicationSending).not.toHaveBeenCalled()
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
     expect(
       deps.replyCommandStore.markProviderOutcomePendingObservation,
     ).not.toHaveBeenCalled()
@@ -114,7 +112,6 @@ describe('publish-reply job handler', () => {
     await handler(makeJob())
 
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
     expect(
       deps.replyCommandStore.markProviderOutcomePendingObservation,
     ).not.toHaveBeenCalled()
@@ -141,7 +138,6 @@ describe('publish-reply job handler', () => {
     expect(event._tag).toBe('review.reply.publish_failed')
     // Refused before or by Google: nothing was posted, and the notice says so.
     expect(event).toMatchObject({ outcome: 'refused' })
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
     expect(
       deps.replyCommandStore.markProviderOutcomePendingObservation,
     ).not.toHaveBeenCalled()
@@ -343,7 +339,6 @@ describe('publish-reply job handler', () => {
     expect(event._tag).toBe('review.reply.publish_failed')
     // The reply may be live: the notice must not call it failed or offer a retry.
     expect(event).toMatchObject({ outcome: 'unconfirmed' })
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
   })
 
   it('unknown error → treated as ambiguous; final attempt marks ambiguous', async () => {

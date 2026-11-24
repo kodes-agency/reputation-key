@@ -11,7 +11,7 @@
 //      platform's SIGKILL.
 
 import { describe, it, expect, vi } from 'vitest'
-import { drainWorkerResources, namedCloseable, type DrainLogger } from './drain'
+import { drainWorkerResources, type DrainLogger } from './drain'
 
 function makeLogger() {
   return {
@@ -174,28 +174,6 @@ describe('drainWorkerResources', () => {
 
     expect(result).toMatchObject({ timedOut: false, stuck: [] })
   })
-
-  it('skips undefined lanes silently (unstarted workers/queues never log)', async () => {
-    const logger = makeLogger()
-    const result = await drainWorkerResources({
-      workers: [undefined, closeable('default')],
-      resources: [undefined, closeable('quarantine')],
-      budgetMs: 5_000,
-      logger,
-    })
-
-    expect(result).toMatchObject({ timedOut: false, stuck: [] })
-    // Only the real lanes logged — undefined entries produce no output.
-    expect(logger.info).toHaveBeenCalledTimes(2)
-    expect(logger.info).toHaveBeenCalledWith(
-      { queue: 'default' },
-      'Worker drained successfully',
-    )
-    expect(logger.info).toHaveBeenCalledWith(
-      { queue: 'quarantine' },
-      'Resource closed successfully',
-    )
-  })
 })
 
 // The worker built the container, so the worker releases it.
@@ -254,21 +232,5 @@ describe('drainWorkerResources container release', () => {
 
     expect(result.timedOut).toBe(true)
     expect(result.stuck).toEqual(['container', 'default'])
-  })
-})
-
-describe('namedCloseable', () => {
-  it('maps a present resource to a labeled closeable', async () => {
-    const close = vi.fn(() => Promise.resolve())
-    const entry = namedCloseable('default', { close })
-
-    expect(entry).toBeDefined()
-    expect(entry?.label).toBe('default')
-    await entry?.close()
-    expect(close).toHaveBeenCalledOnce()
-  })
-
-  it('returns undefined for an absent resource (no Redis / gated lane)', () => {
-    expect(namedCloseable('domain-events', undefined)).toBeUndefined()
   })
 })

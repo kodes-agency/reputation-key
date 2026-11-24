@@ -23,7 +23,6 @@ export type InboxItemId = Brand<string, 'InboxItemId'>
 export type InboxNoteId = Brand<string, 'InboxNoteId'>
 export type PortalGroupId = Brand<string, 'PortalGroupId'>
 export type PortalMediaAssetId = Brand<string, 'PortalMediaAssetId'>
-export type RecentActivityEntryId = Brand<string, 'RecentActivityEntryId'>
 
 // Convenience constructors — each wraps brandId with the correct tag.
 // These are the only acceptable `as` casts: branded ID parsing.
@@ -118,10 +117,6 @@ export function portalMediaAssetId(id: string): PortalMediaAssetId {
   return id as PortalMediaAssetId
 }
 
-export function recentActivityEntryId(id: string): RecentActivityEntryId {
-  return id as RecentActivityEntryId
-}
-
 export type NotificationId = Brand<string, 'NotificationId'>
 export function notificationId(id: string): NotificationId {
   return id as NotificationId
@@ -140,11 +135,6 @@ export function notificationDigestBatchId(id: string): NotificationDigestBatchId
 export type NotificationPreferenceId = Brand<string, 'NotificationPreferenceId'>
 export function notificationPreferenceId(id: string): NotificationPreferenceId {
   return id as NotificationPreferenceId
-}
-
-export type BadgeId = Brand<string, 'BadgeId'>
-export function badgeId(id: string): BadgeId {
-  return id as BadgeId
 }
 
 export type GuestResponseId = Brand<string, 'GuestResponseId'>

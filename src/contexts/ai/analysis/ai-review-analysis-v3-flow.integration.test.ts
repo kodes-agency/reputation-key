@@ -42,6 +42,7 @@ import type { AiOperationId } from '../domain/types'
 import type { AiAnalysisDerivativeV3 } from './ai-output-store.port.server'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter.server'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter.server'
+import { readAggregateWindow } from './property-aggregate.test-fixtures'
 import { urgentAlertEventId } from './ai-urgent-alert.server'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')
@@ -172,7 +173,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       authorizationLineageId: LINEAGE_ID,
       reviewAnalysisEpoch: 1,
       propertyProfileVersion: 1,
-      analysisProfileVersion: 'review-analysis-v3',
       derivative: DERIVATIVE,
       generatedAtEpochMillis: COMPLETED_AT.getTime(),
       expiresAtEpochMillis: ANALYSIS_EXPIRES_AT.getTime(),
@@ -218,8 +218,8 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       calendarProfileVersion: CALENDAR_PROFILE,
     })
 
-  const readWindow = (aggregateStore = aggregates) =>
-    aggregateStore.readWindow({
+  const readWindow = () =>
+    readAggregateWindow(db, {
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       sourceEpoch: SOURCE_EPOCH,
@@ -230,23 +230,20 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     })
 
   const read = (analysisSequence = 1, outputStore = outputs) =>
-    outputStore.readAnalysisForDelivery(
-      {
-        organizationId: ORGANIZATION_ID,
-        actorUserId: userId(ACTOR_USER_ID),
-        propertyId: PROPERTY_ID,
-        reviewId: REVIEW_ID,
-        authorizationLineageId: LINEAGE_ID,
-        reviewAnalysisEpoch: 1,
-        sourceEpoch: SOURCE_EPOCH,
-        sourceRevision: SOURCE_REVISION,
-        analysisSequence,
-        propertyProfileVersion: 1,
-        analysisProfileVersion: 'review-analysis-v3',
-        nowEpochMillis: COMPLETED_AT.getTime(),
-      },
-      async (result) => result,
-    )
+    outputStore.readAnalysisForDelivery({
+      organizationId: ORGANIZATION_ID,
+      actorUserId: userId(ACTOR_USER_ID),
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      authorizationLineageId: LINEAGE_ID,
+      reviewAnalysisEpoch: 1,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      analysisSequence,
+      propertyProfileVersion: 1,
+      analysisProfileVersion: 'review-analysis-v3',
+      nowEpochMillis: COMPLETED_AT.getTime(),
+    })
 
   const analysesOf = (id: string) =>
     db.select().from(aiReviewAnalyses).where(eq(aiReviewAnalyses.reviewId, id))
@@ -341,9 +338,8 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       sentiment: DERIVATIVE.sentiment,
       mentions: DERIVATIVE.mentions.map((mention) => expect.objectContaining(mention)),
     })
-    const window = await readWindow(aggregateStore)
+    const window = await readWindow()
     expect(window?.coverage.settledAnalysisCount).toBe(1)
-    expect(window?.analyzedReviews).toEqual([])
   })
 
   it('stores the analysis root, the mentions in answer order, the sentences each cites, and closes the operation with the normalizer record', async () => {
@@ -469,7 +465,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
 
   it('writes nothing, and leaves the operation executing, when a fence does not hold', async () => {
     const refusals = [
-      { analysisProfileVersion: 'review-analysis-v2' },
       { analysisSequence: 2 },
       {
         providerCompletion: {
@@ -853,16 +848,5 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       { sequence: 1, ordinal: 1 },
       { sequence: 2, ordinal: 0 },
     ])
-  })
-
-  it('keeps v3 analyses out of the legacy window, whose readers only know v2', async () => {
-    await store()
-    await apply(1)
-
-    const window = await readWindow()
-
-    expect(window?.analyzedReviews).toEqual([])
-    expect(window?.days).toEqual([])
-    expect(window?.coverage.settledAnalysisCount).toBe(1)
   })
 })

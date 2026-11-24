@@ -5,7 +5,6 @@ import {
   aiPropertyAggregateContributions,
   aiPropertyAggregateHeads,
   aiPropertyAggregateSettlements,
-  aiReviewAnalyses,
   outboxEvents,
   reviews,
   reviewAiAnalysisHeads,
@@ -60,7 +59,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
   }
 
-  it('derives scalar day reads without reviving retired aspect writers', async () => {
+  it('derives scalar day reads from the current contributions', async () => {
     await seedStoredReviewA()
     await expect(apply(REVIEW_A_ID, 1)).resolves.toEqual({
       status: 'applied',
@@ -89,15 +88,9 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     expect(window?.days).toEqual([
       expect.objectContaining({
         localDate: '2026-09-07',
-        aspectCounts: [],
       }),
     ])
-    expect(window?.analyzedReviews).toEqual([
-      expect.objectContaining({
-        reviewId: REVIEW_A_ID,
-        aspects: [],
-      }),
-    ])
+    expect(window?.analyzedReviews).toEqual([{ reviewId: REVIEW_A_ID }])
   })
 
   it('does not inherit coverage into a rolled property profile version', async () => {
@@ -128,34 +121,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     expect(rolledWindow?.coverage.settledAnalysisCount).toBe(1)
     expect(rolledWindow?.coverage.awaitingAnalysisCount).toBe(1)
     expect(rolledWindow?.days ?? []).toEqual([])
-  })
-
-  it('reads current v1 analysis evidence that predates aspect children', async () => {
-    await seedStoredReviewA()
-    await expect(apply(REVIEW_A_ID, 1)).resolves.toEqual({
-      status: 'applied',
-      aggregateRevision: 1,
-    })
-    await expect(advanceWithoutAnalysis(REVIEW_B_ID, 2)).resolves.toEqual({
-      status: 'applied',
-      aggregateRevision: 2,
-    })
-
-    await db
-      .update(aiReviewAnalyses)
-      .set({ analysisProfileVersion: 'review-analysis-v1' })
-      .where(eq(aiReviewAnalyses.reviewId, REVIEW_A_ID))
-
-    await expect(readWindow()).resolves.toMatchObject({
-      days: [{ localDate: '2026-09-07', aspectCounts: [] }],
-      analyzedReviews: [
-        {
-          reviewId: REVIEW_A_ID,
-          analysisProfileVersion: 'review-analysis-v1',
-          aspects: [],
-        },
-      ],
-    })
   })
 
   it('converges for 20 different reviews applied in shuffled order', async () => {

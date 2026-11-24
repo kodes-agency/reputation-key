@@ -16,7 +16,6 @@ export type GetGoogleAuthUrlDeps = Readonly<{
 }>
 
 export type GetGoogleAuthUrlInput = Readonly<{
-  visibility: 'private' | 'organization'
   /** The authenticated user initiating the flow (state session binding). */
   userId: string
   /** Stable tenant/session bindings required by opaque v2 state. */
@@ -55,9 +54,6 @@ export const getGoogleAuthUrl =
       organizationId: input.organizationId,
       userId: input.userId,
       sessionId: input.sessionId,
-      // Keep accepting the legacy decoder shape while every newly issued
-      // OAuth ceremony records the sole Organization-owned value.
-      visibility: 'organization',
       purpose: input.purpose ?? 'reviews',
       connectionMode: input.connectionMode ?? 'new',
       targetConnectionId: input.targetConnectionId ?? null,

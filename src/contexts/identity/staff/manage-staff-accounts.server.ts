@@ -145,9 +145,10 @@ export const listStaffMembers =
     const rows = await deps.management.list(ctx.organizationId, input.propertyId)
     return {
       staffScanTargetsEnabled: deps.staffScanTargetsEnabled ?? false,
-      colleagueListEnabled:
-        (await deps.management.getColleagues?.(ctx.organizationId, input.propertyId)) ??
-        false,
+      colleagueListEnabled: await deps.management.getColleagues(
+        ctx.organizationId,
+        input.propertyId,
+      ),
       members: rows.map(({ email, ...row }) => ({
         ...row,
         ...(canForContext(ctx, 'staff.invite') ? { email } : {}),

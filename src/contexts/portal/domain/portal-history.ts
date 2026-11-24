@@ -11,6 +11,15 @@
 import type { PortalHealthReason, PortalHealthStatus } from './portal-health'
 import type { PortalPageEditSubject } from './portal-page-edit'
 
+const DEFAULT_HISTORY_PAGE_SIZE = 20
+const MAX_HISTORY_PAGE_SIZE = 50
+
+/** Entries one History page lists: the requested size within bounds, or the default. */
+export const historyPageSize = (requested: number | undefined): number =>
+  requested !== undefined && Number.isSafeInteger(requested)
+    ? Math.min(MAX_HISTORY_PAGE_SIZE, Math.max(1, requested))
+    : DEFAULT_HISTORY_PAGE_SIZE
+
 export const PORTAL_HISTORY_CATEGORIES = [
   'publishing',
   'codes',

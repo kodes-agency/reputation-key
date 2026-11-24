@@ -1,9 +1,9 @@
 // Replacing the photograph clears what the old one was described as, in every
 // language it was described in, not only the languages offered by default.
 
-import { createElement } from 'react'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { act, startHookHarness, type HookHarness } from './hook-harness'
+import { act, createElement } from 'react'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { setupHookRoot } from '#/shared/testing/hook-root'
 import type { usePhotoDialog as UsePhotoDialog } from './use-photo-dialog'
 
 const picker = vi.hoisted(() => ({ chosen: null as unknown, choose: vi.fn() }))
@@ -28,18 +28,16 @@ const HERO = {
   focalY: 0.5,
 }
 
+const root = setupHookRoot()
+
 describe('usePhotoDialog', () => {
-  let harness: HookHarness
   let useDialog: typeof UsePhotoDialog
   let latest: ReturnType<typeof UsePhotoDialog> | undefined
 
   beforeAll(async () => {
-    harness = await startHookHarness()
     ;({ usePhotoDialog: useDialog } = await import('./use-photo-dialog'))
   })
-  afterAll(() => harness.stop())
   afterEach(async () => {
-    await harness.unmount()
     latest = undefined
     picker.chosen = null
   })
@@ -63,7 +61,7 @@ describe('usePhotoDialog', () => {
       })
       return null
     }
-    await harness.render(createElement(Probe))
+    await root.render(createElement(Probe))
     await act(async () => latest!.choose(file))
     await act(async () => latest!.setIsConfirmed(true))
 
@@ -95,7 +93,7 @@ describe('usePhotoDialog', () => {
       })
       return null
     }
-    await harness.render(createElement(Probe))
+    await root.render(createElement(Probe))
     await act(async () => latest!.setFocal({ x: 0.1, y: 0.1 }))
 
     await act(async () => latest!.submit())

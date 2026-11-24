@@ -35,12 +35,8 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       resetCapabilityPolicyStore()
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore(fixture.env))
 
-      const refreshPolicy = vi.fn(async () => {})
       const hasActiveConsent = vi.fn(async () => false)
-      const deps: DelayedPolicyDeps = {
-        refreshPolicy,
-        hasActiveConsent,
-      }
+      const deps: DelayedPolicyDeps = { hasActiveConsent }
       const policy = createDelayedExecutionPolicy(deps)
       const decision = await policy.decide({
         ...fixture.request,
@@ -50,7 +46,6 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       expect(decision.outcome).toBe(fixture.expect.outcome)
       if (fixture.expect.reason) expect(decision.reason).toBe(fixture.expect.reason)
       expect(decision.freshRead).toBe(fixture.expect.freshRead)
-      expect(refreshPolicy).toHaveBeenCalledTimes(fixture.expect.freshRead ? 1 : 0)
       if (fixture.request.consent) {
         expect(hasActiveConsent).toHaveBeenCalledWith({
           organizationId: fixture.request.organizationId,
@@ -67,29 +62,9 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     })
   }
 
-  it('unavailable policy state denies closed (strong read failure)', async () => {
-    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    const policy = createDelayedExecutionPolicy({
-      refreshPolicy: async () => {
-        throw new Error('policy store down')
-      },
-    })
-    const decision = await policy.decide({
-      principal: { kind: 'system', id: 'worker:default' },
-      action: 'system:review.sync',
-      organizationId: 'org-fixture',
-      propertyId: 'd4000000-0000-4000-8000-000000000051',
-      executionKind: 'worker',
-      now: new Date(),
-    })
-    expect(decision.outcome).toBe('deny')
-    expect(decision.reason).toBe('policy_unavailable')
-    expect(decision.allowed).toBe(false)
-  })
-
   it('denies an enqueue capability that disagrees with the catalogue', async () => {
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const policy = createDelayedExecutionPolicy()
 
     const decision = await policy.decide({
       principal: { kind: 'system', id: 'worker:default' },
@@ -109,7 +84,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
 
   it('allows an ungated tenant-cross schedule to enumerate targets', async () => {
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const policy = createDelayedExecutionPolicy()
 
     const decision = await policy.decide({
       principal: { kind: 'system', id: 'schedule:review-reconciliation' },
@@ -167,7 +142,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
 
   it('decides the property scope from the entry-point row the request names', async () => {
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const policy = createDelayedExecutionPolicy()
     const request = {
       principal: { kind: 'system', id: 'consumer:notification.on-member-removed' },
       action: 'system:notification.insert',
@@ -205,7 +180,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
 
   it('returns the complete content-free decision consumed by JobRuntime', async () => {
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const policy = createDelayedExecutionPolicy()
     const decision = await policy.decide({
       principal: { kind: 'system', id: 'worker:default' },
       action: 'system:review.reconcile',
@@ -235,7 +210,7 @@ describe('registerDelayedExecutionPolicyInit (cold-boot lazy init)', () => {
 
   it('fires the registered initializer on first read (the cold-boot race fix)', () => {
     resetDelayedExecutionPolicy()
-    const stub = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const stub = createDelayedExecutionPolicy()
     const install = vi.fn(() => initDelayedExecutionPolicy(stub))
     registerDelayedExecutionPolicyInit(install)
 

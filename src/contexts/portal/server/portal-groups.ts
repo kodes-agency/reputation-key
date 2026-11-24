@@ -167,28 +167,6 @@ export const softDeletePortalGroup = createServerFn({ method: 'POST' })
     ),
   )
 
-// ── addPortalToGroup ──────────────────────────────────────────────
-
-export const addPortalToGroup = createServerFn({ method: 'POST' })
-  .validator(portalGroupMemberSchema)
-  .handler(
-    commandHandler(
-      {
-        method: 'POST',
-        name: 'portal-group.addPortalToGroup',
-        errors: portalCommandErrors,
-      },
-      async ({ data, headers }) => {
-        const ctx = await resolveTenantContext(headers)
-        await authorizePortalGroupMembership(ctx, data)
-
-        const { management: useCases } = getContainer().portalPublicApi
-        await useCases.addPortalToGroup(data, ctx)
-        return { added: true }
-      },
-    ),
-  )
-
 // ── removePortalFromGroup ─────────────────────────────────────────
 
 export const removePortalFromGroup = createServerFn({ method: 'POST' })

@@ -9,13 +9,8 @@ import type {
 import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import { METRIC_VERSION_IDS } from '../readings/contracts'
 import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.server'
-import {
-  createGoalProgramProgressReader,
-  createGoalProgressReader,
-  MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS,
-  type GoalProgressDeps,
-} from './goal-progress.server'
-import type { GoalActor } from './goal-programs.server'
+import { createGoalProgressReader, type GoalProgressDeps } from './goal-progress.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 
 const actor: GoalActor = {
   organizationId: 'org-1',
@@ -126,22 +121,15 @@ function reader(
     async () => metricResult,
   )
   const list = vi.fn(async () => programs)
-  const get = vi.fn<GoalProgressDeps['reads']['get']>(async ({ programId }) => {
-    const found = programs.find((candidate) => candidate.program.id === programId)
-    if (!found) throw new Error('not_found')
-    return found
-  })
   const deps: GoalProgressDeps = {
-    reads: { list, get },
+    reads: { list },
     metrics: { queryGoalMetric },
     now: () => NOW,
   }
   return {
     progress: createGoalProgressReader(deps),
-    programProgress: createGoalProgramProgressReader(deps),
     queryGoalMetric,
     list,
-    get,
   }
 }
 
@@ -395,7 +383,7 @@ describe('createGoalProgressReader', () => {
       throw new Error('forbidden')
     }
     const progress = createGoalProgressReader({
-      reads: { list: refuse, get: refuse },
+      reads: { list: refuse },
       metrics: { queryGoalMetric },
       now: () => NOW,
     })
@@ -589,7 +577,7 @@ describe('createGoalProgressReader', () => {
       const months = assignments.map((assignment) =>
         monthOf(goal, { targetValue: 200 }, assignment),
       )
-      const { programProgress } = reader([
+      const { progress } = reader([
         {
           ...goal,
           results: months,
@@ -604,27 +592,13 @@ describe('createGoalProgressReader', () => {
         },
       ])
 
-      const subjects = await programProgress(
-        { propertyId: PROPERTY_ID, programId: 'program-1' },
-        actor,
-      )
-
-      expect(subjects).toMatchObject([
-        {
-          subject: lobbyPortal,
-          progress: {
-            targetValue: 200,
-            monthTarget: { changedBy: 'marco', changeCount: 1 },
-          },
-        },
-        {
-          subject: barPortal,
-          progress: {
-            targetValue: 200,
-            monthTarget: { changedBy: 'marco', changeCount: 1 },
-          },
-        },
-      ])
+      for (const subject of [lobbyPortal, barPortal]) {
+        const [card] = await progress({ propertyId: PROPERTY_ID, subject }, actor)
+        expect(card).toMatchObject({
+          targetValue: 200,
+          monthTarget: { changedBy: 'marco', changeCount: 1 },
+        })
+      }
     })
   })
 
@@ -687,13 +661,9 @@ describe('createGoalProgressReader', () => {
       },
       { id: 'program-1-a3' },
     )
-    const { progress, programProgress } = reader([third])
+    const { progress } = reader([third])
 
     const [card] = await progress(input, actor)
-    const subjects = await programProgress(
-      { propertyId: PROPERTY_ID, programId: 'program-1' },
-      actor,
-    )
 
     expect(card).toMatchObject({
       targetValue: 350,
@@ -702,8 +672,6 @@ describe('createGoalProgressReader', () => {
       period: { start: OCTOBER_START },
       reading: { kind: 'not_started' },
     })
-    // The goal's own page reads the subject once, under the same plan.
-    expect(subjects).toMatchObject([{ subject: group, progress: { targetValue: 350 } }])
   })
 
   it('shows no card for a subject whose only assignment is an empty window', async () => {
@@ -718,159 +686,5 @@ describe('createGoalProgressReader', () => {
     const { progress } = reader([cancelledSubject])
 
     expect(await progress(input, actor)).toEqual([])
-  })
-})
-
-describe('createGoalProgramProgressReader', () => {
-  const lobby: GoalSubject = { kind: 'portal', portalId: 'portal-lobby' }
-  const bar: GoalSubject = { kind: 'portal', portalId: 'portal-bar' }
-  const programInput = { propertyId: PROPERTY_ID, programId: 'program-1' }
-
-  /** One goal over several Portals, each with its own assignment. */
-  function goalOver(
-    subjects: readonly GoalSubject[],
-    spec: Spec = {},
-  ): GoalProgramBundle {
-    const base = bundle(spec)
-    return {
-      ...base,
-      assignments: subjects.map((subject, index) => ({
-        ...base.assignments[0]!,
-        id: `${base.program.id}-a${index + 1}`,
-        subject,
-      })),
-    }
-  }
-
-  it('reads the month to date for every current subject of one goal', async () => {
-    const { programProgress, queryGoalMetric, get } = reader([goalOver([lobby, bar])])
-
-    const subjects = await programProgress(programInput, actor)
-
-    expect(get).toHaveBeenCalledWith(programInput, actor)
-    expect(subjects).toEqual([
-      {
-        subject: lobby,
-        progress: expect.objectContaining({
-          programId: 'program-1',
-          targetValue: 250,
-          period: { start: SEPTEMBER_START, end: OCTOBER_START },
-          reading: { kind: 'live', value: 209, sampleCount: 209 },
-        }),
-      },
-      {
-        subject: bar,
-        progress: expect.objectContaining({
-          reading: { kind: 'live', value: 209, sampleCount: 209 },
-        }),
-      },
-    ])
-    expect(queryGoalMetric).toHaveBeenCalledTimes(2)
-    expect(queryGoalMetric).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subject: { kind: 'portal', portalId: 'portal-bar' },
-        periodStart: SEPTEMBER_START,
-        periodEnd: OCTOBER_START,
-      }),
-    )
-  })
-
-  it('returns nothing for a goal with more than 25 current subjects', async () => {
-    expect(MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS).toBe(25)
-    const portals = (count: number): readonly GoalSubject[] =>
-      Array.from({ length: count }, (_, index) => ({
-        kind: 'portal',
-        portalId: `portal-${index + 1}`,
-      }))
-    const atTheLimit = reader([goalOver(portals(25))])
-    const overTheLimit = reader([goalOver(portals(26))])
-
-    expect(await atTheLimit.programProgress(programInput, actor)).toHaveLength(25)
-    expect(atTheLimit.queryGoalMetric).toHaveBeenCalledTimes(25)
-
-    expect(await overTheLimit.programProgress(programInput, actor)).toEqual([])
-    expect(overTheLimit.queryGoalMetric).not.toHaveBeenCalled()
-  })
-
-  it('counts a subject once, and leaves out one whose assignment has ended', async () => {
-    const base = goalOver([lobby, bar])
-    const revised = withNextVersion(
-      {
-        ...base,
-        assignments: base.assignments.map((assignment) => ({
-          ...assignment,
-          // The bar left the goal on 10 September; the lobby stays until October.
-          effectiveTo:
-            assignment.subject === bar
-              ? new Date('2026-09-10T00:00:00.000Z')
-              : OCTOBER_START,
-        })),
-      },
-      { effectiveFrom: OCTOBER_START },
-      { subject: lobby },
-    )
-    const { programProgress, queryGoalMetric } = reader([revised])
-
-    const subjects = await programProgress(programInput, actor)
-
-    expect(subjects.map(({ subject }) => subject)).toEqual([lobby])
-    expect(queryGoalMetric).toHaveBeenCalledOnce()
-  })
-
-  it('shows a subject that joins next month as not started', async () => {
-    const base = goalOver([lobby])
-    const revised = withNextVersion(
-      {
-        ...base,
-        assignments: base.assignments.map((assignment) => ({
-          ...assignment,
-          effectiveTo: OCTOBER_START,
-        })),
-      },
-      { effectiveFrom: OCTOBER_START },
-      { subject: bar },
-    )
-    const { programProgress } = reader([revised])
-
-    const subjects = await programProgress(programInput, actor)
-
-    expect(subjects).toEqual([
-      {
-        subject: lobby,
-        progress: expect.objectContaining({
-          reading: { kind: 'live', value: 209, sampleCount: 209 },
-        }),
-      },
-      {
-        subject: bar,
-        progress: expect.objectContaining({ reading: { kind: 'not_started' } }),
-      },
-    ])
-  })
-
-  it('reads no figure for a scheduled or paused goal, and none at all for an ended one', async () => {
-    const scheduled = reader([
-      goalOver([lobby], { status: 'scheduled', effectiveFrom: OCTOBER_START }),
-    ])
-    const ended = reader([goalOver([lobby], { status: 'ended' })])
-
-    expect(await scheduled.programProgress(programInput, actor)).toEqual([
-      {
-        subject: lobby,
-        progress: expect.objectContaining({ reading: { kind: 'not_started' } }),
-      },
-    ])
-    expect(scheduled.queryGoalMetric).not.toHaveBeenCalled()
-    expect(await ended.programProgress(programInput, actor)).toEqual([])
-    expect(ended.queryGoalMetric).not.toHaveBeenCalled()
-  })
-
-  it('lets the goal read refuse: a goal the actor may not read never reaches a figure', async () => {
-    const { programProgress, queryGoalMetric } = reader([goalOver([lobby])])
-
-    await expect(
-      programProgress({ propertyId: PROPERTY_ID, programId: 'another-program' }, actor),
-    ).rejects.toThrow('not_found')
-    expect(queryGoalMetric).not.toHaveBeenCalled()
   })
 })

@@ -5,7 +5,6 @@ import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
   archivePortal,
@@ -45,7 +44,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
         propertyId: params.propertyId,
       },
     })
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'portal.read')) throw roleUnavailable('Portals', 'properties')
   },
   validateSearch: (search) => portalOverviewSearchSchema.parse(search),

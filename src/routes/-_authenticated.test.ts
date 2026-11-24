@@ -11,7 +11,10 @@ const { getSession, getActiveOrganization, getCapabilitySet, readViewportHint } 
   }))
 
 vi.mock('#/shared/auth/auth.functions', () => ({ getSession }))
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.query', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('#/contexts/identity/server/organizations.query')
+  >()),
   getActiveOrganization,
 }))
 vi.mock('#/contexts/reputation/server/inbox', () => ({ getLastVisitCountFn: vi.fn() }))

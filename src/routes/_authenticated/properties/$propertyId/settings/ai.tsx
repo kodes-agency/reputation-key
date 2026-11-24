@@ -15,7 +15,6 @@ import {
   enableMerchantAiFn,
   revokeMerchantAiFn,
 } from '#/contexts/identity/server/merchant-ai'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
@@ -30,7 +29,7 @@ export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/ai',
 )({
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     // An AccountAdmin changes AI here and a manager who drafts with it reads the
     // state; the nav shows the section to the same two (property-settings-sections.ts).
     // Anyone else followed a stale link.
@@ -39,7 +38,7 @@ export const Route = createFileRoute(
     }
   },
   loader: async ({ params: { propertyId }, context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     // Only an AccountAdmin reads the authorization; a manager reads the state from
     // the property's setup, which the settings layout already loads.
     if (can(role, 'ai.manage')) {

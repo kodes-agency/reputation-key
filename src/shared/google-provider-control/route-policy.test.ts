@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { GOOGLE_PROVIDER_ROUTE_KEYS } from './contracts'
 import {
   GOOGLE_PROVIDER_ROUTE_POLICIES,
-  assertGoogleProviderRoutePolicies,
+  GOOGLE_PROVIDER_PRODUCTION_ORIGINS,
   compileGoogleProviderRequest,
   type GoogleProviderRouteDescriptor,
 } from './route-catalogue'
@@ -14,7 +14,21 @@ describe('Google provider egress inventory', () => {
     expect(Object.keys(GOOGLE_PROVIDER_ROUTE_POLICIES).sort()).toEqual(
       [...GOOGLE_PROVIDER_ROUTE_KEYS].sort(),
     )
-    expect(() => assertGoogleProviderRoutePolicies()).not.toThrow()
+  })
+
+  it('keeps every route on an approved origin and owned inside Integration', () => {
+    for (const [routeKey, entry] of Object.entries(GOOGLE_PROVIDER_ROUTE_POLICIES)) {
+      expect(GOOGLE_PROVIDER_PRODUCTION_ORIGINS, routeKey).toContain(entry.origin)
+      expect(entry.ownerModule, routeKey).toMatch(/^src\/contexts\/integration\//)
+    }
+  })
+
+  it('keeps transport and repository state in agreement', () => {
+    for (const [routeKey, entry] of Object.entries(GOOGLE_PROVIDER_ROUTE_POLICIES)) {
+      expect(entry.transport === 'direct_fixed_trust_read', routeKey).toBe(
+        entry.repositoryState === 'direct_fixed_trust_read',
+      )
+    }
   })
 
   it('keeps the sole direct exception non-credential, fixed-origin, and repeat-safe', () => {
@@ -37,6 +51,8 @@ describe('Google provider egress inventory', () => {
 
   it('never classifies a provider write or one-time credential operation as repeat-safe', () => {
     for (const [routeKey, entry] of Object.entries(GOOGLE_PROVIDER_ROUTE_POLICIES)) {
+      if (entry.method !== 'GET')
+        expect(entry.recovery, routeKey).not.toBe('safe_read_repeat')
       if (entry.method !== 'GET' || routeKey === 'oauth.token.exchange') {
         expect(entry.recovery, routeKey).not.toBe('safe_read_repeat')
       }

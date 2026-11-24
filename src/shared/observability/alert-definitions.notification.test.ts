@@ -20,7 +20,7 @@ import {
 } from './alert-definitions.test-fixtures'
 
 describe('notification.in-app-delivery-lag', () => {
-  it('fires from durable source age when either delivery stage exceeds 60 seconds', () => {
+  it('fires from durable source age when delivery exceeds 60 seconds', () => {
     const source = healthy()
     source.notifications.deliveryLag = {
       ...source.notifications.deliveryLag,
@@ -36,21 +36,6 @@ describe('notification.in-app-delivery-lag', () => {
       threshold: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
     })
     expect(sourceEvent!.detail).toContain('source receipts=2+')
-
-    const materialization = healthy()
-    materialization.notifications.deliveryLag = {
-      ...materialization.notifications.deliveryLag,
-      materializationPending: 1,
-      oldestMaterializationSourceRecordedAt: '2026-08-20T23:58:59.999Z',
-      oldestMaterializationSourceAgeMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
-      oldestMaterializationEnqueuedAt: '2026-08-20T23:59:30.000Z',
-      oldestMaterializationEnqueuedAgeMs: 30_000,
-    }
-    expect(
-      evaluateOne('notification.in-app-delivery-lag', materialization),
-    ).toMatchObject({
-      value: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
-    })
   })
 
   it('names what is pending by route event type, and carries nothing else', () => {
@@ -78,7 +63,7 @@ describe('notification.in-app-delivery-lag', () => {
     })
   })
 
-  it('says when the breakdown comes from a capped scan or a second stage is pending', () => {
+  it('says when the breakdown comes from a capped scan', () => {
     const s = healthy()
     s.notifications.deliveryLag = {
       ...s.notifications.deliveryLag,
@@ -87,20 +72,14 @@ describe('notification.in-app-delivery-lag', () => {
       sourceSaturated: true,
       oldestSourceRecordedAt: '2026-08-20T23:58:59.999Z',
       oldestSourceAgeMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
-      materializationPending: 2,
-      materializationSaturated: true,
     }
 
     const event = evaluateOne('notification.in-app-delivery-lag', s)
 
     expect(event!.facts).toEqual({
-      count: 1002,
+      count: 1000,
       codes: { 'inbox.inbox_item.created': 1000 },
-      reasons: [
-        'source_scan_saturated',
-        'materialization_pending',
-        'materialization_scan_saturated',
-      ],
+      reasons: ['source_scan_saturated'],
     })
   })
 

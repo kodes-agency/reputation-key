@@ -20,6 +20,10 @@ import type {
 import type { GuestSurface } from './domain/portal-publication-snapshot'
 import type { PortalAccessArtifactChannel } from './domain/portal-access-artifact'
 import type { PortalHealthReason, PortalHealthStatus } from './domain/portal-health'
+import type {
+  GuestLocalePreference,
+  GuestLocalePreferenceFor,
+} from './publication/resolve-public-portal-token.server'
 import type { PortalContactRequestManagerAuthorityFacts } from './publication/contact-request-authority.server'
 import type { GoalReadinessFacts } from './publication/goal-readiness-facts.server'
 import type { AiReplyBrandProfile } from '#/shared/reply/ai-reply-brand-profile'
@@ -231,11 +235,7 @@ export type PortalPublicApi = Readonly<{
    */
   findPublicPortalByToken: (
     rawToken: string,
-    preference?: Readonly<{
-      requestedLocale?: string | null
-      sessionLocale?: string | null
-      acceptLanguage?: string | null
-    }>,
+    preference?: GuestLocalePreference | GuestLocalePreferenceFor,
   ) => Promise<PublicPortalByTokenOutcome>
   /**
    * Whether a presented address is a print code (ADR 0069): shape only, no key and

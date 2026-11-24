@@ -18,7 +18,10 @@ import {
 } from '#/shared/reply-library/reply-voice-language-groups'
 import { checkReplyText } from '#/shared/reply-library/reply-checks'
 import { isReplyRenderError, renderReply } from '#/shared/reply-library/render-reply'
-import { pickLeastRecentlyUsed } from '#/shared/reply-library/reply-rotation'
+import {
+  orderOptions,
+  pickLeastRecentlyUsed,
+} from '#/shared/reply-library/reply-rotation'
 import {
   maxSimilarity,
   REPLY_DUPLICATE_SIMILARITY_THRESHOLD,
@@ -86,18 +89,12 @@ async function loadScope(deps: Deps, review: Review) {
     review.propertyId,
   )
   if (!snapshot) throw reviewError('property_not_found', 'Property not found')
-  const templates = resolveReplyLibraryTemplates({
-    builtin: BUILTIN_REPLY_LIBRARY,
-    accountTemplates: snapshot.accountTemplates,
-    propertyTemplates: snapshot.propertyTemplates,
-    visibility: snapshot.visibility,
-  })
   const voice = resolveVoice(
     BUILTIN_REPLY_VOICE,
     snapshot.accountVoice,
     snapshot.propertyVoice,
   )
-  return { snapshot, templates, voice }
+  return { snapshot, voice }
 }
 
 async function targetLanguageGroup(
@@ -120,8 +117,17 @@ async function targetLanguageGroup(
   return parseCanonicalReplyLanguageTag(propertyDefault)?.templateGroup ?? null
 }
 
+function resolveTemplates(snapshot: Awaited<ReturnType<typeof loadScope>>['snapshot']) {
+  return resolveReplyLibraryTemplates({
+    builtin: BUILTIN_REPLY_LIBRARY,
+    accountTemplates: snapshot.accountTemplates,
+    propertyTemplates: snapshot.propertyTemplates,
+    visibility: snapshot.visibility,
+  })
+}
+
 function matchingTemplates(
-  templates: Awaited<ReturnType<typeof loadScope>>['templates'],
+  templates: ReturnType<typeof resolveTemplates>,
   review: Review,
   languageGroup: string | null,
 ) {
@@ -170,7 +176,11 @@ export const listReplyTemplates =
       input.reviewId,
       input.targetLanguage,
     )
-    const templates = matchingTemplates(scope.templates, review, languageGroup)
+    const templates = matchingTemplates(
+      resolveTemplates(scope.snapshot),
+      review,
+      languageGroup,
+    )
     const items = templates.map((template): ReplyTemplateListItem => ({
       id: template.ref,
       ref: template.ref,
@@ -212,32 +222,18 @@ async function checkDraft(
     privacyMode,
     emojiAllowed,
   })
-  const recent =
-    (await deps.repository.findRecentLiveReplyTexts?.({
-      organizationId: review.organizationId,
-      propertyId: review.propertyId,
-      excludeReviewId: review.id,
-      limit: 20,
-    })) ?? []
+  const recent = await deps.repository.findRecentLiveReplyTexts({
+    organizationId: review.organizationId,
+    propertyId: review.propertyId,
+    excludeReviewId: review.id,
+    limit: 20,
+  })
   const similarity = maxSimilarity(text, recent)
   return {
     ...findings,
     maxSimilarity: similarity,
     similar: similarity >= REPLY_DUPLICATE_SIMILARITY_THRESHOLD,
   }
-}
-
-function leastUsedIndex(
-  length: number,
-  usages: readonly Readonly<{ key: string; usedAtEpochMillis: number }>[],
-  seed: string,
-): number {
-  const selected = pickLeastRecentlyUsed(
-    Array.from({ length }, (_, index) => String(index)),
-    usages,
-    seed,
-  )
-  return selected === null ? 0 : Number(selected)
 }
 
 export const loadReplyTemplate =
@@ -249,9 +245,11 @@ export const loadReplyTemplate =
       input.reviewId,
       input.targetLanguage,
     )
-    const template = matchingTemplates(scope.templates, review, languageGroup).find(
-      ({ ref }) => ref === input.ref,
-    )
+    const template = matchingTemplates(
+      resolveTemplates(scope.snapshot),
+      review,
+      languageGroup,
+    ).find(({ ref }) => ref === input.ref)
     if (!template || languageGroup === null) {
       throw reviewError('invalid_input', 'Reply template is unavailable')
     }
@@ -262,12 +260,11 @@ export const loadReplyTemplate =
     if (allowed.length === 0) {
       throw reviewError('invalid_input', 'No other template wording is available')
     }
-    const usage =
-      (await deps.repository.findPublishedUsage?.({
-        organizationId: review.organizationId,
-        propertyId: review.propertyId,
-        templateRef: template.ref,
-      })) ?? []
+    const usage = await deps.repository.findPublishedUsage({
+      organizationId: review.organizationId,
+      propertyId: review.propertyId,
+      templateRef: template.ref,
+    })
     const wording = pickLeastRecentlyUsed<(typeof allowed)[number]>(
       allowed,
       usage.flatMap(({ wordingKey, publishedAt }) =>
@@ -281,11 +278,10 @@ export const loadReplyTemplate =
       isBuiltinReplyVoiceLanguageGroup(languageGroup) ? languageGroup : null
     let rendered: ReturnType<typeof renderReply> | null = null
     if (voiceLanguageGroup !== null) {
-      const recentVoice =
-        (await deps.repository.findPublishedUsage?.({
-          organizationId: review.organizationId,
-          propertyId: review.propertyId,
-        })) ?? []
+      const recentVoice = await deps.repository.findPublishedUsage({
+        organizationId: review.organizationId,
+        propertyId: review.propertyId,
+      })
       const band = replyBand(review.rating, Boolean(review.text?.trim()))
       const locale = scope.voice.localized[voiceLanguageGroup]
       const choiceUsage = (field: 'closing' | 'signOff' | 'contactSentence' | 'emoji') =>
@@ -300,26 +296,31 @@ export const loadReplyTemplate =
               ],
         )
       const choices = {
-        closing: leastUsedIndex(
-          locale.closings[band].value.length,
-          choiceUsage('closing'),
-          `${review.id}:closing`,
-        ),
-        signOff: leastUsedIndex(
-          locale.signOffWords[review.rating >= 4 ? 'positive' : 'negative'].value.length,
-          choiceUsage('signOff'),
-          `${review.id}:sign-off`,
-        ),
-        contactSentence: leastUsedIndex(
-          locale.contactSentences.value.length,
-          choiceUsage('contactSentence'),
-          `${review.id}:contact`,
-        ),
-        emoji: leastUsedIndex(
-          scope.voice.emojiSet.value.length,
-          choiceUsage('emoji'),
-          `${review.id}:emoji`,
-        ),
+        closing:
+          orderOptions(
+            locale.closings[band].value.length,
+            choiceUsage('closing'),
+            `${review.id}:closing`,
+          )[0] ?? 0,
+        signOff:
+          orderOptions(
+            locale.signOffWords[review.rating >= 4 ? 'positive' : 'negative'].value
+              .length,
+            choiceUsage('signOff'),
+            `${review.id}:sign-off`,
+          )[0] ?? 0,
+        contactSentence:
+          orderOptions(
+            locale.contactSentences.value.length,
+            choiceUsage('contactSentence'),
+            `${review.id}:contact`,
+          )[0] ?? 0,
+        emoji:
+          orderOptions(
+            scope.voice.emojiSet.value.length,
+            choiceUsage('emoji'),
+            `${review.id}:emoji`,
+          )[0] ?? 0,
         includeContact: true,
       }
       rendered = renderTemplateReply({

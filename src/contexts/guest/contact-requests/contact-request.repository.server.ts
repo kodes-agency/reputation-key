@@ -10,7 +10,6 @@ import {
 } from '#/shared/db/schema/guest.schema'
 import { journalBeforeErasure } from '#/shared/db/lifecycle/erasure-journal.server'
 import type { GuestWithdrawalJournal } from '../responses/guest-withdrawal-journal.server'
-import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { portalPublicationSnapshots } from '#/shared/db/schema/portal-publication.schema'
 import {
   ContactRequestEncryptionError,
@@ -63,61 +62,10 @@ export type ContactRequestRepository = Readonly<{
     responseId: string
     at: Date
   }): Promise<Readonly<{ outcome: 'withdrawn' | 'not_found' | 'unavailable' }>>
-  purgeExpired(input: { through: Date; batchSize: number }): Promise<
-    Readonly<{
-      processed: number
-      checkpoint: Readonly<{ expiresAt: Date; id: string }> | null
-      completedThrough: Date | null
-    }>
-  >
+  purgeExpired(input: { through: Date; batchSize: number }): Promise<{
+    processed: number
+  }>
 }>
-
-const PURGE_AUTHORITY = 'guest-contact-30d-v1'
-const PURGE_RECEIPT_SCOPE = 'guest_contact_purge'
-
-type PurgeCheckpointPayload = Readonly<{
-  cursorExpiresAt: string | null
-  cursorId: string | null
-  completedThrough: string | null
-  processedCount: number
-}>
-type PurgeCheckpoint = Readonly<{
-  cursorExpiresAt: Date | null
-  cursorId: string | null
-  completedThrough: Date | null
-  processedCount: number
-}>
-
-const parseCheckpoint = (payload: Readonly<Record<string, unknown>>): PurgeCheckpoint => {
-  const cursorExpiresAt =
-    typeof payload.cursorExpiresAt === 'string' ? new Date(payload.cursorExpiresAt) : null
-  const completedThrough =
-    typeof payload.completedThrough === 'string'
-      ? new Date(payload.completedThrough)
-      : null
-  const cursorId = typeof payload.cursorId === 'string' ? payload.cursorId : null
-  const processedCount =
-    typeof payload.processedCount === 'number' &&
-    Number.isSafeInteger(payload.processedCount)
-      ? payload.processedCount
-      : 0
-  if (
-    (cursorExpiresAt !== null && Number.isNaN(cursorExpiresAt.getTime())) ||
-    (completedThrough !== null && Number.isNaN(completedThrough.getTime())) ||
-    (cursorExpiresAt === null) !== (cursorId === null) ||
-    processedCount < 0
-  ) {
-    throw new Error('Contact Request purge checkpoint is invalid')
-  }
-  return { cursorExpiresAt, cursorId, completedThrough, processedCount }
-}
-
-const checkpointPayload = (checkpoint: PurgeCheckpoint): PurgeCheckpointPayload => ({
-  cursorExpiresAt: checkpoint.cursorExpiresAt?.toISOString() ?? null,
-  cursorId: checkpoint.cursorId,
-  completedThrough: checkpoint.completedThrough?.toISOString() ?? null,
-  processedCount: checkpoint.processedCount,
-})
 
 const withdrawalTarget = (input: Parameters<ContactRequestRepository['withdraw']>[0]) =>
   and(
@@ -132,41 +80,8 @@ const purgeExpiredContactRequests = (
   input: Parameters<ContactRequestRepository['purgeExpired']>[0],
 ) =>
   db.transaction(async (tx) => {
-    await tx
-      .insert(idempotencyReceipts)
-      .values({
-        scope: PURGE_RECEIPT_SCOPE,
-        key: PURGE_AUTHORITY,
-        payload: checkpointPayload({
-          cursorExpiresAt: null,
-          cursorId: null,
-          completedThrough: null,
-          processedCount: 0,
-        }),
-        recordedAt: input.through,
-      })
-      .onConflictDoNothing()
-    const [checkpointReceipt] = await tx
-      .select({ payload: idempotencyReceipts.payload })
-      .from(idempotencyReceipts)
-      .where(
-        and(
-          eq(idempotencyReceipts.scope, PURGE_RECEIPT_SCOPE),
-          eq(idempotencyReceipts.key, PURGE_AUTHORITY),
-        ),
-      )
-      .for('update')
-      .limit(1)
-    if (!checkpointReceipt) {
-      throw new Error('Contact Request purge authority unavailable')
-    }
-    const checkpoint = parseCheckpoint(checkpointReceipt.payload)
-
     const expired = await tx
-      .select({
-        id: guestContactRequests.id,
-        expiresAt: guestContactRequests.expiresAt,
-      })
+      .select({ id: guestContactRequests.id })
       .from(guestContactRequests)
       .where(
         and(
@@ -176,78 +91,29 @@ const purgeExpiredContactRequests = (
       )
       .orderBy(asc(guestContactRequests.expiresAt), asc(guestContactRequests.id))
       .limit(input.batchSize)
-      .for('update')
+      .for('update', { skipLocked: true })
 
-    if (expired.length > 0) {
-      const last = expired[expired.length - 1]!
-      await tx
-        .update(guestContactRequests)
-        .set({
-          status: 'expired',
-          consentGranted: false,
-          encryptedContact: null,
-          withdrawnAt: null,
-          purgedAt: input.through,
-          updatedAt: input.through,
-        })
-        .where(
-          and(
-            inArray(
-              guestContactRequests.id,
-              expired.map((row) => row.id),
-            ),
-            eq(guestContactRequests.status, 'active'),
-          ),
-        )
-      const nextCheckpoint = {
-        cursorExpiresAt: last.expiresAt,
-        cursorId: last.id,
-        completedThrough: checkpoint.completedThrough,
-        processedCount: checkpoint.processedCount + expired.length,
-      }
-      await tx
-        .update(idempotencyReceipts)
-        .set({
-          payload: checkpointPayload(nextCheckpoint),
-          recordedAt: input.through,
-        })
-        .where(
-          and(
-            eq(idempotencyReceipts.scope, PURGE_RECEIPT_SCOPE),
-            eq(idempotencyReceipts.key, PURGE_AUTHORITY),
-          ),
-        )
-      return {
-        processed: expired.length,
-        checkpoint: { expiresAt: last.expiresAt, id: last.id },
-        completedThrough: checkpoint.completedThrough,
-      }
-    }
-
-    const completedThrough =
-      checkpoint.completedThrough && checkpoint.completedThrough > input.through
-        ? checkpoint.completedThrough
-        : input.through
+    if (expired.length === 0) return { processed: 0 }
     await tx
-      .update(idempotencyReceipts)
+      .update(guestContactRequests)
       .set({
-        payload: checkpointPayload({ ...checkpoint, completedThrough }),
-        recordedAt: input.through,
+        status: 'expired',
+        consentGranted: false,
+        encryptedContact: null,
+        withdrawnAt: null,
+        purgedAt: input.through,
+        updatedAt: input.through,
       })
       .where(
         and(
-          eq(idempotencyReceipts.scope, PURGE_RECEIPT_SCOPE),
-          eq(idempotencyReceipts.key, PURGE_AUTHORITY),
+          inArray(
+            guestContactRequests.id,
+            expired.map((row) => row.id),
+          ),
+          eq(guestContactRequests.status, 'active'),
         ),
       )
-    return {
-      processed: 0,
-      checkpoint:
-        checkpoint.cursorExpiresAt && checkpoint.cursorId
-          ? { expiresAt: checkpoint.cursorExpiresAt, id: checkpoint.cursorId }
-          : null,
-      completedThrough,
-    }
+    return { processed: expired.length }
   })
 
 /** Retention-only factory: cleanup never requires loading plaintext key material. */
@@ -261,7 +127,7 @@ export const createContactRequestRepository = (
   db: Database,
   /** Absent without a sealing key: nothing can be stored or shown, but guests can still withdraw. */
   encryption: ContactRequestEncryption | undefined,
-  journal?: GuestWithdrawalJournal,
+  journal: GuestWithdrawalJournal,
 ): ContactRequestRepository => ({
   create: async (input) => {
     if (!encryption) return { outcome: 'contact_disabled' as const }
@@ -565,8 +431,6 @@ export const createContactRequestRepository = (
           outcome: updated[0] ? ('withdrawn' as const) : ('unavailable' as const),
         }
       })
-    if (!journal) return erase()
-
     // Replay honors accepted intents even if the deletion transaction fails, so
     // a request that cannot be withdrawn must never produce an intent.
     const [active] = await db

@@ -6,16 +6,13 @@ import type {
   GoogleImportReferenceStore,
 } from './durable-import-reference-store.port.server'
 import { durableCandidatePayloadSchema } from './durable-import-reference-codec.server'
-import type { DurableImportReferenceKeys } from './durable-import-reference-keys.server'
+import { isHandle } from './durable-import-reference-keys.server'
 
 type ClaimMethod = 'claimCandidates' | 'releaseCandidateClaims' | 'consumeCandidateClaims'
 
 type ClaimInput = Parameters<GoogleImportReferenceStore['claimCandidates']>[0]
 
-const referenceKeysFor = (
-  keys: DurableImportReferenceKeys,
-  input: ClaimInput,
-): readonly string[] | null => {
+const referenceKeysFor = (input: ClaimInput): readonly string[] | null => {
   if (
     input.candidateRefs.length < 1 ||
     input.candidateRefs.length > 100 ||
@@ -23,10 +20,7 @@ const referenceKeysFor = (
   ) {
     return null
   }
-  const derived = input.candidateRefs.map((ref) =>
-    keys.recordKey('import_candidate', ref),
-  )
-  return derived.every((key): key is string => key !== null) ? derived : null
+  return input.candidateRefs.every(isHandle) ? input.candidateRefs : null
 }
 
 const lockedRows = async (
@@ -56,12 +50,11 @@ const ownsClaim = (
 export const createDurableImportReferenceClaims = (
   deps: Readonly<{
     db: Database
-    keys: DurableImportReferenceKeys
     clock: () => Date
   }>,
 ): Pick<GoogleImportReferenceStore, ClaimMethod> => ({
   claimCandidates: async (input) => {
-    const keys = referenceKeysFor(deps.keys, input)
+    const keys = referenceKeysFor(input)
     if (!keys) return { ok: false, code: 'malformed' }
     try {
       return await deps.db.transaction(async (tx) => {
@@ -113,7 +106,7 @@ export const createDurableImportReferenceClaims = (
   },
 
   releaseCandidateClaims: async (input) => {
-    const keys = referenceKeysFor(deps.keys, input)
+    const keys = referenceKeysFor(input)
     if (!keys) return false
     try {
       return await deps.db.transaction(async (tx) => {
@@ -133,7 +126,7 @@ export const createDurableImportReferenceClaims = (
   },
 
   consumeCandidateClaims: async (input) => {
-    const keys = referenceKeysFor(deps.keys, input)
+    const keys = referenceKeysFor(input)
     if (!keys) return false
     try {
       return await deps.db.transaction(async (tx) => {

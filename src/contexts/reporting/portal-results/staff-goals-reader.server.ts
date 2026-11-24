@@ -1,14 +1,12 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { organizationId, propertyId, portalId, portalGroupId } from '#/shared/domain/ids'
-import {
-  propertyWallClockAt,
-  propertyWallClockToInstant,
-} from '#/shared/domain/property-calendar'
+import { propertyWallClockAt } from '#/shared/domain/property-calendar'
 import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
 } from '../readings/query-goal-metric.server'
+import { localMidnight } from '#/shared/domain/local-days'
 import { METRIC_VERSION_IDS } from '../readings/contracts'
 
 export type StaffResultsScope = Readonly<{
@@ -46,11 +44,6 @@ export const createStaffGoalsReader =
       programs.rows.map(async (row) => {
         const timezone = String(row.timezone)
         const wall = propertyWallClockAt(now, timezone)
-        const first = { ...wall, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0 }
-        const monthAfter =
-          wall.month === 12
-            ? { year: wall.year + 1, month: 1 }
-            : { year: wall.year, month: wall.month + 1 }
         const result = await query({
           organizationId: organizationId(scope.organizationId),
           propertyId: propertyId(scope.propertyId),
@@ -61,8 +54,8 @@ export const createStaffGoalsReader =
                 kind: 'portal_group',
                 portalGroupId: portalGroupId(String(row.portal_group_id)),
               },
-          periodStart: propertyWallClockToInstant(first, timezone),
-          periodEnd: propertyWallClockToInstant({ ...first, ...monthAfter }, timezone),
+          periodStart: localMidnight(wall.year, wall.month, 1, timezone),
+          periodEnd: localMidnight(wall.year, wall.month + 1, 1, timezone),
         })
         return result.exactValue === null
           ? null

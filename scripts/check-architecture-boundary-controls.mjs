@@ -83,7 +83,7 @@ const controls = [
   {
     name: "a feature server cannot import another area's application/ outside its public API",
     file: 'src/contexts/guest/rights/boundary-negative-control.server.ts',
-    source: "import '#/contexts/identity/application/staff-self-context'\n",
+    source: "import '#/contexts/identity/application/beta-feedback-pseudonym'\n",
   },
   {
     name: "a domain cannot import another area's public API",

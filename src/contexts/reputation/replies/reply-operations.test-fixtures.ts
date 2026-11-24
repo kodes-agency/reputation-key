@@ -59,7 +59,6 @@ export function makeReview(overrides: Partial<Review> = {}): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
-    expiresAt: NOW,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW,
@@ -200,13 +199,6 @@ export function makeReplyCommandStoreFake(
       if (saved) await outbox.record(facts.publicationIntent)
       return saved
     },
-    markPublished: (reply, updates, event, now) =>
-      transition(
-        reply,
-        { ...updates, publicationState: 'published', reconcileDueAt: null },
-        event,
-        now,
-      ),
     // D4: mirrors the production settle — guarded write to publish_failed /
     // terminal / retryable, the fact only when the row was not already failed.
     // The CAS keeps the attempt's cycle, so the settled row carries it forward.
@@ -323,6 +315,7 @@ export function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
       })),
     },
     commandStore: undefined as unknown as ReplyCommandStore,
+    replyLibrary: { loadSnapshot: vi.fn(async () => null) },
     aiSuggestedDraftStore: {
       accept: vi.fn(async () => {
         throw new Error('accept is not configured for this test')

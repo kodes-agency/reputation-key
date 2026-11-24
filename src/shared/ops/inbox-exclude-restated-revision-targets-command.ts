@@ -20,16 +20,16 @@
 // into the incident record. Every line is ids, numbers and states: no Review
 // text, rating or reviewer.
 
-import type {
-  OperatorArgs,
-  OperatorCommandSpec,
-  OperatorContext,
-  OperatorIO,
+import {
+  planActionWithPropertyId,
+  type OperatorArgs,
+  type OperatorCommandSpec,
+  type OperatorContext,
+  type OperatorIO,
 } from './operator-command'
 
 const COMMAND = 'ops:inbox'
 const ACTION = 'exclude-restated-revision-targets'
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * A mutation, so it reports by default and `--apply` needs a reason. Not
@@ -48,12 +48,7 @@ type Plan =
   Readonly<{ ok: true; propertyId: string }> | Readonly<{ ok: false; error: string }>
 
 export function planInboxExcludeRestatedRevisionTargets(args: OperatorArgs): Plan {
-  const [action, propertyId, ...extra] = args.positionals
-  if (action !== ACTION) return { ok: false, error: `the only action is '${ACTION}'` }
-  if (!propertyId) return { ok: false, error: '<propertyId> is required' }
-  if (!UUID.test(propertyId)) return { ok: false, error: '<propertyId> must be a UUID' }
-  if (extra.length > 0) return { ok: false, error: 'one <propertyId> at a time' }
-  return { ok: true, propertyId: propertyId.toLowerCase() }
+  return planActionWithPropertyId(args, ACTION)
 }
 
 // ── Ports: plain strings and numbers, wired to the two contexts by the script ──

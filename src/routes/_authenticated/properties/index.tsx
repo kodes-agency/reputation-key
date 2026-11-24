@@ -13,7 +13,6 @@ import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useInfiniteQuery, useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
   PropertyListPage,
@@ -42,7 +41,7 @@ const LIST_GRACE_MS = 300
 export const Route = createFileRoute('/_authenticated/properties/')({
   staticData: { page: { title: 'Properties', tier: 'dashboard', loading: 'list' } },
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     // Properties admin list is a manager surface (property.admin).
     if (!can(role, 'property.admin')) {
       throw roleUnavailable('Properties', 'profile')

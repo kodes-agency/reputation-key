@@ -34,8 +34,8 @@ export type PortalShareCommands = Readonly<{
   printKit?: Readonly<{
     read: PortalPrintKitReader
     downloadPrint: PortalPrintKitResources['downloadPrintMutation']
-    /** "Save wording" in the final print kit: Share opens on the words saved. */
-    saveWording?: PortalPrintKitResources['saveWordingMutation']
+    /** "Save wording": Share opens on the words saved. */
+    saveWording: PortalPrintKitResources['saveWordingMutation']
   }>
 }>
 

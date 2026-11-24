@@ -35,7 +35,6 @@ const render = (props: object = {}) =>
 describe('the request', () => {
   it('starts a normal connection as an untargeted Organization-owned ceremony', () => {
     expect(NEW_GOOGLE_CONNECTION_AUTHORIZATION).toEqual({
-      visibility: 'organization',
       connectionMode: 'new',
       targetConnectionId: null,
     })
@@ -52,7 +51,6 @@ describe('connectFailureMessage', () => {
   it('names the reauthorization when one could not be started', () => {
     expect(
       connectFailureMessage({
-        visibility: 'organization',
         connectionMode: 'reauth',
         targetConnectionId: 'connection-7',
       }),
@@ -81,7 +79,6 @@ describe('ConnectGoogleButton', () => {
       variant: 'outline',
       size: 'sm',
       request: {
-        visibility: 'organization',
         connectionMode: 'reauth',
         targetConnectionId: 'connection-7',
       },

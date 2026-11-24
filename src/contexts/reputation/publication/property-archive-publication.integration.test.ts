@@ -46,6 +46,7 @@ import {
 } from '../domain/review-events'
 import { buildReviewContext } from '../build-review'
 import { createReviewRepository } from '../reviews/review-repository.server'
+import { seedReply } from '#/contexts/reputation/replies/reply-seed.test-fixtures'
 import { createReplyRepository } from '../replies/reply-repository.server'
 import { createAtomicReplyCommandStore } from '../replies/reply-command-store.server'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store.server'
@@ -124,7 +125,6 @@ const review = (): Review => ({
   translatedText: null,
   languageCode: 'en',
   reviewedAt: NOW,
-  expiresAt: new Date(NOW.getTime() + 25 * 24 * 60 * 60 * 1000),
   sentimentLabel: null,
   sentimentScore: null,
   sourceCreatedAt: NOW,
@@ -182,12 +182,11 @@ async function authorizeReply(sourceEpoch = 0): Promise<void> {
     sourceEpoch,
   })
   const pending = pendingReply()
-  await createReplyRepository(db, () => NOW).upsert(pending)
+  await seedReply(db, pending, NOW)
   const authorized = await createAtomicReplyCommandStore(
     db,
     () => NOW,
     async () => true,
-    undefined,
     replyScopeEffects,
   ).markPublicationAuthorized(
     pending,
@@ -393,7 +392,6 @@ function publishWorker() {
       db,
       () => ARCHIVED_AT,
       async () => true,
-      undefined,
       replyScopeEffects,
     ),
     dispatchEvidence: { findDispatchEvidence: vi.fn() } as never,

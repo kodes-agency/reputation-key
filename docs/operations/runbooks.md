@@ -439,17 +439,17 @@ Only on-demand work lands here. A schedule firing is never dead-lettered: every 
 
 **Alerts:** `notification.in-app-delivery-lag` (P1), `notification.immediate-email-acceptance-lag` (P2), `notification.email-stalled` (P2), and the email-outcome alerts `notification.email-permanent-failures`, `notification.email-bounce-rate`, `notification.email-complaints`, `notification.email-retry-exhausted`, and `notification.email-provider-feedback-missing` (all P2).
 
-**What `notification.in-app-delivery-lag` means:** an active beta Notification source fact has remained incomplete for more than 60 seconds from its durable source clock. Route facts whose consumer announces nothing (an import's historical arrivals, a cycle opening Feed does not announce, the provider's close of a history item's first cycle, a bulk reopen's per-item facts) are not counted; `silent-route-fact.server.ts` restates those consumers' rules in SQL, so a change to either belongs in both; only the facts still missing a receipt are tested for silence, and the scan limit bounds the facts left. `notification.delivery.source_receipt_pending` is source work the durable consumer has not acknowledged; `notification.delivery.materialization_pending` is Redis-accepted work without its atomic PostgreSQL notification/materialization receipt. The alert uses the oldest outstanding source age as a breach signal. It does not by itself prove the deployed p99 latency distribution.
+**What `notification.in-app-delivery-lag` means:** an active beta Notification source fact has remained incomplete for more than 60 seconds from its durable source clock. Route facts whose consumer announces nothing (an import's historical arrivals, a cycle opening Feed does not announce, the provider's close of a history item's first cycle, a bulk reopen's per-item facts) are not counted; `silent-route-fact.server.ts` restates those consumers' rules in SQL, so a change to either belongs in both; only the facts still missing a receipt are tested for silence, and the scan limit bounds the facts left. `notification.delivery.source_receipt_pending` is source work the durable consumer has not acknowledged; the notice writer claims the receipt and writes the notice in one transaction, so there is no later stage. The alert uses the oldest outstanding source age as a breach signal. It does not by itself prove the deployed p99 latency distribution.
 
 **First three things to check:**
 
-1. Read both pending counts and their saturation gauges. A saturated count is a lower bound, shown with `+` in the alert detail; do not treat it as an exact backlog size. The alert's tags name what is pending: `alert_codes` counts the pending source facts by route event type (`inbox.handling_cycle.closed:5`), `alert_count` is both stages together, and `alert_reasons` says when a stage hit its scan cap (`source_scan_saturated`, `materialization_scan_saturated`) or the materialization stage is pending too (`materialization_pending`). A capped breakdown covers only the oldest facts the scan held. Event type names are a closed set; the tags carry no row content.
-2. Compare `notification.delivery.oldest_materialization_source_age_ms` with `notification.delivery.oldest_materialization_enqueue_age_ms`. A large source age with a small enqueue age points to outbox/dispatch delay; both growing points to the notice writer's PostgreSQL settlement or Queue Redis.
-3. For missing source receipts, inspect outbox dispatcher/`domain-events` health. For missing materializations, inspect the consumer's receipts and the quarantine before changing any receipt.
+1. Read the pending count and its saturation gauge. A saturated count is a lower bound, shown with `+` in the alert detail; do not treat it as an exact backlog size. The alert's tags name what is pending: `alert_codes` counts the pending source facts by route event type (`inbox.handling_cycle.closed:5`), `alert_count` is the pending count, and `alert_reasons` says when the scan hit its cap (`source_scan_saturated`). A capped breakdown covers only the oldest facts the scan held. Event type names are a closed set; the tags carry no row content.
+2. For missing source receipts, inspect outbox dispatcher/`domain-events` health.
+3. Inspect the consumer's receipts and the quarantine before changing any receipt.
 
 **Remediate:** restore the failing stage first. Missing base receipts replay through the durable outbox consumer; deterministic per-recipient job identities converge repeated enqueue. That replay is bounded: a fact whose published-event redelivery is exhausted (three rounds) is replayed by nothing automatic, and once the cause is fixed use a bounded report-first replay of the affected source facts. Notices are written in the consumer's receipt transaction, so a fact is either fully delivered or its receipt is absent and the dispatcher redelivers it. A queued `insert-notification` job an earlier release left on the `default` queue has no handler any more: read its waiting and delayed counts before a deploy and clear what remains through the §14 quarantine procedure. Never delete a receipt or invent a notification row to silence the gauge.
 
-**Verification:** both pending counts return to 0, both saturation flags are false, and all oldest source/enqueue clocks and ages return to null. Retain a separate deployed latency record for the p99 ≤60-second target.
+**Verification:** the pending count returns to 0, the saturation flag is false, and the oldest source clock and age return to null. Retain a separate deployed latency record for the p99 ≤60-second target.
 
 **What `notification.immediate-email-acceptance-lag` means:** immediate email that was eligible to send exceeded five minutes from its durable source fact to provider acceptance, or the bounded evidence cannot evaluate that target safely. The signal combines completed source-to-acceptance p99 with the oldest still-awaiting source age. A retained `not_before` quiet-hours or policy hold is intentionally excluded from both. This target is operational evidence, not a customer SLA.
 
@@ -472,7 +472,7 @@ The evidence counts only rows whose scope may send email right now: the scoped `
 1. Worker logs for the notification handler around the affected window — look for the warn line from the after-commit emit (content-free: `correlationId`, counts, error class). That is where a lost notification leaves its only trace.
 2. `outbox.unpublished` / `queue.oldest-age` — if the outbox is backed up, the gap may be delivery lag rather than a lost notification, and §7 is the right runbook.
 
-**Remediate:** fix the throwing handler or stalled worker first. `notification.delivery.source_receipt_pending` and `materialization_pending` say which stage is behind. Facts the consumer has not taken replay through the dispatcher and published-event redelivery. An item still counted once the cause is fixed has a fact nothing automatic will replay: its published-event redelivery is exhausted, or the gate refused it and the dispatcher recorded that as the consumer's receipt. Use a bounded report-first replay of the affected source facts, proving first that no materialization receipt exists. The active durable consumers are the primary prevention path; do not disable them or manufacture rows directly.
+**Remediate:** fix the throwing handler or stalled worker first. `notification.delivery.source_receipt_pending` says how much is behind. Facts the consumer has not taken replay through the dispatcher and published-event redelivery. An item still counted once the cause is fixed has a fact nothing automatic will replay: its published-event redelivery is exhausted, or the gate refused it and the dispatcher recorded that as the consumer's receipt. Use a bounded report-first replay of the affected source facts, proving first that no consumer receipt exists. The active durable consumers are the primary prevention path; do not disable them or manufacture rows directly.
 
 **Residue from before the 2026-09-22 notification route fix** (record each disposition with the ops-109 backfill decision):
 
@@ -805,8 +805,8 @@ schedulers and retained jobs, Queue Redis boot/success/failure heads, and the
 quarantine. A firing alert therefore means the report is unavailable, at least
 one active family has a missing handler or scheduler, had a schedule firing
 denied by the delayed-execution gate, missed its last-success or queue-age
-objective, stalled, needs repair, or has a dead letter; or a dark/quarantined
-family has forbidden executable work. A gate-denied job completes in BullMQ
+objective, stalled, needs repair, or has a dead letter; or a quarantined
+family has a recurring scheduler. A gate-denied job completes in BullMQ
 without retrying, but nothing ran: it is recorded as a denial (`lastDeniedAt`),
 never as a success, so it cannot keep a dead family fresh. `jobs.gateDenials`
 and each row's `deniedCount` count gate-denied jobs among the retained completed
@@ -843,8 +843,7 @@ each family. It contains no tenant or payload content.
    a recent heartbeat or an empty queue.
 2. For `handler_missing` or `scheduler_missing`, compare the deployed release
    identity and capability policy with the row's processor/capability/schedule.
-   A dark/quarantined family with a handler, scheduler, queued item, or
-   post-boot execution is a containment failure; do not redrive it. Review the
+   A quarantined family with a scheduler is a containment failure; do not redrive it. Review the
    entry, then dry-run `pnpm ops quarantine discard <id> --operator
 <registered-operator>` before applying it with `--reason <incident-reason>
 --apply --yes ops:quarantine`.
@@ -902,7 +901,7 @@ each family. It contains no tenant or payload content.
 
 **Remediate:** repair configuration/handler/scheduler drift by promoting a
 reviewed immutable release; never register an ad-hoc handler or repeat entry in
-Redis. Remove forbidden dark/quarantined schedules through normal scheduler
+Redis. Remove forbidden quarantined schedules through normal scheduler
 reconciliation and discard their queued work without executing it. For an
 active poison item, fix the handler cause first, review the quarantine report,
 then execute the row's report-linked redrive command. A failed firing needs no
@@ -914,13 +913,13 @@ reconciliation or rebuild remains authoritative when its runbook says replaying
 one queue item cannot reconstruct the projection.
 
 **Verification:** `jobs.ready` is true; `jobs.failing`, missing handler/scheduler,
-schedule-denied, forbidden-dark-work, missed-objective, queue-age, stalled,
+schedule-denied, quarantined-scheduler, missed-objective, queue-age, stalled,
 repair-required, and dead-letter counts are all zero; every active scheduled row
 has a recent `lastSucceededAt`; and a second health-check cadence remains green
 after a worker restart. `jobs.terminalFailures` is informational: it falls only
 as BullMQ trims its retained failed jobs, so watch that it stops growing.
 
-**Escalation:** Bozhidar Denev. A dark family that executed, or an active family
+**Escalation:** Bozhidar Denev. A quarantined family that is scheduled, or an active family
 that cannot be deterministically repaired, is a release blocker.
 
 ---

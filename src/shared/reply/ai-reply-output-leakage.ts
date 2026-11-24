@@ -6,6 +6,7 @@ import {
   foldAiMarkerText,
   scanStructuredMarkerCandidates,
 } from '../ai-redaction/ai-structured-marker-detectors'
+import { isNoncharacter } from '../ai-review-source/ai-text-checks'
 
 export const AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION =
   'gbp-reply-output-leakage-v1' as const
@@ -66,31 +67,6 @@ export type AiReplyOutputLeakageInput = Readonly<{
   expectedDetectorProfileDigest: string
 }>
 
-function isScalarString(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const unit = value.charCodeAt(index)
-    if (unit < 0xd800 || unit > 0xdfff) continue
-    if (
-      unit > 0xdbff ||
-      index + 1 >= value.length ||
-      value.charCodeAt(index + 1) < 0xdc00 ||
-      value.charCodeAt(index + 1) > 0xdfff
-    ) {
-      return false
-    }
-    index += 1
-  }
-  return true
-}
-
-function isNoncharacter(codePoint: number): boolean {
-  return (
-    (codePoint >= 0xfdd0 && codePoint <= 0xfdef) ||
-    (codePoint & 0xffff) === 0xfffe ||
-    (codePoint & 0xffff) === 0xffff
-  )
-}
-
 function containsPlaceholder(value: string): boolean {
   const folded = foldAiMarkerText(value)
   return FOLDED_PLACEHOLDERS.some((placeholder) => folded.includes(placeholder))
@@ -124,7 +100,7 @@ export function scanAiReplyOutput(
   ) {
     return 'scanner_unavailable'
   }
-  if (typeof input.text !== 'string' || !isScalarString(input.text)) {
+  if (typeof input.text !== 'string' || !input.text.isWellFormed()) {
     return 'scanner_unavailable'
   }
 

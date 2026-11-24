@@ -7,6 +7,7 @@ import {
 } from './staff-address-lease.server'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import { sql } from 'drizzle-orm'
+import { invitation } from '#/shared/db/schema/auth'
 import type { Database } from '#/shared/db/index'
 import { organizationId, userId, invitationId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
@@ -38,6 +39,7 @@ export function createStaffAccountStore(
   db: Omit<Database, '$client'>,
   clock: () => Date,
   idGen: () => string,
+  invitationExpiresInMs: number,
   lease?: StaffAddressLease,
 ): StaffAccountStore {
   const holdsLease = async (tx: Pick<Database, 'execute'>) => {
@@ -53,7 +55,7 @@ export function createStaffAccountStore(
       const releaseSlot = await takeStaffOnboardingSlot()
       try {
         return await holdStaffAddresses(db, clock, idGen, emails, (held) =>
-          run(createStaffAccountStore(db, clock, idGen, held)),
+          run(createStaffAccountStore(db, clock, idGen, invitationExpiresInMs, held)),
         )
       } finally {
         releaseSlot()
@@ -192,10 +194,22 @@ export function createStaffAccountStore(
             "This address already has an open invitation. Add them here once they've accepted.",
           )
         if (!existing.rows.length) await spendInvitationBudget()
-        const inserted =
-          await tx.execute(sql`INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "staffParticipationId", "propertyIds", "inviterId", "createdAt")
-        VALUES (${row.invitationId}, ${row.organizationId}, ${row.email}, 'member', 'pending', ${new Date(clock().getTime() + 7 * 86400000)}, ${row.staffParticipationId}, NULL, ${row.requestedBy}, ${clock()}) ON CONFLICT (id) DO NOTHING RETURNING id`)
-        if (inserted.rows.length)
+        const inserted = await tx
+          .insert(invitation)
+          .values({
+            id: row.invitationId,
+            organizationId: row.organizationId,
+            email: row.email!,
+            role: 'member',
+            status: 'pending',
+            expiresAt: new Date(clock().getTime() + invitationExpiresInMs),
+            staffParticipationId: row.staffParticipationId,
+            inviterId: row.requestedBy,
+            createdAt: clock(),
+          })
+          .onConflictDoNothing({ target: invitation.id })
+          .returning({ id: invitation.id })
+        if (inserted.length)
           await insertOutboxRow(
             tx,
             identityMemberInvited({

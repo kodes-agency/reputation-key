@@ -22,7 +22,6 @@ import {
   reviewReplyApproved,
   reviewReplyPublicationCancelled,
   reviewReplyPublicationRequested,
-  reviewReplyPublished,
   reviewReplyPublishFailed,
 } from '../domain/review-events'
 import { PUBLICATION_RECOVERY_RECONCILE_DELAY_MS } from '../domain/reply-publication-workflow'
@@ -514,46 +513,6 @@ describe.sequential('reply command preconditions (PostgreSQL)', () => {
       expect((await harness.evidence()).attempts).toMatchObject([
         { publicationCycle: 1, attemptNumber: 1, outcome: 'sending' },
       ])
-    })
-  })
-
-  describe('recording a reply as published', () => {
-    it('loses for a draft and for a reply awaiting approval: nothing is published that was never sent', async () => {
-      await harness.commands.draft(APPROVED_TEXT)
-      const draft = await storedReply()
-      const now = harness.clock()
-      const publishedFact = (reply: Reply) =>
-        reviewReplyPublished({
-          replyId: reply.id,
-          reviewId: WORKFLOW_REVIEW,
-          propertyId: WORKFLOW_PROPERTY,
-          organizationId: WORKFLOW_ORG,
-          userId: null,
-          authorId: WORKFLOW_MANAGER,
-          occurredAt: now,
-        })
-
-      await expect(
-        harness.commandStore.markPublished(
-          draft,
-          { status: 'published', publishedAt: now },
-          publishedFact(draft),
-          now,
-        ),
-      ).resolves.toBeNull()
-      await harness.commands.submit()
-      const pending = await storedReply()
-      await expect(
-        harness.commandStore.markPublished(
-          pending,
-          { status: 'published', publishedAt: now },
-          publishedFact(pending),
-          now,
-        ),
-      ).resolves.toBeNull()
-
-      expect(await storedReply()).toEqual(pending)
-      expect((await harness.evidence()).facts).toEqual({ 'review.reply.submitted': 1 })
     })
   })
 

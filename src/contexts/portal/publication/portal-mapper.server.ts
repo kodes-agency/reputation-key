@@ -14,7 +14,10 @@ import {
   unbrand,
 } from '#/shared/domain/ids'
 import { portalError } from '../domain/errors'
-import type { PortalPublicationState } from '../domain/portal-publication'
+import {
+  isPortalPublicationState,
+  type PortalPublicationState,
+} from '../domain/portal-publication'
 
 type PortalRow = typeof portals.$inferSelect
 type PortalInsertRow = typeof portals.$inferInsert
@@ -28,21 +31,14 @@ function parseEntityType(value: string): EntityType {
   return value as EntityType
 }
 
-const VALID_PUBLICATION_STATES: ReadonlySet<string> = new Set([
-  'draft',
-  'published',
-  'disabled',
-  'archived',
-])
-
 function parsePublicationState(value: string): PortalPublicationState {
-  if (!VALID_PUBLICATION_STATES.has(value)) {
+  if (!isPortalPublicationState(value)) {
     throw portalError(
       'portal_not_found',
       `[portal.mapper] invalid publication state: ${value}`,
     )
   }
-  return value as PortalPublicationState
+  return value
 }
 
 function parseGuestLocaleColumn(value: unknown): GuestLocale {

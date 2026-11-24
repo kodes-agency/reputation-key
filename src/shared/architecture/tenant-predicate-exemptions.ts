@@ -106,15 +106,8 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     file: 'src/contexts/guest/contact-requests/contact-request.repository.server.ts',
     symbol: 'purgeExpiredContactRequests',
     reason:
-      'The checkpointed retention sweep intentionally purges expired contact requests across tenants in a bounded, globally serialized transaction.',
+      'The retention sweep intentionally purges expired contact requests across tenants in bounded, row-locked batches.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/guest/page/portal-context-resolver.server.ts',
-    symbol: 'resolve',
-    reason:
-      'Unauthenticated guest resolution starts from an unguessable Portal UUID capability and must discover the owning tenant before any scoped operation.',
-    category: 'PUBLIC-TOKEN',
   },
   {
     file: 'src/contexts/identity/infrastructure/repositories/capability-refusal.repository.ts',
@@ -275,13 +268,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'expireRawSourceBatch',
     reason:
       'The bounded compatibility lifecycle read intentionally translates a global review-expiry cursor before delegating to the canonical purge authority.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/reputation/reviews/review-repository.server.ts',
-    symbol: 'countExpiredBeforeAcrossTenants',
-    reason:
-      'The restore and purge completion probe intentionally counts expired review content across all tenants to prove that no eligible rows remain.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {

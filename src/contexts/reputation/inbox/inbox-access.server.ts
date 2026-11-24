@@ -37,10 +37,30 @@ export const canHandleInboxSource = (ctx: AuthContext, sourceType: SourceType): 
   canForContext(ctx, 'inbox.write') &&
   canForContext(ctx, SOURCE_HANDLE_PERMISSION[sourceType])
 
-export const readableInboxSourceTypes = (ctx: AuthContext): SourceType[] =>
-  (['review', 'feedback'] as const).filter((sourceType) =>
-    canReadInboxSource(ctx, sourceType),
-  )
+/** The one Identity call Inbox access decisions make. */
+export type PropertyScopeApi = Pick<StaffPublicApi, 'getAccessiblePropertyIds'>
+
+/**
+ * Reads each grant lookup once for the life of the returned api. A caller's
+ * grants are the same whichever permission consults them, so one request that
+ * decides several permissions asks Identity once. Create one per request.
+ */
+export const onceAccessiblePropertyIds = (api: PropertyScopeApi): PropertyScopeApi => {
+  const reads = new Map<
+    string,
+    ReturnType<PropertyScopeApi['getAccessiblePropertyIds']>
+  >()
+  return {
+    getAccessiblePropertyIds: (orgId, userId, orgWide) => {
+      const key = `${orgId}:${userId}:${orgWide}`
+      const known = reads.get(key)
+      if (known) return known
+      const read = api.getAccessiblePropertyIds(orgId, userId, orgWide)
+      reads.set(key, read)
+      return read
+    },
+  }
+}
 
 type InboxSourceAccessKind = 'read' | 'handle'
 
@@ -60,13 +80,14 @@ const intersectPropertyScopes = (
  * its owning context permission; omitted source families match no rows.
  */
 export const resolveInboxSourceScopes = async (
-  peopleApi: StaffPublicApi,
+  api: PropertyScopeApi,
   ctx: AuthContext,
   kind: InboxSourceAccessKind,
 ): Promise<ReadonlyArray<InboxSourceScope>> => {
   const basePermission: Permission = kind === 'read' ? 'inbox.read' : 'inbox.write'
   if (!canForContext(ctx, basePermission)) return []
 
+  const peopleApi = onceAccessiblePropertyIds(api)
   const lookup = (
     orgId: OrganizationId,
     userId: AuthContext['userId'],
@@ -99,12 +120,13 @@ export const resolveInboxSourceScopes = async (
 
 /** Assert both halves of a source-specific property authorization. */
 export const assertInboxSourcePropertyAccessible = async (
-  peopleApi: StaffPublicApi,
+  api: PropertyScopeApi,
   ctx: AuthContext,
   kind: InboxSourceAccessKind,
   sourceType: SourceType,
   propertyId: PropertyId,
 ): Promise<void> => {
+  const peopleApi = onceAccessiblePropertyIds(api)
   const basePermission: Permission = kind === 'read' ? 'inbox.read' : 'inbox.write'
   const sourcePermission =
     kind === 'read'
@@ -212,7 +234,7 @@ export const assertExpectedCommandRevision = (
  *  assigned for PM — so gating on `can(role,'inbox.manage')` would wrongly
  *  grant PM org-wide access (CONTEXT.md L72). */
 export const assertPropertyAccessible = async (
-  peopleApi: StaffPublicApi,
+  peopleApi: PropertyScopeApi,
   ctx: AuthContext,
   permission: Permission,
   propertyId: PropertyId,

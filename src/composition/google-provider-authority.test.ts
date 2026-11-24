@@ -139,7 +139,6 @@ describe('buildGoogleProviderAuthority', () => {
         organizationId: 'org-1',
         userId: 'user-1',
         sessionId: 'session-1',
-        visibility: 'private',
         purpose: 'reviews',
         connectionMode: 'new',
         targetConnectionId: null,

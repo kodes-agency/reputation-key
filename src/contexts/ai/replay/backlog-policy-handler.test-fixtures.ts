@@ -28,8 +28,8 @@ const handlerDatabase = useAiHandlerDatabase()
 
 import {
   TEST_REVIEW_SENTENCES,
-  createTestReviewAnalysisContract,
-} from '#/contexts/ai/analysis/review-analysis-contract.test-fixtures'
+  createTestReviewAnalysisPorts,
+} from '#/contexts/ai/analysis/review-analysis-steps.test-fixtures'
 import type {
   AiReviewAnalysisBacklogEntry,
   AiReviewAnalysisBacklogOrigin,
@@ -276,7 +276,8 @@ async function analysisWithOpenGates(
   }
   const persistence = fixtures[0]!
   const dependencies = {
-    contract: createTestReviewAnalysisContract({ storeAnalysisV3: async () => true }),
+    ...createTestReviewAnalysisPorts(),
+    outputs: { storeAnalysisV3: async () => true },
     authorization: persistence.authorization,
     control: persistence.control,
     inference: { analyzeReview },
@@ -425,6 +426,9 @@ function reviewEventDelivery(
     analyzeReviewEvent: wiring.analyzeReviewEvent,
     receipts: receiptStore,
     backlog: wiring.backlog,
+    applyAiAuthorizationLifecycle: async () => {
+      throw new Error('authorization lifecycle is not under test')
+    },
     nowEpochMillis: () => wiring.clock.now,
 
     authorizeScope: createScheduledScopeAuthorizer(
@@ -487,9 +491,7 @@ function createWorker(helpers: WorkerHelpers) {
     const restartUnder = (policy: Readonly<Record<string, string>>) =>
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore(policy))
     restartUnder(env)
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-    )
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
     const clock = { now: NOW }
     const switches: AiSwitches = {
       laneBusy: false,

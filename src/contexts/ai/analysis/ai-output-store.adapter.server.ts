@@ -20,6 +20,7 @@ import {
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/reply/ai-personalized-reply-profile'
 import { isAspectTaxonomyV1Id } from '#/shared/analysis/aspect-taxonomy'
 import { isAiIssueLabel } from '#/shared/analysis/ai-issue-label'
+import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/analysis/review-analysis-v3'
 import type { AiOutputStorePort } from './ai-output-store.port.server'
 import type { ReviewAnalysisReadV1 } from '../domain/types'
 import {
@@ -106,7 +107,7 @@ const analysisRootKey = (input: AnalysisWriteFacts) => ({
   analysisSequence: input.analysisSequence,
 })
 
-type LockedReviewOperation = NonNullable<Awaited<ReturnType<typeof lockReviewOperation>>>
+const REVIEW_ANALYSIS_V3_PROFILE_VERSION = REVIEW_ANALYSIS_V3_VERSIONS.analysisOperation
 
 type VerifiedAnalysisWrite = Readonly<{
   executionAttempt: number
@@ -114,18 +115,17 @@ type VerifiedAnalysisWrite = Readonly<{
 }>
 
 /**
- * The fences every analysis write holds, whatever the contract: the operation is
+ * The fences every analysis write holds: the operation is
  * the executing attempt the provider answered, for this review's source and
  * sequence, under this lineage and these epochs; the authorization, processing
  * profile and execution controls it was claimed under still stand; and the
  * review still has the source the operation read, unexpired when the provider
- * completed. `profileChecks` are the contract's own conditions, already evaluated.
+ * completed.
  * The operation row stays locked until the transaction ends.
  */
 async function verifyAnalysisWrite(
   tx: Transaction,
   input: AnalysisWriteFacts,
-  profileChecks: (operation: LockedReviewOperation) => readonly boolean[],
 ): Promise<VerifiedAnalysisWrite | null> {
   const operation = await lockReviewOperation(tx, input.operationId, input.organizationId)
   const fence = capabilityFence(operation?.capabilityFences)
@@ -145,7 +145,7 @@ async function verifyAnalysisWrite(
       operation.analysisSequence === input.analysisSequence,
       operation.authorizationLineageId === input.authorizationLineageId,
       operation.propertyProfileVersion === input.propertyProfileVersion,
-      ...profileChecks(operation),
+      operation.operationProfileVersion === REVIEW_ANALYSIS_V3_PROFILE_VERSION,
       fence.capability === 'review_analysis',
       fence.reviewAnalysisEpoch === input.reviewAnalysisEpoch,
     ].every(Boolean) ||
@@ -174,26 +174,17 @@ async function verifyAnalysisWrite(
   return { executionAttempt: operation.executionAttempt, completedAt }
 }
 
-type AnalysisRootContent = Readonly<{
-  status: 'ready' | 'unavailable'
-  unavailableReason: 'language_not_supported' | null
-  sentiment: string | null
-  primaryCategory: string | null
-  issueLabel: string | null
-  attention: string | null
-  urgentReason: string | null
-}>
-
 /** Writes the analysis root once; false when the analysis already exists. */
 async function insertAnalysisRoot(
   tx: Transaction,
   input: AnalysisWriteFacts &
     Readonly<{
-      analysisProfileVersion: string
+      sentiment: string
+      attention: string
+      urgentReason: string | null
       generatedAtEpochMillis: number
       expiresAtEpochMillis: number
     }>,
-  content: AnalysisRootContent,
 ): Promise<boolean> {
   const [inserted] = await tx
     .insert(aiReviewAnalyses)
@@ -203,8 +194,14 @@ async function insertAnalysisRoot(
       authorizationLineageId: input.authorizationLineageId,
       reviewAnalysisEpoch: input.reviewAnalysisEpoch,
       propertyProfileVersion: input.propertyProfileVersion,
-      analysisProfileVersion: input.analysisProfileVersion,
-      ...content,
+      analysisProfileVersion: REVIEW_ANALYSIS_V3_PROFILE_VERSION,
+      status: 'ready',
+      unavailableReason: null,
+      sentiment: input.sentiment,
+      primaryCategory: null,
+      issueLabel: null,
+      attention: input.attention,
+      urgentReason: input.urgentReason,
       generatedAt: new Date(input.generatedAtEpochMillis),
       expiresAt: new Date(input.expiresAtEpochMillis),
     })
@@ -218,14 +215,15 @@ async function completeAnalysisOperation(
   tx: Transaction,
   input: AnalysisWriteFacts,
   verified: VerifiedAnalysisWrite,
-  record: Readonly<{ normalizationFlags?: string[]; droppedMentionCount?: number }>,
+  normalization: Readonly<{ flags: readonly string[]; droppedMentionCount: number }>,
 ): Promise<void> {
   const completed = await tx
     .update(aiOperations)
     .set({
       state: 'succeeded_pending_delivery',
       updatedAt: verified.completedAt,
-      ...record,
+      normalizationFlags: [...normalization.flags],
+      droppedMentionCount: normalization.droppedMentionCount,
     })
     .where(
       and(
@@ -249,17 +247,11 @@ export const createAiOutputStoreAdapter = (
   return {
     async storeAnalysisV3(input) {
       return db.transaction(async (tx) => {
-        const verified = await verifyAnalysisWrite(tx, input, (operation) => [
-          input.analysisProfileVersion === 'review-analysis-v3',
-          operation.operationProfileVersion === 'review-analysis-v3',
-        ])
+        const verified = await verifyAnalysisWrite(tx, input)
         if (!verified) return false
-        const inserted = await insertAnalysisRoot(tx, input, {
-          status: 'ready',
-          unavailableReason: null,
+        const inserted = await insertAnalysisRoot(tx, {
+          ...input,
           sentiment: input.derivative.sentiment,
-          primaryCategory: null,
-          issueLabel: null,
           attention: input.derivative.attention,
           urgentReason: input.derivative.urgentReason,
         })
@@ -269,10 +261,12 @@ export const createAiOutputStoreAdapter = (
           analysisRootKey(input),
           input.derivative.mentions,
         )
-        await completeAnalysisOperation(tx, input, verified, {
-          normalizationFlags: [...input.derivative.normalization.flags],
-          droppedMentionCount: input.derivative.normalization.droppedMentionCount,
-        })
+        await completeAnalysisOperation(
+          tx,
+          input,
+          verified,
+          input.derivative.normalization,
+        )
         if (input.derivative.attention === 'urgent') {
           await raiseUrgentAlert(tx, { ...input, occurredAt: verified.completedAt })
         }
@@ -372,10 +366,9 @@ export const createAiOutputStoreAdapter = (
       ])
     },
 
-    async readAnalysisForDelivery(input, deliver) {
+    async readAnalysisForDelivery(input) {
       // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
       return db.transaction(async (tx) => {
-        const deliverCurrent = (result: ReviewAnalysisReadV1) => deliver(result)
         const [authorization] = await tx
           .select({
             state: merchantAiEnablement.state,
@@ -415,7 +408,7 @@ export const createAiOutputStoreAdapter = (
             input.analysisSequence >= authorization.analysisStartSequence,
           ].every(Boolean)
         ) {
-          return deliverCurrent({ status: 'disabled' })
+          return { status: 'disabled' }
         }
 
         const [profile] = await tx
@@ -441,10 +434,10 @@ export const createAiOutputStoreAdapter = (
             profile.sourceEpoch === input.sourceEpoch,
           ].every(Boolean)
         ) {
-          return deliverCurrent({
+          return {
             status: 'none',
             ...currentness(input),
-          })
+          }
         }
 
         const now = new Date(input.nowEpochMillis)
@@ -481,10 +474,10 @@ export const createAiOutputStoreAdapter = (
             review.analysisSequence === input.analysisSequence,
           ].every(Boolean)
         ) {
-          return deliverCurrent({
+          return {
             status: 'none',
             ...currentness(input),
-          })
+          }
         }
 
         const [analysis] = await tx
@@ -560,22 +553,20 @@ export const createAiOutputStoreAdapter = (
             analysisFence?.reviewAnalysisEpoch === input.reviewAnalysisEpoch,
           ].every(Boolean)
         ) {
-          return deliverCurrent({
+          return {
             status: 'none',
             ...currentness(input),
-          })
+          }
         }
         if (analysis.status === 'unavailable') {
-          return deliverCurrent({
+          return {
             status: 'unavailable',
             reason: 'language_not_supported',
             ...currentness(input),
-          })
+          }
         }
         if (analysis.analysisProfileVersion === 'review-analysis-v3') {
-          return deliverCurrent(
-            await readReadyAnalysisV3(tx, input, currentness(input), analysis),
-          )
+          return readReadyAnalysisV3(tx, input, currentness(input), analysis)
         }
         if (
           analysis.sentiment === null ||
@@ -590,7 +581,7 @@ export const createAiOutputStoreAdapter = (
         ) {
           throw new Error('Ready AI analysis aspects or issue label are invalid')
         }
-        return deliverCurrent({
+        return {
           status: 'ready',
           sentiment: analysis.sentiment as 'positive' | 'neutral' | 'negative' | 'mixed',
           primaryCategory: analysis.primaryCategory as Extract<
@@ -602,7 +593,7 @@ export const createAiOutputStoreAdapter = (
           attention: analysis.attention as 'urgent' | 'high' | 'medium' | 'low',
           generatedAtEpochMillis: analysis.generatedAt.getTime(),
           ...currentness(input),
-        })
+        }
       })
     },
   }

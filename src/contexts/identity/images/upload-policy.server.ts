@@ -24,6 +24,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../domain/errors'
+import { MAX_UPLOAD_BYTES } from './identity-assets.contracts'
 
 export const ALLOWED_IMAGE_CONTENT_TYPES = [
   'image/jpeg',
@@ -31,8 +32,6 @@ export const ALLOWED_IMAGE_CONTENT_TYPES = [
   'image/webp',
   'image/gif',
 ]
-
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 // 5 MB
 
 /**
  * Authorize the upload `permission` and validate the declared content type
@@ -77,9 +76,7 @@ export async function assertStoredUploadAllowed(
   storage: Pick<StoragePort, 'inspectObject' | 'deleteObject'>,
   key: string,
 ): Promise<void> {
-  const stored = await storage.inspectObject?.(key)
-  const sizeBytes = stored?.sizeBytes ?? null
-  const contentType = stored?.contentType ?? null
+  const { sizeBytes, contentType } = await storage.inspectObject(key)
   const isAllowedType =
     contentType !== null && ALLOWED_IMAGE_CONTENT_TYPES.includes(mediaType(contentType))
   if (isAllowedType && sizeBytes !== null && sizeBytes <= MAX_UPLOAD_BYTES) return

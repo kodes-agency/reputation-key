@@ -17,16 +17,11 @@ describe('integrationError', () => {
       'connection_not_found',
       'connection_disconnected',
       'oauth_failed',
-      'oauth_denied',
       'scope_not_granted',
       'token_refresh_failed',
       'gbp_api_error',
       'gbp_api_rate_limited',
-      'import_not_found',
-      'invalid_visibility',
       'encryption_error',
-      'invalid_cache_entry',
-      'invalid_event',
     ] as const
 
     for (const code of codes) {

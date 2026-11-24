@@ -2,7 +2,6 @@ import type { Database } from '#/shared/db'
 import { createHash } from 'node:crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
-  guestContactRequests,
   guestResponseExperienceSnapshots,
   guestResponseIntegrityDecisions,
   guestResponsePrivateFeedback,
@@ -12,6 +11,10 @@ import {
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { GuestResponseCommandStore } from './guest-response-command-store.port.server'
 import type { GuestMutationFact } from './guest-response-command-store.port.server'
+import {
+  deleteResponseSatellites,
+  erasedResponseColumns,
+} from './guest-response-erasure.server'
 import { guestResponseToInsertRow } from './guest-response-mapper.server'
 import { trace } from '#/shared/observability/trace'
 import {
@@ -131,7 +134,7 @@ function initialIntegrityFactsMatch(
 export const createAtomicGuestResponseCommandStore = (
   db: Database,
   clock: Clock,
-  journal?: GuestWithdrawalJournal,
+  journal: GuestWithdrawalJournal,
 ): GuestResponseCommandStore => {
   const journalWithdrawal = async <T>(
     response: Parameters<GuestResponseCommandStore['commitWithdrawn']>[0],
@@ -140,7 +143,6 @@ export const createAtomicGuestResponseCommandStore = (
     predicate: ReturnType<typeof and>,
     erase: () => Promise<T>,
   ): Promise<T | 'conflict'> => {
-    if (!journal) return erase()
     // Replay honors accepted intents even if the deletion transaction fails.
     // A rejected session/state must therefore never produce an intent.
     const [authorized] = await db
@@ -209,38 +211,11 @@ export const createAtomicGuestResponseCommandStore = (
       db.transaction(async (tx) => {
         const deleted = await tx
           .update(guestResponses)
-          .set({
-            status: 'deleted',
-            rating: null,
-            categoryId: null,
-            responseConsent: false,
-            textConsent: false,
-            mediaConsent: false,
-            ratingSourceEventId: null,
-            feedbackSourceEventId: null,
-            deletedAt: response.deletedAt,
-            updatedAt: deletedAt,
-          })
+          .set(erasedResponseColumns(response.deletedAt, deletedAt))
           .where(predicate)
           .returning({ id: guestResponses.id })
         if (!deleted[0]) return 'conflict' as const
-        await tx
-          .delete(guestResponsePrivateFeedback)
-          .where(
-            and(
-              eq(guestResponsePrivateFeedback.responseId, response.id),
-              eq(guestResponsePrivateFeedback.organizationId, response.organizationId),
-            ),
-          )
-        // The reveal audits of the contact go with it through their foreign key.
-        await tx
-          .delete(guestContactRequests)
-          .where(
-            and(
-              eq(guestContactRequests.responseId, response.id),
-              eq(guestContactRequests.organizationId, response.organizationId),
-            ),
-          )
+        await deleteResponseSatellites(tx, response.organizationId, [response.id])
         for (const fact of facts) await insertOutboxRow(tx, fact)
         return 'applied' as const
       }),
@@ -288,12 +263,7 @@ export const createAtomicGuestResponseCommandStore = (
           !binding ||
           !response.submittedAt ||
           !response.experienceSnapshot ||
-          !factsMatchStaffAttribution(response, facts) ||
-          facts.some(
-            (fact) =>
-              fact._tag === 'guest.feedback.submitted' &&
-              fact.responseRevision !== response.feedbackSubmissionRevision,
-          )
+          !factsMatchStaffAttribution(response, facts)
         ) {
           throw new Error('Guest response submission snapshot is required')
         }
@@ -315,13 +285,6 @@ export const createAtomicGuestResponseCommandStore = (
         }
         const submittedAt = response.submittedAt
         const experienceSnapshot = response.experienceSnapshot
-        if (
-          binding.expiresAt.getTime() - submittedAt.getTime() !==
-          DEFAULT_RESPONSE_SESSION_WINDOW_MS
-        ) {
-          return 'duplicate' as const
-        }
-        const submittedText = response.text
         const outcome = await db
           .transaction(async (tx) => {
             const sourceLineage = lineage(response, facts)
@@ -377,19 +340,6 @@ export const createAtomicGuestResponseCommandStore = (
               .onConflictDoNothing()
               .returning({ responseId: guestResponseSessionBindings.responseId })
             if (bound.length === 0) throw new GuestCommandConflict()
-            if (submittedText) {
-              const feedbackAt = response.feedbackSubmittedAt ?? submittedAt
-              await tx.insert(guestResponsePrivateFeedback).values({
-                responseId: response.id,
-                organizationId: response.organizationId,
-                propertyId: response.propertyId,
-                portalId: response.portalId,
-                body: submittedText,
-                submittedAt: feedbackAt,
-                expiresAt: privateFeedbackExpiry(feedbackAt),
-                createdAt: feedbackAt,
-              })
-            }
             for (const fact of facts) await insertOutboxRow(tx, fact)
             return 'applied' as const
           })
@@ -722,7 +672,6 @@ export const createAtomicGuestResponseCommandStore = (
 
     commitErased: (response, facts) =>
       trace('guest.commandStore.commitErased', async () => {
-        if (!journal) throw new Error('Operator erasure requires the erasure journal')
         return withdrawResponseRows(response, facts, false)
       }),
   }

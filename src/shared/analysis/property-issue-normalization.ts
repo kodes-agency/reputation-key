@@ -8,6 +8,7 @@ import {
 } from './review-analysis-v3'
 import { REVIEW_TOPICS_V3, type ReviewTopicV3 } from './review-topic-taxonomy'
 import catalogueSource from './property-issue-normalization-v1.json'
+import { deepFreeze } from '../json/deep-freeze'
 
 // Property issue normalization is deterministic product vocabulary, not a
 // model or a learned cross-Property catalogue. A reviewed catalogue edit moves
@@ -49,12 +50,6 @@ const catalogueSchema = z
   .strict()
 
 type Catalogue = z.infer<typeof catalogueSchema>
-
-function deepFreeze<Value>(value: Value): Value {
-  if (value === null || typeof value !== 'object') return value
-  Object.values(value).forEach((child) => deepFreeze(child))
-  return Object.freeze(value)
-}
 
 function validateCatalogue(catalogue: Catalogue): Catalogue {
   const kept = new Set(catalogue.pluralKeep)

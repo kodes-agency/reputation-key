@@ -90,7 +90,6 @@ const JOB_RUNTIME = {
   ready: false,
   total: 2,
   active: 1,
-  dark: 1,
   quarantined: 0,
   failing: 1,
   missingObservations: 0,
@@ -98,7 +97,6 @@ const JOB_RUNTIME = {
   handlerMissing: 0,
   schedulerMissing: 1,
   scheduleDenied: 0,
-  forbiddenDarkWork: 0,
   quarantinedSchedulers: 0,
   missedObjectives: 0,
   queueAgeMissed: 0,
@@ -247,12 +245,8 @@ describe('createOperationsSnapshot', () => {
       readNotificationDeliveryLag: async () => ({
         sourceReceiptPending: 1,
         sourceReceiptPendingByEventType: { 'inbox.inbox_item.created': 1 },
-        materializationPending: 2,
         oldestSourceRecordedAt: new Date('2026-01-15T11:58:00.000Z'),
-        oldestMaterializationSourceRecordedAt: new Date('2026-01-15T11:57:00.000Z'),
-        oldestMaterializationEnqueuedAt: new Date('2026-01-15T11:59:30.000Z'),
         sourceSaturated: false,
-        materializationSaturated: true,
         immediateEmailAcceptance: {
           awaitingProviderAcceptance: 1,
           attemptedAwaitingProviderAcceptance: 1,
@@ -300,12 +294,8 @@ describe('createOperationsSnapshot', () => {
     expect(snapshot.notifications.deliveryLag).toMatchObject({
       sourceReceiptPending: 1,
       sourceReceiptPendingByEventType: { 'inbox.inbox_item.created': 1 },
-      materializationPending: 2,
       oldestSourceRecordedAt: '2026-01-15T11:58:00.000Z',
-      oldestMaterializationSourceRecordedAt: '2026-01-15T11:57:00.000Z',
-      oldestMaterializationEnqueuedAt: '2026-01-15T11:59:30.000Z',
       sourceSaturated: false,
-      materializationSaturated: true,
       immediateEmailAcceptance: {
         awaitingProviderAcceptance: 1,
         attemptedAwaitingProviderAcceptance: 1,

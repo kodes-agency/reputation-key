@@ -9,21 +9,6 @@ function fail(): never {
   throw new TypeError(INTERNAL_ERROR)
 }
 
-export function hasOnlyUnicodeScalars(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const unit = value.charCodeAt(index)
-    if (unit >= 0xd800 && unit <= 0xdbff) {
-      if (index + 1 >= value.length) return false
-      const next = value.charCodeAt(index + 1)
-      if (next < 0xdc00 || next > 0xdfff) return false
-      index += 1
-    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
-      return false
-    }
-  }
-  return true
-}
-
 /**
  * `safe-integers` is the internal-transport invariant: our own services encode
  * every number as a safe integer, so anything fractional is a defect or an
@@ -38,7 +23,7 @@ function scalarViolation(
   path: string,
 ): string | null {
   if (typeof entry === 'string') {
-    return hasOnlyUnicodeScalars(entry) ? 'ok' : `string_surrogate:${path}`
+    return entry.isWellFormed() ? 'ok' : `string_surrogate:${path}`
   }
   if (typeof entry === 'number') {
     if (!Number.isFinite(entry)) return `number_not_finite:${path}`
@@ -55,7 +40,7 @@ function inspectParsedJson(value: unknown, numbers: AiJsonNumberPolicy) {
   let violation = 'ok'
   const visitObject = (entry: object, depth: number, path: string): boolean => {
     for (const [key, child] of Object.entries(entry)) {
-      if (!hasOnlyUnicodeScalars(key)) {
+      if (!key.isWellFormed()) {
         violation = `key_surrogate:${path}.${key.length}ch`
         return false
       }
@@ -164,7 +149,7 @@ function scanStrictJson(raw: string): void {
       if (code === 0x22) {
         offset += 1
         const value = JSON.parse(raw.slice(start, offset)) as unknown
-        if (typeof value !== 'string' || !hasOnlyUnicodeScalars(value)) fail()
+        if (typeof value !== 'string' || !value.isWellFormed()) fail()
         return value
       }
       if (code < 0x20) fail()

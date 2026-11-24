@@ -20,7 +20,7 @@ describe('scheduled retention as shipped', () => {
   })
 
   it('runs every sweep and the registry rules on the daily schedule', async () => {
-    const swept = { batches: 1, processed: 0, capped: false, completedThrough: null }
+    const swept = { batches: 1, processed: 0, capped: false }
     const guestSweep = vi.fn(async () => swept)
     const reviewSweep = vi.fn(async () => swept)
     const snapshotRunSweep = vi.fn(async () => ({

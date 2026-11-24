@@ -79,22 +79,6 @@ export type PortalExperienceRepository = Readonly<{
     propertyId: PropertyId,
     portalId: PortalId,
   ) => Promise<readonly PortalLocalizedOverride[]>
-  savePropertyProfile: (
-    input: Readonly<{
-      id: string
-      organizationId: OrganizationId
-      propertyId: PropertyId
-      profile: Omit<PortalBrandProfileSnapshot, 'version'> &
-        Readonly<{
-          /** Left as it is when omitted; null clears it. */
-          wordmark?: string | null
-          /** Left as it is when omitted. */
-          backgroundMode?: BackgroundMode
-        }>
-      updatedBy: UserId
-      at: Date
-    }>,
-  ) => Promise<PropertyPortalBrandProfile>
   /**
    * Save the look alone: the accent, the background and the wordmark. It reads
    * and writes the Brand Profile inside the Property's publication lock, so a
@@ -222,7 +206,6 @@ export type PortalExperienceRepository = Readonly<{
       override: Readonly<{
         title: string | null
         shortDescription: string | null
-        heroImageUrl: string | null
       }>
       updatedBy: UserId
       at: Date

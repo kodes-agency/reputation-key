@@ -24,12 +24,7 @@ describe('guest response lifecycle', () => {
     const test = await harness()
     const sessionId = guestSessionId('00000000-0000-4000-8000-000000000099')
 
-    await test.lifecycle.submit(
-      test.scope,
-      sessionId,
-      { rating: 5, responseConsent: true },
-      3,
-    )
+    await test.lifecycle.submit(test.scope, sessionId, { rating: 5 }, 3)
     test.setStaffAttribution({
       staffParticipantId: '20000000-0000-4000-8000-000000000001',
       staffParticipationId: '20000000-0000-4000-8000-000000000002',
@@ -40,7 +35,6 @@ describe('guest response lifecycle', () => {
 
     await test.lifecycle.correct(test.scope, sessionId, {
       rating: 4,
-      responseConsent: true,
     })
 
     const serializedAttribution = JSON.parse(JSON.stringify(test.staffAttribution))
@@ -57,13 +51,7 @@ describe('guest response lifecycle', () => {
     const sessionId = SESSION
     const sessionExpiresAt = new Date('2026-08-10T12:00:00.000Z')
 
-    await lifecycle.submit(
-      scope,
-      sessionId,
-      { rating: 5, responseConsent: true },
-      3,
-      sessionExpiresAt,
-    )
+    await lifecycle.submit(scope, sessionId, { rating: 5 }, 3)
 
     expect(await stored()).toMatchObject({
       sessionId,
@@ -83,25 +71,6 @@ describe('guest response lifecycle', () => {
     })
   })
 
-  it('rejects expired or overlong recovery bindings', async () => {
-    const { scope, lifecycle } = await harness()
-    const sessionId = SESSION
-    for (const expiresAt of [
-      new Date('2026-08-09T12:00:00.000Z'),
-      new Date('2026-08-10T12:00:00.001Z'),
-    ]) {
-      await expect(
-        lifecycle.submit(
-          scope,
-          sessionId,
-          { rating: 5, responseConsent: true },
-          3,
-          expiresAt,
-        ),
-      ).rejects.toMatchObject({ code: 'response_unavailable' })
-    }
-  })
-
   it.each([
     { portalPublicationState: 'disabled' },
     { portalConfigurationDigest: 'not-a-digest' },
@@ -112,7 +81,7 @@ describe('guest response lifecycle', () => {
   ])('rejects an invalid server-resolved experience: %o', async (override) => {
     const { scope, experience, rawLifecycle, count } = await harness()
     await expect(
-      rawLifecycle.submit(scope, SESSION, { rating: 5, responseConsent: true }, {
+      rawLifecycle.submit(scope, SESSION, { rating: 5 }, {
         ...experience(),
         ...override,
       } as Parameters<typeof rawLifecycle.submit>[3]),
@@ -125,9 +94,8 @@ describe('guest response lifecycle', () => {
     const receipt = await rawLifecycle.submit(
       scope,
       SESSION,
-      { rating: 5, responseConsent: true },
+      { rating: 5 },
       experience(),
-      undefined,
       filteredAssessment('honeypot_signal', 'guest-integrity-honeypot-v1'),
     )
 
@@ -149,9 +117,8 @@ describe('guest response lifecycle', () => {
     const receipt = await rawLifecycle.submit(
       scope,
       sessionId,
-      { rating: 4, responseConsent: true },
+      { rating: 4 },
       experience(),
-      undefined,
       filteredAssessment('network_volume', 'guest-integrity-network-v1'),
     )
 
@@ -174,7 +141,7 @@ describe('guest response lifecycle', () => {
     // The guest on a busy venue's Wi-Fi must get the page an accepted rating gets,
     // and a script crossing the budget must learn nothing from the answer.
     const sessionId = SESSION
-    const input = { rating: 2, responseConsent: true }
+    const input = { rating: 2 }
     const accepted = await harness()
     const filtered = await harness()
 
@@ -189,7 +156,6 @@ describe('guest response lifecycle', () => {
       sessionId,
       input,
       filtered.experience(),
-      undefined,
       filteredAssessment('network_volume', 'guest-integrity-network-v1'),
     )
     expect(filteredView).toEqual(acceptedView)
@@ -215,7 +181,6 @@ describe('guest response lifecycle', () => {
     const { scope, lifecycle } = await harness()
     const submitted = await lifecycle.submit(scope, SESSION, {
       rating: 5,
-      responseConsent: true,
     })
     expect(submitted.status).toBe('submitted')
     expect(submitted.correctionAvailable).toBe(true)
@@ -239,7 +204,7 @@ describe('guest response lifecycle', () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
     const { scope, lifecycle } = await harness(() => now)
     const sessionId = SESSION
-    await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
+    await lifecycle.submit(scope, sessionId, { rating: 5 })
 
     now = new Date('2026-08-09T13:00:00.000Z')
     await expect(lifecycle.getState(scope, sessionId)).resolves.toMatchObject({
@@ -255,7 +220,7 @@ describe('guest response lifecycle', () => {
   it('rejects another tenant without revealing the response', async () => {
     const { scope, lifecycle } = await harness()
     const sessionId = SESSION
-    await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
+    await lifecycle.submit(scope, sessionId, { rating: 5 })
     await expect(
       lifecycle.withdraw(
         { ...scope, organizationId: organizationId('org-2') },
@@ -268,7 +233,7 @@ describe('guest response lifecycle', () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
     const { scope, lifecycle, stored, outbox } = await harness(() => now)
     const sessionId = SESSION
-    await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
+    await lifecycle.submit(scope, sessionId, { rating: 2 })
     const responseId = (await stored()).id
     const original = (await outbox.byTag('guest.rating.submitted'))[0]!
 

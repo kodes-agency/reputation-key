@@ -86,9 +86,7 @@ function ownerFor(row: JobFamilyRow): string {
 function postureFor(
   registration: JobFamilyRow['registration'],
 ): JobOperationalContract['posture'] {
-  if (registration === 'enabled') return 'active'
-  if (registration === 'quarantined') return 'quarantined'
-  return 'dark'
+  return registration === 'enabled' ? 'active' : 'quarantined'
 }
 
 function intervalForObjective(schedule: string): number | null {

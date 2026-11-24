@@ -436,7 +436,6 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
           `handlerMissing=${jobs.handlerMissing}, ` +
           `schedulerMissing=${jobs.schedulerMissing}, ` +
           `scheduleDenied=${jobs.scheduleDenied}, ` +
-          `forbiddenDarkWork=${jobs.forbiddenDarkWork}, ` +
           `quarantinedSchedulers=${jobs.quarantinedSchedulers}, ` +
           `missedObjectives=${jobs.missedObjectives}, ` +
           `queueAgeMissed=${jobs.queueAgeMissed}, stalled=${jobs.stalled}, ` +
@@ -800,21 +799,15 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     blindedBy: ['health.notificationDeliveryLag'],
     read: (snapshot) => {
       const lag = snapshot.notifications.deliveryLag
-      const pending = lag.sourceReceiptPending + lag.materializationPending
+      const pending = lag.sourceReceiptPending
       if (pending <= 0) return null
-      const relevantAges = [
-        lag.sourceReceiptPending > 0 ? lag.oldestSourceAgeMs : null,
-        lag.materializationPending > 0 ? lag.oldestMaterializationSourceAgeMs : null,
-      ].filter((age): age is number => age !== null)
-      const oldestSourceAgeMs =
-        relevantAges.length === 0 ? null : Math.max(...relevantAges)
-      const sourceCount = `${lag.sourceReceiptPending}${lag.sourceSaturated ? '+' : ''}`
-      const materializationCount = `${lag.materializationPending}${lag.materializationSaturated ? '+' : ''}`
+      const oldestSourceAgeMs = lag.oldestSourceAgeMs
+      const sourceCount = `${pending}${lag.sourceSaturated ? '+' : ''}`
       const facts = inAppDeliveryLagFacts(lag, pending)
       if (oldestSourceAgeMs === null) {
         return {
           value: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
-          detail: `notification delivery pending without a valid durable-source clock (source receipts=${sourceCount}, materializations=${materializationCount})`,
+          detail: `notification delivery pending without a valid durable-source clock (source receipts=${sourceCount})`,
           facts,
         }
       }
@@ -823,7 +816,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       }
       return {
         value: oldestSourceAgeMs,
-        detail: `notification delivery from durable source is ${oldestSourceAgeMs}ms old (> ${NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS}ms; source receipts=${sourceCount}, materializations=${materializationCount})`,
+        detail: `notification delivery from durable source is ${oldestSourceAgeMs}ms old (> ${NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS}ms; source receipts=${sourceCount})`,
         facts,
       }
     },

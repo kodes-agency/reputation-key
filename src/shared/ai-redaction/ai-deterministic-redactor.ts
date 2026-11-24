@@ -7,6 +7,7 @@ import {
   scanStructuredMarkerCandidates,
   type AiClosedPlaceholder,
   type AiStructuredMarkerBlockReason,
+  type AiStructuredMarkerInterval,
 } from './ai-structured-marker-detectors'
 
 export const AI_REDACTION_PROFILE_VERSION = 'gbp-review-global-v1' as const
@@ -116,6 +117,67 @@ export type AiDeterministicSentenceRedactionResult =
       reason: AiRedactionBlockReason
     }>
 
+type RedactionScan =
+  | Readonly<{ status: 'blocked'; reason: AiRedactionBlockReason }>
+  | Readonly<{
+      status: 'scanned'
+      intervals: readonly AiStructuredMarkerInterval[]
+      counts: Record<AiClosedPlaceholder, number>
+    }>
+
+/**
+ * The checks and the scan both renderings share: the four expected-profile
+ * pins, the forbidden source placeholder, the structured marker scan, the
+ * 64-interval limit and the three-fifths redacted share limit.
+ */
+function scanForRedaction(
+  text: string,
+  input: Omit<AiDeterministicRedactionInput, 'text'>,
+): RedactionScan {
+  if (
+    input.expectedRedactionProfileVersion !== AI_REDACTION_PROFILE_VERSION ||
+    input.expectedRedactionProfileDigest !== AI_REDACTION_PROFILE_DIGEST ||
+    input.expectedDetectorProfileVersion !== AI_STRUCTURED_MARKER_DETECTORS_VERSION ||
+    input.expectedDetectorProfileDigest !== AI_STRUCTURED_MARKER_DETECTORS_DIGEST
+  ) {
+    return { status: 'blocked', reason: 'profile_mismatch' }
+  }
+
+  try {
+    if (hasForbiddenSourcePlaceholder(text)) {
+      return { status: 'blocked', reason: 'forbidden_source_placeholder' }
+    }
+    const scan = scanStructuredMarkerCandidates({
+      text,
+      countryCode: input.countryCode,
+      expectedProfileVersion: input.expectedDetectorProfileVersion,
+      expectedProfileDigest: input.expectedDetectorProfileDigest,
+    })
+    if (scan.status === 'blocked') {
+      return { status: 'blocked', reason: scan.reason }
+    }
+
+    const personCount = countExactPersonPlaceholders(text)
+    if (scan.intervals.length + personCount > 64) {
+      return { status: 'blocked', reason: 'candidate_limit_exceeded' }
+    }
+    const sourceScalarCount = countScalars(text)
+    const redactedScalarCount =
+      personCount * '[PERSON]'.length +
+      scan.intervals.reduce((total, interval) => total + interval.scalarLength, 0)
+    if (sourceScalarCount > 0 && redactedScalarCount * 5 > sourceScalarCount * 3) {
+      return { status: 'blocked', reason: 'redaction_ratio_exceeded' }
+    }
+
+    const counts = emptyCounts()
+    counts['[PERSON]'] = personCount
+    for (const interval of scan.intervals) counts[interval.placeholder] += 1
+    return { status: 'scanned', intervals: scan.intervals, counts }
+  } catch {
+    return { status: 'blocked', reason: 'scanner_unavailable' }
+  }
+}
+
 /**
  * `redactAiReviewText` for a review already cut into sentences (review-analysis
  * v3): the redaction a sentence carries is the redaction of the review it is part
@@ -137,128 +199,56 @@ export type AiDeterministicSentenceRedactionResult =
 export function redactAiReviewSentences(
   input: AiDeterministicSentenceRedactionInput,
 ): AiDeterministicSentenceRedactionResult {
-  if (
-    input.expectedRedactionProfileVersion !== AI_REDACTION_PROFILE_VERSION ||
-    input.expectedRedactionProfileDigest !== AI_REDACTION_PROFILE_DIGEST ||
-    input.expectedDetectorProfileVersion !== AI_STRUCTURED_MARKER_DETECTORS_VERSION ||
-    input.expectedDetectorProfileDigest !== AI_STRUCTURED_MARKER_DETECTORS_DIGEST
-  ) {
-    return { status: 'redaction_blocked', reason: 'profile_mismatch' }
+  const joined = input.sentences.join(' ')
+  const scan = scanForRedaction(joined, input)
+  if (scan.status === 'blocked') {
+    return { status: 'redaction_blocked', reason: scan.reason }
   }
 
-  try {
-    const joined = input.sentences.join(' ')
-    if (hasForbiddenSourcePlaceholder(joined)) {
-      return { status: 'redaction_blocked', reason: 'forbidden_source_placeholder' }
+  const rendered: string[] = []
+  let sentenceStart = 0
+  for (const sentence of input.sentences) {
+    const sentenceEnd = sentenceStart + sentence.length
+    const parts: string[] = []
+    let cursor = sentenceStart
+    for (const interval of scan.intervals) {
+      if (interval.endUtf16 <= sentenceStart) continue
+      if (interval.startUtf16 >= sentenceEnd) break
+      parts.push(
+        joined.slice(cursor, Math.max(interval.startUtf16, sentenceStart)),
+        interval.placeholder,
+      )
+      cursor = Math.min(interval.endUtf16, sentenceEnd)
     }
-    const scan = scanStructuredMarkerCandidates({
-      text: joined,
-      countryCode: input.countryCode,
-      expectedProfileVersion: input.expectedDetectorProfileVersion,
-      expectedProfileDigest: input.expectedDetectorProfileDigest,
-    })
-    if (scan.status === 'blocked') {
-      return { status: 'redaction_blocked', reason: scan.reason }
-    }
-
-    const personCount = countExactPersonPlaceholders(joined)
-    if (scan.intervals.length + personCount > 64) {
-      return { status: 'redaction_blocked', reason: 'candidate_limit_exceeded' }
-    }
-    const sourceScalarCount = countScalars(joined)
-    const redactedScalarCount =
-      personCount * '[PERSON]'.length +
-      scan.intervals.reduce((total, interval) => total + interval.scalarLength, 0)
-    if (sourceScalarCount > 0 && redactedScalarCount * 5 > sourceScalarCount * 3) {
-      return { status: 'redaction_blocked', reason: 'redaction_ratio_exceeded' }
-    }
-
-    const counts = emptyCounts()
-    counts['[PERSON]'] = personCount
-    for (const interval of scan.intervals) counts[interval.placeholder] += 1
-    const rendered: string[] = []
-    let sentenceStart = 0
-    for (const sentence of input.sentences) {
-      const sentenceEnd = sentenceStart + sentence.length
-      const parts: string[] = []
-      let cursor = sentenceStart
-      for (const interval of scan.intervals) {
-        if (interval.endUtf16 <= sentenceStart) continue
-        if (interval.startUtf16 >= sentenceEnd) break
-        parts.push(
-          joined.slice(cursor, Math.max(interval.startUtf16, sentenceStart)),
-          interval.placeholder,
-        )
-        cursor = Math.min(interval.endUtf16, sentenceEnd)
-      }
-      parts.push(joined.slice(cursor, sentenceEnd))
-      rendered.push(parts.join(''))
-      sentenceStart = sentenceEnd + 1
-    }
-    return Object.freeze({
-      status: 'redacted' as const,
-      sentences: Object.freeze(rendered),
-      counts: Object.freeze(counts),
-    })
-  } catch {
-    return { status: 'redaction_blocked', reason: 'scanner_unavailable' }
+    parts.push(joined.slice(cursor, sentenceEnd))
+    rendered.push(parts.join(''))
+    sentenceStart = sentenceEnd + 1
   }
+  return Object.freeze({
+    status: 'redacted' as const,
+    sentences: Object.freeze(rendered),
+    counts: Object.freeze(scan.counts),
+  })
 }
 
 export function redactAiReviewText(
   input: AiDeterministicRedactionInput,
 ): AiDeterministicRedactionResult {
-  if (
-    input.expectedRedactionProfileVersion !== AI_REDACTION_PROFILE_VERSION ||
-    input.expectedRedactionProfileDigest !== AI_REDACTION_PROFILE_DIGEST ||
-    input.expectedDetectorProfileVersion !== AI_STRUCTURED_MARKER_DETECTORS_VERSION ||
-    input.expectedDetectorProfileDigest !== AI_STRUCTURED_MARKER_DETECTORS_DIGEST
-  ) {
-    return { status: 'redaction_blocked', reason: 'profile_mismatch' }
+  const scan = scanForRedaction(input.text, input)
+  if (scan.status === 'blocked') {
+    return { status: 'redaction_blocked', reason: scan.reason }
   }
 
-  try {
-    if (hasForbiddenSourcePlaceholder(input.text)) {
-      return { status: 'redaction_blocked', reason: 'forbidden_source_placeholder' }
-    }
-    const scan = scanStructuredMarkerCandidates({
-      text: input.text,
-      countryCode: input.countryCode,
-      expectedProfileVersion: input.expectedDetectorProfileVersion,
-      expectedProfileDigest: input.expectedDetectorProfileDigest,
-    })
-    if (scan.status === 'blocked') {
-      return { status: 'redaction_blocked', reason: scan.reason }
-    }
-
-    const personCount = countExactPersonPlaceholders(input.text)
-    if (scan.intervals.length + personCount > 64) {
-      return { status: 'redaction_blocked', reason: 'candidate_limit_exceeded' }
-    }
-    const sourceScalarCount = countScalars(input.text)
-    const redactedScalarCount =
-      personCount * '[PERSON]'.length +
-      scan.intervals.reduce((total, interval) => total + interval.scalarLength, 0)
-    if (sourceScalarCount > 0 && redactedScalarCount * 5 > sourceScalarCount * 3) {
-      return { status: 'redaction_blocked', reason: 'redaction_ratio_exceeded' }
-    }
-
-    const counts = emptyCounts()
-    counts['[PERSON]'] = personCount
-    const rendered: string[] = []
-    let cursor = 0
-    for (const interval of scan.intervals) {
-      rendered.push(input.text.slice(cursor, interval.startUtf16), interval.placeholder)
-      counts[interval.placeholder] += 1
-      cursor = interval.endUtf16
-    }
-    rendered.push(input.text.slice(cursor))
-    return Object.freeze({
-      status: 'redacted' as const,
-      text: rendered.join(''),
-      counts: Object.freeze(counts),
-    })
-  } catch {
-    return { status: 'redaction_blocked', reason: 'scanner_unavailable' }
+  const rendered: string[] = []
+  let cursor = 0
+  for (const interval of scan.intervals) {
+    rendered.push(input.text.slice(cursor, interval.startUtf16), interval.placeholder)
+    cursor = interval.endUtf16
   }
+  rendered.push(input.text.slice(cursor))
+  return Object.freeze({
+    status: 'redacted' as const,
+    text: rendered.join(''),
+    counts: Object.freeze(scan.counts),
+  })
 }

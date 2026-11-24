@@ -10,11 +10,7 @@ import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { CapabilityPolicyEnv } from '#/shared/auth/beta-capabilities'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
-import {
-  createDelayedExecutionPolicy,
-  initDelayedExecutionPolicy,
-  resetDelayedExecutionPolicy,
-} from '#/shared/auth/system-execution-policy'
+import { resetDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import {
@@ -28,10 +24,6 @@ const ORG = 'org-delayed-gate'
 const POLICY_ENV = {
   NODE_ENV: 'test',
 } satisfies CapabilityPolicyEnv
-const EMAIL_DATA = {
-  organizationId: ORG,
-  capability: 'notification.send_email' as const,
-}
 
 beforeAll(async () => {
   await deleteTestOrganizations(db, [ORG])
@@ -60,37 +52,6 @@ afterAll(async () => {
 })
 
 describe('delayed runtime gate (BQC-3.2, real PG)', () => {
-  it('(b) unavailable policy: strong-read failure maps to deny_retry', async () => {
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({
-        refreshPolicy: async () => {
-          throw new Error('policy store down')
-        },
-      }),
-    )
-
-    const outcome = await gateJob(
-      'digest-notification',
-      EMAIL_DATA,
-      'worker:default',
-      'worker',
-    )
-
-    expect(outcome.kind).toBe('deny_retry')
-    expect(outcome.decision.reason).toBe('policy_unavailable')
-    expect(outcome.decision.allowed).toBe(false)
-
-    // Restore the process-bound static policy for later tests.
-    releaseProcessPolicies()
-    bindProcessPolicies(
-      buildCapabilityPolicyHandle({
-        db,
-        env: POLICY_ENV,
-        clock: () => new Date(),
-      }),
-    )
-  })
-
   it('(c) manual-enqueue initiator: stamped envelope returns its decision', async () => {
     const outcome = await gateJob(
       'digest-notification',

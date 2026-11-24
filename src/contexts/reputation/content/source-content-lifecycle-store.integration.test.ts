@@ -61,7 +61,6 @@ function review(id: ReviewId, ordinal: number): Omit<Review, 'createdAt' | 'upda
     translatedText: null,
     languageCode: 'en',
     reviewedAt: new Date(`2026-08-${10 + ordinal}T10:00:00.000Z`),
-    expiresAt: EXPIRES_AT,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: new Date(`2026-08-${10 + ordinal}T10:00:00.000Z`),

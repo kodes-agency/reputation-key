@@ -124,10 +124,6 @@ export function makeDeps() {
   const replyCommandStore = {
     submitReply: vi.fn(),
     rejectReply: vi.fn(),
-    markPublished: vi.fn(async (reply: object, updates: object, _event: object) => ({
-      ...reply,
-      ...updates,
-    })),
     markProviderOutcomePendingObservation: vi.fn(
       async (reply: object, _outcome: object) => ({
         ...reply,

@@ -20,6 +20,7 @@ import {
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { readAggregateWindow } from './property-aggregate.test-fixtures'
 import { seedReviewContent } from './review-content.test-fixtures'
 import {
   createAnalyzeReviewEvent,
@@ -70,7 +71,6 @@ const analyzeReviewEvent = createAnalyzeReviewEvent({
   aggregates: {
     applyReviewAnalysis: unreachable('aggregates.applyReviewAnalysis'),
     advanceWithoutAnalysis: unreachable('aggregates.advanceWithoutAnalysis'),
-    readWindow: unreachable('aggregates.readWindow'),
   },
   processingProfiles: {
     readForAi: unreachable('processingProfiles.readForAi'),
@@ -288,8 +288,10 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
           {
             analyzeReviewEvent,
             receipts,
-
             backlog: { enqueue: async () => {} },
+            applyAiAuthorizationLifecycle: async () => {
+              throw new Error('authorization lifecycle is not under test')
+            },
             nowEpochMillis: () => Date.now(),
           },
           reviewCreated(sequence),
@@ -306,7 +308,7 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
     // sequences are below it, so the window expects nothing yet and the read
     // that served a 500 in production returns an empty generation instead.
     await enableAtCurrentHead()
-    await expect(aggregates.readWindow(windowRequest())).resolves.toBeNull()
+    await expect(readAggregateWindow(db, windowRequest())).resolves.toBeNull()
 
     // The enrollment backfill re-allocates an eligible review a fresh sequence
     // inside the lineage; settling it is the first and only expected analysis.
@@ -336,7 +338,7 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
       ),
     ).resolves.toEqual({ status: 'terminal' })
 
-    const window = await aggregates.readWindow(windowRequest())
+    const window = await readAggregateWindow(db, windowRequest())
     expect(window?.coverage).toEqual({
       settledAnalysisCount: 1,
       expectedAnalysisCount: 1,

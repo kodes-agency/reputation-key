@@ -1,11 +1,10 @@
 // POST-BETA-2 PB2.1: Portal token lifecycle.
 //
 // Per ADR 0044: public URL uses a high-entropy random token. Token rotation
-// supports a grace period for already-printed codes, explicit revocation
-// for compromise, version/batch metadata, and audit.
+// supports a grace period for already-printed codes; revocation is a
+// command-store write.
 //
 // Lifecycle:  active -> rotating -> revoked
-//                  \-> active (grace period)
 //
 // A token may be in a grace period where both old and new tokens resolve
 // to the same portal. This supports already-printed QR codes.
@@ -21,7 +20,6 @@ export interface PortalToken {
   readonly tokenHash: string
   readonly tokenKeyVersion: number
   readonly version: number
-  readonly printBatch: string | null
   readonly status: TokenStatus
   readonly issuedAt: Date
   readonly gracePeriodEnds: Date | null
@@ -29,34 +27,6 @@ export interface PortalToken {
   readonly revokedAt: Date | null
   readonly revokedBy: string | null
   readonly revokedReason: string | null
-}
-
-export type TokenError =
-  | { code: 'token_not_active'; status: TokenStatus }
-  | { code: 'already_revoked' }
-  | { code: 'grace_period_expired' }
-  | { code: 'invalid_status_transition'; from: TokenStatus; to: TokenStatus }
-
-const VALID_TRANSITIONS: Readonly<Record<TokenStatus, readonly TokenStatus[]>> = {
-  active: ['rotating', 'revoked'],
-  rotating: ['active', 'revoked'],
-  revoked: [],
-}
-
-function isValidTransition(from: TokenStatus, to: TokenStatus): boolean {
-  return VALID_TRANSITIONS[from]?.includes(to) ?? false
-}
-
-export function isActive(token: PortalToken, asOf: Date): boolean {
-  if (token.status === 'revoked') return false
-  if (
-    token.status === 'rotating' &&
-    token.gracePeriodEnds &&
-    asOf > token.gracePeriodEnds
-  ) {
-    return false
-  }
-  return true
 }
 
 /**
@@ -73,7 +43,6 @@ export function issueToken(params: {
   tokenHash: string
   tokenKeyVersion: number
   version: number
-  printBatch?: string
   now: Date
 }): PortalToken {
   return {
@@ -85,7 +54,6 @@ export function issueToken(params: {
     tokenHash: params.tokenHash,
     tokenKeyVersion: params.tokenKeyVersion,
     version: params.version,
-    printBatch: params.printBatch ?? null,
     status: 'active',
     issuedAt: params.now,
     gracePeriodEnds: null,
@@ -97,7 +65,7 @@ export function issueToken(params: {
 }
 
 /**
- * Rotate a token. The old token enters a grace period during which
+ * Rotate an active token. The old token enters a grace period during which
  * both old and new tokens resolve. After the grace period, only the
  * new token is valid.
  *
@@ -114,10 +82,9 @@ export function rotateToken(
   }>,
   gracePeriodDuration: number,
   now: Date,
-): { oldToken: PortalToken; newToken: PortalToken } | TokenError {
-  if (!isValidTransition(token.status, 'rotating')) {
-    if (token.status === 'revoked') return { code: 'already_revoked' }
-    return { code: 'invalid_status_transition', from: token.status, to: 'rotating' }
+): { oldToken: PortalToken & { gracePeriodEnds: Date }; newToken: PortalToken } {
+  if (token.status !== 'active') {
+    throw new Error(`Only an active portal token can be rotated, not ${token.status}`)
   }
 
   const graceEnd = new Date(now.getTime() + gracePeriodDuration)
@@ -140,28 +107,5 @@ export function rotateToken(
       version: replacement.version,
       now,
     }),
-  }
-}
-
-/**
- * Revoke a token immediately. No grace period — this is for compromise.
- */
-export function revokeToken(
-  token: PortalToken,
-  revokedBy: string,
-  reason: string,
-  now: Date,
-): PortalToken | TokenError {
-  if (token.status === 'revoked') {
-    return { code: 'already_revoked' }
-  }
-
-  return {
-    ...token,
-    status: 'revoked',
-    revokedAt: now,
-    revokedBy,
-    revokedReason: reason,
-    retiredAt: now,
   }
 }

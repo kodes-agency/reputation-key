@@ -122,7 +122,7 @@ describe.sequential('processing profile rebuild through PostgreSQL', () => {
       analysisProfileVersion: 'review-analysis-v3',
       nowEpochMillis: new Date('2026-10-21T00:00:00Z').getTime(),
     }
-    const read = () => outputs.readAnalysisForDelivery(request, async (result) => result)
+    const read = () => outputs.readAnalysisForDelivery(request)
     const filter = () =>
       outputs.findCurrentReviewIdsByAttention({
         organizationId: seed.scope.organizationId,

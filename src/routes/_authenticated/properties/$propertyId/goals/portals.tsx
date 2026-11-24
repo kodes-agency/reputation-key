@@ -7,7 +7,6 @@ import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -51,7 +50,7 @@ export const Route = createFileRoute(
   // As the Google rating goal's page asks: of the built-in roles only the two
   // interactive manager roles hold `goal.read`, so the Member is answered here.
   beforeLoad: ({ context }) => {
-    if (!can((context as AuthRouteContext).role, 'goal.read')) {
+    if (!can(context.role, 'goal.read')) {
       throw roleUnavailable(TITLE, 'properties')
     }
   },

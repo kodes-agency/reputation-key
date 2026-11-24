@@ -1,3 +1,4 @@
+import { seedReply } from '../replies/reply-seed.test-fixtures'
 // Google permit retention against real PostgreSQL. The sweep ages out permits
 // after 30 days, except a `reviews.reply` permit whose publication attempt is
 // still uncertain: that permit is the only record the attempt may have left
@@ -118,7 +119,6 @@ function makeReview(): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: STARTED_AT,
-    expiresAt,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: STARTED_AT,
@@ -179,11 +179,10 @@ async function claimOneAttempt() {
     db,
     () => new Date(),
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   const review = await reviewRepo.upsert(makeReview())
-  const pending = await replyRepo.upsert(pendingReply())
+  const pending = await seedReply(getDb(), pendingReply())
   const authorized = await store.markPublicationAuthorized(
     pending,
     { status: 'approved', approvedBy: USER_A, approvedAt: STARTED_AT },
@@ -362,7 +361,6 @@ async function resendDecision(): Promise<'settled' | 'refused'> {
     db,
     () => new Date(),
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   const settled = await store.settleNeverDispatchedAttempt(reply!, null, SWEEP_AT)

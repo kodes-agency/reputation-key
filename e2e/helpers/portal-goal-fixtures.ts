@@ -18,7 +18,7 @@ import type {
   RecommendationPortal,
   RecommendPortalGoalInput,
 } from '../../src/contexts/reporting/domain/goal-recommendation-types'
-import { addLocalDays, localDateOf } from '../../src/contexts/reporting/domain/local-days'
+import { addLocalDays, localDateOf } from '../../src/shared/domain/local-days'
 import {
   findMetricVersionById,
   METRIC_VERSION_IDS,
@@ -92,13 +92,10 @@ export async function seedPortalGoalProperty(
   // enabled language, so both exist first.
   await callServerFn(page, {
     file: PORTALS,
-    exportName: 'savePropertyPortalBrandProfile',
+    exportName: 'savePropertyPublicDisplayName',
     data: {
       propertyId,
       displayName: 'E2E Seaview Hotel',
-      primaryColor: '#6366f1',
-      backgroundColor: '#ffffff',
-      textColor: '#111827',
     },
   })
   await callServerFn(page, {

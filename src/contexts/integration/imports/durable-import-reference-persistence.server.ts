@@ -3,10 +3,10 @@ import type { Database } from '#/shared/db'
 import { googleImportDiscoveryRecords } from '#/shared/db/schema/google-import-discovery.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import type { ImportDiscoveryAuthorization } from './durable-import-reference-store.port.server'
-import type {
-  DurableImportInvalidationScope,
-  DurableImportReferenceAudience,
-  DurableImportReferenceKeys,
+import {
+  invalidationDigest,
+  type DurableImportInvalidationScope,
+  type DurableImportReferenceAudience,
 } from './durable-import-reference-keys.server'
 
 export type DurableImportRecord = Readonly<{
@@ -88,16 +88,14 @@ const lockScopes = async (
 
 export const insertDurableImportRecords = async (
   db: Database,
-  keys: DurableImportReferenceKeys,
   records: readonly DurableImportRecord[],
   scopes: readonly DurableImportInvalidationScope[],
   now: Date,
 ): Promise<void> => {
   await db.transaction(async (tx) => {
     await lockScopes(tx, scopes)
-    const invalidationKeys = scopes.flatMap((item) => keys.invalidationKeys(item))
-    if (invalidationKeys.length > 0) {
-      const digests = invalidationKeys.map((item) => item.key)
+    const digests = scopes.map(invalidationDigest)
+    if (digests.length > 0) {
       await tx
         .delete(idempotencyReceipts)
         .where(

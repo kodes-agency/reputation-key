@@ -22,7 +22,7 @@ export function createGoogleNotificationRuntime(
     clock: Clock
     connectionRepo: GoogleConnectionRepository
     propertyApi: Pick<PropertyPublicApi, 'findIdsByGoogleConnection'>
-    propertyBindingApi?: Pick<PropertyGoogleBindingPublicApi, 'readInternal'>
+    propertyBindingApi: Pick<PropertyGoogleBindingPublicApi, 'readInternal'>
   }> &
     Pick<
       ManageNotificationsDeps,
@@ -39,11 +39,7 @@ export function createGoogleNotificationRuntime(
     listConnections: (organization) =>
       deps.connectionRepo.listByOrganization(organization, { showAll: true }),
     findLinkedPropertyIds: deps.propertyApi.findIdsByGoogleConnection,
-    readBinding:
-      deps.propertyBindingApi?.readInternal ??
-      (async () => {
-        throw new Error('Property binding reader unavailable')
-      }),
+    readBinding: deps.propertyBindingApi.readInternal,
     accounts,
   }
   const management = manageNotifications({

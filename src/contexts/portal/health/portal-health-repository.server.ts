@@ -7,26 +7,16 @@ import type { Database } from '#/shared/db'
 import { portalHealthIntervals } from '#/shared/db/schema/portal.schema'
 import { organizationId, portalId, propertyId, unbrand } from '#/shared/domain/ids'
 import type { PortalHealthRepository } from './portal-health-repository.port.server'
-import type { PortalHealthInterval } from '../domain/portal-health'
+import {
+  isPortalHealthReason,
+  isPortalHealthStatus,
+  type PortalHealthInterval,
+} from '../domain/portal-health'
 import { portalError } from '../domain/errors'
 import { trace } from '#/shared/observability/trace'
 
-const VALID_STATUS = new Set(['healthy', 'degraded', 'unavailable'])
-const VALID_REASON = new Set([
-  'operational',
-  'publication_draft',
-  'publication_disabled',
-  'publication_archived',
-  'property_unavailable',
-  'publication_snapshot_unavailable',
-  'public_address_unavailable',
-  'responsibility_needed',
-  'google_destination_awaiting_refresh',
-  'google_destination_unavailable',
-])
-
 function fromRow(row: typeof portalHealthIntervals.$inferSelect): PortalHealthInterval {
-  if (!VALID_STATUS.has(row.status) || !VALID_REASON.has(row.reason)) {
+  if (!isPortalHealthStatus(row.status) || !isPortalHealthReason(row.reason)) {
     throw portalError(
       'publication_snapshot_unavailable',
       'Stored Portal Health is invalid',
@@ -37,8 +27,8 @@ function fromRow(row: typeof portalHealthIntervals.$inferSelect): PortalHealthIn
     organizationId: organizationId(row.organizationId),
     propertyId: propertyId(row.propertyId),
     portalId: portalId(row.portalId),
-    status: row.status as PortalHealthInterval['status'],
-    reason: row.reason as PortalHealthInterval['reason'],
+    status: row.status,
+    reason: row.reason,
     sourceVersion: row.sourceVersion,
     effectiveFrom: row.effectiveFrom,
     effectiveTo: row.effectiveTo,

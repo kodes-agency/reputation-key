@@ -9,7 +9,6 @@ import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createProductUpdatesStore } from './product-updates.repository.server'
-import { purgeProductUpdates } from './product-updates-purge.server'
 
 let db: Database
 let lease: TestLease
@@ -105,22 +104,5 @@ describe('durable personal product updates', () => {
     await store.setAutoShow(p, false)
     expect(await store.claim(p)).toBe(false)
     expect((await store.read(p)).lastAutoOpenedAt).toEqual(before.lastAutoOpenedAt)
-  })
-  it('purges both collections only for the target Organization and repeats safely', async () => {
-    const p = await person(),
-      other = await person(),
-      store = createProductUpdatesStore(db)
-    for (const target of [p, other]) {
-      await store.setAutoShow(target, false)
-      await store.markSeen(target, ['one'])
-    }
-    expect(await db.transaction((tx) => purgeProductUpdates(tx, p.organizationId))).toBe(
-      2,
-    )
-    expect(await db.transaction((tx) => purgeProductUpdates(tx, p.organizationId))).toBe(
-      0,
-    )
-    expect(await store.read(p)).toMatchObject({ autoShow: true, seenIds: [] })
-    expect(await store.read(other)).toMatchObject({ autoShow: false, seenIds: ['one'] })
   })
 })

@@ -15,13 +15,13 @@ import { findMetricVersionById, METRIC_VERSION_IDS } from '../readings/contracts
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import { createGoalProgramRepository } from './goal-program-repository.server'
 import { readGoalMetricSourceHead } from '../readings/goal-metric-source-head.server'
+import { createGoalProgramService } from './goal-programs.server'
 import {
-  createGoalProgramService,
   type GoalActor,
   type GoalExecutionPolicy,
   type GoalMetricReadPort,
   type GoalProgramSubjectReader,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 
 export const ORGANIZATION_ID = 'org-1'
 export const PROPERTY_ID = '00000000-0000-4000-8000-00000000a001'
@@ -220,6 +220,8 @@ export function createGoalProgramHarness(
   const policy: GoalExecutionPolicy = { authorize: vi.fn(async () => undefined) }
   const subjects: GoalProgramSubjectReader = {
     ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
+    staffTargetProblem: vi.fn(async () => null),
+    staffTargetAllowed: vi.fn(async () => true),
     getTimezone: vi.fn(async () => 'UTC'),
     subjectBelongsToProperty: vi.fn<GoalProgramSubjectReader['subjectBelongsToProperty']>(
       async () => true,

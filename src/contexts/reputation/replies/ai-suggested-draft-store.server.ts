@@ -26,10 +26,7 @@ import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operati
 import { replyFromRow } from './reply-mapper.server'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding.server'
 import type { AiReplyVoicePublicApi } from '../library/ai-reply-voice-frame.server'
-import {
-  insertAdoptedAiDraft,
-  updateAdoptedAiDraft,
-} from '#/contexts/reputation/public-api'
+import { insertAdoptedAiDraft, updateAdoptedAiDraft } from './row-commands.server'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
 
@@ -75,7 +72,7 @@ export const createAiSuggestedDraftStore = (
     PortalAiReplyBrandProfilePublicApi,
     'isCurrentAiReplyBrandProfile'
   >,
-  replyVoices?: AiReplyVoicePublicApi,
+  replyVoices: AiReplyVoicePublicApi,
 ): AiSuggestedDraftStore => {
   return {
     async accept(input) {
@@ -284,13 +281,12 @@ export const createAiSuggestedDraftStore = (
         const voiceCurrent =
           operation.replyAdoptionDisposition !== 'none' ||
           replyVoiceDigest == null ||
-          (replyVoices !== undefined &&
-            (await replyVoices.isCurrentVoice(tx, {
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              languageGroup: provenance.templateGroup,
-              voiceDigest: replyVoiceDigest,
-            })))
+          (await replyVoices.isCurrentVoice(tx, {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            languageGroup: provenance.templateGroup,
+            voiceDigest: replyVoiceDigest,
+          }))
         if (
           grounded &&
           operation.replyAdoptionDisposition === 'none' &&
@@ -619,13 +615,13 @@ function replyAdoptionDeployment(provenance: Provenance): string {
 }
 
 async function adoptionBodyFrame(
-  voices: AiReplyVoicePublicApi | undefined,
+  voices: AiReplyVoicePublicApi,
   provenance: Provenance,
   input: Parameters<AiSuggestedDraftStore['accept']>[0],
 ) {
   if (provenance.version !== 'ai-reply-provenance-v4') return null
   return (
-    voices?.resolveSavedFrame?.({
+    voices.resolveSavedFrame({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       reviewId: input.reviewId,

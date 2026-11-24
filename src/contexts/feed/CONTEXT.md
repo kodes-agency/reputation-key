@@ -93,10 +93,9 @@ facts through `fact.server.ts`.
 
 ## Model
 
-Recent Activity records are retained for Organization export, privacy redaction
-and lifecycle fulfilment. Its repository, privacy store, actor-label redaction
-and erasure (`activity-rights.adapter.server.ts`,
-`activity-organization-erasure.server.ts`) live in `rights/`. No projection
+Recent Activity rows only age out (90-day expiry); their erasure
+(`activity-rights.adapter.server.ts`, `activity-organization-erasure.server.ts`)
+lives in `rights/`. No projection
 writer, recovery command or manager read API remains. Existing rows retain their 90-day expiry. Inbox item timeline and
 Portal history use their own stores. Operational Action History is append-oriented,
 organization-scoped evidence with restricted list/export access and legal-hold

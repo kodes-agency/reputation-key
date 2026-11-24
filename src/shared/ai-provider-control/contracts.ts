@@ -13,7 +13,6 @@ import type { PreparedAiInvocation } from './prepared-invocation'
 import type {
   AiProviderId,
   AiProviderOutcome,
-  AiProviderUsage,
   PreparedInvocationBase,
 } from './provider-contracts'
 export type { PreparedAiInvocation } from './prepared-invocation'
@@ -63,14 +62,7 @@ export type AiAdmissionClient = Readonly<{
     | Readonly<{ status: 'settled'; receipt: AiSettlementReceiptV1 }>
     | Readonly<{ status: 'denied'; code: string }>
   >
-  readiness(signal: AbortSignal): Promise<boolean>
 }>
-
-/** OpenAI's usage block is the provider-neutral one (`AiProviderUsage`). */
-export type OpenAiUsageV1 = AiProviderUsage
-
-/** OpenAI's outcome is the provider-neutral one (`AiProviderOutcome`). */
-export type OpenAiConnectorOutcome<T> = AiProviderOutcome<T>
 
 export type OpenAiConnector = Readonly<{
   invoke(
@@ -79,7 +71,7 @@ export type OpenAiConnector = Readonly<{
     outputSchema: z.ZodTypeAny,
     signal: AbortSignal,
     observer?: Readonly<{ onText(text: string): void; onDispatch(): void }>,
-  ): Promise<OpenAiConnectorOutcome<unknown>>
+  ): Promise<AiProviderOutcome<unknown>>
   readiness?(): boolean
   close?(): Promise<void> | void
   destroy?(): void
@@ -95,9 +87,9 @@ export type AcceptedGatewayResult = Readonly<{
 export type PreparedGatewayRouteExecution = Readonly<{
   /**
    * The provider whose adapter prepared the invocation, and so the only one the
-   * gateway may hand it to. Absent on a v2 route: every v2 route is OpenAI's.
+   * gateway may hand it to.
    */
-  providerId?: AiProviderId
+  providerId: AiProviderId
   // Orchestration reads only the provider-neutral fields; the request itself is
   // the adapter's own (`sdkRequest` has one shape per provider).
   invocation: PreparedInvocationBase

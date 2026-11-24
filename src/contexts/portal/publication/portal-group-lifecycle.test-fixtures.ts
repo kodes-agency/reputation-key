@@ -25,7 +25,7 @@ import {
 } from '#/shared/domain/ids'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../domain/errors'
-import { addPortalToGroup } from '../groups/add-portal-to-group.server'
+import { movePortalToGroup } from '../groups/move-portal-to-group.server'
 import { createPortalGroup } from '../groups/create-portal-group.server'
 import { listPortalGroupHistory } from '../groups/list-portal-group-history.server'
 import { removePortalFromGroup } from '../groups/remove-portal-from-group.server'
@@ -89,7 +89,7 @@ export function wire(accessible: ReadonlyArray<PropertyId> | null = null) {
     }),
     update: updatePortalGroup(common),
     archive: softDeletePortalGroup(common),
-    add: addPortalToGroup({ ...common, portalRepo }),
+    add: movePortalToGroup({ ...common, portalRepo }),
     remove: removePortalFromGroup(common),
     list: listPortalGroupHistory({
       portalGroupRepo: common.portalGroupRepo,

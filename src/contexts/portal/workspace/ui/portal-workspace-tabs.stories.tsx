@@ -274,6 +274,7 @@ const publicationHistory = {
   },
   priorActivations: [],
   hasPendingChanges: false,
+  pendingChanges: [],
   nextCursor: null,
 }
 

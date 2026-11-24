@@ -1,29 +1,11 @@
 // Review context — domain rules
 
 import { sha256Hex } from '#/shared/domain/sha256'
-import type { StarRating, ReplyStatus, Reply } from './review-types'
+import type { ReplyStatus, Reply } from './review-types'
 import { ok, err } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
 import type { ReviewError } from './review-errors'
 import { reviewError } from './review-errors'
-
-const VALID_RATINGS = new Set([1, 2, 3, 4, 5] as const)
-
-export const isValidRating = (n: number): n is StarRating =>
-  VALID_RATINGS.has(n as StarRating)
-
-/**
- * Calculate expiresAt from reviewedAt using the 30-day retention window.
- * If the review is already past 30 days, returns `now` (expire immediately).
- *
- * @deprecated Prefer `contentExpiresAt`, derived from the last successful fetch
- * (ADR 0031). This reviewed-at clock remains only for rows without one.
- */
-export const calculateExpiresAt = (reviewedAt: Date, now: Date): Date => {
-  const maxRetentionWindow = 30 * 24 * 60 * 60 * 1000
-  const remainingRetention = maxRetentionWindow - (now.getTime() - reviewedAt.getTime())
-  return remainingRetention > 0 ? new Date(now.getTime() + remainingRetention) : now
-}
 
 /**
  * Stable SHA-256 of normalized, policy-controlled source fields.
@@ -109,15 +91,6 @@ export const transitionReply = (
     ...(nextStatus === 'published' ? { publishedAt: now } : {}),
   })
 }
-
-/**
- * Google's reply comment limit, in UTF-8 BYTES — not characters. The rule that
- * enforces it (bytes, allowed characters, well-formed Unicode) is
- * `replyCommentProblem` in `src/shared/google-provider-control/reply-comment.ts`;
- * a `text.length` comparison against this number lets 2049 Cyrillic letters
- * (4098 bytes) through and is not this limit.
- */
-export const MAX_REPLY_LENGTH = 4096
 
 /**
  * Mirrors `ReplyCommentProblem` (`shared/google-provider-control/reply-comment.ts`).

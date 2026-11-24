@@ -1,12 +1,12 @@
 // A portal the manager unticked stays unticked when its review is read again,
 // even if the new read changes where the portal starts.
 
-import { createElement } from 'react'
+import { act, createElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { PortalReview } from '#/contexts/portal/application/portal-management-contracts'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { act, startHookHarness, type HookHarness } from './hook-harness'
+import { setupHookRoot } from '#/shared/testing/hook-root'
 import type { usePropertyLookBatch as UsePropertyLookBatch } from './use-property-look-batch'
 
 const LOOK_EDIT = {
@@ -37,19 +37,17 @@ const reviewOf = (changes: PortalReview['changes']): PortalReview =>
 
 const LIVE = [{ portalId: 'portal-1' }] as never
 
+const root = setupHookRoot()
+
 describe('usePropertyLookBatch', () => {
-  let harness: HookHarness
   let useBatch: typeof UsePropertyLookBatch
   let latest: ReturnType<typeof UsePropertyLookBatch> | undefined
   let client: QueryClient
 
   beforeAll(async () => {
-    harness = await startHookHarness()
     ;({ usePropertyLookBatch: useBatch } = await import('./use-property-look-batch'))
   })
-  afterAll(() => harness.stop())
   afterEach(async () => {
-    await harness.unmount()
     client.clear()
     latest = undefined
   })
@@ -67,7 +65,7 @@ describe('usePropertyLookBatch', () => {
 
   async function show() {
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    await harness.render(
+    await root.render(
       createElement(QueryClientProvider, { client }, createElement(Probe)),
     )
   }

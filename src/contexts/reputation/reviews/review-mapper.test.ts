@@ -37,7 +37,7 @@ const sampleRow: ReviewRow = {
   sourceUpdatedAt: null,
   firstFetchedAt: now,
   lastFetchedAt: now,
-  contentExpiresAt: null,
+  contentExpiresAt: expiresAt,
   contentHash: null,
   sourceSeenGeneration: null,
   sourceEpoch: 3,
@@ -77,7 +77,6 @@ describe('reviewFromRow', () => {
     expect(review.text).toBe('Great place!')
     expect(review.languageCode).toBe('en')
     expect(review.reviewedAt).toBe(reviewedAt)
-    expect(review.expiresAt).toBe(expiresAt)
     expect(review.sentimentLabel).toBe('positive')
     expect(review.sentimentScore).toBe(0.92)
     expect(review.sourceEpoch).toBe(3)

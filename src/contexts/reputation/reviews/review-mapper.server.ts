@@ -59,7 +59,7 @@ export const reviewFromRow = (row: ReviewHeadRow): Review => {
     row.externalId == null ||
     row.externalLocationId == null ||
     row.reviewedAt == null ||
-    row.expiresAt == null ||
+    row.contentExpiresAt == null ||
     row.aiSourceByteLength == null ||
     row.aiSourceDigest == null
   ) {
@@ -87,7 +87,6 @@ export const reviewFromRow = (row: ReviewHeadRow): Review => {
     translatedText: row.translatedText,
     languageCode: row.languageCode,
     reviewedAt: row.reviewedAt,
-    expiresAt: row.expiresAt,
     sentimentLabel: row.sentimentLabel,
     sentimentScore: row.sentimentScore,
     sourceCreatedAt: row.sourceCreatedAt ?? null,
@@ -119,7 +118,6 @@ export const reviewFromRows = (row: ReviewRow, content: ReviewContentRow): Revie
     externalId: content.externalId,
     externalLocationId: content.externalLocationId,
     googleConnectionId: content.googleConnectionId,
-    expiresAt: content.contentExpiresAt,
     firstFetchedAt: content.firstFetchedAt,
     ...contentFields(content),
   })

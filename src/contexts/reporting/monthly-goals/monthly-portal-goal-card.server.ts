@@ -3,7 +3,7 @@
 // the recommendation's count. Read prompt deferral only for a ready offer.
 
 import type { PortalFacts } from '../domain/goal-recommendation-types'
-import { localDateOf } from '../domain/local-days'
+import { localDateOf } from '#/shared/domain/local-days'
 import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalCardView,
@@ -16,12 +16,12 @@ import {
 } from './monthly-portal-goal-identity.server'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import type { PortalGoalPromptDeferralStore } from './portal-goal-prompt-deferrals-repository.port.server'
+import type { GoalProgramService } from './goal-programs.server'
 import type {
   GoalActor,
   GoalExecutionPolicy,
   GoalMetricReadPort,
-  GoalProgramService,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import {
   gatherPortalGoalRecommendation,
   type PortalGoalRecommendationReads,

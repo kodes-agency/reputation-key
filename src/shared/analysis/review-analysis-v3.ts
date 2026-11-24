@@ -42,15 +42,6 @@ export type ReviewAttentionLevelV2 = (typeof REVIEW_ATTENTION_LEVELS_V2)[number]
 export const REVIEW_STRENGTH_RANK_V3: Readonly<Record<ReviewStrengthV3, number>> =
   Object.freeze({ mild: 0, clear: 1, strong: 2 })
 
-export function strongerReviewStrengthV3(
-  first: ReviewStrengthV3,
-  second: ReviewStrengthV3,
-): ReviewStrengthV3 {
-  return REVIEW_STRENGTH_RANK_V3[first] >= REVIEW_STRENGTH_RANK_V3[second]
-    ? first
-    : second
-}
-
 export const REVIEW_ANALYSIS_V3_MAX_MENTIONS = 48
 export const REVIEW_ANALYSIS_V3_MAX_SENTENCE_REFS = 16
 export const REVIEW_ANALYSIS_V3_MAX_SENTENCE_NUMBER = 10_000
@@ -138,30 +129,12 @@ function refineStoredMention(
   }
 }
 
-const storedMentionSchema = z
-  .object({
-    topic: z.enum(REVIEW_TOPICS_V3),
-    polarity: z.enum(REVIEW_POLARITIES_V3),
-    strength: z.enum(REVIEW_STRENGTHS_V3),
-    thing: nullableCauseSchema,
-    issue: nullableCauseSchema,
-    sentences: z
-      .array(sentenceNumberSchema)
-      .min(1)
-      .max(REVIEW_ANALYSIS_V3_MAX_SENTENCE_REFS),
-    names_person: z.union([z.enum(REVIEW_NAMES_PERSON_V3), z.null()]),
-  })
-  .strict()
-  .superRefine(refineStoredMention)
+const storedMentionSchema = providerMentionSchema.superRefine(refineStoredMention)
 
-export const REVIEW_ANALYSIS_V3_STORED_SCHEMA = z
-  .object({
-    sentiment: z.enum(REVIEW_SENTIMENTS_V3),
+export const REVIEW_ANALYSIS_V3_STORED_SCHEMA =
+  REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA.extend({
     mentions: z.array(storedMentionSchema).max(REVIEW_ANALYSIS_V3_MAX_MENTIONS),
-    urgent: z.union([urgentSchema, z.null()]),
-  })
-  .strict()
-  .superRefine((value, context) => {
+  }).superRefine((value, context) => {
     const keys = new Set<string>()
     for (let index = 0; index < value.mentions.length; index += 1) {
       const mention = value.mentions[index]
@@ -178,21 +151,19 @@ export const REVIEW_ANALYSIS_V3_STORED_SCHEMA = z
     }
   })
 
-export type ReviewAnalysisV3StoredMention = Readonly<{
-  topic: (typeof REVIEW_TOPICS_V3)[number]
-  polarity: ReviewPolarityV3
-  strength: ReviewStrengthV3
-  thing: string | null
-  issue: string | null
-  sentences: readonly number[]
-  names_person: ReviewNamesPersonV3 | null
-}>
+type DeepReadonly<T> = T extends readonly (infer Item)[]
+  ? readonly DeepReadonly<Item>[]
+  : T extends object
+    ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
+    : T
 
-export type ReviewAnalysisV3ProviderAnswer = Readonly<{
-  sentiment: ReviewSentimentV3
-  mentions: readonly ReviewAnalysisV3StoredMention[]
-  urgent: Readonly<{ reason: ReviewUrgentReasonV3 }> | null
-}>
+export type ReviewAnalysisV3StoredMention = DeepReadonly<
+  z.infer<typeof providerMentionSchema>
+>
+
+export type ReviewAnalysisV3ProviderAnswer = DeepReadonly<
+  z.infer<typeof REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA>
+>
 
 export type ReviewAnalysisV3Stored = ReviewAnalysisV3ProviderAnswer
 

@@ -65,45 +65,10 @@ import type {
   ValidateInvitationRegistrationCommand,
 } from './identity-command-store.port.server'
 
-/**
- * Invitation insert via raw SQL. The drizzle mirror for the better-auth
- * invitation table carries a speculative `teamId` column (BA teams plugin,
- * not enabled) that the real table does not have; drizzle's insert emits
- * every mirrored column, so going through the table definition breaks
- * against the real schema. Migration/schema files are owned outside this
- * slice, so the insert bypasses the mirror. Reads/updates use only columns
- * that exist and stay on the typed table.
- */
-async function insertInvitationRow(
-  tx: Tx,
-  row: Readonly<{
-    id: string
-    organizationId: string
-    email: string
-    role: string
-    expiresAt: Date
-    propertyIds: string | null
-    inviterId: string
-    createdAt: Date
-  }>,
-): Promise<void> {
-  await tx.execute(sql`
-    INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "propertyIds", "inviterId", "createdAt")
-    VALUES (${row.id}, ${row.organizationId}, ${row.email}, ${row.role}, 'pending', ${row.expiresAt}, ${row.propertyIds}, ${row.inviterId}, ${row.createdAt})
-  `)
-}
-
-/** Same hash as the pre-BQC-3.5 withOrgLock — the advisory-lock key space is unchanged. */
-function hashStringToInteger(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
-  }
-  return Math.abs(hash)
-}
-
 async function lockOrg(tx: Tx, orgId: string): Promise<void> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(${hashStringToInteger(orgId)})`)
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`identity-org:${orgId}`}, 0))`,
+  )
 }
 
 /**
@@ -358,9 +323,7 @@ export const createAtomicIdentityCommandStore = (
         .limit(1)
       if (
         rows[0]?.staffParticipationId &&
-        !(await admitStaffInvitation(
-          'organizationId' in rows[0] ? String(rows[0].organizationId) : '',
-        ))
+        !(await admitStaffInvitation(String(rows[0].organizationId)))
       )
         throw identityError(
           'forbidden',
@@ -389,8 +352,9 @@ export const createAtomicIdentityCommandStore = (
             now: command.now,
           })
 
-          await insertInvitationRow(tx, {
+          await tx.insert(invitation).values({
             id: command.invitationId as string,
+            status: 'pending',
             organizationId: command.organizationId as string,
             email,
             role: command.role,
@@ -409,8 +373,6 @@ export const createAtomicIdentityCommandStore = (
         const acceptorEmail = command.acceptorEmail.toLowerCase()
         const outcome = await db.transaction(async (tx) => {
           // 1. Lock + load the invitation (serializes concurrent accepts).
-          //    Explicit column list — the drizzle mirror carries speculative
-          //    columns (teamId) that real better-auth tables do not have.
           const rows = await tx
             .select({
               id: invitation.id,

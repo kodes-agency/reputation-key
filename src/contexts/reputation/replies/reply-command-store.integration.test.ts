@@ -1,3 +1,4 @@
+import { seedReply } from './reply-seed.test-fixtures'
 import {
   insertPublicationAuthorization,
   replyScopeEffects,
@@ -119,7 +120,6 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
-    expiresAt: new Date(NOW.getTime() + 25 * 24 * 60 * 60 * 1000),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW,
@@ -225,7 +225,8 @@ async function authorizeAgainstHead(input: Readonly<{ reviewAdvances: boolean }>
     firstReview.sourceRevision + (input.reviewAdvances ? 1 : 0),
   )
 
-  const reply = await createReplyRepository(db, () => new Date()).upsert(
+  const reply = await seedReply(
+    getDb(),
     makeReply({
       status: 'approved',
       submittedAt: NOW,
@@ -258,7 +259,6 @@ async function authorizeAgainstHead(input: Readonly<{ reviewAdvances: boolean }>
     db,
     () => new Date(),
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   return {
@@ -311,7 +311,6 @@ describe.sequential('replyCommandStore (integration)', () => {
       db,
       () => new Date(),
       async () => true,
-      undefined,
       replyScopeEffects,
     )
     const outboxRepo = createOutboxRepository(db)
@@ -322,7 +321,7 @@ describe.sequential('replyCommandStore (integration)', () => {
       status: 'pending_approval',
       submittedAt: NOW,
     })
-    await replyRepo.upsert(pending)
+    await seedReply(getDb(), pending)
 
     const lifecycleEvent = reviewReplyApproved({
       replyId: REPLY_A,
@@ -460,13 +459,12 @@ describe.sequential('replyCommandStore (integration)', () => {
       db,
       () => new Date(),
       actorAuthority,
-      undefined,
       replyScopeEffects,
     )
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
-    await replyRepo.upsert(pending)
+    await seedReply(getDb(), pending)
     const publicationIntent = reviewReplyPublicationRequested({
       replyId: REPLY_A,
       reviewId: REVIEW_A,
@@ -587,13 +585,12 @@ describe.sequential('replyCommandStore (integration)', () => {
       db,
       () => new Date(),
       async () => true,
-      undefined,
       replyScopeEffects,
     )
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
-    await replyRepo.upsert(pending)
+    await seedReply(getDb(), pending)
 
     const lifecycleEvent = reviewReplyApproved({
       replyId: REPLY_A,
@@ -654,12 +651,11 @@ describe.sequential('replyCommandStore (integration)', () => {
       db,
       () => new Date(),
       undefined,
-      undefined,
       replyScopeEffects,
     )
 
     await reviewRepo.upsert(makeReview())
-    await replyRepo.upsert(makeReply({ status: 'draft' }))
+    await seedReply(getDb(), makeReply({ status: 'draft' }))
 
     const event = unregisteredEvent(
       reviewReplySubmitted({
@@ -706,12 +702,11 @@ describe.sequential('replyCommandStore (integration)', () => {
       db,
       () => new Date(),
       undefined,
-      undefined,
       replyScopeEffects,
     )
 
     await reviewRepo.upsert(makeReview())
-    await replyRepo.upsert(makeReply({ status: 'draft' }))
+    await seedReply(getDb(), makeReply({ status: 'draft' }))
 
     const event = reviewReplySubmitted({
       replyId: REPLY_A,

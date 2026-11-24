@@ -66,9 +66,7 @@ export function prepareReviewEvidence(
   const { sentences } = request.source
   const context = request.propertyContext
   const text = request.source.text
-  if (sentences === undefined || context === undefined || text === null) {
-    throw new GatewayPreparationError('invalid_request')
-  }
+  if (text === null) throw new GatewayPreparationError('invalid_request')
   if (sentences.length === 0) throw new GatewayPreparationError('text_unavailable')
   if (
     !reviewSentencesAreNumberedFromOne(sentences) ||

@@ -41,7 +41,6 @@ function review(overrides: Partial<Review> = {}): Review {
     translatedText: null,
     languageCode: null,
     reviewedAt: NOW,
-    expiresAt: NOW,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW,
@@ -111,6 +110,10 @@ function dependencies(
     saveTemplate: vi.fn(),
     setHidden: vi.fn(),
     archiveCustomization: vi.fn(),
+    loadVoiceOverridesForShare: vi.fn(),
+    reserveAiFrame: vi.fn(),
+    findPublishedUsage: vi.fn(async () => []),
+    findRecentLiveReplyTexts: vi.fn(async () => []),
   }
   const reviewRepo = {
     findById: vi.fn(async () => currentReview),

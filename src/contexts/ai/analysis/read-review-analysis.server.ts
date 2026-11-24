@@ -54,17 +54,14 @@ export function createReadReviewAnalysis(dependencies: ReadReviewAnalysisDepende
     ) {
       return { status: 'disabled' }
     }
-    return dependencies.outputs.readAnalysisForDelivery(
-      {
-        ...review,
-        actorUserId: actor.userId,
-        authorizationLineageId: gate.authorization.authorizationLineageId,
-        reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
-        propertyProfileVersion: gate.profile.profileVersion,
-        analysisProfileVersion: dependencies.reviewAnalysisProfileVersion,
-        nowEpochMillis: dependencies.nowEpochMillis(),
-      },
-      async (result) => result,
-    )
+    return dependencies.outputs.readAnalysisForDelivery({
+      ...review,
+      actorUserId: actor.userId,
+      authorizationLineageId: gate.authorization.authorizationLineageId,
+      reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
+      propertyProfileVersion: gate.profile.profileVersion,
+      analysisProfileVersion: dependencies.reviewAnalysisProfileVersion,
+      nowEpochMillis: dependencies.nowEpochMillis(),
+    })
   }
 }

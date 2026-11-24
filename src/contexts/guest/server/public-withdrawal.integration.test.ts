@@ -3,6 +3,7 @@
 // bucket the journal writes to is the only fake; the rows, the session cookie and
 // the budgets are the app's own.
 
+import { createInMemoryWithdrawalJournal } from '../responses/guest-withdrawal-journal.test-fixtures'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
@@ -355,6 +356,7 @@ describe('a contact request while contact requests are dark', () => {
         keys: { v1: KEY },
         generateIv: () => randomBytes(12),
       }),
+      createInMemoryWithdrawalJournal(),
     ).create({
       id: randomUUID(),
       scope: {

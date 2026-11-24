@@ -5,10 +5,13 @@
 // and manager commands a story drives from the screen. Source-event consumers
 // and the receipt fence run on the server, so those methods refuse here.
 import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
-import type { InboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.port.server'
 import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import { timestampFieldsForStatus } from '#/contexts/reputation/domain/inbox-rules'
-import type { InboxItem, InboxPriority } from '#/contexts/reputation/domain/inbox-types'
+import type {
+  InboxItem,
+  InboxNote,
+  InboxPriority,
+} from '#/contexts/reputation/domain/inbox-types'
 import { unbrandAll, type UserId } from '#/shared/domain/ids'
 
 type InboxFilters = Parameters<InboxRepository['findFilteredPaginated']>[0]
@@ -165,8 +168,8 @@ export function createStoryOnlyInboxRepo(): StoryOnlyInboxFake {
           i.status === 'open' && (!since || i.createdAt.getTime() >= since.getTime()),
       ).length,
     scanReviewItems: refuse('The projection rebuild'),
-    findDetailById: async (id, orgId) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
+    findDetailById: async (id, orgId, loaded) => {
+      const item = loaded ?? items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) return null
       const isReview = item.sourceType === 'review'
       return {
@@ -193,7 +196,7 @@ type PriorityWrite = Readonly<{
 
 export function createStoryOnlyInboxCommandStore(deps: {
   repo: StoryOnlyInboxFake
-  noteRepo: InboxNoteRepository
+  noteRepo: { add: (note: InboxNote) => InboxNote }
 }): InboxCommandStore {
   const write = (
     id: InboxItem['id'],
@@ -325,7 +328,7 @@ export function createStoryOnlyInboxCommandStore(deps: {
       ),
     addNote: async (item, note) => {
       write(item.id, item.organizationId, { assignedTo: item.assignedTo }, note.createdAt)
-      return deps.noteRepo.create(note, note.organizationId)
+      return deps.noteRepo.add(note)
     },
     applySourceCreatedOnce: refuse('Source event consumption'),
     applyReviewProjectionOnce: refuse('Source event consumption'),

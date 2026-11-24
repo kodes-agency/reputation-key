@@ -1,3 +1,4 @@
+import { seedReply } from '../replies/reply-seed.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // A Google disconnect cancels only publication cycles that were never
 // dispatched. Once the worker has claimed a cycle (sending) or Google has
@@ -97,7 +98,6 @@ const review = (): Review => ({
   translatedText: null,
   languageCode: 'en',
   reviewedAt: NOW,
-  expiresAt: new Date(NOW.getTime() + 25 * 86_400_000),
   sentimentLabel: null,
   sentimentScore: null,
   sourceCreatedAt: NOW,
@@ -150,12 +150,11 @@ async function replyAt(stage: 'authorized' | 'sending' | 'pending_observation') 
     db,
     () => NOW,
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   const saved = await reviewRepo.upsert(review())
   const authorized = await store.markPublicationAuthorized(
-    await replyRepo.upsert(pendingReply()),
+    await seedReply(getDb(), pendingReply(), NOW),
     { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
     {
       lifecycleEvent: reviewReplyApproved({
@@ -278,7 +277,6 @@ describe('what a disconnect cancellation leaves on the reply', () => {
       getDb(),
       () => NOW,
       async () => true,
-      undefined,
       replyScopeEffects,
     ).cancelPublications([
       {

@@ -113,35 +113,6 @@ describe('hasPublicationRecord', () => {
   })
 })
 
-describe('recording a reply as published', () => {
-  it('starts only from a reply that was sent and not yet confirmed', () => {
-    for (const status of ['approved', 'publish_failed'] as const) {
-      for (const publicationState of [
-        'sending',
-        'pending_observation',
-        'ambiguous',
-        'terminal',
-      ] as const) {
-        expect(
-          replyCommandMayStart('confirm_published', reply({ status, publicationState })),
-        ).toBe(true)
-      }
-    }
-  })
-
-  it('never starts from a reply no manager confirmed, or one not yet claimed', () => {
-    for (const subject of [
-      reply(),
-      reply({ status: 'pending_approval' }),
-      reply({ status: 'rejected' }),
-      reply({ status: 'approved', publicationState: 'authorized' }),
-      reply({ status: 'published', publicationState: 'published' }),
-    ]) {
-      expect(replyCommandMayStart('confirm_published', subject)).toBe(false)
-    }
-  })
-})
-
 describe('Try publishing again', () => {
   it('starts from a settled failure and not from one whose outcome is unknown', () => {
     const failed = (overrides: Partial<ReplyCommandSubject>) =>

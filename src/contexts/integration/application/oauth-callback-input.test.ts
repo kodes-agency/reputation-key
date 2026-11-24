@@ -14,7 +14,6 @@ describe('opaque OAuth callback input', () => {
         ok: true,
         kind: 'exchange',
         exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
-        visibility: 'organization',
         purpose: 'performance_reauth',
         connectionMode: 'reauth',
         targetConnectionId: 'connection-7',
@@ -24,7 +23,6 @@ describe('opaque OAuth callback input', () => {
     ).toEqual({
       exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
       code: 'provider-code',
-      visibility: 'organization',
       purpose: 'performance_reauth',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',

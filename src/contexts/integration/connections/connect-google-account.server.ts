@@ -209,7 +209,6 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
           encryptedRefreshToken,
           tokenExpiresAt,
           scopes: oauthResult.scopes,
-          visibility: 'organization',
           exchangeAttemptId: facts.id,
           event,
         })
@@ -224,7 +223,6 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
         tokenExpiresAt,
         scopes: oauthResult.scopes,
         connectedBy: ctx.userId,
-        visibility: 'organization',
         now,
       })
       if (buildResult.isErr()) throw buildResult.error

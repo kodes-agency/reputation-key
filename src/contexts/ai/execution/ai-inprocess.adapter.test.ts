@@ -4,7 +4,6 @@ import type { AiEgressGatewayService } from '#/shared/ai-provider-control/servic
 import type { AiGatewayRouteRequestV1 } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   analysisRequest,
-  v2FormAnalysisRequest,
   analysisV3Request,
   replyRequest,
 } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
@@ -37,7 +36,6 @@ function recordingGateway() {
         retryAfterEpochMillis: null,
       }) as never
     },
-    readiness: async () => true,
   }
   return { seen, service }
 }
@@ -153,10 +151,6 @@ describe('in-process AI inference deadlines and construction', () => {
 
 describe('in-process AI inference request bound', () => {
   it('keeps each route its bound and gives a v3 evidence request its own', () => {
-    // The retired v2 form keeps the v2 bound; review analysis is served in the v3 form.
-    expect(aiGatewayRequestMaxBytes(v2FormAnalysisRequest())).toBe(
-      AI_REVIEW_ROUTE_MAX_BYTES,
-    )
     expect(aiGatewayRequestMaxBytes(analysisRequest())).toBe(AI_REVIEW_V3_ROUTE_MAX_BYTES)
     expect(aiGatewayRequestMaxBytes(replyRequest())).toBe(
       REPLY_DRAFTING_V2_ROUTE_MAX_BYTES,

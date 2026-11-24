@@ -1,4 +1,4 @@
-import { reviewIdentityValues } from '#/contexts/reputation/public-api'
+import { reviewIdentityValues } from '../content/store.server'
 // Review context — Drizzle review repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 // Reviews table has no deletedAt column, so baseWhere is not used.
@@ -9,8 +9,8 @@ import { reviewIdentityValues } from '#/contexts/reputation/public-api'
 //   the Inbox repair command's source list is "all review sources" and a cap would
 //   make its report look complete.
 //   The system-level lifecycle sweeps (refresh-expiring, purge-expired)
-//          use keyset-bounded batch queries (findExpiringBatchAcrossTenants,
-//          findExpiredBatchBeforeAcrossTenants) with caller-supplied limits —
+//          use a keyset-bounded batch query (findExpiringBatchAcrossTenants)
+//          with a caller-supplied limit —
 //          the one-shot 5,000-row scans were removed (not cursor-safe at scale).
 //
 // Erased Reviews: a Review whose provider content was erased (a tombstone,
@@ -26,19 +26,7 @@ import { reviewIdentityValues } from '#/contexts/reputation/public-api'
 
 import { hasCurrentReplyForAi } from './unanswered-review.server'
 import { timingSafeEqual } from 'node:crypto'
-import {
-  and,
-  asc,
-  eq,
-  lte,
-  lt,
-  gt,
-  gte,
-  inArray,
-  desc,
-  isNotNull,
-  sql,
-} from 'drizzle-orm'
+import { and, asc, eq, lte, gt, gte, inArray, desc, isNotNull, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { reviews, reviewProviderSubjects } from '#/shared/db/schema/review.schema'
@@ -128,15 +116,15 @@ const reviewFromJoin = (row: ReviewWithContentRow): Review =>
 type ClockCursor = Readonly<{ contentExpiresAt: Date; id: string }> | null
 
 /**
- * One keyset page of live Reviews by content clock, oldest first. `bound` is
- * the comparison of the clock with the sweep's date; the cursor is a strict
+ * One keyset page of live Reviews expiring on or before `date`, by content
+ * clock, oldest first. The cursor is a strict
  * row-tuple greater-than, so rows inserted behind it are never skipped or
  * repeated as it advances. The clock predicate keeps the partial index
  * (`review_source_contents_expiry_idx`) usable.
  */
 async function clockBatchAcrossTenants(
   db: Database,
-  bound: SQL,
+  date: Date,
   cursor: ClockCursor,
   limit: number,
   scope?: SQL,
@@ -146,7 +134,7 @@ async function clockBatchAcrossTenants(
       and(
         holdsContent,
         isNotNull(reviewSourceContents.contentExpiresAt),
-        bound,
+        lte(reviewSourceContents.contentExpiresAt, date),
         scope,
         cursor
           ? sql`(${reviewSourceContents.contentExpiresAt}, ${reviews.id}) > (${cursor.contentExpiresAt}, ${cursor.id})`
@@ -501,41 +489,6 @@ export const createReviewRepository = (
     })
   },
 
-  readAiAnalysisHead: async (input) => {
-    return await trace('review.readAiAnalysisHead', async () => {
-      try {
-        const result = await db.execute(sql`
-          SELECT
-            property.source_epoch AS current_source_epoch,
-            head.head_sequence
-          FROM properties AS property
-          LEFT JOIN review_ai_analysis_heads AS head
-            ON head.organization_id = property.organization_id
-            AND head.property_id = property.id
-            AND head.source_epoch = ${input.sourceEpoch}
-          WHERE property.organization_id = ${input.organizationId}
-            AND property.id = ${input.propertyId}::uuid
-          LIMIT 1
-        `)
-        const row = result.rows[0] as
-          Readonly<{ current_source_epoch: unknown; head_sequence: unknown }> | undefined
-        if (row == null) return { status: 'not_found' as const }
-        const currentEpoch = parseSafeNonnegativeInteger(row.current_source_epoch)
-        if (currentEpoch == null) return { status: 'policy_unavailable' as const }
-        if (currentEpoch !== input.sourceEpoch) {
-          return { status: 'source_epoch_changed' as const }
-        }
-        const analysisSequence = parseSafeNonnegativeInteger(row.head_sequence)
-        if (analysisSequence == null) {
-          return { status: 'policy_unavailable' as const }
-        }
-        return { status: 'current' as const, analysisSequence }
-      } catch {
-        return { status: 'policy_unavailable' as const }
-      }
-    })
-  },
-
   findByIds: async (ids: ReadonlyArray<ReviewId>, organizationId: OrganizationId) => {
     return trace('review.findByIds', async () => {
       if (ids.length === 0) return []
@@ -792,60 +745,7 @@ export const createReviewRepository = (
    */
   findExpiringBatchAcrossTenants: async (date, cursor, limit) => {
     return trace('review.findExpiringBatchAcrossTenants', () =>
-      clockBatchAcrossTenants(
-        db,
-        lte(reviewSourceContents.contentExpiresAt, date),
-        cursor,
-        limit,
-        reviewIsSyncable(),
-      ),
+      clockBatchAcrossTenants(db, date, cursor, limit, reviewIsSyncable()),
     )
-  },
-
-  /**
-   * Keyset-bounded batch of expired rows (contentExpiresAt ASC,
-   * id ASC), exclusive `contentExpiresAt < date` boundary. Same keyset
-   * contract as findExpiringBatchAcrossTenants: the strict row-tuple
-   * cursor predicate never skips or repeats as the cursor advances.
-   * ADR 0031: no post-expiry grace — purge as soon as the
-   * fetch clock expires.
-   */
-  findExpiredBatchBeforeAcrossTenants: async (date, cursor, limit) => {
-    return trace('review.findExpiredBatchBeforeAcrossTenants', () =>
-      clockBatchAcrossTenants(
-        db,
-        lt(reviewSourceContents.contentExpiresAt, date),
-        cursor,
-        limit,
-      ),
-    )
-  },
-
-  /**
-   * Exact purge-eligible count (exclusive boundary) — the restore
-   * drill's dry-run/zero-remaining probe. A COUNT, not a bounded scan.
-   */
-  countExpiredBeforeAcrossTenants: async (date: Date) => {
-    return trace('review.countExpiredBeforeAcrossTenants', async () => {
-      const rows = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(reviews)
-        .innerJoin(
-          reviewSourceContents,
-          and(
-            eq(reviewSourceContents.reviewId, reviews.id),
-            eq(reviewSourceContents.organizationId, reviews.organizationId),
-            eq(reviewSourceContents.propertyId, reviews.propertyId),
-          ),
-        )
-        .where(
-          and(
-            holdsContent,
-            isNotNull(reviewSourceContents.contentExpiresAt),
-            lt(reviewSourceContents.contentExpiresAt, date),
-          ),
-        )
-      return rows[0]?.count ?? 0
-    })
   },
 })

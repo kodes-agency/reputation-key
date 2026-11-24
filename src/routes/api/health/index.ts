@@ -5,34 +5,12 @@
 // per-probe budgets) —
 // the response shape stays compatible by ADDING fields, never removing.
 import { createFileRoute } from '@tanstack/react-router'
-import { isContainerReady } from '#/composition/container-readiness.server'
-import { areRedisDependenciesHealthy } from '#/shared/health/redis-dependencies'
-import { isDbHealthy } from '#/shared/health/db-probe'
-import { probeHttpStatus } from '#/shared/health/probes'
-import {
-  isMigrationJournalMatched,
-  isKeyConfigurationReady,
-  isPolicyConfigurationReady,
-  runReadiness,
-} from '#/shared/health/readiness'
+import { readinessResponse } from './-readiness-response'
 
 export const Route = createFileRoute('/api/health/')({
   server: {
     handlers: {
-      GET: async () => {
-        const result = await runReadiness({
-          container: isContainerReady,
-          keys: isKeyConfigurationReady,
-          db: isDbHealthy,
-          redis: areRedisDependenciesHealthy,
-          migrations: isMigrationJournalMatched,
-          policy: isPolicyConfigurationReady,
-        })
-        return new Response(JSON.stringify(result), {
-          status: probeHttpStatus(result.status),
-          headers: { 'Content-Type': 'application/json' },
-        })
-      },
+      GET: readinessResponse,
     },
   },
 })

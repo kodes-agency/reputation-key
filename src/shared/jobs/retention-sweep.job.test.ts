@@ -329,7 +329,6 @@ describe('retention sweep job (BQC-1.6)', () => {
       batches: 2,
       processed: 7,
       capped: false,
-      completedThrough: NOW,
     }))
     const handler = createRetentionSweepHandler({
       db: {} as never,
