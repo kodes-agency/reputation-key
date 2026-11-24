@@ -7,18 +7,15 @@
 import { lentTransactionArgs } from '#/contexts/reputation/inbox/review-open-transaction.port.server'
 import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
-import { reviewId } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { reviewId, type InboxItemId } from '#/shared/domain/ids'
+import type {
+  InboxItem,
+  ManualReopenReason,
+} from '#/contexts/reputation/domain/inbox-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { validateTransition } from '#/contexts/reputation/domain/inbox-rules'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
-import type {
-  BulkReopenItemInput,
-  BulkReopenItemResult,
-  BulkUpdateInboxStatus,
-  BulkUpdateInboxStatusInput,
-} from '#/contexts/reputation/inbox/inbox-status-commands.server'
 import {
   inboxItemBulkStatusChanged,
   type InboxItemBulkStatusChanged,
@@ -34,6 +31,36 @@ import type { InboxSourceScope } from '#/contexts/reputation/inbox/inbox-reposit
 import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+
+export type BulkReopenItemInput = Readonly<{
+  inboxItemId: InboxItemId
+  expectedCommandRevision: number
+}>
+
+export type BulkReopenItemOutcome =
+  'reopened' | 'already_open' | 'revision_conflict' | 'unavailable'
+
+export type BulkReopenItemResult = Readonly<{
+  inboxItemId: InboxItemId
+  outcome: BulkReopenItemOutcome
+}>
+
+export type BulkUpdateInboxStatusInput = Readonly<{
+  items: ReadonlyArray<BulkReopenItemInput>
+  newStatus: 'open'
+  reopenReason: ManualReopenReason
+  reopenExplanation?: string | null
+}>
+
+export type BulkUpdateInboxStatusResult = Readonly<{
+  updated: number
+  results: ReadonlyArray<BulkReopenItemResult>
+}>
+
+export type BulkUpdateInboxStatus = (
+  input: BulkUpdateInboxStatusInput,
+  ctx: AuthContext,
+) => Promise<BulkUpdateInboxStatusResult>
 
 export type BulkUpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository
