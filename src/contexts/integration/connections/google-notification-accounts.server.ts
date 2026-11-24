@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
+import { withSessionAdvisoryLock } from '#/shared/db/session-advisory-lock'
 import { withReservedPoolClients } from '#/shared/db/pool-client-reservation'
 import { googleNotificationAccounts } from '#/shared/db/schema/google-notification-account.schema'
 import type { GoogleNotificationAccounts } from './google-notification-accounts.port.server'
@@ -24,38 +25,19 @@ export function createGoogleNotificationAccounts(
   }
   return {
     withAccount: async (accountId, run) =>
-      withReservedPoolClients(db, 2, async () => {
-        const client = await db.$client.connect()
-        const lockKey = `google-notification-account:${key(accountId)}`
-        let acquired = false
-        let destroy = false
-        try {
-          const result = await client.query<{ acquired: boolean }>(
-            'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS acquired',
-            [lockKey],
-          )
-          acquired = result.rows[0]?.acquired === true
-          if (!acquired)
+      withReservedPoolClients(db, 2, () =>
+        withSessionAdvisoryLock(
+          db,
+          `google-notification-account:${key(accountId)}`,
+          run,
+          () => {
             throw createGoogleCallError('subscribe', 'upstream_error', {
               executionAdmissionCode: 'coordination_unavailable',
               dispatch: 'not_sent',
             })
-          return await run()
-        } finally {
-          if (acquired) {
-            try {
-              const result = await client.query<{ released: boolean }>(
-                'SELECT pg_advisory_unlock(hashtextextended($1, 0)) AS released',
-                [lockKey],
-              )
-              destroy = result.rows[0]?.released !== true
-            } catch {
-              destroy = true
-            }
-          }
-          client.release(destroy)
-        }
-      }),
+          },
+        ),
+      ),
     read: async (accountId) => {
       const [row] = await db
         .select()

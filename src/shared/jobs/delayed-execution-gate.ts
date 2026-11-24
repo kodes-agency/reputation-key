@@ -34,12 +34,7 @@ import {
   type DelayedDecision,
 } from '#/shared/auth/system-execution-policy'
 import type { Capability } from '#/shared/auth/beta-capabilities'
-import {
-  EXECUTION_POLICY_VERSION,
-  isConsentSelectorBoundToScope,
-  type ConsentSelector,
-  type MerchantAiConsentFence,
-} from '#/shared/auth/execution-policy'
+import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
 import { GateDenyRetryError, UnknownJobError } from './errors'
@@ -71,12 +66,11 @@ export type JobExecutionEnvelope = Readonly<{
   capability: Capability | 'none'
   policyVersionAtEnqueue: string
   initiator: Readonly<{ kind: 'user' | 'system'; id: string }>
-  consent?: ConsentSelector
   correlationId?: string
 }>
 
 export type JobEnqueueAttribution = Readonly<
-  Partial<Pick<JobExecutionEnvelope, 'initiator' | 'correlationId' | 'consent'>>
+  Partial<Pick<JobExecutionEnvelope, 'initiator' | 'correlationId'>>
 >
 
 export function createJobExecutionEnvelope(
@@ -91,19 +85,6 @@ export function createJobExecutionEnvelope(
   if (input.initiator.id.length === 0) {
     throw new Error('job execution envelope requires a named initiator')
   }
-  if (input.consent !== undefined) {
-    const consent = envelopeConsent({ consent: input.consent })
-    const scopeMatches =
-      consent !== undefined &&
-      isConsentSelectorBoundToScope(consent, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        userId: input.initiator.kind === 'user' ? input.initiator.id : undefined,
-      })
-    if (!scopeMatches) {
-      throw new Error('job execution envelope consent selector does not match scope')
-    }
-  }
   return {
     organizationId: input.organizationId,
     capability: input.capability,
@@ -111,7 +92,6 @@ export function createJobExecutionEnvelope(
     policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     ...(input.propertyId === undefined ? {} : { propertyId: input.propertyId }),
     ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
-    ...(input.consent === undefined ? {} : { consent: input.consent }),
   }
 }
 
@@ -179,82 +159,6 @@ function envelopeInitiator(
   }
   return { kind: initiator.kind, id: initiator.id }
 }
-function envelopeFence(value: unknown): MerchantAiConsentFence | null | undefined {
-  if (value === undefined) return undefined
-  if (
-    !isRecord(value) ||
-    Object.keys(value).length !== 7 ||
-    typeof value.authorizationLineageId !== 'string' ||
-    typeof value.capabilityEpoch !== 'number' ||
-    !Number.isSafeInteger(value.capabilityEpoch) ||
-    value.capabilityEpoch < 1 ||
-    typeof value.authorizedSourceEpoch !== 'number' ||
-    !Number.isSafeInteger(value.authorizedSourceEpoch) ||
-    // 0-based source epoch (drizzle/0060), unlike capabilityEpoch/stateVersion.
-    value.authorizedSourceEpoch < 0 ||
-    typeof value.stateVersion !== 'number' ||
-    !Number.isSafeInteger(value.stateVersion) ||
-    value.stateVersion < 1 ||
-    typeof value.noticeDigest !== 'string' ||
-    typeof value.recordedRuntimeProfileVersion !== 'string' ||
-    !isRecord(value.servedExecution) ||
-    Object.keys(value.servedExecution).length !== 3 ||
-    typeof value.servedExecution.runtimeProfileVersion !== 'string' ||
-    typeof value.servedExecution.operationProfileVersion !== 'string' ||
-    typeof value.servedExecution.providerDeploymentProfileVersion !== 'string'
-  ) {
-    return null
-  }
-  return {
-    authorizationLineageId: value.authorizationLineageId,
-    capabilityEpoch: value.capabilityEpoch,
-    authorizedSourceEpoch: value.authorizedSourceEpoch,
-    stateVersion: value.stateVersion,
-    noticeDigest: value.noticeDigest,
-    recordedRuntimeProfileVersion: value.recordedRuntimeProfileVersion,
-    servedExecution: {
-      runtimeProfileVersion: value.servedExecution.runtimeProfileVersion,
-      operationProfileVersion: value.servedExecution.operationProfileVersion,
-      providerDeploymentProfileVersion:
-        value.servedExecution.providerDeploymentProfileVersion,
-    },
-  }
-}
-
-function envelopeConsent(data: Record<string, unknown>): ConsentSelector | undefined {
-  if (!Object.hasOwn(data, 'consent')) return undefined
-  const consent = data.consent
-  if (!isRecord(consent)) {
-    return { subjectType: 'property', subjectId: '', purpose: '' }
-  }
-  const expectedFence = envelopeFence(consent.expectedFence)
-  if (
-    Object.keys(consent).some(
-      (key) =>
-        key !== 'subjectType' &&
-        key !== 'subjectId' &&
-        key !== 'purpose' &&
-        key !== 'expectedFence',
-    ) ||
-    (consent.subjectType !== 'organization' &&
-      consent.subjectType !== 'property' &&
-      consent.subjectType !== 'user') ||
-    typeof consent.subjectId !== 'string' ||
-    consent.subjectId.length === 0 ||
-    typeof consent.purpose !== 'string' ||
-    consent.purpose.length === 0 ||
-    expectedFence === null
-  ) {
-    return { subjectType: 'property', subjectId: '', purpose: '' }
-  }
-  return {
-    subjectType: consent.subjectType,
-    subjectId: consent.subjectId,
-    purpose: consent.purpose,
-    ...(expectedFence === undefined ? {} : { expectedFence }),
-  }
-}
-
 function resolveOrganizationId(
   payload: Record<string, unknown>,
   row: EntryPointRow | undefined,
@@ -316,7 +220,6 @@ export async function gateJob(
     capabilityAtEnqueue: envelopeCapability(payload),
     executionKind,
     initiator: envelopeInitiator(payload),
-    consent: envelopeConsent(payload),
     policyVersionAtEnqueue:
       typeof payload.policyVersionAtEnqueue === 'string'
         ? payload.policyVersionAtEnqueue

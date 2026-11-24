@@ -95,9 +95,7 @@ export function buildCapabilityPolicyHandle(deps: {
     }),
   )
 
-  const delayedExecutionPolicy = Object.freeze(
-    createDelayedExecutionPolicy({ hasActiveConsent }),
-  )
+  const delayedExecutionPolicy = Object.freeze(createDelayedExecutionPolicy())
 
   return {
     capabilityPolicyStore,

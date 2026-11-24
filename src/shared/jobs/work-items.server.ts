@@ -1,4 +1,5 @@
 import { WORK_DISPATCH_BATCH_SIZE } from '#/shared/db/work-items.server'
+import { startSingleFlight } from './single-flight'
 
 export {
   createWorkItems,
@@ -66,20 +67,10 @@ export function startWorkItemReconciler(
     onError: (error: unknown) => void
   }>,
 ): () => Promise<void> {
-  let inFlight: Promise<void> | undefined
-  const tick = () => {
-    inFlight ??= input
-      .reconcile()
-      .then(() => undefined)
-      .catch(input.onError)
-      .finally(() => {
-        inFlight = undefined
-      })
-  }
-  tick()
-  const timer = setInterval(tick, 60_000)
-  return async () => {
-    clearInterval(timer)
-    await inFlight
-  }
+  return startSingleFlight({
+    tick: input.reconcile,
+    intervalMs: 60_000,
+    immediate: true,
+    onError: input.onError,
+  })
 }

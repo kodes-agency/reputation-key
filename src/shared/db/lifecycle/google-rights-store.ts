@@ -8,6 +8,7 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
+import { organizationExists } from './rights-primitives'
 
 const EXPORT_VERSION = 'integration-rights-export/v1'
 
@@ -68,13 +69,6 @@ function count(row: Row | undefined, field: string): number {
   if (typeof value === 'number' && Number.isSafeInteger(value)) return value
   if (typeof value === 'string' && /^\d+$/u.test(value)) return Number(value)
   throw new Error(`Google rights count is unavailable: ${field}`)
-}
-
-async function organizationExists(tx: Tx, organizationId: string): Promise<boolean> {
-  const result = await tx.execute(
-    sql`SELECT 1 AS present FROM organization WHERE id = ${organizationId}`,
-  )
-  return result.rows.length > 0
 }
 
 /** Receipts the closure deletes or scrubs: OAuth exchange, retry, discovery and revoke records. */
