@@ -5,7 +5,6 @@ import {
   rotateToken,
   revokeToken,
   isActive,
-  isInGracePeriod,
 } from './portal-token'
 
 describe('PortalToken', () => {
@@ -185,31 +184,6 @@ describe('PortalToken', () => {
         // Add 1ms to ensure we're past the grace end
         expect(isActive(rot.oldToken, new Date(NOW.getTime() + 1000))).toBe(false)
       }
-    })
-  })
-
-  describe('isInGracePeriod', () => {
-    it('returns true for rotating token within grace', () => {
-      const t = issueToken(baseParams)
-      const rot = rotateToken(
-        t,
-        {
-          id: 'token-2',
-          tokenIdentifier: 'identifier-new',
-          tokenHash: 'hash-new',
-          tokenKeyVersion: 1,
-          version: 2,
-        },
-        60000,
-        NOW,
-      )
-      if ('oldToken' in rot) {
-        expect(isInGracePeriod(rot.oldToken, NOW)).toBe(true)
-      }
-    })
-
-    it('returns false for active token (not rotating)', () => {
-      expect(isInGracePeriod(issueToken(baseParams), NOW)).toBe(false)
     })
   })
 })

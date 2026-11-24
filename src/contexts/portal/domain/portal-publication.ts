@@ -27,7 +27,3 @@ export function transitionPortalPublication(
   }
   return to
 }
-
-export function isPubliclyAvailable(state: PortalPublicationState): boolean {
-  return state === 'published'
-}

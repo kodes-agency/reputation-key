@@ -165,15 +165,3 @@ export function revokeToken(
     retiredAt: now,
   }
 }
-
-/**
- * Check if a token is within its grace period (still resolves alongside
- * a newer token).
- */
-export function isInGracePeriod(token: PortalToken, asOf: Date): boolean {
-  return (
-    token.status === 'rotating' &&
-    token.gracePeriodEnds !== null &&
-    asOf <= token.gracePeriodEnds
-  )
-}

@@ -12,7 +12,6 @@ export type ResolvePortalContextResult = Readonly<{
 
 export type PortalRepository = Readonly<{
   findById: (orgId: OrganizationId, id: PortalId) => Promise<Portal | null>
-  findBySlug: (orgId: OrganizationId, slug: string) => Promise<Portal | null>
   list: (orgId: OrganizationId) => Promise<ReadonlyArray<Portal>>
   listByProperty: (
     orgId: OrganizationId,

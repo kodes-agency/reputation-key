@@ -10,13 +10,13 @@ import {
   validatePortalTheme,
   validatePrivateFeedbackThreshold,
   validateUrl,
-  isValidExternalUrl,
   isValidLinkDestination,
   linkAddressRefusal,
   validateLinkLabel,
   validateLinkIconKey,
   validateCategoryTitle,
 } from './rules'
+import { isPublicHttpsDestination } from './safe-link'
 
 // ── normalizeSlug ──────────────────────────────────────────────────
 
@@ -372,12 +372,12 @@ describe('validateCategoryTitle', () => {
   })
 })
 
-// ── isValidExternalUrl ────────────────────────────────────────────
+// ── isPublicHttpsDestination ────────────────────────────────────────────
 
-describe('isValidExternalUrl', () => {
+describe('isPublicHttpsDestination', () => {
   it('accepts valid https URLs', () => {
-    expect(isValidExternalUrl('https://example.com')).toBe(true)
-    expect(isValidExternalUrl('https://example.com/path?q=1#hash')).toBe(true)
+    expect(isPublicHttpsDestination('https://example.com')).toBe(true)
+    expect(isPublicHttpsDestination('https://example.com/path?q=1#hash')).toBe(true)
   })
 
   it('rejects credentials and private or local destinations', () => {
@@ -389,33 +389,35 @@ describe('isValidExternalUrl', () => {
       'https://service.internal/admin',
       'https://portal.localhost/admin',
     ]) {
-      expect(isValidExternalUrl(url), url).toBe(false)
+      expect(isPublicHttpsDestination(url), url).toBe(false)
     }
   })
 
   it('rejects http URLs', () => {
-    expect(isValidExternalUrl('http://example.com')).toBe(false)
+    expect(isPublicHttpsDestination('http://example.com')).toBe(false)
   })
 
   it('rejects javascript: scheme', () => {
-    expect(isValidExternalUrl('javascript:alert(1)')).toBe(false)
+    expect(isPublicHttpsDestination('javascript:alert(1)')).toBe(false)
   })
 
   it('rejects data: scheme', () => {
-    expect(isValidExternalUrl('data:text/html,<script>alert(1)</script>')).toBe(false)
+    expect(isPublicHttpsDestination('data:text/html,<script>alert(1)</script>')).toBe(
+      false,
+    )
   })
 
   it('rejects protocol-relative URLs', () => {
-    expect(isValidExternalUrl('//evil.com')).toBe(false)
+    expect(isPublicHttpsDestination('//evil.com')).toBe(false)
   })
 
   it('rejects malformed URLs', () => {
-    expect(isValidExternalUrl('')).toBe(false)
-    expect(isValidExternalUrl('not-a-url')).toBe(false)
+    expect(isPublicHttpsDestination('')).toBe(false)
+    expect(isPublicHttpsDestination('not-a-url')).toBe(false)
   })
 
   it('rejects mailto: scheme', () => {
-    expect(isValidExternalUrl('mailto:admin@example.com')).toBe(false)
+    expect(isPublicHttpsDestination('mailto:admin@example.com')).toBe(false)
   })
 })
 

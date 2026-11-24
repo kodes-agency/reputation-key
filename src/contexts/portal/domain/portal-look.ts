@@ -46,8 +46,7 @@ import {
  */
 export const PORTAL_LOOK_EDIT_PERMISSION = 'portal.admin' satisfies Permission
 
-const PORTAL_LOOK_GROUPS = Object.freeze(['photo', 'colours', 'identity'] as const)
-export type PortalLookGroup = (typeof PORTAL_LOOK_GROUPS)[number]
+export type PortalLookGroup = 'photo' | 'colours' | 'identity'
 
 export const PORTAL_LOOK_PHOTO_MODES = Object.freeze(['inherit', 'own', 'none'] as const)
 export type PortalLookPhotoMode = (typeof PORTAL_LOOK_PHOTO_MODES)[number]
@@ -320,14 +319,6 @@ const GROUPS_OF_FACET: Readonly<Record<LookFacet, readonly PortalLookGroup[]>> =
 /** The groups a facet of the look belongs to; the older `images` facet belongs to two. */
 export const lookGroupsOfFacet = (facet: LookFacet): readonly PortalLookGroup[] =>
   GROUPS_OF_FACET[facet]
-
-/** The groups any of these facets belongs to, each once, in group order. */
-export function lookGroupsOfFacets(
-  facets: readonly LookFacet[],
-): readonly PortalLookGroup[] {
-  const touched = new Set(facets.flatMap((facet) => lookGroupsOfFacet(facet)))
-  return PORTAL_LOOK_GROUPS.filter((group) => touched.has(group))
-}
 
 /**
  * Whether a change of the Property look's `facet` reaches a Portal whose groups

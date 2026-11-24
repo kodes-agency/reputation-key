@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isPubliclyAvailable, transitionPortalPublication } from './portal-publication'
+import { transitionPortalPublication } from './portal-publication'
 
 describe('portal publication lifecycle', () => {
   it('publishes drafts and republishes disabled portals', () => {
@@ -25,12 +25,5 @@ describe('portal publication lifecycle', () => {
       from: 'archived',
       to: 'published',
     })
-  })
-
-  it('exposes only published portals publicly', () => {
-    expect(isPubliclyAvailable('published')).toBe(true)
-    expect(isPubliclyAvailable('draft')).toBe(false)
-    expect(isPubliclyAvailable('disabled')).toBe(false)
-    expect(isPubliclyAvailable('archived')).toBe(false)
   })
 })
