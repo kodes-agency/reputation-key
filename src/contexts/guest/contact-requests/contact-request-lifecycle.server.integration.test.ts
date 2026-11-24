@@ -1,3 +1,4 @@
+import { createInMemoryWithdrawalJournal } from '../responses/guest-withdrawal-journal.test-fixtures'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -166,7 +167,7 @@ function build(setup: Setup = {}) {
   const repo = createContactRequestRepository(
     db,
     setup.keyless ? undefined : encryption,
-    setup.journal,
+    setup.journal ?? createInMemoryWithdrawalJournal(),
   )
   const commands = contactRequestLifecycle({
     repo,

@@ -9,7 +9,6 @@ import {
   CORRECTION_WINDOW_MS,
   GuestResponseLifecycleError,
   RESPONSE_WITHDRAWAL_WINDOW_MS,
-  type GuestResponseInput,
 } from '../responses/guest-response-lifecycle.server'
 import {
   canStartNewGuestResponse,
@@ -17,6 +16,7 @@ import {
   type GuestResponseView,
 } from '../responses/contracts'
 import type { PublicPortalData } from '../page/public-portal.contracts'
+import { findPortalLink } from '../page/resolve-portal-link.server'
 import {
   guestPrivateFeedbackMutationDto,
   guestRatingMutationDto,
@@ -93,14 +93,13 @@ function lifecycleFailure(error: unknown): never {
   )
 }
 
-function assertions(input: GuestResponseInput): PublicConsentAssertions {
-  return {
-    analytics: false,
-    response: input.responseConsent === true,
-    freeText: input.textConsent === true,
-    contact: false,
-    media: input.mediaConsent === true,
-  }
+/** The rating DTO carries `responseConsent: true`, and nothing else is consented. */
+const RATING_ASSERTIONS: PublicConsentAssertions = {
+  analytics: false,
+  response: true,
+  freeText: false,
+  contact: false,
+  media: false,
 }
 
 /**
@@ -150,7 +149,7 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
             ...data,
             action: 'public:portal.response.submit',
             capability: 'portal.guest_response',
-            assertions: assertions(data),
+            assertions: RATING_ASSERTIONS,
             requiredConsents: ['response'],
           })
           if (skipsPrivateRating(bound.portal)) return denyWithoutEnumeration()
@@ -205,7 +204,7 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
           const response = await bound.useCases.responseLifecycle.submit(
             bound.scope,
             bound.session.sessionId,
-            data,
+            { rating: data.rating },
             {
               portalPublicationState: bound.portal.responseConfiguration.publicationState,
               portalPublicationSnapshotId:
@@ -221,7 +220,6 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
               privateFeedbackThreshold:
                 bound.portal.responseConfiguration.privateFeedbackThreshold,
             },
-            undefined,
             initialIntegrityAssessment({ trapped, overNetworkBudget }),
           )
           if (response.responseWithdrawalDeadline) {
@@ -254,7 +252,7 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
           ...data,
           action: 'public:portal.response.correct',
           capability: 'portal.guest_response',
-          assertions: assertions(data),
+          assertions: RATING_ASSERTIONS,
           requiredConsents: ['response'],
         })
         await rateLimit('correct', bound.session.sessionId, bound.scope, bound.headers)
@@ -262,7 +260,7 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
           return await bound.useCases.responseLifecycle.correct(
             bound.scope,
             bound.session.sessionId,
-            data,
+            { rating: data.rating },
           )
         } catch (error) {
           return lifecycleFailure(error)
@@ -512,23 +510,20 @@ export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
           bound.headers,
           bound.scope.organizationId,
         )
-        const result = await bound.useCases.resolveLinkAndTrack({
-          token: data.token,
-          linkId: portalLinkId(data.linkId),
-          qualifyObservation: async (scope) =>
-            qualified &&
-            countVisit &&
-            scope.organizationId === bound.scope.organizationId &&
-            scope.propertyId === bound.scope.propertyId &&
-            scope.portalId === bound.scope.portalId
-              ? {
-                  sessionId: bound.session.sessionId,
-                  sessionExpiresAt: bound.session.expiresAt,
-                }
-              : null,
-        })
-        if (!result) return denyWithoutEnumeration()
-        return result
+        const link = findPortalLink(bound.portal, data.linkId)
+        if (!link) return denyWithoutEnumeration()
+        if (qualified && countVisit) {
+          await bound.useCases.trackReviewLinkClick({
+            linkId: portalLinkId(data.linkId),
+            destinationKind: 'secondary_link',
+            sessionId: bound.session.sessionId,
+            sessionExpiresAt: bound.session.expiresAt,
+            organizationId: organizationId(bound.scope.organizationId),
+            portalId: portalId(bound.scope.portalId),
+            propertyId: propertyId(bound.scope.propertyId),
+          })
+        }
+        return { url: link.url }
       },
       'POST',
       'guest.secondary_link.select',

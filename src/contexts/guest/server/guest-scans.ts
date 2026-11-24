@@ -256,10 +256,29 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
         const { clock } = container
         try {
           const requestHeaders = await headersFromContext()
-          let portal = await useCases.getPublicPortal({
+          const acceptLanguage = requestHeaders?.get('accept-language') ?? null
+          // The cookie is verified against the scope of the admitted token, never
+          // a scope the cookie names, so a signed preference from another Portal
+          // can never influence this response. An explicit ?lang outranks it.
+          let session = null as ReturnType<typeof useCases.guestSessions.verify>
+          const portal = await useCases.getPublicPortal({
             token: data.token,
-            requestedLocale: data.locale,
-            acceptLanguage: requestHeaders?.get('accept-language') ?? null,
+            preference: (admitted) => {
+              session = useCases.guestSessions.verify(
+                requestHeaders?.get('cookie') ?? '',
+                {
+                  organizationId: organizationId(admitted.organizationId),
+                  propertyId: propertyId(admitted.propertyId),
+                  portalId: portalId(admitted.portalId),
+                },
+              )
+              return {
+                requestedLocale: data.locale,
+                sessionLocale:
+                  data.locale === undefined ? (session?.guestLocale ?? null) : null,
+                acceptLanguage,
+              }
+            },
           })
           // How printed codes are doing against the website address, on every line
           // this read logs. The shape only: the address is a credential.
@@ -283,22 +302,6 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
               { code: 'portal_not_found', message: 'Portal not found' },
               404,
             )
-          }
-          let session = useCases.guestSessions.verify(
-            requestHeaders?.get('cookie') ?? '',
-            scope,
-          )
-          if (session?.guestLocale && data.locale === undefined) {
-            // The first token resolution establishes the exact tenant/Property/
-            // Portal scope needed to verify the cookie. Re-resolve only after
-            // that check so a signed preference from another Portal can never
-            // influence this response.
-            portal = await useCases.getPublicPortal({
-              token: data.token,
-              requestedLocale: null,
-              sessionLocale: session.guestLocale,
-              acceptLanguage: requestHeaders?.get('accept-language') ?? null,
-            })
           }
           if (!session) {
             const issued = useCases.guestSessions.issue(
@@ -363,7 +366,7 @@ export const resolvePublicPortalLink = createServerFn({ method: 'GET' })
         applyGuestPublicResponsePrivacy({ varyCookie: false })
         const useCases = getContainer().guestPublicApi.requests
         try {
-          return await useCases.resolveLinkAndTrack({
+          return await useCases.resolvePortalLink({
             token: data.token,
             linkId: portalLinkId(data.linkId),
           })

@@ -8,19 +8,17 @@ export type GetPublicPortalDeps = Readonly<{
 
 export type GetPublicPortalInput = Readonly<{
   token: string
-  requestedLocale?: string | null
-  sessionLocale?: string | null
-  acceptLanguage?: string | null
+  /**
+   * Supplies the language preference once the token is admitted, so a signed
+   * session can be verified against the admitted scope in the same resolution.
+   */
+  preference?: Parameters<PortalPublicApi['findPublicPortalByToken']>[1]
 }>
 
 export const getPublicPortal =
   (deps: GetPublicPortalDeps) => async (input: GetPublicPortalInput) =>
     trace('publicPortal.findByToken', async () => {
-      const outcome = await deps.findPublicPortalByToken(input.token, {
-        requestedLocale: input.requestedLocale,
-        sessionLocale: input.sessionLocale,
-        acceptLanguage: input.acceptLanguage,
-      })
+      const outcome = await deps.findPublicPortalByToken(input.token, input.preference)
       if (outcome.status !== 'found') {
         throw guestError('portal_not_found', 'Portal not found')
       }

@@ -6,17 +6,22 @@
 // contributor port it implements and nothing else from Identity (see
 // src/contexts/CONTEXT.md "Dependency rules" and the port header).
 
-import { sql, type SQL } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { Database } from '#/shared/db'
+import {
+  assertSnapshotWindow,
+  readRows,
+  sortRecords,
+  utc,
+  type ExportRecord,
+  type ExportScalar,
+} from '#/shared/db/lifecycle/export-snapshot-rows'
 import { csvCell } from '#/shared/security/csv-cell'
 import type {
   OrganizationExportContributor,
   OrganizationExportEntry,
 } from '#/contexts/identity/application/ports/organization-export-contributor.port'
-
-type ExportScalar = string | number | boolean | null
-type ExportRecord = Readonly<Record<string, ExportScalar>>
 
 type PortalOrganizationExportPayload = Readonly<{
   version: 'portal-organization-export/v1'
@@ -50,8 +55,6 @@ type PortalOrganizationExportPayload = Readonly<{
   }>[]
 }>
 
-const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
-
 /**
  * Every deliberate Portal-context exclusion, named so a reviewer can audit the
  * decision instead of inferring it from a missing column.
@@ -79,59 +82,6 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'exported_by_guest_contributor',
   },
 ])
-
-function normalizeScalar(value: unknown, field: string): ExportScalar {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-    return value
-  }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value))
-      throw new Error(`Portal export field is invalid: ${field}`)
-    return value
-  }
-  if (typeof value === 'bigint') return value.toString()
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString()
-  throw new Error(`Portal export field has an unsupported value: ${field}`)
-}
-
-function normalizeRows(rows: readonly Record<string, unknown>[]): ExportRecord[] {
-  return rows.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).map(([field, value]) => [field, normalizeScalar(value, field)]),
-    ),
-  )
-}
-
-async function readRows(
-  snapshot: Parameters<Parameters<Database['transaction']>[0]>[0],
-  query: SQL,
-): Promise<ExportRecord[]> {
-  const result = await snapshot.execute(query)
-  return normalizeRows(result.rows as Record<string, unknown>[])
-}
-
-/** UTF-8 byte order, never the database or host locale collation. */
-function compareText(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'))
-}
-
-/**
- * Ordering happens here rather than in SQL because `ORDER BY` on a text column
- * follows the database collation, which is a host-configuration input. The last
- * key is always a surrogate id so the order is total.
- */
-function sortRecords(
-  rows: readonly ExportRecord[],
-  keys: readonly string[],
-): ExportRecord[] {
-  return [...rows].sort((left, right) => {
-    for (const key of keys) {
-      const result = compareText(String(left[key] ?? ''), String(right[key] ?? ''))
-      if (result !== 0) return result
-    }
-    return 0
-  })
-}
 
 function csvSummary(type: string, record: ExportRecord): readonly ExportScalar[] {
   return [
@@ -217,11 +167,6 @@ function jsonEntry(payload: PortalOrganizationExportPayload): OrganizationExport
   }
 }
 
-const TS = `AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`
-
-/** `jsonb::text` is Postgres' own normalized rendering, so it is stable input. */
-const utc = (column: string) => sql.raw(`to_char(${column} ${TS})`)
-
 async function readPayload(
   db: Database,
   organizationId: string,
@@ -229,23 +174,7 @@ async function readPayload(
 ): Promise<PortalOrganizationExportPayload> {
   return db.transaction(
     async (snapshot) => {
-      const snapshotRows = await readRows(
-        snapshot,
-        sql`SELECT transaction_timestamp() AS snapshot_at`,
-      )
-      const snapshotAt = snapshotRows[0]?.snapshot_at
-      if (typeof snapshotAt !== 'string') {
-        throw new Error('Portal export snapshot clock is unavailable')
-      }
-      const snapshotTime = new Date(snapshotAt).getTime()
-      const requestTime = asOf.getTime()
-      if (
-        Number.isNaN(requestTime) ||
-        snapshotTime < requestTime ||
-        snapshotTime - requestTime > MAX_SNAPSHOT_LAG_MS
-      ) {
-        throw new Error('Portal export snapshot window is unavailable')
-      }
+      await assertSnapshotWindow(snapshot, asOf)
 
       const portals = await readRows(
         snapshot,
