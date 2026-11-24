@@ -288,8 +288,10 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
           {
             analyzeReviewEvent,
             receipts,
-
             backlog: { enqueue: async () => {} },
+            applyAiAuthorizationLifecycle: async () => {
+              throw new Error('authorization lifecycle is not under test')
+            },
             nowEpochMillis: () => Date.now(),
           },
           reviewCreated(sequence),

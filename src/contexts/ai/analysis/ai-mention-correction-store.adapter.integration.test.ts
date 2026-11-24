@@ -110,23 +110,20 @@ describe.sequential('manager corrections through the real stores (PostgreSQL)', 
   }
 
   async function currentAnalysis(index: number, analysisSequence = index) {
-    return seed.outputs.readAnalysisForDelivery(
-      {
-        organizationId: organizationId(IDS.organizationId),
-        actorUserId: userId('78000000-0000-4000-8000-0000000000aa'),
-        propertyId: propertyId(IDS.propertyId),
-        reviewId: reviewId(seededReviewId(IDS, index)),
-        authorizationLineageId: '78000000-0002-4000-8000-000000000001',
-        reviewAnalysisEpoch: 1,
-        sourceEpoch: 0,
-        sourceRevision: 1,
-        analysisSequence,
-        propertyProfileVersion: 1,
-        analysisProfileVersion: 'review-analysis-v3',
-        nowEpochMillis: new Date('2026-10-30T12:00:00.000Z').getTime(),
-      },
-      async (result) => result,
-    )
+    return seed.outputs.readAnalysisForDelivery({
+      organizationId: organizationId(IDS.organizationId),
+      actorUserId: userId('78000000-0000-4000-8000-0000000000aa'),
+      propertyId: propertyId(IDS.propertyId),
+      reviewId: reviewId(seededReviewId(IDS, index)),
+      authorizationLineageId: '78000000-0002-4000-8000-000000000001',
+      reviewAnalysisEpoch: 1,
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence,
+      propertyProfileVersion: 1,
+      analysisProfileVersion: 'review-analysis-v3',
+      nowEpochMillis: new Date('2026-10-30T12:00:00.000Z').getTime(),
+    })
   }
 
   async function clearCorrections() {

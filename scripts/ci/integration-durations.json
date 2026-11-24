@@ -27,7 +27,7 @@
   "src/contexts/ai/execution/ai-lane-admission.adapter.integration.test.ts": 100,
   "src/contexts/ai/execution/ai-operation-lineage.integration.test.ts": 200,
   "src/contexts/ai/execution/ai-operation-recovery.integration.test.ts": 200,
-  "src/contexts/ai/execution/ai-organization-spend.adapter.integration.test.ts": 0,
+  "src/contexts/ai/execution/ai-organization-spend.integration.test.ts": 0,
   "src/contexts/ai/execution/reply-drafting-v2-accounting.integration.test.ts": 200,
   "src/contexts/ai/guest-voice/ai-guest-voice-facts-names.adapter.integration.test.ts": 200,
   "src/contexts/ai/guest-voice/ai-guest-voice-facts.adapter.integration.test.ts": 500,
