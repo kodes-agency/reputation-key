@@ -72,7 +72,7 @@ export const createAiSuggestedDraftStore = (
     PortalAiReplyBrandProfilePublicApi,
     'isCurrentAiReplyBrandProfile'
   >,
-  replyVoices?: AiReplyVoicePublicApi,
+  replyVoices: AiReplyVoicePublicApi,
 ): AiSuggestedDraftStore => {
   return {
     async accept(input) {
@@ -281,13 +281,12 @@ export const createAiSuggestedDraftStore = (
         const voiceCurrent =
           operation.replyAdoptionDisposition !== 'none' ||
           replyVoiceDigest == null ||
-          (replyVoices !== undefined &&
-            (await replyVoices.isCurrentVoice(tx, {
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              languageGroup: provenance.templateGroup,
-              voiceDigest: replyVoiceDigest,
-            })))
+          (await replyVoices.isCurrentVoice(tx, {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            languageGroup: provenance.templateGroup,
+            voiceDigest: replyVoiceDigest,
+          }))
         if (
           grounded &&
           operation.replyAdoptionDisposition === 'none' &&
@@ -616,13 +615,13 @@ function replyAdoptionDeployment(provenance: Provenance): string {
 }
 
 async function adoptionBodyFrame(
-  voices: AiReplyVoicePublicApi | undefined,
+  voices: AiReplyVoicePublicApi,
   provenance: Provenance,
   input: Parameters<AiSuggestedDraftStore['accept']>[0],
 ) {
   if (provenance.version !== 'ai-reply-provenance-v4') return null
   return (
-    voices?.resolveSavedFrame?.({
+    voices.resolveSavedFrame({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       reviewId: input.reviewId,

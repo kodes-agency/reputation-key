@@ -13,9 +13,7 @@ import {
 import type { ReplyLibraryRepository } from './reply-library-repository.port.server'
 import type { ReplyVoiceChoices } from '#/shared/reply/reply-drafting-v2-binding'
 
-type ReservationInput = Parameters<
-  NonNullable<ReplyLibraryRepository['reserveAiFrame']>
->[0]
+type ReservationInput = Parameters<ReplyLibraryRepository['reserveAiFrame']>[0]
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Field = 'closing' | 'signOff' | 'contactSentence' | 'emoji'
 type UsageRow = Readonly<{ choices: ReplyVoiceChoices | null; usedAt: number }>
@@ -155,7 +153,7 @@ function chooseFrame(input: ReservationInput, rows: readonly UsageRow[]) {
 
 export function createReserveAiFrame(
   db: Database,
-): NonNullable<ReplyLibraryRepository['reserveAiFrame']> {
+): ReplyLibraryRepository['reserveAiFrame'] {
   return (input) =>
     db.transaction(async (tx) => {
       // Serializes simultaneous generation for this Property, including unused options.

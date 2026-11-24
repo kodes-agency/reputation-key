@@ -87,6 +87,8 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       },
     },
     {
+      resolveSavedFrame: async () => null,
+      resolveV2Frame: async () => null,
       resolveLocalFrame: async () => null,
       isCurrentVoice: async (_tx, input) => {
         voiceAuthorityCalls.push(input)

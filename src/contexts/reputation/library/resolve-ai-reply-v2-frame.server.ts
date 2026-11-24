@@ -35,7 +35,6 @@ export async function resolveAiReplyV2Frame(
   deps: Readonly<{ repository: ReplyLibraryRepository; reviews: ReviewRepository }>,
   input: ResolveAiReplyV2FrameInput,
 ) {
-  if (!deps.repository.reserveAiFrame) return null
   const resolved = await readAiReplyVoiceSnapshot(deps, input)
   if (resolved === null) return null
   const { snapshot, review, voice, languageGroup } = resolved
