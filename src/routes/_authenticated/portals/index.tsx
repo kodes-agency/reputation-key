@@ -12,7 +12,6 @@ import {
   useQuery,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
   archivePortal,
@@ -70,7 +69,7 @@ export const Route = createFileRoute('/_authenticated/portals/')({
       context,
       data: { capability: 'portal.read', featureLabel: 'Portals' },
     })
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'portal.read')) throw roleUnavailable('Portals', 'properties')
   },
   validateSearch: (search) => allPropertiesSearchSchema.parse(search),
@@ -84,7 +83,7 @@ export const Route = createFileRoute('/_authenticated/portals/')({
 function AllPropertiesRoute() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
-  const ctx = authRoute.useRouteContext() as AuthRouteContext
+  const ctx = authRoute.useRouteContext()
   const { can: canDo, scopeForPermission } = usePermissions()
   const { data: overviewData } = useSuspenseQuery(organizationOverviewQuery)
   const { data: propsData } = useSuspenseQuery(propertiesQuery)

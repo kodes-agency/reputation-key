@@ -3,7 +3,6 @@ import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { importFns, importReplySetupFns } from './-import-fns'
@@ -30,7 +29,7 @@ export const Route = createFileRoute('/_authenticated/properties/import-google/'
   },
   validateSearch: importSearchSchema,
   beforeLoad: async ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     requireGoogleImportRole(role)
     await gateControlledRoute({
       context,

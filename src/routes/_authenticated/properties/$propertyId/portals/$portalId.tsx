@@ -1,6 +1,5 @@
 import { createFileRoute, Outlet, type SearchSchemaInput } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import {
@@ -42,7 +41,7 @@ export const Route = createFileRoute(
         propertyId: params.propertyId,
       },
     })
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'portal.read')) throw roleUnavailable('Portal', 'properties')
   },
   staleTime: 30_000,
