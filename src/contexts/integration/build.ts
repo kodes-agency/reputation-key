@@ -168,8 +168,6 @@ type IntegrationContextDeps = Readonly<{
   googleReviewCursorStore?: GoogleReviewCursorStore
   oauthStateHandles?: OAuthStateHandleService
   oauthCallbackAbuseGate?: OAuthCallbackAbuseGate
-  /** Static policy observation awaited before provider/effect authorization. */
-  refreshPolicyStoreRequired?: () => Promise<void>
   /** Redis-backed, renewable and generation-fenced refresh coordination. */
   googleRefreshCoordination?: GoogleRefreshCoordination
 }>
@@ -478,7 +476,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     references: deps.googleImportReferences,
     replayKeys: deps.googleImportReplayKeys,
     authorizeContent: deps.authorizeGoogleImportContent,
-    refreshPolicyStoreRequired: deps.refreshPolicyStoreRequired,
   })
   const {
     lifecycle: googleImportLifecycle,

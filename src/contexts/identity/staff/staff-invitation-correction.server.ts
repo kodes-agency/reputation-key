@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm'
+import { invitation } from '#/shared/db/schema/auth'
 import type { Database } from '#/shared/db/index'
 import { invitationId, organizationId, userId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
@@ -9,7 +10,11 @@ import { lockStaffAddresses } from './staff-address-lease.server'
 import { readAddressFacts } from './staff-account-store.server'
 
 export const replaceStaffInvitation =
-  (db: Database, clock: () => Date): StaffManagementStore['replaceInvitation'] =>
+  (
+    db: Database,
+    clock: () => Date,
+    invitationExpiresInMs: number,
+  ): StaffManagementStore['replaceInvitation'] =>
   async (input, spendBudget) =>
     db.transaction(async (tx) => {
       const { organizationId: org, participationId: participation } = input
@@ -63,9 +68,17 @@ export const replaceStaffInvitation =
       await tx.execute(
         sql`UPDATE invitation SET status = 'canceled' WHERE id = ${previous.id} AND "organizationId" = ${org}`,
       )
-      await tx.execute(
-        sql`INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "staffParticipationId", "propertyIds", "inviterId", "createdAt") VALUES (${input.invitationId}, ${org}, ${input.email}, 'member', 'pending', ${new Date(clock().getTime() + 7 * 86400000)}, ${participation}, NULL, ${input.actorId}, ${clock()})`,
-      )
+      await tx.insert(invitation).values({
+        id: input.invitationId,
+        organizationId: org,
+        email: input.email,
+        role: 'member',
+        status: 'pending',
+        expiresAt: new Date(clock().getTime() + invitationExpiresInMs),
+        staffParticipationId: participation,
+        inviterId: input.actorId,
+        createdAt: clock(),
+      })
       await tx.execute(
         sql`UPDATE staff_onboardings SET invitation_id = ${input.invitationId}, failure_code = NULL, updated_at = ${clock()} WHERE organization_id = ${org} AND staff_participation_id = ${participation}::uuid AND status = 'done'`,
       )

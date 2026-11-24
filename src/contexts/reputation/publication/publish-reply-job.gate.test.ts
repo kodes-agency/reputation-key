@@ -9,7 +9,7 @@
 // context integrates it). The publish handler itself is never reached on a
 // deny — the gated dispatch closure quarantines/completes before invocation.
 
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import {
   createDelayedExecutionPolicy,
@@ -30,9 +30,7 @@ const PROP = 'd4000000-0000-4000-8000-000000000051'
 function installRealPolicy(env: CapabilityPolicyEnv) {
   resetCapabilityPolicyStore()
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
-  const refreshPolicy = vi.fn(async () => {})
-  initDelayedExecutionPolicy(createDelayedExecutionPolicy({ refreshPolicy }))
-  return refreshPolicy
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 }
 
 function fixtureEnv(namePart: string): CapabilityPolicyEnv {
@@ -88,7 +86,7 @@ describe('publish-reply through the delayed execution gate (§6: revocation/susp
   })
 
   it('current policy still allows → allow (external effect requires the fresh read)', async () => {
-    const refreshPolicy = installRealPolicy(fixtureEnv('current allow'))
+    installRealPolicy(fixtureEnv('current allow'))
 
     const outcome = await gateJob(
       'publish-reply',
@@ -99,6 +97,5 @@ describe('publish-reply through the delayed execution gate (§6: revocation/susp
 
     expect(outcome.kind).toBe('allow')
     expect(outcome.decision.freshRead).toBe(true)
-    expect(refreshPolicy).toHaveBeenCalledTimes(1)
   })
 })

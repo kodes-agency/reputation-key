@@ -35,7 +35,6 @@ const requests = buildIdentityContext({
     setActiveOrganization: async () => {},
     updateOrganization: saveOrganization,
     currentOrganizationName: async () => null,
-    verifyPassword: async () => false,
   },
   deleteAssetObject,
   listAssetObjects: async () => ({ objects: [], truncated: false }),
