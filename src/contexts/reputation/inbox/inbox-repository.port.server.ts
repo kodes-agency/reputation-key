@@ -69,8 +69,8 @@ export type InboxFilters = Readonly<{
 export type PaginatedResult = Readonly<{
   items: ReadonlyArray<InboxItem>
   nextCursor: Cursor | null
-  /** Total rows matching the filters, before cursor pagination. */
-  totalCount: number
+  /** Total rows matching the filters, before cursor pagination; null on cursor pages. */
+  totalCount: number | null
 }>
 
 /** Rows matching the filters at one property. Properties with none are absent. */
