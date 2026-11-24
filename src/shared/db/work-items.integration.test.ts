@@ -142,9 +142,7 @@ describe('durable work through PostgreSQL', () => {
     'completes %s from IDs-only reconciliation through the real policy gate',
     async (kind) => {
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-      initDelayedExecutionPolicy(
-        createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-      )
+      initDelayedExecutionPolicy(createDelayedExecutionPolicy())
       const row = await store.schedule(request({ kind }))
       const registry = createJobRegistry()
       registry.register(kind, async (job) => {

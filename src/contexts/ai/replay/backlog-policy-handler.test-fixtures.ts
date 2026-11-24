@@ -491,9 +491,7 @@ function createWorker(helpers: WorkerHelpers) {
     const restartUnder = (policy: Readonly<Record<string, string>>) =>
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore(policy))
     restartUnder(env)
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-    )
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
     const clock = { now: NOW }
     const switches: AiSwitches = {
       laneBusy: false,

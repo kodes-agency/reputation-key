@@ -5,9 +5,6 @@
 // console (ADR 0065) never reaches `publicApi`.
 //
 // Runtime contributions exposed to the composition root:
-//   - policy.refreshRequired — version-gated strong read of persisted policy
-//     state (workers await it before starting; side-effect paths use it for
-//     fresh reads).
 //   - policy.admin — least-privilege policy administration ops.
 
 import type { Database } from '#/shared/db'
@@ -133,10 +130,7 @@ import { isAcceptanceAdmitted } from './members/invitation-admission.adapter.ser
 import { createInvitationReadModel } from './members/invitation-read-model.server'
 import { createInvitedRegistrationStore } from './members/invited-registration-store.server'
 import { createMemberPropertyAccessStore } from './members/member-property-access-store.server'
-import {
-  createMerchantAiManagementAuthorizer,
-  createStepUpVerifier,
-} from './consent/merchant-ai-management.server'
+import { createMerchantAiManagementAuthorizer } from './consent/merchant-ai-management.server'
 import {
   merchantAiPauseReason,
   merchantAiRenewalDecision,
@@ -171,9 +165,6 @@ type AuthSession = Readonly<{
   setActiveOrganization: (organizationId: string) => Promise<void>
   updateOrganization: (data: Record<string, unknown>) => Promise<void>
   currentOrganizationName: () => Promise<string | null>
-  verifyPassword: (
-    input: Readonly<{ headers: Headers; password: string }>,
-  ) => Promise<boolean>
 }>
 
 export type StaffAccountBindings = Pick<
@@ -316,13 +307,16 @@ const unavailableStaffAccountBindings: StaffAccountBindings = {
 }
 
 function buildStaffAccounts(
-  deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'idGen' | 'logger' | 'staffAccounts'> &
+  deps: Pick<
+    IdentityContextDeps,
+    'db' | 'clock' | 'idGen' | 'logger' | 'staffAccounts' | 'invitationExpiresInMs'
+  > &
     Readonly<{ commandStore: IdentityCommandStore }>,
 ) {
   const { db, clock, logger } = deps
-  const management = createStaffManagementStore(db, clock)
+  const management = createStaffManagementStore(db, clock, deps.invitationExpiresInMs)
   const input: ManageStaffDeps = {
-    store: createStaffAccountStore(db, clock, deps.idGen),
+    store: createStaffAccountStore(db, clock, deps.idGen, deps.invitationExpiresInMs),
     management,
     idGen: deps.idGen,
     ...(deps.staffAccounts ?? unavailableStaffAccountBindings),
@@ -388,7 +382,6 @@ function buildMerchantAi(
     'db' | 'replyEffects' | 'idGen' | 'clock' | 'logger' | 'authSession'
   > &
     Readonly<{
-      refreshPolicyRequired: () => Promise<unknown>
       isCurrentAccountAdmin: (
         input: Readonly<{ organizationId: string; userId: string }>,
       ) => Promise<boolean>
@@ -405,16 +398,13 @@ function buildMerchantAi(
     store: createMerchantAiAuthorizationStore(db, idGen, deps.replyEffects),
     decisionDeferrals,
     authorizeManagement,
-    authorize: async (input) => {
-      await deps.refreshPolicyRequired()
-      return checkScopedCapability(
+    authorize: async (input) =>
+      checkScopedCapability(
         { organizationId: input.organizationId, propertyId: input.propertyId },
         input.capability,
-      ).allowed
-    },
+      ).allowed,
     isCurrentAccountAdmin: ({ organizationId: orgId, actorUserId }) =>
       deps.isCurrentAccountAdmin({ organizationId: orgId, userId: actorUserId }),
-    verifyStepUp: createStepUpVerifier(deps.authSession.verifyPassword),
     clock,
     idGen,
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,
@@ -607,7 +597,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   })
   const merchantAi = buildMerchantAi({
     ...deps,
-    refreshPolicyRequired: policyStore.refreshRequired,
     isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,
   })
 
@@ -748,10 +737,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     /** Capability-policy control plane owned by Identity. */
     policy: Object.freeze({
       admin: policyAdmin,
-      // Static policy is already current; these async no-ops preserve the
-      // deployment boot/readiness contract without a background poller.
-      refresh: policyStore.refresh,
-      refreshRequired: policyStore.refreshRequired,
       currentVersion: policyStore.currentVersion,
       // Container-owned policy objects: building identity does not install
       // them process-wide; an entry point binds exactly one set.
