@@ -24,7 +24,6 @@ export const createTestReplyCommandStore = () =>
     getDb(),
     () => new Date(),
     async () => true,
-    undefined,
     replyScopeEffects,
   )
 

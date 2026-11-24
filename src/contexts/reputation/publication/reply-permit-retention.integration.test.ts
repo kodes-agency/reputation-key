@@ -179,7 +179,6 @@ async function claimOneAttempt() {
     db,
     () => new Date(),
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   const review = await reviewRepo.upsert(makeReview())
@@ -362,7 +361,6 @@ async function resendDecision(): Promise<'settled' | 'refused'> {
     db,
     () => new Date(),
     async () => true,
-    undefined,
     replyScopeEffects,
   )
   const settled = await store.settleNeverDispatchedAttempt(reply!, null, SWEEP_AT)

@@ -26,10 +26,7 @@ import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operati
 import { replyFromRow } from './reply-mapper.server'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding.server'
 import type { AiReplyVoicePublicApi } from '../library/ai-reply-voice-frame.server'
-import {
-  insertAdoptedAiDraft,
-  updateAdoptedAiDraft,
-} from '#/contexts/reputation/public-api'
+import { insertAdoptedAiDraft, updateAdoptedAiDraft } from './row-commands.server'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
 

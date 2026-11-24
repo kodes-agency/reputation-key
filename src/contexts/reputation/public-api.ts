@@ -39,12 +39,9 @@ import type {
 import type { SetResponseTargetPolicy } from './response-targets/set-response-target-policy.server'
 
 // ── Reply and content storage ───────────────────────────────────────
-// Review builds the Reply writer with its own row helpers, and any context
-// that must end or withdraw Replies inside its transaction uses the scope
-// effects.
-export { createReplyWriter } from './replies/store.server'
+// Any context that must end or withdraw Replies inside its transaction uses
+// the scope effects.
 export { replyScopeEffects } from './replies/scope-effects.server'
-export type { ReplyWriterDeps, ReplyWriterRows } from './replies/store.server'
 export {
   cancelReplyAtProviderTruth,
   confirmPublicationAttempt,
