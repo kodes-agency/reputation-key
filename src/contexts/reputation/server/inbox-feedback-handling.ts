@@ -1,34 +1,21 @@
 // Inbox context — source-specific private-feedback handling commands.
 
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { getContainer } from '#/composition'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   correctFeedbackHandlingOutcomeDto,
   markFeedbackHandledDto,
 } from '../inbox/contracts'
-import {
-  createServerFn,
-  inboxErrorStatus,
-  inboxItemId,
-  isInboxError,
-  toInboxRevisionConflictResult,
-} from './inbox-shared'
+import { runInboxRevisionCommand } from './inbox-command'
+import { createServerFn } from '@tanstack/react-start'
+import { inboxItemId } from '#/shared/domain/ids'
 
 export const markFeedbackHandledFn = createServerFn({ method: 'POST' })
   .validator(markFeedbackHandledDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.markFeedbackHandled(
+      ({ data }) =>
+        runInboxRevisionCommand('inbox.write', (inbox, ctx) =>
+          inbox.markFeedbackHandled(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
               expected: {
@@ -41,16 +28,8 @@ export const markFeedbackHandledFn = createServerFn({ method: 'POST' })
               internalNote: data.internalNote ?? null,
             },
             ctx,
-          )
-        } catch (error) {
-          if (isInboxError(error)) {
-            const conflict = toInboxRevisionConflictResult(error)
-            if (conflict) return conflict
-            throwContextError('InboxError', error, inboxErrorStatus(error.code))
-          }
-          throw catchUntagged(error)
-        }
-      },
+          ),
+        ),
       'POST',
       'inbox.markFeedbackHandled',
     ),
@@ -60,13 +39,9 @@ export const correctFeedbackHandlingOutcomeFn = createServerFn({ method: 'POST' 
   .validator(correctFeedbackHandlingOutcomeDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.correctFeedbackHandlingOutcome(
+      ({ data }) =>
+        runInboxRevisionCommand('inbox.write', (inbox, ctx) =>
+          inbox.correctFeedbackHandlingOutcome(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
               expected: {
@@ -81,16 +56,8 @@ export const correctFeedbackHandlingOutcomeFn = createServerFn({ method: 'POST' 
               internalNote: data.internalNote ?? null,
             },
             ctx,
-          )
-        } catch (error) {
-          if (isInboxError(error)) {
-            const conflict = toInboxRevisionConflictResult(error)
-            if (conflict) return conflict
-            throwContextError('InboxError', error, inboxErrorStatus(error.code))
-          }
-          throw catchUntagged(error)
-        }
-      },
+          ),
+        ),
       'POST',
       'inbox.correctFeedbackHandlingOutcome',
     ),

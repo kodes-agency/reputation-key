@@ -1,18 +1,9 @@
 // Inbox context — status + escalation mutation server functions
 
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import {
-  createServerFn,
-  isInboxError,
-  inboxErrorStatus,
-  inboxItemId,
-  toInboxRevisionConflictResult,
-} from './inbox-shared'
+import { createServerFn } from '@tanstack/react-start'
+import { inboxItemId } from '#/shared/domain/ids'
+import { runInboxCommand, runInboxRevisionCommand } from './inbox-command'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { getContainer } from '#/composition'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import {
   updateStatusDto,
   bulkUpdateStatusDto,
@@ -26,13 +17,9 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
   .validator(updateStatusDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.updateInboxStatus(
+      ({ data }) =>
+        runInboxRevisionCommand('inbox.write', (inbox, ctx) =>
+          inbox.updateInboxStatus(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
               newStatus: data.status,
@@ -41,16 +28,8 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
               reopenExplanation: data.reopenExplanation,
             },
             ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e)) {
-            const conflict = toInboxRevisionConflictResult(e)
-            if (conflict) return conflict
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          }
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'POST',
       'inbox.updateInboxStatus',
     ),
@@ -62,13 +41,9 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
   .validator(bulkUpdateStatusDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.bulkUpdateInboxStatus(
+      ({ data }) =>
+        runInboxCommand('inbox.write', (inbox, ctx) =>
+          inbox.bulkUpdateInboxStatus(
             {
               items: data.items.map((item) => ({
                 inboxItemId: inboxItemId(item.inboxItemId),
@@ -79,13 +54,8 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
               reopenExplanation: data.reopenExplanation,
             },
             ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'POST',
       'inbox.bulkUpdateInboxStatus',
     ),
@@ -97,28 +67,16 @@ export const escalateInboxItemFn = createServerFn({ method: 'POST' })
   .validator(escalateInboxItemDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.escalateInboxItem(
+      ({ data }) =>
+        runInboxRevisionCommand('inbox.write', (inbox, ctx) =>
+          inbox.escalateInboxItem(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
               expectedCommandRevision: data.expectedCommandRevision,
             },
             ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e)) {
-            const conflict = toInboxRevisionConflictResult(e)
-            if (conflict) return conflict
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          }
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'POST',
       'inbox.escalateInboxItem',
     ),
@@ -130,28 +88,16 @@ export const resolveEscalationFn = createServerFn({ method: 'POST' })
   .validator(resolveEscalationDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.resolveEscalation(
+      ({ data }) =>
+        runInboxRevisionCommand('inbox.write', (inbox, ctx) =>
+          inbox.resolveEscalation(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
               expectedCommandRevision: data.expectedCommandRevision,
             },
             ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e)) {
-            const conflict = toInboxRevisionConflictResult(e)
-            if (conflict) return conflict
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          }
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'POST',
       'inbox.resolveEscalation',
     ),

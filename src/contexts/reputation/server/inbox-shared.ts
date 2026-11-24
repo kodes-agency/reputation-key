@@ -1,27 +1,10 @@
-// Inbox context — client-safe shared utilities.
-//
-// This file is loaded by the client module graph (server-fn files import
-// client-safe symbols like `createServerFn`, `can`, `inboxErrorStatus` from
-// here). It MUST NOT import server-only modules — the RPC transform strips
-// handler-only *direct* imports but cannot strip module-level imports in a
-// barrel. Server-only utilities (tracedHandler, getContainer,
-// headersFromContext, resolveTenantContext, throwContextError, catchUntagged)
-// are imported directly by each server-fn file from their source instead.
+// Inbox context — the error → HTTP status mapping the server functions share.
 
-import { createServerFn } from '@tanstack/react-start'
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
-import {
-  isInboxError,
-  toInboxRevisionConflictResult,
-  type InboxErrorCode,
-} from '../domain/inbox-errors'
-import { inboxItemId, propertyId } from '#/shared/domain/ids'
-import { userId as toUserId } from '#/shared/domain/ids'
+import type { InboxErrorCode } from '../domain/inbox-errors'
 
-// ── Error → HTTP status mapping (exhaustive) ──────────────────────
-
-const inboxErrorStatus = (code: InboxErrorCode): number =>
+export const inboxErrorStatus = (code: InboxErrorCode): number =>
   match(code)
     .with(
       'invalid_transition',
@@ -39,13 +22,3 @@ const inboxErrorStatus = (code: InboxErrorCode): number =>
     )
     .with('bulk_partial_failure', () => HTTP_STATUS.MULTI_STATUS)
     .exhaustive()
-
-export {
-  createServerFn,
-  isInboxError,
-  toInboxRevisionConflictResult,
-  inboxErrorStatus,
-  inboxItemId,
-  propertyId,
-  toUserId,
-}
