@@ -13,7 +13,7 @@ import {
 import {
   requestAvatarUpload,
   finalizeAvatarUpload,
-} from '#/contexts/identity/server/organizations'
+} from '#/contexts/identity/server/organizations.upload'
 import { updateNotificationUserSettingsFn } from '#/contexts/feed/server/notifications'
 import { ProfileSettingsPage } from '#/contexts/identity/members/ui/profile-settings-page'
 import { TimezoneAndFormatCard } from '#/contexts/feed/preferences/ui/timezone-and-format-card'

@@ -8,7 +8,7 @@ import { LoginForm } from '#/contexts/identity/members/ui/login/login-form'
 import {
   resendVerificationEmail,
   signInUser,
-} from '#/contexts/identity/server/organizations'
+} from '#/contexts/identity/server/organizations.registration'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { safeReturnPath } from '#/shared/auth/safe-return-path'
 import { z } from 'zod/v4'
