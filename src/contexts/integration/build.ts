@@ -88,7 +88,6 @@ import {
   reconcileGoogleProviderRecovery,
   type ReconcileGoogleProviderRecovery,
 } from './connections/reconcile-google-provider-recovery.server'
-import { createProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
 
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
@@ -125,7 +124,6 @@ type IntegrationContextDeps = Readonly<{
   outboxRepo: OutboxRepository
   clock: () => Date
   idGen: () => string
-  invalidationOwnerGen: () => string
   jobQueue: Queue | undefined
   propertyApi: PropertyPublicApi
   propertyBindingApi?: PropertyGoogleBindingPublicApi
@@ -383,40 +381,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
 
   const googleImportQueue = createGoogleImportQueue(jobQueue)
 
-  const invalidationReferences = deps.googleImportReferences
-  const providerAuthorizationInvalidation =
-    deps.providerEphemeralStore && invalidationReferences
-      ? createProviderAuthorizationInvalidationFanout({
-          store: deps.providerEphemeralStore,
-          receipts: deps.outboxRepo,
-          randomOwner: deps.invalidationOwnerGen,
-          handlers: [
-            {
-              id: 'google_import_references',
-              invalidate: async (event) => {
-                const results = await Promise.all([
-                  event.propertyId
-                    ? invalidationReferences.invalidateProperty({
-                        organizationId: event.organizationId,
-                        propertyId: event.propertyId,
-                      })
-                    : Promise.resolve(true),
-                  event.connectionId
-                    ? invalidationReferences.invalidateConnection({
-                        organizationId: event.organizationId,
-                        connectionId: event.connectionId,
-                      })
-                    : Promise.resolve(true),
-                ])
-                if (results.some((result) => !result)) {
-                  throw new Error('Google import reference invalidation failed')
-                }
-              },
-            },
-          ],
-        })
-      : null
-
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     registerGoogleBindingFollowUpConsumers(consumerRegistry, {
       propertyBindingApi: deps.propertyBindingApi,
@@ -442,11 +406,10 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       queue: googleImportQueue,
       receipts: deps.outboxRepo,
     })
-    if (providerAuthorizationInvalidation) {
+    if (deps.googleImportReferences) {
       registerProviderAuthorizationInvalidationConsumer(consumerRegistry, {
-        fanout: providerAuthorizationInvalidation,
+        references: deps.googleImportReferences,
         receipts: deps.outboxRepo,
-        nowMs: () => deps.clock().getTime(),
       })
     }
     if (targetedGoogleReviewQueue) {

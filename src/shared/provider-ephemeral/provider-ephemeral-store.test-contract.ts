@@ -361,7 +361,6 @@ export function describeProviderEphemeralStoreContract(
         'oauth-state',
         'opaque-reference',
         'authorization-lease',
-        'invalidation-dedupe',
       ])
     })
   })

@@ -3,7 +3,7 @@ import type { GoogleImportQueuePort } from './google-import-queue.port.server'
 import type { GoogleImportStore } from './import-store.port.server'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import type { ProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
+import type { GoogleImportReferenceStore } from './durable-import-reference-store.port.server'
 
 export const PROVIDER_AUTHORIZATION_INVALIDATION_CONSUMER =
   'integration.provider-authorization-invalidation' as const
@@ -27,12 +27,14 @@ export function registerGoogleImportDispatchConsumer(
 
 export async function handlePropertyBindingAuthorizationInvalidation(
   deps: Readonly<{
-    fanout: ProviderAuthorizationInvalidationFanout
+    references: Pick<
+      GoogleImportReferenceStore,
+      'invalidateProperty' | 'invalidateConnection'
+    >
     receipts: Pick<OutboxRepository, 'insertReceipt'>
-    nowMs: () => number
   }>,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'duplicate' | 'obsolete' }>> {
+): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
   const payload = validateEventPayload(
     'property.google_binding.changed',
     event.eventVersion,
@@ -57,34 +59,37 @@ export async function handlePropertyBindingAuthorizationInvalidation(
     )
     return { status: 'obsolete' }
   }
-  const delivered = await deps.fanout.dispatch(
-    {
-      eventId: event.eventId,
-      kind: 'property_binding_changed',
+  const results = await Promise.all([
+    deps.references.invalidateProperty({
       organizationId: payload.organizationId,
       propertyId: payload.propertyId,
-      connectionId: payload.change === 'relinked' ? null : payload.connectionId,
-      sourceEpoch: payload.sourceEpoch,
-    },
-    deps.nowMs(),
-  )
-  if (!delivered.ok) {
-    throw new Error(`Provider authorization invalidation failed: ${delivered.code}`)
+    }),
+    payload.change === 'relinked'
+      ? Promise.resolve(true)
+      : deps.references.invalidateConnection({
+          organizationId: payload.organizationId,
+          connectionId: payload.connectionId,
+        }),
+  ])
+  if (results.some((result) => !result)) {
+    throw new Error('Provider authorization invalidation failed')
   }
   await deps.receipts.insertReceipt(
     event.eventId,
     PROVIDER_AUTHORIZATION_INVALIDATION_CONSUMER,
-    delivered.status === 'duplicate' ? 'duplicate' : 'applied',
+    'applied',
   )
-  return { status: delivered.status === 'duplicate' ? 'duplicate' : 'applied' }
+  return { status: 'applied' }
 }
 
 export function registerProviderAuthorizationInvalidationConsumer(
   registry: ConsumerRegistry,
   deps: Readonly<{
-    fanout: ProviderAuthorizationInvalidationFanout
+    references: Pick<
+      GoogleImportReferenceStore,
+      'invalidateProperty' | 'invalidateConnection'
+    >
     receipts: Pick<OutboxRepository, 'insertReceipt'>
-    nowMs: () => number
   }>,
 ): void {
   const { registerConsumer } = registry
