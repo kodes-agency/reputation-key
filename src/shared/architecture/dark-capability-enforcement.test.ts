@@ -57,7 +57,6 @@ describe('BQR-0: Dark context capability enforcement', () => {
 
         // Skip utility/helper files that don't export server functions
         if (!content.includes('createServerFn')) continue
-        const hasAssert = /assert(Global|Beta)Capability/.test(content)
         const hasAuthorizeSeam =
           content.includes('requireExecutionAllowed') ||
           content.includes('requirePortalResourceScope') ||
@@ -65,10 +64,10 @@ describe('BQR-0: Dark context capability enforcement', () => {
           content.includes('decidePublicExecution') ||
           content.includes('resolveBoundSession')
 
-        it(`${basename} enforces capability via the ExecutionPolicy seam or assert*Capability`, () => {
+        it(`${basename} enforces capability via the ExecutionPolicy seam`, () => {
           expect(
-            hasAssert || hasAuthorizeSeam,
-            `${basename} in controlled context "${context}" must use an ExecutionPolicy or capability assertion seam`,
+            hasAuthorizeSeam,
+            `${basename} in controlled context "${context}" must use an ExecutionPolicy seam`,
           ).toBe(true)
         })
 

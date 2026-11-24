@@ -359,21 +359,6 @@ export function checkBetaCapability(
 }
 
 /**
- * Assert that a capability is allowed. Throws if denied.
- * Use in server functions and use cases before performing mutations or external effects.
- */
-export function assertBetaCapability(
-  ctx: AuthContext,
-  capability: Capability,
-  propertyId?: string,
-): void {
-  const decision = checkBetaCapability(ctx, capability, propertyId)
-  if (!decision.allowed) {
-    throw new BetaCapabilityError(decision)
-  }
-}
-
-/**
  * Check a capability for a call that names no Organization: blocked fates and
  * the switches decide, suspension cannot. A capability that runs only for a
  * named Organization fails closed here, so an org-less caller cannot reach
@@ -402,25 +387,6 @@ export function isCapabilityOpenToEveryOrganization(capability: Capability): boo
   return (
     !BLOCKED_CAPABILITIES.has(capability) && !getStore().isCapabilityKilled(capability)
   )
-}
-
-/**
- * Assert that a capability is globally enabled. For unauthenticated endpoints.
- * Throws if the capability is disabled or blocked.
- */
-export function assertGlobalCapability(capability: Capability): void {
-  const decision = checkGlobalCapability(capability)
-  if (!decision.allowed) {
-    throw new BetaCapabilityError(decision)
-  }
-}
-
-/** Error thrown when a capability check fails. */
-export class BetaCapabilityError extends Error {
-  constructor(public readonly decision: CapabilityDecision) {
-    super(`Capability "${decision.capability}" denied: ${decision.reason}`)
-    this.name = 'BetaCapabilityError'
-  }
 }
 
 export function isBlockedCapability(cap: Capability): boolean {
