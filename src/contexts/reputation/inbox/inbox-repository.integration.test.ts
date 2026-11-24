@@ -500,7 +500,7 @@ describe('inbox repository — pagination', () => {
     // Request next page
     const page2 = await repo.findFilteredPaginated({}, ORG_A, result.nextCursor!, 3)
     expect(page2.items).toHaveLength(2)
-    expect(page2.totalCount).toBe(5)
+    expect(page2.totalCount).toBeNull()
     expect(page2.nextCursor).toBeNull()
   })
 
@@ -532,7 +532,8 @@ describe('inbox repository — pagination', () => {
       '2026-01-02T00:00:00.000Z',
     ])
     expect(page2.items[0]!.sourceDate.toISOString()).toBe('2026-01-03T00:00:00.000Z')
-    expect(page2.totalCount).toBe(3)
+    expect(page1.totalCount).toBe(3)
+    expect(page2.totalCount).toBeNull()
   })
 
   it.each([
@@ -570,7 +571,8 @@ describe('inbox repository — pagination', () => {
     expect([...page1.items, ...page2.items].map((item) => item.id)).toEqual(
       expectedIds.map(inboxItemId),
     )
-    expect(page2.totalCount).toBe(3)
+    expect(page1.totalCount).toBe(3)
+    expect(page2.totalCount).toBeNull()
   })
 
   it('filters by property', async () => {

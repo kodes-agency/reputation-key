@@ -423,7 +423,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       const page = await filteredRepo.findFilteredPaginated({ attention }, ORG_A)
       const count = await filteredRepo.countFiltered({ attention }, ORG_A)
       expect(count).toBe(page.totalCount)
-      expect(page.items).toHaveLength(page.totalCount)
+      expect(page.items).toHaveLength(count)
       return page.items.map((item) => item.id).sort()
     }
     const urgent = await ids(['urgent'])
