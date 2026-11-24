@@ -14,10 +14,11 @@ import type {
   PortalPrintKitLastPrint,
   PortalPrintKitView,
   PortalTokenStatus,
+  PrintSavedWording,
 } from '#/contexts/portal/application/portal-management-contracts'
 import { AuthedRouterDecorator } from '../../../../../../.storybook/AuthedRouterDecorator'
 import { PortalShare } from './portal-share'
-import type { DownloadPrintInput } from './portal-print-kit-types'
+import type { DownloadPrintInput, SavePrintWordingInput } from './portal-print-kit-types'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
 import { DARK_LOGO, PHOTO } from './print-story-fixtures'
 import { PRINT_REFUSAL_COPY } from '#/shared/domain/portal-print-refusals'
@@ -96,6 +97,12 @@ const printKit = (read: PortalPrintKitView = view()) => ({
   read: async () => read,
   downloadPrintMutation: action<DownloadPrintInput, PortalPrintKitDownload>(
     async () => TINY_PDF,
+  ),
+  saveWordingMutation: action<SavePrintWordingInput, PrintSavedWording>(
+    async (input) => ({
+      callToAction: input.data.callToAction,
+      customWords: input.data.customWords ?? null,
+    }),
   ),
 })
 

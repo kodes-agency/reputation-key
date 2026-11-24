@@ -1,10 +1,10 @@
 // The phone never shows another portal's page while this one loads, and its
 // "Try again" reads again whatever failed, the wording included.
 
-import { createElement } from 'react'
+import { act, createElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { act, startHookHarness, type HookHarness } from './hook-harness'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { setupHookRoot } from '#/shared/testing/hook-root'
 import type { usePropertyLookPreview as UsePropertyLookPreview } from './use-property-look-preview'
 
 const loadGuestPortalCopy = vi.hoisted(() => vi.fn())
@@ -17,20 +17,18 @@ const readyPreview = (name: string) => ({
   preview: { primaryLocale: 'en', locales: ['en'], experiences: { en: { name } } },
 })
 
+const root = setupHookRoot()
+
 describe('usePropertyLookPreview', () => {
-  let harness: HookHarness
   let usePreview: typeof UsePropertyLookPreview
   let latest: ReturnType<typeof UsePropertyLookPreview> | undefined
   let client: QueryClient
 
   beforeAll(async () => {
-    harness = await startHookHarness()
     ;({ usePropertyLookPreview: usePreview } =
       await import('./use-property-look-preview'))
   })
-  afterAll(() => harness.stop())
   afterEach(async () => {
-    await harness.unmount()
     client.clear()
     latest = undefined
     loadGuestPortalCopy.mockReset()
@@ -60,7 +58,7 @@ describe('usePropertyLookPreview', () => {
     client ??= new QueryClient({
       defaultOptions: { queries: { retry: false, retryDelay: 0 } },
     })
-    await harness.render(
+    await root.render(
       createElement(
         QueryClientProvider,
         { client },
