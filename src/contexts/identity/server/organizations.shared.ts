@@ -5,8 +5,6 @@ import { HTTP_STATUS } from '#/shared/http/status'
 import { match } from 'ts-pattern'
 import type { IdentityErrorCode } from '../domain/errors'
 
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 // 5MB
-
 // ── Error → HTTP translation ──────────────────────────────────────
 // Per architecture: "ts-pattern with .exhaustive() ensures new error codes
 // force a compiler error here."
@@ -33,40 +31,3 @@ export const identityErrorStatus = (code: IdentityErrorCode): number =>
     )
     .with('member_not_found', 'invitation_not_found', () => HTTP_STATUS.NOT_FOUND)
     .exhaustive()
-
-// ── Types for better-auth API responses ──────────────────────────
-// better-auth returns loosely-typed responses; we define precise shapes
-// for the fields we actually use.
-
-export type AuthMemberResponse = Readonly<{
-  id: string
-  userId: string
-  role: string
-  createdAt: Date
-  user: Readonly<{
-    id: string
-    email: string
-    name: string
-    image: string | null
-  }>
-}>
-
-export type AuthInvitationResponse = Readonly<{
-  id: string
-  email: string
-  role: string
-  status: string
-  expiresAt: Date
-  createdAt: Date
-  organizationId?: string
-  organization?: Readonly<{ name: string }>
-}>
-
-export type AuthOrganizationResponse = Readonly<{
-  id: string
-  name: string
-  slug: string
-  logo: string | null
-  createdAt: Date
-  contactEmail: string | null
-}>

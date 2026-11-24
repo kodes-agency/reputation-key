@@ -140,9 +140,6 @@ async function verdictsOf(now: Date, item: Case): Promise<Verdicts> {
   const deps: GoalProgressDeps = {
     reads: {
       list: async () => [goalOf(item.metric, item.target)],
-      get: async () => {
-        throw new Error('the list reads no goal one by one')
-      },
     },
     metrics: { queryGoalMetric: async () => counted(item.metric, item.value) },
     now: () => now,

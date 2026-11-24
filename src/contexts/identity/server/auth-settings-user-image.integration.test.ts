@@ -12,7 +12,7 @@ import {
   type TestMember,
 } from '#/shared/testing/server-function-harness'
 import { identityAssetPath } from '../images/identity-assets.contracts'
-import { MAX_UPLOAD_BYTES } from '../images/upload-policy.server'
+import { MAX_UPLOAD_BYTES } from '../images/identity-assets.contracts'
 
 vi.mock(
   '@tanstack/react-start',

@@ -326,7 +326,6 @@ async function createHarness(
     aggregates: {
       applyReviewAnalysis,
       advanceWithoutAnalysis,
-      readWindow: vi.fn(),
     },
     admission: {
       acquire: vi.fn(async () =>

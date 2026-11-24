@@ -27,9 +27,7 @@ import {
 } from '../portal-results/time-range.server'
 
 /**
- * KPI assembly — single source for getKPIs/getKPIsForPortals.
- * The two methods differ only in how they select the metric sums; the
- * current-vs-prior composition must not drift between them.
+ * KPI assembly — the current-vs-prior composition for getKPIs.
  */
 function computeKpis(input: {
   currentReviews: ReviewPeriodStats
@@ -171,63 +169,6 @@ export const createDashboardRepository = (
             metricStats.getSumsByPortal(orgId, propId, input.portalId!, start, end)
         : (orgId: OrganizationId, propId: PropertyId, start: Date, end: Date) =>
             metricStats.getSumsByPeriod(orgId, propId, start, end)
-
-      const [currentMetrics, priorMetrics] = await Promise.all([
-        metricQuery(organizationId, propertyId, startDate, endDate),
-        comparisonPeriod
-          ? metricQuery(
-              organizationId,
-              propertyId,
-              comparisonPeriod.priorStartDate,
-              comparisonPeriod.priorEndDate,
-            )
-          : Promise.resolve(null),
-      ])
-
-      return computeKpis({
-        currentReviews,
-        priorReviews,
-        currentMetrics,
-        priorMetrics,
-        currentPeriodEnd: endDate,
-      })
-    })
-  },
-  async getKPIsForPortals(input): Promise<KPIs> {
-    return trace('dashboard.getKPIsForPortals', async () => {
-      const {
-        organizationId,
-        propertyId,
-        portalIds,
-        startDate,
-        endDate,
-        comparisonPeriod,
-      } = input
-
-      // F054 NOTE: Review stats are property-level (no portalId filter on reviews).
-      // This is correct — reviews are property-scoped. Metric stats are portal-scoped below.
-      const [currentReviews, priorReviews] = await Promise.all([
-        reviewStats.getPeriodStats(organizationId, propertyId, startDate, endDate),
-        comparisonPeriod
-          ? reviewStats.getPeriodStats(
-              organizationId,
-              propertyId,
-              comparisonPeriod.priorStartDate,
-              comparisonPeriod.priorEndDate,
-            )
-          : Promise.resolve(null),
-      ])
-
-      // Metric sums for current and prior periods across all assigned portals
-      const metricQuery = (
-        orgId: OrganizationId,
-        propId: PropertyId,
-        start: Date,
-        end: Date,
-      ) =>
-        portalIds.length === 0
-          ? Promise.resolve([] as readonly MetricSumRow[])
-          : metricStats.getSumsByPortals(orgId, propId, portalIds, start, end)
 
       const [currentMetrics, priorMetrics] = await Promise.all([
         metricQuery(organizationId, propertyId, startDate, endDate),
