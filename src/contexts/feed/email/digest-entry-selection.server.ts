@@ -200,6 +200,23 @@ export async function partitionDeliverable(
   if (await deferForQuietHours(deps, ctx, entries)) return []
   const deliverable: NotificationEmail[] = []
   const hasStanding = recipientStandingFor(deps, ctx)
+  // One answer per Property and category for the whole pass.
+  const emailPreferences = new Map<string, ReturnType<typeof resolveForDelivery>>()
+  const emailPreferenceFor = (propId: string, category: string) => {
+    const key = `${propId}:${category}`
+    const known = emailPreferences.get(key)
+    if (known) return known
+    const resolved = resolveForDelivery(
+      deps.db,
+      ctx.userId,
+      ctx.orgId,
+      propId,
+      category,
+      'email',
+    )
+    emailPreferences.set(key, resolved)
+    return resolved
+  }
   for (const entry of entries) {
     const propId = propertyId(entry.propertyId as string)
     const emailId = notificationEmailId(entry.id as string)
@@ -220,14 +237,7 @@ export async function partitionDeliverable(
     }
     // Whether this Property's category is emailed at all stays per Property:
     // the Property's own row, else the person's default for the category.
-    const preference = await resolveForDelivery(
-      deps.db,
-      ctx.userId,
-      ctx.orgId,
-      propId,
-      entry.category,
-      'email',
-    )
+    const preference = await emailPreferenceFor(propId, entry.category)
     if (!preference.enabled) {
       await markNotificationEmailSuppressed(
         deps.db,
