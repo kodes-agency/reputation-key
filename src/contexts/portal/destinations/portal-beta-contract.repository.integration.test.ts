@@ -351,7 +351,6 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
       override: {
         title: 'Лоби',
         shortDescription: null,
-        heroImageUrl: null,
       },
       updatedBy: MANAGER,
       at: new Date(NOW.getTime() + 3_000),
@@ -364,7 +363,7 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
         propertyId: PROPERTY_A,
         portalId: PORTAL_A,
         locale: 'bg',
-        override: { title: null, shortDescription: null, heroImageUrl: null },
+        override: { title: null, shortDescription: null },
         updatedBy: MANAGER,
         at: new Date(NOW.getTime() + 4_000),
       }),
@@ -423,7 +422,7 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       locale: 'en',
-      override: { title: null, shortDescription: null, heroImageUrl: null },
+      override: { title: null, shortDescription: null },
       updatedBy: MANAGER,
       at: new Date(NOW.getTime() + 1_000),
     })
@@ -455,7 +454,7 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       locale: 'en',
-      override: { title: 'Front desk', shortDescription: null, heroImageUrl: null },
+      override: { title: 'Front desk', shortDescription: null },
       updatedBy: MANAGER,
       at: new Date(NOW.getTime() + 1_000),
     })
