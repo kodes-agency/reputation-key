@@ -8,7 +8,10 @@ import {
   createResponseCeilingStore,
   RESPONSE_PRESSURE_MARKERS,
 } from './response-ceiling-store.server'
-import { drizzleGuestLifecycleWorkbench } from '../rights/guest-organization-erasure.server'
+import {
+  countTenantRows,
+  scrubTenantRows,
+} from '../rights/guest-organization-erasure.server'
 
 const ORG = organizationId('org-response-ceiling-test')
 const OTHER_ORG = organizationId('org-response-ceiling-other')
@@ -155,9 +158,9 @@ describe.sequential('shared response admission in PostgreSQL', () => {
     await service.reserve(SCOPE, randomUUID())
     await service.reserve(SCOPE, randomUUID())
     await getDb().transaction(async (tx) => {
-      expect(await drizzleGuestLifecycleWorkbench.countTenantRows(tx, ORG)).toBe(3)
-      await drizzleGuestLifecycleWorkbench.scrubTenantRows(tx, ORG)
-      expect(await drizzleGuestLifecycleWorkbench.countTenantRows(tx, ORG)).toBe(0)
+      expect(await countTenantRows(tx, ORG)).toBe(3)
+      await scrubTenantRows(tx, ORG)
+      expect(await countTenantRows(tx, ORG)).toBe(0)
     })
   })
 })

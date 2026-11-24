@@ -10,7 +10,7 @@
 // retention cursor and Metric's anonymous lifetime aggregate are not — they are
 // other owners' rows and are not this Property's guest content.
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, getTableName, sql } from 'drizzle-orm'
 import type {
   PropertyEraseContributor,
   PropertyEraseInventoryEntry,
@@ -31,23 +31,6 @@ import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /** Property-scoped Guest tables, innermost dependency first. */
-const DIRECT_TABLE_NAMES = Object.freeze([
-  'guest_contact_request_reveal_audits',
-  'guest_contact_requests',
-  'guest_response_private_feedback',
-  'guest_response_session_bindings',
-  'guest_response_experience_snapshots',
-  'guest_response_integrity_decisions',
-  'guest_responses',
-  'guest_qualified_scans',
-  'guest_network_pressure_records',
-] as const)
-
-const GUEST_PROPERTY_ERASE_PLAN = Object.freeze([
-  ...DIRECT_TABLE_NAMES,
-  'idempotency_receipts',
-] as const)
-
 const TABLES = [
   guestContactRequestRevealAudits,
   guestContactRequests,
@@ -59,6 +42,7 @@ const TABLES = [
   guestQualifiedScans,
   guestNetworkPressureRecords,
 ] as const
+
 function rowCount(row: unknown): number {
   return row && typeof row === 'object' && 'rows' in row ? Number(row.rows) : 0
 }
@@ -75,7 +59,7 @@ export const createGuestPropertyEraseContributor = (): PropertyEraseContributor 
     scope: PropertyEraseScope,
   ): Promise<readonly PropertyEraseInventoryEntry[]> => {
     const counts: PropertyEraseInventoryEntry[] = []
-    for (const [index, table] of TABLES.entries()) {
+    for (const table of TABLES) {
       const result = await tx.execute(sql`
           SELECT COUNT(*)::int AS "rows" FROM ${table}
           WHERE organization_id = ${scope.organizationId}
@@ -83,7 +67,7 @@ export const createGuestPropertyEraseContributor = (): PropertyEraseContributor 
         `)
       counts.push({
         context: 'guest' as const,
-        table: DIRECT_TABLE_NAMES[index] as string,
+        table: getTableName(table),
         rowCount: rowCount(result.rows[0]),
       })
     }
@@ -97,7 +81,7 @@ export const createGuestPropertyEraseContributor = (): PropertyEraseContributor 
       ...counts,
       {
         context: 'guest',
-        table: GUEST_PROPERTY_ERASE_PLAN[GUEST_PROPERTY_ERASE_PLAN.length - 1]!,
+        table: getTableName(idempotencyReceipts),
         rowCount: rowCount(receiptCount.rows[0]),
       },
     ]

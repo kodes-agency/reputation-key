@@ -2,7 +2,6 @@ import type { Database } from '#/shared/db'
 import { createHash } from 'node:crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
-  guestContactRequests,
   guestResponseExperienceSnapshots,
   guestResponseIntegrityDecisions,
   guestResponsePrivateFeedback,
@@ -12,6 +11,10 @@ import {
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { GuestResponseCommandStore } from './guest-response-command-store.port.server'
 import type { GuestMutationFact } from './guest-response-command-store.port.server'
+import {
+  deleteResponseSatellites,
+  erasedResponseColumns,
+} from './guest-response-erasure.server'
 import { guestResponseToInsertRow } from './guest-response-mapper.server'
 import { trace } from '#/shared/observability/trace'
 import {
@@ -209,38 +212,11 @@ export const createAtomicGuestResponseCommandStore = (
       db.transaction(async (tx) => {
         const deleted = await tx
           .update(guestResponses)
-          .set({
-            status: 'deleted',
-            rating: null,
-            categoryId: null,
-            responseConsent: false,
-            textConsent: false,
-            mediaConsent: false,
-            ratingSourceEventId: null,
-            feedbackSourceEventId: null,
-            deletedAt: response.deletedAt,
-            updatedAt: deletedAt,
-          })
+          .set(erasedResponseColumns(response.deletedAt, deletedAt))
           .where(predicate)
           .returning({ id: guestResponses.id })
         if (!deleted[0]) return 'conflict' as const
-        await tx
-          .delete(guestResponsePrivateFeedback)
-          .where(
-            and(
-              eq(guestResponsePrivateFeedback.responseId, response.id),
-              eq(guestResponsePrivateFeedback.organizationId, response.organizationId),
-            ),
-          )
-        // The reveal audits of the contact go with it through their foreign key.
-        await tx
-          .delete(guestContactRequests)
-          .where(
-            and(
-              eq(guestContactRequests.responseId, response.id),
-              eq(guestContactRequests.organizationId, response.organizationId),
-            ),
-          )
+        await deleteResponseSatellites(tx, response.organizationId, [response.id])
         for (const fact of facts) await insertOutboxRow(tx, fact)
         return 'applied' as const
       }),
