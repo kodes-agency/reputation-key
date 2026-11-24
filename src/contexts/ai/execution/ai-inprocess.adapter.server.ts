@@ -55,7 +55,7 @@ export function aiGatewayRequestMaxBytes(request: AiGatewayRouteRequestV1): numb
     request.binding.operationProfileVersion === 'reply-suggestion-v2'
   )
     return REPLY_DRAFTING_V2_ROUTE_MAX_BYTES
-  return request.route === 'review-analysis' && request.source.sentences !== undefined
+  return request.route === 'review-analysis'
     ? AI_REVIEW_V3_ROUTE_MAX_BYTES
     : REQUEST_MAX_BYTES[request.route]
 }

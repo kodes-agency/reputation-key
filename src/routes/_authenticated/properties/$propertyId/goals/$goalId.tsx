@@ -6,7 +6,6 @@ import { useTenantScope } from '#/shared/hooks/useTenantScope'
 
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -43,7 +42,7 @@ export const Route = createFileRoute(
 )({
   staticData: { page: { title: 'Goal', under: 'goals' } },
   beforeLoad: ({ context }) => {
-    if (!can((context as AuthRouteContext).role, 'goal.read')) {
+    if (!can(context.role, 'goal.read')) {
       throw roleUnavailable('Goal', 'properties')
     }
   },

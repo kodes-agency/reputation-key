@@ -5,7 +5,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { portalKeys } from '#/shared/queries/query-keys'
@@ -49,7 +48,7 @@ export const Route = createFileRoute(
         propertyId: params.propertyId,
       },
     })
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'portal.read')) throw roleUnavailable('Property look', 'properties')
   },
   staleTime: 30_000,

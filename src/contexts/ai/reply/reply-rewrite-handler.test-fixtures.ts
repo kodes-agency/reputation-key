@@ -1,4 +1,5 @@
 import { NOW, SHA, createHarness } from '#/contexts/ai/reply/reply-handler.test-fixtures'
+import { openAiPreparationRegistry } from '#/shared/ai-provider-control/provider-registry.test-fixtures'
 import type { GenerateReplySuggestionDependencies } from '#/contexts/ai/reply/generate-suggestion.server'
 import { createGenerateReplySuggestion } from '#/contexts/ai/reply/generate-suggestion.server'
 import {
@@ -47,6 +48,7 @@ async function createV2Harness(
       detect: () => ({ language: 'en', probability: 0.99, reliable: true }),
     },
     now: () => NOW,
+    providers: openAiPreparationRegistry(),
     onOutputRefused: (refusal) => refusals.push(refusal),
   })
 

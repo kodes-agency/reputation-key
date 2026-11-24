@@ -20,7 +20,6 @@ import {
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { can } from '#/shared/domain/permissions'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { portalOverviewQuery } from './portals/-portal-overview-data'
 import { OverviewRatingGoal } from './goals/-rating-goal-overview'
 import { OverviewPortalGoal } from './goals/-portal-goal-overview'
@@ -58,7 +57,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/')(
   staticData: { page: { title: 'Overview', tier: 'dashboard', under: 'property' } },
   staleTime: 60_000,
   loader: async ({ params: { propertyId }, context }) => {
-    const { role, capabilities } = context as AuthRouteContext
+    const { role, capabilities } = context
     // The Google rating goal and the Monthly portal goal, from one module
     // fetched on demand so their reads stay out of first paint (the Goals
     // page's, which also primes the Overview); a failed read

@@ -106,7 +106,7 @@ const providerSelectionSchema = z
   .strict()
 
 const reviewAnalysisSourceSchema = reviewSourceSchema.extend({
-  sentences: z.array(reviewSentenceSchema).max(MAX_AI_REVIEW_SENTENCES_V1).optional(),
+  sentences: z.array(reviewSentenceSchema).max(MAX_AI_REVIEW_SENTENCES_V1),
 })
 
 const replyBrandProfileSchema = z
@@ -145,8 +145,8 @@ const reviewAnalysisGatewayRequestSchema = z
     source: reviewAnalysisSourceSchema,
     // Review-analysis v3 only: the hints the provider is steered with, and the
     // provider the operation was claimed under.
-    propertyContext: reviewPropertyContextSchema.optional(),
-    provider: providerSelectionSchema.optional(),
+    propertyContext: reviewPropertyContextSchema,
+    provider: providerSelectionSchema,
   })
   .strict()
 
@@ -159,7 +159,7 @@ const replySuggestionGatewayRequestSchema = z
     observedContentExpiresAtEpochMillis: positiveSafeInteger,
     replyProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.profile),
     brandProfile: replyBrandProfileSchema,
-    replyV2Frame: replyDraftingV2FrameSchema.optional(),
+    replyV2Frame: replyDraftingV2FrameSchema,
     tone: z.enum(['professional', 'friendly', 'casual']),
     source: reviewAnalysisSourceSchema,
   })
@@ -172,19 +172,11 @@ const replySuggestionGatewayRequestSchema = z
 function reviewEvidenceIssue(
   request: Readonly<{
     source: z.infer<typeof reviewAnalysisSourceSchema>
-    propertyContext?: z.infer<typeof reviewPropertyContextSchema> | undefined
-    provider?: z.infer<typeof providerSelectionSchema> | undefined
+    propertyContext: z.infer<typeof reviewPropertyContextSchema>
   }>,
 ): string | null {
   const { sentences, text } = request.source
-  if (
-    sentences === undefined ||
-    request.propertyContext === undefined ||
-    request.provider === undefined ||
-    text === null
-  ) {
-    return 'analysis v3 route requires numbered sentences, a property context and a provider'
-  }
+  if (text === null) return 'analysis v3 route requires the review text'
   if (
     !reviewSentencesAreNumberedFromOne(sentences) ||
     !reviewSentencesMatchText(text, sentences)
@@ -214,12 +206,7 @@ function addReplyV2Issue(
   value: z.infer<typeof replySuggestionGatewayRequestSchema>,
   context: z.RefinementCtx,
 ): void {
-  if (
-    !value.binding.replyDraftingV2 ||
-    !value.replyV2Frame ||
-    !value.source.sentences ||
-    value.replyProfileVersion !== REPLY_DRAFTING_V2_VERSIONS.profile
-  ) {
+  if (!value.binding.replyDraftingV2) {
     context.addIssue({
       code: 'custom',
       message: 'V2 requires numbered source, options and frame',

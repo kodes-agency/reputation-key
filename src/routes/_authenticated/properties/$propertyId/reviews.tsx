@@ -4,7 +4,6 @@ import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { InboxPageV2 } from '#/contexts/reputation/inbox/ui/page/inbox-page-v2'
@@ -29,7 +28,7 @@ const reviewsSearchSchema = inboxSearchObjectSchema
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/reviews')({
   staticData: { page: { title: 'Reviews', fullBleed: true, loading: 'inbox' } },
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'inbox.read')) throw roleUnavailable('Reviews', 'properties')
   },
   validateSearch: (search) => reviewsSearchSchema.parse(search),
@@ -38,7 +37,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/rev
 })
 
 function PropertyReviewsRoute() {
-  const ctx = authRoute.useRouteContext() as AuthRouteContext
+  const ctx = authRoute.useRouteContext()
   const { can: canDo } = usePermissions()
   // Member-directory access is separate from Inbox management authority.
   const { data: membersData } = useQuery({

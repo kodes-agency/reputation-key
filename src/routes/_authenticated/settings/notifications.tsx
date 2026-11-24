@@ -20,7 +20,6 @@ import {
   propertiesQuery,
 } from '#/routes/-queries/route-queries'
 import { checkControlledRoute } from '#/shared/auth/controlled-route-check'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -59,7 +58,7 @@ export const Route = createFileRoute('/_authenticated/settings/notifications')({
 })
 
 function NotificationsSettings() {
-  const context = authRoute.useRouteContext() as AuthRouteContext
+  const context = authRoute.useRouteContext()
   const organizationId = context.activeOrganization?.id ?? 'no-active-organization'
   const { data: properties } = useSuspenseQuery(propertiesQuery)
 

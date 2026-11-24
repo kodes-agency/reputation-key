@@ -50,6 +50,12 @@ const UUIDS = {
 } as const
 const SHA = 'a'.repeat(64)
 
+/** The request form without sentences, property context or provider, which the schema no longer admits. */
+type RetiredV2FormRequest = Omit<
+  ReviewAnalysisGatewayRequestV1,
+  'source' | 'propertyContext' | 'provider'
+> & { source: Omit<ReviewAnalysisGatewayRequestV1['source'], 'sentences'> }
+
 /**
  * The v2-form review-analysis request, with the binding the live catalogue serves for
  * the routes that did not change at the switch-on. Reply requests are built
@@ -57,7 +63,7 @@ const SHA = 'a'.repeat(64)
  * review analysis itself is no longer served in this form (`analysisRequest` is), so
  * the live transport refuses it as cross-wired: it is the retired form.
  */
-export function v2FormAnalysisRequest(): ReviewAnalysisGatewayRequestV1 {
+export function v2FormAnalysisRequest(): RetiredV2FormRequest {
   return {
     route: 'review-analysis',
     operationId: UUIDS.operation,
@@ -180,7 +186,11 @@ export function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
   return analysisV3Request()
 }
 
-function replyBaseRequest(): ReplySuggestionGatewayRequestV1 {
+function replyBaseRequest(): Omit<
+  ReplySuggestionGatewayRequestV1,
+  'source' | 'replyV2Frame'
+> &
+  Pick<RetiredV2FormRequest, 'source'> {
   const analysis = v2FormAnalysisRequest()
   return {
     ...analysis,
