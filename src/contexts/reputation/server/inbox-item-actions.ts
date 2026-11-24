@@ -1,19 +1,9 @@
 // Inbox context — item action server functions (assign, note)
 
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import {
-  createServerFn,
-  isInboxError,
-  inboxErrorStatus,
-  inboxItemId,
-  toUserId,
-  toInboxRevisionConflictResult,
-} from './inbox-shared'
+import { createServerFn } from '@tanstack/react-start'
+import { inboxItemId, userId as toUserId } from '#/shared/domain/ids'
+import { runInboxCommand, runInboxRevisionCommand } from './inbox-command'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { getContainer } from '#/composition'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import {
   assignInboxItemDto,
   bulkAssignInboxItemsDto,
@@ -26,13 +16,9 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
   .validator(assignInboxItemDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.assignInboxItem(
+      ({ data }) =>
+        runInboxRevisionCommand('inbox.write', (inbox, ctx) =>
+          inbox.assignInboxItem(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
               assignedToUserId: data.assignedToUserId
@@ -41,16 +27,8 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
               expectedCommandRevision: data.expectedCommandRevision,
             },
             ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e)) {
-            const conflict = toInboxRevisionConflictResult(e)
-            if (conflict) return conflict
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          }
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'POST',
       'inbox.assignInboxItem',
     ),
@@ -60,13 +38,9 @@ export const bulkAssignInboxItemsFn = createServerFn({ method: 'POST' })
   .validator(bulkAssignInboxItemsDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.bulkAssignInboxItems(
+      ({ data }) =>
+        runInboxCommand('inbox.write', (inbox, ctx) =>
+          inbox.bulkAssignInboxItems(
             {
               items: data.items.map((item) => ({
                 inboxItemId: inboxItemId(item.inboxItemId),
@@ -77,13 +51,8 @@ export const bulkAssignInboxItemsFn = createServerFn({ method: 'POST' })
                 : null,
             },
             ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e))
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'POST',
       'inbox.bulkAssignInboxItems',
     ),
@@ -95,29 +64,17 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
   .validator(addInboxNoteDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { inboxPublicApi } = getContainer()
-        try {
-          return await inboxPublicApi.addInboxNote(
+      ({ data }) =>
+        runInboxRevisionCommand('inbox.write', (inbox, ctx) =>
+          inbox.addInboxNote(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
               text: data.text,
               expectedCommandRevision: data.expectedCommandRevision,
             },
             ctx,
-          )
-        } catch (e) {
-          if (isInboxError(e)) {
-            const conflict = toInboxRevisionConflictResult(e)
-            if (conflict) return conflict
-            throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          }
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'POST',
       'inbox.addInboxNote',
     ),
