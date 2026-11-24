@@ -206,7 +206,6 @@ export type PortalExperienceRepository = Readonly<{
       override: Readonly<{
         title: string | null
         shortDescription: string | null
-        heroImageUrl: string | null
       }>
       updatedBy: UserId
       at: Date

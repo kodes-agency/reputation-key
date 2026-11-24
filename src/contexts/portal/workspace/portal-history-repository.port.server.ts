@@ -6,6 +6,9 @@ import type { PortalPublicationConfiguration } from '../domain/portal-publicatio
 /** The most rows one read of one source returns, whatever limit it asks for. */
 export const MAX_HISTORY_SOURCE_ROWS = 100
 
+/** More versions than a Portal is ever published; older ones are named, not listed. */
+export const MAX_LISTED_VERSIONS = 200
+
 /** One read of one source: rows strictly before `bound`, newest first. */
 export type PortalHistoryPage = Readonly<{
   bound: HistoryBound | null

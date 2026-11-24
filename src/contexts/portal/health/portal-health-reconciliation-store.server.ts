@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull, or } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalHealthIntervals,
@@ -110,28 +110,36 @@ export const createPortalHealthReconciliationStore = (
             .orderBy(asc(portals.id))
             .for('update')
 
-          let changed = 0
-          for (const portal of portalRows) {
-            const activation = await tx
-              .select({ id: portalPublicationActivations.id })
+          // Read after the Portal rows are locked, one statement per fact for
+          // all of them, one after another on the transaction's own client.
+          const portalIds = portalRows.map((portal) => portal.id)
+          const withActivation = new Set<string>()
+          const withAddress = new Set<string>()
+          const withManager = new Set<string>()
+          const currentByPortal = new Map<
+            string,
+            typeof portalHealthIntervals.$inferSelect
+          >()
+          if (portalIds.length > 0) {
+            const activations = await tx
+              .selectDistinct({ portalId: portalPublicationActivations.portalId })
               .from(portalPublicationActivations)
               .where(
                 and(
                   eq(portalPublicationActivations.organizationId, input.organizationId),
                   eq(portalPublicationActivations.propertyId, input.propertyId),
-                  eq(portalPublicationActivations.portalId, portal.id),
+                  inArray(portalPublicationActivations.portalId, portalIds),
                   isNull(portalPublicationActivations.deactivatedAt),
                 ),
               )
-              .limit(1)
-            const address = await tx
-              .select({ id: portalTokens.id })
+            const addresses = await tx
+              .selectDistinct({ portalId: portalTokens.portalId })
               .from(portalTokens)
               .where(
                 and(
                   eq(portalTokens.organizationId, input.organizationId),
                   eq(portalTokens.propertyId, input.propertyId),
-                  eq(portalTokens.portalId, portal.id),
+                  inArray(portalTokens.portalId, portalIds),
                   or(
                     eq(portalTokens.status, 'active'),
                     and(
@@ -141,44 +149,48 @@ export const createPortalHealthReconciliationStore = (
                   ),
                 ),
               )
-              .limit(1)
-            const manager = await tx
-              .select({ id: portalResponsibleManagers.id })
+            const managers = await tx
+              .selectDistinct({ portalId: portalResponsibleManagers.portalId })
               .from(portalResponsibleManagers)
               .where(
                 and(
                   eq(portalResponsibleManagers.organizationId, input.organizationId),
                   eq(portalResponsibleManagers.propertyId, input.propertyId),
-                  eq(portalResponsibleManagers.portalId, portal.id),
+                  inArray(portalResponsibleManagers.portalId, portalIds),
                   isNull(portalResponsibleManagers.effectiveTo),
                 ),
               )
-              .limit(1)
-            const current = await tx
+            const intervals = await tx
               .select()
               .from(portalHealthIntervals)
               .where(
                 and(
                   eq(portalHealthIntervals.organizationId, input.organizationId),
                   eq(portalHealthIntervals.propertyId, input.propertyId),
-                  eq(portalHealthIntervals.portalId, portal.id),
+                  inArray(portalHealthIntervals.portalId, portalIds),
                   isNull(portalHealthIntervals.effectiveTo),
                 ),
               )
-              .limit(1)
+            for (const row of activations) withActivation.add(row.portalId)
+            for (const row of addresses) withAddress.add(row.portalId)
+            for (const row of managers) withManager.add(row.portalId)
+            for (const row of intervals) currentByPortal.set(row.portalId, row)
+          }
 
+          let changed = 0
+          for (const portal of portalRows) {
             const next = derivePortalHealth({
               publicationState: publicationState(portal.publicationState),
               propertyAvailable:
                 property.deletedAt === null && property.lifecycleState === 'active',
-              hasActivePublicationSnapshot: activation.length === 1,
-              hasResolvablePublicAddress: address.length === 1,
-              hasResponsibleManager: manager.length === 1,
+              hasActivePublicationSnapshot: withActivation.has(portal.id),
+              hasResolvablePublicAddress: withAddress.has(portal.id),
+              hasResponsibleManager: withManager.has(portal.id),
               googleDestinationState: googleDestinationState(
                 property.googleReviewDestinationState,
               ),
             })
-            const open = current[0]
+            const open = currentByPortal.get(portal.id)
             if (!open) {
               await tx.insert(portalHealthIntervals).values({
                 id: runtime.idGen(),

@@ -676,7 +676,8 @@ export const createPortalExperienceRepository = (
           )
           .limit(1)
         const previousTitle = current?.title ?? null
-        const hasValue = Object.values(input.override).some((value) => value !== null)
+        const hasValue =
+          input.override.title !== null || input.override.shortDescription !== null
         if (!hasValue) {
           const scope = and(
             eq(portalLocalizedOverrides.organizationId, unbrand(input.organizationId)),
@@ -736,6 +737,7 @@ export const createPortalExperienceRepository = (
             ],
             set: {
               ...input.override,
+              heroImageUrl: null,
               version: sql`${portalLocalizedOverrides.version} + 1`,
               updatedBy: unbrand(input.updatedBy),
               updatedAt: input.at,
