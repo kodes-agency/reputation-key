@@ -1,13 +1,10 @@
 // Property context — get single property use case
 
 import type { PropertyRepository } from './property-repository.port.server'
+import { loadAccessibleProperty } from './load-accessible-property.server'
 import type { Property } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import { propertyError } from '../domain/errors'
-import { propertyId } from '#/shared/domain/ids'
-import { canForContext } from '#/shared/domain/permissions'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
 export type GetPropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
@@ -21,29 +18,13 @@ export type GetPropertyInput = Readonly<{
 export const getProperty =
   (deps: GetPropertyDeps) =>
   async (input: GetPropertyInput, ctx: AuthContext): Promise<Property> => {
-    if (!canForContext(ctx, 'property.read')) {
-      throw propertyError('forbidden', 'No property read permission')
-    }
-    const pid = propertyId(input.propertyId)
-    const property = await deps.propertyRepo.findById(ctx.organizationId, pid)
-    if (!property) {
-      throw propertyError('property_not_found', 'property not found')
-    }
-
-    // Enforce property-assignment scoping for PropertyManager (AccountAdmin
-    // bypasses via getAccessiblePropertyIds returning null). Mirrors the
-    // update-property write path. (PROPERTY-001 / D6-001.)
-    const accessible = await isPropertyAccessibleForPermission(
-      (orgId, userId, orgWide) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+    return loadAccessibleProperty(
+      deps,
+      input.propertyId,
       ctx,
       'property.read',
-      pid,
+      'No property read permission',
     )
-    if (!accessible) {
-      throw propertyError('forbidden', 'No access to this property', { propertyId: pid })
-    }
-    return property
   }
 
 export type GetProperty = ReturnType<typeof getProperty>
