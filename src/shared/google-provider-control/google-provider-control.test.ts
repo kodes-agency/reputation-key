@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createInMemoryGoogleQuotaCoordinator } from './quota-coordinator'
+import { createInMemoryGoogleQuotaCoordinator } from './quota-coordinator.test-fixtures'
 import {
   executeWithSingle401Refresh,
   googleRetryDelayMs,
