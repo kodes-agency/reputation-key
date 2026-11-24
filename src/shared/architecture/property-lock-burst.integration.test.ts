@@ -149,7 +149,6 @@ function burstReview(index: number): Omit<Review, 'createdAt' | 'updatedAt'> {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: new Date(IMPORTED_AT.getTime() - (index + 1) * 60_000),
-    expiresAt: new Date('2027-09-29T12:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: new Date(IMPORTED_AT.getTime() - (index + 1) * 60_000),

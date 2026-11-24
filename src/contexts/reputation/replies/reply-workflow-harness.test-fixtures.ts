@@ -199,7 +199,6 @@ function seedReview(locationName: string): Omit<Review, 'createdAt' | 'updatedAt
     translatedText: null,
     languageCode: 'en',
     reviewedAt: STARTED_AT,
-    expiresAt,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: STARTED_AT,

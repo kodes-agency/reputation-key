@@ -119,7 +119,6 @@ function makeReview(): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: STARTED_AT,
-    expiresAt,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: STARTED_AT,

@@ -64,9 +64,6 @@ export type ReviewSourceContentLifecycleScope =
       organizationId: OrganizationId
     }>
 
-/** @deprecated Use the mode-neutral lifecycle scope name. */
-export type ReviewSourceContentLifecycleApplyScope = ReviewSourceContentLifecycleScope
-
 /**
  * One transactionally applied page. Provider content never crosses this port;
  * the rows are the same content-free pre-apply inspection facts used by shadow.

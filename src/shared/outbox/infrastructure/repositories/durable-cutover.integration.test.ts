@@ -153,7 +153,6 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt,
-    expiresAt: new Date('2027-07-01T00:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: reviewedAt,

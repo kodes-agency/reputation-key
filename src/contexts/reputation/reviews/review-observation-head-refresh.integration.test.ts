@@ -68,7 +68,6 @@ function readAt(hours: number, overrides: Partial<ReviewWrite> = {}): ReviewWrit
     translatedText: null,
     languageCode: 'en',
     reviewedAt: UPDATED_AT,
-    expiresAt: new Date('2027-10-01T12:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: UPDATED_AT,

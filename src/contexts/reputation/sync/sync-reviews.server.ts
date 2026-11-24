@@ -2,7 +2,7 @@ import type { ReviewRepository } from '../reviews/review-repository.port.server'
 import type { ReviewId } from '#/shared/domain/ids'
 import { defaultReviewLifecycle, type Review } from '../domain/review-types'
 import { reviewCreated, reviewUpdated } from '../domain/review-events'
-import { calculateExpiresAt, computeReviewContentHash } from '../domain/review-rules'
+import { computeReviewContentHash } from '../domain/review-rules'
 import type {
   ReviewCommandStore,
   ReviewFirstSighting,
@@ -365,7 +365,6 @@ function buildObservedReview(
     translatedText: input.review.translatedText,
     languageCode: input.review.languageCode,
     reviewedAt: input.review.reviewedAt,
-    expiresAt: calculateExpiresAt(input.review.reviewedAt, now),
     sentimentLabel: existing?.sentimentLabel ?? stableIdentity?.sentimentLabel ?? null,
     sentimentScore: existing?.sentimentScore ?? stableIdentity?.sentimentScore ?? null,
     ...lifecycle,

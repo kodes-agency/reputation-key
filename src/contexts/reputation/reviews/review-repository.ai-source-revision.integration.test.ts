@@ -114,7 +114,6 @@ async function store(
     translatedText: null,
     languageCode: 'en',
     reviewedAt: REVIEWED_AT,
-    expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: REVIEWED_AT,

@@ -70,7 +70,6 @@ describe('Review lifecycle authority', () => {
     const entryPoints = [
       'src/contexts/reputation/content/purge-expired-reviews-job.server.ts',
       'src/contexts/reputation/content/review-provider-lifecycle-sweeps-job.server.ts',
-      'src/contexts/reputation/content/source-content-purge.server.ts',
       'scripts/ops/enqueue-purge.ts',
       'scripts/ops/restore-verify.ts',
     ] as const

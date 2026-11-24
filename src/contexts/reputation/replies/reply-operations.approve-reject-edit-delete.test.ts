@@ -11,7 +11,7 @@ import {
 } from './reply-operations.server'
 import type { ReviewRepository } from '../reviews/review-repository.port.server'
 import type { Reply } from '../domain/review-types'
-import { MAX_REPLY_LENGTH } from '../domain/review-rules'
+import { GOOGLE_REPLY_COMMENT_MAX_BYTES } from '#/shared/google-provider-control/reply-comment'
 import {
   buildIdempotencyKey,
   PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
@@ -486,7 +486,7 @@ describe('editPublishedReply', () => {
     ).rejects.toMatchObject({ code: 'invalid_reply' })
     await expect(
       editPublishedReply(deps)(
-        { reviewId: REVIEW_ID, text: 'x'.repeat(MAX_REPLY_LENGTH + 1) },
+        { reviewId: REVIEW_ID, text: 'x'.repeat(GOOGLE_REPLY_COMMENT_MAX_BYTES + 1) },
         MANAGER_CTX,
       ),
     ).rejects.toMatchObject({ code: 'invalid_reply' })

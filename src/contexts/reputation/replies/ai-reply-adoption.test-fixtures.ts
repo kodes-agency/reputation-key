@@ -195,7 +195,6 @@ export function createAiReplyAdoptionFixture(
     translatedText: null,
     languageCode: 'en',
     reviewedAt: now,
-    expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: now,
