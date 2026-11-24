@@ -1,4 +1,4 @@
-// Publish changes while live, preview them, make an earlier version live again
+// Publish changes while live, make an earlier version live again
 // and complete a content review, on real PostgreSQL with two organizations: the
 // results a manager sees, the refusals, the snapshots and activations written
 // and the facts recorded. The real use cases run over the real stores and

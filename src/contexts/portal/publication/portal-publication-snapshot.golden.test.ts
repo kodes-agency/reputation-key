@@ -6,7 +6,7 @@ import {
   verifyPortalPublicationSnapshot,
 } from './portal-publication-snapshot.server'
 import { buildLegacyPortalPublicationSnapshot } from './legacy-snapshot-builder.test-fixtures'
-import { PORTAL_LANGUAGE_PACK_VERSIONS } from '../domain/portal-publication-snapshot'
+import { V2_LANGUAGE_PACK_VERSIONS } from '../domain/portal-publication-snapshot'
 import { snapshotMirrorColumns } from './portal-publication-snapshot-mapper.server'
 import {
   GOLDEN_BUILDER_INPUTS,
@@ -230,7 +230,7 @@ describe('golden publication snapshots', () => {
     // The repository writes this map whole into each v2 snapshot and compares
     // its canonical form on read, so a new pack here would change what every
     // future digest covers.
-    expect(PORTAL_LANGUAGE_PACK_VERSIONS).toEqual({
+    expect(V2_LANGUAGE_PACK_VERSIONS).toEqual({
       en: 'guest-ui-en-v1',
       bg: 'guest-ui-bg-v1',
     })

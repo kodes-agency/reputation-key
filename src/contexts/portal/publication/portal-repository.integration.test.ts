@@ -3,10 +3,7 @@
 // Tenant isolation test is NON-NEGOTIABLE.
 
 import { beforeEach, describe, it, expect } from 'vitest'
-import {
-  createCurrentPortalIdReader,
-  createPortalRepository,
-} from './portal-repository.server'
+import { createPortalRepository } from './portal-repository.server'
 import { getDb } from '#/shared/db'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { organizationId, propertyId } from '#/shared/domain/ids'
@@ -62,24 +59,6 @@ describe('portalRepository (integration)', () => {
       expect(found).not.toBeNull()
       expect(found!.name).toBe('Test Portal')
       expect(found!.slug).toBe('test-portal')
-    })
-
-    it('finds portal by slug', async () => {
-      const db = getDb()
-      const repo = createPortalRepository(db)
-      const portal = buildTestPortal({
-        id: crypto.randomUUID(),
-        organizationId: ORG_A,
-        propertyId: PROPERTY_A,
-        name: 'Slug Test',
-        slug: 'slug-test',
-      })
-
-      await fixtures().insert(ORG_A, portal)
-
-      const found = await repo.findBySlug(ORG_A, 'slug-test')
-      expect(found).not.toBeNull()
-      expect(found!.slug).toBe('slug-test')
     })
 
     it('does not return portals from other organizations', async () => {
@@ -188,62 +167,6 @@ describe('portalRepository (integration)', () => {
     })
   })
 
-  describe('current Portal ID snapshot', () => {
-    it('is tenant/property scoped, excludes archived Portals, and applies the limit in SQL', async () => {
-      const readCurrentIds = createCurrentPortalIdReader(getDb())
-      const firstId = '30000000-0000-4000-8000-000000000001'
-      const secondId = '30000000-0000-4000-8000-000000000002'
-      for (const portal of [
-        buildTestPortal({
-          id: firstId,
-          organizationId: ORG_A,
-          propertyId: PROPERTY_A,
-          name: 'Current first',
-          slug: 'current-first',
-          publicationState: 'draft',
-        }),
-        buildTestPortal({
-          id: secondId,
-          organizationId: ORG_A,
-          propertyId: PROPERTY_A,
-          name: 'Current second',
-          slug: 'current-second',
-          publicationState: 'disabled',
-        }),
-        buildTestPortal({
-          id: '30000000-0000-4000-8000-000000000003',
-          organizationId: ORG_A,
-          propertyId: PROPERTY_A,
-          name: 'Archived',
-          slug: 'archived',
-          publicationState: 'archived',
-        }),
-        buildTestPortal({
-          id: '30000000-0000-4000-8000-000000000004',
-          organizationId: ORG_A,
-          propertyId: PROPERTY_ALT,
-          name: 'Other property',
-          slug: 'other-property',
-        }),
-        buildTestPortal({
-          id: '30000000-0000-4000-8000-000000000005',
-          organizationId: ORG_B,
-          propertyId: PROPERTY_B,
-          name: 'Other tenant',
-          slug: 'other-tenant',
-        }),
-      ]) {
-        await fixtures().insert(portal.organizationId, portal)
-      }
-
-      await expect(readCurrentIds(ORG_A, PROPERTY_A, 1)).resolves.toEqual([firstId])
-      await expect(readCurrentIds(ORG_A, PROPERTY_A, 10)).resolves.toEqual([
-        firstId,
-        secondId,
-      ])
-    })
-  })
-
   describe('softDelete', () => {
     it('removes portal from queries but preserves row', async () => {
       const db = getDb()
@@ -290,9 +213,10 @@ describe('portalRepository (integration)', () => {
 
       await fixtures().insert(ORG_A, newPortal)
 
-      const found = await repo.findBySlug(ORG_A, 'reuse-slug')
-      expect(found).not.toBeNull()
-      expect(found!.name).toBe('Reuse Slug New')
+      const found = (await repo.listByProperty(ORG_A, PROPERTY_A)).filter(
+        (candidate) => candidate.slug === 'reuse-slug',
+      )
+      expect(found.map((candidate) => candidate.name)).toEqual(['Reuse Slug New'])
     })
   })
 
