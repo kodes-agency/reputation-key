@@ -35,11 +35,6 @@ import {
 import type { AiAdmissionClient } from '#/shared/ai-provider-control/contracts'
 import { getLogger } from '#/shared/observability/logger'
 
-/**
- * The sidecar pair exposed a health endpoint and a readiness probe because a
- * container orchestrator needed to know whether to route to them. In-process
- * there is nothing to route: readiness is construction succeeding.
- */
 export type AiEgressRuntime = Readonly<{
   service(): Promise<AiEgressGatewayService>
 }>
@@ -89,12 +84,6 @@ export function inProcessAdmissionClient(
         ? Object.freeze({ status: 'settled' as const, receipt: result.receipt })
         : Object.freeze({ status: 'denied' as const, code: result.code })
     },
-    // Over mTLS this probed a socket, because the admission service could be
-    // unreachable while this process was healthy. A function call in this
-    // process cannot be: if construction succeeded, admission is callable, and
-    // whether the DATABASE is reachable is the pool's answer to give on the
-    // call itself rather than a second liveness opinion cached here.
-    readiness: async () => true,
   })
 }
 

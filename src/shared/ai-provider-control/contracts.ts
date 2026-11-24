@@ -63,7 +63,6 @@ export type AiAdmissionClient = Readonly<{
     | Readonly<{ status: 'settled'; receipt: AiSettlementReceiptV1 }>
     | Readonly<{ status: 'denied'; code: string }>
   >
-  readiness(signal: AbortSignal): Promise<boolean>
 }>
 
 /** OpenAI's usage block is the provider-neutral one (`AiProviderUsage`). */

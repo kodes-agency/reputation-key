@@ -271,7 +271,6 @@ export type AiEgressGatewayService = Readonly<{
     signal: AbortSignal,
     progress?: ReplyDraftingProgressSink,
   ): Promise<AiGatewayRouteResponseV1>
-  readiness(signal: AbortSignal): Promise<boolean>
 }>
 
 /**
@@ -630,15 +629,6 @@ export function createAiEgressGatewayService(
       } finally {
         deadline.dispose()
       }
-    },
-    readiness: async (signal) => {
-      if (
-        signal.aborted ||
-        [...registry.adapters.values()].some((adapter) => adapter.readiness?.() === false)
-      ) {
-        return false
-      }
-      return dependencies.admission.readiness(signal)
     },
   })
 }
