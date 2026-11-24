@@ -230,9 +230,7 @@ function installPolicy(env: Readonly<Record<string, string>>): void {
   initExecutionPolicy(
     createExecutionPolicy({ listAccessiblePropertyIds: async () => [] }),
   )
-  initDelayedExecutionPolicy(
-    createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-  )
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 }
 
 type Posture = Readonly<{
@@ -278,7 +276,6 @@ function build(fixture: Fixture) {
       setActiveOrganization: async () => {},
       updateOrganization: async () => {},
       currentOrganizationName: async () => 'Gated invitation',
-      verifyPassword: async () => false,
     },
     deleteAssetObject: async () => {},
     listAssetObjects: async () => ({ objects: [], truncated: false }),

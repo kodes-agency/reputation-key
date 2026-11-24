@@ -179,21 +179,6 @@ export type MerchantAiAuthorizationDeps = Readonly<{
     organizationId: string
     actorUserId: string
   }): Promise<boolean>
-  /**
-   * Reserved hook for a future step-up proof. Consent does not call it: since
-   * merchant-ai-notice-2026-09-15.v1 consent is the served notice, an explicit
-   * acknowledgement of it, and the evidence row (decision 4 in
-   * docs/plan/property-setup-exploration.md). A policy that brings a proof back
-   * calls it from the consent commands in the same change that bumps the notice
-   * and sets `requiresStepUp`.
-   */
-  verifyStepUp(input: {
-    actorUserId: string
-    organizationId: string
-    proof: string
-    now: Date
-    requestHeaders?: Headers
-  }): Promise<boolean>
   clock: () => Date
   /** Mints a consent ceremony id. */
   idGen: () => string
@@ -217,8 +202,6 @@ export type MerchantAiCommandInput = Readonly<{
   actorUserId: string
   idempotencyKey: string
   expectedStateVersion: number
-  /** Forwarded for the reserved step-up hook; consent does not read it. */
-  requestHeaders?: Headers
   reasonCode: string
 }>
 
@@ -248,8 +231,6 @@ export type MerchantAiEnableForPropertiesInput = Readonly<{
   acknowledgement: MerchantAiNoticeAcknowledgement
   idempotencyKey: string
   reasonCode: string
-  /** Forwarded for the reserved step-up hook; consent does not read it. */
-  requestHeaders?: Headers
 }>
 
 export type MerchantAiAuthorization = ReturnType<typeof createMerchantAiAuthorization>

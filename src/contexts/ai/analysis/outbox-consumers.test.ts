@@ -778,9 +778,7 @@ describe('AI consumer authorization', () => {
   ) => gateUnder({ BETA_CAPABILITIES_OFF: stopped }, consumerName, envelope)
 
   beforeEach(() => {
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-    )
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
   })
 
   afterEach(() => {

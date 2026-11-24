@@ -101,7 +101,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'providerEphemeralRedis',
   'rateLimiter',
   'redis',
-  'refreshPolicyStore',
   'refreshReviewProviderSubjectKeys',
   'registerOutboxConsumers',
   'registerReviewWorkerJobs',
@@ -305,7 +304,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
   })
 
   it('exposes readiness/runtime contributions as functions', () => {
-    expect(typeof container.refreshPolicyStore).toBe('function')
     expect(typeof container.refreshReviewProviderSubjectKeys).toBe('function')
     expect(typeof container.registerOutboxConsumers).toBe('function')
     expect(typeof container.registerReviewWorkerJobs).toBe('function')

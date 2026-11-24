@@ -145,7 +145,7 @@ describe('switched-off feature containment matrix', () => {
   describe('delayed contract', () => {
     it('refuses unknown work and the optional email digest while optional email is off', async () => {
       install({ BETA_CAPABILITIES_OFF: 'optional_email' })
-      const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+      const policy = createDelayedExecutionPolicy()
       const cases: ReadonlyArray<readonly [string, string]> = [
         ['system:unknown.action', 'unknown_action'],
         ['system:notification.email_digest', 'capability_disabled'],

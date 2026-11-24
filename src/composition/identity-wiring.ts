@@ -14,6 +14,9 @@ import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
 import type { createDeferredMemberAuthorityLifecycle } from './member-authority-lifecycle'
 
+const INVITATION_EXPIRY_MS = INVITATION_EXPIRY_SECONDS * 1000
+const MS_PER_DAY = 86_400_000
+
 const PROPERTY_ID_SHAPE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 
@@ -115,7 +118,7 @@ export function wireIdentity(
             ).href,
             role: 'Member',
             propertyNames: [],
-            expiresInDays: 7,
+            expiresInDays: INVITATION_EXPIRY_MS / MS_PER_DAY,
           })
         else
           await sendStaffCodeReadyEmail(
@@ -136,7 +139,7 @@ export function wireIdentity(
       getPortal().uploads.storage.listObjects(prefix, maxKeys, startAfter),
     sendEmail: options?.email ?? sendInvitationEmail,
     baseUrl: env.BETTER_AUTH_URL,
-    invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
+    invitationExpiresInMs: INVITATION_EXPIRY_MS,
     // Late-bound like the policy check below. Invitations store Property ids
     // as free text; only a UUID can name a Property row.
     propertyNames: (orgId, ids) =>
@@ -172,6 +175,6 @@ export function buildIdentityPlatform({
     logger,
     sendEmail: options?.email ?? sendInvitationEmail,
     baseUrl: env.BETTER_AUTH_URL,
-    invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
+    invitationExpiresInMs: INVITATION_EXPIRY_MS,
   })
 }
