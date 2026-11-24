@@ -142,11 +142,6 @@ export function notificationPreferenceId(id: string): NotificationPreferenceId {
   return id as NotificationPreferenceId
 }
 
-export type BadgeId = Brand<string, 'BadgeId'>
-export function badgeId(id: string): BadgeId {
-  return id as BadgeId
-}
-
 export type GuestResponseId = Brand<string, 'GuestResponseId'>
 export function guestResponseId(id: string): GuestResponseId {
   return id as GuestResponseId

@@ -51,7 +51,7 @@ export type AspectReviewTotals = Readonly<{
   reviewsByTopic: ReadonlyMap<AspectTaxonomyV1Id, number>
 }>
 
-/** The stars a rating counts as: a whole number from 1 to 5, as `aspect-impact` clamps it. */
+/** The stars a rating counts as: a whole number from 1 to 5, clamped the same way everywhere. */
 function starIndex(rating: number): number {
   if (!Number.isFinite(rating)) return 0
   return Math.min(5, Math.max(1, Math.round(rating))) - 1

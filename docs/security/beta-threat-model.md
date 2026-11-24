@@ -43,7 +43,7 @@
 
 | Threat                                | Mitigation                                                                                                                                 | Status      |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| Attacker registers without invitation | `identity.register` capability off by default; route checks `assertGlobalCapability`                                                       | ✅ Enforced |
+| Attacker registers without invitation | `identity.register` capability off by default; route checks `checkGlobalCapability`                                                        | ✅ Enforced |
 | Attacker forges session token         | Better Auth session validation; httpOnly + secure cookies; no token in URLs                                                                | ✅ Enforced |
 | Attacker spoofs forwarding headers    | Railway mode ignores XFF and requires the documented X-Real-IP + Railway marker contract; generic XFF mode validates/bounds the full chain | ✅ Enforced |
 | Google webhook impersonation          | Pub/Sub JWT verification (`pubsub-jwt.verifier.ts`)                                                                                        | ✅ Enforced |
