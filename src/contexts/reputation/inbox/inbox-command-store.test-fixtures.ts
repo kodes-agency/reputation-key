@@ -139,7 +139,6 @@ export function makeReview(overrides: Partial<Review> = {}): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
-    expiresAt: new Date(NOW.getTime() + 25 * 24 * 60 * 60 * 1000),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW,

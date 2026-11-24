@@ -425,7 +425,6 @@ describe('Google account category cleanup (PostgreSQL)', () => {
       connectionId: CONNECTION,
       event: event(),
     })
-    const forConnection = vi.fn()
     const repo = createGoogleConnectionRepository(db, () => NOW)
     const command = disconnectGoogleAccount({
       connectionRepo: {
@@ -440,12 +439,6 @@ describe('Google account category cleanup (PostgreSQL)', () => {
       encryption: createTestTokenEncryption(),
       clock: () => NOW,
       logger: createMockLogger(),
-      sourceContentPurge: {
-        forConnection,
-        forProperty: vi.fn(),
-        forOrganization: vi.fn(),
-        inboxForProperty: vi.fn(),
-      },
     })
     await expect(
       command(
@@ -462,7 +455,6 @@ describe('Google account category cleanup (PostgreSQL)', () => {
       googleSubject: 'google-subject-123',
     })
     expect((await hints())[0]?.category).toBe('Day spa')
-    expect(forConnection).not.toHaveBeenCalled()
     expect(
       await db
         .select()

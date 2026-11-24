@@ -58,7 +58,6 @@ export type Review = Readonly<{
   translatedText: string | null
   languageCode: string | null
   reviewedAt: Date
-  expiresAt: Date
   sentimentLabel: SentimentLabel
   sentimentScore: number | null
   // Source content lifecycle (ADR 0031)

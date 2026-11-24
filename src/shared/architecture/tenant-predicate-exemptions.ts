@@ -279,13 +279,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
   },
   {
     file: 'src/contexts/reputation/reviews/review-repository.server.ts',
-    symbol: 'countExpiredBeforeAcrossTenants',
-    reason:
-      'The restore and purge completion probe intentionally counts expired review content across all tenants to prove that no eligible rows remain.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/reputation/reviews/review-repository.server.ts',
     symbol: 'clockBatchAcrossTenants',
     reason:
       'The bounded review-content lifecycle sweeps (refresh-expiring and purge-expired) intentionally page live review content across all tenants by one stable expiration cursor so every eligible row is reached, and preserve tenant identity on every result.',

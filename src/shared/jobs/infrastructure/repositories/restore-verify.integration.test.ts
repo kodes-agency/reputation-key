@@ -1,4 +1,3 @@
-import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // BQC-7.8 — ops:restore-verify integration proof (real PostgreSQL).
 //
 // fallow-ignore-file boundary-violation
@@ -46,7 +45,6 @@ import {
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
 import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
-import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
 import {
   runOperatorCommand,
   type OperatorIO,
@@ -133,6 +131,18 @@ async function seedReview(id: string, contentExpiresAt: Date): Promise<void> {
   `)
 }
 
+/** Live Reviews whose content clock is before `date`: the drill's zero-remaining probe. */
+async function countExpiredReviews(date: Date): Promise<number> {
+  const r = await db.execute(sql`
+    SELECT count(*)::int AS c
+    FROM reviews AS r
+    JOIN review_source_contents AS c
+      ON c.review_id = r.id AND c.organization_id = r.organization_id
+    WHERE r.source_content_state = 'active' AND c.content_expires_at < ${date}
+  `)
+  return (r.rows[0] as { c: number }).c
+}
+
 async function reviewCount(): Promise<number> {
   const r = await db.execute(
     sql`SELECT count(*)::int AS c FROM reviews WHERE organization_id = ${ORG}`,
@@ -142,12 +152,6 @@ async function reviewCount(): Promise<number> {
 
 /** The real deps — the same construction scripts/ops/restore-verify.ts wires. */
 function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
-  const reviewRepo = createReviewRepository(
-    db,
-    () => new Date(),
-    undefined,
-    replyScopeEffects,
-  )
   const clock = () => new Date()
   return {
     env,
@@ -169,10 +173,10 @@ function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
         requestSha256: 'a'.repeat(64),
         reportContent: '{"version":"integration-report"}\n',
         reportSha256: 'b'.repeat(64),
-        expired: await reviewRepo.countExpiredBeforeAcrossTenants(clock()),
+        expired: await countExpiredReviews(clock()),
       }),
     },
-    countExpired: async () => reviewRepo.countExpiredBeforeAcrossTenants(clock()),
+    countExpired: async () => countExpiredReviews(clock()),
     inspectGoogleImportLifecycle: async () => ({
       expiredItems: 0,
       purgeCandidates: 0,

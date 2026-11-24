@@ -40,7 +40,6 @@ export function buildTestReview(
     translatedText: null,
     languageCode: 'en',
     reviewedAt: REPUTATION_FIXTURE_NOW,
-    expiresAt: REPUTATION_FIXTURE_EXPIRES,
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: REPUTATION_FIXTURE_NOW,

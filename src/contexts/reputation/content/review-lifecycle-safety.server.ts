@@ -18,11 +18,3 @@ export class ReviewDestructiveLifecycleQuarantinedError extends Error {
     this.name = 'ReviewDestructiveLifecycleQuarantinedError'
   }
 }
-
-/**
- * Runtime schedule authority. This is intentionally not configuration: an
- * environment variable cannot bypass the migration and evidence gate.
- */
-export function isLegacyDestructiveReviewLifecycleEnabled(): false {
-  return false
-}

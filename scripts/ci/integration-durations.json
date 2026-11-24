@@ -500,7 +500,6 @@
   "src/contexts/reputation/content/review-source-content-writes.integration.test.ts": 200,
   "src/contexts/reputation/content/review-source-expiry.integration.test.ts": 200,
   "src/contexts/reputation/content/source-content-lifecycle-store.integration.test.ts": 500,
-  "src/contexts/reputation/content/source-content-purge.integration.test.ts": 400,
   "src/contexts/reputation/inbox/add-inbox-note.integration.test.ts": 200,
   "src/contexts/reputation/inbox/assign-inbox-item.integration.test.ts": 300,
   "src/contexts/reputation/inbox/bulk-assign-inbox-items.integration.test.ts": 200,

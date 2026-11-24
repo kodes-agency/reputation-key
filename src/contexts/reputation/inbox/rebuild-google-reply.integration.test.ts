@@ -156,7 +156,6 @@ function makeReview(
     translatedText: null,
     languageCode: 'en',
     reviewedAt: new Date('2026-10-01T00:00:00.000Z'),
-    expiresAt: new Date('2027-01-01T00:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: new Date('2026-10-01T00:00:00.000Z'),

@@ -153,7 +153,6 @@ describe.sequential('provider content writes and serving', () => {
         sourceUpdatedAt: editedAt,
         lastFetchedAt: editedAt,
         contentExpiresAt: new Date(editedAt.getTime() + 30 * DAY),
-        expiresAt: new Date(editedAt.getTime() + 30 * DAY),
         analysisSequence: 2,
       }),
       editedAt,
@@ -178,7 +177,6 @@ describe.sequential('provider content writes and serving', () => {
       observation('The room was clean. It was quiet.', {
         lastFetchedAt: fetchedAt,
         contentExpiresAt: renewedUntil,
-        expiresAt: renewedUntil,
       }),
       fetchedAt,
     )
@@ -232,7 +230,6 @@ describe.sequential('provider content writes and serving', () => {
         firstFetchedAt: fetchedAt,
         lastFetchedAt: fetchedAt,
         contentExpiresAt: renewedUntil,
-        expiresAt: renewedUntil,
       }),
       fetchedAt,
     )

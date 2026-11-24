@@ -11,7 +11,7 @@ import {
   rejectReplyDto,
 } from './reply-read'
 import { reviewError, isReviewError } from '../domain/review-errors'
-import { MAX_REPLY_LENGTH } from '../domain/review-rules'
+import { GOOGLE_REPLY_COMMENT_MAX_BYTES } from '#/shared/google-provider-control/reply-comment'
 
 // ── DTO validation ──────────────────────────────────────────────────
 
@@ -89,7 +89,7 @@ describe('draftReplyDto', () => {
   it('rejects text exceeding max length', () => {
     const result = draftReplyDto.safeParse({
       ...validInput,
-      text: 'x'.repeat(MAX_REPLY_LENGTH + 1),
+      text: 'x'.repeat(GOOGLE_REPLY_COMMENT_MAX_BYTES + 1),
     })
     expect(result.success).toBe(false)
   })
@@ -97,7 +97,7 @@ describe('draftReplyDto', () => {
   it('accepts text at exactly max length', () => {
     const result = draftReplyDto.safeParse({
       ...validInput,
-      text: 'x'.repeat(MAX_REPLY_LENGTH),
+      text: 'x'.repeat(GOOGLE_REPLY_COMMENT_MAX_BYTES),
     })
     expect(result.success).toBe(true)
   })

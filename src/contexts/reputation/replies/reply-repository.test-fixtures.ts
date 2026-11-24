@@ -92,7 +92,6 @@ export async function seedReview(
     translatedText: null,
     languageCode: 'en',
     reviewedAt,
-    expiresAt: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: reviewedAt,

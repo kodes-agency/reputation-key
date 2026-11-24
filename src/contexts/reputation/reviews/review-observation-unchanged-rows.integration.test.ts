@@ -69,7 +69,6 @@ function readAt(hours: number): ReviewWrite {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: SOURCE_TIME,
-    expiresAt: new Date('2027-11-01T12:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: SOURCE_TIME,

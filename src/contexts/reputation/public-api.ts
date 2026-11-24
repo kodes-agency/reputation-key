@@ -183,8 +183,6 @@ export {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
 } from './content/run-source-content-lifecycle.server'
-// Lifecycle purge port consumed by integration + property use cases.
-export type { SourceContentPurge } from './content/source-content-purge.port.server'
 export type { ReviewReplyObservationAuthority } from './reviews/reply-observation-authority.port.server'
 export type {
   ReviewInboxProjectionExpectation,
