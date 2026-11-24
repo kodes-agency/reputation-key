@@ -9,10 +9,8 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { commandHandler } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
-import { portalId } from '#/shared/domain/ids'
-import { portalError } from '../domain/errors'
 import { portalCommandErrors } from './portal-command-errors'
-import { requirePortalResourceScope } from './property-scope'
+import { requirePortalScope } from './portal-scope.server'
 
 const reviewInput = z.object({ portalId: z.string().min(1, 'Portal ID is required') })
 
@@ -24,16 +22,7 @@ export const getPortalReview = createServerFn({ method: 'GET' })
       { method: 'GET', name: 'portal.getPortalReview', errors: portalCommandErrors },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        const scope = await requirePortalResourceScope({
-          actor: ctx,
-          action: 'portal.read',
-          capability: 'portal.read',
-          notFound: portalError('portal_not_found', 'portal not found'),
-          lookup: () =>
-            getContainer().portalPublicApi.management.resolvePortalManagementScope(
-              portalId(data.portalId),
-            ),
-        })
+        const scope = await requirePortalScope(ctx, data.portalId, 'portal.read')
         const mayPublish = await requireExecutionAllowed({
           actor: ctx,
           action: 'portal.update',
