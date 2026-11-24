@@ -19,6 +19,10 @@ import {
   propertyId,
   ratingId,
 } from '#/shared/domain/ids'
+import {
+  deleteResponseSatellites,
+  erasedResponseColumns,
+} from '../responses/guest-response-erasure.server'
 import { guestFeedbackRetracted, guestRatingRetracted } from '../domain/events'
 
 function journaledIds(entry: BackupErasureLedgerEntry, kind: string): string[] {
@@ -118,18 +122,7 @@ export const createGuestResponseErasureReplayer = (): BackupErasureReplayer => (
       )
     const erased = await tx
       .update(guestResponses)
-      .set({
-        status: 'deleted',
-        rating: null,
-        categoryId: null,
-        responseConsent: false,
-        textConsent: false,
-        mediaConsent: false,
-        ratingSourceEventId: null,
-        feedbackSourceEventId: null,
-        deletedAt: entry.effectiveErasureAt,
-        updatedAt: entry.effectiveErasureAt,
-      })
+      .set(erasedResponseColumns(entry.effectiveErasureAt, entry.effectiveErasureAt))
       .where(
         and(
           eq(guestResponses.organizationId, entry.organizationId),
@@ -138,27 +131,9 @@ export const createGuestResponseErasureReplayer = (): BackupErasureReplayer => (
         ),
       )
       .returning({ id: guestResponses.id })
-    const feedback = await tx
-      .delete(guestResponsePrivateFeedback)
-      .where(
-        and(
-          eq(guestResponsePrivateFeedback.organizationId, entry.organizationId),
-          inArray(guestResponsePrivateFeedback.responseId, ids),
-        ),
-      )
-      .returning({ id: guestResponsePrivateFeedback.responseId })
-    // The reveal audits of the contact go with it through their foreign key.
-    const contact = await tx
-      .delete(guestContactRequests)
-      .where(
-        and(
-          eq(guestContactRequests.organizationId, entry.organizationId),
-          inArray(guestContactRequests.responseId, ids),
-        ),
-      )
-      .returning({ id: guestContactRequests.id })
+    const satellites = await deleteResponseSatellites(tx, entry.organizationId, ids)
     await publishRetractions(tx, live, { rating: true }, entry.effectiveErasureAt)
-    return erased.length + feedback.length + contact.length
+    return erased.length + satellites
   },
 })
 
