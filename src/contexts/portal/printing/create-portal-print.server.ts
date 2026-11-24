@@ -111,7 +111,7 @@ async function choiceOf(
     quantity: input.quantity,
     perSheet: input.perSheet,
     languageCount: input.languages.length,
-    backPage: input.backPage ?? false,
+    backPage: input.backPage,
   }
 }
 
@@ -192,7 +192,7 @@ export const createPortalPrint =
 
     const pictures = await readPicturesThenReveal(deps, context.look, scope, ctx, input)
 
-    const cropMarks = input.cropMarks ?? false
+    const { cropMarks } = input
     const print = { ...choice, languages: input.languages, cropMarks }
     const pdf = await renderOrRefuse(
       deps.renderer,
@@ -220,7 +220,7 @@ export const createPortalPrint =
           ? {
               sheets: {
                 quantity: choice.quantity,
-                fillSpares: input.fillSpares ?? false,
+                fillSpares: input.fillSpares,
                 perSheet: choice.perSheet,
               },
             }
