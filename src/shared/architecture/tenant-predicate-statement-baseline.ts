@@ -28,7 +28,6 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/ai/analysis/property-processing-profile.adapter.server.ts#refreshForAi': 1,
   'src/contexts/feed/audit/operational-action-history-store.server.ts#readReadiness': 1,
   'src/contexts/feed/audit/operational-action-history-store.server.ts#redactSubject': 1,
-  'src/contexts/feed/rights/recent-activity-privacy-store.server.ts#redactActorLabels': 2,
   'src/contexts/feed/email/notification-digest-batch.server.ts#settleAccepted': 1,
   'src/contexts/feed/email/notification-digest-batch.server.ts#settleRejected': 1,
   'src/contexts/feed/email/notification-digest-batch.server.ts#settleSuperseded': 1,
