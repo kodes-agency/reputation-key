@@ -200,13 +200,6 @@ export function makeReplyCommandStoreFake(
       if (saved) await outbox.record(facts.publicationIntent)
       return saved
     },
-    markPublished: (reply, updates, event, now) =>
-      transition(
-        reply,
-        { ...updates, publicationState: 'published', reconcileDueAt: null },
-        event,
-        now,
-      ),
     // D4: mirrors the production settle — guarded write to publish_failed /
     // terminal / retryable, the fact only when the row was not already failed.
     // The CAS keeps the attempt's cycle, so the settled row carries it forward.

@@ -3,12 +3,9 @@ import type { Database } from '#/shared/db'
 import { portalAccessArtifacts, portalTokens } from '#/shared/db/schema/portal.schema'
 import type { PortalTokenRepository } from './portal-token-repository.port.server'
 import type { PortalToken, TokenStatus } from '../domain/portal-token'
-import { portalError } from '../domain/errors'
 import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
 import type { OrganizationId, PortalId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-
-const VALID_TOKEN_STATES: ReadonlySet<string> = new Set(['active', 'rotating', 'revoked'])
 
 // The columns a PortalToken is made of. The two whole-row reads name them instead
 // of selecting everything, so the sealed address and the print code hashes
@@ -22,7 +19,6 @@ const TOKEN_COLUMNS = {
   tokenHash: portalTokens.tokenHash,
   tokenKeyVersion: portalTokens.tokenKeyVersion,
   version: portalTokens.version,
-  printBatch: portalTokens.printBatch,
   status: portalTokens.status,
   issuedAt: portalTokens.issuedAt,
   gracePeriodEnds: portalTokens.gracePeriodEnds,
@@ -36,9 +32,6 @@ const selectTokens = (db: Database) => db.select(TOKEN_COLUMNS).from(portalToken
 type TokenRow = Awaited<ReturnType<typeof selectTokens>>[number]
 
 function tokenFromRow(row: TokenRow): PortalToken {
-  if (!VALID_TOKEN_STATES.has(row.status)) {
-    throw portalError('token_unavailable', 'Stored portal token state is invalid')
-  }
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -48,7 +41,6 @@ function tokenFromRow(row: TokenRow): PortalToken {
     tokenHash: row.tokenHash,
     tokenKeyVersion: row.tokenKeyVersion,
     version: row.version,
-    printBatch: row.printBatch,
     status: row.status as TokenStatus,
     issuedAt: row.issuedAt,
     gracePeriodEnds: row.gracePeriodEnds,

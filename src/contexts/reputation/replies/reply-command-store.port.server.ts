@@ -34,7 +34,6 @@ import type {
   ReviewReplyApproved,
   ReviewReplyPublicationCancelled,
   ReviewReplyPublicationRequested,
-  ReviewReplyPublished,
   ReviewReplyPublishFailed,
   ReviewReplyRejected,
   ReviewReplySubmitted,
@@ -275,19 +274,6 @@ export type ReplyCommandStore = Readonly<{
     reply: Reply,
     updates: ConditionalReplyUpdate,
     event: ReviewReplyRejected,
-    now?: Date,
-  ): Promise<Reply | null>
-  /**
-   * Guarded transition → published + published fact, one transaction.
-   * Also persists publication_state='published' and clears
-   * reconcile_due_at. Starts only from a reply that was sent and not yet
-   * confirmed: approved or publish_failed, in 'sending', 'pending_observation',
-   * 'ambiguous' or 'terminal'. Never from a draft or a reply awaiting approval.
-   */
-  markPublished(
-    reply: Reply,
-    updates: ConditionalReplyUpdate,
-    event: ReviewReplyPublished,
     now?: Date,
   ): Promise<Reply | null>
 }>

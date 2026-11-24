@@ -1,3 +1,4 @@
+import { seedReply } from '../../../../contexts/reputation/replies/reply-seed.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // BQC-4.6 — no-fallback fault proof (real PostgreSQL + real Redis/BullMQ).
 //
@@ -518,7 +519,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       observedAt: NOW_C,
       contentExpiresAt: new Date(NOW_C.getTime() + 24 * 60 * 60 * 1000),
     })
-    const pendingReply = await replyRepo.upsert(makeReplyC(), NOW_C)
+    const pendingReply = await seedReply(getDb(), makeReplyC(), NOW_C)
     // Identity authority itself is outside this provider-fault proof. The
     // fixture grants the seeded manager explicitly; production composition
     // injects the real transaction-bound, fail-closed authority.

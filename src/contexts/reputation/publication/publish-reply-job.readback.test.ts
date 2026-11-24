@@ -70,7 +70,6 @@ describe('publish-reply job handler', () => {
     expect(
       deps.replyCommandStore.markProviderOutcomePendingObservation,
     ).not.toHaveBeenCalled()
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
@@ -150,7 +149,6 @@ describe('publish-reply job handler', () => {
     expect(
       deps.replyCommandStore.markProviderOutcomePendingObservation,
     ).toHaveBeenCalledTimes(1)
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
@@ -385,7 +383,6 @@ describe('publish-reply job handler', () => {
       expect.any(String),
     )
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
   })
 
   it('a missing attempt start fails closed to ambiguity without consulting evidence', async () => {
