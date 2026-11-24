@@ -1,10 +1,8 @@
 // Integration context — disconnect Google account use case tests
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { disconnectGoogleAccount } from './disconnect-google-account.server'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
   createGoogleConnectionTestStore,
@@ -36,9 +34,6 @@ setupIntegrationDb({
   orgB: SECOND_ORG_ID,
   tables: ['google_connections', 'outbox_events'],
 })
-
-beforeAll(registerAllEventSchemas)
-afterAll(clearEventSchemas)
 
 const sealed = createTestTokenEncryption()
 

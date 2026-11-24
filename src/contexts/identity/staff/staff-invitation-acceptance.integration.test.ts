@@ -14,8 +14,6 @@ import {
 } from '#/shared/testing/staff-account-fixture'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { userId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { identityInvitationAccepted } from '../domain/events'
 import { createAtomicIdentityCommandStore } from '../members/identity-command-store.server'
 import { createInvitationReadModel } from '../members/invitation-read-model.server'
@@ -31,15 +29,12 @@ let fixtures: StaffAccountFixture[] = []
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   db = drizzle(lease.pool) as Database
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 afterEach(async () => {
   for (const fixture of fixtures) await cleanStaffAccountFixture(lease.pool, fixture)
   fixtures = []
 })
 afterAll(async () => {
-  clearEventSchemas()
   await lease.release()
 })
 const seed = async () => {

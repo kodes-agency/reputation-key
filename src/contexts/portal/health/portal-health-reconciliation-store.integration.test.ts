@@ -4,8 +4,6 @@ import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { portalHealthIntervals } from '#/shared/db/schema/portal.schema'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId } from '#/shared/domain/ids'
 import { createPortalHealthReconciliationStore } from './portal-health-reconciliation-store.server'
 
@@ -32,8 +30,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await getPool().query(
     `INSERT INTO properties
        (id, organization_id, name, slug, timezone, lifecycle_state, created_at, updated_at)

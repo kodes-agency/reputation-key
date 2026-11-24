@@ -7,8 +7,6 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { organizationId, userId } from '#/shared/domain/ids'
@@ -121,8 +119,6 @@ const safe = (uri: string): PortalDestinationNetworkValidation => ({
 })
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Approved Destinations', ${ORG}, now())
@@ -150,7 +146,6 @@ afterAll(async () => {
     )
   }
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 describe('requestPortalApprovedDestination', () => {

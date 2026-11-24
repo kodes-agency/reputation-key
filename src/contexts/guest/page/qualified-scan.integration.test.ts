@@ -12,8 +12,6 @@ import {
   qualifiedScanId,
   scanEventId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
   guestQualifiedScanRecorded,
@@ -236,8 +234,6 @@ async function cleanMetricState(): Promise<void> {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await cleanMetricState()
   await seedPublishedArtifact()
 })

@@ -13,8 +13,6 @@ import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { isPortalError } from '../domain/errors'
 import { savePropertyHero, savePropertyLogo } from './save-property-media.server'
@@ -87,8 +85,6 @@ async function insertAsset(
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   for (const [id, slug] of [
     [PROPERTY, 'avela-resort'],
     [OTHER_PROPERTY, 'avela-annex'],

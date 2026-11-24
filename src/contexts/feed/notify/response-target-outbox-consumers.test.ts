@@ -5,8 +5,6 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type {
   InboxItemFacts,
@@ -151,13 +149,10 @@ describe('Response Target reminder durable consumer', () => {
 
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers the stable durable consumer identity', () => {

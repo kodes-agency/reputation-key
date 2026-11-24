@@ -6,8 +6,6 @@ import { beforeEach, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortal } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import { portalCreated } from '../domain/events'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
@@ -62,8 +60,6 @@ async function insertText(linkId: string, locale: string, label: string): Promis
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Results links', 'results-links', 'UTC')`,

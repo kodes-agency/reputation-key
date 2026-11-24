@@ -1,8 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { userId } from '#/shared/domain/ids'
 import {
   handleRatingGoalTransitioned,
@@ -87,15 +85,6 @@ const makeDeps = () => {
     jobs,
   }
 }
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
-afterEach(() => {
-  clearEventSchemas()
-})
 
 describe('the Google rating goal notice route', () => {
   it('registers the one fact Reporting writes per notice', () => {

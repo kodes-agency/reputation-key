@@ -24,8 +24,6 @@ import {
   propertyId,
   reviewId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deriveReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
@@ -379,8 +377,6 @@ async function clear(): Promise<void> {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clear()
   await deleteTestOrganizations(db, [ORG])
   await db.execute(sql`
@@ -446,7 +442,6 @@ afterAll(async () => {
     `)
   }
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 describe('a listing that records a first miss (real PostgreSQL)', () => {

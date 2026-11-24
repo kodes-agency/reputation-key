@@ -11,8 +11,6 @@ import {
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -254,8 +252,6 @@ describe.sequential(
   'Review Analysis per-review monotonic settlement (real PostgreSQL)',
   () => {
     beforeAll(async () => {
-      clearEventSchemas()
-      registerAllEventSchemas()
       await clearFixture()
       await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -324,7 +320,6 @@ describe.sequential(
 
     afterAll(async () => {
       await clearFixture()
-      clearEventSchemas()
     })
 
     it('keeps one coverage ledger across property-profile rollover', async () => {

@@ -1,7 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { registerMemberDepartureConsumers } from './member-departure-outbox-consumers.server'
 
@@ -54,15 +52,6 @@ function setup(currentRole: 'AccountAdmin' | 'PropertyManager' | null = null) {
     registry.listFor(event.eventType)[0]!.handler(event)
   return { deps, run }
 }
-
-beforeAll(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
-afterAll(() => {
-  clearEventSchemas()
-})
 
 describe('member departure consumers', () => {
   it("fences a removed member's connections, then cancels their imports, then records the receipt", async () => {

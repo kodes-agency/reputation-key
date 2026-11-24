@@ -2,8 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, it, expect, vi } from 'vites
 import { Pool } from 'pg'
 import { assignInboxItem } from './assign-inbox-item.server'
 import { getEnv } from '#/shared/config/env'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { isInboxError } from '../domain/inbox-errors'
 import {
   inboxItemId,
@@ -109,8 +107,6 @@ let pool: Pool
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedInboxOrganization(pool, ORG_ID, [PROP_1, PROP_OTHER])
 })
 
@@ -118,7 +114,6 @@ beforeEach(() => clearInboxOrganization(pool, ORG_ID))
 
 afterAll(async () => {
   await dropInboxOrganization(pool, ORG_ID)
-  clearEventSchemas()
   await pool.end()
 })
 

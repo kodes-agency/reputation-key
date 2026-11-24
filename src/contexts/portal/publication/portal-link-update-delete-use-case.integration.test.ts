@@ -11,8 +11,6 @@ import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId } from '#/shared/domain/ids'
 import type { PortalMediaAsset } from '../domain/portal-media-asset'
 import { deleteLink } from '../links/delete-link.server'
@@ -108,8 +106,6 @@ const insertAsset = async (overrides: Partial<PortalMediaAsset> = {}) => {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedLinkTenant(getPool(), A, { additionalGuestLocales: ['bg'] })
   await seedLinkTenant(getPool(), B)
   await seedLinkTenant(getPool(), A_OTHER)

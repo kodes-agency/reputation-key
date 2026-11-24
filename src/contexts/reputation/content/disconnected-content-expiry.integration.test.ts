@@ -1,9 +1,7 @@
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
   buildTestAuthContext,
@@ -52,11 +50,6 @@ const { getPool } = setupIntegrationDb({
     'properties',
     'google_connections',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const sealer = createTestTokenEncryption()

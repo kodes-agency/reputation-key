@@ -5,8 +5,6 @@ import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -272,12 +270,9 @@ export function useInboxCommandStoreDb(): void {
     pool = new Pool({ connectionString: env.DATABASE_URL, max: 2 })
     const client = await pool.connect()
     client.release()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterAll(async () => {
-    clearEventSchemas()
     await truncateAll(pool)
     await pool.end()
   })

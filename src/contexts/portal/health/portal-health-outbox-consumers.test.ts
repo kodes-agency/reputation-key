@@ -1,6 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
   handlePortalHealthDependencyChanged,
@@ -23,11 +21,6 @@ function event(eventType: string, payload: Record<string, unknown>): ConsumerEve
 }
 
 describe('Portal Health dependency consumers', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   it('reconciles every Portal after a Property Google binding change', async () => {
     const reconcile = vi.fn(async () => ({ status: 'applied' as const, changed: 2 }))
     const input = event('property.google_binding.changed', {

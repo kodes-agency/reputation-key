@@ -1,5 +1,4 @@
 import { createGoogleBindingFollowUpHandlers } from '../imports/google-binding-follow-up-consumers.server'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import { getEnv } from '#/shared/config/env'
 import { randomUUID } from 'node:crypto'
@@ -95,7 +94,6 @@ describe('account subscription ordering through PostgreSQL', () => {
     })
   })
   it('checks only two accounts for 100 imported Properties across handler and process restarts', async () => {
-    registerAllEventSchemas()
     const org = organizationId(randomUUID())
     const connectionId = googleConnectionId(randomUUID())
     const accountIds = [randomUUID(), randomUUID()]

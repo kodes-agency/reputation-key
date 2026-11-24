@@ -2,16 +2,7 @@
 // raised, and not the people who were told about some other escalation.
 
 import { noticeWriterOver } from '../infrastructure/notification-consumer-test-fixtures'
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
 import { notificationEmailQueue, notifications } from '#/shared/db/schema'
@@ -19,8 +10,6 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { inboxItemId, propertyId, userId, type UserId } from '#/shared/domain/ids'
 import type { InboxItemFacts } from './inbox-item-lookup.port.server'
 import { handleNotificationInboxEscalationResolved } from './inbox.server'
@@ -136,12 +125,7 @@ describe.sequential('who hears that an escalation was resolved (real PostgreSQL)
     await held?.rollBack()
   })
 
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
   afterEach(async () => {
-    clearEventSchemas()
     await held.db.delete(notificationEmailQueue)
     await held.db.delete(notifications)
   })

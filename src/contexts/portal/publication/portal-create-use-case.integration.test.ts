@@ -7,8 +7,6 @@ import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { PropertyId } from '#/shared/domain/ids'
 import { isPortalError } from '../domain/errors'
 import {
@@ -44,8 +42,6 @@ const { getPool } = setupIntegrationDb({
 const { world, rows, countOf, portalRows, factsOf } = createCreateUseCaseHarness(getPool)
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedCreateUseCaseProperties(getPool())
 })
 

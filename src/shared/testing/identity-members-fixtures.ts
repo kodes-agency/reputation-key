@@ -11,8 +11,6 @@ import { afterAll, afterEach, beforeAll } from 'vitest'
 import { getDb, type Database } from '#/shared/db/index'
 import { getEnv } from '#/shared/config/env'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { IdentityCommandStore } from '#/contexts/identity/members/identity-command-store.port.server'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -109,8 +107,6 @@ export function setupIdentityMembersDb(
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 3)
     db = getDb()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(async () => {
@@ -122,7 +118,6 @@ export function setupIdentityMembersDb(
   })
 
   afterAll(async () => {
-    clearEventSchemas()
     await lease?.release()
   })
 

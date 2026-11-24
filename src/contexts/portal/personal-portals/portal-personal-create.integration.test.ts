@@ -6,8 +6,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildPersonalPortalUseCases } from '../build-personal-portals'
 import { assertPersonalPropertySource } from './personal-portal-property-source.server'
 import {
@@ -52,8 +50,6 @@ const { worldDeps, rows, countOf, portalCount, outboxCount, seedReception } =
   createPersonalCreateHarness(getPool)
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedPersonalCreateProperties(getPool())
 })
 

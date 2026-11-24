@@ -21,8 +21,6 @@ import { createAtomicMetricCommandStore } from './metric-command-store.server'
 import { createPropertyLocalDateResolver } from './property-local-date.server'
 import { recordMetrics } from './record-metric.server'
 import { onRatingSubmittedDurably } from './record-portal-metric.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const db = getDb()
 const ORG = organizationId('org-goal-source-status')
@@ -136,8 +134,6 @@ async function clean(): Promise<void> {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Goal Source Status', ${ORG}, now())
@@ -181,7 +177,6 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM portals WHERE id = ${PORTAL}`)
   await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY}`)
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 describe.sequential('Goal metric durable source status (integration)', () => {

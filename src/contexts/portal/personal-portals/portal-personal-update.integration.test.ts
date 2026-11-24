@@ -7,8 +7,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { PRINT_DEFAULT_WORDING } from '#/shared/domain/portal-print-wording'
 import type { PropertyId } from '#/shared/domain/ids'
 import { publishPortalChanges } from '../publication/publish-portal-changes.server'
@@ -55,8 +53,6 @@ const {
 } = createPersonalCreateHarness(getPool)
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedPersonalCreateProperties(getPool())
 })
 

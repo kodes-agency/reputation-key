@@ -17,7 +17,6 @@ import { workItems } from '#/shared/db/schema/work-items.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
 import type { GoogleImportIntent } from '#/contexts/integration/imports/import-store.port.server'
@@ -37,8 +36,6 @@ export const OUTBOX_ID = '20000000-0000-4000-8000-000000000005'
 export const RETRY_REQUEST_ID = '20000000-0000-4000-8000-000000000010'
 export const RETRY_OUTBOX_ID = '20000000-0000-4000-8000-000000000011'
 export const OTHER_PROPERTY_ID = '20000000-0000-4000-8000-0000000000ff'
-
-registerAllEventSchemas()
 
 export const matchesDigest =
   (expected: Readonly<{ keyVersion: string; digest: string }>) =>

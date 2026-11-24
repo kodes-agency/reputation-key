@@ -5,8 +5,6 @@ import { createReviewResponseTargetAuthority } from '#/contexts/reputation/revie
 import { reviewCreated, reviewUpdated } from '../domain/review-events'
 import type { Review } from '../domain/review-types'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { readObservationHistory } from './review-observation-history.test-fixtures'
@@ -124,8 +122,6 @@ const projectionOf = (sourceEpoch: number, eventSourceRevision: number) =>
   )
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Epoch carry projection', 'review-epoch-carry-projection', 'UTC')

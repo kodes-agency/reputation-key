@@ -10,7 +10,6 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { createMerchantAiAuthorizationStore } from './merchant-ai-authorization.repository.server'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
@@ -69,7 +68,6 @@ describe('Merchant AI authorization store at source epoch 0', () => {
     await clear()
     // The store writes an outbox row, and the allowlist registry is installed by
     // composition in a running service — not by a bare test process.
-    registerAllEventSchemas()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
       VALUES (${EPOCH_ZERO_ORGANIZATION_ID}, 'Merchant AI epoch zero', ${EPOCH_ZERO_ORGANIZATION_ID}, ${EPOCH_ZERO_NOW})

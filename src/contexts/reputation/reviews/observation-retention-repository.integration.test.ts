@@ -4,8 +4,6 @@ import { createAtomicReviewCommandStore } from './review-command-store.server'
 import { reviewCreated, reviewUpdated } from '../domain/review-events'
 import type { Review } from '../domain/review-types'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId, type ReviewId } from '#/shared/domain/ids'
 import { createReviewRepository } from './review-repository.server'
@@ -237,8 +235,6 @@ const retention = () => createObservationRetention(getDb())
 
 beforeEach(async () => {
   keys = 0
-  clearEventSchemas()
-  registerAllEventSchemas()
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Observation retention', 'review-observation-retention', 'UTC')

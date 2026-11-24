@@ -4,8 +4,6 @@ import type { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   inboxItemId,
   organizationId,
@@ -633,13 +631,10 @@ export function useReplyObservationSuite() {
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 3)
     pool = lease.pool
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
   beforeEach(clean)
   afterAll(async () => {
     await clean()
-    clearEventSchemas()
     await lease.release()
   })
   return {

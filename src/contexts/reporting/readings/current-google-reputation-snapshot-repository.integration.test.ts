@@ -6,8 +6,6 @@ import { metricCurrentGoogleReputationSnapshots } from '#/shared/db/schema/metri
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { ConsumerEvent } from '#/shared/outbox'
 import type { VerifiedGoogleReputationSnapshotFact } from './current-google-reputation-snapshot-repository.port.server'
 import { handleCurrentGoogleReputationSnapshot } from './current-google-reputation-outbox-consumers.server'
@@ -271,13 +269,6 @@ describe('Current on Google snapshot repository (real PostgreSQL)', () => {
         { reviewCount: 20, averageRating: 4.7 },
         { written: SNAPSHOT_COMPLETED, observed: SNAPSHOT_STARTED },
       )
-
-    beforeAll(() => {
-      clearEventSchemas()
-      registerAllEventSchemas()
-    })
-
-    afterAll(() => clearEventSchemas())
 
     it('keeps a fresher head fact when a snapshot that started earlier completes later', async () => {
       await recordSourceEvent(EVENT_1, RUN_1)

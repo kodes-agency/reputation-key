@@ -10,8 +10,6 @@ import { getDb } from '#/shared/db'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalLinkCategoryId } from '#/shared/domain/ids'
 import { reorderLinks } from '../links/reorder-links.server'
 import { savePortalLinkTexts } from '../links/save-portal-link-texts.server'
@@ -94,8 +92,6 @@ const legacyLabel = async (linkId: string) =>
   )[0]?.label
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedLinkTenant(getPool(), A, { additionalGuestLocales: ['bg'] })
   await seedLinkTenant(getPool(), B)
 })

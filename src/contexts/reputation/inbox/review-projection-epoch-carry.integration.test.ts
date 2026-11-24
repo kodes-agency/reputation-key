@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
@@ -230,8 +228,6 @@ async function projection() {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await seedReview()
 })
 

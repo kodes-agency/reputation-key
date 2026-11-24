@@ -4,12 +4,10 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/
 // by SQL and pin what the working copy is (golden), then prove that each of
 // the three consumers agrees with it, and that they all notice the same drift.
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { getPortalPublicationHistory } from '../workspace/get-portal-publication-history.server'
 import { readPortalWorkingCopy } from './portal-working-copy-reader.server'
@@ -53,11 +51,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 /** The working copy as publish reads it: through the publication repository. */

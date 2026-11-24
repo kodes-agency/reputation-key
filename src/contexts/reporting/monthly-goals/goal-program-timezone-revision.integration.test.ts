@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { findMetricVersionById } from '../readings/contracts'
 import { createGoalProgramService } from './goal-programs.server'
@@ -26,7 +25,6 @@ describe.sequential(
     let organizationId: string
 
     beforeAll(async () => {
-      registerAllEventSchemas()
       lease = await acquireTestLease(getEnv().DATABASE_URL)
       organizationId = `goal-timezone-revision-${randomUUID()}`
     })

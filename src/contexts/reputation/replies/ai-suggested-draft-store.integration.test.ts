@@ -6,8 +6,6 @@ import { assertCurrentAiDraftBinding } from './ai-draft-binding.server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import {
   aiExecutionControlHeads,
@@ -129,8 +127,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
 
   beforeAll(async () => {
     // The purge records a fact for a reply it withdraws while it awaits approval.
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clear()
     initialReplyControl = await readReplyControl()
     await transitionReplyControl('enabled', 'accepting')
@@ -175,7 +171,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
 
   afterAll(async () => {
     await clear()
-    clearEventSchemas()
     if (initialReplyControl) {
       await transitionReplyControl(
         initialReplyControl.executionState,

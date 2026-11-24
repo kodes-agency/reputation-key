@@ -1,7 +1,7 @@
 // EventJobCatalogue — BQC-3.1.
 //
 // Runtime catalogue for durable event routing and governed BullMQ families,
-// derived from the definitions in src/shared/events/consumer-definitions.ts and
+// derived from the event descriptors, src/shared/events/consumer-definitions.ts and
 // src/shared/jobs/job-definitions.ts. Event rows name the event type and expected
 // durable consumers; a consumed family that nothing emits is listed, with its
 // reason, in producerless-event-families.ts. Job rows own retry, timeout,
@@ -10,7 +10,8 @@
 // A missing expected consumer fails worker readiness and dispatcher delivery.
 // A missing or unknown job family fails readiness or enqueue policy.
 
-import { DURABLE_CONSUMERS, EVENT_TYPES } from '#/shared/events/consumer-definitions'
+import { DURABLE_CONSUMERS } from '#/shared/events/consumer-definitions'
+import { EVENT_TYPES } from '#/shared/events/registry.server'
 import { JOB_FAMILY_ROWS, type JobFamilyRow } from '#/shared/jobs/job-definitions'
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -32,7 +33,7 @@ export type { JobFamilyRow }
 
 // ── Derived rows ────────────────────────────────────────────────────
 
-export const EVENT_FAMILY_ROWS: ReadonlyArray<EventFamilyRow> = EVENT_TYPES.map(
+export const EVENT_FAMILY_ROWS: ReadonlyArray<EventFamilyRow> = [...EVENT_TYPES].map(
   (eventType) => ({
     eventType,
     consumers: DURABLE_CONSUMERS.filter((consumer) =>

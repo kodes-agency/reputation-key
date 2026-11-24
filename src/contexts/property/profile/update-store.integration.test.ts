@@ -4,8 +4,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { seedTestProperty } from './property.test-fixtures'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../domain/types'
 import { propertyUpdated } from '../domain/events'
@@ -61,8 +59,6 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: env.DATABASE_URL, max: 2 })
   const client = await pool.connect()
   client.release()
-  clearEventSchemas()
-  registerAllEventSchemas()
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, $2, $3, NOW())
@@ -78,7 +74,6 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  clearEventSchemas()
   await truncateAll(pool)
   await deleteTestOrganizations(pool, [ORG_ID, OTHER_ORG_ID])
   await pool.end()

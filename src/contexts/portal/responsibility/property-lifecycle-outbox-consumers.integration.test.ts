@@ -13,8 +13,6 @@ import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
@@ -158,15 +156,12 @@ async function clean(): Promise<void> {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
 })
 
 afterAll(async () => {
   await clean()
   await pool.end()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

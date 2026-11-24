@@ -15,7 +15,6 @@ import {
   decodeErasureJournalEntry,
   type ErasureJournalEntry,
 } from '#/shared/db/lifecycle/erasure-journal.server'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { runRightsExecutors } from '#/shared/ops/rights/rights-executor'
 import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 import type { RightsJournalStore } from '#/shared/ops/rights/rights-journal'
@@ -253,7 +252,6 @@ function replay(
 
 describe('guest rights executor', () => {
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL, 3)
     db = drizzle(lease.pool) as Database
   })

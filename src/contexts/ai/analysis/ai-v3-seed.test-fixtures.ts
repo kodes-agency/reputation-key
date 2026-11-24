@@ -37,7 +37,6 @@ import {
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -484,7 +483,6 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
     async setUp(): Promise<void> {
       // An Urgent analysis writes an identifier-only fact to the outbox, which admits only
       // registered facts; the app registers them at boot. Idempotent.
-      registerAllEventSchemas()
       await clear()
       lastIndex = 0
       initialControls = (

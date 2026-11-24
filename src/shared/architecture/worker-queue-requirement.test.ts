@@ -18,7 +18,6 @@ import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createContainer } from '#/composition'
 import type { Database } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { clearTestContainerEnv } from '#/shared/testing/clear-container-env'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 
@@ -36,7 +35,6 @@ const untouchedDatabase = new Proxy(
 
 beforeEach(() => {
   clearTestContainerEnv()
-  clearEventSchemas()
 })
 
 describe('worker queue requirement', () => {

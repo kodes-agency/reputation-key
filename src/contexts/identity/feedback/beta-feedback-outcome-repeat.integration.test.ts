@@ -8,7 +8,6 @@ import type { Database } from '#/shared/db/index'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { deleteTestOrganizations, seedOrgs } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { BetaFeedbackTriageState } from '../domain/betaFeedbackTriage'
 import { betaFeedbackPseudonym } from '../application/beta-feedback-pseudonym'
 import { BetaFeedbackTriageRepository } from '../infrastructure/beta-feedback-triage.repository'
@@ -94,7 +93,6 @@ async function announcedOutcomes(reference: string): Promise<ReadonlyArray<strin
 }
 
 beforeAll(async () => {
-  registerAllEventSchemas()
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   repository = BetaFeedbackTriageRepository.create(drizzle(lease.pool) as Database)
   await seedOrgs(lease.pool, [ORG])

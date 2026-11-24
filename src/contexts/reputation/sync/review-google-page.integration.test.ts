@@ -10,7 +10,7 @@ import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // away never makes a Review look changed. It is served only through the
 // eligible read.
 
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import {
   googleConnectionId,
@@ -19,8 +19,6 @@ import {
   reviewId,
   type ReviewId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -210,11 +208,6 @@ const findingsFor = async (id: ReviewId) => {
   })
   return rows.find((row) => row.reviewId === id)?.shadowFindings
 }
-
-beforeAll(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
 
 beforeEach(async () => {
   await getPool().query(

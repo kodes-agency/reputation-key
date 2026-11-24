@@ -3,8 +3,6 @@ import type { Pool, PoolClient } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { reviewSourceTransitioned } from '#/contexts/reputation/domain/review-events'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import {
@@ -104,13 +102,10 @@ async function cleanFixtureRows(): Promise<void> {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 4)
   pool = lease.pool
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
   await cleanFixtureRows()
-  clearEventSchemas()
   await lease.release()
 })
 

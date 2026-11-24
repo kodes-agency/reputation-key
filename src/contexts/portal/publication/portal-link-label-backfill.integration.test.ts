@@ -12,8 +12,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortal } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import { portalCreated } from '../domain/events'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
@@ -109,8 +107,6 @@ const editsOf = async (n: number) =>
   ).rows
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   const portal = buildTestPortal({
     id: PORTAL_A,
     organizationId: ORG_A,

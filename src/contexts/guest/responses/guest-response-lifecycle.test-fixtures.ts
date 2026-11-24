@@ -1,10 +1,8 @@
 import { createInMemoryWithdrawalJournal } from './guest-withdrawal-journal.test-fixtures'
-import { afterAll, beforeAll, expect } from 'vitest'
+import { afterAll, expect } from 'vitest'
 import { sql } from 'drizzle-orm'
 import type { GuestResponseScope } from './guest-response.repository.port.server'
 import { newTestId, testDb } from '#/shared/testing/ambient-test-runtime'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   guestSessionId,
@@ -29,11 +27,6 @@ export const SESSION = guestSessionId('00000000-0000-4000-8000-000000000003')
 
 /** Registers the event schemas and the tenant cleanup for the calling test file. */
 export function registerLifecycleSuiteHooks(): void {
-  beforeAll(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   afterAll(async () => {
     const ids = createdOrganizations
     if (ids.length > 0) {
@@ -61,7 +54,6 @@ export function registerLifecycleSuiteHooks(): void {
       await db.execute(sql`DELETE FROM properties WHERE organization_id IN (${list})`)
       await deleteTestOrganizations(db, ids)
     }
-    clearEventSchemas()
   })
 }
 

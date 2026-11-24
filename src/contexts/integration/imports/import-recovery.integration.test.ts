@@ -14,7 +14,6 @@ import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { workItems } from '#/shared/db/schema/work-items.schema'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type { GoogleImportItemJobData } from './google-import-queue.port.server'
@@ -187,7 +186,6 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
           propertyId: propertyId(scope.propertyId),
         }),
     })
-    registerAllEventSchemas()
     await clearWork()
     await db
       .delete(googleConnections)

@@ -1,6 +1,6 @@
 // Event schemas for the Google reputation snapshot facts a Property's Review
-// context publishes (kept apart from schema-registrations.ts, which is on the
-// file-length ratchet). Identifier-only payloads (ADR 0030).
+// context publishes (kept apart from the descriptor registry in registry.server.ts).
+// Identifier-only payloads (ADR 0030).
 
 import { z } from 'zod/v4'
 import { databaseUuidSchema } from './reply-publication-cancelled-schema'

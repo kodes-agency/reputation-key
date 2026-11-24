@@ -45,8 +45,6 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   invitationId,
   organizationId as toOrganizationId,
@@ -371,8 +369,6 @@ async function interruptRegistration(fixture: Fixture): Promise<void> {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   db = drizzle(lease.pool) as Database
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterEach(async () => {
@@ -385,7 +381,6 @@ afterEach(async () => {
 })
 
 afterAll(async () => {
-  clearEventSchemas()
   await cleanFixtures()
   await lease.release()
 })

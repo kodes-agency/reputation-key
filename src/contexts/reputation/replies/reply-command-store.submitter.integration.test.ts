@@ -12,8 +12,6 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   organizationId,
   propertyId,
@@ -105,8 +103,6 @@ const clearScope = async () => {
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clearScope()
   await deleteTestOrganizations(pool, [ORG])
   await pool.query(
@@ -130,7 +126,6 @@ beforeEach(async () => {
 })
 
 afterAll(async () => {
-  clearEventSchemas()
   await clearScope()
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])

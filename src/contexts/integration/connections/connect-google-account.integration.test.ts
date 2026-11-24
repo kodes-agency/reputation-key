@@ -1,6 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it, vi } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createGoogleConnectionCeremonyFixture as setup } from '#/contexts/integration/connections/google-connection-ceremony.test-fixtures'
 import {
@@ -18,9 +16,6 @@ setupIntegrationDb({
   orgB: OTHER_ORG,
   tables: ['google_connections', 'outbox_events'],
 })
-
-beforeAll(registerAllEventSchemas)
-afterAll(clearEventSchemas)
 
 const VERIFIER = 'test-code-verifier'
 const OIDC_NONCE = 'test-oidc-nonce'

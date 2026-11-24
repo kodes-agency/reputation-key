@@ -1,8 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleGoogleOAuthCallback } from './callback'
 import { organizationId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createGoogleConnectionCeremonyFixture } from '#/contexts/integration/connections/google-connection-ceremony.test-fixtures'
 import {
   buildTestAuthContext,
@@ -54,9 +52,6 @@ setupIntegrationDb({
   orgB: organizationId('org-connect-gc-other'),
   tables: ['google_connections', 'outbox_events'],
 })
-
-beforeAll(registerAllEventSchemas)
-afterAll(clearEventSchemas)
 
 const redeemed = {
   ok: true as const,

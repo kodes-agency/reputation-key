@@ -9,12 +9,10 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/
 // two tests, the fill are watched or made to fail.
 
 import { randomBytes, randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { getDb } from '#/shared/db'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import type { PortalAddressFormat } from './portal-address-urls.server'
@@ -54,11 +52,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const cipher = createPortalAddressCipher({

@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createGoogleConnectorDepartureStore } from './google-connector-departure-store.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
@@ -19,7 +18,6 @@ describe('PostgreSQL Google connector departure store', () => {
   let lease: TestLease
 
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL)
     await lease.pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [
       ORGANIZATION_ID,

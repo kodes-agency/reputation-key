@@ -1,6 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it, vi } from 'vitest'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { organizationId, userId } from '#/shared/domain/ids'
@@ -62,11 +60,6 @@ async function noticeFor(removedBy: typeof MEMBER) {
 // Leaving is recorded as identity.member.removed with the member as its own
 // actor. The mandatory notice must not tell them an administrator did it.
 describe('the access-removed notice after a member leaves', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   it('tells a member who left that they left', async () => {
     const { rendered } = await noticeFor(MEMBER)
 

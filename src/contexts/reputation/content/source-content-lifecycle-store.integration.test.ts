@@ -1,8 +1,6 @@
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId, type ReviewId } from '#/shared/domain/ids'
 import type { Review } from '../domain/review-types'
@@ -116,8 +114,6 @@ async function markExpired(id: ReviewId): Promise<void> {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   vi.clearAllMocks()
   await getPool().query(
     `DELETE FROM retention_runs

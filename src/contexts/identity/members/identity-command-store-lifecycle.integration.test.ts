@@ -12,8 +12,6 @@ import { getDb } from '#/shared/db/index'
 import { getEnv } from '#/shared/config/env'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   invitationId,
   organizationId,
@@ -189,12 +187,9 @@ const cancel = (id: string) =>
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
-  clearEventSchemas()
   await cleanup(pool)
   await withLastOwnerGuardDisabled(pool, async (client) => {
     await deleteTestOrganizations(client, [ORG_ID, OTHER_ORG_ID])

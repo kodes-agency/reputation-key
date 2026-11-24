@@ -8,8 +8,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createLink } from '../links/create-link.server'
@@ -99,8 +97,6 @@ const count = async (table: string): Promise<number> => {
 beforeEach(async () => {
   ticks = 0
   ids = 0
-  clearEventSchemas()
-  registerAllEventSchemas()
   const portal = buildTestPortal({
     id: PORTAL_A,
     organizationId: ORG_A,

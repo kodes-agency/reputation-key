@@ -7,8 +7,6 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db/index'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { organizationId, userId, type UserId } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
 import { identityMemberPropertyAccessChanged } from '../domain/events'
@@ -108,8 +106,6 @@ async function clearFixtures() {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clearFixtures()
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt") VALUES
@@ -147,7 +143,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await clearFixtures()
-  clearEventSchemas()
 })
 
 describe('member Property access store', () => {

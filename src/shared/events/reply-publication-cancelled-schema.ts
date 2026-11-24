@@ -1,5 +1,5 @@
 // The reply publication cancellation fact's schema, registered by
-// ./schema-registrations.ts.
+// ./registry.server.ts.
 //
 // BQC-3.8: identifier-only (reply/review/property/org + cause). No reply text,
 // no actor content. `authorId` is the one person who was told the reply was
@@ -19,7 +19,7 @@
 
 import { z } from 'zod/v4'
 
-/** A PostgreSQL uuid as the outbox carries it; shared with ./schema-registrations.ts. */
+/** A PostgreSQL uuid as the outbox carries it; shared with ./registry.server.ts. */
 export const databaseUuidSchema = z
   .string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)

@@ -1,5 +1,5 @@
 import { freshUuid } from '#/shared/testing/fresh-uuid'
-import { beforeEach, expect } from 'vitest'
+import { expect } from 'vitest'
 import { getDb } from '#/shared/db'
 import {
   organizationId,
@@ -8,8 +8,6 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { staffApiOf } from '#/shared/testing/staff-public-api-stub'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
@@ -41,10 +39,6 @@ export function setupExperienceDb(): void {
     orgB: ORG_B,
     tables: MEDIA_EXPERIENCE_TABLES,
   }).getPool
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
 }
 
 const failsWith = (code: string) => (error: unknown) =>

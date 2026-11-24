@@ -1,5 +1,5 @@
 import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_BINDING_STATES,
   PROPERTY_GOOGLE_BINDING_CHANGED_EVENT,
@@ -7,17 +7,8 @@ import {
   isGoogleBindingTupleValid,
   isGoogleResourceSuffix,
 } from './google-binding-contract'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-registry'
+import { validateEventPayload } from '#/shared/events/schema-registry'
 
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
-afterEach(() => {
-  clearEventSchemas()
-})
 describe('Property Google binding contract', () => {
   it('freezes the four-state lifecycle and event wire name', () => {
     expect(GOOGLE_BINDING_STATES).toEqual([

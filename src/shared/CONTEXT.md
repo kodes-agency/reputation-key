@@ -209,10 +209,11 @@ classification, and mutation authority.
 
 `events/*-event-descriptors.ts` and the focused event-schema files declare each
 issued fact's type, version, allowlist schema and aggregate identifier. The
-registry in `events/registry.server.ts` derives startup registrations, emitted
+registry in `events/registry.server.ts` serves the descriptor lookups, emitted
 versions and relay metadata from those definitions. Historical decoders stay
 available; aggregate identity never depends on unrelated identifiers in a payload.
-The existing `events/schema-registrations.ts` startup entry point remains stable.
+Nothing registers schemas at startup: every lookup reads the same fixed list, and a
+duplicate type and version fails the module load.
 
 Server error logs retain validated names, codes and HTTP status, with no client
 message or domain context. The logger redacts flattened error text recursively;

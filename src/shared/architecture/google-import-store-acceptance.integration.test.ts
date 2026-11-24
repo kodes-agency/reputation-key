@@ -14,7 +14,6 @@ import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 import { createDatabase, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { resetExecutionPolicy } from '#/shared/auth/execution-policy'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
@@ -62,7 +61,6 @@ describe('public Google imports against the import store (PostgreSQL, fake trans
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 8)
     db = createDatabase(lease.pool)
-    registerAllEventSchemas()
     controls = await db.select().from(capabilityExecutionControl)
     const authority = createGoogleContentAuthorityRepository(db)
     await authority.transaction((tx) =>

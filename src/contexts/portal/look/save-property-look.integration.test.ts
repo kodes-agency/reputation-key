@@ -10,8 +10,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { isPortalError } from '../domain/errors'
 import {
@@ -69,8 +67,6 @@ async function seedPortal(id: string, slug: string, published: boolean) {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
      VALUES ($1, $2, 'Avela Resort', 'avela-resort', 'UTC', $3, $3)`,

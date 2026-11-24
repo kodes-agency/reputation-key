@@ -7,8 +7,6 @@ import {
   purgeAiDraftsForReview,
 } from '#/shared/db/ai/ai-draft-purge'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
@@ -30,8 +28,6 @@ let harness: ReplyWorkflowHarness
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 4)
   pool = lease.pool
-  clearEventSchemas()
-  registerAllEventSchemas()
   harness = await createReplyWorkflowHarness({
     pool,
     locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -42,7 +38,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await harness.remove()
-  clearEventSchemas()
   await lease.release()
 }, WORKFLOW_HOOK_TIMEOUT_MS)
 

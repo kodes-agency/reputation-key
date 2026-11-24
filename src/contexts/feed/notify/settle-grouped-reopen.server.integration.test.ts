@@ -14,7 +14,6 @@ import {
 } from '#/shared/db/testing/held-transaction'
 import { seedProperty } from '#/shared/db/testing/notification-test-db'
 import type { ConsumerEvent } from '#/shared/outbox'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   inboxItemId,
   notificationId,
@@ -133,7 +132,6 @@ const mailStatus = async (notification: NotificationId) => {
 }
 
 beforeAll(async () => {
-  registerAllEventSchemas()
   held = await holdTransaction()
   await seedProperty(held.db, { id: PROPERTY, organizationId: ORG })
 })
