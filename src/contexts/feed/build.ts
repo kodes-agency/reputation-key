@@ -223,10 +223,10 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     readAccountAccessRemoval: accessRemovalReader.findLatestForUser,
 
     /**
-     * Payload-free evidence for durable-source→Redis and Redis→Postgres
-     * materialization lag and immediate-email acceptance. The one-minute
+     * Payload-free evidence for durable-source delivery lag and
+     * immediate-email acceptance. The one-minute
      * grace is the accepted healthy in-app target. What bounds the read: the
-     * 24-hour lower bound keeps it off historical rows, each stage's sample
+     * 24-hour lower bound keeps it off historical rows, each sample
      * stops at the scan limit, each email's source is one outbox primary-key
      * lookup, and PostgreSQL cancels any statement that outlasts the statement
      * timeout. The row bounds alone did not bound its time: the source join

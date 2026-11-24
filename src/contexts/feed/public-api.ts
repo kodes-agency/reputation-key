@@ -19,8 +19,6 @@ import type {
 import type { OperationalActionHistoryPage } from './audit/operational-action-history-store.port.server'
 
 // ── Activity ──────────────────────────────────────────────────────────
-export type { RecentActivityEntry } from './domain/activity-types'
-
 export type ActivityPublicApi = Readonly<{
   listOperationalActionHistory(
     input: OperationalActionHistoryAccessInput,

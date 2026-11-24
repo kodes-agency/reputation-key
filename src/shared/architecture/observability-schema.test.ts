@@ -338,8 +338,6 @@ const NON_METRIC_PATHS = new Set([
   'workers.domainEventsQueueName',
   'workers.heartbeat.at',
   'notifications.deliveryLag.oldestSourceRecordedAt',
-  'notifications.deliveryLag.oldestMaterializationSourceRecordedAt',
-  'notifications.deliveryLag.oldestMaterializationEnqueuedAt',
   'notifications.deliveryLag.immediateEmailAcceptance.oldestAwaitingSourceRecordedAt',
   'guestObservationLoss.ratingDisposition',
   'guestObservationLoss.windowMs',

@@ -150,8 +150,6 @@
   "src/contexts/feed/preferences/user-settings.server.integration.test.ts": 100,
   "src/contexts/feed/rights/activity-audit-rights.integration.test.ts": 200,
   "src/contexts/feed/rights/activity-rights.adapter.integration.test.ts": 200,
-  "src/contexts/feed/rights/recent-activity-privacy-store.integration.test.ts": 0,
-  "src/contexts/feed/rights/recent-activity-repository.integration.test.ts": 0,
   "src/contexts/feed/rights/store.integration.test.ts": 500,
   "src/contexts/feed/server/activity.integration.test.ts": 2200,
   "src/contexts/feed/server/notification-mark-all-read.integration.test.ts": 1800,

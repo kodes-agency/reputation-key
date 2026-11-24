@@ -103,12 +103,8 @@ export type NotificationDeliveryLagRead = Readonly<{
   sourceReceiptPending: number
   /** Route event type names (a closed set) with how many of each are pending. */
   sourceReceiptPendingByEventType: Readonly<Record<string, number>>
-  materializationPending: number
   oldestSourceRecordedAt: Date | null
-  oldestMaterializationSourceRecordedAt: Date | null
-  oldestMaterializationEnqueuedAt: Date | null
   sourceSaturated: boolean
-  materializationSaturated: boolean
   immediateEmailAcceptance: Readonly<{
     awaitingProviderAcceptance: number
     attemptedAwaitingProviderAcceptance: number
@@ -124,13 +120,12 @@ export type NotificationDeliveryLagMetrics = Readonly<{
   sourceReceiptPending: number
   /** Route event type names (a closed set) with how many of each are pending. */
   sourceReceiptPendingByEventType: Readonly<Record<string, number>>
+  /** Published gauges kept at 0: the stage they measured no longer exists. */
   materializationPending: number
   oldestSourceRecordedAt: string | null
   oldestSourceAgeMs: number | null
-  oldestMaterializationSourceRecordedAt: string | null
-  oldestMaterializationSourceAgeMs: number | null
-  oldestMaterializationEnqueuedAt: string | null
-  oldestMaterializationEnqueuedAgeMs: number | null
+  oldestMaterializationSourceAgeMs: number
+  oldestMaterializationEnqueuedAgeMs: number
   sourceSaturated: boolean
   materializationSaturated: boolean
   immediateEmailAcceptance: Readonly<{
@@ -805,12 +800,8 @@ function roundedAge(value: number | null | undefined): number | null {
 const EMPTY_NOTIFICATION_DELIVERY_LAG: NotificationDeliveryLagRead = {
   sourceReceiptPending: 0,
   sourceReceiptPendingByEventType: {},
-  materializationPending: 0,
   oldestSourceRecordedAt: null,
-  oldestMaterializationSourceRecordedAt: null,
-  oldestMaterializationEnqueuedAt: null,
   sourceSaturated: false,
-  materializationSaturated: false,
   immediateEmailAcceptance: {
     awaitingProviderAcceptance: 0,
     attemptedAwaitingProviderAcceptance: 0,
@@ -842,11 +833,6 @@ const readNotificationDeliveryLagMetrics = async (
 ): Promise<NotificationDeliveryLagMetrics> => {
   const report = read ? await read() : EMPTY_NOTIFICATION_DELIVERY_LAG
   const source = lagClock(report.oldestSourceRecordedAt, now)
-  const materializationSource = lagClock(
-    report.oldestMaterializationSourceRecordedAt,
-    now,
-  )
-  const materializationEnqueued = lagClock(report.oldestMaterializationEnqueuedAt, now)
   const oldestAwaitingEmailSource = lagClock(
     report.immediateEmailAcceptance.oldestAwaitingSourceRecordedAt,
     now,
@@ -854,15 +840,13 @@ const readNotificationDeliveryLagMetrics = async (
   return {
     sourceReceiptPending: report.sourceReceiptPending,
     sourceReceiptPendingByEventType: { ...report.sourceReceiptPendingByEventType },
-    materializationPending: report.materializationPending,
+    materializationPending: 0,
     oldestSourceRecordedAt: source.at,
     oldestSourceAgeMs: source.ageMs,
-    oldestMaterializationSourceRecordedAt: materializationSource.at,
-    oldestMaterializationSourceAgeMs: materializationSource.ageMs,
-    oldestMaterializationEnqueuedAt: materializationEnqueued.at,
-    oldestMaterializationEnqueuedAgeMs: materializationEnqueued.ageMs,
+    oldestMaterializationSourceAgeMs: 0,
+    oldestMaterializationEnqueuedAgeMs: 0,
     sourceSaturated: report.sourceSaturated,
-    materializationSaturated: report.materializationSaturated,
+    materializationSaturated: false,
     immediateEmailAcceptance: {
       awaitingProviderAcceptance:
         report.immediateEmailAcceptance.awaitingProviderAcceptance,

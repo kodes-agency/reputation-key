@@ -17,7 +17,6 @@ function buildWith(db: Database) {
       logger,
       operationalHistoryIdGen: () =>
         operationalActionHistoryRecordId('00000000-0000-4000-8000-000000000998'),
-      operationalHistoryHoldIdGen: () => '00000000-0000-4000-8000-000000000997',
     },
     notification: {
       db,
@@ -65,29 +64,7 @@ describe('buildFeedContext', () => {
     }
     expect(Object.keys(activity.worker).sort()).toEqual(['registerOutboxConsumers'])
     expect(activity.worker.registerOutboxConsumers).toBeTypeOf('function')
-    expect(Object.keys(activity.internal).sort()).toEqual(['repos', 'useCases'])
-    expect(activity.internal.useCases).toMatchObject({
-      listOperationalActionHistory: context.publicApi.listOperationalActionHistory,
-      exportOperationalActionHistory: context.publicApi.exportOperationalActionHistory,
-    })
-    expect(activity.internal.useCases).not.toHaveProperty('recoverRecentActivity')
-    expect(activity.internal.useCases).not.toHaveProperty('getRecentActivityReadiness')
-    expect(activity.internal.useCases.appendOperationalAction).toBeTypeOf('function')
-    expect(activity.internal.useCases.getOperationalActionHistoryReadiness).toBeTypeOf(
-      'function',
-    )
-    expect(activity.internal.useCases.assessOperationalActionHistoryRetention).toBeTypeOf(
-      'function',
-    )
-    expect(activity.internal.useCases.placeOperationalActionHistoryLegalHold).toBeTypeOf(
-      'function',
-    )
-    expect(
-      activity.internal.useCases.releaseOperationalActionHistoryLegalHold,
-    ).toBeTypeOf('function')
-    expect(activity.internal.useCases.redactOperationalActionHistorySubject).toBeTypeOf(
-      'function',
-    )
+    expect(activity).not.toHaveProperty('internal')
   })
 
   // The browser receives a NotificationView, never the stored row, and a

@@ -23,8 +23,6 @@ import {
 const ORG = organizationId('notification-delivery-lag-org')
 const PROPERTY = propertyId('83000000-0000-4000-8000-000000000001')
 const SOURCE_PENDING = '83000000-0000-4000-8000-000000000002'
-const MATERIALIZATION_PENDING = '83000000-0000-4000-8000-000000000003'
-const UNRELATED_ENQUEUE = '83000000-0000-4000-8000-000000000004'
 const ACCEPTED_EMAIL_SOURCE = '83000000-0000-4000-8000-000000000005'
 const PENDING_EMAIL_SOURCE = '83000000-0000-4000-8000-000000000006'
 const SECOND_ACCEPTED_EMAIL_SOURCE = '83000000-0000-4000-8000-000000000007'
@@ -100,26 +98,6 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
         sourceAggregateId: '83000000-0000-4000-8000-000000000010',
         at: RECORDED,
         payload: { private: 'must-never-be-selected' },
-      },
-      {
-        id: MATERIALIZATION_PENDING,
-        eventType: 'inbox.inbox_item.assigned',
-        organizationId: ORG,
-        propertyId: PROPERTY,
-        sourceContext: 'inbox',
-        sourceAggregateId: '83000000-0000-4000-8000-000000000011',
-        at: RECORDED,
-        payload: { private: 'must-never-be-selected' },
-      },
-      {
-        id: UNRELATED_ENQUEUE,
-        eventType: 'metric.corrected',
-        organizationId: ORG,
-        propertyId: PROPERTY,
-        sourceContext: 'metric',
-        sourceAggregateId: '83000000-0000-4000-8000-000000000012',
-        at: RECORDED,
-        payload: { private: 'also-must-never-be-selected' },
       },
       {
         ...REVIEW_EVENT,
@@ -277,22 +255,6 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
         consumerName: 'notification.on-identity-member-removed',
         at: at('07:46:30'),
       },
-      {
-        eventId: MATERIALIZATION_PENDING,
-        consumerName: 'notification.on-inbox-inbox_item-assigned',
-        at: RECORDED,
-      },
-      {
-        eventId: UNRELATED_ENQUEUE,
-        consumerName: 'notification.enqueue:notification.on-retired-family:abc123',
-        at: RECORDED,
-      },
-      {
-        eventId: MATERIALIZATION_PENDING,
-        consumerName:
-          'notification.enqueue:notification.on-inbox-inbox_item-assigned:abc123',
-        at: RECORDED,
-      },
     ])
   })
 
@@ -333,12 +295,8 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
     expect(report).toEqual({
       sourceReceiptPending: 1,
       sourceReceiptPendingByEventType: { 'inbox.inbox_item.assigned': 1 },
-      materializationPending: 1,
       oldestSourceRecordedAt: RECORDED,
-      oldestMaterializationSourceRecordedAt: RECORDED,
-      oldestMaterializationEnqueuedAt: RECORDED,
       sourceSaturated: false,
-      materializationSaturated: false,
       immediateEmailAcceptance: mainAcceptance,
     })
     expect(JSON.stringify(report)).not.toContain('must-never-be-selected')
@@ -349,9 +307,7 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
 
     await expect(readLag({ scanLimit: 1 })).resolves.toMatchObject({
       sourceReceiptPending: 1,
-      materializationPending: 1,
       sourceSaturated: true,
-      materializationSaturated: true,
       immediateEmailAcceptance: expect.objectContaining({
         acceptedLatencyP99Ms: null,
         saturated: true,
@@ -376,23 +332,13 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
         consumerName: 'notification.on-inbox-inbox_item-assigned',
         at: RECORDED,
       },
-      {
-        eventId: MATERIALIZATION_PENDING,
-        consumerName:
-          'notification.materialized:notification.on-inbox-inbox_item-assigned:abc123',
-        at: RECORDED,
-      },
     ])
 
     await expect(readLag()).resolves.toEqual({
       sourceReceiptPending: 0,
       sourceReceiptPendingByEventType: {},
-      materializationPending: 0,
       oldestSourceRecordedAt: null,
-      oldestMaterializationSourceRecordedAt: null,
-      oldestMaterializationEnqueuedAt: null,
       sourceSaturated: false,
-      materializationSaturated: false,
       immediateEmailAcceptance: mainAcceptance,
     })
   })
