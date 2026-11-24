@@ -76,9 +76,7 @@ export async function assertStoredUploadAllowed(
   storage: Pick<StoragePort, 'inspectObject' | 'deleteObject'>,
   key: string,
 ): Promise<void> {
-  const stored = await storage.inspectObject?.(key)
-  const sizeBytes = stored?.sizeBytes ?? null
-  const contentType = stored?.contentType ?? null
+  const { sizeBytes, contentType } = await storage.inspectObject(key)
   const isAllowedType =
     contentType !== null && ALLOWED_IMAGE_CONTENT_TYPES.includes(mediaType(contentType))
   if (isAllowedType && sizeBytes !== null && sizeBytes <= MAX_UPLOAD_BYTES) return
