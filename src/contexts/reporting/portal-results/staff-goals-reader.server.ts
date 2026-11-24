@@ -6,7 +6,7 @@ import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
 } from '../readings/query-goal-metric.server'
-import { localMidnight } from '../domain/local-days'
+import { localMidnight } from '#/shared/domain/local-days'
 import { METRIC_VERSION_IDS } from '../readings/contracts'
 
 export type StaffResultsScope = Readonly<{

@@ -135,7 +135,7 @@
     "fault": "A DST gap or fold moves a Property-local day boundary by an hour or a day when shifting local days or converting wall-clock to an instant."
   },
   {
-    "path": "src/contexts/reporting/domain/local-days.ts",
+    "path": "src/shared/domain/local-days.ts",
     "group": "period-clock",
     "fault": "A Property-local calendar date or day count is off by one around midnight or DST."
   },

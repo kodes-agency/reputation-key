@@ -27,7 +27,6 @@ describe('integrationErrorStatus', () => {
     ['oauth_state_invalid', 400],
     ['token_refresh_failed', 400],
     ['gbp_api_error', 400],
-    ['invalid_visibility', 400],
     ['encryption_error', 400],
     ['gbp_api_rate_limited', 429],
   ])('answers %s with HTTP %i', (code, status) => {

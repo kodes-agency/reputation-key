@@ -335,7 +335,6 @@ describe('issued URL contracts', () => {
       ok: true,
       kind: 'exchange',
       exchangeAttemptId: ARTIFACT,
-      visibility: 'private',
       purpose: 'import_gbp_v2',
       connectionMode: 'new',
       targetConnectionId: null,

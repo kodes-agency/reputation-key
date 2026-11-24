@@ -287,7 +287,6 @@ describe('disconnectGoogleAccount', () => {
             encryptedRefreshToken: sealed.encrypt('new-refresh'),
             tokenExpiresAt: new Date(FIXED_TIME.getTime() + 3_600_000),
             scopes: ['https://www.googleapis.com/auth/business.manage'],
-            visibility: 'organization',
             event: {
               ...input.event,
               _tag: 'integration.google_account.connected',

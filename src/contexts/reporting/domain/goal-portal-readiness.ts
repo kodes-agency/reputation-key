@@ -3,7 +3,7 @@
 // for its usual to bring five, or 14 days since code creation with none.
 // These are Portal facts, never a verdict about a person. Days are Property-local.
 
-import { daysBetween } from './local-days'
+import { daysBetween } from '#/shared/domain/local-days'
 
 /** A quiet spell is worth a word once the Portal's usual would have brought this many. */
 const QUIET_EXPECTED_SCANS = 5

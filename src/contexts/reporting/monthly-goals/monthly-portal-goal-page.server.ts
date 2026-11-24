@@ -5,7 +5,7 @@
 import { currentAssignments } from './subject-assignments.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
-import { addLocalDays, localDateOf } from '../domain/local-days'
+import { addLocalDays, localDateOf } from '#/shared/domain/local-days'
 import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalPageExtras,

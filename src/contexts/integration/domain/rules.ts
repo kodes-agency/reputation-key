@@ -1,12 +1,7 @@
 // Integration context — domain rules
 
-import type { GoogleConnection, GoogleConnectionVisibility } from './types'
+import type { GoogleConnection } from './types'
 import { integrationError } from './errors'
-
-const VALID_VISIBILITIES: ReadonlySet<string> = new Set(['private', 'organization'])
-
-export const isValidVisibility = (v: string): v is GoogleConnectionVisibility =>
-  VALID_VISIBILITIES.has(v)
 
 type DisconnectAuthority = Pick<GoogleConnection, 'status' | 'lifecycleVersion'>
 

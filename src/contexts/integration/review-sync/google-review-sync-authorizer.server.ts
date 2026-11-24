@@ -18,7 +18,10 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import { isIntegrationError } from '../domain/errors'
 import type { GoogleConnection } from '../domain/types'
 import type { ActiveConnectionTokenProvider } from '../connections/active-connection-token-provider.server'
-import type { GoogleReviewSyncProviderCallAuthorization } from '../provider/contracts'
+import type {
+  GoogleContentAuthorizationResult,
+  GoogleReviewSyncProviderCallAuthorization,
+} from '../provider/contracts'
 
 export const GOOGLE_REVIEW_SYNC_SYSTEM_PRINCIPAL = 'review-sync-worker-v1' as const
 export const GOOGLE_REVIEW_SYNC_SYSTEM_PERMISSION_DIGEST = sha256Hex(
@@ -32,16 +35,6 @@ export const GOOGLE_NOTIFICATION_SYSTEM_PERMISSION_DIGEST = sha256Hex(
 
 export type GoogleConnectionSystemOperation = 'review.sync' | 'notifications.manage'
 
-export type GoogleReviewSyncContentAuthorizationResult =
-  | Readonly<{
-      ok: true
-      authorizationVector: Readonly<Record<string, string | number | boolean | null>>
-    }>
-  | Readonly<{
-      ok: false
-      code: 'authorization_denied' | 'runtime_unavailable'
-    }>
-
 export type GoogleReviewSyncContentAuthorizer = (
   input: Readonly<{
     organizationId: OrganizationId
@@ -49,7 +42,7 @@ export type GoogleReviewSyncContentAuthorizer = (
     connectionId: GoogleConnectionId
     operationKey: GoogleConnectionSystemOperation
   }>,
-) => Promise<GoogleReviewSyncContentAuthorizationResult>
+) => Promise<GoogleContentAuthorizationResult>
 
 /**
  * The system-principal provider authorization for Google review reads.
@@ -137,7 +130,7 @@ function expectedSystemVector(
 function validSystemContent(
   binding: GooglePropertyAuthorizationView,
   connection: GoogleConnection,
-  content: Extract<GoogleReviewSyncContentAuthorizationResult, { ok: true }>,
+  content: Extract<GoogleContentAuthorizationResult, { ok: true }>,
   operationKey: GoogleConnectionSystemOperation,
 ): boolean {
   return (
@@ -166,50 +159,28 @@ export function createGoogleReviewSyncAuthorizer(
       warn?: (fields: Readonly<Record<string, unknown>>, message: string) => void
     }>,
 ): GoogleReviewSyncAuthorizer {
-  return async (input) => {
-    const operationKey = input.operationKey ?? 'review.sync'
-    const initial = await readGooglePropertyAuthorization(deps, input)
-    if (!initial.ok) return initial
-    const { binding: initialBinding, connection: initialConnection } = initial
-    if (!googleConnectionHasUsableCredential(initialConnection)) {
-      return { ok: false, code: 'connection_unusable' }
-    }
+  type Pass = Extract<
+    Awaited<ReturnType<typeof readGooglePropertyAuthorization>>,
+    { ok: true }
+  > &
+    Readonly<{ content: Extract<GoogleContentAuthorizationResult, { ok: true }> }>
+  type Input = Parameters<GoogleReviewSyncAuthorizer>[0]
 
-    let initialContent: GoogleReviewSyncContentAuthorizationResult
-    try {
-      initialContent = await deps.authorizeGoogleContent({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        connectionId: input.connectionId,
-        operationKey,
-      })
-    } catch {
-      return { ok: false, code: 'runtime_unavailable' }
-    }
-    if (!initialContent.ok) return initialContent
-    if (
-      !validSystemContent(initialBinding, initialConnection, initialContent, operationKey)
-    ) {
-      return { ok: false, code: 'authorization_denied' }
-    }
-
-    let accessToken: string
-    try {
-      accessToken = await deps.getAccessToken(input.organizationId, input.connectionId)
-    } catch (error) {
-      return refreshLearnedConnectionUnusable(error)
-        ? { ok: false, code: 'connection_unusable' }
-        : { ok: false, code: 'runtime_unavailable' }
-    }
-
-    const current = await readGooglePropertyAuthorization(deps, input)
-    if (!current.ok) return current
-    const { binding, connection } = current
+  // One authority read: the Property binding and connection, the usable
+  // credential, the content authorizer and the permit vector.
+  const authorizeOnce = async (
+    input: Input,
+    operationKey: GoogleConnectionSystemOperation,
+    warnOnDrift: boolean,
+  ): Promise<Pass | Extract<GoogleReviewSyncAuthorizationResult, { ok: false }>> => {
+    const read = await readGooglePropertyAuthorization(deps, input)
+    if (!read.ok) return read
+    const { binding, connection } = read
     if (!googleConnectionHasUsableCredential(connection)) {
       return { ok: false, code: 'connection_unusable' }
     }
 
-    let content: GoogleReviewSyncContentAuthorizationResult
+    let content: GoogleContentAuthorizationResult
     try {
       content = await deps.authorizeGoogleContent({
         organizationId: input.organizationId,
@@ -221,23 +192,47 @@ export function createGoogleReviewSyncAuthorizer(
       return { ok: false, code: 'runtime_unavailable' }
     }
     if (!content.ok) return content
-    const expectedVector = expectedSystemVector(binding, connection, operationKey)
     if (!validSystemContent(binding, connection, content, operationKey)) {
-      deps.warn?.(
-        {
-          event:
-            operationKey === 'review.sync'
-              ? 'google_review_sync_authorization_vector_changed'
-              : 'google_notification_authorization_vector_changed',
-          drift: exactVectorDrift(content.authorizationVector, expectedVector),
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-        },
-        'Google review sync authorization changed',
-      )
+      if (warnOnDrift) {
+        deps.warn?.(
+          {
+            event:
+              operationKey === 'review.sync'
+                ? 'google_review_sync_authorization_vector_changed'
+                : 'google_notification_authorization_vector_changed',
+            drift: exactVectorDrift(
+              content.authorizationVector,
+              expectedSystemVector(binding, connection, operationKey),
+            ),
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            connectionId: input.connectionId,
+          },
+          'Google review sync authorization changed',
+        )
+      }
       return { ok: false, code: 'authorization_denied' }
     }
+    return { ok: true, binding, connection, content }
+  }
+
+  return async (input) => {
+    const operationKey = input.operationKey ?? 'review.sync'
+    const initial = await authorizeOnce(input, operationKey, false)
+    if (!initial.ok) return initial
+
+    let accessToken: string
+    try {
+      accessToken = await deps.getAccessToken(input.organizationId, input.connectionId)
+    } catch (error) {
+      return refreshLearnedConnectionUnusable(error)
+        ? { ok: false, code: 'connection_unusable' }
+        : { ok: false, code: 'runtime_unavailable' }
+    }
+
+    const current = await authorizeOnce(input, operationKey, true)
+    if (!current.ok) return current
+    const { connection, content } = current
 
     return {
       ok: true,

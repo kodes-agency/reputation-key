@@ -53,7 +53,6 @@ export const Reauthorize: Story = {
     variant: 'outline',
     size: 'sm',
     request: {
-      visibility: 'organization',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
     },

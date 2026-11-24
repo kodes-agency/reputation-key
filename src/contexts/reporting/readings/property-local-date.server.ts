@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { unbrand, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
-import { localDateOf } from '../domain/local-days'
+import { localDateOf } from '#/shared/domain/local-days'
 
 export const createPropertyLocalDateResolver =
   (db: Database) =>

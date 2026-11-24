@@ -4,7 +4,6 @@ import type { GoogleConnection } from './types'
 import type { GoogleConnectionId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { ok, err } from '#/shared/domain'
 import { integrationError } from './errors'
-import { isValidVisibility } from './rules'
 
 type BuildConnectionIdentity = Readonly<{
   kind: 'oidc'
@@ -21,18 +20,12 @@ type BuildConnectionArgs = Readonly<{
   tokenExpiresAt: Date
   scopes: ReadonlyArray<string>
   connectedBy: UserId
-  visibility: 'private' | 'organization'
   now: Date
 }>
 
 export const buildGoogleConnection = (args: BuildConnectionArgs) => {
   if (args.identity.googleSubject.length === 0) {
     return err(integrationError('oauth_failed', 'Invalid Google identity'))
-  }
-  if (!isValidVisibility(args.visibility)) {
-    return err(
-      integrationError('invalid_visibility', `Invalid visibility: ${args.visibility}`),
-    )
   }
 
   return ok<GoogleConnection>({
@@ -46,7 +39,7 @@ export const buildGoogleConnection = (args: BuildConnectionArgs) => {
     scopes: args.scopes,
     credentialAuthorizedBy: args.connectedBy,
     connectedBy: args.connectedBy,
-    visibility: args.visibility,
+    visibility: 'organization',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,

@@ -2,48 +2,7 @@
 // Per architecture: "Pure unit, no setup, no mocks. Run in milliseconds."
 
 import { describe, it, expect } from 'vitest'
-import { isGovernedDisconnectInFlight, isValidVisibility } from './rules'
-
-// ── isValidVisibility ─────────────────────────────────────────────
-
-describe('isValidVisibility', () => {
-  it('accepts "private"', () => {
-    expect(isValidVisibility('private')).toBe(true)
-  })
-
-  it('accepts "organization"', () => {
-    expect(isValidVisibility('organization')).toBe(true)
-  })
-
-  it('rejects "public"', () => {
-    expect(isValidVisibility('public')).toBe(false)
-  })
-
-  it('rejects empty string', () => {
-    expect(isValidVisibility('')).toBe(false)
-  })
-
-  it('rejects uppercase', () => {
-    expect(isValidVisibility('Private')).toBe(false)
-  })
-
-  it('rejects "PRIVATE"', () => {
-    expect(isValidVisibility('PRIVATE')).toBe(false)
-  })
-
-  it('rejects whitespace-padded value', () => {
-    expect(isValidVisibility(' private ')).toBe(false)
-  })
-
-  it('narrows type on truthy return', () => {
-    const value = 'private' as string
-    if (isValidVisibility(value)) {
-      // TypeScript narrows to GoogleConnectionVisibility here
-      const _assigned: 'private' | 'organization' = value
-      expect(_assigned).toBe('private')
-    }
-  })
-})
+import { isGovernedDisconnectInFlight } from './rules'
 
 // ── isGovernedDisconnectInFlight ──────────────────────────────────
 

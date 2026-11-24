@@ -1,6 +1,6 @@
 // Property-local calendar days — read on the Property's calendar, then counted as dates.
 import { describe, expect, it } from 'vitest'
-import { addLocalDays, daysBetween, localDateOf } from './local-days'
+import { addLocalDays, daysBetween, localDateOf } from '#/shared/domain/local-days'
 
 const SOFIA = 'Europe/Sofia'
 // Midnight opening Sep 1 in Sofia, still Aug 31 in UTC.

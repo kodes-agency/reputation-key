@@ -20,7 +20,10 @@ import type {
   GoogleImportCommandAuthorizer,
   GoogleImportCommandAuthorizationResult,
 } from './google-import-discovery.server'
-import { GOOGLE_BUSINESS_MANAGE_SCOPE } from '../provider/contracts'
+import {
+  GOOGLE_BUSINESS_MANAGE_SCOPE,
+  type GoogleContentAuthorizationResult,
+} from '../provider/contracts'
 import { canManageOrganizationGoogleConnections } from '../connections/google-organization-authority.server'
 
 // An error's class name as a log field: anything else (a name built from data)
@@ -123,16 +126,6 @@ function propertyDrift(
     },
   }
 }
-export type GoogleImportContentAuthorizationResult =
-  | Readonly<{
-      ok: true
-      authorizationVector: Readonly<Record<string, string | number | boolean | null>>
-    }>
-  | Readonly<{
-      ok: false
-      code: 'authorization_denied' | 'runtime_unavailable'
-    }>
-
 export type GoogleImportContentAuthorizer = (
   input: Readonly<{
     actor: Parameters<GoogleImportCommandAuthorizer>[0]['actor']
@@ -140,13 +133,10 @@ export type GoogleImportContentAuthorizer = (
     phase: Parameters<GoogleImportCommandAuthorizer>[0]['phase']
     properties: readonly GoogleImportAuthorizationPropertySnapshot[]
   }>,
-) => Promise<GoogleImportContentAuthorizationResult>
+) => Promise<GoogleContentAuthorizationResult>
 
 type AuthorizerInput = Parameters<GoogleImportCommandAuthorizer>[0]
-type GrantedContentAuthorization = Extract<
-  GoogleImportContentAuthorizationResult,
-  { ok: true }
->
+type GrantedContentAuthorization = Extract<GoogleContentAuthorizationResult, { ok: true }>
 type Denied = Extract<GoogleImportCommandAuthorizationResult, { ok: false }>
 
 /** A pipeline step either denies outright or carries its value to the next step. */

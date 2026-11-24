@@ -3,7 +3,7 @@
 // today and weekday so first paint agrees; DST must not change calendar-day counts.
 
 import { propertyWallClockAt } from '#/shared/domain/property-calendar'
-import { localDateOf, localMidnight } from './local-days'
+import { localDateOf, localMidnight } from '#/shared/domain/local-days'
 
 /** The detail's chart starts this many weeks before the week a goal was set. */
 const CHART_WEEKS_BEFORE_SET = 4
