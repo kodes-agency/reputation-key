@@ -129,7 +129,6 @@ function withoutExcludedKeys(vector: AuthorizationVector): AuthorizationVector {
  * | org capability granted/revoked           | `policyAuthorizes` re-queries `organization_capability`|
  * | property capability granted/revoked      | `policyAuthorizes` re-queries `property_capability`    |
  * | capability denied / emergency kill       | `control.denied`, read live on every `decide()`         |
- * | consent recorded/revoked                 | `hasActiveConsent`, a live read on every `decide()`    |
  * | property access grant added/removed      | `hasActivePropertyGrant` + `role`/`permissionDigest`   |
  * | org cohort changed                       | not an authorization input anywhere                    |
  * | routine Google token refresh             | see `credentialGeneration` below                       |
