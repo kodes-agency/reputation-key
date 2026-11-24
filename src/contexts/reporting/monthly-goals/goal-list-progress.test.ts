@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import { POOL_MAX_CONNECTIONS } from '#/shared/db/pool'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
@@ -12,10 +11,11 @@ import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.ser
 import type { GoalProgressDeps } from './goal-progress.server'
 import {
   createGoalListProgressReader,
-  GOAL_LIST_PROGRESS_CONCURRENCY,
   MAX_GOAL_LIST_PROGRESS_READS,
 } from './goal-list-progress.server'
 import type { GoalActor } from '../application/use-cases/goal-program-shared'
+
+type ListDeps = Parameters<typeof createGoalListProgressReader>[0]
 
 const actor: GoalActor = {
   organizationId: 'org-1',
@@ -177,9 +177,11 @@ function reader(
       ),
   )
   const list = vi.fn(async () => programs)
-  const deps: GoalProgressDeps = {
+  const deps: ListDeps = {
     reads: { list },
-    metrics: { queryGoalMetric },
+    metrics: {
+      queryGoalMetrics: (queries) => Promise.all(queries.map(queryGoalMetric)),
+    },
     now: () => now,
   }
   return {
@@ -465,44 +467,6 @@ describe('the month so far of the goals on the Goals list', () => {
     expect(queryGoalMetric).toHaveBeenCalledTimes(MAX_GOAL_LIST_PROGRESS_READS)
   })
 
-  it('keeps the reads of a page within its concurrency', async () => {
-    let inFlight = 0
-    let widest = 0
-    const goals = Array.from({ length: 20 }, (_, index) =>
-      bundle({ id: `program-${index + 1}`, subjects: [portal(`portal-${index + 1}`)] }),
-    )
-    const deps: GoalProgressDeps = {
-      reads: { list: async () => goals },
-      metrics: {
-        queryGoalMetric: async () => {
-          inFlight += 1
-          widest = Math.max(widest, inFlight)
-          await new Promise((resolve) => setTimeout(resolve, 1))
-          inFlight -= 1
-          return counted(1)
-        },
-      },
-      now: () => NOW,
-    }
-
-    await createGoalListProgressReader(deps)(input, actor)
-
-    expect(widest).toBeGreaterThan(1)
-    expect(widest).toBeLessThanOrEqual(GOAL_LIST_PROGRESS_CONCURRENCY)
-  })
-
-  it('asks for no more connections at once than the web pool can spare', () => {
-    // A governed read asks two queries at once (the aggregate and the source
-    // check), each on a pool connection of its own. A page view must leave the
-    // pool room for the loader's other reads and for other requests.
-    const queriesPerRead = 2
-    const spareForOthers = 4
-
-    expect(GOAL_LIST_PROGRESS_CONCURRENCY * queriesPerRead).toBeLessThanOrEqual(
-      POOL_MAX_CONNECTIONS - spareForOthers,
-    )
-  })
-
   it('gives each goal the figure of its own Portal when the reads finish out of order', async () => {
     const goals = [1, 2, 3].map((index) =>
       bundle({ id: `program-${index}`, subjects: [portal(`portal-${index}`)] }),
@@ -510,14 +474,18 @@ describe('the month so far of the goals on the Goals list', () => {
     const finishing = new Map<string, () => void>()
     const gate = (portalId: string) =>
       new Promise<void>((resolve) => finishing.set(portalId, resolve))
-    const deps: GoalProgressDeps = {
+    const deps: ListDeps = {
       reads: { list: async () => goals },
       metrics: {
-        queryGoalMetric: async (query) => {
-          const portalId = query.subject.kind === 'portal' ? query.subject.portalId : ''
-          await gate(portalId)
-          return counted(Number(portalId.replace('portal-', '')) * 10)
-        },
+        queryGoalMetrics: (queries) =>
+          Promise.all(
+            queries.map(async (query) => {
+              const portalId =
+                query.subject.kind === 'portal' ? query.subject.portalId : ''
+              await gate(portalId)
+              return counted(Number(portalId.replace('portal-', '')) * 10)
+            }),
+          ),
       },
       now: () => NOW,
     }

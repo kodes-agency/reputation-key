@@ -11,6 +11,10 @@ export type { GoalListProgress } from './contracts'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import type { GoalSubject } from '../domain/goal-program'
 import { goalMonthDays, goalPace } from '../domain/goal-pace'
+import type {
+  GovernedGoalMetricQuery,
+  GovernedGoalMetricResult,
+} from '../readings/query-goal-metric.server'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import {
   MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS,
@@ -27,15 +31,15 @@ import type {
   GoalExecutionPolicy,
 } from '../application/use-cases/goal-program-shared'
 
+/** The governed batch read the list's figures come from. */
+export type GoalListProgressMetrics = Readonly<{
+  queryGoalMetrics: (
+    queries: readonly GovernedGoalMetricQuery[],
+  ) => Promise<readonly GovernedGoalMetricResult[]>
+}>
+
 /** The most figures one Goals page reads; past it a goal carries no live line. */
 export const MAX_GOAL_LIST_PROGRESS_READS = 60
-
-/**
- * Governed reads in flight at once for one page. A read asks two queries at once,
- * each on its own pool connection, so three reads take six of the web pool's ten
- * and leave the rest for the page's other reads and for other requests.
- */
-export const GOAL_LIST_PROGRESS_CONCURRENCY = 3
 
 type CountingReading = Exclude<GoalProgressReading, Readonly<{ kind: 'not_started' }>>
 
@@ -162,7 +166,7 @@ function entryOf(
  * Goals list's, or the other Portal goals on the Monthly portal goal's page.
  */
 export async function listProgressOf(
-  deps: Pick<GoalProgressDeps, 'metrics'>,
+  deps: Readonly<{ metrics: GoalListProgressMetrics }>,
   programs: readonly GoalProgramBundle[],
   now: Date,
   actor: GoalActor,
@@ -178,13 +182,7 @@ export async function listProgressOf(
   const queries = plannedFigures.map(({ subject, figure }) =>
     subjectMonthQuery(figure.version, subject, figure.progress.period, actor),
   )
-  const readings = deps.metrics.queryGoalMetrics
-    ? await deps.metrics.queryGoalMetrics(queries)
-    : await inParallel(
-        queries,
-        GOAL_LIST_PROGRESS_CONCURRENCY,
-        deps.metrics.queryGoalMetric,
-      )
+  const readings = await deps.metrics.queryGoalMetrics(queries)
   const figures = plannedFigures.map(({ plan, figure }, index) => {
     const result = readings[index]
     if (!result) throw new Error('Goal metric batch returned incomplete figures')
@@ -204,7 +202,8 @@ export async function listProgressOf(
 
 /** The month so far of each active goal of a Property, for the Goals list. */
 export function createGoalListProgressReader(
-  deps: GoalProgressDeps,
+  deps: Pick<GoalProgressDeps, 'reads' | 'now'> &
+    Readonly<{ metrics: GoalListProgressMetrics }>,
 ): GoalListProgressReader {
   return async (input, actor) => {
     const programs = await deps.reads.list(input.propertyId, actor)

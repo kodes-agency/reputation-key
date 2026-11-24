@@ -303,7 +303,7 @@ function buildGoalModule(
                   assignment.effectiveTo > input.clock()),
             )
             .map(({ subject }) =>
-              goalProgramSubjects.staffTargetProblem!(
+              goalProgramSubjects.staffTargetProblem(
                 actor.organizationId,
                 propertyId,
                 subject,
@@ -459,7 +459,7 @@ function buildGoalModule(
     PortalGoalAddRequestApi &
     PortalGoalSinglePageRequestApi = Object.freeze({
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
-    history: (policy, ...args) => readGoalPrograms(policy).history!(...args),
+    history: (policy, ...args) => readGoalPrograms(policy).history(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
     listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
     monthlyPortalGoal,
@@ -474,7 +474,7 @@ function buildGoalModule(
       propertyId: string,
       portalId: string,
     ) => {
-      const programs = await goalProgramRepo.listSummaries(organizationId, propertyId)
+      const programs = await goalProgramRepo.list(organizationId, propertyId)
       return findPortalRatingGoalBlock(programs, portalId, input.clock(), (subject) =>
         input.portalApi.listPortalRatingFacts(
           toOrganizationId(organizationId),

@@ -227,6 +227,9 @@ describe.sequential('Goal Program repository races (integration)', () => {
       },
       policy: { authorize: async () => undefined },
       subjects: {
+        ratingSubjectsSkipPrivateRating: async () => false,
+        staffTargetProblem: async () => null,
+        staffTargetAllowed: async () => true,
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
       },

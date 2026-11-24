@@ -83,6 +83,9 @@ describe.sequential(
         },
         policy: { authorize: async () => undefined },
         subjects: {
+          ratingSubjectsSkipPrivateRating: async () => false,
+          staffTargetProblem: async () => null,
+          staffTargetAllowed: async () => true,
           getTimezone: async () => clock.timezone,
           subjectBelongsToProperty: async () => true,
         },

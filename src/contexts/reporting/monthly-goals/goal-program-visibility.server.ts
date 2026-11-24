@@ -68,8 +68,7 @@ export function scopeGoalProgramsForMember<
   })
 }
 
-type GoalProgramReads = Pick<GoalProgramService, 'get' | 'list'> &
-  Partial<Pick<GoalProgramService, 'history'>>
+type GoalProgramReads = Pick<GoalProgramService, 'get' | 'list' | 'history'>
 
 /**
  * Scope Goal Program reads to what the actor may see. The wrapped reads
@@ -105,60 +104,52 @@ export function withGoalProgramVisibility(
   }
 
   return {
-    ...(reads.history
-      ? {
-          history: async (...args: Parameters<GoalProgramService['history']>) => {
-            const [input, actor] = args
-            if (canForContext(actor, 'goal.create')) return reads.history!(...args)
-            const program = await reads.get(input, actor)
-            const { portalIds, groupIds } = await visibility({
-              actor,
-              propertyId: input.propertyId,
-            })
-            const [visibleProgram] = scopeGoalProgramsForMember(
-              [program],
-              portalIds,
-              groupIds,
-            )
-            if (!visibleProgram) throw new GoalProgramError('not_found')
-            // Scope the database page before its limit and continuation are chosen.
-            const page = await reads.history!(
-              {
-                ...input,
-                subjects: visibleProgram.assignments.map(({ subject }) => subject),
-              },
-              actor,
-            )
-            const [visible] = scopeGoalProgramsForMember([page], portalIds, groupIds)
-            if (!visible)
-              return {
-                ...page,
-                assignments: [],
-                results: [],
-                versions: [],
-                targetChanges: [],
-                targetProvenance: {},
-                next: null,
-              }
-            const versionIds = new Set(
-              visible.assignments.map((assignment) => assignment.programVersionId),
-            )
-            return {
-              ...visible,
-              versions: page.versions.filter((version) => versionIds.has(version.id)),
-              ...(page.targetProvenance
-                ? {
-                    targetProvenance: Object.fromEntries(
-                      Object.entries(page.targetProvenance).filter(([id]) =>
-                        versionIds.has(id),
-                      ),
-                    ),
-                  }
-                : {}),
-            }
-          },
+    history: async (...args: Parameters<GoalProgramService['history']>) => {
+      const [input, actor] = args
+      if (canForContext(actor, 'goal.create')) return reads.history(...args)
+      const program = await reads.get(input, actor)
+      const { portalIds, groupIds } = await visibility({
+        actor,
+        propertyId: input.propertyId,
+      })
+      const [visibleProgram] = scopeGoalProgramsForMember([program], portalIds, groupIds)
+      if (!visibleProgram) throw new GoalProgramError('not_found')
+      // Scope the database page before its limit and continuation are chosen.
+      const page = await reads.history(
+        {
+          ...input,
+          subjects: visibleProgram.assignments.map(({ subject }) => subject),
+        },
+        actor,
+      )
+      const [visible] = scopeGoalProgramsForMember([page], portalIds, groupIds)
+      if (!visible)
+        return {
+          ...page,
+          assignments: [],
+          results: [],
+          versions: [],
+          targetChanges: [],
+          targetProvenance: {},
+          next: null,
         }
-      : {}),
+      const versionIds = new Set(
+        visible.assignments.map((assignment) => assignment.programVersionId),
+      )
+      return {
+        ...visible,
+        versions: page.versions.filter((version) => versionIds.has(version.id)),
+        ...(page.targetProvenance
+          ? {
+              targetProvenance: Object.fromEntries(
+                Object.entries(page.targetProvenance).filter(([id]) =>
+                  versionIds.has(id),
+                ),
+              ),
+            }
+          : {}),
+      }
+    },
     get: async (input, actor) => {
       const program = await reads.get(input, actor)
       const [visible] = await visibleTo([program], actor, input.propertyId)

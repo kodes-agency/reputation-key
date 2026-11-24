@@ -206,7 +206,7 @@ describe.sequential('Goal history pages (integration)', () => {
         at: new Date('2026-09-05T12:00:00Z'),
       }),
     ).toBe(true)
-    const summary = await repository.getSummary(org, property, first.programId)
+    const summary = await repository.get(org, property, first.programId)
     if (!summary) throw new Error('Current summary is unavailable')
     expect(summary.version.id).toBe(nextVersion.id)
     expect(goalTargetProvenance(summary, summary.version)).toEqual({
@@ -215,7 +215,7 @@ describe.sequential('Goal history pages (integration)', () => {
       countsFrom: new Date('2026-08-01T00:00:00Z'),
     })
     const [historicallyVisible] = scopeGoalProgramsForMember(
-      await repository.listSummaries(org, property),
+      await repository.list(org, property),
       [portals[2]!],
       [],
     )
@@ -265,6 +265,9 @@ describe.sequential('Goal history pages (integration)', () => {
       repository,
       policy: { authorize: async () => undefined },
       subjects: {
+        ratingSubjectsSkipPrivateRating: async () => false,
+        staffTargetProblem: async () => null,
+        staffTargetAllowed: async () => true,
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
       },
@@ -272,6 +275,7 @@ describe.sequential('Goal history pages (integration)', () => {
         queryGoalMetric: async () => {
           throw new Error('History must not evaluate metrics')
         },
+        getApprovedGoalVersion: async () => null,
       },
       id: randomUUID,
       now: () => september,

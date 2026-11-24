@@ -62,19 +62,19 @@ const endedBundle: GoalProgramBundle = {
 }
 
 function serviceWithStoredProgram(stored: GoalProgramBundle | null) {
-  const get = vi.fn(async () => stored)
+  const getHistory = vi.fn(async () => stored)
   const authorize = vi.fn(async () => undefined)
   const deps: GoalProgramDependencies = {
-    // Only `get` may be reached: a refused command must stop before any write,
+    // Only `getHistory` may be reached: a refused command must stop before any write,
     // metric read or subject lookup, so a call to anything else throws.
-    repository: { get } as unknown as GoalProgramRepository,
+    repository: { getHistory } as unknown as GoalProgramRepository,
     policy: { authorize },
     subjects: {} as unknown as GoalProgramDependencies['subjects'],
     metrics: {} as unknown as GoalProgramDependencies['metrics'],
     id: () => 'generated-id',
     now: () => AT,
   }
-  return { service: createGoalProgramService(deps), get }
+  return { service: createGoalProgramService(deps), get: getHistory }
 }
 
 type Service = ReturnType<typeof serviceWithStoredProgram>['service']

@@ -74,6 +74,9 @@ describe.sequential('Goals for several subjects (integration)', () => {
       repository: createGoalProgramRepository(db),
       policy: { authorize: async () => undefined },
       subjects: {
+        ratingSubjectsSkipPrivateRating: async () => false,
+        staffTargetProblem: async () => null,
+        staffTargetAllowed: async () => true,
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
       },

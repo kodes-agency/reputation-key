@@ -82,6 +82,9 @@ describe.sequential('Monthly portal goal check-in (integration)', () => {
       repository,
       policy: allow,
       subjects: {
+        ratingSubjectsSkipPrivateRating: async () => false,
+        staffTargetProblem: async () => null,
+        staffTargetAllowed: async () => true,
         getTimezone: async () => TIMEZONE,
         subjectBelongsToProperty: async () => true,
       },
