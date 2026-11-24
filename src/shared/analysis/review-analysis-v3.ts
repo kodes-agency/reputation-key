@@ -42,15 +42,6 @@ export type ReviewAttentionLevelV2 = (typeof REVIEW_ATTENTION_LEVELS_V2)[number]
 export const REVIEW_STRENGTH_RANK_V3: Readonly<Record<ReviewStrengthV3, number>> =
   Object.freeze({ mild: 0, clear: 1, strong: 2 })
 
-export function strongerReviewStrengthV3(
-  first: ReviewStrengthV3,
-  second: ReviewStrengthV3,
-): ReviewStrengthV3 {
-  return REVIEW_STRENGTH_RANK_V3[first] >= REVIEW_STRENGTH_RANK_V3[second]
-    ? first
-    : second
-}
-
 export const REVIEW_ANALYSIS_V3_MAX_MENTIONS = 48
 export const REVIEW_ANALYSIS_V3_MAX_SENTENCE_REFS = 16
 export const REVIEW_ANALYSIS_V3_MAX_SENTENCE_NUMBER = 10_000

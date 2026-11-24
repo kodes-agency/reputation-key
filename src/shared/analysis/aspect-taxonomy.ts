@@ -33,13 +33,7 @@ export const ASPECT_POLARITIES_V1 = Object.freeze([
 ] as const)
 export type AspectPolarityV1 = (typeof ASPECT_POLARITIES_V1)[number]
 
-export type ReplyTemplateAspect = (typeof ASPECT_TAXONOMY_V1)[number]
-
 const ASPECTS = new Set<string>(ASPECT_TAXONOMY_V1)
 export function isAspectTaxonomyV1Id(value: string): value is AspectTaxonomyV1Id {
-  return ASPECTS.has(value)
-}
-
-export function isReplyTemplateAspect(value: string): value is ReplyTemplateAspect {
   return ASPECTS.has(value)
 }

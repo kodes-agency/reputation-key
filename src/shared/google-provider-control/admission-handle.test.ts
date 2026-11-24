@@ -6,10 +6,8 @@ import {
   type GoogleAdmissionPermitSnapshot,
 } from './admission-service'
 import type { GoogleInFlightCoordinator, GoogleQuotaCoordinator } from './contracts'
-import {
-  createInMemoryGoogleQuotaCoordinator,
-  googleQuotaCredentialFingerprint,
-} from './quota-coordinator'
+import { googleQuotaCredentialFingerprint } from './quota-coordinator'
+import { createInMemoryGoogleQuotaCoordinator } from './quota-coordinator.test-fixtures'
 import { compileGoogleProviderRequest } from './route-catalogue'
 
 const bindCredential = (credential: string) =>

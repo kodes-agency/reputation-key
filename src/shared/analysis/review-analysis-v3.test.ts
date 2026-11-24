@@ -29,7 +29,6 @@ import {
   REVIEW_STRENGTH_RANK_V3,
   REVIEW_URGENT_REASONS_V3,
   deriveReviewAttentionV2,
-  strongerReviewStrengthV3,
   type DeriveReviewAttentionV2Input,
   type ReviewAnalysisV3ProviderAnswer,
   type ReviewAnalysisV3Stored,
@@ -99,11 +98,8 @@ describe('review analysis v3 vocabularies and limits', () => {
     }
   })
 
-  it('pins strength order and preserves the first value on a tie', () => {
+  it('pins strength order', () => {
     expect(REVIEW_STRENGTH_RANK_V3).toEqual({ mild: 0, clear: 1, strong: 2 })
-    expect(strongerReviewStrengthV3('mild', 'clear')).toBe('clear')
-    expect(strongerReviewStrengthV3('strong', 'clear')).toBe('strong')
-    expect(strongerReviewStrengthV3('clear', 'clear')).toBe('clear')
     expect(Object.isFrozen(REVIEW_STRENGTH_RANK_V3)).toBe(true)
   })
 

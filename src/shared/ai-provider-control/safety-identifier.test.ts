@@ -1,9 +1,6 @@
-import { createHash, createHmac } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import {
-  deriveCanarySafetyIdentifier,
-  derivePropertySafetyIdentifier,
-} from './safety-identifier'
+import { derivePropertySafetyIdentifier } from './safety-identifier'
 
 function tuple(...members: string[]): Buffer {
   const chunks: Buffer[] = []
@@ -57,13 +54,6 @@ describe('OpenAI safety identifiers', () => {
     expect(derivePropertySafetyIdentifier({ ...base, actorId: 'e\u0301' })).not.toBe(
       derivePropertySafetyIdentifier({ ...base, actorId: '\u00e9' }),
     )
-  })
-
-  it('uses the repository-fixed canary value independently of normal keys', () => {
-    const expected = `rk1_${createHash('sha256')
-      .update('repkey-synthetic-canary-safety-v1\0', 'utf8')
-      .digest('base64url')}`
-    expect(deriveCanarySafetyIdentifier()).toBe(expected)
   })
 
   it('rejects short keys and invalid identifiers', () => {
