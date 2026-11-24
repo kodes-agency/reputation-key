@@ -227,7 +227,6 @@ describe('AI operation execution reaper', () => {
       analysisSequence: 18,
       reviewAnalysisEpoch: 3,
       propertyProfileVersion: 4,
-      calendarProfileVersion: 'property-calendar-v1',
     })
     expect(advanceWithoutAnalysis).toHaveBeenCalledOnce()
     expect(recordAnalysisReceipt).toHaveBeenCalledTimes(2)
