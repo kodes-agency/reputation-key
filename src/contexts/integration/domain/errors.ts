@@ -12,7 +12,6 @@ export type IntegrationErrorCode =
   | 'connection_disconnected'
   | 'account_already_connected'
   | 'oauth_failed'
-  | 'oauth_denied'
   // Google issued tokens, but the person left Business Profile access unticked
   // on Google's consent screen. Deterministic: the same consent fails the same
   // way, so the callback asks for the permission instead of a plain retry.
@@ -26,13 +25,9 @@ export type IntegrationErrorCode =
   | 'reauthorization_required'
   | 'gbp_api_error'
   | 'gbp_api_rate_limited'
-  | 'import_not_found'
   | 'invalid_visibility'
   | 'encryption_error'
-  | 'invalid_cache_entry'
-  | 'invalid_event'
   | 'invalid_transition'
-  | 'region_unresolved'
 export type IntegrationError = Readonly<{
   _tag: 'IntegrationError'
   code: IntegrationErrorCode
