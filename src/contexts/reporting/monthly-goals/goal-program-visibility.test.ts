@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Permission } from '#/shared/domain/permissions'
 import type { GoalSubject } from '../domain/goal-program'
+import type { GoalProgramService } from './goal-programs.server'
 import type {
   GoalProgramBundle,
   GoalProgramHistoryPage,
@@ -53,6 +54,7 @@ function setup(programs: readonly GoalProgramBundle[]) {
   const reads = {
     get: vi.fn(async () => programs[0]!),
     list: vi.fn(async () => programs),
+    history: vi.fn<GoalProgramService['history']>(),
   }
   const visibility = vi.fn<GoalProgramVisibilityPort>(async () => ({
     portalIds: ['portal-visible'],
