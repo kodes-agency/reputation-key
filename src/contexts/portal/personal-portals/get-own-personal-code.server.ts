@@ -13,6 +13,28 @@ import {
   type RevealPortalAddressDeps,
 } from '../addresses/reveal-portal-address.server'
 
+const loadOwnPersonalPortal = async (
+  deps: RevealPortalAddressDeps,
+  portalIdValue: string,
+  ctx: AuthContext,
+) => {
+  if (!canForContext(ctx, 'staff.self'))
+    throw portalError('forbidden', 'This account has no staff code access')
+  const portal = await deps.portalRepo.findById(
+    ctx.organizationId,
+    portalId(portalIdValue),
+  )
+  if (!portal || portal.kind !== 'personal')
+    throw portalError('forbidden', 'Choose your own personal Portal')
+  const owned = await deps.staffPublicApi.getAssignedPortals(
+    { userId: ctx.userId, propertyId: portal.propertyId },
+    ctx,
+  )
+  if (!owned.includes(portal.id))
+    throw portalError('forbidden', 'Choose your own personal Portal')
+  return portal
+}
+
 export const getOwnPersonalCode =
   (
     deps: RevealPortalAddressDeps &
@@ -20,20 +42,7 @@ export const getOwnPersonalCode =
       Readonly<{ propertyLifecycleApi: PropertyLifecyclePublicApi }>,
   ) =>
   async (input: Readonly<{ portalId: string }>, ctx: AuthContext) => {
-    if (!canForContext(ctx, 'staff.self'))
-      throw portalError('forbidden', 'This account has no staff code access')
-    const portal = await deps.portalRepo.findById(
-      ctx.organizationId,
-      portalId(input.portalId),
-    )
-    if (!portal || portal.kind !== 'personal')
-      throw portalError('forbidden', 'Choose your own personal Portal')
-    const owned = await deps.staffPublicApi.getAssignedPortals(
-      { userId: ctx.userId, propertyId: portal.propertyId },
-      ctx,
-    )
-    if (!owned.includes(portal.id))
-      throw portalError('forbidden', 'Choose your own personal Portal')
+    const portal = await loadOwnPersonalPortal(deps, input.portalId, ctx)
     if (
       portal.publicationState !== 'published' ||
       !(await deps.propertyLifecycleApi.isPropertyActive(
@@ -69,20 +78,7 @@ export const getOwnPersonalCode =
 export const getOwnPersonalLook =
   (deps: RevealPortalAddressDeps & PersonalPortalPresentationDeps) =>
   async (input: Readonly<{ portalId: string; paused?: boolean }>, ctx: AuthContext) => {
-    if (!canForContext(ctx, 'staff.self'))
-      throw portalError('forbidden', 'This account has no staff code access')
-    const portal = await deps.portalRepo.findById(
-      ctx.organizationId,
-      portalId(input.portalId),
-    )
-    if (!portal || portal.kind !== 'personal')
-      throw portalError('forbidden', 'Choose your own personal Portal')
-    const owned = await deps.staffPublicApi.getAssignedPortals(
-      { userId: ctx.userId, propertyId: portal.propertyId },
-      ctx,
-    )
-    if (!owned.includes(portal.id))
-      throw portalError('forbidden', 'Choose your own personal Portal')
+    const portal = await loadOwnPersonalPortal(deps, input.portalId, ctx)
     return personalPortalLook(
       deps,
       input.paused ? { ...portal, publicationState: 'disabled' } : portal,
