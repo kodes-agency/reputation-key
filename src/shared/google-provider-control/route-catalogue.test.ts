@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   compileGoogleProviderRequest,
-  parseGoogleProviderRouteDescriptor,
 } from './route-catalogue'
 
 const bindCredential = (value: string) =>
@@ -110,35 +109,25 @@ describe('Google provider route catalogue', () => {
           bindCredential,
         ),
       ).toThrow('provider route input is invalid')
-      expect(() =>
-        parseGoogleProviderRouteDescriptor({
-          routeKey: 'reviews.list',
-          accessToken: 'token',
-          locationName,
-          orderBy,
-        }),
-      ).toThrow('provider route input is invalid')
     }
   })
 
-  it('parses the head read descriptor and still refuses unknown Review list keys', () => {
+  it('compiles the head read descriptor with its ordering and no other query key', () => {
     const locationName = ['accounts', 'account-1', 'locations', 'location-1'].join('/')
-    expect(
-      parseGoogleProviderRouteDescriptor({
+    const compiled = compileGoogleProviderRequest(
+      {
         routeKey: 'reviews.list',
         accessToken: 'token',
         locationName,
         orderBy: 'updateTime desc',
-      }),
-    ).toMatchObject({ routeKey: 'reviews.list', orderBy: 'updateTime desc' })
-    expect(() =>
-      parseGoogleProviderRouteDescriptor({
-        routeKey: 'reviews.list',
-        accessToken: 'token',
-        locationName,
-        filter: 'rating=5',
-      }),
-    ).toThrow('provider route input is invalid')
+        ...({ filter: 'rating=5' } as object),
+      },
+      bindCredential,
+    )
+    expect([...new URL(compiled.url).searchParams.keys()].sort()).toEqual([
+      'orderBy',
+      'pageSize',
+    ])
   })
 
   it('compiles OAuth refresh and revoke as fixed form routes with bounded bodies', () => {
@@ -287,13 +276,6 @@ describe('Google provider route catalogue', () => {
         { routeKey: 'reviews.reply', accessToken: 'access-token', reviewName, comment },
         bindCredential,
       )
-    const parseReply = (comment: string) =>
-      parseGoogleProviderRouteDescriptor({
-        routeKey: 'reviews.reply',
-        accessToken: 'access-token',
-        reviewName,
-        comment,
-      })
 
     // Incident b129e390: a three-paragraph reply never reached Google because
     // the header/URL field rule refused its line feeds at compile time.
@@ -304,16 +286,11 @@ describe('Google provider route catalogue', () => {
       if (compiled.body === null) throw new Error('expected reply JSON body')
       expect(JSON.parse(new TextDecoder().decode(compiled.body))).toEqual({ comment })
       expect(compiled.method).toBe('PUT')
-      expect(parseReply(comment)).toMatchObject({ comment })
     })
 
     it('measures the comment in UTF-8 bytes: 2048 Cyrillic letters compile, 2049 do not', () => {
       expect(compileReply('Б'.repeat(2_048)).admission.requestBodyBytes).toBe(4_096 + 14)
-      expect(parseReply('Б'.repeat(2_048))).toMatchObject({ routeKey: 'reviews.reply' })
       expect(() => compileReply('Б'.repeat(2_049))).toThrow(
-        'provider route input is invalid',
-      )
-      expect(() => parseReply('Б'.repeat(2_049))).toThrow(
         'provider route input is invalid',
       )
     })
@@ -328,7 +305,6 @@ describe('Google provider route catalogue', () => {
         ' \n ',
       ]) {
         expect(() => compileReply(comment)).toThrow('provider route input is invalid')
-        expect(() => parseReply(comment)).toThrow('provider route input is invalid')
       }
     })
 
