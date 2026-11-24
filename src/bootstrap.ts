@@ -167,7 +167,6 @@ export async function bootstrap(
   container: Container,
   options: Readonly<{
     runtime: BootstrapRuntimeConfig
-    allowUnavailableGoogleImportProcessor?: boolean
   }>,
 ): Promise<void> {
   assertContainerCanBuild()
@@ -259,26 +258,16 @@ export async function bootstrap(
     }),
   )
 
-  const processGoogleImportItem = container.integrationWorkerRuntime.processImportItem
-  if (processGoogleImportItem) {
-    const importV2Handler = createGoogleImportItemJobHandler(processGoogleImportItem)
-    registerCapabilityGatedJob(
-      container,
-      GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
-      async (job) => {
-        await importV2Handler(
-          job as import('bullmq').Job<
-            import('#/contexts/integration/imports/google-import-queue.port.server').GoogleImportItemJobData
-          >,
-        )
-      },
+  const importV2Handler = createGoogleImportItemJobHandler(
+    container.integrationWorkerRuntime.processImportItem,
+  )
+  registerCapabilityGatedJob(container, GOOGLE_PROPERTY_IMPORT_ITEM_JOB, async (job) => {
+    await importV2Handler(
+      job as import('bullmq').Job<
+        import('#/contexts/integration/imports/google-import-queue.port.server').GoogleImportItemJobData
+      >,
     )
-  } else if (
-    isCapabilityJobEnabled('property.import_gbp_v2') &&
-    !options.allowUnavailableGoogleImportProcessor
-  ) {
-    throw new Error('Google import v2 processor dependencies are unavailable')
-  }
+  })
 
   // Drains deliveries queued under the retired item job name.
   container.jobRegistry.register(
@@ -406,8 +395,7 @@ export async function bootstrap(
     db: container.db,
     clock: container.clock,
     rules: RETENTION_RULES,
-    googleImportLifecycleSweep:
-      container.integrationWorkerRuntime.sweepImportLifecycle ?? undefined,
+    googleImportLifecycleSweep: container.integrationWorkerRuntime.sweepImportLifecycle,
     guestContactRequestRetentionSweep: container.guestContactRequestRetentionSweep,
     reviewObservationRetentionSweep: container.reviewObservationRetentionSweep,
     reviewSnapshotRunRetentionSweep: container.reviewSnapshotRunRetentionSweep,
