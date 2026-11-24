@@ -38,7 +38,6 @@ export type GoogleImportRuntimeDeps = Readonly<{
   references: GoogleImportReferenceStore | undefined
   replayKeys: VersionedHmacKeyring | undefined
   authorizeContent: GoogleImportContentAuthorizer | undefined
-  refreshPolicyStoreRequired: (() => Promise<void>) | undefined
 }>
 
 export type GoogleImportRuntime = Readonly<{
@@ -81,10 +80,8 @@ export const createGoogleImportRuntime = (
     }
   }
   const executor = deps.providerExecutor
-  const decideGoogleImport = async (request: DecisionRequest) => {
-    await deps.refreshPolicyStoreRequired?.()
-    return getExecutionPolicy().decide(request)
-  }
+  const decideGoogleImport = async (request: DecisionRequest) =>
+    getExecutionPolicy().decide(request)
   const authorizeCommand = createGoogleImportCommandAuthorizer({
     connectionRepo: deps.connectionRepo,
     tokenProvider: deps.tokenProvider,
