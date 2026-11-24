@@ -39,3 +39,19 @@ export function pickLeastRecentlyUsed<Option extends string | Keyed>(
     })[0] ?? null
   )
 }
+
+/** Every index below `count`, least recently used first, with the same seeded tie-break. */
+export function orderOptions(
+  count: number,
+  usage: readonly ReplyRotationUsage[],
+  seed: string,
+): number[] {
+  const remaining = Array.from({ length: count }, (_, index) => String(index))
+  const ordered: number[] = []
+  while (remaining.length) {
+    const chosen = pickLeastRecentlyUsed(remaining, usage, seed)!
+    ordered.push(Number(chosen))
+    remaining.splice(remaining.indexOf(chosen), 1)
+  }
+  return ordered
+}
