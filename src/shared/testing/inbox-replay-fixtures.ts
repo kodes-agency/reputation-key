@@ -292,10 +292,10 @@ export const INBOX_REPLAY_STATE_SQL = {
                  is_escalated, rating, source_date, platform, snippet, reviewer_name,
                  assigned_to, closed_at, command_revision::int
           FROM inbox_items WHERE organization_id = $1 ORDER BY id`,
-  heads: `SELECT inbox_item_id, source_type, source_id, current_cycle_number::int,
+  heads: `SELECT id AS inbox_item_id, source_type, source_id, current_cycle_number::int,
                  current_source_revision::int, state_revision::int, status
-          FROM inbox_handling_cycle_heads WHERE organization_id = $1
-          ORDER BY inbox_item_id`,
+          FROM inbox_items WHERE organization_id = $1 AND current_cycle_number IS NOT NULL
+          ORDER BY id`,
   cycles: `SELECT inbox_item_id, cycle_number::int, source_type, source_id,
                   source_revision::int, opened_reason, manual_reopen_reason,
                   manual_reopen_explanation, supersedes_cycle_number::int, opened_by,

@@ -14,7 +14,6 @@ import {
   PROP_B,
   USER_A,
   TEST_NOW,
-  pool,
   db,
   allowAllCommandAuthority,
   stubPorts,
@@ -123,15 +122,10 @@ describe('inbox repository — active Handling Cycle authority', () => {
     ['Review', 'review', reviewId(crypto.randomUUID())],
     ['feedback', 'feedback', feedbackId(crypto.randomUUID())],
   ] as const)(
-    'serves the %s item from its own status when the head mirror drifts',
+    'serves the %s item from its own status',
     async (_label, sourceType, sourceId) => {
       const item = makeInboxItem({ sourceType, sourceId, status: 'open' })
       await repo.seedItem(item)
-      await pool.query(
-        `UPDATE inbox_handling_cycle_heads SET status = 'closed'
-       WHERE inbox_item_id = $1 AND organization_id = $2`,
-        [item.id, ORG_A],
-      )
 
       await expect(repo.findById(item.id, ORG_A)).resolves.toMatchObject({
         id: item.id,

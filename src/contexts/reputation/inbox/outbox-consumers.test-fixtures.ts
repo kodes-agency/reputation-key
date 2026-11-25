@@ -185,10 +185,6 @@ const seedOrganization = () => seedInboxOrganization(pool, ORG, [PROP, PROP2])
 const seedItem = async (item: InboxItem): Promise<void> => {
   await seedInboxItem(pool, getDb(), item, () => NOW)
   await pool.query(
-    'UPDATE inbox_handling_cycle_heads SET status = $2 WHERE inbox_item_id = $1',
-    [item.id, item.status],
-  )
-  await pool.query(
     `UPDATE inbox_items
         SET first_reply_submitted_at = $2, first_reply_published_at = $3
       WHERE id = $1`,
@@ -208,19 +204,15 @@ const seedMaterialRevision = (revision: number) =>
     [REV, revision, ORG, PROP, NOW],
   )
 
-/** Moves the Handling Cycle head onto a later Material Review Revision. */
+/** Moves the Inbox row's current cycle onto a later source revision. */
 const advanceHeadRevision = async (item: InboxItem, revision: number): Promise<void> => {
   await seedMaterialRevision(revision)
   await pool.query(
-    `UPDATE inbox_handling_cycle_heads
-        SET current_material_review_revision = $2, current_source_revision = $2
-      WHERE inbox_item_id = $1`,
+    `UPDATE inbox_items
+        SET current_source_revision = $2
+      WHERE id = $1`,
     [item.id, revision],
   )
-  await pool.query('UPDATE inbox_items SET current_source_revision = $2 WHERE id = $1', [
-    item.id,
-    revision,
-  ])
 }
 
 /** Facts the Inbox itself committed; the delivered source event is not one. */
@@ -281,10 +273,6 @@ export async function makeDeps(overrides: {
   }
   if (item?.sourceType === 'review') {
     if (overrides.handlingCycleMissing === true) {
-      await pool.query(
-        'DELETE FROM inbox_handling_cycle_heads WHERE inbox_item_id = $1',
-        [item.id],
-      )
       await pool.query(
         `UPDATE inbox_items
             SET current_cycle_number = NULL, current_source_revision = NULL,

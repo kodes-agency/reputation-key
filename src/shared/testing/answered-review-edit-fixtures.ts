@@ -219,15 +219,14 @@ export function answeredEditFixtures(pool: Pool) {
       }))
     },
 
-    /** The Inbox item's status and its current Handling Cycle head. */
+    /** The Inbox item's status and its current Handling Cycle facts. */
     async inboxState() {
       const [state] = await q(
-        `SELECT i.status AS "itemStatus", h.status AS "cycleStatus",
-                h.current_cycle_number::int AS "cycleNumber",
-                h.current_source_revision::int AS "sourceRevision"
-         FROM inbox_items i
-         JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
-         WHERE i.id = $1`,
+        `SELECT status AS "itemStatus",
+                current_cycle_number::int AS "cycleNumber",
+                current_source_revision::int AS "sourceRevision"
+         FROM inbox_items
+         WHERE id = $1`,
         [ANSWERED_EDIT_SCOPE.itemId],
       )
       return state

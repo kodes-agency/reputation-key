@@ -338,16 +338,6 @@ async function transitionsFor(id: ReviewId) {
   return rows.rows
 }
 
-async function cycleHeadStatus(id: ReviewId): Promise<string | undefined> {
-  const rows = await pool.query<{ status: string }>(
-    `SELECT h.status FROM inbox_handling_cycle_heads h
-       JOIN inbox_items i ON i.id = h.inbox_item_id
-      WHERE i.organization_id = $1 AND i.source_id = $2`,
-    [ORG, id],
-  )
-  return rows.rows[0]?.status
-}
-
 async function outboxFactCount(): Promise<number> {
   const rows = await pool.query<{ n: string }>(
     `SELECT count(*) AS n FROM outbox_events
@@ -404,7 +394,6 @@ describe.sequential('rebuildInboxProjection reads replies written on Google', ()
     expect(item?.status).toBe('closed')
     expect(item?.closedAt).toEqual(READ_FROM_GOOGLE)
     expect(item?.firstReplyPublishedAt).toEqual(WRITTEN_ON_GOOGLE)
-    expect(await cycleHeadStatus(REVIEW.missingReplied)).toBe('closed')
     // History never shows the close before the open: the cycle opens no
     // later than Google was seen answering the review.
     expect(await transitionsFor(REVIEW.missingReplied)).toEqual([
@@ -444,7 +433,6 @@ describe.sequential('rebuildInboxProjection reads replies written on Google', ()
     expect(item?.status).toBe('open')
     expect(item?.closedAt).toBeNull()
     expect(item?.firstReplyPublishedAt).toEqual(WRITTEN_ON_GOOGLE)
-    expect(await cycleHeadStatus(REVIEW.existingReplied)).toBe('open')
   })
 
   it('leaves new work open: a deleted Google reply, or one that answers an earlier revision', async () => {
@@ -457,7 +445,6 @@ describe.sequential('rebuildInboxProjection reads replies written on Google', ()
     const edited = await itemFor(REVIEW.missingEditedAfterReply)
     expect(edited?.status).toBe('open')
     expect(edited?.firstReplyPublishedAt).toEqual(WRITTEN_ON_GOOGLE)
-    expect(await cycleHeadStatus(REVIEW.missingEditedAfterReply)).toBe('open')
   })
 
   it('reports the same repair on a dry run and writes nothing', async () => {

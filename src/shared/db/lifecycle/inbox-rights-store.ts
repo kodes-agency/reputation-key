@@ -21,7 +21,10 @@ import {
   type RightsTarget,
 } from './rights-primitives'
 
-const INBOX_EXPORT_VERSION = 'inbox-rights-export/v1'
+// v2: `handlingCycleHeads` is read from the Inbox rows (the item's current cycle,
+// source revision and status) instead of the retired head table, so its rows no
+// longer carry their own `created_at` and `updated_at`; the Inbox row's are in `items`.
+const INBOX_EXPORT_VERSION = 'inbox-rights-export/v2'
 
 const UTC = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
 
@@ -62,6 +65,8 @@ const REPORT_TABLES = Object.freeze([
   'inbox_assignment_history',
   'inbox_escalation_history',
   'inbox_priority_history',
+  // Retired: nothing reads or writes it, but its rows go with their item through
+  // ON DELETE CASCADE, so a closure still reports them until the table is dropped.
   'inbox_handling_cycle_heads',
   'inbox_handling_cycle_transitions',
   'inbox_handling_cycle_response_targets',
@@ -167,11 +172,11 @@ export async function readInboxRightsExport(db: Database, organizationId: string
           WHERE organization_id = ${organizationId}
           ORDER BY id`),
         handlingCycleHeads: await rows(sql`
-          SELECT inbox_item_id, property_id, source_type, current_cycle_number,
-            current_source_revision, status, ${utc('created_at')}, ${utc('updated_at')}
-          FROM inbox_handling_cycle_heads
-          WHERE organization_id = ${organizationId}
-          ORDER BY inbox_item_id`),
+          SELECT id AS inbox_item_id, property_id, source_type, current_cycle_number,
+            current_source_revision, status
+          FROM inbox_items
+          WHERE organization_id = ${organizationId} AND current_cycle_number IS NOT NULL
+          ORDER BY id`),
         handlingCycles: await rows(sql`
           SELECT inbox_item_id, cycle_number, property_id, source_type, source_revision,
             opened_reason, manual_reopen_reason, manual_reopen_explanation,

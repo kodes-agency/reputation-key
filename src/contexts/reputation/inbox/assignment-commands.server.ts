@@ -22,7 +22,6 @@ import {
 import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
 import {
   cycleHeadItemColumns,
-  mirrorCycleHead,
   persistedHeadFromItemRow,
 } from '#/contexts/reputation/inbox/inbox-cycle-head.server'
 import { createNextHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
@@ -480,13 +479,6 @@ export const createAssignmentCommands = (
           if (!updatedItem) {
             throw inboxError('revision_conflict', 'Inbox item changed during reopen')
           }
-          await mirrorCycleHead(tx, {
-            inboxItemId: item.id,
-            organizationId: item.organizationId,
-            sourceType: item.sourceType,
-            head: decision.value.head,
-            updatedAt: now,
-          })
           if (unassignedFact) {
             await appendAssignmentHistory(tx, item, {
               resultingCommandRevision: updatedItem.commandRevision,

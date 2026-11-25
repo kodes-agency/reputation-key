@@ -45,7 +45,6 @@ import { assertManagerHandlingPermitted } from '#/contexts/reputation/domain/han
 import { inboxItemFromRow } from '#/contexts/reputation/inbox/inbox-mapper.server'
 import {
   cycleHeadItemColumns,
-  mirrorCycleHead,
   persistedHeadFromItemRow,
   type PersistedHead,
 } from '#/contexts/reputation/inbox/inbox-cycle-head.server'
@@ -385,13 +384,6 @@ export const createFeedbackHandlingStore = (
             )
             .returning()
           if (!savedItem) throw conflict(locked.item, locked.head)
-          await mirrorCycleHead(tx, {
-            inboxItemId: locked.item.id,
-            organizationId: locked.item.organizationId,
-            sourceType: 'feedback',
-            head: closed.value.head,
-            updatedAt: command.recordedAt,
-          })
           await tx
             .insert(inboxFeedbackHandlingOutcomes)
             .values(

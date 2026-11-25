@@ -1,7 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  inboxHandlingCycleHeads,
   inboxHandlingCycleTransitions,
   inboxHandlingCycles,
   inboxItems,
@@ -106,25 +105,6 @@ export async function insertInitialHandlingCycle(
       anchor.responseTarget,
     )
   }
-  await tx.insert(inboxHandlingCycleHeads).values({
-    inboxItemId: decision.value.head.inboxItemId,
-    organizationId: decision.value.head.organizationId,
-    propertyId: decision.value.head.propertyId,
-    sourceType: decision.value.head.sourceType,
-    sourceId: decision.value.head.sourceId,
-    currentSourceRevision: decision.value.head.currentSourceRevision,
-    reviewId:
-      decision.value.head.sourceType === 'review' ? decision.value.head.sourceId : null,
-    currentMaterialReviewRevision:
-      decision.value.head.sourceType === 'review'
-        ? decision.value.head.currentSourceRevision
-        : null,
-    currentCycleNumber: decision.value.head.currentCycleNumber,
-    stateRevision: decision.value.head.stateRevision,
-    status: decision.value.head.status,
-    createdAt: recordedAt,
-    updatedAt: recordedAt,
-  })
   await tx
     .update(inboxItems)
     .set(cycleHeadItemColumns(decision.value.head))

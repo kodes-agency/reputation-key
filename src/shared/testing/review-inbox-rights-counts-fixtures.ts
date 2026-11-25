@@ -1,7 +1,7 @@
 // Seeds every table the Review and Inbox rights reports count: two Properties of
 // different sizes under one Organization, and the same shape under another.
 
-import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
+import { setInboxItemCycleFacts } from '#/shared/testing/inbox-cycle-facts'
 import { randomUUID } from 'node:crypto'
 import { deleteTestOrganizations } from './integration-helpers'
 import type { TestLease } from './test-environment-lease'
@@ -342,6 +342,28 @@ async function seedInbox(
             ($6, 1, $2, $3, 'review', $7, 1, $7, 1, 'review_observed', $5)`,
     [feedbackItem, org, propertyId, feedbackId, AT, reviewItem, reviewId],
   )
+  await setInboxItemCycleFacts(
+    { query: q },
+    {
+      itemId: feedbackItem,
+      cycleNumber: 1,
+      sourceRevision: 1,
+      stateRevision: 2,
+      status: 'closed',
+    },
+  )
+  await setInboxItemCycleFacts(
+    { query: q },
+    {
+      itemId: reviewItem,
+      cycleNumber: 1,
+      sourceRevision: 1,
+      stateRevision: 1,
+      status: 'open',
+    },
+  )
+  // Rows the retired head table still holds for items written before it was
+  // retired: a closure reports and erases them with their item until it is dropped.
   await q(
     `INSERT INTO inbox_handling_cycle_heads (
        inbox_item_id, organization_id, property_id, source_type, source_id,
@@ -351,7 +373,6 @@ async function seedInbox(
             ($5, $2, $3, 'review', $6, 1, $6, 1, 1, 1, 'open')`,
     [feedbackItem, org, propertyId, feedbackId, reviewItem, reviewId],
   )
-  await q(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
   await q(
     `INSERT INTO inbox_handling_cycle_transitions (
        inbox_item_id, state_revision, cycle_number, organization_id, property_id,

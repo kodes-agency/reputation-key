@@ -263,9 +263,8 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
          item.closed_at,
          item.assigned_to,
          item.command_revision::int AS command_revision,
-         head.status AS head_status,
-         head.current_cycle_number::int AS cycle_number,
-         head.state_revision::int AS state_revision,
+         item.current_cycle_number::int AS cycle_number,
+         item.state_revision::int AS state_revision,
          cycle.opened_reason,
          cycle.manual_reopen_reason,
          cycle.manual_reopen_explanation,
@@ -277,10 +276,9 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
             AND event.event_type = 'inbox.inbox_item.status_changed'
             AND event.payload->>'inboxItemId' = item.id::text) AS fact_count
        FROM inbox_items item
-       JOIN inbox_handling_cycle_heads head ON head.inbox_item_id = item.id
        JOIN inbox_handling_cycles cycle
-         ON cycle.inbox_item_id = head.inbox_item_id
-        AND cycle.cycle_number = head.current_cycle_number
+         ON cycle.inbox_item_id = item.id
+        AND cycle.cycle_number = item.current_cycle_number
        WHERE item.id = $1`,
       [closed.id],
     )
@@ -290,7 +288,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         closed_at: null,
         assigned_to: USER_A,
         command_revision: 2,
-        head_status: 'open',
         cycle_number: 2,
         state_revision: 2,
         opened_reason: 'manual_reopen',
@@ -430,7 +427,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       `SELECT current_cycle_number::int AS "cycleNumber",
               current_source_revision::int AS "sourceRevision",
               state_revision::int AS "stateRevision"
-       FROM inbox_handling_cycle_heads WHERE inbox_item_id = $1`,
+       FROM inbox_items WHERE id = $1`,
       [landed.id],
     )
     const completed = await pool.query(
@@ -529,16 +526,14 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     ])
     const rows = await pool.query(
       `SELECT item.id, item.status, item.command_revision::int,
-              head.status AS head_status,
-              head.current_cycle_number::int AS cycle_number,
-              head.state_revision::int AS state_revision,
+              item.current_cycle_number::int AS cycle_number,
+              item.state_revision::int AS state_revision,
               cycle.opened_reason,
               cycle.manual_reopen_reason
        FROM inbox_items item
-       JOIN inbox_handling_cycle_heads head ON head.inbox_item_id = item.id
        JOIN inbox_handling_cycles cycle
-         ON cycle.inbox_item_id = head.inbox_item_id
-        AND cycle.cycle_number = head.current_cycle_number
+         ON cycle.inbox_item_id = item.id
+        AND cycle.cycle_number = item.current_cycle_number
        WHERE item.id = ANY($1::uuid[]) ORDER BY item.id`,
       [[first.id, second.id]],
     )
@@ -547,7 +542,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         id: first.id,
         status: 'open',
         command_revision: 2,
-        head_status: 'open',
         cycle_number: 2,
         state_revision: 2,
         opened_reason: 'manual_reopen',
@@ -557,7 +551,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         id: second.id,
         status: 'open',
         command_revision: 2,
-        head_status: 'open',
         cycle_number: 2,
         state_revision: 2,
         opened_reason: 'manual_reopen',

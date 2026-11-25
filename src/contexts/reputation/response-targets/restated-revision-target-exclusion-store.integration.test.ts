@@ -185,7 +185,6 @@ describe.sequential('Restated revision target exclusions (PostgreSQL)', () => {
     })
     const untouched = [
       'inbox_items',
-      'inbox_handling_cycle_heads',
       'inbox_handling_cycles',
       'inbox_handling_cycle_response_targets',
     ]

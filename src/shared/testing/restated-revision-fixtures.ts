@@ -8,7 +8,7 @@
 // rows for the organization and Property it is given; the caller cleans up with
 // `cleanRestatedRevisionScope`.
 
-import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
+import { setInboxItemCycleFacts } from '#/shared/testing/inbox-cycle-facts'
 import type { Pool } from 'pg'
 import { deleteTestOrganizations } from './integration-helpers'
 
@@ -227,25 +227,13 @@ export async function seedInboxItem(pool: Pool, input: InboxItemFixture): Promis
   for (const cycle of input.cycles) {
     await seedCycle(pool, input, cycle)
   }
-  await pool.query(
-    `INSERT INTO inbox_handling_cycle_heads (
-       inbox_item_id, organization_id, property_id, source_type, source_id,
-       current_source_revision, review_id, current_cycle_number,
-       current_material_review_revision, state_revision, status, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'review', $4, $5, $4, $6, $5, $7, $8, $9, $9)`,
-    [
-      input.itemId,
-      input.organizationId,
-      input.propertyId,
-      input.reviewId,
-      last.revision,
-      last.number,
-      last.number,
-      input.status,
-      last.openedAt,
-    ],
-  )
-  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
+  await setInboxItemCycleFacts(pool, {
+    itemId: input.itemId,
+    cycleNumber: last.number,
+    sourceRevision: last.revision,
+    stateRevision: last.number,
+    status: input.status,
+  })
 }
 
 async function seedCycle(

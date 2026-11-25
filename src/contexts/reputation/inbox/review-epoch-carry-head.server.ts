@@ -1,12 +1,8 @@
-import { and, eq, sql } from 'drizzle-orm'
-import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
+import { and, eq } from 'drizzle-orm'
+import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import type { HandlingCycleHead, InboxItem } from '../domain/inbox-types'
-import {
-  mirrorCycleHead,
-  persistedHeadFromItemRow,
-  type PersistedHead,
-} from './inbox-cycle-head.server'
+import { persistedHeadFromItemRow, type PersistedHead } from './inbox-cycle-head.server'
 
 /**
  * Move a Review Handling Cycle head across a Review-attested source-epoch
@@ -24,10 +20,9 @@ export async function advanceHeadAcrossSourceEpochCarry(
     item: Pick<InboxItem, 'id' | 'organizationId' | 'propertyId' | 'sourceId'>
     head: Pick<HandlingCycleHead, 'currentCycleNumber' | 'stateRevision' | 'status'>
     carriedFrom: number
-    observedAt: Date
   }>,
 ): Promise<PersistedHead | null> {
-  const { item, head, carriedFrom, observedAt } = input
+  const { item, head, carriedFrom } = input
   const [carried] = await tx
     .update(inboxItems)
     .set({ currentSourceRevision: carriedFrom + 1 })
@@ -48,17 +43,5 @@ export async function advanceHeadAcrossSourceEpochCarry(
   if (!carriedFacts) return null
   // The caller's status stands: the Inbox row's own status may be converged
   // later in the same transaction.
-  const carriedHead = { ...carriedFacts, status: head.status }
-  await mirrorCycleHead(tx, {
-    inboxItemId: item.id,
-    organizationId: item.organizationId,
-    sourceType: 'review',
-    head: {
-      currentCycleNumber: carriedHead.currentCycleNumber,
-      currentSourceRevision: carriedHead.currentSourceRevision,
-      stateRevision: carriedHead.stateRevision,
-    },
-    updatedAt: sql<Date>`GREATEST(${inboxHandlingCycleHeads.updatedAt}, ${observedAt})`,
-  })
-  return carriedHead
+  return { ...carriedFacts, status: head.status }
 }

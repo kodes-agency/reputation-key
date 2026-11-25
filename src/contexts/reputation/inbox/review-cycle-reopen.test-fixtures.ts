@@ -1,18 +1,19 @@
 // Opens a later Review Handling Cycle on an item for integration tests. Both
 // paths run the production writers: a manual reopen goes through the command
 // store's reopenReviewCycle, a Material Revision through the projection
-// catch-up, so the head compare-and-set and the head -> item lock order are the
-// ones production uses.
+// catch-up, so the Inbox row's compare-and-set and lock are the ones production
+// uses.
 
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
+import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.server'
 import type { HandlingCycleHead, ManualReopenReason } from '../domain/inbox-types'
 import { inboxItemStatusChanged } from '../domain/inbox-events'
 import { inboxError } from '../domain/inbox-errors'
 import { handlingCycleHeadFromRow, itemFromRow } from './inbox-command-guards.server'
+import { persistedHeadFromItemRow } from './inbox-cycle-head.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { catchUpProjectionRevisions } from './inbox-source-projection.server'
 
@@ -44,16 +45,17 @@ const readHead = async (
 ): Promise<HandlingCycleHead> => {
   const [row] = await db
     .select()
-    .from(inboxHandlingCycleHeads)
+    .from(inboxItems)
     .where(
       and(
-        eq(inboxHandlingCycleHeads.inboxItemId, command.inboxItemId),
-        eq(inboxHandlingCycleHeads.organizationId, command.organizationId),
+        eq(inboxItems.id, command.inboxItemId),
+        eq(inboxItems.organizationId, command.organizationId),
       ),
     )
     .limit(1)
-  if (!row) throw inboxError('not_found', 'Inbox Handling Cycle head not found')
-  return handlingCycleHeadFromRow(row)
+  const head = row ? persistedHeadFromItemRow(row) : null
+  if (!head) throw inboxError('not_found', 'Inbox Handling Cycle head not found')
+  return handlingCycleHeadFromRow(head)
 }
 
 const reopenManually = async (
@@ -109,18 +111,6 @@ const reopenForMaterialRevision = async (
   >,
 ): Promise<void> => {
   await db.transaction(async (tx) => {
-    const [headRow] = await tx
-      .select()
-      .from(inboxHandlingCycleHeads)
-      .where(
-        and(
-          eq(inboxHandlingCycleHeads.inboxItemId, command.inboxItemId),
-          eq(inboxHandlingCycleHeads.organizationId, command.organizationId),
-        ),
-      )
-      .for('update')
-      .limit(1)
-    if (!headRow) throw inboxError('not_found', 'Inbox Handling Cycle head not found')
     const [itemRow] = await tx
       .select()
       .from(inboxItems)
@@ -133,6 +123,8 @@ const reopenForMaterialRevision = async (
       .for('update')
       .limit(1)
     if (!itemRow) throw inboxError('not_found', 'Inbox item not found')
+    const headRow = persistedHeadFromItemRow(itemRow)
+    if (!headRow) throw inboxError('not_found', 'Inbox Handling Cycle head not found')
     const { reviewAuthority } = command.responseTarget
     await catchUpProjectionRevisions(tx, {
       item: itemFromRow(itemRow),

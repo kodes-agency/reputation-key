@@ -176,8 +176,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
            item.id,
            item.source_id,
            item.status AS item_status,
-           head.status AS cycle_status,
-           head.current_cycle_number::int AS cycle_number,
+           item.current_cycle_number::int AS cycle_number,
            item.assigned_to,
            item.command_revision::text AS command_revision,
            (SELECT count(*)::int FROM inbox_notes note
@@ -190,7 +189,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
               AND fact.event_type = 'inbox.inbox_item.status_changed'
               AND fact.payload->>'inboxItemId' = item.id::text) AS status_fact_count
          FROM inbox_items item
-         JOIN inbox_handling_cycle_heads head ON head.inbox_item_id = item.id
          WHERE item.id = $1`,
       [legacy.id, source.eventId, ORG_A],
     )
@@ -199,7 +197,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         id: legacy.id,
         source_id: REVIEW_A,
         item_status: 'open',
-        cycle_status: 'open',
         cycle_number: 1,
         assigned_to: USER_A,
         command_revision: String(Number.MAX_SAFE_INTEGER),
@@ -360,7 +357,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     },
   )
 
-  it('applySourceWithdrawnOnce closes the item from its own cycle and settles a drifted head mirror', async () => {
+  it('applySourceWithdrawnOnce closes the item from its own cycle', async () => {
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem({
       sourceType: 'feedback',
@@ -374,10 +371,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       triggerEventId: null,
       openedAt: NOW,
     })
-    await pool.query(
-      `UPDATE inbox_handling_cycle_heads SET status = 'closed' WHERE inbox_item_id = $1`,
-      [item.id],
-    )
     const source = guestFeedbackRetracted({
       feedbackId: FEEDBACK_A,
       organizationId: ORG_A,
@@ -409,13 +402,12 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
     const proof = await pool.query(
       `SELECT item.status AS item_status, item.closed_at,
-              head.status AS head_status, head.state_revision::int,
+              item.state_revision::int,
               (SELECT count(*)::int FROM outbox_events WHERE id = $2) AS fact_count,
               (SELECT count(*)::int FROM event_consumer_receipts
                WHERE event_id = $3
                  AND consumer_name = 'inbox.on-guest-feedback-retracted') AS receipt_count
        FROM inbox_items item
-       JOIN inbox_handling_cycle_heads head ON head.inbox_item_id = item.id
        WHERE item.id = $1`,
       [item.id, fact.eventId, source.eventId],
     )
@@ -423,7 +415,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       {
         item_status: 'closed',
         closed_at: NOW,
-        head_status: 'closed',
         state_revision: 2,
         fact_count: 1,
         receipt_count: 1,
@@ -494,14 +485,14 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         }),
       })
 
-      const heads = await pool.query(
-        `SELECT organization_id, inbox_item_id::text, status, state_revision::int
-         FROM inbox_handling_cycle_heads
+      const cycles = await pool.query(
+        `SELECT organization_id, id::text AS inbox_item_id, status, state_revision::int
+         FROM inbox_items
          WHERE source_type = 'feedback' AND source_id = $1
          ORDER BY organization_id`,
         [FEEDBACK_A],
       )
-      expect(heads.rows).toEqual([
+      expect(cycles.rows).toEqual([
         {
           organization_id: ORG_A,
           inbox_item_id: ITEM_A,

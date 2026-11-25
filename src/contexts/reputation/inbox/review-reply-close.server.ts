@@ -32,11 +32,7 @@ import {
   type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards.server'
-import {
-  cycleHeadItemColumns,
-  mirrorCycleHead,
-  persistedHeadFromItemRow,
-} from './inbox-cycle-head.server'
+import { cycleHeadItemColumns, persistedHeadFromItemRow } from './inbox-cycle-head.server'
 import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head.server'
 
 /**
@@ -87,7 +83,6 @@ export async function lockReviewRowsForObservation(
       item,
       head: headRow,
       carriedFrom,
-      observedAt: observation.observedAt,
     })
     if (!carriedHead) {
       throw inboxError(
@@ -173,13 +168,6 @@ export async function closeReviewCycleOnGoogleReply(
       'Review Handling Cycle changed during reply close',
     )
   }
-  await mirrorCycleHead(tx, {
-    inboxItemId: item.id,
-    organizationId: item.organizationId,
-    sourceType: 'review',
-    head: decision.value.head,
-    updatedAt: recordedAt,
-  })
   return {
     item: itemFromRow(updatedItem),
     cycleFact: lifecycleFactFor(decision.value.transition),

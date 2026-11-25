@@ -8,7 +8,10 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
-import { INBOX_RIGHTS_TABLES } from '#/shared/db/lifecycle/inbox-rights-store'
+import {
+  INBOX_RIGHTS_TABLES,
+  readInboxRightsExport,
+} from '#/shared/db/lifecycle/inbox-rights-store'
 import { REVIEW_RIGHTS_TABLES } from '#/shared/db/lifecycle/review-rights-store'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { parseOperatorArgs, type OperatorContext } from '../operator-command'
@@ -397,6 +400,39 @@ describe.sequential('Review and Inbox rights report counts', () => {
   afterEach(async () => {
     for (const tenant of tenants) await cleanup(tenant)
     tenants.length = 0
+  })
+
+  it('exports each Inbox item with a cycle as a handling cycle head read from the Inbox row, under export v2', async () => {
+    const tenant = await seedTenant([2])
+
+    const exported = await readInboxRightsExport(db, tenant.organizationId)
+
+    expect(exported.version).toBe('inbox-rights-export/v2')
+    expect(exported.handlingCycleHeads).toHaveLength(2)
+    for (const head of exported.handlingCycleHeads) {
+      expect(Object.keys(head).sort()).toEqual([
+        'current_cycle_number',
+        'current_source_revision',
+        'inbox_item_id',
+        'property_id',
+        'source_type',
+        'status',
+      ])
+    }
+    const expected = await q(
+      `SELECT id AS inbox_item_id, property_id, source_type,
+              current_cycle_number::text AS current_cycle_number,
+              current_source_revision::text AS current_source_revision, status
+         FROM inbox_items
+        WHERE organization_id = $1 AND current_cycle_number IS NOT NULL
+        ORDER BY id`,
+      [tenant.organizationId],
+    )
+    expect(exported.handlingCycleHeads).toEqual(expected.rows)
+    expect(exported.handlingCycleHeads.map((head) => head.status).sort()).toEqual([
+      'closed',
+      'open',
+    ])
   })
 
   it('owns and cleans up its provider key without changing the existing key inventory', async () => {
