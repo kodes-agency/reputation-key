@@ -106,7 +106,6 @@ import { createDashboardRepository } from './property-overview/dashboard-reposit
 import { createMetricStatsAdapter } from './property-overview/metric-stats.adapter.server'
 import { createAttentionSignalsAdapter } from './property-overview/attention-signals.adapter.server'
 import { createFleetOverviewProjectionAdapter } from './property-overview/fleet-overview-projection.adapter.server'
-import { getDashboardData } from './property-overview/get-dashboard-data.server'
 import type { DashboardPropertyAccess } from './property-overview/dashboard-property-access.server'
 import {
   getPortalAnalytics,
@@ -539,7 +538,6 @@ function buildDashboardModule(
     readGoogleNumbers: (organizationId, propertyId, now) =>
       readGoogleNumbers(googleNumbersDeps, organizationId, propertyId, now),
   })
-  const getDashboard = getDashboardData({ repo: dashboardRepo, propertyAccess })
   const getPortal = getPortalAnalytics({
     retentionActive: SCHEDULED_RETENTION_ACTIVE,
     portalMetrics,
@@ -553,7 +551,7 @@ function buildDashboardModule(
     propertyAccess,
   })
   const getOverview: GetPropertyOverview = getPropertyOverview({
-    getDashboardData: getDashboard,
+    repo: dashboardRepo,
     propertyAccess,
     attention: attentionSignals,
     inboxTargets: input.inboxTargets,
