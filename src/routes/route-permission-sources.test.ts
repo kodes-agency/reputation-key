@@ -145,7 +145,7 @@ describe('route permission checks', () => {
         '  component: Example,',
         '})',
         'function Example() {',
-        "  return <Page canManage={can(role, 'staff.manage')} />",
+        "  return <Page canManage={can(role, 'staff.invite')} />",
         '}',
       ].join('\n'),
     }
