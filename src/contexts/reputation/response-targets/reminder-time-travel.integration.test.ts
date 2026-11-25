@@ -13,12 +13,12 @@
 // symptom in production is indistinguishable from a busy Inbox.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import {
   feedbackId,
@@ -192,7 +192,7 @@ async function recordLifecycleFact(
   fact: ReturnType<typeof propertyArchived> | ReturnType<typeof propertyRestored>,
 ): Promise<ConsumerEvent> {
   const row = toOutboxEvent(fact)
-  await createOutboxRepository(db).insert({ ...row, id: fact.eventId })
+  await recordOutboxFact(db, fact)
   return {
     eventId: fact.eventId,
     eventType: fact._tag,
@@ -449,10 +449,7 @@ describe.sequential('Response Target reminder time travel (PostgreSQL)', () => {
       supersedesSourceEventId: crypto.randomUUID(),
       occurredAt: BEFORE_HALFWAY,
     })
-    await createOutboxRepository(db).insert({
-      ...toOutboxEvent(source),
-      id: source.eventId,
-    })
+    await recordOutboxFact(db, source)
     await commandStore(db).applySourceWithdrawnOnce({
       eventId: source.eventId,
       consumerName: 'inbox.reminder-time-travel.withdrawal',

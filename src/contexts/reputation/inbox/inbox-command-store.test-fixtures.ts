@@ -1,13 +1,12 @@
 import { randomUUID as freshUuid } from 'node:crypto'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { DomainEvent } from '#/shared/events/events'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import {
   inboxItemId,
   feedbackId,
@@ -220,7 +219,7 @@ export async function truncateAll(p: Pool) {
 
 /** Insert the delivered source event row (receipts FK to outbox_events.id). */
 export async function insertSourceEvent(event: DomainEvent): Promise<void> {
-  await createOutboxRepository(db).insert({ ...toOutboxEvent(event), id: event.eventId })
+  await recordOutboxFact(db, event)
 }
 
 export async function seedReviewRevisionOne(): Promise<void> {

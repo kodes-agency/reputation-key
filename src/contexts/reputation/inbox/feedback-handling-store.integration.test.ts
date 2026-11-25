@@ -1,11 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import {
   feedbackId,
   inboxItemId,
@@ -370,10 +369,7 @@ describe.sequential('private-feedback handling store (PostgreSQL)', () => {
       supersedesSourceEventId: crypto.randomUUID(),
       occurredAt: COMPLETED_AT,
     })
-    await createOutboxRepository(db).insert({
-      ...toOutboxEvent(source),
-      id: source.eventId,
-    })
+    await recordOutboxFact(db, source)
     await createAtomicInboxCommandStore(db).applySourceWithdrawnOnce({
       eventId: source.eventId,
       consumerName: 'inbox.feedback-handling.withdrawal-proof',

@@ -15,6 +15,7 @@ import { replyScopeEffects } from '#/contexts/reputation/public-api'
 //     whichever of the two runs first.
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Queue } from 'bullmq'
 import { Pool } from 'pg'
@@ -304,7 +305,7 @@ async function deliverArchiveFact(sourceEpoch = 1): Promise<void> {
     occurredAt: ARCHIVED_AT,
   })
   const row = toOutboxEvent(fact)
-  await createOutboxRepository(db).insert({ ...row, id: fact.eventId })
+  await recordOutboxFact(db, fact)
   const event: ConsumerEvent = {
     eventId: fact.eventId,
     eventType: fact._tag,

@@ -8,6 +8,7 @@
 // Portal as staffed by someone who is gone.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { Pool } from 'pg'
 import { identityMemberRemoved } from '#/contexts/identity/domain/events'
 import { capabilityForSystemAction } from '#/shared/auth/system-execution-policy'
@@ -112,7 +113,7 @@ async function removeMembership(): Promise<ConsumerEvent> {
     occurredAt: REMOVED_AT,
   })
   const row = toOutboxEvent(fact)
-  await outbox.insert({ ...row, id: fact.eventId })
+  await recordOutboxFact(db, fact)
   return {
     eventId: fact.eventId,
     eventType: fact._tag,

@@ -34,8 +34,7 @@ import {
   type DelayedDecisionRequest,
 } from '#/shared/auth/system-execution-policy'
 import type { DomainEvent } from '#/shared/events/events'
-import { toOutboxEvent, withEnvelopeIdentifiers } from './event-adapter'
-import { getRequestContext } from '#/shared/observability/request-context'
+import { insertOutboxRow, type Tx } from './commit'
 import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
 import { overrideEventDescriptor } from '#/shared/testing/event-descriptor-overrides'
 
@@ -183,23 +182,19 @@ describe('dispatcher gate (BQC-3.2)', () => {
 
   it('stamps consumer-emitted facts with the delivered event as their cause', async () => {
     decideMock.mockResolvedValue(ALLOW)
-    const insert = vi.fn(async (_event: unknown) => undefined)
-    const emittedRepo = { insert } as unknown as OutboxRepository
+    const values = vi.fn(async (_row: unknown) => undefined)
+    const tx = { insert: vi.fn(() => ({ values })) } as unknown as Tx
     const handler = vi.fn(async () => {
-      // The same envelope-identifier stamping insertOutboxRow applies inside a
-      // command transaction: the delivered event's context is the cause.
-      const child = withEnvelopeIdentifiers(
-        {
-          _tag: TEST_EVENT_TYPE,
-          eventId: 'evt-child-1',
-          resourceId: 'res-child-1',
-          organizationId: 'org-1',
-          propertyId: null,
-          correlationId: null,
-        } as unknown as DomainEvent,
-        getRequestContext(),
-      )
-      await emittedRepo.insert({ ...toOutboxEvent(child), id: child.eventId })
+      // The delivered event's context is the cause of any fact the consumer
+      // records in its own transaction.
+      await insertOutboxRow(tx, {
+        _tag: TEST_EVENT_TYPE,
+        eventId: 'evt-child-1',
+        resourceId: 'res-child-1',
+        organizationId: 'org-1',
+        propertyId: null,
+        correlationId: null,
+      } as unknown as DomainEvent)
       return { status: 'applied' as const }
     })
     consumerRegistry.registerConsumer({
@@ -213,8 +208,8 @@ describe('dispatcher gate (BQC-3.2)', () => {
       fakeJob(makeEnvelope({ commandId: 'command-root-1' })),
     )
 
-    expect(insert).toHaveBeenCalledOnce()
-    expect(insert.mock.calls[0]?.[0]).toMatchObject({
+    expect(values).toHaveBeenCalledOnce()
+    expect(values.mock.calls[0]?.[0]).toMatchObject({
       payload: {
         causationId: 'evt-gate-1',
         commandId: 'command-root-1',

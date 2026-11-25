@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Pool, PoolClient } from 'pg'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -19,7 +20,6 @@ import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lo
 import type { ReplyObservationAuthorityPort } from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -172,10 +172,7 @@ describe.sequential('Review source transition -> Inbox exact-current boundary', 
       change: 'source_expired',
       occurredAt: TRANSITIONED_AT,
     })
-    await createOutboxRepository(database).insert({
-      ...toOutboxEvent(source),
-      id: source.eventId,
-    })
+    await recordOutboxFact(database, source)
 
     const durable = toOutboxEvent(source)
     const event: ConsumerEvent = {
