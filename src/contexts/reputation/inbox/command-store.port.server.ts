@@ -30,11 +30,9 @@ import type {
   InboxItemUnassigned,
   InboxNoteAdded,
 } from '../domain/inbox-events'
-import type { CurrentReplyObservationPermit } from './review-reply-observation-authority.port.server'
-import type {
-  CurrentReviewInboxProjectionPermit,
-  ReviewCycleTargetAnchor,
-} from './review-response-target-authority.port.server'
+import type { ReviewCurrentReplyObservationPermit } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
+import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.server'
+import type { ReviewCurrentInboxProjectionPermit } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 
 /** Receipt statuses — mirror the outbox consumer receipt contract. */
 export type ApplyReceiptStatus = 'applied' | 'duplicate' | 'obsolete'
@@ -136,7 +134,7 @@ export type ApplyReviewProjectionCommand = Readonly<{
   eventKind: 'created' | 'updated'
   item: InboxItem
   fact: InboxItemCreated
-  projection: CurrentReviewInboxProjectionPermit
+  projection: ReviewCurrentInboxProjectionPermit
   now: Date
 }>
 
@@ -162,7 +160,7 @@ export type ApplyReplyObservedCommand = Readonly<{
   consumerName: string
   item: InboxItem
   /** Issued only while Review holds the exact current-head fence. */
-  currentObservation: CurrentReplyObservationPermit
+  currentObservation: ReviewCurrentReplyObservationPermit
   closeFact: InboxItemStatusChanged
   reopenFact: InboxItemStatusChanged
 }>
@@ -216,7 +214,7 @@ export type InboxCommandStore = Readonly<{
   createReviewItemAnsweredOnGoogle(
     item: InboxItem,
     anchor: ReviewCycleCreationAnchor,
-    observation: CurrentReplyObservationPermit,
+    observation: ReviewCurrentReplyObservationPermit,
     tx?: Tx,
   ): Promise<CreateItemResult>
 

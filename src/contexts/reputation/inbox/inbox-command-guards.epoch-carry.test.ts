@@ -3,9 +3,9 @@ import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/doma
 import { inboxItemCreated } from '../domain/inbox-events'
 import type { InboxItem } from '../domain/inbox-types'
 import type {
-  CurrentReviewInboxProjectionPermit,
+  ReviewCurrentInboxProjectionPermit,
   ReviewInboxProjectionRevisionPermit,
-} from './review-response-target-authority.port.server'
+} from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import { assertReviewProjectionCommand } from './inbox-command-guards.server'
 
 const ORG = organizationId('org-guard-epoch-carry')
@@ -66,7 +66,7 @@ const apply = (
     ...ReviewInboxProjectionRevisionPermit[],
   ],
 ) => {
-  const projection: CurrentReviewInboxProjectionPermit = {
+  const projection: ReviewCurrentInboxProjectionPermit = {
     authority: 'review.current-inbox-projection.v1',
     organizationId: ORG,
     propertyId: PROPERTY,

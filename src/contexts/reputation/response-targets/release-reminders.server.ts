@@ -7,9 +7,9 @@ import {
   type ReminderReplyHead,
 } from './reminder-release.server'
 import type {
-  GoogleReviewCheckOutcome,
-  GoogleReviewCheckPort,
-} from '#/contexts/reputation/inbox/google-review-check.port.server'
+  CheckReviewOnGoogle,
+  CheckReviewOnGoogleResult,
+} from '#/contexts/reputation/sync/check-review-on-google.server'
 import type { ReplyLookupPort } from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type {
   DueReminderCandidate,
@@ -74,7 +74,7 @@ export type ReleaseDueResponseTargetRemindersDeps = Readonly<{
     'listDueReminderCandidates' | 'releaseReminderSlot'
   >
   replyLookup: Pick<ReplyLookupPort, 'getGoogleReplyHeadsByReviewIds'>
-  googleReviewCheck: GoogleReviewCheckPort
+  googleReviewCheck: CheckReviewOnGoogle
   clock: () => Date
   logger: Pick<LoggerPort, 'warn'>
 }>
@@ -146,7 +146,7 @@ const loadHeads = async (
 }
 
 const toDecisionOutcome = (
-  outcome: GoogleReviewCheckOutcome,
+  outcome: CheckReviewOnGoogleResult,
 ): ReminderGoogleCheckOutcome => {
   switch (outcome.status) {
     case 'read':
@@ -162,13 +162,13 @@ const toDecisionOutcome = (
   }
 }
 
-/** One Google read. The port promises not to throw; a thrown one reads as transient. */
+/** One Google read. The capability promises not to throw; a thrown one reads as transient. */
 const readGoogle = async (
   deps: ReleaseDueResponseTargetRemindersDeps,
   candidate: DueReminderCandidate,
-): Promise<GoogleReviewCheckOutcome> => {
+): Promise<CheckReviewOnGoogleResult> => {
   try {
-    return await deps.googleReviewCheck.check({
+    return await deps.googleReviewCheck({
       organizationId: candidate.organizationId,
       propertyId: candidate.propertyId,
       reviewId: reviewId(candidate.sourceId),
@@ -186,7 +186,7 @@ const readGoogle = async (
  * slots are due.
  */
 const readCounts = (
-  outcome: GoogleReviewCheckOutcome,
+  outcome: CheckReviewOnGoogleResult,
 ): Partial<ReminderReleaseCounts> => ({
   ...(outcome.status === 'not_checkable' ? {} : { checked: 1 }),
   ...(outcome.status === 'unavailable' ? { unavailable: 1 } : {}),

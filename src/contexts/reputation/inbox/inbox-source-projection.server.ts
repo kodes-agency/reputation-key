@@ -25,8 +25,8 @@ import type {
   HandlingCycleCreationAnchor,
   ReviewCycleCreationAnchor,
 } from './command-store.port.server'
-import type { CurrentReplyObservationPermit } from './review-reply-observation-authority.port.server'
-import type { CurrentReviewInboxProjectionPermit } from './review-response-target-authority.port.server'
+import type { ReviewCurrentReplyObservationPermit } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
+import type { ReviewCurrentInboxProjectionPermit } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import {
   cancelResponseTargetForCycle,
   insertResponseTargetForHandlingCycle,
@@ -299,7 +299,7 @@ export async function catchUpProjectionRevisions(
   tx: Tx,
   input: Readonly<{
     item: InboxItem
-    revisions: CurrentReviewInboxProjectionPermit['revisions']
+    revisions: ReviewCurrentInboxProjectionPermit['revisions']
     active: boolean
     current: HandlingCycleHead
     withItemCreation: boolean
@@ -447,7 +447,7 @@ export async function convergeProjectedItemRow(
   input: Readonly<{
     item: InboxItem
     itemRow: PersistedItem
-    projection: CurrentReviewInboxProjectionPermit
+    projection: ReviewCurrentInboxProjectionPermit
     finalStatus: HandlingCycleHead['status']
     active: boolean
     erasedAt: Date | null
@@ -522,7 +522,7 @@ export async function closeCycleOnObservedReply(
   input: Readonly<{
     headRow: PersistedHead
     itemRow: PersistedItem
-    observation: CurrentReplyObservationPermit
+    observation: ReviewCurrentReplyObservationPermit
   }>,
 ): Promise<void> {
   const { cycleFact } = await closeReviewCycleOnGoogleReply(tx, {
@@ -543,7 +543,7 @@ export async function reopenCycleOnDeletedReply(
   command: ApplyReplyObservedCommand,
   input: Readonly<{
     headRow: PersistedHead
-    observation: CurrentReplyObservationPermit
+    observation: ReviewCurrentReplyObservationPermit
     reopenReason: 'provider_reply_deleted'
   }>,
 ): Promise<void> {

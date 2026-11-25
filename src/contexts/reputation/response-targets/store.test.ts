@@ -6,7 +6,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { ReviewCycleTargetAnchor } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+import type { ReviewCycleTargetAnchor } from '#/contexts/reputation/inbox/review-cycle-target-anchor.server'
 import type { HandlingCycle } from '#/contexts/reputation/domain/inbox-types'
 import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { resolveReviewCycleTargetProvenance } from './store.server'

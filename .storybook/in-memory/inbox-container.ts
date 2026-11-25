@@ -27,7 +27,7 @@ import type { InboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note
 import type { InboxViewRepository } from '#/contexts/reputation/inbox/inbox-view-repository.port.server'
 import type { ReplyLookupPort } from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
 import type { FeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.port.server'
 import type { ResponseTargetStore } from '#/contexts/reputation/response-targets/store.port.server'
@@ -144,7 +144,7 @@ const noopReviewSourceLookup: ReviewSourceLookupPort = {
   listReviewSources: async () => [],
 }
 
-const noopResponseTargetAuthority: ReviewResponseTargetAuthorityPort = {
+const noopResponseTargetAuthority: ReviewResponseTargetAuthority = {
   withExactCurrent: async () => ({ status: 'obsolete' }),
   withExactCurrentBatch: async () => ({ status: 'obsolete' }),
   withInboxProjection: async () => ({ status: 'obsolete' }),
@@ -272,9 +272,7 @@ export function createInboxContainer() {
     // Storybook projects no Google reply observations, so no permit is current.
     replyObservationAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
     // Storybook has no Google provider; its reminder release never runs.
-    googleReviewCheck: {
-      check: async () => ({ status: 'not_checkable', reason: 'no_provider' }),
-    },
+    googleReviewCheck: async () => ({ status: 'not_checkable', reason: 'no_provider' }),
     // Storybook never reaches Google (`googleReviewCheck` above); stories stub
     // the check function itself.
     googleCheckRateLimit: { consume: async () => 'allowed' },
