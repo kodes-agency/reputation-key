@@ -169,12 +169,3 @@ export async function readPortalGoalRecommendation(
     now: deps.now(),
   })
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program reads. */
-export type PortalGoalRecommendationRequestApi = Readonly<{
-  read: (
-    policy: GoalExecutionPolicy,
-    input: Readonly<{ propertyId: string }>,
-    actor: GoalActor,
-  ) => Promise<PortalGoalRecommendation>
-}>
