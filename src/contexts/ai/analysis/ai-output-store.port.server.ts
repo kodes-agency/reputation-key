@@ -1,5 +1,5 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
-import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/reply/ai-personalized-reply-profile'
+import type { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import type { ReviewAnalysisNormalizationFlag } from '#/shared/analysis/normalizer'
 import type {
   ReviewAttentionLevelV2,
@@ -83,12 +83,10 @@ export type AiOutputStorePort = Readonly<{
       authorizationLineageId: string
       replyDraftingEpoch: number
       propertyProfileVersion: number
-      /** Missing only for pre-grounding operations retained during rollout. */
-      replyBrandProfileVersion?: number
-      /** Missing only for pre-grounding operations retained during rollout. */
-      replyBrandDisplayNameDigest?: string
-      operationProfileVersion: 'reply-suggestion-v1' | 'reply-suggestion-v2'
-      replyProfileVersion: typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION | 'reply-draft-v4'
+      replyBrandProfileVersion: number
+      replyBrandDisplayNameDigest: string
+      operationProfileVersion: typeof REPLY_DRAFTING_V2_VERSIONS.operation
+      replyProfileVersion: typeof REPLY_DRAFTING_V2_VERSIONS.profile
     }>,
   ): Promise<boolean>
   findCurrentReviewIdsByAttention(

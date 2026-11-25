@@ -4,7 +4,6 @@
 
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import type * as RuntimeCapabilityModule from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import {
   setupServerFunctionHarness,
   type TestMember,
@@ -12,35 +11,9 @@ import {
 } from '#/shared/testing/server-function-harness'
 import { REVIEW_SEED_TABLES } from '#/shared/testing/server-function-review-seeds'
 
-const servedSelection = vi.hoisted(() => ({
-  operationProfileVersion: null as string | null,
-}))
-
 vi.mock(
   '@tanstack/react-start',
   async () => (await import('#/shared/testing/compiled-server-fns')).startServerBuild,
-)
-// The catalogue serves one reply profile, so the other selection is only
-// reachable by changing what the module answers for the length of one call.
-vi.mock(
-  '#/shared/merchant-ai-notice/ai-runtime-capability-contract',
-  async (importOriginal) => {
-    const actual = await importOriginal<typeof RuntimeCapabilityModule>()
-    return {
-      ...actual,
-      getAiRuntimeCapability: ((
-        capability: Parameters<typeof actual.getAiRuntimeCapability>[0],
-      ) => {
-        const served = actual.getAiRuntimeCapability(capability)
-        return capability === 'reply_drafting' && servedSelection.operationProfileVersion
-          ? {
-              ...served,
-              operationProfileVersion: servedSelection.operationProfileVersion,
-            }
-          : served
-      }) as typeof actual.getAiRuntimeCapability,
-    }
-  },
 )
 import { generateReplySuggestionStreamFn } from './reply-suggestion-stream'
 
@@ -137,19 +110,6 @@ describe('generateReplySuggestionStreamFn', () => {
     expect(lines).toEqual([
       { step: 'deferred', retryAfterEpochMillis: null, sequence: 1 },
     ])
-  })
-
-  it('keeps the newer reply profile dark while the older one is served', async () => {
-    const { admin, review } = await hotel()
-    servedSelection.operationProfileVersion = 'reply-suggestion-v1'
-
-    try {
-      const { lines } = await stream(admin, review)
-
-      expect(lines).toMatchObject([{ step: 'refused', reason: 'policy_unavailable' }])
-    } finally {
-      servedSelection.operationProfileVersion = null
-    }
   })
 
   it('refuses a PropertyManager the Property was not granted to', async () => {
