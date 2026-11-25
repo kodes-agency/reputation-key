@@ -82,25 +82,11 @@ type ViewInput = Readonly<{
  * address, the long one with no marker. The QR address counts a visit as a scan,
  * so showing it here would count every website click as a QR scan; a short print
  * address has no marker to strip, so it cannot be turned into this one at all.
- * Only a held link that has no `direct` (one made before the server sent it)
- * falls back to stripping the marker from its long QR address.
  */
 export function directAddressOf(
-  link: Readonly<{ publicUrl: string; publicUrls?: { direct: string } }> | null,
+  link: Readonly<{ publicUrls: { direct: string } }> | null,
 ): string | null {
-  if (link === null) return null
-  return link.publicUrls?.direct ?? directPortalAddress(link.publicUrl)
-}
-
-/** Strips the access-artifact marker from a long address. See `directAddressOf`. */
-export function directPortalAddress(address: string): string {
-  try {
-    const url = new URL(address)
-    url.searchParams.delete('accessArtifact')
-    return url.toString()
-  } catch {
-    return address
-  }
+  return link?.publicUrls.direct ?? null
 }
 
 export function derivePortalShareView(input: ViewInput): PortalShareView {

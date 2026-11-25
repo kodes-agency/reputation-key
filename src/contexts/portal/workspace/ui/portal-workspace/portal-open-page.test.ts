@@ -28,6 +28,13 @@ const NO_TOKEN: PortalTokenStatus = {
   madeBy: null,
 }
 const QR_ADDRESS = 'https://app.example.com/p/tok_123?accessArtifact=artifact-qr-1'
+const DIRECT_ADDRESS = 'https://app.example.com/p/tok_123'
+
+/** A link whose QR address is `publicUrl` and whose direct address is `direct`. */
+const linkTo = (publicUrl: string, direct: string = DIRECT_ADDRESS) => ({
+  publicUrl,
+  publicUrls: { direct },
+})
 
 describe('deriveOpenPageMode', () => {
   const mode = (over: Partial<Parameters<typeof deriveOpenPageMode>[0]> = {}) =>
@@ -91,20 +98,11 @@ describe('deriveOpenPageMode', () => {
 })
 
 describe('openablePageAddress', () => {
-  it('drops the QR marker, so opening the page is not counted as a scan', () => {
-    expect(openablePageAddress({ publicUrl: QR_ADDRESS })).toBe(
-      'https://app.example.com/p/tok_123',
-    )
-  })
-
   // ADR 0069: with the short address the QR address has no marker to drop, and
   // opening it would count as a scan. The server's `direct` field is the page.
   it('opens the direct address, never the short print address, when the server sends one', () => {
-    const link = {
-      publicUrl: 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R',
-      publicUrls: { direct: 'https://app.example.com/p/tok_123' },
-    }
-    expect(openablePageAddress(link)).toBe('https://app.example.com/p/tok_123')
+    const link = linkTo('HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R')
+    expect(openablePageAddress(link)).toBe(DIRECT_ADDRESS)
   })
 
   it.each([
@@ -112,8 +110,8 @@ describe('openablePageAddress', () => {
     ['an address that is not a page', 'https://app.example.com/admin'],
     ['text that is not an address', 'not a url'],
     ['a non-web scheme', 'ftp://app.example.com/p/tok_123'],
-  ])('refuses %s', (_name, publicUrl) => {
-    expect(openablePageAddress({ publicUrl })).toBeNull()
+  ])('refuses %s', (_name, direct) => {
+    expect(openablePageAddress(linkTo(QR_ADDRESS, direct))).toBeNull()
   })
 })
 
@@ -132,7 +130,7 @@ describe('openLivePage', () => {
     })
     const reveal = vi.fn(async (purpose: 'show') => {
       order.push(`reveal:${purpose}`)
-      return { publicUrl: QR_ADDRESS }
+      return linkTo(QR_ADDRESS)
     })
 
     const outcome = await openLivePage({ openBlankTab, reveal })
@@ -145,13 +143,13 @@ describe('openLivePage', () => {
 
   it('opens a held address directly, with no tab to clean up and nothing disclosed', async () => {
     const { openBlankTab } = tabs()
-    const reveal = vi.fn(async () => ({ publicUrl: QR_ADDRESS }))
+    const reveal = vi.fn(async () => linkTo(QR_ADDRESS))
     const openAddress = vi.fn()
 
     const outcome = await openLivePage({
       openBlankTab,
       reveal,
-      heldLink: { publicUrl: QR_ADDRESS },
+      heldLink: linkTo(QR_ADDRESS),
       openAddress,
     })
 
@@ -163,12 +161,12 @@ describe('openLivePage', () => {
 
   it('reveals when the held address is not a page of this product', async () => {
     const { tab, openBlankTab } = tabs()
-    const reveal = vi.fn(async () => ({ publicUrl: QR_ADDRESS }))
+    const reveal = vi.fn(async () => linkTo(QR_ADDRESS))
 
     const outcome = await openLivePage({
       openBlankTab,
       reveal,
-      heldLink: { publicUrl: 'https://app.example.com/admin' },
+      heldLink: linkTo(QR_ADDRESS, 'https://app.example.com/admin'),
       openAddress: vi.fn(),
     })
 
@@ -178,7 +176,7 @@ describe('openLivePage', () => {
   })
 
   it('discloses nothing when the browser will not open a tab', async () => {
-    const reveal = vi.fn(async () => ({ publicUrl: QR_ADDRESS }))
+    const reveal = vi.fn(async () => linkTo(QR_ADDRESS))
 
     const outcome = await openLivePage({ openBlankTab: () => null, reveal })
 
@@ -206,7 +204,7 @@ describe('openLivePage', () => {
 
     const outcome = await openLivePage({
       openBlankTab,
-      reveal: async () => ({ publicUrl: 'javascript:alert(1)' }),
+      reveal: async () => linkTo(QR_ADDRESS, 'javascript:alert(1)'),
     })
 
     expect(outcome).toBe('unavailable')

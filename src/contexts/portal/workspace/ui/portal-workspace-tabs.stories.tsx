@@ -153,12 +153,15 @@ const idleMutation = Object.assign(
 ) as Action<UpdatePortalVariables, { success: true }>
 
 const publicUrl = 'https://portal.example/p/opaque-token-shown-once'
+const issuedLink = {
+  publicUrl,
+  publicUrls: { qr: publicUrl, nfc: publicUrl, direct: publicUrl },
+}
+type IssuedLink = typeof issuedLink
 const issueTokenMutation = Object.assign(
-  async (_input: { data: { portalId: string } }) => ({
-    publicUrl,
-  }),
+  async (_input: { data: { portalId: string } }) => issuedLink,
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
-) as Action<{ data: { portalId: string } }, { publicUrl: string }>
+) as Action<{ data: { portalId: string } }, IssuedLink>
 const rotateTokenMutation = Object.assign(
   async (_input: {
     data: {
@@ -166,7 +169,7 @@ const rotateTokenMutation = Object.assign(
       replacementKind?: 'planned' | 'security'
       gracePeriodDays?: number
     }
-  }) => ({ publicUrl }),
+  }) => issuedLink,
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<
   {
@@ -176,7 +179,7 @@ const rotateTokenMutation = Object.assign(
       gracePeriodDays?: number
     }
   },
-  { publicUrl: string }
+  IssuedLink
 >
 const revokeTokenMutation = Object.assign(
   async (_input: { data: { portalId: string; reason: string } }) => ({
@@ -185,15 +188,12 @@ const revokeTokenMutation = Object.assign(
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<{ data: { portalId: string; reason: string } }, { revoked: boolean }>
 const revealAddressMutation = Object.assign(
-  async (_input: {
-    data: { portalId: string; purpose: 'download' | 'copy' | 'show' }
-  }) => ({
-    publicUrl,
-  }),
+  async (_input: { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } }) =>
+    issuedLink,
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<
   { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } },
-  { publicUrl: string }
+  IssuedLink
 >
 const completeReviewMutation = Object.assign(
   async (_input: CompleteReviewVariables) => ({ status: 'recorded' as const }),
