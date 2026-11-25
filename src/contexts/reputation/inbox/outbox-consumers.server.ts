@@ -243,8 +243,8 @@ export async function handleInboxReviewExpired(
 /**
  * Content-free handoff. Review owns the source lifecycle and records an
  * identifier-only transition. Inbox owns its stable projection, so it closes
- * unservable work and removes legacy provider-controlled copies itself. The
- * command store co-commits the scrub, optional status fact, and receipt.
+ * unservable work itself. The command store co-commits the close, optional
+ * status fact, and receipt.
  */
 export async function handleInboxReviewSourceTransitioned(
   deps: InboxConsumerDeps,

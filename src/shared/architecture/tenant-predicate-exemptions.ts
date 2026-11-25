@@ -145,13 +145,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reputation/inbox/null-inbox-source-copies.server.ts',
-    symbol: 'nullInboxSourceCopies',
-    reason:
-      'The bounded corrective migration intentionally removes copied source content from every affected legacy inbox row across tenants.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'consumeCandidateClaims',
     reason:

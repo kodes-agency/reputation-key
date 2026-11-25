@@ -174,18 +174,12 @@ function matchesProjectionCreationFact(fact: InboxItemCreated, item: InboxItem):
 }
 
 /**
- * A projected item holds no provider content and no Inbox-owned workflow state:
- * rating/snippet/reviewer name stay with Review, and assignment or status
+ * A projected item holds no Inbox-owned workflow state: assignment or status
  * changes only ever arrive through their own commands.
  */
 function isContentFreeUnhandledReviewItem(item: InboxItem): boolean {
   return (
-    item.sourceType === 'review' &&
-    item.status === 'open' &&
-    item.rating === null &&
-    item.snippet === null &&
-    item.reviewerName === null &&
-    item.assignedTo === null
+    item.sourceType === 'review' && item.status === 'open' && item.assignedTo === null
   )
 }
 
