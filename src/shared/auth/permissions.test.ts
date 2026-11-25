@@ -37,7 +37,6 @@ describe('permissions statement', () => {
     expect(statement.property).toContain('create')
     expect(statement.property).toContain('update')
     expect(statement.property).toContain('delete')
-    expect(statement.staff).toContain('manage')
     expect(statement.staff).toContain('read')
     expect(statement.portal).toContain('admin')
     expect(statement.review).toContain('read')
@@ -78,7 +77,6 @@ describe('owner role (AccountAdmin)', () => {
     'property.admin',
     'property.import_gbp_v2',
     'property.read_gbp_performance',
-    'staff.manage',
     'staff.read',
     'ac.create',
     'ac.read',
@@ -127,7 +125,6 @@ describe('admin role (PropertyManager)', () => {
     'property.read',
     'property.admin',
     'property.read_gbp_performance',
-    'staff.manage',
     'staff.read',
     'portal.create',
     'portal.update',
@@ -292,7 +289,6 @@ describe('memberRole (Member)', () => {
   })
 
   it('cannot manage staff participation lifecycle', () => {
-    expect(can('Member', 'staff.manage')).toBe(false)
     expect(can('Member', 'staff.read')).toBe(false)
   })
 

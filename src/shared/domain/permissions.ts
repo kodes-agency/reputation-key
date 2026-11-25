@@ -36,7 +36,6 @@ export type Permission =
   | 'property.import_gbp_v2'
   | 'property.read_gbp_performance'
   | 'staff.read'
-  | 'staff.manage'
   | 'staff.self'
   | 'staff.invite'
   | 'staff.remove'

@@ -32,7 +32,6 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'dashboard.read': 'dashboard.use',
   'dashboard.fleet_read': 'dashboard.use',
   'staff.read': 'staff.use',
-  'staff.manage': 'staff.use',
   'staff.self': 'staff.accounts',
   'staff.invite': 'staff.accounts',
   'staff.remove': 'staff.accounts',
