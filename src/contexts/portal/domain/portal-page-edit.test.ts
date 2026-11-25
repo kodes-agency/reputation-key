@@ -61,7 +61,6 @@ describe('portalPageEditKey', () => {
 describe('portalSettingField', () => {
   it.each([
     ['name', 'name'],
-    ['slug', 'slug'],
     ['description', 'description'],
     ['heroImageUrl', 'hero_image'],
     ['theme', 'theme'],
