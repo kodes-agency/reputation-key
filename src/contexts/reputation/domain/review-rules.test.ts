@@ -4,15 +4,14 @@ import { describe, it, expect } from 'vitest'
 import {
   computeReviewContentHash,
   canTransitionReply,
-  transitionReply,
   REPLY_TEMPLATE_SLOT_TOKENS,
   replyTextProblemMessage,
   unfilledReplySlots,
   unknownReplyTemplateSlots,
   unfilledReplySlotsMessage,
 } from './review-rules'
-import type { Reply, ReplyStatus } from './review-types'
-import { organizationId, replyId, reviewId } from '#/shared/domain/ids'
+import { replyCommandMayStart } from './reply-command-preconditions'
+import type { ReplyStatus } from './review-types'
 
 describe('computeReviewContentHash', () => {
   const base = {
@@ -180,69 +179,38 @@ describe('canTransitionReply', () => {
   })
 })
 
-describe('transitionReply — BQC-3.8 AI-draft publication proof', () => {
+describe('canTransitionReply — BQC-3.8 AI-draft publication proof', () => {
   // Approval IS the human review: an AI-generated reply is publishable only
-  // after it. transitionReply is the single authority for every reply write,
-  // so an aiGenerated draft cannot reach 'approved' — and therefore cannot be
-  // published — without passing through pending_approval first.
-  const NOW = new Date('2026-07-17T00:00:00Z')
+  // after it. canTransitionReply is the table every reply write is checked
+  // against, so a draft cannot reach 'approved' — and therefore cannot be
+  // published — without passing through pending_approval first, and the
+  // approve command starts only from pending_approval.
+  const noOpenPublication = {
+    publicationState: null,
+    publicationCycle: 0,
+    publicationLastErrorClass: null,
+  } as const
 
-  function makeReply(overrides: Partial<Reply> = {}): Reply {
-    return {
-      id: replyId('reply-ai-1'),
-      reviewId: reviewId('rev-ai-1'),
-      organizationId: organizationId('org-ai-1'),
-      text: 'AI-drafted thank-you',
-      status: 'draft',
-      source: 'internal',
-      createdBy: null,
-      approvedBy: null,
-      rejectedBy: null,
-      rejectionReason: null,
-      aiGenerated: true,
-      stateRevision: 1,
-      submittedAt: null,
-      approvedAt: null,
-      publishedAt: null,
-      publicationState: null,
-      publicationCycle: 0,
-      publicationAttempts: 0,
-      publicationLastErrorClass: null,
-      reconcileDueAt: null,
-      createdAt: NOW,
-      updatedAt: NOW,
-      ...overrides,
-    }
-  }
-
-  it('aiGenerated draft → approved is refused (no auto-publish path exists)', () => {
-    const result = transitionReply(makeReply(), 'approved', NOW)
-    expect(result.isErr()).toBe(true)
+  it('draft → approved is refused (no auto-publish path exists)', () => {
+    expect(canTransitionReply('draft', 'approved')).toBe(false)
+    expect(
+      replyCommandMayStart('approve', { status: 'draft', ...noOpenPublication }),
+    ).toBe(false)
   })
 
-  it('aiGenerated reply reaches approved only via pending_approval (the human review)', () => {
-    const submitted = transitionReply(makeReply(), 'pending_approval', NOW)
-    expect(submitted.isOk()).toBe(true)
-    if (submitted.isErr()) throw submitted.error
-    const approved = transitionReply(submitted.value, 'approved', NOW)
-    expect(approved.isOk()).toBe(true)
+  it('a reply reaches approved only via pending_approval (the human review)', () => {
+    expect(canTransitionReply('draft', 'pending_approval')).toBe(true)
+    expect(canTransitionReply('pending_approval', 'approved')).toBe(true)
+    expect(
+      replyCommandMayStart('approve', {
+        status: 'pending_approval',
+        ...noOpenPublication,
+      }),
+    ).toBe(true)
   })
 
-  it('records the exact publication instant when an approved reply is published', () => {
-    const publishedAt = new Date('2026-07-17T00:05:00.000Z')
-    const result = transitionReply(
-      makeReply({ status: 'approved', approvedAt: NOW }),
-      'published',
-      publishedAt,
-    )
-
-    expect(result.isOk()).toBe(true)
-    if (result.isErr()) throw result.error
-    expect(result.value).toMatchObject({
-      status: 'published',
-      updatedAt: publishedAt,
-      publishedAt,
-    })
+  it('an approved reply may be published', () => {
+    expect(canTransitionReply('approved', 'published')).toBe(true)
   })
 })
 
