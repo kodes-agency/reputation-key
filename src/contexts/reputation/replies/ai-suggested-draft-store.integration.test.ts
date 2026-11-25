@@ -1,5 +1,4 @@
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
-import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply/reply-drafting-v2-contract'
 import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
 import { replyAiFrameReservations } from '#/shared/db/schema'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding.server'
@@ -14,11 +13,7 @@ import {
   reviews,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
-import {
-  digestRenderedReply,
-  signAiReplyProvenance,
-  verifyAiReplyProvenance,
-} from '#/shared/reply/ai-reply-provenance'
+import { digestRenderedReply } from '#/shared/reply/ai-reply-provenance'
 import {
   BRAND_DISPLAY_NAME_DIGEST,
   createAiReplyAdoptionFixture,
@@ -48,11 +43,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
   const db = getDb()
   const {
     publicKey,
-    privateKey,
-    executionOf,
     provenanceToken,
-    personalizedProvenanceToken,
-    groundedProvenanceToken,
     reviewFixture,
     transitionReplyControl,
     readReplyControl,
@@ -211,8 +202,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     await db
       .update(aiOperations)
       .set({
-        operationProfileVersion: 'reply-suggestion-v2',
-        capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v2',
         replyDraftingV2: selected,
         concreteReplyLanguageTag: 'es-Latn',
         concreteReplyTemplateGroup: 'es-Latn',
@@ -229,38 +218,19 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       closingOrder: [],
       createdAt: NOW,
     })
-    const previous = verifyAiReplyProvenance(
-      groundedProvenanceToken(),
-      new Map([['provenance-v1', publicKey]]),
-    )!
-    if (previous.version !== 'ai-reply-provenance-v3')
-      throw new Error('Expected historical fixture')
     const text = 'Sentimos que la espera fuera tan larga. Su tiempo merece más atención.'
     // The gateway signs the deployment the v2 operation recorded: the streaming one.
     const v4Token = (providerDeploymentProfileVersion: string) =>
-      signAiReplyProvenance(
-        {
-          ...previous,
-          version: 'ai-reply-provenance-v4',
-          operationId,
-          ...executionOf(operationId),
-          reviewId: newReview,
-          baseReplyStateRevision: 0,
-          providerDeploymentProfileVersion,
-          operationProfileVersion: 'reply-suggestion-v2',
-          replyProfileVersion: 'reply-draft-v4',
-          replyProfileDigest: REPLY_DRAFTING_V2_PROFILE_DIGEST,
-          replyVoiceDigest: selected.voiceDigest,
-          voiceChoices: choices,
-          parentOperationId: null,
-          rewriteOrdinal: 0,
-          concreteLanguageTag: 'es-Latn',
-          templateGroup: 'es-Latn',
-          promptVersion: 'reply-suggestion-prompt-v2',
-          renderedSuggestionDigest: digestRenderedReply(text),
-        },
-        privateKey,
-      )
+      provenanceToken({
+        operationId,
+        reviewId: newReview,
+        providerDeploymentProfileVersion,
+        replyVoiceDigest: selected.voiceDigest,
+        voiceChoices: choices,
+        concreteLanguageTag: 'es-Latn',
+        templateGroup: 'es-Latn',
+        renderedSuggestionDigest: digestRenderedReply(text),
+      })
     const input = {
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
@@ -270,6 +240,12 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       provenanceToken: v4Token('private-beta-global-v3'),
       now: NOW,
     }
+    const [previousControl] = await db
+      .select()
+      .from(aiExecutionControlHeads)
+      .where(eq(aiExecutionControlHeads.scopeKey, 'provider:private-beta-global-v2'))
+      .limit(1)
+    if (!previousControl) throw new Error('Previous deployment control is not seeded')
     // A v4 token never names the pre-release deployment, and an operation that
     // recorded the v2 profile on that deployment is a pair the catalogue does not
     // list: neither is adoptable.
@@ -279,6 +255,14 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         provenanceToken: v4Token('private-beta-global-v2'),
       }),
     ).toEqual({ status: 'rejected', reason: 'invalid' })
+    await db
+      .update(aiOperations)
+      .set({
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
+        providerControlId: previousControl.controlId,
+        providerControlGeneration: previousControl.generation,
+      })
+      .where(eq(aiOperations.id, operationId))
     expect(await store.accept(input)).toEqual({ status: 'rejected', reason: 'stale' })
 
     // The served execution is the catalogue's own: no stubbed compatibility or
@@ -328,6 +312,55 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     ).toBe('current')
   })
 
+  it('keeps the binding of an adopted draft that an earlier profile generation produced', async () => {
+    const historicalReview = reviewId('74000000-0000-4000-8000-000000000093')
+    const operationId = '74000000-0000-4000-8000-000000000094'
+    await reviewRepository().upsert(reviewFixture(historicalReview, 'v4-historical'))
+    await seedSucceededReplyOperation({
+      operationId,
+      permitId: '74000000-0000-4000-8000-000000000095',
+      reviewId: historicalReview,
+      sourceRevision: SOURCE_REVISION,
+      baseReplyStateRevision: 0,
+    })
+    const accepted = await accept(
+      provenanceToken({ operationId, reviewId: historicalReview }),
+      { reviewId: historicalReview },
+    )
+    if (accepted.status !== 'accepted') throw new Error('Expected the adoption')
+    const binding = () =>
+      store.assertCurrentBinding({
+        organizationId: ORGANIZATION_ID,
+        replyId: accepted.reply.id,
+      })
+    await expect(binding()).resolves.toBe('current')
+
+    // The same draft as an earlier generation stored it, bound to the
+    // merchant's recorded runtime profile instead of the served execution.
+    const [previousControl] = await db
+      .select()
+      .from(aiExecutionControlHeads)
+      .where(eq(aiExecutionControlHeads.scopeKey, 'provider:private-beta-global-v2'))
+      .limit(1)
+    if (!previousControl) throw new Error('Previous deployment control is not seeded')
+    await db
+      .update(replies)
+      .set({ originAiProfileVersion: 'reply-draft-v3' })
+      .where(eq(replies.id, accepted.reply.id))
+    await db
+      .update(aiOperations)
+      .set({
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
+        providerControlId: previousControl.controlId,
+        providerControlGeneration: previousControl.generation,
+        operationProfileVersion: 'reply-suggestion-v1',
+        capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
+        replyDraftingV2: null,
+      })
+      .where(eq(aiOperations.id, operationId))
+    await expect(binding()).resolves.toBe('current')
+  })
+
   it('persists exact signed provenance and replays the same adoption idempotently', async () => {
     const token = provenanceToken()
     const accepted = await accept(token)
@@ -347,6 +380,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         originOperationId: replies.originOperationId,
         originSourceRevision: replies.originSourceRevision,
         originTemplateId: replies.originReplyTemplateId,
+        originAiProfileVersion: replies.originAiProfileVersion,
         originConcreteLanguageTag: replies.originConcreteLanguageTag,
         originTemplateGroup: replies.originTemplateGroup,
         replyLanguageTag: replies.replyLanguageTag,
@@ -360,7 +394,8 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       authorship: 'ai_assisted',
       originOperationId: '74000000-0000-4000-8000-000000000004',
       originSourceRevision: SOURCE_REVISION,
-      originTemplateId: 'appreciation_positive',
+      originTemplateId: null,
+      originAiProfileVersion: 'reply-draft-v4',
       originConcreteLanguageTag: 'en-Latn-US',
       originTemplateGroup: 'en-Latn',
       replyLanguageTag: 'en-Latn-US',
@@ -408,10 +443,16 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     ).resolves.toEqual({ status: 'rejected', reason: 'stale' })
   })
 
-  it('adopts a personalized draft without inventing stock-template provenance', async () => {
-    const accepted = await accept(personalizedProvenanceToken(), {
-      now: new Date(NOW.getTime() + 1),
-    })
+  it('adopts a draft without inventing stock-template provenance', async () => {
+    const accepted = await accept(
+      provenanceToken({
+        operationId: '74000000-0000-4000-8000-000000000005',
+        baseReplyStateRevision: 1,
+      }),
+      {
+        now: new Date(NOW.getTime() + 1),
+      },
+    )
 
     expect(accepted).toMatchObject({
       status: 'accepted',
@@ -433,7 +474,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .limit(1),
     ).resolves.toEqual([
       {
-        profileVersion: 'reply-draft-v1',
+        profileVersion: 'reply-draft-v4',
         templateId: null,
         catalogueVersion: null,
         catalogueDigest: null,
@@ -478,10 +519,13 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     ])
   })
 
-  it('atomically invalidates a grounded suggestion when Portal says its Brand Profile changed', async () => {
+  it('atomically invalidates a suggestion when Portal says its Brand Profile changed', async () => {
     brandProfileCurrent = false
     voiceCurrent = true
-    const token = groundedProvenanceToken()
+    const token = provenanceToken({
+      operationId: '74000000-0000-4000-8000-000000000007',
+      baseReplyStateRevision: 2,
+    })
 
     await expect(accept(token, { now: new Date(NOW.getTime() + 2) })).resolves.toEqual({
       status: 'rejected',
@@ -513,8 +557,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
   it('keeps an adopted Review-owned draft usable after a later Brand Profile change', async () => {
     brandProfileCurrent = true
     voiceCurrent = true
-    const token = groundedProvenanceToken({
+    const token = provenanceToken({
       operationId: '74000000-0000-4000-8000-000000000008',
+      baseReplyStateRevision: 2,
     })
     const accepted = await accept(token, { now: new Date(NOW.getTime() + 4) })
     expect(accepted).toMatchObject({
@@ -522,7 +567,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       reply: { stateRevision: 3 },
     })
     if (accepted.status !== 'accepted') {
-      throw new Error('Expected the grounded suggestion to be adopted')
+      throw new Error('Expected the suggestion to be adopted')
     }
     expect(voiceAuthorityCalls.at(-1)).toEqual({
       organizationId: ORGANIZATION_ID,

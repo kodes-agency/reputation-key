@@ -19,27 +19,24 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { AI_PERSONALIZED_REPLY_PROFILE_DIGEST } from '#/shared/reply/ai-personalized-reply-contract'
-import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/reply/ai-personalized-reply-profile'
-import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/reply/ai-reply-template-catalogue'
 import { digestAiReplyBrandDisplayName } from '#/shared/reply/ai-reply-brand-profile.server'
 import {
   digestRenderedReply,
   signAiReplyProvenance,
-  type AiReplyProvenancePayloadV1,
-  type AiReplyProvenancePayloadV2,
-  type AiReplyProvenancePayloadV3,
+  type AiReplyProvenancePayload,
 } from '#/shared/reply/ai-reply-provenance'
+import {
+  insertReplyV4FrameReservation,
+  REPLY_V4_PROVIDER_PROFILE,
+  replyV4OperationColumns,
+  replyV4TokenFields,
+} from './ai-reply-v4.test-fixtures'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 export const BRAND_DISPLAY_NAME_DIGEST = digestAiReplyBrandDisplayName('Example Hotel')
-export const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
-  '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
 
-const DEFAULT_OPERATION_V1 = '74000000-0000-4000-8000-000000000004'
-const DEFAULT_OPERATION_V2 = '74000000-0000-4000-8000-000000000005'
-const DEFAULT_OPERATION_V3 = '74000000-0000-4000-8000-000000000007'
+const DEFAULT_OPERATION = '74000000-0000-4000-8000-000000000004'
 const UNSEEDED_PERMIT = '74000000-0000-4000-8000-0000000001ff'
 
 type ConsentContractFacts = Pick<
@@ -105,10 +102,13 @@ export function createAiReplyAdoptionFixture(
       executionAttempt: 1,
     }
 
-  const sharedPayload = (operationId: string, baseReplyStateRevision: number) =>
-    ({
+  const provenancePayload = (
+    overrides: Partial<AiReplyProvenancePayload> = {},
+  ): AiReplyProvenancePayload => {
+    const operationId = overrides.operationId ?? DEFAULT_OPERATION
+    return {
+      ...replyV4TokenFields(operationId),
       kid: 'provenance-v1',
-      operationId,
       actorId: actorUserId,
       organizationId: orgId,
       propertyId: propId,
@@ -116,64 +116,24 @@ export function createAiReplyAdoptionFixture(
       ...executionOf(operationId),
       sourceEpoch: config.sourceEpoch,
       sourceRevision: config.sourceRevision,
-      baseReplyStateRevision,
+      baseReplyStateRevision: 0,
       replyDraftingEpoch: 1,
       propertyProfileVersion: 1,
-      providerDeploymentProfileVersion: 'private-beta-global-v2',
-      operationProfileVersion: 'reply-suggestion-v1',
-      modelSnapshot: 'gpt-5.4-mini-2026-03-17',
-      promptVersion: 'reply-suggestion-prompt-v1',
       outputLeakageProfileVersion: 'ai-output-leakage-v1',
       outputLeakageProfileDigest: 'a'.repeat(64),
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
       concreteLanguageTag: 'en-Latn-US',
       templateGroup: 'en-Latn',
       renderedSuggestionDigest: digestRenderedReply(config.suggestion),
       tokenExpiresAtEpochMillis: now.getTime() + 5 * 60_000,
       draftExpiresAtEpochMillis: now.getTime() + 30 * 60_000,
-    }) as const
+      ...overrides,
+    }
+  }
 
-  const provenancePayload = (
-    overrides: Partial<AiReplyProvenancePayloadV1> = {},
-  ): AiReplyProvenancePayloadV1 => ({
-    ...sharedPayload(overrides.operationId ?? DEFAULT_OPERATION_V1, 0),
-    version: 'ai-reply-provenance-v1',
-    replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
-    replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-    templateId: 'appreciation_positive',
-    ...overrides,
-  })
-
-  const provenanceToken = (overrides: Partial<AiReplyProvenancePayloadV1> = {}) =>
+  const provenanceToken = (overrides: Partial<AiReplyProvenancePayload> = {}) =>
     signAiReplyProvenance(provenancePayload(overrides), privateKey)
-
-  const personalizedProvenanceToken = (
-    overrides: Partial<AiReplyProvenancePayloadV2> = {},
-  ) =>
-    signAiReplyProvenance(
-      {
-        ...sharedPayload(overrides.operationId ?? DEFAULT_OPERATION_V2, 1),
-        version: 'ai-reply-provenance-v2',
-        replyProfileVersion: 'reply-draft-v1',
-        replyProfileDigest: LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST,
-        ...overrides,
-      },
-      privateKey,
-    )
-
-  const groundedProvenanceToken = (overrides: Partial<AiReplyProvenancePayloadV3> = {}) =>
-    signAiReplyProvenance(
-      {
-        ...sharedPayload(overrides.operationId ?? DEFAULT_OPERATION_V3, 2),
-        version: 'ai-reply-provenance-v3',
-        replyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-        replyProfileDigest: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
-        replyBrandProfileVersion: 7,
-        replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
-        replyVoiceDigest: 'f'.repeat(64),
-        ...overrides,
-      },
-      privateKey,
-    )
 
   /** A live Review in this suite's Property at the revision its operations bind. */
   const reviewFixture = (
@@ -281,7 +241,7 @@ export function createAiReplyAdoptionFixture(
 
   const seedSucceededReplyOperation = async (input: SeedSucceededReplyOperationInput) => {
     const globalControl = await selectControl('global')
-    const providerControl = await selectControl('provider:private-beta-global-v2')
+    const providerControl = await selectControl(`provider:${REPLY_V4_PROVIDER_PROFILE}`)
     const capabilityControl = await selectControl('capability:reply_drafting')
     if (!globalControl || !providerControl || !capabilityControl) {
       throw new Error('AI execution controls are not seeded')
@@ -328,19 +288,16 @@ export function createAiReplyAdoptionFixture(
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       propertyProfileVersion: 1,
       routingPolicyVersion: 1,
-      providerDeploymentProfileVersion: 'private-beta-global-v2',
-      operationProfileVersion: 'reply-suggestion-v1',
-      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
-      replyBrandProfileVersion: input.replyBrandProfileVersion ?? null,
-      replyBrandDisplayNameDigest: input.replyBrandDisplayNameDigest ?? null,
+      ...replyV4OperationColumns(input.operationId),
+      replyBrandProfileVersion: input.replyBrandProfileVersion ?? 7,
+      replyBrandDisplayNameDigest:
+        input.replyBrandDisplayNameDigest ?? BRAND_DISPLAY_NAME_DIGEST,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       redactionProfileVersion: 'gbp-review-global-v1',
       concreteReplyLanguageTag: 'en-Latn-US',
       concreteReplyTemplateGroup: 'en-Latn',
       outputLeakageProfileVersion: 'ai-output-leakage-v1',
       outputLeakageProfileDigest: 'a'.repeat(64),
-      replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
-      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
       capabilityFences: {
         capability: 'reply_drafting',
         replyDraftingEpoch: 1,
@@ -365,6 +322,12 @@ export function createAiReplyAdoptionFixture(
       updatedAt: now,
       expiresAt,
       deliveredAt: now,
+    })
+    await insertReplyV4FrameReservation(db, {
+      organizationId: orgId,
+      propertyId: propId,
+      operationId: input.operationId,
+      createdAt: now,
     })
   }
 
@@ -466,8 +429,6 @@ export function createAiReplyAdoptionFixture(
     executionOf,
     provenancePayload,
     provenanceToken,
-    personalizedProvenanceToken,
-    groundedProvenanceToken,
     reviewFixture,
     transitionReplyControl,
     readReplyControl,
