@@ -25,8 +25,8 @@
 // `tokenIdentifier` and `reference` are never asked about, and one entry
 // (`GuestRatingSubmitted.value`) is there by choice, not because the pattern
 // found it. And it reads the TypeScript payload types, not the Zod schemas in
-// `src/shared/events/schema-registrations.ts` that decide which fields an
-// outbox row keeps.
+// `src/shared/events/*-event-schemas.ts` that decide which fields an outbox
+// row keeps.
 
 import { describe, it, expect } from 'vitest'
 import { readdirSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
