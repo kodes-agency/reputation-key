@@ -39,7 +39,6 @@ export const buildGoogleConnection = (args: BuildConnectionArgs) => {
     scopes: args.scopes,
     credentialAuthorizedBy: args.connectedBy,
     connectedBy: args.connectedBy,
-    visibility: 'organization',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,

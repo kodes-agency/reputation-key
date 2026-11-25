@@ -5,7 +5,6 @@
 import type {
   GoogleConnection,
   GoogleConnectionId,
-  GoogleConnectionVisibility,
   GoogleConnectionStatus,
 } from '../domain/types'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
@@ -71,11 +70,6 @@ export type GoogleConnectionRepository = Readonly<{
    * remains as a content-free lifecycle fact.
    */
   redactForDisconnect: (orgId: OrganizationId, id: GoogleConnectionId) => Promise<void>
-  updateVisibility: (
-    orgId: OrganizationId,
-    id: GoogleConnectionId,
-    visibility: GoogleConnectionVisibility,
-  ) => Promise<void>
   updateTokens: (
     orgId: OrganizationId,
     id: GoogleConnectionId,
@@ -94,7 +88,6 @@ export type GoogleConnectionRepository = Readonly<{
     encryptedAccessToken: string,
     encryptedRefreshToken: string,
     tokenExpiresAt: Date,
-    visibility: GoogleConnectionVisibility,
     scopes: ReadonlyArray<string>,
     credentialAuthorizedBy: UserId,
     credentialAuthorizedAt: Date,

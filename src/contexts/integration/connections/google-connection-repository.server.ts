@@ -163,21 +163,6 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  updateVisibility: async (orgId, id, visibility) => {
-    return trace('googleConnection.updateVisibility', async () => {
-      await db
-        .update(googleConnections)
-        .set({
-          visibility,
-          accessVersion: sql`${googleConnections.accessVersion} + 1`,
-          updatedAt: clock(),
-        })
-        .where(
-          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
-        )
-    })
-  },
-
   updateReconnection: async (
     orgId,
     id,
@@ -185,7 +170,6 @@ export const createGoogleConnectionRepository = (
     accessToken,
     refreshToken,
     expiresAt,
-    visibility,
     scopes,
     credentialAuthorizedBy,
     credentialAuthorizedAt,
@@ -203,7 +187,6 @@ export const createGoogleConnectionRepository = (
           status: 'active',
           statusReason: null,
           statusChangedAt: credentialAuthorizedAt,
-          visibility,
           scopes: [...scopes],
           credentialAuthorizedBy,
           credentialAuthorizedAt,

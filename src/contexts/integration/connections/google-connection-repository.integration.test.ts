@@ -112,7 +112,6 @@ describe('googleConnectionRepository (integration)', () => {
           id: crypto.randomUUID(),
           organizationId: ORG_A,
           googleSubject: `signed-${crypto.randomUUID()}`,
-          visibility: 'organization',
           connectedBy: userId('user-someone-else'),
         }),
       )
@@ -121,7 +120,6 @@ describe('googleConnectionRepository (integration)', () => {
           id: crypto.randomUUID(),
           organizationId: ORG_A,
           googleSubject: `signed-${crypto.randomUUID()}`,
-          visibility: 'organization',
           connectedBy: otherUser,
         }),
       )
@@ -209,27 +207,30 @@ describe('googleConnectionRepository (integration)', () => {
     })
   })
 
-  describe('updateVisibility', () => {
-    it('rejects the legacy private visibility without changing Organization ownership', async () => {
+  describe('Organization ownership', () => {
+    it('keeps the database check that refuses a private connection', async () => {
       const repo = makeRepo()
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
         googleSubject: `signed-${crypto.randomUUID()}`,
-        visibility: 'organization',
       })
       await repo.insert(conn)
 
       await expect(
-        repo.updateVisibility(ORG_A, conn.id, 'private'),
+        getPool().query(
+          "UPDATE google_connections SET visibility = 'private' WHERE organization_id = $1 AND id = $2",
+          [ORG_A, conn.id],
+        ),
       ).rejects.toMatchObject({
-        cause: {
-          code: '23514',
-          constraint: 'google_connections_organization_owned_check',
-        },
+        code: '23514',
+        constraint: 'google_connections_organization_owned_check',
       })
-      const found = await repo.findById(ORG_A, conn.id)
-      expect(found!.visibility).toBe('organization')
+      const stored = await getPool().query(
+        'SELECT visibility FROM google_connections WHERE organization_id = $1 AND id = $2',
+        [ORG_A, conn.id],
+      )
+      expect(stored.rows).toEqual([{ visibility: 'organization' }])
     })
   })
 

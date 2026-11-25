@@ -16,8 +16,6 @@ const oauthStateRecordSchema = z
     organizationId: z.string().min(1).max(255),
     userId: z.string().min(1).max(255),
     audience: z.literal('google-connect'),
-    // Handles issued before the field was retired live up to ten minutes.
-    visibility: z.enum(['private', 'organization']).optional(),
     purpose: z.enum(['reviews', 'import_gbp_v2', 'performance_reauth']),
     connectionMode: z.enum(['new', 'reauth', 'reconnect']),
     targetConnectionId: z.string().min(1).max(255).nullable(),

@@ -20,7 +20,6 @@ export function accountEmailConsentForConnection(
 ): ReauthorizationRequest | null {
   if (connection.status !== 'active' || connection.accountEmail !== null) return null
   return {
-    visibility: 'organization',
     connectionMode: 'reauth',
     targetConnectionId: connection.id,
   }
@@ -33,7 +32,6 @@ export function reauthorizationForConnection(
   if (connection.status !== 'reauth_required') return null
 
   return {
-    visibility: 'organization',
     connectionMode: 'reauth',
     targetConnectionId: connection.id,
   }
