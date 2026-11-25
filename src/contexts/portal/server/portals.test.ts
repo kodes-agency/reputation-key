@@ -14,7 +14,6 @@ import { throwContextError } from '#/shared/auth/server-errors'
 import { createPortalInputSchema } from '#/contexts/portal/publication/create-portal.contracts'
 import {
   changePortalLanguagesInputSchema,
-  changePortalSlugInputSchema,
   portalIdInputSchema,
   updatePortalSettingsInputSchema,
 } from '#/contexts/portal/publication/portal-intents.contracts'
@@ -315,11 +314,7 @@ describe('portal intent input validation', () => {
     }
   })
 
-  it('needs an address for the slug intent and a portal for the state intents', () => {
-    expect(changePortalSlugInputSchema.safeParse({ portalId: 'p' }).success).toBe(false)
-    expect(
-      changePortalSlugInputSchema.safeParse({ portalId: 'p', slug: 'a-b' }).success,
-    ).toBe(true)
+  it('needs a portal for the state intents', () => {
     expect(portalIdInputSchema.safeParse({ portalId: 'p' }).success).toBe(true)
     expect(
       portalIdInputSchema.safeParse({ portalId: 'p', publicationState: 'archived' })

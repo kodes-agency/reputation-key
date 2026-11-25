@@ -1,9 +1,9 @@
 // Portal context — the narrow commands that change a Portal's state.
 //
 // Each intent names one thing a person does: go live, take the page down,
-// archive, restore, edit the settings, change the address, change the
-// languages. It asks for its own permission, refuses what that action may not
-// touch, and commits through `commitPortalChange`.
+// archive, restore, edit the settings, change the languages. It asks for its
+// own permission, refuses what that action may not touch, and commits through
+// `commitPortalChange`.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId as toPortalId } from '#/shared/domain/ids'
@@ -16,7 +16,6 @@ import {
 } from './portal-publication-readiness.server'
 import type {
   ChangePortalLanguagesInput,
-  ChangePortalSlugInput,
   PortalIdInput,
   UpdatePortalSettingsInput,
 } from './portal-intents.contracts'
@@ -26,7 +25,6 @@ import {
   validatePortalName,
   validatePortalTheme,
   validatePrivateFeedbackThreshold,
-  validateSlug,
 } from '../domain/rules'
 import { transitionPortalPublication } from '../domain/portal-publication'
 import type { Portal } from '../domain/types'
@@ -71,12 +69,9 @@ function assertEditable(existing: Portal): void {
       )
 }
 
-function assertNotPersonalRename(existing: Portal, name?: string, slug?: string): void {
+function assertNotPersonalRename(existing: Portal, name?: string): void {
   if (existing.kind !== 'personal') return
-  if (
-    (name !== undefined && name !== existing.name) ||
-    (slug !== undefined && slug !== existing.slug)
-  ) {
+  if (name !== undefined && name !== existing.name) {
     throw portalError('personal_portal_rename_locked', 'Rename this person from Staff')
   }
 }
@@ -167,25 +162,6 @@ export const updatePortalSettings =
       await assertSkipSwitchAllowed(deps, ctx, existing)
     }
     return commitPortalChange(deps, ctx, existing, resolveSettingsFields(input, existing))
-  }
-
-export const changePortalSlug =
-  (deps: PortalIntentDeps) =>
-  async (input: ChangePortalSlugInput, ctx: AuthContext): Promise<Portal> => {
-    const existing = await loadPortal(deps, ctx, input, UPDATE)
-    assertNotPersonalRename(existing, undefined, input.slug)
-    assertEditable(existing)
-    // An unchanged slug is not re-validated and never hits the uniqueness probe.
-    if (input.slug === existing.slug) return existing
-    const slug = unwrap(validateSlug(input.slug))
-    const taken = await deps.portalRepo.slugExists(
-      ctx.organizationId,
-      existing.propertyId as string,
-      slug,
-      existing.id,
-    )
-    if (taken) throw portalError('slug_taken', 'a portal with this slug already exists')
-    return commitPortalChange(deps, ctx, existing, { slug })
   }
 
 export const changePortalLanguages =

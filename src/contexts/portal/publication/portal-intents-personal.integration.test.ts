@@ -143,21 +143,18 @@ describe.sequential('personal Portal ordinary edits', () => {
 
   it.each([
     ['rename', 'personal_portal_rename_locked'],
-    ['change the address of', 'personal_portal_rename_locked'],
     ['archive', 'personal_portal_archive_locked'],
   ] as const)(
     'refuses to %s a personal Portal without changing ownership or publication',
     async (action, code) => {
-      const { settings, slug, archive, writes } = world()
+      const { settings, archive, writes } = world()
       await seedPortal(personal)
       const before = await footprint()
       const admin = asRole('AccountAdmin')
       const attempt =
         action === 'rename'
           ? settings({ portalId: PORTAL, name: 'Another person' }, admin)
-          : action === 'archive'
-            ? archive({ portalId: PORTAL }, admin)
-            : slug({ portalId: PORTAL, slug: 'polly-smith' }, admin)
+          : archive({ portalId: PORTAL }, admin)
 
       await expect(attempt).rejects.toMatchObject({ code })
 

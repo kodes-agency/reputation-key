@@ -14,7 +14,6 @@ import { getContainer } from '#/composition'
 import { createPortalInputSchema } from '../publication/create-portal.contracts'
 import {
   changePortalLanguagesInputSchema,
-  changePortalSlugInputSchema,
   portalIdInputSchema,
   publishPortalInputSchema,
   updatePortalSettingsInputSchema,
@@ -327,24 +326,6 @@ export const updatePortalSettings = createServerFn({ method: 'POST' })
 
         const portal =
           await getContainer().portalPublicApi.management.updatePortalSettings(data, ctx)
-        return { portal }
-      },
-    ),
-  )
-
-export const changePortalSlug = createServerFn({ method: 'POST' })
-  .validator(changePortalSlugInputSchema)
-  .handler(
-    commandHandler(
-      { method: 'POST', name: 'portal.changePortalSlug', errors: portalCommandErrors },
-      async ({ data, headers }) => {
-        const ctx = await resolveTenantContext(headers)
-        await requirePortalScope(ctx, data.portalId, 'portal.update')
-
-        const portal = await getContainer().portalPublicApi.management.changePortalSlug(
-          data,
-          ctx,
-        )
         return { portal }
       },
     ),

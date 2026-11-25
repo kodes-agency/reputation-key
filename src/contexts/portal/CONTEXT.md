@@ -127,7 +127,7 @@ for `portal.delete` too, so the rule holds whichever caller carries it. Disable 
 are updates (`portal.update`): a PropertyManager can take a live page down and bring an
 archived Portal back to Disabled. A Portal's state changes only through the intents in
 `publication/portal-intents.server.ts` (publish, disable, archive, restore, settings,
-address, languages), each of which commits through `commitPortalChange`; none accepts
+languages), each of which commits through `commitPortalChange`; none accepts
 another intent's fields.
 
 The first go-live server function requires the digest from Review & publish and
@@ -1000,7 +1000,7 @@ Portal kind is `place` or `personal`, set only at creation. A personal Portal ke
 
 `updatePersonalGuestPage` (R19) lets a person's page take over a published Portal's wording, links, look and opening print wording, keeping its code, results, Group, responsible managers and rating settings. `replacePersonalPortalContent` does that in one commit under the Property's publication fence and the same source fence as a copy at creation; going live is then the ordinary `publishPortalChanges`. Publishing's gates are asked before the replace; if publishing still refuses, the result is `not_live` and the new content waits as the draft. A link that keeps its destination keeps its id, so open pages and tap history survive. The replace is recorded through `recordPortalContentChange`. Rows the two paths share are written by `publication/portal-copied-content.server.ts`.
 
-Only Staff Remove archives a personal Portal, under `staff.remove`. The ordinary update refuses its rename, slug change, Archive and Restore; Disable remains available. The own-code read checks the session's personal assignment, uses the same sealed-address reader and ledger, and returns QR wording only. It records one `show` per user and token version and spends no Organization address budget. `Portal` and `PortalOverviewRow` carry kind; this foundation changes no list presentation.
+Only Staff Remove archives a personal Portal, under `staff.remove`. The ordinary update refuses its rename, Archive and Restore; Disable remains available. The own-code read checks the session's personal assignment, uses the same sealed-address reader and ledger, and returns QR wording only. It records one `show` per user and token version and spends no Organization address budget. `Portal` and `PortalOverviewRow` carry kind; this foundation changes no list presentation.
 
 ## Manager staff presentation and scan-target fences
 
