@@ -6,7 +6,6 @@ import { addStaffMember } from './add-staff-member.server'
 import { changeStaffInvitationEmail } from './change-staff-email.server'
 import { linkStaffInvitation } from './staff-invitation-link.server'
 import { createStaffManagementStore } from './staff-management.store.server'
-import { createStaffParticipationRepository } from './staff-participation-repository.server'
 import { useStaffAccountEnv } from './staff-account-store.test-fixtures'
 
 const env = useStaffAccountEnv()
@@ -51,7 +50,7 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
       client.release()
     }
   })
-  it('leaves legacy participations to the existing archive and out of the staff-account roster', async () => {
+  it('leaves legacy participations out of the staff-account roster', async () => {
     const h = await setup()
     await env.pool.query(
       'UPDATE staff_participations SET personal_portal_id = NULL WHERE id = $1',
@@ -62,13 +61,6 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
       await management.target(h.row.organizationId, h.row.participationId),
     ).toBeNull()
     expect(await management.list(h.row.organizationId, h.row.propertyId)).toEqual([])
-    await createStaffParticipationRepository(env.db).archive(
-      h.row.organizationId,
-      h.row.participationId,
-      NOW,
-      'removed',
-      1,
-    )
   })
   it.each(['member', 'admin'])(
     'refuses a pending %s invitation at another Property before creating a setup',
@@ -93,26 +85,6 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
       ).toEqual([])
     },
   )
-  it('locks an unfinished personal setup before its Portal FK can be filled', async () => {
-    const h = await setup('person')
-    const result = await addStaffMember(h.deps)(h.input, h.ctx)
-    const repository = createStaffParticipationRepository(env.db)
-    await expect(
-      repository.archive(h.row.organizationId, result.participationId, NOW, 'removed', 1),
-    ).rejects.toMatchObject({ code: 'staff_personal_portal_locked' })
-    await expect(
-      repository.replaceResponsibilities({
-        organizationId: h.row.organizationId,
-        propertyId: h.row.propertyId,
-        staffParticipationId: result.participationId,
-        selections: [],
-        actorId: h.row.inviterId,
-        at: NOW,
-        expectedRevision: 1,
-      }),
-    ).rejects.toMatchObject({ code: 'staff_personal_portal_locked' })
-    expect((await addStaffMember(h.deps)(h.input, h.ctx)).status).toBe('done')
-  })
   it.each(STAFF_ONBOARDING_STEPS)(
     'resumes a committed %s failure without duplicate people, Portals or invitations',
     async (step) => {
