@@ -46,7 +46,6 @@ describe('canary: the OperationsSnapshot carries no tenant identifiers (BQC-7.3)
     const reader = createOperationsSnapshot({
       db: fakeDb([
         [{ cnt: 1, age_ms: 10 }],
-        [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
         [{ total: 1, refresh_due: 0, expired: 0, oldest_due_age_seconds: null }],
         [{ due: 0, failed: 0 }],
         [
@@ -63,7 +62,6 @@ describe('canary: the OperationsSnapshot carries no tenant identifiers (BQC-7.3)
         ],
       ]),
       outboxRepo: {
-        findExpiredLeases: vi.fn(async () => []),
         delivery: {
           readQuarantineMetrics: vi.fn(async () => ({ count: 0, oldestAgeMs: null })),
         },

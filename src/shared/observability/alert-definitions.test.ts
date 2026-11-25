@@ -53,13 +53,12 @@ describe('observability.snapshot-degraded', () => {
     expect(event).toMatchObject({
       name: 'observability.snapshot-degraded',
       severity: 'P1',
-      value: 2,
+      value: 1,
       threshold: 0,
       runbook: 'runbooks.md §23',
     })
     expect(event!.detail).toContain('health.outbox')
     expect(event!.detail).toContain('queue.oldest-age')
-    expect(event!.detail).toContain('queue.stalled')
   })
 
   it('pages only once the blindness holds for a second consecutive evaluation', () => {

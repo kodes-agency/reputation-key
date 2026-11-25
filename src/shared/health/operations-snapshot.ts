@@ -206,10 +206,6 @@ function zeroHealthSignals(): HealthSignalValues {
     outbox: {
       unpublishedCount: 0,
       oldestUnpublishedAgeMs: null,
-      expiredLeaseCount: 0,
-      claimedCount: 0,
-      oldestClaimedAgeMs: null,
-      stalledLeaseCount: 0,
     },
     quarantine: null,
     reviews: {

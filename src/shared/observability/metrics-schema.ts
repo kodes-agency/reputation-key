@@ -296,42 +296,6 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     emitted: true,
     description: 'Age of the oldest unpublished outbox event.',
   }),
-  def({
-    name: 'outbox.claimed',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['outbox.claimedCount'],
-    emitted: true,
-    description: 'In-flight relay claims (unexpired leases).',
-  }),
-  def({
-    name: 'outbox.oldest_claimed_age_ms',
-    kind: 'gauge',
-    unit: 'ms',
-    labels: {},
-    snapshotPath: ['outbox.oldestClaimedAgeMs'],
-    emitted: true,
-    description: 'Age of the oldest in-flight claim.',
-  }),
-  def({
-    name: 'outbox.stalled_leases',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['outbox.stalledLeaseCount'],
-    emitted: true,
-    description: 'Leases held beyond 2× duration (stalled relay).',
-  }),
-  def({
-    name: 'outbox.expired_leases',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['outbox.expiredLeaseCount'],
-    emitted: true,
-    description: 'Unpublished rows whose lease expired (bounded scan).',
-  }),
 
   // ── worker.* — heartbeat + registered jobs/runtime ──
   def({
