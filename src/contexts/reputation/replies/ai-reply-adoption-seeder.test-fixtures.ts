@@ -32,11 +32,17 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/reply/ai-reply-template-catalogue'
+import { digestAiReplyBrandDisplayName } from '#/shared/reply/ai-reply-brand-profile.server'
 import {
   digestRenderedReply,
   signAiReplyProvenance,
 } from '#/shared/reply/ai-reply-provenance'
+import {
+  insertReplyV4FrameReservation,
+  REPLY_V4_PROVIDER_PROFILE,
+  replyV4OperationColumns,
+  replyV4TokenFields,
+} from './ai-reply-v4.test-fixtures'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { createAiControlAdapter } from '#/contexts/ai/infrastructure/adapters/ai-control.adapter'
@@ -56,6 +62,9 @@ import type { createAtomicReplyCommandStore } from './reply-command-store.server
 
 export const SOURCE_EPOCH = 2
 export const PROVIDER_PROFILE = 'private-beta-global-v2'
+/** The deployment the served reply-drafting execution records. */
+export const OPERATION_PROVIDER_PROFILE = REPLY_V4_PROVIDER_PROFILE
+const BRAND_DISPLAY_NAME_DIGEST = digestAiReplyBrandDisplayName('Example Hotel')
 export const SUGGESTION = 'Thank you for sharing your experience.'
 export const MINUTE_MS = 60_000
 export const DAY_MS = 24 * 60 * MINUTE_MS
@@ -294,7 +303,7 @@ export function createAiReplyAdoptionSeeder(config: AiReplyAdoptionFixtureConfig
     const now = new Date()
     const [global, provider, capability] = await Promise.all([
       controlHead('global'),
-      controlHead(`provider:${PROVIDER_PROFILE}`),
+      controlHead(`provider:${OPERATION_PROVIDER_PROFILE}`),
       controlHead('capability:reply_drafting'),
     ])
     await db
@@ -333,19 +342,15 @@ export function createAiReplyAdoptionSeeder(config: AiReplyAdoptionFixtureConfig
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       propertyProfileVersion: 1,
       routingPolicyVersion: 1,
-      providerDeploymentProfileVersion: PROVIDER_PROFILE,
-      operationProfileVersion: 'reply-suggestion-v1',
-      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
-      replyBrandProfileVersion: null,
-      replyBrandDisplayNameDigest: null,
+      ...replyV4OperationColumns(operationId),
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       redactionProfileVersion: 'gbp-review-global-v1',
       concreteReplyLanguageTag: 'en-Latn-US',
       concreteReplyTemplateGroup: 'en-Latn',
       outputLeakageProfileVersion: 'ai-output-leakage-v1',
       outputLeakageProfileDigest: 'a'.repeat(64),
-      replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
-      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
       capabilityFences: {
         capability: 'reply_drafting',
         replyDraftingEpoch: 1,
@@ -370,6 +375,12 @@ export function createAiReplyAdoptionSeeder(config: AiReplyAdoptionFixtureConfig
       updatedAt: now,
       expiresAt: new Date(now.getTime() + 60 * MINUTE_MS),
       deliveredAt: now,
+    })
+    await insertReplyV4FrameReservation(db, {
+      organizationId: ORG,
+      propertyId: property,
+      operationId,
+      createdAt: now,
     })
     return { operationId, permitId }
   }
@@ -415,9 +426,8 @@ export function createAiReplyAdoptionSeeder(config: AiReplyAdoptionFixtureConfig
   ): string {
     return signAiReplyProvenance(
       {
-        version: 'ai-reply-provenance-v1',
+        ...replyV4TokenFields(operationId),
         kid: 'provenance-v1',
-        operationId,
         actorId: SUBMITTER,
         organizationId: ORG,
         propertyId: property,
@@ -429,15 +439,10 @@ export function createAiReplyAdoptionSeeder(config: AiReplyAdoptionFixtureConfig
         baseReplyStateRevision: 0,
         replyDraftingEpoch: 1,
         propertyProfileVersion: 1,
-        providerDeploymentProfileVersion: PROVIDER_PROFILE,
-        operationProfileVersion: 'reply-suggestion-v1',
-        modelSnapshot: 'gpt-5.4-mini-2026-03-17',
-        promptVersion: 'reply-suggestion-prompt-v1',
+        replyBrandProfileVersion: 7,
+        replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
         outputLeakageProfileVersion: 'ai-output-leakage-v1',
         outputLeakageProfileDigest: 'a'.repeat(64),
-        replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
-        replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-        templateId: 'appreciation_positive',
         concreteLanguageTag: 'en-Latn-US',
         templateGroup: 'en-Latn',
         renderedSuggestionDigest: digestRenderedReply(SUGGESTION),

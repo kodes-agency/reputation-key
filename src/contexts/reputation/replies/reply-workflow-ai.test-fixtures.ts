@@ -41,6 +41,7 @@ import {
   merchantAiEnablement,
   properties,
   replies,
+  replyAiFrameReservations,
   reviewAiAnalysisHeads,
   reviews,
 } from '#/shared/db/schema'
@@ -50,13 +51,18 @@ import {
   digestRenderedReply,
   signAiReplyProvenance,
 } from '#/shared/reply/ai-reply-provenance'
-import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/reply/ai-reply-template-catalogue'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { aiDraftInputsAreCurrent } from './ai-draft-binding.server'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store.server'
+import {
+  insertReplyV4FrameReservation,
+  REPLY_V4_PROVIDER_PROFILE,
+  replyV4OperationColumns,
+  replyV4TokenFields,
+} from './ai-reply-v4.test-fixtures'
 
 const KEY_ID = 'reply-workflow-provenance'
 const LINEAGE_ID = '4f000000-0000-4000-8000-000000000041'
@@ -66,9 +72,13 @@ const RUNTIME_PROFILES = { reply_drafting: 'reply-drafting-runtime-v1' } as cons
 const SOURCE_POLICY = 'google-business-profile-source-policy-v1'
 const REDACTION_PROFILE = 'gbp-review-global-v1'
 const LEAKAGE_PROFILE = { version: 'ai-output-leakage-v1', digest: 'a'.repeat(64) }
-const TEMPLATE_CATALOGUE_VERSION = 'gbp-reply-template-catalogue-v1'
+const BRAND_PROFILE = { version: 7, displayNameDigest: 'b'.repeat(64) }
 const REPLY_CONTROL_SCOPE = 'capability:reply_drafting'
-const CONTROL_SCOPES = ['global', `provider:${DEPLOYMENT_PROFILE}`, REPLY_CONTROL_SCOPE]
+const CONTROL_SCOPES = [
+  'global',
+  `provider:${REPLY_V4_PROVIDER_PROFILE}`,
+  REPLY_CONTROL_SCOPE,
+]
 const MINUTE_MS = 60_000
 /** Long before any clock these tests run on. */
 const WINDOW_PASSED = new Date('2000-01-01T00:00:00.000Z')
@@ -101,7 +111,7 @@ export function createReplyWorkflowAiFixture(
       resolveSavedFrame: async () => null,
       resolveV2Frame: async () => null,
       resolveLocalFrame: async () => null,
-      isCurrentVoice: async () => false,
+      isCurrentVoice: async () => true,
     },
   )
   let operationSequence = 0
@@ -291,6 +301,9 @@ export function createReplyWorkflowAiFixture(
   /** Between tests, after the replies are gone: their operations go too. */
   async function reset(): Promise<void> {
     await db.delete(aiOperations).where(eq(aiOperations.organizationId, organizationId))
+    await db
+      .delete(replyAiFrameReservations)
+      .where(eq(replyAiFrameReservations.organizationId, organizationId))
     operationSequence = 0
   }
 
@@ -328,15 +341,12 @@ export function createReplyWorkflowAiFixture(
       sourceRevision: review.sourceRevision,
       baseReplyStateRevision: review.replyStateRevision,
       propertyProfileVersion: await profileVersion(),
-      providerDeploymentProfileVersion: DEPLOYMENT_PROFILE,
-      operationProfileVersion: 'reply-suggestion-v1',
       outputLeakageProfileVersion: LEAKAGE_PROFILE.version,
       outputLeakageProfileDigest: LEAKAGE_PROFILE.digest,
-      replyTemplateCatalogueVersion: TEMPLATE_CATALOGUE_VERSION,
-      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
     } as const
     await db.insert(aiOperations).values({
       ...fences,
+      ...replyV4OperationColumns(operationId),
       id: operationId,
       idempotencyScope: `reply:${operationId}`,
       idempotencyKey: operationId,
@@ -356,9 +366,8 @@ export function createReplyWorkflowAiFixture(
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       routingPolicyVersion: 1,
-      capabilityRuntimeProfileVersion: RUNTIME_PROFILES.reply_drafting,
-      replyBrandProfileVersion: null,
-      replyBrandDisplayNameDigest: null,
+      replyBrandProfileVersion: BRAND_PROFILE.version,
+      replyBrandDisplayNameDigest: BRAND_PROFILE.displayNameDigest,
       sourcePolicyId: SOURCE_POLICY,
       redactionProfileVersion: REDACTION_PROFILE,
       concreteReplyLanguageTag: 'en-Latn-US',
@@ -388,6 +397,12 @@ export function createReplyWorkflowAiFixture(
       expiresAt: new Date(now.getTime() + 60 * MINUTE_MS),
       deliveredAt: now,
     })
+    await insertReplyV4FrameReservation(db, {
+      organizationId,
+      propertyId,
+      operationId,
+      createdAt: now,
+    })
     await recordDraftGeneration(db, {
       organizationId,
       propertyId,
@@ -405,9 +420,8 @@ export function createReplyWorkflowAiFixture(
     return signAiReplyProvenance(
       {
         ...fences,
-        version: 'ai-reply-provenance-v1',
+        ...replyV4TokenFields(operationId),
         kid: KEY_ID,
-        operationId,
         actorId: actorUserId,
         organizationId,
         propertyId,
@@ -415,9 +429,8 @@ export function createReplyWorkflowAiFixture(
         executionPermitId,
         executionAttempt: 1,
         replyDraftingEpoch: 1,
-        modelSnapshot: 'gpt-5.4-mini-2026-03-17',
-        promptVersion: 'reply-suggestion-prompt-v1',
-        templateId: 'appreciation_positive',
+        replyBrandProfileVersion: BRAND_PROFILE.version,
+        replyBrandDisplayNameDigest: BRAND_PROFILE.displayNameDigest,
         concreteLanguageTag: 'en-Latn-US',
         templateGroup: 'en-Latn',
         renderedSuggestionDigest: digestRenderedReply(text),
