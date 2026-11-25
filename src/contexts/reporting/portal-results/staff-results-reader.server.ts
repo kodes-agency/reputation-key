@@ -52,7 +52,6 @@ function readingsSql(
 }
 
 export type StaffResultsReader = Readonly<{
-  targetsEnabled: boolean
   results(
     scope: StaffResultsScope,
     period: StaffPeriod,
@@ -86,7 +85,6 @@ export function createStaffResultsReader(
   targetsEnabled = false,
 ): StaffResultsReader {
   const reader: StaffResultsReader = {
-    targetsEnabled,
     scans: async (scope, portalIds, period, now = clock()) => {
       if (portalIds.length === 0) return new Map()
       const window = staffResultsWindow(now, scope.timezone, scope.countryCode, period)
