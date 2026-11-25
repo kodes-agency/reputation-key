@@ -17,7 +17,7 @@ import {
   reviews,
   reviewSourceContents,
 } from '#/shared/db/schema'
-import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/reply/ai-personalized-reply-profile'
+import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import { isAspectTaxonomyV1Id } from '#/shared/analysis/aspect-taxonomy'
 import { isAiIssueLabel } from '#/shared/analysis/ai-issue-label'
 import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/analysis/review-analysis-v3'
@@ -239,7 +239,7 @@ async function completeAnalysisOperation(
 
 export const createAiOutputStoreAdapter = (
   db: Database,
-  replyBrandProfiles?: Pick<
+  replyBrandProfiles: Pick<
     PortalAiReplyBrandProfilePublicApi,
     'isCurrentAiReplyBrandProfile'
   >,
@@ -296,29 +296,22 @@ export const createAiOutputStoreAdapter = (
           operation.baseReplyStateRevision !== input.baseReplyStateRevision ||
           operation.authorizationLineageId !== input.authorizationLineageId ||
           operation.propertyProfileVersion !== input.propertyProfileVersion ||
-          operation.replyBrandProfileVersion !==
-            (input.replyBrandProfileVersion ?? null) ||
-          operation.replyBrandDisplayNameDigest !==
-            (input.replyBrandDisplayNameDigest ?? null) ||
-          !replyProfilePairMatches(
-            input.operationProfileVersion,
-            input.replyProfileVersion,
-          ) ||
+          operation.replyBrandProfileVersion !== input.replyBrandProfileVersion ||
+          operation.replyBrandDisplayNameDigest !== input.replyBrandDisplayNameDigest ||
+          input.operationProfileVersion !== REPLY_DRAFTING_V2_VERSIONS.operation ||
+          input.replyProfileVersion !== REPLY_DRAFTING_V2_VERSIONS.profile ||
           fence?.capability !== 'reply_drafting' ||
           fence.replyDraftingEpoch !== input.replyDraftingEpoch
         ) {
           return false
         }
         if (
-          operation.replyBrandProfileVersion !== null &&
-          operation.replyBrandDisplayNameDigest !== null &&
-          (!replyBrandProfiles ||
-            !(await replyBrandProfiles.isCurrentAiReplyBrandProfile(tx, {
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              version: operation.replyBrandProfileVersion,
-              displayNameDigest: operation.replyBrandDisplayNameDigest,
-            })))
+          !(await replyBrandProfiles.isCurrentAiReplyBrandProfile(tx, {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            version: input.replyBrandProfileVersion,
+            displayNameDigest: input.replyBrandDisplayNameDigest,
+          }))
         ) {
           return false
         }
@@ -597,12 +590,4 @@ export const createAiOutputStoreAdapter = (
       })
     },
   }
-}
-
-function replyProfilePairMatches(operation: string, profile: string): boolean {
-  return (
-    (operation === 'reply-suggestion-v1' &&
-      profile === AI_PERSONALIZED_REPLY_PROFILE_VERSION) ||
-    (operation === 'reply-suggestion-v2' && profile === 'reply-draft-v4')
-  )
 }

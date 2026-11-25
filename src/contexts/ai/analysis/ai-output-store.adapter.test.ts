@@ -30,7 +30,10 @@ describe('ai output list-filter adapter', () => {
     chain.innerJoin = vi.fn(() => chain)
     chain.where = where
     const selectDistinct = vi.fn(() => chain)
-    const adapter = createAiOutputStoreAdapter({ selectDistinct } as unknown as Database)
+    const adapter = createAiOutputStoreAdapter(
+      { selectDistinct } as unknown as Database,
+      { isCurrentAiReplyBrandProfile: async () => true },
+    )
 
     await expect(
       adapter.findCurrentReviewIdsByAttention({
@@ -49,7 +52,10 @@ describe('ai output list-filter adapter', () => {
 
   it('fails closed without querying when the page-bounded set is empty', async () => {
     const selectDistinct = vi.fn()
-    const adapter = createAiOutputStoreAdapter({ selectDistinct } as unknown as Database)
+    const adapter = createAiOutputStoreAdapter(
+      { selectDistinct } as unknown as Database,
+      { isCurrentAiReplyBrandProfile: async () => true },
+    )
 
     await expect(
       adapter.findCurrentReviewIdsByAttention({
@@ -151,10 +157,13 @@ describe('stored analysis delivery after a notice lapses', () => {
       }
       return chain
     }
-    const adapter = createAiOutputStoreAdapter({
-      transaction: async (read: (tx: { select: typeof select }) => Promise<unknown>) =>
-        read({ select }),
-    } as unknown as Database)
+    const adapter = createAiOutputStoreAdapter(
+      {
+        transaction: async (read: (tx: { select: typeof select }) => Promise<unknown>) =>
+          read({ select }),
+      } as unknown as Database,
+      { isCurrentAiReplyBrandProfile: async () => true },
+    )
     await expect(adapter.readAnalysisForDelivery(input)).resolves.toMatchObject({
       status: 'ready',
       sentiment: 'positive',
