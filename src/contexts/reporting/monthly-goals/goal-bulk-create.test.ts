@@ -102,7 +102,6 @@ function setup(instants: readonly Date[] = [MID_MARCH]) {
     subjects: {
       ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
       staffTargetProblem: vi.fn(async () => null),
-      staffTargetAllowed: vi.fn(async () => true),
       getTimezone: vi.fn(async (): Promise<string | null> => 'UTC'),
       subjectBelongsToProperty: vi.fn(async () => true),
     },

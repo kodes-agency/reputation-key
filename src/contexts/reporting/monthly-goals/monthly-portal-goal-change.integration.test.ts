@@ -72,7 +72,6 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
       subjects: {
         ratingSubjectsSkipPrivateRating: async () => false,
         staffTargetProblem: async () => null,
-        staffTargetAllowed: async () => true,
         getTimezone: async () => TIMEZONE,
         subjectBelongsToProperty: async () => true,
       },

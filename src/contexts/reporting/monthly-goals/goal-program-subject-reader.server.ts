@@ -37,26 +37,6 @@ export const createGoalProgramSubjectReader = (
       : null
   }
 
-  const staffProblem: NonNullable<
-    GoalProgramSubjectReader['staffTargetProblem']
-  > = async (organizationId, propertyId, subject, metric) => {
-    if (subject.kind === 'property') return null
-    const ids =
-      subject.kind === 'portal'
-        ? [subject.portalId]
-        : await portalGroupApi.getGroupPortalIds(
-            toOrganizationId(organizationId),
-            toPortalGroupId(subject.portalGroupId),
-          )
-    const portals = await Promise.all(
-      ids.map((id) => currentPortal(organizationId, propertyId, id)),
-    )
-    return staffTargetProblem(
-      portals.flatMap((portal) => (portal ? [portal] : [])),
-      metric,
-      staffScanTargetsEnabled,
-    )
-  }
   return {
     ratingSubjectsSkipPrivateRating: async (organizationId, propertyId, subjects) => {
       const results = await Promise.all(
@@ -72,8 +52,24 @@ export const createGoalProgramSubjectReader = (
       )
       return results.some(Boolean)
     },
-    staffTargetProblem: staffProblem,
-    staffTargetAllowed: async (...args) => (await staffProblem(...args)) === null,
+    staffTargetProblem: async (organizationId, propertyId, subject, metric) => {
+      if (subject.kind === 'property') return null
+      const ids =
+        subject.kind === 'portal'
+          ? [subject.portalId]
+          : await portalGroupApi.getGroupPortalIds(
+              toOrganizationId(organizationId),
+              toPortalGroupId(subject.portalGroupId),
+            )
+      const portals = await Promise.all(
+        ids.map((id) => currentPortal(organizationId, propertyId, id)),
+      )
+      return staffTargetProblem(
+        portals.flatMap((portal) => (portal ? [portal] : [])),
+        metric,
+        staffScanTargetsEnabled,
+      )
+    },
     getTimezone: (organizationId, propertyId) =>
       propertyApi.getPropertyTimezone(
         toOrganizationId(organizationId),

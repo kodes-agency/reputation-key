@@ -44,7 +44,6 @@ function setup(timezone = 'UTC') {
     subjects: {
       ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
       staffTargetProblem: vi.fn(async () => null),
-      staffTargetAllowed: vi.fn(async () => true),
       getTimezone: vi.fn(async () => timezone),
       subjectBelongsToProperty: vi.fn(async () => true),
     },
