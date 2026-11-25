@@ -40,19 +40,6 @@ export const DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT = {
   actorId: 'guest.gateway',
 } as const satisfies GuestResponseInitialIntegrityAssessment
 
-export type GuestResponseIntegrityError =
-  | Readonly<{ code: 'already_deleted' }>
-  | Readonly<{ code: 'response_not_submitted' }>
-  | Readonly<{ code: 'integrity_outcome_unchanged' }>
-  | Readonly<{ code: 'invalid_integrity_reason' }>
-  | Readonly<{ code: 'invalid_integrity_actor' }>
-  | Readonly<{ code: 'invalid_integrity_transition' }>
-
-export type GuestResponseIntegrityChange = Readonly<{
-  response: GuestResponse
-  decision: GuestResponseIntegrityDecision
-}>
-
 const LOWER_ALPHANUMERIC = 'abcdefghijklmnopqrstuvwxyz0123456789'
 const ACTOR_CHARACTERS =
   'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:@/-'
@@ -123,65 +110,4 @@ export function isRatingMetricEligible(
     response.rating !== null &&
     response.responseConsent
   )
-}
-
-/**
- * Business time for an eligible rating. An integrity review can happen days
- * later, but restoration must repair the period in which the guest submitted
- * (or made the one permitted correction), not create activity on review day.
- */
-export function ratingMetricOccurredAt(response: GuestResponse): Date {
-  return response.correctedAt ?? response.submittedAt ?? response.integrityAssessedAt
-}
-
-export function changeGuestResponseIntegrity(
-  response: GuestResponse,
-  input: Readonly<{
-    outcome: GuestResponseIntegrityOutcome
-    reasonCode: string
-    source: 'automatic' | 'reviewer'
-    actorId: string
-  }>,
-  decidedAt: Date,
-): GuestResponseIntegrityChange | GuestResponseIntegrityError {
-  if (response.status === 'deleted') return { code: 'already_deleted' }
-  if (response.status === 'pending') return { code: 'response_not_submitted' }
-  if (!isReasonCode(input.reasonCode)) {
-    return { code: 'invalid_integrity_reason' }
-  }
-  if (!isActorId(input.actorId)) return { code: 'invalid_integrity_actor' }
-  if (input.outcome === response.integrityOutcome) {
-    return { code: 'integrity_outcome_unchanged' }
-  }
-  // “Filtered automatically” is evidence about an automated decision. A
-  // reviewer can restore a response or move it into a value-neutral review,
-  // but cannot relabel a manual exclusion as an automatic one.
-  if (input.source === 'reviewer' && input.outcome === 'filtered_automatically') {
-    return { code: 'invalid_integrity_transition' }
-  }
-
-  const revision = response.integrityRevision + 1
-  const decision: GuestResponseIntegrityDecision = {
-    responseId: response.id,
-    organizationId: response.organizationId,
-    propertyId: response.propertyId,
-    portalId: response.portalId,
-    revision,
-    previousOutcome: response.integrityOutcome,
-    outcome: input.outcome,
-    reasonCode: input.reasonCode,
-    source: input.source,
-    actorId: input.actorId,
-    decidedAt,
-  }
-  return {
-    response: {
-      ...response,
-      integrityOutcome: input.outcome,
-      integrityReasonCode: input.reasonCode,
-      integrityRevision: revision,
-      integrityAssessedAt: decidedAt,
-    },
-    decision,
-  }
 }

@@ -228,11 +228,10 @@ type ContextApi<T> = Readonly<{
     controls, Guest's session and abuse controls;
   - a function on it that acts for a signed-in member is held to §2.2 and
     authorizes that member itself, so calling it without its server function
-    gains nothing. The named exceptions: Integration's
-    `oauth.getAuthorizationUrl` leaves authorization to its server function, and
-    Guest's internal integrity control takes its actor as data and has no
-    caller. A function with no member to authorize (a guest's request, an
-    invited registration) is admitted by its adapter instead, which
+    gains nothing. The named exception: Integration's
+    `oauth.getAuthorizationUrl` leaves authorization to its server function. A
+    function with no member to authorize (a guest's request, an invited
+    registration) is admitted by its adapter instead, which
     `src/shared/architecture/server-function-policy-exemptions.ts` lists with
     what admits it;
   - the request surface is not a cross-context API. Another context's
