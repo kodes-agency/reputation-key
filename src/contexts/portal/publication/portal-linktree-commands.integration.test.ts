@@ -401,7 +401,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
       expect(await linkLabel(id)).toBe('Old label')
     })
 
-    it('keeps a link written by old code reading its label when an update carries none', async () => {
+    it('writes no text for a link without one when an update carries no label', async () => {
       const id = await seedLegacyLink('Old label', 'a0')
 
       await updateLinkWith(id, { iconKey: 'map-pin' })
@@ -486,18 +486,6 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
         ['en', 'Menu'],
       ])
       expect(await linkLabel(id)).toBe('')
-    })
-
-    it('keeps the label of a link written by old code as the old primary text and starts the new one from it', async () => {
-      const id = await seedLegacyLink('Food menu', 'a0')
-
-      await switchPrimary('bg', ['en'])
-
-      expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
-        ['bg', 'Food menu'],
-        ['en', 'Food menu'],
-      ])
-      expect(await linkLabel(id)).toBe('Food menu')
     })
 
     it('invents no text for a link that has neither a text nor a label', async () => {

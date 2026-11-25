@@ -70,8 +70,8 @@ export type PortalLanguageCoverageInput = Readonly<{
       shortDescription: string | null
     }>
   >
-  /** The links in display order; `label` is the legacy label kept beside the texts. */
-  links: ReadonlyArray<Readonly<{ id: string; label: string }>>
+  /** The links in display order. */
+  links: ReadonlyArray<Readonly<{ id: string }>>
   linkTexts: ReadonlyArray<
     Readonly<{ linkId: string; locale: GuestLocale; label: string }>
   >
@@ -92,13 +92,13 @@ function offeredLocales(input: PortalLanguageCoverageInput): GuestLocale[] {
 
 function linkNameIn(
   input: PortalLanguageCoverageInput,
-  link: Readonly<{ id: string; label: string }>,
+  link: Readonly<{ id: string }>,
 ): string {
   const text = input.linkTexts.find(
     (candidate) =>
       candidate.linkId === link.id && candidate.locale === input.primaryLocale,
   )
-  return isWritten(text?.label) ? text.label : link.label
+  return isWritten(text?.label) ? text.label : ''
 }
 
 function missingTexts(

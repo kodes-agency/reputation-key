@@ -94,7 +94,7 @@ describe('computePortalLanguageCoverage', () => {
       base({
         additionalLocales: ['bg'],
         propertyContent: [],
-        links: [{ id: 'l-1', label: 'Menu' }],
+        links: [{ id: 'l-1' }],
         linkTexts: [],
       }),
     )
@@ -128,7 +128,7 @@ describe('computePortalLanguageCoverage', () => {
         primaryLocale: source.primaryGuestLocale,
         additionalLocales: ['bg'],
         propertyContent: [],
-        links: [{ id: link!.id, label: 'Menu' }],
+        links: [{ id: link!.id }],
         linkTexts: [],
       }),
     )
@@ -175,10 +175,7 @@ describe('computePortalLanguageCoverage', () => {
           { locale: 'en', title: 'A', shortDescription: 'B' },
           { locale: 'bg', title: 'А', shortDescription: 'Б' },
         ],
-        links: [
-          { id: 'l-1', label: 'Menu' },
-          { id: 'l-2', label: 'Spa' },
-        ],
+        links: [{ id: 'l-1' }, { id: 'l-2' }],
         linkTexts: [
           { linkId: 'l-1', locale: 'en', label: 'Menu' },
           { linkId: 'l-2', locale: 'en', label: 'Spa' },
@@ -204,7 +201,7 @@ describe('computePortalLanguageCoverage', () => {
     const coverage = computePortalLanguageCoverage(
       base({
         additionalLocales: ['de'],
-        links: [{ id: 'l-1', label: 'legacy label' }],
+        links: [{ id: 'l-1' }],
         linkTexts: [{ linkId: 'l-1', locale: 'en', label: 'Book a table' }],
       }),
     )
@@ -217,7 +214,7 @@ describe('computePortalLanguageCoverage', () => {
   it('does not count a blank label as written', () => {
     const coverage = computePortalLanguageCoverage(
       base({
-        links: [{ id: 'l-1', label: 'Menu' }],
+        links: [{ id: 'l-1' }],
         linkTexts: [{ linkId: 'l-1', locale: 'en', label: '  ' }],
       }),
     )
@@ -229,7 +226,7 @@ describe('computePortalLanguageCoverage', () => {
   it('ignores texts written for a language the portal does not offer', () => {
     const coverage = computePortalLanguageCoverage(
       base({
-        links: [{ id: 'l-1', label: 'Menu' }],
+        links: [{ id: 'l-1' }],
         linkTexts: [
           { linkId: 'l-1', locale: 'en', label: 'Menu' },
           { linkId: 'l-1', locale: 'fr', label: 'Carte' },

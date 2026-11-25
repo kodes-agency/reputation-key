@@ -7,7 +7,7 @@ import {
 } from '#/shared/testing/fixtures'
 import { portalApprovedDestinationId, userId } from '#/shared/domain/ids'
 import type { PortalApprovedDestination } from '../domain/approved-destination'
-import type { ResolvedPortalLinkText } from '../domain/portal-linktree'
+import type { StoredPortalLinkText } from '../domain/portal-linktree'
 import {
   IMMERSIVE_HERO_ASSET_ID,
   IMMERSIVE_LOGO_ASSET_ID,
@@ -51,10 +51,10 @@ const destination = (
 
 const text = (
   linkId: string,
-  locale: ResolvedPortalLinkText['locale'],
+  locale: StoredPortalLinkText['locale'],
   label: string,
   line: string | null = null,
-): ResolvedPortalLinkText => ({
+): StoredPortalLinkText => ({
   linkId,
   locale,
   label,
@@ -63,7 +63,6 @@ const text = (
   version: 1,
   updatedBy: 'user-1',
   updatedAt: AT,
-  source: 'text',
 })
 
 const APPROVED_ID = '20000000-0000-0000-0000-000000000001'
