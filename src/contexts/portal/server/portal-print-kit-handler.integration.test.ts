@@ -44,7 +44,6 @@ describe('getPortalPrintKit', () => {
 
     expect(kit).toMatchObject({
       portalId: portal.id,
-      kit: 'final',
       lastPrint: null,
       primaryLocale: 'en',
       locales: ['en', 'bg'],

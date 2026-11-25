@@ -14,12 +14,10 @@ import type { PrintLastSettings } from '#/shared/domain/portal-print-last'
 import type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { immersiveConfiguration } from '../domain/__fixtures__/immersive-configuration'
-import { publicationSource } from '../domain/__fixtures__/publication-source'
 import type {
   PortalPublicationConfiguration,
   PortalPublicationSnapshot,
 } from '../domain/portal-publication-snapshot'
-import type { PortalPublicationSource } from '../domain/portal-publication-source'
 import { getPortalPrintKit } from './get-portal-print-kit.server'
 
 const world = createPortalReadsWorld('print-kit')
@@ -72,7 +70,6 @@ const liveConfiguration = () => {
 
 async function setup(
   options: Readonly<{
-    source?: PortalPublicationSource | null
     /** What is live: the Immersive Hub fixture unless told otherwise; null for nothing live. */
     live?: PortalPublicationConfiguration | null
     accessible?: readonly PropertyId[] | null
@@ -130,8 +127,6 @@ async function setup(
     portalRepo,
     staffPublicApi: staffApi(options.accessible ?? null),
     publicationRepo: {
-      loadWorkingCopy: async () =>
-        options.source === undefined ? publicationSource() : options.source,
       findActiveForPortal: async () =>
         options.live === null
           ? null
@@ -157,20 +152,6 @@ describe('getPortalPrintKit', () => {
     expect(view.titles.bg).toBe('Разкажете ни за посещението си')
     expect(view.look.wordmark).toBe('HARBOR')
     expect(view.look.heroUrl).toBe(`/api/public/portal-media/${HERO}`)
-  })
-
-  it('offers no language that is only in the editor, and shows the live look', async () => {
-    const draft = publicationSource().look
-    if (draft === null) throw new Error('fixture has a look')
-    const { portal, read } = await setup({
-      source: publicationSource({
-        localeSet: ['en', 'bg', 'es'],
-        look: { ...draft, wordmark: 'DRAFT' },
-      }),
-    })
-    const view = await read({ portalId: portal.id }, world.ctx())
-    expect(view.locales).toEqual(['en', 'bg'])
-    expect(view.look.wordmark).toBe('HARBOR')
   })
 
   it('has nothing to show for a Portal with nothing live', async () => {
@@ -296,16 +277,15 @@ describe('getPortalPrintKit', () => {
     })
   })
 
-  it('does not find a Portal whose working copy does not resolve, for a live version that needs it', async () => {
+  it('asks for a new publication when the live version is from the earlier page design', async () => {
     const { portal, read } = await setup({
-      source: null,
       live: {
         schemaVersion: 2,
         localeSet: ['en'],
       } as unknown as PortalPublicationConfiguration,
     })
     await expect(read({ portalId: portal.id }, world.ctx())).rejects.toMatchObject({
-      code: 'portal_not_found',
+      code: 'publication_snapshot_unavailable',
     })
   })
 })

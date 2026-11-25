@@ -8,18 +8,13 @@ import { portalError } from '../domain/errors'
 import type { Portal } from '../domain/types'
 import type { PortalPublicationRepository } from '../publication/portal-publication-repository.port.server'
 import {
-  buildPortalPrintKitContext,
-  isImmersiveConfiguration,
-  liveLocalesOf,
   printKitContextOfLive,
   type PortalPrintKitContext,
 } from './portal-print-kit-context.server'
+import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../domain/portal-publication-snapshot'
 
 export type PrintKitContextDeps = Readonly<{
-  publicationRepo: Pick<
-    PortalPublicationRepository,
-    'loadWorkingCopy' | 'findActiveForPortal'
-  >
+  publicationRepo: Pick<PortalPublicationRepository, 'findActiveForPortal'>
 }>
 
 export async function loadPortalPrintKitContext(
@@ -34,10 +29,11 @@ export async function loadPortalPrintKitContext(
       'Publish this Portal before printing it: a print carries the live code.',
     )
   }
-  if (isImmersiveConfiguration(live.configuration)) {
-    return printKitContextOfLive(portal.publicName ?? portal.name, live.configuration)
+  if (live.configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'Publish this Portal again: its live version is from an earlier page design.',
+    )
   }
-  const source = await deps.publicationRepo.loadWorkingCopy(organizationId, portal.id)
-  if (!source) throw portalError('portal_not_found', 'portal not found')
-  return buildPortalPrintKitContext(source, liveLocalesOf(live.configuration))
+  return printKitContextOfLive(portal.publicName ?? portal.name, live.configuration)
 }
