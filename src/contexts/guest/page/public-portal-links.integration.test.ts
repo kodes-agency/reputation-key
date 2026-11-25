@@ -141,8 +141,8 @@ async function seedPublishedPortal(
 type Gate = { allowed: boolean }
 
 /** The real public read, over the real stores; `gate` is the public execution decision. */
-const publicLookup = (gate: Gate): PortalPublicApi['findPublicPortalByToken'] => {
-  const resolve = resolvePublicPortalToken({
+const publicLookup = (gate: Gate): PortalPublicApi['findPublicPortalByToken'] =>
+  resolvePublicPortalToken({
     tokenCodec: codec,
     portalPublicationRepo: createPortalPublicationRepository(db),
     portalHealthRepo: createPortalHealthRepository(db),
@@ -160,13 +160,6 @@ const publicLookup = (gate: Gate): PortalPublicApi['findPublicPortalByToken'] =>
     ...quietGuestReadDeps,
     clock: () => NOW,
   })
-  return async (rawToken, preference) => {
-    const outcome = await resolve(rawToken, preference)
-    return outcome.status === 'found'
-      ? { status: 'found', result: outcome.data }
-      : { status: 'unavailable' }
-  }
-}
 
 const clickFacts = async (org: string) => {
   const rows = await db.execute(sql`

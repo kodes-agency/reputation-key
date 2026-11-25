@@ -316,6 +316,37 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     idGen: deps.idGen,
     clock: deps.clock,
   }
+  const findPublicPortalByToken = resolvePublicPortalToken({
+    tokenCodec: portalTokenCodec,
+    portalPublicationRepo,
+    portalHealthRepo,
+    listApprovedSecondaryDestinationUris: portalApprovedDestinationRepo.listApprovedUris,
+    isPropertyActive: deps.propertyApi.isPropertyActive,
+    getGoogleReviewDestination: deps.propertyApi.getGoogleReviewDestination,
+    decidePublic: decidePublicExecution,
+    reportGoogleDestinationFailure: () =>
+      deps.logger.warn(
+        { errorCode: 'portal_google_destination_unavailable' },
+        'Portal Google review destination unavailable — serving degraded gateway',
+      ),
+    reportApprovedDestinationFailure: (error) =>
+      deps.logger.warn(
+        { errorCode: 'portal_approved_destinations_unavailable', err: error },
+        'Portal approved destinations unreadable — serving no secondary links',
+      ),
+    reportApprovedDestinationsDropped: (counts) =>
+      deps.logger.warn(
+        { errorCode: 'portal_approved_destinations_dropped', ...counts },
+        'Portal published destinations are not approved — serving fewer links',
+      ),
+    resolvePortalMediaUrls: mediaUrls,
+    reportPortalMediaFailure: (error) =>
+      deps.logger.warn(
+        { errorCode: 'portal_media_unavailable', err: error },
+        'Portal media lookup failed — serving the page without images',
+      ),
+    clock: deps.clock,
+  })
   const useCases = {
     renamePersonalPortalLabels: renamePersonalPortalLabels({
       write: writePersonalPortalLabels,
@@ -589,43 +620,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
             }
           : null,
       ),
-    findPublicPortalByToken: async (rawToken: string, preference) => {
-      const outcome = await resolvePublicPortalToken({
-        tokenCodec: portalTokenCodec,
-        portalPublicationRepo,
-        portalHealthRepo,
-        listApprovedSecondaryDestinationUris:
-          portalApprovedDestinationRepo.listApprovedUris,
-        isPropertyActive: deps.propertyApi.isPropertyActive,
-        getGoogleReviewDestination: deps.propertyApi.getGoogleReviewDestination,
-        decidePublic: decidePublicExecution,
-        reportGoogleDestinationFailure: () =>
-          deps.logger.warn(
-            { errorCode: 'portal_google_destination_unavailable' },
-            'Portal Google review destination unavailable — serving degraded gateway',
-          ),
-        reportApprovedDestinationFailure: (error) =>
-          deps.logger.warn(
-            { errorCode: 'portal_approved_destinations_unavailable', err: error },
-            'Portal approved destinations unreadable — serving no secondary links',
-          ),
-        reportApprovedDestinationsDropped: (counts) =>
-          deps.logger.warn(
-            { errorCode: 'portal_approved_destinations_dropped', ...counts },
-            'Portal published destinations are not approved — serving fewer links',
-          ),
-        resolvePortalMediaUrls: mediaUrls,
-        reportPortalMediaFailure: (error) =>
-          deps.logger.warn(
-            { errorCode: 'portal_media_unavailable', err: error },
-            'Portal media lookup failed — serving the page without images',
-          ),
-        clock: deps.clock,
-      })(rawToken, preference)
-      return outcome.status === 'found'
-        ? { status: 'found', result: outcome.data }
-        : { status: 'unavailable' }
-    },
+    findPublicPortalByToken,
     isPrintCode: portalTokenCodec.isPrintCode,
     resolvePublishedAccessArtifact: ({ rawToken, ...input }) => {
       const tokenDigest = portalTokenCodec.digest(rawToken)
