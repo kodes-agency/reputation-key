@@ -13,7 +13,6 @@ describe('Google connection settings authorization actions', () => {
         status: 'reauth_required',
       }),
     ).toEqual({
-      visibility: 'organization',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
     })
@@ -38,7 +37,6 @@ describe('Google connection settings authorization actions', () => {
         accountEmail: null,
       }),
     ).toEqual({
-      visibility: 'organization',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
     })

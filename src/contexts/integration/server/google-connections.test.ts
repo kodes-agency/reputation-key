@@ -74,23 +74,13 @@ describe('throwContextError with IntegrationError (google-connections handlers)'
 // ── getAuthUrl input validation (inline schema) ───────────────────
 
 describe('getAuthUrlInputSchema', () => {
-  it('rejects legacy private visibility for a newly issued ceremony', () => {
-    const result = googleAuthUrlInputSchema.safeParse({ visibility: 'private' })
-    expect(result.success).toBe(false)
-  })
-
-  it('accepts valid visibility "organization"', () => {
-    const result = googleAuthUrlInputSchema.safeParse({ visibility: 'organization' })
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts an omitted visibility', () => {
+  it('accepts an empty input as a new connection', () => {
     const result = googleAuthUrlInputSchema.safeParse({})
     expect(result.success).toBe(true)
   })
 
-  it('rejects invalid visibility value', () => {
-    const result = googleAuthUrlInputSchema.safeParse({ visibility: 'public' })
+  it('rejects the retired visibility field', () => {
+    const result = googleAuthUrlInputSchema.safeParse({ visibility: 'organization' })
     expect(result.success).toBe(false)
   })
 })

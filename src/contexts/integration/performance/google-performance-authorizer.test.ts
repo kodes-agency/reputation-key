@@ -46,7 +46,6 @@ function connection(overrides: Partial<GoogleConnection> = {}): GoogleConnection
     tokenExpiresAt: new Date('2026-08-12T13:00:00.000Z'),
     scopes: ['https://www.googleapis.com/auth/business.manage'],
     connectedBy: USER_ID,
-    visibility: 'organization',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,
@@ -593,10 +592,9 @@ describe('createGooglePerformanceAuthorizer', () => {
     })
   })
 
-  it('treats connectedBy as provenance for a legacy private row', async () => {
+  it('treats connectedBy as provenance, not authority', async () => {
     const { authorize, getAccessToken } = setup({
       connection: connection({
-        visibility: 'private',
         connectedBy: userId('user-2'),
       }),
     })

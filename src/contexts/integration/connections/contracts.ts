@@ -2,11 +2,7 @@
 // Strips sensitive token fields before returning to API consumers.
 // Per architecture: server functions map domain → DTO at the boundary.
 
-import type {
-  GoogleConnection,
-  GoogleConnectionStatus,
-  GoogleConnectionVisibility,
-} from '../domain/types'
+import type { GoogleConnection, GoogleConnectionStatus } from '../domain/types'
 
 export type GoogleConnectionDto = Readonly<{
   id: string
@@ -15,7 +11,6 @@ export type GoogleConnectionDto = Readonly<{
   accountEmail: string | null
   scopes: ReadonlyArray<string>
   connectedBy: string
-  visibility: GoogleConnectionVisibility
   status: GoogleConnectionStatus
   createdAt: Date
   updatedAt: Date
@@ -29,7 +24,6 @@ export function toGoogleConnectionDto(conn: GoogleConnection): GoogleConnectionD
     accountEmail: conn.googleAccountEmail,
     scopes: conn.scopes,
     connectedBy: conn.connectedBy,
-    visibility: conn.visibility,
     status: conn.status,
     createdAt: conn.createdAt,
     updatedAt: conn.updatedAt,

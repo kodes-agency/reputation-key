@@ -38,7 +38,6 @@ describe('buildGoogleConnection', () => {
         'https://www.googleapis.com/auth/business.manage',
       ])
       expect(result.value.connectedBy).toBe(base.connectedBy)
-      expect(result.value.visibility).toBe('organization')
       expect(result.value.status).toBe('active')
       expect(result.value.createdAt).toBe(now)
       expect(result.value.updatedAt).toBe(now)
