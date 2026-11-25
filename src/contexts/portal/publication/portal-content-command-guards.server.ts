@@ -16,7 +16,7 @@ import type {
   UpdatePortalLinkCommand,
 } from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
-import { sameInstant } from './portal-command-guards.server'
+import { isFactAt } from './portal-command-guards.server'
 import {
   recordPortalContentChange,
   type PortalPageEditEntry,
@@ -91,8 +91,7 @@ function startedCategoryIsScoped(command: CreatePortalLinkCommand): boolean {
     event.organizationId === command.organizationId &&
     event.propertyId === command.propertyId &&
     event.portalId === command.portalId &&
-    event.sourceAggregateVersion === command.revision.toISOString() &&
-    sameInstant(event.occurredAt, command.occurredAt)
+    isFactAt(event, command.revision, command.occurredAt)
   )
 }
 
@@ -139,8 +138,7 @@ export function assertPortalContentCommand(command: PortalContentCommand): void 
     event.organizationId !== command.organizationId ||
     event.propertyId !== command.propertyId ||
     event.portalId !== command.portalId ||
-    event.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(event.occurredAt, command.occurredAt) ||
+    !isFactAt(event, command.revision, command.occurredAt) ||
     !scoped
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal content change')

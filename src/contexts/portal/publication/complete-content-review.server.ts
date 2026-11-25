@@ -72,12 +72,6 @@ export const completeContentReview = (deps: CompleteContentReviewDeps) => {
     if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot complete Portal content review')
     }
-    if (input.reviewId.trim().length === 0) {
-      throw portalError('invalid_name', 'reviewId must be non-empty')
-    }
-    if (!Number.isInteger(input.revision) || input.revision < 1) {
-      throw portalError('invalid_name', 'revision must be a positive integer')
-    }
     if (input.revision > 1 && !input.supersedes) {
       throw portalError('invalid_name', 'a correction must identify the superseded fact')
     }
@@ -98,12 +92,6 @@ export const completeContentReview = (deps: CompleteContentReviewDeps) => {
       'portal.update',
       portal.propertyId,
     )
-    if (portal.publicationState !== 'published') {
-      throw portalError(
-        'invalid_publication_transition',
-        'content review can only be completed for published Portal content',
-      )
-    }
 
     const occurredAt = deps.clock()
     const group = await deps.portalGroupLookup.findGroupForPortal(

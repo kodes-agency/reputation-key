@@ -12,7 +12,6 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  portals,
   portalPublicationActivations,
   portalPublicationSnapshots,
 } from '#/shared/db/schema'
@@ -31,7 +30,12 @@ import { portalError } from '../domain/errors'
 import { workingCopyMatchesSnapshot } from './portal-working-copy-match.server'
 import { verifyPortalPublicationSnapshot } from './portal-publication-snapshot.server'
 import { snapshotMirrorColumns } from './portal-publication-snapshot-mapper.server'
-import { assertCommittedRevision, sameInstant } from './portal-command-guards.server'
+import {
+  assertRevisionAdvances,
+  casPortalRow,
+  isFactAt,
+  sameInstant,
+} from './portal-command-guards.server'
 import { lockPortalPublicationProperty } from './portal-publication-serialization.server'
 import { resolvePortalPendingContentChanges } from './portal-pending-content-changes.server'
 import { readPortalWorkingCopy } from './portal-working-copy-reader.server'
@@ -166,7 +170,6 @@ function assertRepublishActivation(command: RepublishPortalCommand): void {
 
 /** Both facts name this Portal at this revision, and the publication fact quotes this snapshot. */
 function assertRepublishFacts(command: RepublishPortalCommand): void {
-  const version = command.revision.toISOString()
   const { event, lifecycleEvent, snapshot } = command
   const inScope = (fact: Readonly<PublicationScope>) =>
     fact.organizationId === command.organizationId &&
@@ -176,11 +179,9 @@ function assertRepublishFacts(command: RepublishPortalCommand): void {
     !inScope(event) ||
     event.previousPublicationState !== 'published' ||
     event.publicationState !== 'published' ||
-    event.sourceAggregateVersion !== version ||
-    !sameInstant(event.occurredAt, command.occurredAt) ||
+    !isFactAt(event, command.revision, command.occurredAt) ||
     !inScope(lifecycleEvent) ||
-    lifecycleEvent.sourceAggregateVersion !== version ||
-    !sameInstant(lifecycleEvent.occurredAt, command.occurredAt) ||
+    !isFactAt(lifecycleEvent, command.revision, command.occurredAt) ||
     lifecycleEvent.userId !== command.actorUserId ||
     String(lifecycleEvent.userId) !== snapshot.createdBy ||
     lifecycleEvent.publicationSnapshotId !== snapshot.id ||
@@ -197,12 +198,7 @@ function assertRepublishFacts(command: RepublishPortalCommand): void {
 function assertRepublishCommand(command: RepublishPortalCommand): void {
   assertRepublishActivation(command)
   assertRepublishFacts(command)
-  if (command.revision.getTime() <= command.expectedUpdatedAt.getTime()) {
-    throw portalError(
-      'revision_conflict',
-      'Portal command revision must advance monotonically',
-    )
-  }
+  assertRevisionAdvances(command.revision, command.expectedUpdatedAt, 'Portal')
 }
 
 export const createPortalPublicationCommands = (
@@ -219,25 +215,14 @@ export const createPortalPublicationCommands = (
         )
         // The Portal must be Published right now: this is a replacement, never
         // a way to take a Portal live.
-        const [updated] = await tx
-          .update(portals)
-          .set({ updatedAt: command.revision })
-          .where(
-            and(
-              eq(portals.organizationId, unbrand(command.organizationId)),
-              eq(portals.propertyId, unbrand(command.propertyId)),
-              eq(portals.id, unbrand(command.portalId)),
-              eq(portals.publicationState, 'published'),
-              eq(portals.updatedAt, command.expectedUpdatedAt),
-              isNull(portals.deletedAt),
-            ),
-          )
-          .returning({ updatedAt: portals.updatedAt })
-        assertCommittedRevision(
-          updated,
-          command.revision,
-          'Portal',
-          'Portal changed while its changes were being published',
+        await casPortalRow(
+          tx,
+          command,
+          { expected: command.expectedUpdatedAt, next: command.revision },
+          {
+            state: 'published',
+            conflictMessage: 'Portal changed while its changes were being published',
+          },
         )
         // The Portal row is locked, which holds its links, categories and link
         // texts still: their writers take the same row first. The comparison
