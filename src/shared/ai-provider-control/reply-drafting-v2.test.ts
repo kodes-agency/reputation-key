@@ -4,6 +4,7 @@ import {
   openAiPreparationRegistry,
 } from './provider-registry.test-fixtures'
 import * as leakage from '#/shared/reply/ai-reply-output-leakage'
+import { getLogger } from '#/shared/observability/logger'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
 import { settledCostMicros } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
@@ -322,7 +323,9 @@ describe('reply v2 provider preparation and acceptance', () => {
     })
     const lease = createSensitiveSourceLease<typeof request>()
     lease.attachSource(structuredClone(request), (value) => value.source)
-    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    const logged = ['warn', 'error'].map((level) =>
+      vi.spyOn(getLogger(), level as 'warn').mockImplementation(() => {}),
+    )
     try {
       const result = await service.execute(lease, new AbortController().signal)
       expect(result).toMatchObject({
@@ -338,10 +341,12 @@ describe('reply v2 provider preparation and acceptance', () => {
         outputTokens: 20,
       })
       expect(JSON.stringify(result)).not.toContain(rejected)
-      expect(JSON.stringify(stderr.mock.calls)).not.toContain('cockroaches')
+      expect(JSON.stringify(logged.map((spy) => spy.mock.calls))).not.toContain(
+        'cockroaches',
+      )
       expect(JSON.stringify(charge.mock.calls)).not.toContain('avoidTerms')
     } finally {
-      stderr.mockRestore()
+      for (const spy of logged) spy.mockRestore()
     }
   })
 })
