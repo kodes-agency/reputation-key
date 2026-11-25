@@ -2,7 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import {
-  changeGuestResponseIntegrity,
   initialGuestResponseIntegrityDecision,
   type GuestResponseInitialIntegrityAssessment,
 } from '../domain/guest-response-integrity'
@@ -24,19 +23,16 @@ import {
   STAFF_PARTICIPANT,
   STAFF_PARTICIPATION,
   STAFF_PARTICIPATION_REPLACEMENT,
-  arrangeSubmitted,
   commitSubmittedWithFeedback,
   ratingOnlyResponse,
   buildGuestResponse,
   createAtomicGuestResponseCommandStore,
   createGuestResponseRepository,
   deleteGuestResponseTenants,
-  excludeForReview,
   facts,
   feedbackFact,
   outboxTypes,
   ratingFact,
-  ratingRetraction,
   resetGuestResponseState,
   responseRow,
   seedGuestResponseTenants,
@@ -274,36 +270,6 @@ describe.sequential('atomic Guest response submission', () => {
       },
     ])
     expect(await outboxTypes()).toHaveLength(0)
-
-    const reviewedAt = new Date('2026-08-27T09:00:00.000Z')
-    const restored = changeGuestResponseIntegrity(
-      filtered,
-      {
-        outcome: 'accepted',
-        reasonCode: 'reviewer_restored',
-        source: 'reviewer',
-        actorId: 'reviewer-1',
-      },
-      reviewedAt,
-    )
-    if ('code' in restored) throw new Error(restored.code)
-    const restoredRating = ratingFact()
-    await expect(
-      store.commitIntegrityChanged(filtered, restored.response, restored.decision, [
-        restoredRating,
-      ]),
-    ).resolves.toBe('applied')
-
-    const restoredRow = await responseRow(
-      'rating, integrity_outcome, integrity_assessed_at, rating_source_event_id',
-    )
-    expect(restoredRow[0]).toMatchObject({
-      rating: 2,
-      integrity_outcome: 'accepted',
-      rating_source_event_id: restoredRating.eventId,
-    })
-    expect(new Date(String(restoredRow[0]!.integrity_assessed_at))).toEqual(reviewedAt)
-    expect(restoredRating.occurredAt).toEqual(NOW)
   })
 
   it('fails closed when a new submission has no experience snapshot', async () => {
@@ -328,68 +294,6 @@ describe.sequential('atomic Guest response submission', () => {
     )
 
     expect(await outboxTypes()).toHaveLength(1)
-  })
-
-  it('atomically audits eligibility changes and their correction facts', async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const { originalRating, persisted } = await arrangeSubmitted(store)
-    const reviewedAt = new Date('2026-08-25T12:10:00.000Z')
-    const excluded = excludeForReview(persisted, reviewedAt)
-    const retraction = ratingRetraction({
-      supersedesSourceEventId: originalRating.eventId,
-      occurredAt: reviewedAt,
-    })
-
-    await expect(
-      store.commitIntegrityChanged(persisted, excluded.response, excluded.decision, [
-        retraction,
-      ]),
-    ).resolves.toBe('applied')
-    await expect(
-      store.commitIntegrityChanged(persisted, excluded.response, excluded.decision, [
-        retraction,
-      ]),
-    ).resolves.toBe('conflict')
-
-    expect(
-      await responseRow(
-        `rating, integrity_outcome, integrity_reason_code,
-         integrity_revision, rating_source_event_id`,
-      ),
-    ).toEqual([
-      {
-        rating: 2,
-        integrity_outcome: 'under_review',
-        integrity_reason_code: 'traffic_velocity_anomaly',
-        integrity_revision: 2,
-        rating_source_event_id: null,
-      },
-    ])
-    const decisions = await db.execute(sql`
-      SELECT revision, previous_outcome, outcome, reason_code, source, actor_id
-      FROM guest_response_integrity_decisions
-      WHERE response_id = ${RESPONSE}
-      ORDER BY revision
-    `)
-    expect(decisions.rows).toEqual([
-      {
-        revision: 1,
-        previous_outcome: null,
-        outcome: 'accepted',
-        reason_code: 'initial_submission',
-        source: 'system',
-        actor_id: 'guest.gateway',
-      },
-      {
-        revision: 2,
-        previous_outcome: 'accepted',
-        outcome: 'under_review',
-        reason_code: 'traffic_velocity_anomaly',
-        source: 'automatic',
-        actor_id: 'guest-integrity-v1',
-      },
-    ])
-    expect(await outboxTypes('guest.rating.retracted')).toHaveLength(1)
   })
 
   it('summarizes current outcomes by corrected rating time with half-open bounds', async () => {

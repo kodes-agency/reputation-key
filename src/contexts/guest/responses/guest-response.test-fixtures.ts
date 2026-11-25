@@ -25,7 +25,6 @@ import {
   guestRatingSubmitted,
 } from '../domain/events'
 import type { GuestResponse } from '../domain/guest-response'
-import { changeGuestResponseIntegrity } from '../domain/guest-response-integrity'
 import { createAtomicGuestResponseCommandStore as createAtomicGuestResponseCommandStoreFactory } from './guest-response-command-store.server'
 import { createGuestResponseRepository as createGuestResponseRepositoryFactory } from './guest-response.repository.server'
 
@@ -42,13 +41,13 @@ export const STAFF_PARTICIPATION_REPLACEMENT = '51000000-0000-4000-8000-00000000
 export const PORTAL_RESPONSIBILITY = '51000000-0000-4000-8000-000000000009'
 export const PORTAL_RESPONSIBILITY_REPLACEMENT = '51000000-0000-4000-8000-000000000010'
 export const NOW = new Date('2026-08-25T12:00:00.000Z')
-export const CORRECTED_AT = new Date('2026-08-25T12:30:00.000Z')
+const CORRECTED_AT = new Date('2026-08-25T12:30:00.000Z')
 export const STAFF_EFFECTIVE_FROM = new Date('2026-08-01T00:00:00.000Z')
 // A second tenant whose response the cross-tenant commands aim at.
 const OTHER_ORG = organizationId('org-guest-response-command-store-other')
 const OTHER_PROPERTY = propertyId('51000000-0000-4000-8000-000000000021')
 const OTHER_PORTAL = portalId('51000000-0000-4000-8000-000000000022')
-export const OTHER_RESPONSE = guestResponseId('51000000-0000-4000-8000-000000000023')
+const OTHER_RESPONSE = guestResponseId('51000000-0000-4000-8000-000000000023')
 const OTHER_SESSION = guestSessionId('51000000-0000-4000-8000-000000000024')
 
 export const STAFF_ATTRIBUTION = {
@@ -329,22 +328,6 @@ export async function submitAndCorrect(store: Store) {
   const { correction, corrected } = ratingCorrection(submitted.persisted)
   await store.commitCorrected(submitted.persisted, corrected, [correction])
   return { ...submitted, correction }
-}
-
-/** An automatic hold that excludes the response from the rating. */
-export function excludeForReview(persisted: GuestResponse, reviewedAt: Date) {
-  const excluded = changeGuestResponseIntegrity(
-    persisted,
-    {
-      outcome: 'under_review',
-      reasonCode: 'traffic_velocity_anomaly',
-      source: 'automatic',
-      actorId: 'guest-integrity-v1',
-    },
-    reviewedAt,
-  )
-  if ('code' in excluded) throw new Error(excluded.code)
-  return excluded
 }
 
 /** Commit the second tenant's response through the store, as a real submission does. */

@@ -30,16 +30,6 @@ export type GuestResponseCommandStore = Readonly<{
     response: GuestResponse,
     facts: ReadonlyArray<GuestMutationFact>,
   ): Promise<'applied' | 'conflict'>
-  /**
-   * Compare-and-set a reasoned integrity decision with any rating eligibility
-   * correction it causes. The numeric response is never deleted by this path.
-   */
-  commitIntegrityChanged(
-    previous: GuestResponse,
-    response: GuestResponse,
-    decision: GuestResponseIntegrityDecision,
-    facts: ReadonlyArray<GuestMutationFact>,
-  ): Promise<'applied' | 'conflict'>
   /** Add the one eligible private-feedback fact without consuming rating correction. */
   commitFeedbackAdded(
     response: GuestResponse,

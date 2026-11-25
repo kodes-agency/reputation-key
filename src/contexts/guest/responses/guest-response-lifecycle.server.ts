@@ -18,13 +18,10 @@ import {
   type ResponseError,
 } from '../domain/guest-response'
 import {
-  changeGuestResponseIntegrity,
   DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT,
   initialGuestResponseIntegrityDecision,
   isRatingMetricEligible,
-  ratingMetricOccurredAt,
   type GuestResponseInitialIntegrityAssessment,
-  type GuestResponseIntegrityOutcome,
 } from '../domain/guest-response-integrity'
 import {
   guestFeedbackRetracted,
@@ -302,47 +299,6 @@ export function guestResponseLifecycle(
     return facts
   }
 
-  const integrityFacts = (
-    previous: GuestResponse,
-    changed: GuestResponse,
-  ): GuestMutationFact[] => {
-    const wasEligible = isRatingMetricEligible(previous)
-    const isEligible = isRatingMetricEligible(changed)
-    if (wasEligible === isEligible) return []
-    const scopeIds = {
-      organizationId: organizationId(changed.organizationId),
-      portalId: portalId(changed.portalId),
-      propertyId: propertyId(changed.propertyId),
-    }
-    // The two are proven to differ above, so branching on `isEligible`
-    // (rather than `wasEligible`) narrows `changed.rating` to `number` in the
-    // submitted-fact branch below without a non-null assertion.
-    if (!isEligible) {
-      if (!previous.ratingSourceEventId) {
-        throw new GuestResponseLifecycleError('response_unavailable')
-      }
-      return [
-        guestRatingRetracted({
-          ratingId: ratingId(changed.id),
-          ...scopeIds,
-          supersedesSourceEventId: previous.ratingSourceEventId,
-          occurredAt: changed.integrityAssessedAt,
-          staffAttribution: changed.staffAttribution,
-        }),
-      ]
-    }
-    return [
-      guestRatingSubmitted({
-        ratingId: ratingId(changed.id),
-        ...scopeIds,
-        value: changed.rating,
-        supersedesSourceEventId: previous.ratingSourceEventId,
-        occurredAt: ratingMetricOccurredAt(changed),
-        staffAttribution: changed.staffAttribution,
-      }),
-    ]
-  }
-
   const requireKnownFactLineage = (response: GuestResponse): void => {
     if (
       (isRatingMetricEligible(response) && !response.ratingSourceEventId) ||
@@ -503,39 +459,6 @@ export function guestResponseLifecycle(
         throw new GuestResponseLifecycleError('already_submitted')
       }
       return toView(corrected, deps.clock())
-    },
-
-    /**
-     * Internal integrity control. Delivery layers must keep this unavailable to
-     * Property managers; no server function reaches it.
-     */
-    changeIntegrity: async (
-      scope: GuestResponseScope,
-      responseId: GuestResponseId,
-      input: Readonly<{
-        outcome: GuestResponseIntegrityOutcome
-        reasonCode: string
-        source: 'automatic' | 'reviewer'
-        actorId: string
-      }>,
-    ) => {
-      const current = await deps.repo.findById(scope, responseId)
-      if (!current) throw new GuestResponseLifecycleError('response_not_found')
-      requireKnownFactLineage(current)
-      const changed = changeGuestResponseIntegrity(current, input, deps.clock())
-      if ('code' in changed) throw new GuestResponseLifecycleError(changed.code)
-      const facts = integrityFacts(current, changed.response)
-      if (
-        (await deps.commandStore.commitIntegrityChanged(
-          current,
-          changed.response,
-          changed.decision,
-          facts,
-        )) !== 'applied'
-      ) {
-        throw new GuestResponseLifecycleError('response_unavailable')
-      }
-      return changed.decision
     },
 
     withdraw: async (
