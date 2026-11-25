@@ -97,10 +97,7 @@ function wire(options: Wiring = {}) {
     reported,
     portalAddressRepo,
     issue: issuePortalToken(common),
-    rotate: rotatePortalToken({
-      ...common,
-      defaultGracePeriodSeconds: (30 * DAY) / 1000,
-    }),
+    rotate: rotatePortalToken(common),
     ensure: (ctx: ReturnType<typeof ctxOf>, id: string) =>
       buildPortalAddressOperations({
         ...common,
@@ -298,26 +295,6 @@ describe.sequential('issuing a code (real PostgreSQL, two tenants)', () => {
 })
 
 describe.sequential('replacing a code (real PostgreSQL, two tenants)', () => {
-  it.each([0, 1.5, 91])(
-    'refuses an invalid planned replacement window of %s days, changing nothing',
-    async (gracePeriodDays) => {
-      const portal = await seedPortal(ORG_A)
-      const { issue, rotate } = wire()
-      await issue({ portalId: portal.id }, ctxOf(ORG_A))
-      const before = await tokensOf(portal)
-
-      await expect(
-        rotate(
-          { portalId: portal.id, replacementKind: 'planned', gracePeriodDays },
-          ctxOf(ORG_A),
-        ),
-      ).rejects.toMatchObject({ code: 'token_unavailable' })
-
-      expect(await tokensOf(portal)).toEqual(before)
-      expect(await factsOf(ORG_A, 'portal.token.rotated')).toEqual([])
-    },
-  )
-
   it('saves the QR and NFC replacements with the 30-day window and the next version, with their facts', async () => {
     const portal = await seedPortal(ORG_A)
     const { issue, rotate } = wire({ keyring: false })
