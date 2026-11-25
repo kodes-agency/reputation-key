@@ -208,9 +208,8 @@ async function projection() {
     ),
     getPool().query(
       `SELECT current_cycle_number::int AS "cycleNumber",
-              current_source_revision::int AS "sourceRevision",
-              current_material_review_revision::int AS "materialRevision", status
-       FROM inbox_handling_cycle_heads WHERE organization_id = $1`,
+              current_source_revision::int AS "sourceRevision", status
+       FROM inbox_items WHERE organization_id = $1`,
       [ORG],
     ),
     getPool().query(
@@ -243,7 +242,7 @@ describe.sequential('Inbox projection across a source-epoch change', () => {
 
     expect(await projection()).toEqual({
       cycles: [{ cycleNumber: 1, sourceRevision: 1 }],
-      head: [{ cycleNumber: 1, sourceRevision: 2, materialRevision: 2, status: 'open' }],
+      head: [{ cycleNumber: 1, sourceRevision: 2, status: 'open' }],
       revisionChanges: [],
     })
   })
@@ -264,7 +263,7 @@ describe.sequential('Inbox projection across a source-epoch change', () => {
         { cycleNumber: 1, sourceRevision: 1 },
         { cycleNumber: 2, sourceRevision: 3 },
       ],
-      head: [{ cycleNumber: 2, sourceRevision: 3, materialRevision: 3, status: 'open' }],
+      head: [{ cycleNumber: 2, sourceRevision: 3, status: 'open' }],
       revisionChanges: [{ cycleNumber: 2, openedWithItem: false }],
     })
   })
@@ -294,7 +293,7 @@ describe.sequential('Inbox projection across a source-epoch change', () => {
 
     expect(await projection()).toEqual({
       cycles: [{ cycleNumber: 1, sourceRevision: 1 }],
-      head: [{ cycleNumber: 1, sourceRevision: 2, materialRevision: 2, status: 'open' }],
+      head: [{ cycleNumber: 1, sourceRevision: 2, status: 'open' }],
       revisionChanges: [],
     })
   })

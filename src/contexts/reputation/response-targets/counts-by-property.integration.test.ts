@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
+import { setInboxItemCycleFacts } from '#/shared/testing/inbox-cycle-facts'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
@@ -165,15 +165,13 @@ async function seedReviewTarget(input: ReviewTargetFixture): Promise<void> {
                'review_observed', $5, $5)`,
     [input.itemId, ORG, input.propertyId, input.reviewId, STARTED_AT],
   )
-  await pool.query(
-    `INSERT INTO inbox_handling_cycle_heads (
-       inbox_item_id, organization_id, property_id, source_type, source_id,
-       current_source_revision, review_id, current_cycle_number,
-       current_material_review_revision, state_revision, status, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'review', $4, 1, $4, 1, 1, 1, $5, $6, $6)`,
-    [input.itemId, ORG, input.propertyId, input.reviewId, headStatus, STARTED_AT],
-  )
-  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
+  await setInboxItemCycleFacts(pool, {
+    itemId: input.itemId,
+    cycleNumber: 1,
+    sourceRevision: 1,
+    stateRevision: 1,
+    status: headStatus,
+  })
   await pool.query(
     `INSERT INTO inbox_handling_cycle_response_targets (
        inbox_item_id, cycle_number, organization_id, property_id,
@@ -220,15 +218,13 @@ async function seedPrivateFeedbackTarget(): Promise<void> {
                'feedback_submitted', $5, $5)`,
     [PRIVATE_FEEDBACK_ITEM, ORG, OVERDUE_PROPERTY, PRIVATE_FEEDBACK, STARTED_AT],
   )
-  await pool.query(
-    `INSERT INTO inbox_handling_cycle_heads (
-       inbox_item_id, organization_id, property_id, source_type, source_id,
-       current_source_revision, current_cycle_number, state_revision,
-       status, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'feedback', $4, 1, 1, 1, 'open', $5, $5)`,
-    [PRIVATE_FEEDBACK_ITEM, ORG, OVERDUE_PROPERTY, PRIVATE_FEEDBACK, STARTED_AT],
-  )
-  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
+  await setInboxItemCycleFacts(pool, {
+    itemId: PRIVATE_FEEDBACK_ITEM,
+    cycleNumber: 1,
+    sourceRevision: 1,
+    stateRevision: 1,
+    status: 'open',
+  })
   await pool.query(
     `INSERT INTO inbox_handling_cycle_response_targets (
        inbox_item_id, cycle_number, organization_id, property_id,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
+import { setInboxItemCycleFacts } from '#/shared/testing/inbox-cycle-facts'
 import { createResponseTargetPolicyStore } from './policy.store.server'
 import { createResponseTargetStore } from './store.server'
 import {
@@ -56,15 +56,13 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
        ) VALUES ($1, 1, $2, $3, 'feedback', $4, 1, 'legacy_backfill', $5, $5)`,
       [LEGACY_ITEM, ORG, PROPERTY, LEGACY_FEEDBACK, OPENED_AT],
     )
-    await pool.query(
-      `INSERT INTO inbox_handling_cycle_heads (
-         inbox_item_id, organization_id, property_id, source_type, source_id,
-         current_source_revision, current_cycle_number, state_revision, status,
-         created_at, updated_at
-       ) VALUES ($1, $2, $3, 'feedback', $4, 1, 1, 1, 'open', $5, $5)`,
-      [LEGACY_ITEM, ORG, PROPERTY, LEGACY_FEEDBACK, OPENED_AT],
-    )
-    await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
+    await setInboxItemCycleFacts(pool, {
+      itemId: LEGACY_ITEM,
+      cycleNumber: 1,
+      sourceRevision: 1,
+      stateRevision: 1,
+      status: 'open',
+    })
     await pool.query(
       `INSERT INTO inbox_handling_cycle_response_targets (
          inbox_item_id, cycle_number, organization_id, property_id,

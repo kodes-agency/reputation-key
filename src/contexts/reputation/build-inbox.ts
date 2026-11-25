@@ -57,10 +57,6 @@ import { createReviewHandlingCycleStore } from './inbox/review-handling-cycle-st
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 import { createResponseTargetStore } from './response-targets/store.server'
 import { createRestatedRevisionTargetExclusionStore } from './response-targets/restated-revision-target-exclusion-store.server'
-import {
-  createCycleHeadFactsStore,
-  type CycleHeadFactsStore,
-} from './inbox/inbox-cycle-head-facts-store.server'
 import { createResponseTargetPolicyStore } from './response-targets/policy.store.server'
 import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { registerInboxPropertyLifecycleConsumers } from './response-targets/property-lifecycle-outbox-consumers.server'
@@ -123,9 +119,6 @@ export type InboxContextApi = Readonly<{
     /** Leaves the Response Targets of restated revisions out of every count
      * (`pnpm ops inbox exclude-restated-revision-targets`). */
     responseTargetExclusions: RestatedRevisionTargetExclusions
-    /** Copies the Handling Cycle facts from the heads onto the Inbox rows
-     * (`pnpm ops inbox-cycle-facts backfill`). */
-    cycleHeadFacts: CycleHeadFactsStore
   }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
@@ -236,7 +229,6 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   const maintenance = Object.freeze({
     rebuildInboxProjection: useCases.rebuildInboxProjection,
     responseTargetExclusions: createRestatedRevisionTargetExclusionStore(input.db),
-    cycleHeadFacts: createCycleHeadFactsStore(input.db),
   })
 
   // Durable consumer registration is the single cross-context delivery path.

@@ -6,7 +6,6 @@ import {
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
   cycleHeadItemColumns,
-  mirrorCycleHead,
   persistedHeadFromItemRow,
 } from '#/contexts/reputation/inbox/inbox-cycle-head.server'
 import {
@@ -315,13 +314,6 @@ export const createSourceCommands = (
               'Handling Cycle changed during withdrawal',
             )
           }
-          await mirrorCycleHead(tx, {
-            inboxItemId: command.item.id,
-            organizationId: command.item.organizationId,
-            sourceType: command.item.sourceType,
-            head: decision.value.head,
-            updatedAt: command.now,
-          })
           await insertOutboxRow(tx, command.fact)
           await insertOutboxRow(tx, lifecycleFact)
           return 'applied' as const

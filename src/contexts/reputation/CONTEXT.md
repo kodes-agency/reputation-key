@@ -185,7 +185,7 @@ authority check and the single-row transition runner): `assignment-commands`
 reopen, escalation and priority), `note-commands` and `source-commands`
 (create, source projection, withdrawal, transition, reply observation and
 receipts). Helpers shared with the other Inbox stores sit beside them in
-`inbox/` (guards, cycle head, projection, histories, mappers).
+`inbox/` (guards, cycle facts, projection, histories, mappers).
 
 ## Review sync
 
@@ -523,8 +523,13 @@ the request. The counts carry it as `replyStages`.
 
 1. Bare ratings (no feedback comment) create no Inbox Items.
 2. A Handling Cycle is an immutable numbered episode anchored to one source
-   revision; its compare-and-swap head selects the current episode and state
-   revision. Human mutations compare-and-swap the observed item revision.
+   revision; the Inbox row carries the current episode's facts (cycle number,
+   source revision, state revision) and every writer compare-and-swaps on them.
+   The current cycle row's RESTRICT foreign key
+   (`inbox_handling_cycles_material_revision_fk`) keeps the Material Review
+   Revision it is anchored to from being deleted. Human mutations
+   compare-and-swap the observed item revision. `inbox_handling_cycle_heads` is
+   retired: nothing reads or writes it, and it stays until the table is dropped.
 3. Every human command authorizes its complete unique `(principal, Property)`
    set once inside the write transaction, in stable order. A single-item command
    decides Property scope before it answers the revision.
@@ -545,8 +550,8 @@ the request. The counts carry it as `replyStages`.
    `review.reply.published` are not Google truth and cannot change status.
 8. A guest edit on a closed Review cycle reopens it (`material_revision_changed`);
    an edit over an open cycle, or new private feedback, is an opening. A source
-   epoch carry of unchanged material advances the head in place and opens
-   nothing.
+   epoch carry of unchanged material advances the Inbox row's source revision in
+   place and opens nothing.
 9. A stale or replayed observation cannot close or reopen work twice. An orphan
    or mismatched compatibility row is repair-visible, never actionable.
 10. Response Targets default to 48 elapsed hours and never mix Review and

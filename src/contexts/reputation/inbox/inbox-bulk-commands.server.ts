@@ -19,7 +19,7 @@ import {
   type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards.server'
-import { cycleHeadItemColumns, mirrorCycleHead } from './inbox-cycle-head.server'
+import { cycleHeadItemColumns } from './inbox-cycle-head.server'
 import { resolveBulkReopenAssignee } from './inbox-bulk-reopen-assignee.server'
 import {
   appendAssignmentHistory,
@@ -191,13 +191,6 @@ export async function reopenLockedBulkItem(
       'Inbox item changed while its bulk reopen lock was held',
     )
   }
-  await mirrorCycleHead(tx, {
-    inboxItemId: item.id,
-    organizationId: item.organizationId,
-    sourceType: item.sourceType,
-    head: decision.value.head,
-    updatedAt: now,
-  })
   if (unassignedFact) {
     await appendAssignmentHistory(tx, item, {
       resultingCommandRevision: row.commandRevision,

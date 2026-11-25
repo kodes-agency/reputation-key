@@ -253,7 +253,6 @@ describe.sequential('a guest edit of an answered Google review (real PostgreSQL)
     await readReply(OLD_REPLY, 1, CLOCK.hoursAfter(1, 1))
     expect(await fixtures.inboxState()).toEqual({
       itemStatus: 'closed',
-      cycleStatus: 'closed',
       cycleNumber: 1,
       sourceRevision: 1,
     })
@@ -279,7 +278,6 @@ describe.sequential('a guest edit of an answered Google review (real PostgreSQL)
     expect(await fixtures.outboxEvents('review.reply.observed')).toHaveLength(1)
     expect(await fixtures.inboxState()).toEqual({
       itemStatus: 'open',
-      cycleStatus: 'open',
       cycleNumber: 2,
       sourceRevision: 2,
     })
@@ -316,7 +314,6 @@ describe.sequential('a guest edit of an answered Google review (real PostgreSQL)
     })
     expect(await fixtures.inboxState()).toEqual({
       itemStatus: 'closed',
-      cycleStatus: 'closed',
       cycleNumber: 2,
       sourceRevision: 2,
     })
@@ -345,7 +342,7 @@ describe.sequential('a guest edit of an answered Google review (real PostgreSQL)
       expect.objectContaining({ cycleNumber: 2, openedWithItem: false }),
     ])
     expect(await fixtures.inboxState()).toMatchObject({
-      cycleStatus: 'open',
+      itemStatus: 'open',
       cycleNumber: 2,
     })
   })
@@ -380,7 +377,7 @@ describe.sequential("a new Google review's arrival notice (real PostgreSQL)", ()
 
   it('writes nothing when the owner answered before the fan-out ran', async () => {
     await readReply(OLD_REPLY, 1, CLOCK.hoursAfter(1, 1))
-    expect(await fixtures.inboxState()).toMatchObject({ cycleStatus: 'closed' })
+    expect(await fixtures.inboxState()).toMatchObject({ itemStatus: 'closed' })
 
     await expect(writeNotices(await fanOutArrival())).resolves.toEqual([])
   })

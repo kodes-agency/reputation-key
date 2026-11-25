@@ -154,11 +154,11 @@ export const inboxItems = pgTable(
 /**
  * Immutable opening facts for numbered source Handling Cycles (ADR 0055).
  *
- * The mutable current pointer lives in `inbox_handling_cycle_heads`; starting
- * another cycle only appends here, so an earlier work episode and its source
- * revision anchor are never rewritten. A Review cycle is anchored to a
- * Material Review Revision; a feedback cycle is anchored to the Guest
- * Response Revision at which private feedback was submitted.
+ * The mutable current pointer lives on the Inbox row (`current_cycle_number` and
+ * its neighbours); starting another cycle only appends here, so an earlier work
+ * episode and its source revision anchor are never rewritten. A Review cycle is
+ * anchored to a Material Review Revision; a feedback cycle is anchored to the
+ * Guest Response Revision at which private feedback was submitted.
  */
 export const inboxHandlingCycles = pgTable(
   'inbox_handling_cycles',
@@ -305,9 +305,12 @@ export const inboxHandlingCycles = pgTable(
 )
 
 /**
- * Mirror of the Inbox row's current Handling Cycle facts, still written beside
- * it. A Review epoch carry may advance the source fence without replacing the
- * immutable cycle.
+ * RETIRED: neither read nor written. It mirrored the Inbox row's current
+ * Handling Cycle facts and is kept only so the schema matches the database until
+ * the table is dropped; the Inbox row carries the facts, and the current cycle
+ * row's own RESTRICT foreign key (`inbox_handling_cycles_material_revision_fk`)
+ * keeps its Material Review Revision from being deleted. Do not add a reader or
+ * a writer.
  */
 export const inboxHandlingCycleHeads = pgTable(
   'inbox_handling_cycle_heads',

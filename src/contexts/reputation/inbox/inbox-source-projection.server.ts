@@ -39,11 +39,7 @@ import {
   type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards.server'
-import {
-  cycleHeadItemColumns,
-  mirrorCycleHead,
-  persistedHeadFromItemRow,
-} from './inbox-cycle-head.server'
+import { cycleHeadItemColumns, persistedHeadFromItemRow } from './inbox-cycle-head.server'
 import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head.server'
 import { closeReviewCycleOnGoogleReply } from './review-reply-close.server'
 
@@ -316,7 +312,6 @@ export async function catchUpProjectionRevisions(
         item: input.item,
         head: current,
         carriedFrom: current.currentSourceRevision,
-        observedAt: revision.observedAt,
       })
       if (!carried) {
         throw inboxError(
@@ -364,13 +359,6 @@ export async function catchUpProjectionRevisions(
         'Inbox Review projection changed during history catch-up',
       )
     }
-    await mirrorCycleHead(tx, {
-      inboxItemId: input.item.id,
-      organizationId: input.item.organizationId,
-      sourceType: 'review',
-      head: { ...decision.value.head, status: 'open' },
-      updatedAt: revision.observedAt,
-    })
     for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
     advanced = true
     current = decision.value.head
@@ -423,13 +411,6 @@ export async function closeCycleForErasedSource(
       'Inbox Review projection changed during inactive-source close',
     )
   }
-  await mirrorCycleHead(tx, {
-    inboxItemId: item.id,
-    organizationId: item.organizationId,
-    sourceType: item.sourceType,
-    head: closed.value.head,
-    updatedAt: erasedAt,
-  })
   const fact = lifecycleFactFor(closed.value.transition)
   await insertOutboxRow(tx, fact)
   return closed.value.head
@@ -589,13 +570,6 @@ export async function reopenCycleOnDeletedReply(
       'Review Handling Cycle changed during provider reopen',
     )
   }
-  await mirrorCycleHead(tx, {
-    inboxItemId: command.item.id,
-    organizationId: command.item.organizationId,
-    sourceType: 'review',
-    head: decision.value.head,
-    updatedAt: observation.observedAt,
-  })
   await insertOutboxRow(tx, command.reopenFact)
   for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
 }
@@ -671,13 +645,6 @@ export async function openNextFeedbackCycleOnResubmission(
       'Guest Handling Cycle changed during feedback submission',
     )
   }
-  await mirrorCycleHead(tx, {
-    inboxItemId: item.id,
-    organizationId: item.organizationId,
-    sourceType: 'feedback',
-    head: decision.value.head,
-    updatedAt: cycleAnchor.openedAt,
-  })
   for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
   return cycleFacts
 }
@@ -730,13 +697,6 @@ export async function closeCycleForSourceTransition(
       'Review Handling Cycle changed during source transition',
     )
   }
-  await mirrorCycleHead(tx, {
-    inboxItemId: item.id,
-    organizationId: item.organizationId,
-    sourceType: 'review',
-    head: cycleDecision.value.head,
-    updatedAt: transitionedAt,
-  })
   return cycleFact
 }
 

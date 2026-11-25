@@ -11,7 +11,7 @@ import { dbQuery } from './fixture-db'
  * lives on the property slug and the connection subject. Those reviews matched
  * none of the review-anchored deletes below, survived into the next run, and
  * the property sweep later tried to cascade them away — which
- * `inbox_handling_cycle_heads_material_revision_fk` (RESTRICT) refuses, so
+ * `inbox_handling_cycles_material_revision_fk` (RESTRICT) refuses, so
  * cleanup aborted and left the database permanently poisoned for that file.
  */
 const FIXTURE_REVIEWS = `SELECT r.id FROM reviews r

@@ -515,7 +515,6 @@
   "src/contexts/reputation/inbox/inbox-actor-directory.adapter.integration.test.ts": 100,
   "src/contexts/reputation/inbox/inbox-command-authority.integration.test.ts": 400,
   "src/contexts/reputation/inbox/inbox-command-store.integration.test.ts": 1500,
-  "src/contexts/reputation/inbox/inbox-cycle-head-facts-store.integration.test.ts": 100,
   "src/contexts/reputation/inbox/inbox-erased-review.integration.test.ts": 400,
   "src/contexts/reputation/inbox/inbox-history-repository.integration.test.ts": 200,
   "src/contexts/reputation/inbox/inbox-note-repository.integration.test.ts": 100,

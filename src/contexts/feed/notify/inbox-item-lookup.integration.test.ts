@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
+import { setInboxItemCycleFacts } from '#/shared/testing/inbox-cycle-facts'
 import { feedbackId, inboxItemId, organizationId, portalId } from '#/shared/domain/ids'
 import type { Database } from '#/shared/db'
 import { createInboxItemLookupAdapter } from './inbox-item-lookup.adapter.server'
@@ -32,7 +32,6 @@ const { getPool } = setupIntegrationDb({
   // Response Targets are immutable and leave only with their cycle (cascade).
   tables: [
     'inbox_handling_cycle_transitions',
-    'inbox_handling_cycle_heads',
     'inbox_handling_cycles',
     'inbox_items',
     'guest_responses',
@@ -91,14 +90,13 @@ async function seedFeedbackHandlingCycle(
      VALUES ($1, 1, $2, $3, 'feedback', $4, 1, 'feedback_submitted', NOW())`,
     [id, organization, property, sourceId],
   )
-  await pool.query(
-    `INSERT INTO inbox_handling_cycle_heads
-       (inbox_item_id, organization_id, property_id, source_type, source_id,
-        current_source_revision, current_cycle_number, state_revision, status)
-     VALUES ($1, $2, $3, 'feedback', $4, 1, 1, 1, 'open')`,
-    [id, organization, property, sourceId],
-  )
-  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
+  await setInboxItemCycleFacts(pool, {
+    itemId: id,
+    cycleNumber: 1,
+    sourceRevision: 1,
+    stateRevision: 1,
+    status: 'open',
+  })
 }
 
 /**
@@ -301,28 +299,23 @@ describe('createInboxItemLookupAdapter.countOpenReviewItemsForProperty', () => {
     createInboxItemLookupAdapter(drizzle(getPool()) as unknown as Database, {
       findPortalId: vi.fn().mockResolvedValue(null),
     })
-  /** The open head the Inbox projection commits beside a Review's first cycle. */
-  const seedOpenReviewHead = async (
-    item: string,
-    review: string,
-    status: 'open' | 'closed',
-  ) => {
-    await getPool().query(
-      `INSERT INTO inbox_handling_cycle_heads
-         (inbox_item_id, organization_id, property_id, source_type, source_id,
-          current_source_revision, current_cycle_number, state_revision, status)
-       VALUES ($1, $2, $3, 'review', $4, 1, 1, 1, $5)`,
-      [item, ORG_A, PROPERTY_A, review, status],
-    )
-    await getPool().query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
+  /** The current-cycle facts the Inbox projection commits beside a Review's first cycle. */
+  const seedOpenReviewHead = async (item: string, status: 'open' | 'closed') => {
+    await setInboxItemCycleFacts(getPool(), {
+      itemId: item,
+      cycleNumber: 1,
+      sourceRevision: 1,
+      stateRevision: 1,
+      status,
+    })
   }
 
   it('counts the imported reviews a Property still owes a reply', async () => {
     await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
     await seedReviewItem(HISTORY_ITEM, HISTORY_REVIEW, 'historical_onboarding')
     await seedReviewItem(LIVE_ITEM, LIVE_REVIEW, 'measured')
-    await seedOpenReviewHead(HISTORY_ITEM, HISTORY_REVIEW, 'open')
-    await seedOpenReviewHead(LIVE_ITEM, LIVE_REVIEW, 'open')
+    await seedOpenReviewHead(HISTORY_ITEM, 'open')
+    await seedOpenReviewHead(LIVE_ITEM, 'open')
 
     await expect(
       adapter().countOpenReviewItemsForProperty(PROPERTY_A, ORG_A),
@@ -333,8 +326,8 @@ describe('createInboxItemLookupAdapter.countOpenReviewItemsForProperty', () => {
     await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
     await seedReviewItem(HISTORY_ITEM, HISTORY_REVIEW, 'historical_onboarding')
     await seedReviewItem(LIVE_ITEM, LIVE_REVIEW, 'measured')
-    await seedOpenReviewHead(HISTORY_ITEM, HISTORY_REVIEW, 'closed')
-    await seedOpenReviewHead(LIVE_ITEM, LIVE_REVIEW, 'open')
+    await seedOpenReviewHead(HISTORY_ITEM, 'closed')
+    await seedOpenReviewHead(LIVE_ITEM, 'open')
 
     await expect(
       adapter().countOpenReviewItemsForProperty(PROPERTY_A, ORG_A),
@@ -345,7 +338,7 @@ describe('createInboxItemLookupAdapter.countOpenReviewItemsForProperty', () => {
     await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
     await seedPropertyAndPortal(ORG_B, PROPERTY_B, PORTAL_B)
     await seedReviewItem(HISTORY_ITEM, HISTORY_REVIEW, 'historical_onboarding')
-    await seedOpenReviewHead(HISTORY_ITEM, HISTORY_REVIEW, 'open')
+    await seedOpenReviewHead(HISTORY_ITEM, 'open')
 
     await expect(
       adapter().countOpenReviewItemsForProperty(PROPERTY_A, ORG_B),
@@ -484,11 +477,9 @@ describe('createInboxItemLookupAdapter.findWaitingSince', () => {
 
   it('finds nothing waiting on a closed item', async () => {
     await seedWaitingItem()
-    await getPool().query(
-      `UPDATE inbox_handling_cycle_heads SET status = 'closed' WHERE inbox_item_id = $1`,
-      [ITEM_A],
-    )
-    await getPool().query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
+    await getPool().query(`UPDATE inbox_items SET status = 'closed' WHERE id = $1`, [
+      ITEM_A,
+    ])
 
     await expect(lookup().findWaitingSince(ITEM_A, ORG_A)).resolves.toBeNull()
   })

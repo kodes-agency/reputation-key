@@ -108,16 +108,15 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     )
 
     const current = await suite.pool.query(
-      `SELECT i.status, h.current_cycle_number, c.opened_reason,
+      `SELECT i.status, i.current_cycle_number, c.opened_reason,
               (SELECT count(*)::int
                FROM outbox_events e
                WHERE e.organization_id = i.organization_id
                  AND e.event_type = 'inbox.inbox_item.status_changed') AS status_fact_count
        FROM inbox_items i
-       JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
        JOIN inbox_handling_cycles c
-         ON c.inbox_item_id = h.inbox_item_id
-        AND c.cycle_number = h.current_cycle_number
+         ON c.inbox_item_id = i.id
+        AND c.cycle_number = i.current_cycle_number
        WHERE i.id = $1`,
       [ITEM],
     )
@@ -151,9 +150,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     ).resolves.toEqual({ status: 'applied' })
 
     const current = await suite.pool.query(
-      `SELECT i.status, h.current_cycle_number,
-              h.current_material_review_revision,
-              h.state_revision, h.status AS head_status,
+      `SELECT i.status, i.current_cycle_number,
+              i.current_source_revision,
+              i.state_revision,
               r.status AS receipt_status,
               (SELECT count(*)::int
                FROM inbox_handling_cycles c
@@ -163,7 +162,6 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
                WHERE e.organization_id = i.organization_id
                  AND e.event_type = 'inbox.inbox_item.status_changed') AS status_fact_count
        FROM inbox_items i
-       JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
        JOIN event_consumer_receipts r
          ON r.event_id = $2 AND r.consumer_name = 'inbox.on-reply-observed'
        WHERE i.id = $1`,
@@ -172,9 +170,8 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     expect(current.rows[0]).toMatchObject({
       status: 'closed',
       current_cycle_number: '1',
-      current_material_review_revision: '2',
+      current_source_revision: '2',
       state_revision: '2',
-      head_status: 'closed',
       receipt_status: 'applied',
       cycle_count: 1,
       status_fact_count: 1,
@@ -203,10 +200,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     })
 
     const current = await suite.pool.query(
-      `SELECT i.status, h.current_material_review_revision,
+      `SELECT i.status, i.current_source_revision,
               r.status AS receipt_status
        FROM inbox_items i
-       JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
        LEFT JOIN event_consumer_receipts r
          ON r.event_id = $2 AND r.consumer_name = 'inbox.on-reply-observed'
        WHERE i.id = $1`,
@@ -214,7 +210,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     )
     expect(current.rows[0]).toMatchObject({
       status: 'open',
-      current_material_review_revision: '1',
+      current_source_revision: '1',
       receipt_status: null,
     })
   })
@@ -237,13 +233,12 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     )
 
     const result = await suite.pool.query(
-      `SELECT i.status, h.current_cycle_number, r.status AS receipt_status,
+      `SELECT i.status, i.current_cycle_number, r.status AS receipt_status,
               (SELECT count(*)::int
                FROM outbox_events e
                WHERE e.organization_id = i.organization_id
                  AND e.event_type = 'inbox.inbox_item.status_changed') AS status_fact_count
        FROM inbox_items i
-       JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
        JOIN event_consumer_receipts r
          ON r.event_id = $2 AND r.consumer_name = 'inbox.on-reply-observed'
        WHERE i.id = $1`,

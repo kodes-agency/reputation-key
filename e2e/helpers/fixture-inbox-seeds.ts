@@ -26,7 +26,7 @@ export async function seedInboxItemForReview(input: {
  *
  * Every serving read needs the current cycle facts on the `inbox_items` row, so
  * a row without them is INVISIBLE to the product. Fixtures that seed the
- * projection directly must seed its cycle one, head, those facts and the opening
+ * projection directly must seed its cycle one, those facts and the opening
  * transition too, or the detail panel renders nothing and the failure looks like
  * a routing bug rather than a missing fixture.
  */
@@ -62,15 +62,6 @@ export async function seedInboxHandlingCycle(input: {
        opened_reason, opened_at
      ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $10, $9)`,
     [...scope, openedReason],
-  )
-  await dbQuery(
-    `INSERT INTO inbox_handling_cycle_heads (
-       inbox_item_id, organization_id, property_id, review_id,
-       current_cycle_number, current_material_review_revision, state_revision,
-       status, source_type, source_id, current_source_revision,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 1, $5, 1, 'open', $6, $7, $8, $9, $9)`,
-    scope,
   )
   await dbQuery(
     `UPDATE inbox_items
@@ -224,12 +215,12 @@ export async function closeInboxItemBySourceAuthority(input: {
        source_type, source_id, source_revision, kind, transition_reason,
        actor_type, transitioned_at
      )
-     SELECT head.inbox_item_id, head.state_revision + 1, head.current_cycle_number,
-            head.organization_id, head.property_id, head.source_type,
-            head.source_id, head.current_source_revision, 'closed', $4, $5, $2
-     FROM inbox_handling_cycle_heads AS head
-     WHERE head.inbox_item_id = $1 AND head.organization_id = $3
-       AND head.status = 'open'`,
+     SELECT item.id, item.state_revision + 1, item.current_cycle_number,
+            item.organization_id, item.property_id::uuid, item.source_type,
+            item.source_id, item.current_source_revision, 'closed', $4, $5, $2
+     FROM inbox_items AS item
+     WHERE item.id = $1 AND item.organization_id = $3
+       AND item.status = 'open'`,
     [
       input.inboxItemId,
       closedAt,
@@ -237,12 +228,6 @@ export async function closeInboxItemBySourceAuthority(input: {
       input.closeReason,
       input.actorType ?? 'provider',
     ],
-  )
-  await dbQuery(
-    `UPDATE inbox_handling_cycle_heads
-     SET status = 'closed', state_revision = state_revision + 1, updated_at = $2
-     WHERE inbox_item_id = $1 AND organization_id = $3 AND status = 'open'`,
-    [input.inboxItemId, closedAt, input.organizationId],
   )
   await dbQuery(
     `UPDATE inbox_items
@@ -271,12 +256,14 @@ export async function reopenInboxItemBySourceAuthority(input: {
        material_review_revision, source_type, source_id, source_revision,
        opened_reason, supersedes_cycle_number, opened_at
      )
-     SELECT head.inbox_item_id, head.current_cycle_number + 1, head.organization_id,
-            head.property_id, head.review_id, head.current_material_review_revision,
-            head.source_type, head.source_id, head.current_source_revision, $4,
-            head.current_cycle_number, $2
-     FROM inbox_handling_cycle_heads AS head
-     WHERE head.inbox_item_id = $1 AND head.organization_id = $3`,
+     SELECT item.id, item.current_cycle_number + 1, item.organization_id,
+            item.property_id::uuid,
+            CASE WHEN item.source_type = 'review' THEN item.source_id END,
+            CASE WHEN item.source_type = 'review' THEN item.current_source_revision END,
+            item.source_type, item.source_id, item.current_source_revision, $4,
+            item.current_cycle_number, $2
+     FROM inbox_items AS item
+     WHERE item.id = $1 AND item.organization_id = $3`,
     params,
   )
   await dbQuery(
@@ -285,19 +272,12 @@ export async function reopenInboxItemBySourceAuthority(input: {
        source_type, source_id, source_revision, kind, transition_reason,
        actor_type, transitioned_at
      )
-     SELECT head.inbox_item_id, head.state_revision + 1, head.current_cycle_number + 1,
-            head.organization_id, head.property_id, head.source_type, head.source_id,
-            head.current_source_revision, 'reopened', $4, 'provider', $2
-     FROM inbox_handling_cycle_heads AS head
-     WHERE head.inbox_item_id = $1 AND head.organization_id = $3`,
+     SELECT item.id, item.state_revision + 1, item.current_cycle_number + 1,
+            item.organization_id, item.property_id::uuid, item.source_type, item.source_id,
+            item.current_source_revision, 'reopened', $4, 'provider', $2
+     FROM inbox_items AS item
+     WHERE item.id = $1 AND item.organization_id = $3`,
     params,
-  )
-  await dbQuery(
-    `UPDATE inbox_handling_cycle_heads
-     SET current_cycle_number = current_cycle_number + 1,
-         state_revision = state_revision + 1, status = 'open', updated_at = $2
-     WHERE inbox_item_id = $1 AND organization_id = $3`,
-    [input.inboxItemId, reopenedAt, input.organizationId],
   )
   await dbQuery(
     `UPDATE inbox_items

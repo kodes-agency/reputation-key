@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
+import { setInboxItemCycleFacts } from '#/shared/testing/inbox-cycle-facts'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
@@ -164,16 +164,13 @@ async function seedThreeCycleItem(): Promise<void> {
     'Guest called the front desk to add context',
   )
 
-  await pool.query(
-    `INSERT INTO inbox_handling_cycle_heads (
-       inbox_item_id, organization_id, property_id, source_type, source_id,
-       current_source_revision, review_id, current_cycle_number,
-       current_material_review_revision, state_revision, status,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, 'review', $4, 2, $4, 3, 2, 5, 'open', $5, $5)`,
-    [ITEM_ID, ORG_ID, PROPERTY_ID, REVIEW_ID, T0],
-  )
-  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
+  await setInboxItemCycleFacts(pool, {
+    itemId: ITEM_ID,
+    cycleNumber: 3,
+    sourceRevision: 2,
+    stateRevision: 5,
+    status: 'open',
+  })
 
   const transition = async (
     stateRevision: number,

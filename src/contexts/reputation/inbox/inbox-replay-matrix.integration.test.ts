@@ -112,18 +112,6 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
     ).toEqual(['cancelled', 'on_time'])
     expect(await receiptFor(EVENT_IDS['reply.observed.staleDeletion'])).toBe('obsolete')
     expect(await receiptFor(EVENT_IDS['review.sourceTransitioned'])).toBe('obsolete')
-
-    // `inbox_items.status` is a compatibility mirror of the head, so a replay
-    // that produced a different mirror value would be a silent divergence for
-    // every context still reading the column.
-    const divergent = await pool.query(
-      `SELECT item.id
-       FROM inbox_items AS item
-       JOIN inbox_handling_cycle_heads AS head ON head.inbox_item_id = item.id
-       WHERE item.organization_id = $1 AND item.status <> head.status`,
-      [ORG],
-    )
-    expect(divergent.rows).toEqual([])
   })
 
   it('creates exactly one halfway and one target-passed slot per measured cycle and leaves none releasable', async () => {

@@ -120,8 +120,8 @@ export type InboxRepository = Readonly<{
    * Stamp the first reply-submitted / reply-published milestones and NOTHING
    * else.
    *
-   * `inbox_items.status` mirrors the Handling Cycle head. This seam cannot
-   * express a status, so milestone writes cannot move workflow authority.
+   * `inbox_items.status` is workflow authority beside the Handling Cycle facts.
+   * This seam cannot express a status, so milestone writes cannot move it.
    */
   stampReplyMilestones(
     id: InboxItemId,

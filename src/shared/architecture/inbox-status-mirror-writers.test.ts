@@ -1,7 +1,7 @@
 // `inbox_items` carries the current Handling Cycle's facts (cycle number, source
-// revision, state revision) beside its status, and every serving read resolves
-// from them. `inbox_handling_cycle_heads` is still written beside the row, but
-// only as a mirror of what the Inbox row says.
+// revision, state revision) beside its status, and
+// every serving read resolves from them. `inbox_handling_cycle_heads` is retired:
+// nothing reads or writes it, and the table stays only until it is dropped.
 //
 // So the WRITERS stay few. What remains is a small, explicitly named set of
 // writers that move the Inbox row's cycle facts inside the same transaction that
@@ -106,14 +106,17 @@ describe('inbox_items carries the Handling Cycle facts its readers resolve from'
 
   it('requires every cycle-moving writer to move the cycle facts through one helper', () => {
     // A writer that moves the status must also move the facts, so the helper's
-    // columns are spread into every such update; the milestone stamp is the one
-    // writer that touches neither.
-    const milestoneOnly = 'contexts/reputation/inbox/inbox-repository.server.ts'
+    // columns are spread into every such update. The milestone stamp touches
+    // neither, and the source-epoch carry moves only the source revision.
+    const exempt = new Set([
+      'contexts/reputation/inbox/inbox-repository.server.ts',
+      'contexts/reputation/inbox/review-epoch-carry-head.server.ts',
+    ])
     for (const permitted of Object.keys(FENCED_MIRROR_WRITERS)) {
-      if (permitted === milestoneOnly) continue
+      if (exempt.has(permitted)) continue
       const source = readFileSync(join(REPO_SRC, permitted), 'utf8')
       expect(
-        source.includes('cycleHeadItemColumns') || source.includes('mirrorCycleHead'),
+        source.includes('cycleHeadItemColumns'),
         `${permitted} writes inbox_items without moving the Handling Cycle facts`,
       ).toBe(true)
     }
@@ -188,17 +191,12 @@ describe('inbox_items carries the Handling Cycle facts its readers resolve from'
     expect(offenders).toEqual([])
   })
 
-  it('reads the head table only where it is mirrored', () => {
-    const readers = productionFiles
-      .filter((file) => !file.endsWith('.test-fixtures.ts'))
+  it('neither reads nor writes the retired head table', () => {
+    const users = productionFiles
       .filter((file) => /\binboxHandlingCycleHeads\b/.test(readFileSync(file, 'utf8')))
       .map(relativeToSrc)
       .sort()
-    expect(readers).toEqual([
-      'contexts/reputation/inbox/inbox-cycle-head.server.ts',
-      'contexts/reputation/inbox/review-epoch-carry-head.server.ts',
-      'contexts/reputation/inbox/review-handling-cycle-store.server.ts',
-    ])
+    expect(users).toEqual([])
   })
 
   it('retains the physical status column — contraction is blocked until a verified release plus restore proof', () => {

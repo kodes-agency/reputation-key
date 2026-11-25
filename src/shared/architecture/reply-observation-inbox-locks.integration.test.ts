@@ -207,10 +207,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     }
 
     const current = await suite.pool.query(
-      `SELECT i.status, h.current_cycle_number, h.status AS head_status,
+      `SELECT i.status, i.current_cycle_number,
               r.status AS receipt_status
        FROM inbox_items i
-       JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
        JOIN event_consumer_receipts r
          ON r.event_id = $2 AND r.consumer_name = 'inbox.on-reply-observed'
        WHERE i.id = $1`,
@@ -219,7 +218,6 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     expect(current.rows[0]).toMatchObject({
       status: 'closed',
       current_cycle_number: '2',
-      head_status: 'closed',
       receipt_status: 'applied',
     })
   })
@@ -288,14 +286,13 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     }
 
     const current = await suite.pool.query(
-      `SELECT i.status, h.current_cycle_number, h.status AS head_status,
-              h.state_revision, c.opened_reason, c.manual_reopen_reason,
+      `SELECT i.status, i.current_cycle_number,
+              i.state_revision, c.opened_reason, c.manual_reopen_reason,
               c.opened_by, r.status AS receipt_status
        FROM inbox_items i
-       JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
        JOIN inbox_handling_cycles c
-         ON c.inbox_item_id = h.inbox_item_id
-        AND c.cycle_number = h.current_cycle_number
+         ON c.inbox_item_id = i.id
+        AND c.cycle_number = i.current_cycle_number
        JOIN event_consumer_receipts r
          ON r.event_id = $2 AND r.consumer_name = 'inbox.on-reply-observed'
        WHERE i.id = $1`,
@@ -304,7 +301,6 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     expect(current.rows[0]).toMatchObject({
       status: 'closed',
       current_cycle_number: '2',
-      head_status: 'closed',
       state_revision: '4',
       opened_reason: 'manual_reopen',
       manual_reopen_reason: 'internal_follow_up_still_needed',

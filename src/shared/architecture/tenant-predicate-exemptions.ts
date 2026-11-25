@@ -460,27 +460,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'OWNER-LOOKUP',
   },
   {
-    file: 'src/contexts/reputation/inbox/inbox-cycle-head-facts-store.server.ts',
-    symbol: 'parity',
-    reason:
-      'Counts, across every Organization, the Inbox rows whose Handling Cycle facts differ from their head so the operator can see whether the backfill is complete; it returns counts only.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/reputation/inbox/inbox-cycle-head-facts-store.server.ts',
-    symbol: 'scan',
-    reason:
-      'Walks the Inbox rows in id order across every Organization to count those whose Handling Cycle facts differ from their head; it returns a count and the last item id, no row content.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/reputation/inbox/inbox-cycle-head-facts-store.server.ts',
-    symbol: 'backfill',
-    reason:
-      "The operator backfill copies each Inbox row's Handling Cycle facts from its own head, matched by item id, in bounded batches across every Organization; it moves no other column.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/integration/imports/durable-import-reference-claims.server.ts',
     symbol: 'claimCandidates',
     reason:
