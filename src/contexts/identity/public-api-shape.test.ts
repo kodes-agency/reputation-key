@@ -75,18 +75,9 @@ describe('Identity public API', () => {
     ])
     expect(Object.keys(api.accountAdminAuthority)).toEqual(['isCurrentAccountAdmin'])
     expect(Object.keys(api.people).sort()).toEqual([
-      'findParticipationById',
       'getAccessiblePropertyIds',
       'getAssignedPortals',
-      'listActiveParticipations',
-      'management',
       'resolvePrimaryStaffAttribution',
-    ])
-    expect(Object.keys(api.people.management).sort()).toEqual([
-      'archiveStaffParticipation',
-      'createStaffParticipation',
-      'listStaffParticipations',
-      'updatePortalResponsibilities',
     ])
     expect(Object.keys(api.requests).sort()).toEqual(EXPECTED_REQUEST_KEYS)
     expect(Object.keys(api.requests.merchantAiAuthorization).sort()).toEqual([
@@ -108,7 +99,6 @@ describe('Identity public API', () => {
     expect(Object.isFrozen(api.managerFacts)).toBe(true)
     expect(Object.isFrozen(api.accountAdminAuthority)).toBe(true)
     expect(Object.isFrozen(api.people)).toBe(true)
-    expect(Object.isFrozen(api.people.management)).toBe(true)
     expect(Object.isFrozen(api.requests)).toBe(true)
     expect(Object.isFrozen(api.requests.merchantAiAuthorization)).toBe(true)
     expect(Object.isFrozen(api.requests.merchantAiNoticeUpdates)).toBe(true)
