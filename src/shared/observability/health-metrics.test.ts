@@ -1,6 +1,5 @@
 // BQC-3.7 — health-metrics unit tests (fake db + fake quarantine port).
-// New alert-substrate counters: claimed/stalled leases and quarantine depth,
-// plus the findExpiredLeases-backed expired-lease signal.
+// Alert-substrate signals: unpublished outbox age and quarantine depth.
 
 import { describe, it, expect, vi } from 'vitest'
 import { createHealthChecker, type QuarantineMetricsPort } from './health-metrics'
@@ -46,9 +45,8 @@ const PUBLICATION_ROW = [
   },
 ]
 
-function fakeOutboxRepo(expiredRows: unknown[]): OutboxRepository {
+function fakeOutboxRepo(): OutboxRepository {
   return {
-    findExpiredLeases: vi.fn(async () => expiredRows),
     delivery: {
       readQuarantineMetrics: vi.fn(async () => ({ count: 0, oldestAgeMs: null })),
     },
@@ -66,45 +64,21 @@ function fakeQuarantine(
 }
 
 describe('health checker outbox metrics (BQC-3.7)', () => {
-  it('computes claimed/stalled lease counters and the expired-lease signal', async () => {
+  it('reports the unpublished outbox count and age', async () => {
     const db = fakeDb([
       [{ cnt: 3, age_ms: 600_000 }], // unpublished aggregate
-      [{ claimed: 2, oldest_claimed_age_ms: 45_000, stalled: 1 }], // claimed/stalled
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
       NOTIFICATION_ROW,
     ])
-    const repo = fakeOutboxRepo([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }])
 
-    const snapshot = await createHealthChecker(db, repo).check()
+    const snapshot = await createHealthChecker(db, fakeOutboxRepo()).check()
 
     expect(snapshot.outbox).toEqual({
       unpublishedCount: 3,
       oldestUnpublishedAgeMs: 600_000,
-      expiredLeaseCount: 4,
-      claimedCount: 2,
-      oldestClaimedAgeMs: 45_000,
-      stalledLeaseCount: 1,
     })
-  })
-
-  it('reports null oldestClaimedAgeMs and zero counters when nothing is claimed', async () => {
-    const db = fakeDb([
-      [{ cnt: 0, age_ms: null }],
-      [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
-      REVIEW_ROW,
-      SYNC_ROW,
-      PUBLICATION_ROW,
-      NOTIFICATION_ROW,
-    ])
-
-    const snapshot = await createHealthChecker(db, fakeOutboxRepo([])).check()
-
-    expect(snapshot.outbox.claimedCount).toBe(0)
-    expect(snapshot.outbox.oldestClaimedAgeMs).toBeNull()
-    expect(snapshot.outbox.stalledLeaseCount).toBe(0)
-    expect(snapshot.outbox.expiredLeaseCount).toBe(0)
   })
 
   it('zeroes outbox metrics when no outbox repo is available', async () => {
@@ -114,10 +88,6 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
     expect(snapshot.outbox).toEqual({
       unpublishedCount: 0,
       oldestUnpublishedAgeMs: null,
-      expiredLeaseCount: 0,
-      claimedCount: 0,
-      oldestClaimedAgeMs: null,
-      stalledLeaseCount: 0,
     })
     expect(snapshot.quarantine).toBeNull()
   })
@@ -128,7 +98,7 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
     const workItems = { count: 1, oldestAgeMs: 16 * 60_000 }
     const readQuarantineMetrics = vi.fn(async () => workItems)
     const repo = {
-      ...fakeOutboxRepo([]),
+      ...fakeOutboxRepo(),
       delivery: { readQuarantineMetrics } as unknown as OutboxRepository['delivery'],
     }
     expect(await createHealthChecker(fakeDb([]), repo).signals.quarantine()).toEqual({
@@ -158,14 +128,13 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
     ])
     const db = fakeDb([
       [{ cnt: 0, age_ms: null }],
-      [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
       NOTIFICATION_ROW,
     ])
 
-    const snapshot = await createHealthChecker(db, fakeOutboxRepo([]), {
+    const snapshot = await createHealthChecker(db, fakeOutboxRepo(), {
       quarantineQueue: quarantine,
     }).check()
 
@@ -195,14 +164,13 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
     }
     const db = fakeDb([
       [{ cnt: 0, age_ms: null }],
-      [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
       NOTIFICATION_ROW,
     ])
 
-    const snapshot = await createHealthChecker(db, fakeOutboxRepo([]), {
+    const snapshot = await createHealthChecker(db, fakeOutboxRepo(), {
       quarantineQueue: quarantine,
     }).check()
 
@@ -214,14 +182,13 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
     const quarantine = fakeQuarantine({ waiting: 0 }, [])
     const db = fakeDb([
       [{ cnt: 0, age_ms: null }],
-      [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
       NOTIFICATION_ROW,
     ])
 
-    const snapshot = await createHealthChecker(db, fakeOutboxRepo([]), {
+    const snapshot = await createHealthChecker(db, fakeOutboxRepo(), {
       quarantineQueue: quarantine,
     }).check()
 
@@ -245,14 +212,6 @@ describe('health checker content safety (BQC-4.3)', () => {
           age_ms: 1000,
           payload: 'SECRET_REVIEW_TEXT',
           text: 'SECRET_REPLY_TEXT',
-        },
-      ],
-      [
-        {
-          claimed: 1,
-          oldest_claimed_age_ms: 500,
-          stalled: 0,
-          payload: 'SECRET_REVIEWER_NAME',
         },
       ],
       [
@@ -300,7 +259,7 @@ describe('health checker content safety (BQC-4.3)', () => {
         },
       ],
     ])
-    const repo = fakeOutboxRepo([{ id: 'x', payload: 'SECRET_REVIEW_TEXT' }])
+    const repo = fakeOutboxRepo()
     const quarantine = fakeQuarantine({ waiting: 1 }, [
       {
         data: {
@@ -325,10 +284,6 @@ describe('health checker content safety (BQC-4.3)', () => {
       outbox: {
         unpublishedCount: 2,
         oldestUnpublishedAgeMs: 1000,
-        expiredLeaseCount: 1,
-        claimedCount: 1,
-        oldestClaimedAgeMs: 500,
-        stalledLeaseCount: 0,
       },
       quarantine: { count: 1, oldestAgeMs: expect.any(Number) },
       reviews: {

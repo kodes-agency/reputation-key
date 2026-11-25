@@ -68,7 +68,6 @@ describe('alert registry contract (BQC-7.4)', () => {
       'queue.oldest-age',
       'queue.quarantine-growth',
       'queue.quarantine-nonempty',
-      'queue.stalled',
       'reply.ambiguous-aging',
       'retention.failure',
       'security.scan',
@@ -217,7 +216,7 @@ const BREACHES: readonly Breach[] = [
     runbook: 'runbooks.md §23',
     threshold: 0,
     windowMs: 10 * 60 * 1000, // two consecutive 5-minute evaluations
-    value: 2, // health.outbox blinds queue.oldest-age and queue.stalled
+    value: 1, // health.outbox blinds queue.oldest-age
     apply: (s) => {
       s.degraded = ['health.outbox']
     },
@@ -235,17 +234,6 @@ const BREACHES: readonly Breach[] = [
         unpublishedCount: 4,
         oldestUnpublishedAgeMs: 16 * 60 * 1000,
       }
-    },
-  },
-  {
-    name: 'queue.stalled',
-    severity: 'P2',
-    runbook: 'runbooks.md §7',
-    threshold: 0,
-    windowMs: 5 * 60 * 1000,
-    value: 2,
-    apply: (s) => {
-      s.outbox = { ...s.outbox, stalledLeaseCount: 2 }
     },
   },
   {

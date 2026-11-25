@@ -534,25 +534,6 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       }
     },
   }),
-  // Single-evaluation honesty: a stalled lease (claim held beyond 2× its
-  // lease without publishing) IS the impact — work stopped mid-flight — not
-  // a raw count. No multi-eval sustainment required.
-  define({
-    name: 'queue.stalled',
-    severity: 'P2',
-    runbook: 'runbooks.md §7',
-    windowMs: EVAL_CADENCE_MS,
-    threshold: 0,
-    blindedBy: ['health.outbox'],
-    read: (snapshot) => {
-      const count = snapshot.outbox.stalledLeaseCount
-      if (count <= 0) return null
-      return {
-        value: count,
-        detail: `${count} stalled outbox lease(s) — claim(s) held beyond 2x lease without publishing`,
-      }
-    },
-  }),
   define({
     name: 'queue.quarantine-growth',
     severity: 'P2',

@@ -17,10 +17,6 @@ export function healthySnapshot(): MutableSnapshot {
     outbox: {
       unpublishedCount: 0,
       oldestUnpublishedAgeMs: null,
-      expiredLeaseCount: 0,
-      claimedCount: 0,
-      oldestClaimedAgeMs: null,
-      stalledLeaseCount: 0,
     },
     quarantine: null,
     // From here down this healthy OperationsSnapshot repeats the baseline in
@@ -173,8 +169,8 @@ export function healthyAux(): MutableAux {
   }
 }
 
-export function stalledSnapshot(): MutableSnapshot {
+export function failedSyncSnapshot(): MutableSnapshot {
   const s = healthySnapshot()
-  s.outbox = { ...s.outbox, stalledLeaseCount: 1 }
+  s.sync = { ...s.sync, failedSyncCount: 1 }
   return s
 }

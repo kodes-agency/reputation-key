@@ -149,7 +149,6 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `guest.observation-loss`                       | P1  | any suppressed scan/review-link observation in trailing 24h, or the content-free monitor is unavailable                           | §18     |
 | `observability.snapshot-degraded`              | P1  | a degraded snapshot section blinds at least one alert on two consecutive evaluations (those alerts hold their state meanwhile)    | §23     |
 | `queue.oldest-age`                             | P2  | oldest unpublished outbox event > 15min                                                                                           | §7      |
-| `queue.stalled`                                | P2  | any lease held > 2× its lease (single eval — stalled work IS the impact)                                                          | §7      |
 | `queue.quarantine-growth`                      | P2  | oldest quarantined job > 24h (redrive SLA)                                                                                        | §4      |
 | `queue.quarantine-nonempty`                    | P1  | any job in the unconsumed quarantine > 15min (dropped work; §4 is the same condition aged past the redrive SLA)                   | §14     |
 | `source.freshness-deadline`                    | P1  | nearest hard expiry among refresh-due live reviews the refresh sweep can still offer (§3) < 2d away                               | §3      |

@@ -6,16 +6,15 @@ import { reviewSourceContents } from '#/shared/db/schema/review-source-content.s
 // endpoint or scraped by a monitoring system. Metrics are identifier-only —
 // no review content, PII, or provider data in any metric value (ADR 0030).
 //
-// BQC-3.7 alert substrate: claimed/stalled lease counters and quarantine
-// depth join the existing unpublished/expired-lease signals; BQC-7.4 turns
-// them into dispatched alerts (the health-check job evaluates the
-// alert-definitions registry against this snapshot).
+// BQC-3.7 alert substrate: quarantine depth joins the unpublished-outbox
+// signals; BQC-7.4 turns them into dispatched alerts (the health-check job
+// evaluates the alert-definitions registry against this snapshot).
 //
 // Queries use the canonical Drizzle schema tables (single persistence model).
 // Raw SQL fragments remain only for aggregate expressions; table/column
 // identity comes from schema imports.
 
-import { DEFAULT_LEASE_DURATION_MS, type OutboxRepository } from '#/shared/outbox'
+import type { OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
 import { and, eq, sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
@@ -53,12 +52,6 @@ export type QuarantineMetricsPort = Readonly<{
 export type HealthMetricsDeps = Readonly<{
   /** Redis dead letters; durable delivery quarantine is read independently. */
   quarantineQueue?: QuarantineMetricsPort | null
-  /**
-   * Relay lease duration the stalled threshold derives from (stalled =
-   * unexpired lease whose leased_at is older than 2× this). Defaults to the
-   * outbox default lease.
-   */
-  leaseDurationMs?: number
   /**
    * GBP_PUBSUB_TOPIC is non-empty. Absent = treated as disabled, which is the
    * honest default: without the topic there is no push subscription.
@@ -187,13 +180,6 @@ export type HealthSnapshot = Readonly<{
   outbox: Readonly<{
     unpublishedCount: number
     oldestUnpublishedAgeMs: number | null
-    expiredLeaseCount: number
-    /** BQC-3.7: unpublished rows with an unexpired lease (in-flight claims). */
-    claimedCount: number
-    /** BQC-3.7: age of the oldest in-flight claim (from leased_at). */
-    oldestClaimedAgeMs: number | null
-    /** BQC-3.7: unexpired leases held longer than 2× the lease duration. */
-    stalledLeaseCount: number
   }>
   quarantine: QuarantineMetrics | null
   reviews: Readonly<{
@@ -369,13 +355,6 @@ export function assembleHealthSnapshot(
 }
 
 /**
- * Bounded scan for the expired-lease signal — an exact count is unnecessary
- * for alerting: a four-digit expired-lease backlog already reads as an
- * incident. This is findExpiredLeases' caller (it was dead code before 3.7).
- */
-const EXPIRED_LEASE_SCAN_LIMIT = 1000
-
-/**
  * Bounded scan for quarantine age — the quarantine is operator-drained. The
  * scan reads the OLDEST entries: BullMQ LPUSHes the wait list, so its default
  * page is the newest, and a steady trickle of fresh dead letters would hide
@@ -385,11 +364,7 @@ const QUARANTINE_AGE_SCAN_LIMIT = 100
 
 type OutboxMetrics = HealthSnapshot['outbox']
 
-async function readOutboxMetrics(
-  db: Database,
-  repo: OutboxRepository,
-  leaseDurationMs: number,
-): Promise<OutboxMetrics> {
+async function readOutboxMetrics(db: Database): Promise<OutboxMetrics> {
   const unpublishedResult = await db
     .select({
       cnt: sql<number>`count(*)::int`,
@@ -402,47 +377,10 @@ async function readOutboxMetrics(
 
   const unpublishedRow = unpublishedResult[0]
 
-  // Expired-lease signal via the repository (ownership of the predicate lives
-  // in one place). Bounded — see EXPIRED_LEASE_SCAN_LIMIT.
-  const expiredRows = await repo.findExpiredLeases(EXPIRED_LEASE_SCAN_LIMIT)
-
-  // Claimed + stalled: an unexpired lease marks an in-flight claim; a lease
-  // held beyond 2× its duration without publishing is stalled (the relay
-  // renews mid-batch, so a healthy claim never approaches that age).
-  const stalledThreshold = new Date(Date.now() - 2 * leaseDurationMs)
-  const claimedResult = await db
-    .select({
-      claimed: sql<number>`
-        count(*) FILTER (WHERE ${outboxEvents.leaseExpiresAt} > NOW())::int
-      `,
-      oldest_claimed_age_ms: sql<number | null>`
-        EXTRACT(EPOCH FROM (NOW() - MIN(${outboxEvents.leasedAt}) FILTER (
-          WHERE ${outboxEvents.leaseExpiresAt} > NOW()
-        ))) * 1000
-      `,
-      stalled: sql<number>`
-        count(*) FILTER (
-          WHERE ${outboxEvents.leaseExpiresAt} > NOW()
-            AND ${outboxEvents.leasedAt} < ${stalledThreshold}
-        )::int
-      `,
-    })
-    .from(outboxEvents)
-    .where(sql`${outboxEvents.publishedAt} IS NULL`)
-
-  const claimedRow = claimedResult[0]
-
   return {
     unpublishedCount: unpublishedRow?.cnt ?? 0,
     oldestUnpublishedAgeMs:
       unpublishedRow?.age_ms != null ? Math.round(Number(unpublishedRow.age_ms)) : null,
-    expiredLeaseCount: expiredRows.length,
-    claimedCount: claimedRow?.claimed ?? 0,
-    oldestClaimedAgeMs:
-      claimedRow?.oldest_claimed_age_ms != null
-        ? Math.round(Number(claimedRow.oldest_claimed_age_ms))
-        : null,
-    stalledLeaseCount: claimedRow?.stalled ?? 0,
   }
 }
 
@@ -1026,10 +964,6 @@ async function readSyncStateMetrics(
 const EMPTY_OUTBOX_METRICS: OutboxMetrics = {
   unpublishedCount: 0,
   oldestUnpublishedAgeMs: null,
-  expiredLeaseCount: 0,
-  claimedCount: 0,
-  oldestClaimedAgeMs: null,
-  stalledLeaseCount: 0,
 }
 
 /** Each signal's read, traced under its own span so a failure names it. */
@@ -1042,13 +976,7 @@ function createHealthSignalReads(
     // Outbox metrics (only if outbox repo is available)
     outbox: () =>
       trace('health.check.outbox', async () =>
-        outboxRepo
-          ? readOutboxMetrics(
-              db,
-              outboxRepo,
-              deps?.leaseDurationMs ?? DEFAULT_LEASE_DURATION_MS,
-            )
-          : EMPTY_OUTBOX_METRICS,
+        outboxRepo ? readOutboxMetrics(db) : EMPTY_OUTBOX_METRICS,
       ),
     quarantine: () =>
       trace('health.check.quarantine', async () => {

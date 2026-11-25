@@ -717,7 +717,6 @@ describe('(d) parked work is operator-visible (BQC-4.6 / 3.7 metrics)', () => {
     expect(snapshot.outbox.unpublishedCount).toBe(1)
     expect(snapshot.outbox.oldestUnpublishedAgeMs).not.toBeNull()
     expect(snapshot.outbox.oldestUnpublishedAgeMs!).toBeGreaterThanOrEqual(4 * 60_000)
-    expect(snapshot.outbox.expiredLeaseCount).toBe(0)
     expect(snapshot.quarantine).not.toBeNull()
     expect(snapshot.quarantine!.count).toBe(1)
     expect(snapshot.quarantine!.oldestAgeMs).not.toBeNull()

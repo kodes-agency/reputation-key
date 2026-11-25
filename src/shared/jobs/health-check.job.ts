@@ -13,7 +13,7 @@
 // alert's first breach is only persisted as pending — it pages when the next
 // run breaches too. This supersedes
 // the BQC-3.7 warn-only threshold logs (warnOnOpsThresholds), whose four
-// signals are now formal definitions (queue.oldest-age, queue.stalled,
+// signals are now formal definitions (queue.oldest-age,
 // queue.quarantine-growth).
 
 import type { Job } from 'bullmq'
