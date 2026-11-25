@@ -92,7 +92,9 @@ const DERIVATIVE: AiAnalysisDerivativeV3 = {
 
 describe.sequential('review analysis v3 through the real stores (PostgreSQL)', () => {
   const db: Database = getDb()
-  const outputs = createAiOutputStoreAdapter(db)
+  const outputs = createAiOutputStoreAdapter(db, {
+    isCurrentAiReplyBrandProfile: async () => true,
+  })
   const aggregates = createAiPropertyAggregateStoreAdapter(db)
   let controls: OpenAiExecutionControls | undefined
 
@@ -320,7 +322,9 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
   })
 
   it('stores, delivers and aggregates v3', async () => {
-    const outputStore = createAiOutputStoreAdapter(db)
+    const outputStore = createAiOutputStoreAdapter(db, {
+      isCurrentAiReplyBrandProfile: async () => true,
+    })
     const aggregateStore = createAiPropertyAggregateStoreAdapter(db)
     await expect(store({}, outputStore)).resolves.toBe(true)
     await expect(apply(1, { aggregateStore })).resolves.toEqual({

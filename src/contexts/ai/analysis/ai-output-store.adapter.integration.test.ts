@@ -42,7 +42,9 @@ const EARLIER_NOTICE_DIGEST =
 
 describe.sequential('AI output store analysis persistence (real PostgreSQL)', () => {
   const db = getDb()
-  const outputs = createAiOutputStoreAdapter(db)
+  const outputs = createAiOutputStoreAdapter(db, {
+    isCurrentAiReplyBrandProfile: async () => true,
+  })
   const { apply } = createAggregateHelpers(db)
   const fixture = createReviewAnalysisStoreFixture(db)
   const { seedStoredReviewA } = fixture
