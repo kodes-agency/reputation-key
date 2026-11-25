@@ -463,7 +463,11 @@ export const createAtomicPortalCommandStore = (
           }
           const settingsBefore = await readPortalSettings(tx, command)
           await assertPortalCollectorChange(tx, command, settingsBefore, ratingGoalGuard)
-          const reconcileLinkTexts = await watchPrimaryLocaleChange(tx, command)
+          const reconcileLinkTexts = await watchPrimaryLocaleChange(
+            tx,
+            command,
+            settingsBefore,
+          )
           const [updated] = await tx
             .update(portals)
             .set({ ...buildPortalSetClause(command.patch), updatedAt: command.revision })

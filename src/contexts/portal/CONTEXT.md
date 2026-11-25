@@ -75,9 +75,8 @@ until a successful write, including when the person returns to the initial value
   read their stores.
 - Reporting's Monthly portal goal reads `listGoalReadinessFacts(org, property, asOf)`
   on `PortalPublicApi` (`publication/goal-readiness-facts.server.ts`): every non-archived,
-  non-deleted Portal of the Property in name order, including the complete roster
-  (`truncated` is always false), each with its publication state, `liveSince`, the live
-  intervals that overlap the last 60 days, when its current code was made, whether
+  non-deleted Portal of the Property in name order, including the complete roster, each
+  with its publication state, `liveSince`, the live intervals that overlap the last 60 days, when its current code was made, whether
   that code's QR or NFC marker is published (`codeReady`, the scan-goal rule) and
   its group. Names, states, identifiers and instants only. It checks no permission:
   Reporting's use case authorizes `goal.create` under `goal.use` before it calls it.

@@ -70,7 +70,7 @@ function rowsOf(
   month: PortalGoalRunningMonth | null,
 ): PortalGoalPageRows | null {
   const counts = month === null ? null : monthCountsOf(recommendation, month)
-  return counts === null ? null : { ...counts, truncated: recommendation.truncated }
+  return counts
 }
 
 /** The established published Portals that have gone quiet, by Portal. */

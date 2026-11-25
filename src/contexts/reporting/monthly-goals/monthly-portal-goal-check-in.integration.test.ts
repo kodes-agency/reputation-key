@@ -109,7 +109,7 @@ describe.sequential('Monthly portal goal check-in (integration)', () => {
   const recommendation = {
     subjects: { getTimezone: async () => TIMEZONE },
     facts: {
-      listPortalReadiness: async () => ({ portals: [], truncated: false }),
+      listPortalReadiness: async () => ({ portals: [] }),
       readDailyCounts: async () => ({
         days: [],
         unreadable: [],

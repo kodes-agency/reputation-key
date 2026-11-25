@@ -44,7 +44,6 @@ export function fakeWorld(programs: readonly GoalProgramBundle[] = []) {
   const facts = {
     listPortalReadiness: vi.fn(async () => ({
       portals: [portal('Reception', '2026-10-09'), portal('Restaurant', '2026-10-09')],
-      truncated: false,
     })),
     readDailyCounts: vi.fn(async () => ({
       days: [
