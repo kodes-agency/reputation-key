@@ -95,11 +95,7 @@ export type DelayedDecisionRequest = Readonly<{
 }>
 
 export type DelayedDenyReason =
-  | CapabilityDenyReason
-  | 'missing_scope'
-  | 'policy_unavailable'
-  | 'capability_mismatch'
-  | 'unknown_action'
+  CapabilityDenyReason | 'missing_scope' | 'capability_mismatch' | 'unknown_action'
 
 export type DelayedDecision = Readonly<{
   /**

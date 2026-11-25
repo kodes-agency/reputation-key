@@ -49,17 +49,6 @@ import { runWithContext } from '#/shared/observability/request-context'
 
 // ── Dispatcher ──────────────────────────────────────────────────────
 
-/**
- * BQC-3.2: thrown when the delayed execution policy is unavailable so the
- * error escapes the per-consumer catch and BullMQ retries the whole job.
- */
-class PolicyUnavailableError extends Error {
-  constructor(reason: string) {
-    super(reason)
-    this.name = 'PolicyUnavailableError'
-  }
-}
-
 /** Per-consumer outcome — the loop aggregates failures after invoking all. */
 type ConsumerOutcome =
   | Readonly<{ kind: 'ok' }>
@@ -120,11 +109,6 @@ async function invokeConsumer(
       )
       return { kind: 'ok' }
     }
-    if (gate.kind === 'deny_retry') {
-      // Policy unavailable is transient, not a revocation — escape the
-      // per-consumer catch so the BullMQ job fails and retries.
-      throw new PolicyUnavailableError(gate.decision.reason)
-    }
 
     // Invoke the consumer handler. The handler records its own receipt, with
     // its state change or after an effect that is safe to repeat; nothing
@@ -146,7 +130,6 @@ async function invokeConsumer(
     )
     return { kind: 'ok' }
   } catch (err) {
-    if (err instanceof PolicyUnavailableError) throw err
     if (err instanceof PrerequisiteNotReadyError) {
       // An expected ordering wait: the job still retries, but it is not an error.
       logger.info(

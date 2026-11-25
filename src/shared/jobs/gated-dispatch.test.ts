@@ -4,9 +4,7 @@
 // the default/background BullMQ workers. It classifies schedule firings,
 // authorizes through gateJob, and converts the outcome into runtime behavior:
 // allow → invoke, deny_terminal → typed denial result (no side effect, no
-// retry, never counted as a success),
-// deny_retry → throw so BullMQ backoff applies (policy unavailability is
-// transient, not a revocation).
+// retry, never counted as a success).
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import type { Job } from 'bullmq'
@@ -148,21 +146,6 @@ describe('createGatedJobHandler', () => {
       }),
       'delayed execution denied — terminal',
     )
-  })
-
-  it('throws on deny_retry so BullMQ retries with backoff', async () => {
-    decideMock.mockResolvedValue(
-      decision({ reason: 'policy_unavailable', freshRead: true }),
-    )
-    initDelayedExecutionPolicy({ decide: decideMock })
-    const registry = createJobRegistry()
-    const handler = vi.fn(async () => {})
-    registry.register('health-check', handler)
-    const dispatch = createGatedJobHandler('default', registry)
-
-    await expect(dispatch(fakeJob())).rejects.toThrow(/policy_unavailable/)
-
-    expect(handler).not.toHaveBeenCalled()
   })
 
   it('throws UnknownJobError for unknown jobs without consulting the policy (BQC-3.6)', async () => {

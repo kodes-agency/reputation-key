@@ -21,7 +21,6 @@ import {
   QUARANTINE_QUEUE_NAME,
   type QuarantineEnvelope,
 } from './failure-quarantine'
-import { GateDenyRetryError } from './errors'
 import { jobEnqueueOptions } from './job-policy'
 import { JOB_DEFINITIONS } from './job-definitions'
 
@@ -215,18 +214,6 @@ describe('quarantineExhaustedJob (BQC-3.6)', () => {
     expect(env.failedReason).not.toContain('second line')
     expect(env.failedReason).not.toContain('at ')
     expect(env.failedReason.length).toBeLessThanOrEqual(200)
-  })
-
-  it('carries the gate deny reason as policyReason when the failure came from the gate', async () => {
-    const quarantine = fakeQueue()
-    await quarantineExhaustedJob(
-      quarantine,
-      fakeJob(),
-      new GateDenyRetryError('sync-property-reviews', 'policy_unavailable'),
-    )
-
-    const env = envelopeOf(quarantine.added[0]!)
-    expect(env.policyReason).toBe('policy_unavailable')
   })
 
   it('accepts dispatcher (domain-events) jobs — event envelopes are catalogue-known', async () => {
@@ -667,6 +654,32 @@ describe('listQuarantinedJobs (BQC-3.6)', () => {
     expect(list).toHaveLength(100)
     expect(list[0]!.envelope.originalJobId).toBe('orig-0')
     expect(list.map((entry) => entry.envelope.originalJobId)).not.toContain('orig-149')
+  })
+
+  // A dead letter an earlier release wrote can carry the gate's deny reason;
+  // `ops:quarantine list` still prints it.
+  it('lists a dead letter that carries a policy reason from an earlier release', async () => {
+    const quarantine = fakeQueue()
+    await quarantine.add(
+      'sync-property-reviews',
+      {
+        originalQueue: 'default',
+        originalJobId: 'orig-old',
+        jobName: 'sync-property-reviews',
+        data: { propertyId: 'prop-1', organizationId: 'org-1' },
+        failedReason:
+          "GateDenyRetryError: delayed execution denied — retry (policy_unavailable) for job 'sync-property-reviews'",
+        attemptsMade: 3,
+        policyReason: 'policy_unavailable',
+        quarantinedAt: '2026-11-20T10:00:00.000Z',
+      },
+      { jobId: 'quarantine:default:orig-old' },
+    )
+
+    const [entry] = await listQuarantinedJobs(quarantine)
+
+    expect(entry?.envelope.policyReason).toBe('policy_unavailable')
+    expect(entry?.publicationState).toBe('confirmed_failed')
   })
 
   it('reports a staged copy as pending until the failed transition is confirmed', async () => {
