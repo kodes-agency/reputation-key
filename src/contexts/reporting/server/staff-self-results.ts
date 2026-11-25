@@ -63,7 +63,6 @@ export const getMyGoalsHandler = createServerOnlyFn(
   async ({ data }: { data: { participationId: string } }) => {
     setResponseHeader('Cache-Control', 'private, no-store')
     const { ctx, own } = await ownStaff(data.participationId)
-    if (!getContainer().dashboardPublicApi.staffSelf.targetsEnabled) return { goals: [] }
     const goals = await getContainer().dashboardPublicApi.staffSelf.goals({
       ...own,
       organizationId: ctx.organizationId,
