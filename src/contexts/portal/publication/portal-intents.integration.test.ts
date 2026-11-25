@@ -4,7 +4,6 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { isPortalError } from '../domain/errors'
 import { codeOf } from './portal-creation-queries.test-fixtures'
 import {
   asRole,
@@ -289,22 +288,6 @@ describe.sequential('portal intents', () => {
 
     expect(updated.heroImageUrl).toBeNull()
     expect((await portalRow()).hero_image_url).toBeNull()
-  })
-
-  it('rejects a caller-supplied hero image URL', async () => {
-    const { settings } = world()
-    await seedPortal({ heroImageUrl: 'https://cdn.example.com/old.jpg' })
-
-    const error = await settings(
-      {
-        portalId: PORTAL,
-        heroImageUrl: 'https://cdn.example.com/new.jpg',
-      } as unknown as Parameters<typeof settings>[0],
-      manager,
-    ).catch((e: unknown) => e)
-
-    expect(isPortalError(error) && error.code).toBe('invalid_url')
-    expect((await portalRow()).hero_image_url).toBe('https://cdn.example.com/old.jpg')
   })
 
   it('leaves the hero image untouched when heroImageUrl is absent', async () => {

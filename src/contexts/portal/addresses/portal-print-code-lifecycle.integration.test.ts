@@ -120,10 +120,7 @@ function wire(options: Wiring = {}) {
     codec,
     ctx: buildTestAuthContext({ organizationId: ORG }),
     issue: issuePortalToken(common),
-    rotate: rotatePortalToken({
-      ...common,
-      defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
-    }),
+    rotate: rotatePortalToken(common),
     reveal: revealPortalAddress({
       portalRepo,
       staffPublicApi,

@@ -68,11 +68,6 @@ describe('buildReportingContext', () => {
     expect(context.worker.programMaintenance.jobName).toBe('goal-program.maintain')
     expect(typeof context.worker.ratingGoalEvaluation.createHandler).toBe('function')
     expect(context.worker.ratingGoalEvaluation.jobName).toBe('rating-goal.evaluate')
-    expect(Object.keys(context.internal.repos).sort()).toEqual([
-      'dashboardRepo',
-      'goalProgramRepo',
-      'propertySetupRepo',
-    ])
   })
 
   it('evaluates the Google rating goal when Review verifies Google numbers, and ends it on archive', () => {
@@ -122,6 +117,7 @@ describe('buildReportingContext', () => {
     const context = build({
       db: {
         transaction: async (read: (inner: typeof tx) => Promise<unknown>) => read(tx),
+        select: () => ({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) }),
       } as unknown as ReportingContextBuildInput['db'],
       portalApi: {
         listGoalReadinessFacts,
@@ -132,11 +128,12 @@ describe('buildReportingContext', () => {
     })
     const authorize = vi.fn(async () => undefined)
 
-    const recommendation = await context.internal.useCases.goalRecommendation.read(
-      { authorize },
-      { propertyId: 'property-1' },
-      { organizationId: 'org-1', userId: 'manager-1', role: 'PropertyManager' },
-    )
+    const options = await context.publicApi
+      .programsFor({ authorize })
+      .portalGoalAdd.options(
+        { propertyId: 'property-1' },
+        { organizationId: 'org-1', userId: 'manager-1', role: 'PropertyManager' },
+      )
 
     expect(authorize).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'goal.create' }),
@@ -148,8 +145,9 @@ describe('buildReportingContext', () => {
     )
     // The statement timeout, then the one readings statement.
     expect(statements).toHaveLength(2)
-    expect(recommendation).toMatchObject({
-      state: 'no_live_portal',
+    expect(options).toMatchObject({
+      onePortal: [],
+      eachPortal: [],
       timezone: 'Europe/Sofia',
     })
   })
@@ -211,6 +209,6 @@ describe('buildReportingContext', () => {
     // this build.
     const context = build()
 
-    expect(Object.keys(context).sort()).toEqual(['internal', 'publicApi', 'worker'])
+    expect(Object.keys(context).sort()).toEqual(['publicApi', 'worker'])
   })
 })

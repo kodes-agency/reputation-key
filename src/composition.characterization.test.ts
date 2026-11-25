@@ -85,7 +85,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'jobQueue',
   'jobRegistry',
   'logger',
-  'metricPublicApi',
   'notificationDelivery',
   'operationsSnapshot',
   'opsQueues',
