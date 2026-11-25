@@ -28,7 +28,6 @@ export const createPortalResultsLinksReader =
       .select({
         linkId: portalLinks.id,
         label: portalLinkTexts.label,
-        legacyLabel: portalLinks.label,
         iconKey: portalLinks.iconKey,
       })
       .from(portalLinks)
@@ -67,7 +66,7 @@ export const createPortalResultsLinksReader =
       enabled: portal.enabled,
       rows: rows.map((row) => ({
         linkId: row.linkId,
-        label: row.label || row.legacyLabel,
+        label: row.label ?? '',
         iconKey: row.iconKey,
       })),
     }

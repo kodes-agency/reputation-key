@@ -108,12 +108,12 @@ beforeEach(async () => {
   await insertText(SPA, 'bg', 'Спа')
 })
 
-it('names each link in guest order, in the primary language or else its stored label', async () => {
+it('names each link in guest order, in the primary language, or blank when it has none', async () => {
   const links = await read()
   expect(links.enabled).toBe(true)
   expect(links.rows.map(({ linkId, label }) => [linkId, label])).toEqual([
     [MENU, 'Menu'],
-    [SPA, 'Stored spa label'],
+    [SPA, ''],
     [UNWRITTEN, ''],
   ])
 })

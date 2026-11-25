@@ -14,7 +14,7 @@ import type {
 import {
   MAX_PORTAL_LINKS,
   type PortalLinkTextProvenance,
-  type ResolvedPortalLinkText,
+  type StoredPortalLinkText,
 } from './portal-linktree'
 import type { Portal, PortalLink, PortalLinkCategory } from './types'
 
@@ -116,7 +116,7 @@ export type BuildPortalLinktreeViewInput = Readonly<{
   portal: Portal
   categories: ReadonlyArray<PortalLinkCategory>
   links: ReadonlyArray<PortalLink>
-  texts: ReadonlyArray<ResolvedPortalLinkText>
+  texts: ReadonlyArray<StoredPortalLinkText>
   titles: ReadonlyArray<Readonly<{ locale: GuestLocale; linktreeTitle: string | null }>>
   destinations: ReadonlyArray<PortalApprovedDestination>
   /**

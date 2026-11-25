@@ -176,16 +176,11 @@ language pack's default, "Useful links") and `portals.linktree_enabled`. The tex
 the only place a link's wording is written: creating a link writes its
 primary-language text, renaming it (or saving texts) writes the text, and the
 legacy `portal_links.label` column is never written (a new link holds `''` there,
-because the column is NOT NULL until it is dropped). The column is a read-only
-fallback for a link written before the texts existed: `resolveLinkTexts` reads it
-as the primary-language text only when no such text row exists, and a stored text
-always wins over it. Changing the Portal's primary language leaves no link
-unnamed in the new one: the old primary keeps the link's wording (a link with no
-text there starts it from its legacy label, when that is not empty) and the new
-primary's text starts from it where none exists. Migration 0052 copied any link label newer than its primary text into the text
-(once, with a History row and no person), which is what lets a stored text always
-win; the detection query in `docs/operations/operator-commands.md`
-(`link-labels-newer-than-primary-text`) returns no rows. A Portal carries at most four links, counted under the
+because the column is NOT NULL until it is dropped). No reader uses the
+column: every link has its primary text (migrations 0044 and 0052 copied the old
+labels). Changing the Portal's primary language leaves no link unnamed in the
+new one: the new primary's text starts from the link's text in the old primary
+where none exists. A Portal carries at most four links, counted under the
 Portal fence on create; a Portal that already has more keeps them. Icons come
 from a closed catalogue (`src/shared/domain/portal-link-icon.ts`, 27 keys, every
 icon the round-4 editor offers), enforced by a CHECK and refused in the link

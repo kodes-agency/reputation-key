@@ -342,11 +342,6 @@ describe('getPortalLinktree (real PostgreSQL)', () => {
   it('returns the switch, the titles and each link with its texts and approval', async () => {
     await seedOverrides()
     const link = await addApprovedMenu()
-    // Written before texts existed: no text row, the label column is the name.
-    await getPool().query(`DELETE FROM portal_link_texts WHERE link_id = $1`, [link.id])
-    await getPool().query(`UPDATE portal_links SET label = 'Menu' WHERE id = $1`, [
-      link.id,
-    ])
 
     const view = await read()({ portalId: A.portalId }, manager())
 
@@ -361,7 +356,6 @@ describe('getPortalLinktree (real PostgreSQL)', () => {
     expect(view.links[0]).toMatchObject({
       id: link.id,
       iconKey: 'utensils',
-      // No text row yet: the link's own label stands in for the primary language.
       texts: [{ locale: 'en', label: 'Menu', line: null }],
       destination: { state: 'approved', approvedByUserId: 'admin-link-world' },
     })

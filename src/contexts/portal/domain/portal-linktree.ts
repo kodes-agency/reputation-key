@@ -79,17 +79,6 @@ export type StoredPortalLinkText = Readonly<{
   updatedAt: Date
 }>
 
-/**
- * A text after the legacy fallback: `text` rows come from `portal_link_texts`,
- * `legacy_label` rows are the link's own label standing in for a primary-locale
- * row that does not exist (a link written before the table existed).
- */
-export type ResolvedPortalLinkText = Omit<StoredPortalLinkText, 'updatedBy'> &
-  Readonly<{
-    updatedBy: string | null
-    source: 'text' | 'legacy_label'
-  }>
-
 export const hasRoomForAnotherLink = (existingLinkCount: number): boolean =>
   existingLinkCount < MAX_PORTAL_LINKS
 
@@ -142,44 +131,19 @@ export const validateLinktreeTitle = (
   return ok(title)
 }
 
-/**
- * Every text of every link, in link order then language order (primary first).
- * A link with no primary-language row gets its legacy label as that row, so
- * nothing that reads texts ever sees a link without a name. The label is only a
- * fallback for a link written before the texts existed: nothing writes it any
- * more, so a stored text always wins over it.
- */
+/** Every text of every link, in link order then language order (primary first). */
 export function resolveLinkTexts(
   input: Readonly<{
-    links: ReadonlyArray<Readonly<{ id: string; label: string }>>
+    links: ReadonlyArray<Readonly<{ id: string }>>
     texts: ReadonlyArray<StoredPortalLinkText>
     primaryLocale: GuestLocale
   }>,
-): ReadonlyArray<ResolvedPortalLinkText> {
+): ReadonlyArray<StoredPortalLinkText> {
   const localeRank = (locale: GuestLocale): number =>
     locale === input.primaryLocale ? -1 : GUEST_LOCALES.indexOf(locale)
-  return input.links.flatMap((link) => {
-    const own = input.texts
+  return input.links.flatMap((link) =>
+    input.texts
       .filter((text) => text.linkId === link.id)
-      .map((text): ResolvedPortalLinkText => ({ ...text, source: 'text' }))
-    const hasPrimary = own.some((text) => text.locale === input.primaryLocale)
-    const fallback: ReadonlyArray<ResolvedPortalLinkText> = hasPrimary
-      ? []
-      : [
-          {
-            linkId: link.id,
-            locale: input.primaryLocale,
-            label: link.label,
-            line: null,
-            provenance: null,
-            version: 0,
-            updatedBy: null,
-            updatedAt: new Date(0),
-            source: 'legacy_label',
-          },
-        ]
-    return [...own, ...fallback].sort(
-      (a, b) => localeRank(a.locale) - localeRank(b.locale),
-    )
-  })
+      .sort((a, b) => localeRank(a.locale) - localeRank(b.locale)),
+  )
 }

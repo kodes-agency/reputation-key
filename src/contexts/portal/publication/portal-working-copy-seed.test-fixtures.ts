@@ -82,7 +82,7 @@ export type SeededLink = Readonly<{
   sortKey: string
   iconKey?: string | null
   imageAssetId?: string | null
-  /** Per-language wording; a link with none reads its own label in the primary language. */
+  /** Per-language wording; a link with none gets its label as its primary-language text. */
   texts?: readonly SeededLinkText[]
   /** `approved` and `pending` link to a Property-owned destination; `legacy` keeps a raw URL. */
   destination: Readonly<{ state: 'approved' | 'pending'; uri: string }> | 'legacy'
@@ -371,7 +371,8 @@ async function seedLinkTexts(
   seed: PortalWorkingCopySeed,
   link: SeededLink,
 ): Promise<void> {
-  for (const text of link.texts ?? []) {
+  const texts = link.texts ?? [{ locale: seed.primaryGuestLocale, label: link.label }]
+  for (const text of texts) {
     await pool.query(
       `INSERT INTO portal_link_texts
          (id, organization_id, property_id, portal_id, link_id, locale, label,

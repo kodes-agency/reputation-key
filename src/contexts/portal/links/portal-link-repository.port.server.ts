@@ -4,7 +4,7 @@
 
 import type { PortalLinkCategory, PortalLink } from '../domain/types'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { ResolvedPortalLinkText } from '../domain/portal-linktree'
+import type { StoredPortalLinkText } from '../domain/portal-linktree'
 import type {
   OrganizationId,
   PortalId,
@@ -28,14 +28,13 @@ export type PortalLinkRepository = Readonly<{
   ) => Promise<ReadonlyArray<PortalLink>>
   /**
    * Every text of every link of a Portal, in category-then-link order with the
-   * primary language first. A link with no primary-language row is given its
-   * legacy label as that row (`source: 'legacy_label'`), so no link is unnamed.
+   * primary language first.
    */
   listLinkTexts: (
     orgId: OrganizationId,
     portalId: PortalId,
     primaryLocale: GuestLocale,
-  ) => Promise<ReadonlyArray<ResolvedPortalLinkText>>
+  ) => Promise<ReadonlyArray<StoredPortalLinkText>>
   findCategoryById: (
     orgId: OrganizationId,
     id: PortalLinkCategoryId,
