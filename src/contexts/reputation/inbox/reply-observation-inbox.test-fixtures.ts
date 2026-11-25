@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { openNextReviewCycleForTest } from '#/contexts/reputation/inbox/review-cycle-reopen.test-fixtures'
 import { afterAll, beforeAll, beforeEach, expect, vi } from 'vitest'
 import type { Pool } from 'pg'
@@ -227,7 +228,7 @@ export async function seed(
           openedAt: OPENED_AT,
           responseTarget: measuredResponseTargetPermit(sourceCreatedAt),
         }
-      : { materialReviewRevision: 1 },
+      : reviewOpeningAnchor(item),
   )
   return item
 }

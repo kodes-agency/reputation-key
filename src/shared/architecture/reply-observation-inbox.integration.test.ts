@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from '#/contexts/reputation/inbox/review-opening-anchor.test-fixtures'
 import { describe, expect, it } from 'vitest'
 import {
   replyScopeEffects,
@@ -405,7 +406,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     )
     expect(beforeProjection.rows).toEqual([])
 
-    await deps.commandStore.createItem(item, null, { materialReviewRevision: 1 })
+    await deps.commandStore.createItem(item, null, reviewOpeningAnchor(item))
     await expect(handleInboxReplyObserved(deps, event)).resolves.toEqual({
       status: 'applied',
     })

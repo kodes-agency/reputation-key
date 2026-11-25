@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The Inbox projection rebuild reads Google's reply truth, not only RepKey's
 // replies. A reply written directly on Google exists only as a Google reply
@@ -254,9 +255,11 @@ async function seedCanonicalState(): Promise<void> {
     materialReviewRevision: existingReplied,
   })
   const { commandStore } = makeRebuild()
-  await commandStore.createItem(existingItem(), null, {
-    materialReviewRevision: existingReplied,
-  })
+  await commandStore.createItem(
+    existingItem(),
+    null,
+    reviewOpeningAnchor(existingItem(), existingReplied),
+  )
 
   // The reply Google showed is gone: nothing to stamp, the item stays open.
   const missingDeleted = await observeReview(REVIEW.missingDeleted)

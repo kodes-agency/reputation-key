@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { randomUUID as freshUuid } from 'node:crypto'
 import { beforeAll, beforeEach, afterAll } from 'vitest'
 import { createInboxRepository as createProductionInboxRepository } from './inbox-repository.server'
@@ -141,7 +142,7 @@ export function createInboxRepository(database: Database, ports: RepositoryPorts
           database,
           allowAllCommandAuthority,
           () => TEST_NOW,
-        ).createItem(item, null, { materialReviewRevision: 1 })
+        ).createItem(item, null, reviewOpeningAnchor(item))
       ).item
     },
   }

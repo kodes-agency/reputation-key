@@ -7,75 +7,26 @@ import {
   inboxItems,
 } from '#/shared/db/schema/inbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import {
-  inboxItemId,
-  feedbackId,
-  organizationId,
-  propertyId,
-  reviewId,
-} from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { ReviewHandlingCycleStore } from './review-handling-cycle-store.port.server'
 import type {
   HandlingCycle,
   HandlingCycleActorType,
-  HandlingCycleHead,
   HandlingCycleOpenReason,
   HandlingCycleTransition,
   InboxItem,
-  ReviewHandlingCycleHead,
 } from '../domain/inbox-types'
 import {
   createInitialHandlingCycle,
   type HandlingCycleDecision,
 } from '../domain/handling-cycles'
-import { inboxError } from '../domain/inbox-errors'
 import {
   assertReviewResponseTargetAuthorityMatchesCycle,
   insertResponseTargetForHandlingCycle,
 } from '../response-targets/store.server'
 import type { ReviewCycleTargetAnchor } from './review-response-target-authority.port.server'
-import {
-  cycleHeadItemColumns,
-  persistedHeadFromItemRow,
-  type PersistedHead,
-} from './inbox-cycle-head.server'
-
-const headFromRow = (row: PersistedHead): ReviewHandlingCycleHead => {
-  if (
-    row.sourceType !== 'review' ||
-    row.reviewId === null ||
-    row.currentMaterialReviewRevision === null
-  ) {
-    throw inboxError('invalid_input', 'Stored Review Handling Cycle head is invalid')
-  }
-  return {
-    inboxItemId: inboxItemId(row.inboxItemId),
-    organizationId: organizationId(row.organizationId),
-    propertyId: propertyId(row.propertyId),
-    sourceType: 'review',
-    sourceId: reviewId(row.sourceId),
-    currentSourceRevision: row.currentSourceRevision,
-    reviewId: reviewId(row.reviewId),
-    currentCycleNumber: row.currentCycleNumber,
-    currentMaterialReviewRevision: row.currentMaterialReviewRevision,
-    stateRevision: row.stateRevision,
-    status: row.status,
-  }
-}
-
-const sourceHeadFromRow = (row: PersistedHead): HandlingCycleHead => ({
-  inboxItemId: inboxItemId(row.inboxItemId),
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  sourceType: row.sourceType,
-  sourceId:
-    row.sourceType === 'review' ? reviewId(row.sourceId) : feedbackId(row.sourceId),
-  currentCycleNumber: row.currentCycleNumber,
-  currentSourceRevision: row.currentSourceRevision,
-  stateRevision: row.stateRevision,
-  status: row.status,
-})
+import { handlingCycleHeadFromRow } from './inbox-command-guards.server'
+import { cycleHeadItemColumns, persistedHeadFromItemRow } from './inbox-cycle-head.server'
 
 export type InitialHandlingCycleAnchor = Readonly<{
   sourceRevision: number
@@ -193,17 +144,6 @@ export async function insertInitialHandlingCycle(
 export const createReviewHandlingCycleStore = (
   db: Database,
 ): ReviewHandlingCycleStore => ({
-  findSourceHead: async (itemId, orgId) => {
-    return trace('inbox.handlingCycle.findSourceHead', async () => {
-      const rows = await db
-        .select()
-        .from(inboxItems)
-        .where(and(eq(inboxItems.id, itemId), eq(inboxItems.organizationId, orgId)))
-        .limit(1)
-      const head = rows[0] ? persistedHeadFromItemRow(rows[0]) : null
-      return head ? sourceHeadFromRow(head) : null
-    })
-  },
   findHead: async (itemId, orgId, tx) => {
     return trace('inbox.handlingCycle.findHead', async () => {
       const rows = await (tx ?? db)
@@ -212,7 +152,7 @@ export const createReviewHandlingCycleStore = (
         .where(and(eq(inboxItems.id, itemId), eq(inboxItems.organizationId, orgId)))
         .limit(1)
       const head = rows[0] ? persistedHeadFromItemRow(rows[0]) : null
-      return head ? headFromRow(head) : null
+      return head ? handlingCycleHeadFromRow(head) : null
     })
   },
 })

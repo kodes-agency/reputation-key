@@ -249,7 +249,7 @@ const dueFacts = async () =>
   ).rows.map((row) => row.reminder_kind)
 
 const closeLikeAReplyWould = async (at: Date) => {
-  const head = await createReviewHandlingCycleStore(db).findSourceHead?.(ITEM, ORG)
+  const head = await createReviewHandlingCycleStore(db).findHead(ITEM, ORG)
   if (!head) throw new Error('Handling Cycle head missing')
   await db.transaction((tx) => completeGoogleReviewTarget(tx, head, at))
 }

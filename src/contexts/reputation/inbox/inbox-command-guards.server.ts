@@ -30,11 +30,7 @@ import {
 import type { Permission } from '#/shared/domain/permissions'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type { PersistedHead } from './inbox-cycle-head.server'
-import type {
-  ApplyReviewProjectionCommand,
-  HandlingCycleCreationAnchor,
-  ReviewCycleCreationAnchor,
-} from './command-store.port.server'
+import type { ApplyReviewProjectionCommand } from './command-store.port.server'
 import type { CurrentReplyObservationPermit } from './review-reply-observation-authority.port.server'
 import type {
   CurrentReviewInboxProjectionPermit,
@@ -137,21 +133,6 @@ export const lifecycleFactFor = (
     openedWithItem: marks.openedWithItem ?? false,
   })
 }
-
-export const normalizeCreationAnchor = (
-  item: InboxItem,
-  anchor: HandlingCycleCreationAnchor | ReviewCycleCreationAnchor,
-): HandlingCycleCreationAnchor =>
-  'materialReviewRevision' in anchor
-    ? {
-        sourceRevision: anchor.materialReviewRevision,
-        openedReason:
-          item.sourceType === 'review' ? 'review_observed' : 'legacy_backfill',
-        actorType: 'provider',
-        triggerEventId: null,
-        openedAt: item.createdAt,
-      }
-    : anchor
 
 export const projectionTargetAnchor = (
   revision: ReviewInboxProjectionRevisionPermit,

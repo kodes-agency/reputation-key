@@ -2,6 +2,7 @@
 // and with a reply written on Google, against real PostgreSQL. Setup is shared
 // with review-head-persist.integration.test.ts.
 
+import { reviewOpeningAnchor } from '../inbox/review-opening-anchor.test-fixtures'
 import { describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
@@ -133,9 +134,11 @@ describe('a reply written on Google, seen by a head check (real PostgreSQL)', ()
     const allowAll = async () => ({ allowed: true as const })
     const inboxStore = createAtomicInboxCommandStore(db, allowAll, () => clock.at)
     const item: InboxItem = { ...buildItem(), sourceId: seen.reviewId as never }
-    await inboxStore.createItem(item, null, {
-      materialReviewRevision: seen.sourceRevision,
-    })
+    await inboxStore.createItem(
+      item,
+      null,
+      reviewOpeningAnchor(item, seen.sourceRevision),
+    )
 
     const { result } = await headCheck(
       [

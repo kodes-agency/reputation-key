@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from '../inbox/review-opening-anchor.test-fixtures'
 import { describe, expect, it } from 'vitest'
 import { openNextReviewCycleForTest } from '#/contexts/reputation/inbox/review-cycle-reopen.test-fixtures'
 import { releaseDueSlots } from '#/contexts/reputation/response-targets/release-due-slots.test-fixtures'
@@ -106,9 +107,11 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
         startAt: null,
       }),
     )
-    await store.createItem(makeReviewItem(UNKNOWN_ITEM, UNKNOWN_REVIEW), null, {
-      materialReviewRevision: 1,
-    })
+    await store.createItem(
+      makeReviewItem(UNKNOWN_ITEM, UNKNOWN_REVIEW),
+      null,
+      reviewOpeningAnchor(makeReviewItem(UNKNOWN_ITEM, UNKNOWN_REVIEW)),
+    )
 
     const targets = createResponseTargetStore(db)
     await expect(
@@ -133,10 +136,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       targets.getCycleTarget(UNKNOWN_ITEM, ORG, OPENED_AT),
     ).resolves.toMatchObject({ eligibility: 'legacy_unknown' })
 
-    const head = await createReviewHandlingCycleStore(db).findSourceHead?.(
-      REVIEW_ITEM,
-      ORG,
-    )
+    const head = await createReviewHandlingCycleStore(db).findHead(REVIEW_ITEM, ORG)
     if (!head) throw new Error('measured Review Handling Cycle was not created')
     const completedAt = new Date('2026-08-28T08:45:00.000Z')
     await expect(
@@ -222,10 +222,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
   it('never stops a Google target before it started, however early Google dates the reply', async () => {
     await seedScope()
     await projectMeasuredReview(REVIEW_ITEM, REVIEW, OPENED_AT)
-    const head = await createReviewHandlingCycleStore(db).findSourceHead?.(
-      REVIEW_ITEM,
-      ORG,
-    )
+    const head = await createReviewHandlingCycleStore(db).findHead(REVIEW_ITEM, ORG)
     if (!head) throw new Error('measured Review Handling Cycle was not created')
     const observedAt = new Date('2026-08-28T12:00:00.000Z')
 

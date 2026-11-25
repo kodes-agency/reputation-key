@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { describe, it, expect, vi } from 'vitest'
 import { inboxItemId, feedbackId, reviewId } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
@@ -32,7 +33,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const seedingStore = createAtomicInboxCommandStore(db)
     const closed = makeItem({ status: 'closed', closedAt: NOW, assignedTo: USER_A })
-    await seedingStore.createItem(closed, null, { materialReviewRevision: 1 })
+    await seedingStore.createItem(closed, null, reviewOpeningAnchor(closed))
     const authorize: InboxCommandAuthority = vi.fn(async () => ({
       allowed: true as const,
     }))
@@ -40,7 +41,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
     await store.reopenReviewCycle({
       item: closed,
-      expected: { cycleNumber: 1, materialReviewRevision: 1, stateRevision: 1 },
+      expected: { cycleNumber: 1, sourceRevision: 1, stateRevision: 1 },
       reason: 'other',
       explanation: 'A new guest message needs a response.',
       fact: inboxItemStatusChanged({
@@ -66,12 +67,14 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     const seedClosedAssigned = async () => {
       await seedReviewRevisionOne()
       const closed = makeItem({ status: 'closed', closedAt: NOW, assignedTo: USER_A })
-      await createAtomicInboxCommandStore(db).createItem(closed, null, {
-        materialReviewRevision: 1,
-      })
+      await createAtomicInboxCommandStore(db).createItem(
+        closed,
+        null,
+        reviewOpeningAnchor(closed),
+      )
       const command = {
         item: closed,
-        expected: { cycleNumber: 1, materialReviewRevision: 1, stateRevision: 1 },
+        expected: { cycleNumber: 1, sourceRevision: 1, stateRevision: 1 },
         reason: 'other' as const,
         explanation: 'A new guest message needs a response.',
         fact: inboxItemStatusChanged({
@@ -180,13 +183,13 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const closed = makeItem({ status: 'closed', closedAt: NOW })
-    await store.createItem(closed, null, { materialReviewRevision: 1 })
+    await store.createItem(closed, null, reviewOpeningAnchor(closed))
 
     await expect(
       store.reopenReviewCycle({
         item: { ...closed, sourceId: reviewId('4d000000-0000-0000-0000-0000000000ff') },
         // A stale expectation too: the source check must come first.
-        expected: { cycleNumber: 9, materialReviewRevision: 9, stateRevision: 9 },
+        expected: { cycleNumber: 9, sourceRevision: 9, stateRevision: 9 },
         reason: 'other',
         explanation: 'A new guest message needs a response.',
         fact: inboxItemStatusChanged({
@@ -216,7 +219,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       closedAt: NOW,
       assignedTo: USER_A,
     })
-    await store.createItem(closed, null, { materialReviewRevision: 1 })
+    await store.createItem(closed, null, reviewOpeningAnchor(closed))
     const fact = inboxItemStatusChanged({
       inboxItemId: closed.id,
       organizationId: closed.organizationId,
@@ -230,7 +233,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       item: closed,
       expected: {
         cycleNumber: 1,
-        materialReviewRevision: 1,
+        sourceRevision: 1,
         stateRevision: 1,
       },
       reason: 'other' as const,
@@ -490,8 +493,8 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       closedAt: NOW,
     })
     const store = createAtomicInboxCommandStore(db)
-    await store.createItem(first, null, { materialReviewRevision: 1 })
-    await store.createItem(second, null, { materialReviewRevision: 1 })
+    await store.createItem(first, null, reviewOpeningAnchor(first))
+    await store.createItem(second, null, reviewOpeningAnchor(second))
     const command = (items: readonly InboxItem[], bulkId: string) =>
       store.bulkUpdateStatus(
         items,

@@ -16,7 +16,6 @@ import type {
   InboxItem,
   InboxStatus,
   ManualReopenReason,
-  ReviewHandlingCycleHead,
 } from '#/contexts/reputation/domain/inbox-types'
 import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
@@ -51,30 +50,6 @@ export type UpdateInboxStatusDeps = Readonly<{
   responseTargetAuthority: ReviewResponseTargetAuthorityPort
 }>
 
-type CycleHead = HandlingCycleHead | ReviewHandlingCycleHead
-
-/** Source-agnostic head when the store offers one; otherwise the Review-only head. */
-async function findCurrentCycleHead(
-  deps: UpdateInboxStatusDeps,
-  item: InboxItem,
-): Promise<CycleHead | null> {
-  if (deps.cycleStore.findSourceHead) {
-    return deps.cycleStore.findSourceHead(item.id, item.organizationId)
-  }
-  if (item.sourceType === 'review') {
-    return deps.cycleStore.findHead(item.id, item.organizationId)
-  }
-  return null
-}
-
-/** A Review-only head names the source revision under its Review-specific field. */
-function currentSourceRevisionOf(head: CycleHead): number {
-  if ('currentMaterialReviewRevision' in head) {
-    return head.currentSourceRevision ?? head.currentMaterialReviewRevision
-  }
-  return head.currentSourceRevision
-}
-
 /**
  * Review reopen runs under the Response Target authority so the new cycle's
  * target anchor and the Review's exact current source state commit together.
@@ -82,7 +57,7 @@ function currentSourceRevisionOf(head: CycleHead): number {
 async function reopenUnderResponseTargetAuthority(
   deps: UpdateInboxStatusDeps,
   item: InboxItem,
-  head: CycleHead,
+  head: HandlingCycleHead,
   command: ReopenReviewHandlingCycleCommand,
   now: Date,
 ): Promise<InboxItem> {
@@ -162,7 +137,7 @@ export const updateInboxStatus =
     if (!input.reopenReason) {
       throw inboxError('invalid_input', 'A neutral reopen reason is required')
     }
-    const head = await findCurrentCycleHead(deps, item)
+    const head = await deps.cycleStore.findHead(item.id, item.organizationId)
     if (!head) {
       throw inboxError('not_found', 'Inbox item has no current Handling Cycle')
     }
@@ -170,7 +145,7 @@ export const updateInboxStatus =
       item,
       expected: {
         cycleNumber: head.currentCycleNumber,
-        sourceRevision: currentSourceRevisionOf(head),
+        sourceRevision: head.currentSourceRevision,
         stateRevision: head.stateRevision,
       },
       reason: input.reopenReason,
