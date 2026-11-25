@@ -12,7 +12,6 @@ import { createOutboxDelivery } from './delivery.server'
 import {
   outboxEvents,
   eventConsumerReceipts,
-  type OutboxEventInsert,
   type ReceiptStatus,
 } from '#/shared/db/schema/outbox.schema'
 import { trace } from '#/shared/observability/trace'
@@ -52,8 +51,6 @@ export type DurableConsumerExpectation = Readonly<{
 export type { ReceiptStatus }
 
 export type OutboxRepository = Readonly<{
-  /** Insert a new outbox event. Call within the source context's transaction. */
-  insert: (event: OutboxEventInsert) => Promise<void>
   /** Check if a consumer has already processed an event. */
   hasReceipt: (eventId: string, consumerName: string) => Promise<boolean>
   /** Record a consumer receipt. */
@@ -78,12 +75,6 @@ export function createOutboxRepository(
 ): OutboxRepository {
   return {
     delivery: createOutboxDelivery(db, clock),
-    insert: async (event) => {
-      await trace('outbox.insert', async () => {
-        await db.insert(outboxEvents).values(event)
-      })
-    },
-
     hasReceipt: async (eventId, consumerName) => {
       return trace('outbox.hasReceipt', async () => {
         const rows = await db
