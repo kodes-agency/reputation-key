@@ -74,7 +74,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'inboxMaintenanceRuntime',
   'inboxPublicApi',
   'inboxRuntime',
-  'integrationLifecycleRuntime',
   'integrationMaintenanceRuntime',
   'integrationPublicApi',
   'integrationWebhookRuntime',
@@ -219,7 +218,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'releaseRetentionFromEvent',
       'sweepReleasedExpired',
       'countUnreleasedExpired',
-      'cleanupOrganization',
     ]) {
       expect(container.propertyPublicApi).not.toHaveProperty(member)
     }
@@ -252,12 +250,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'imports',
       'subscribeNotifications',
     ])
-    expect(Object.keys(container.integrationLifecycleRuntime).sort()).toEqual([
-      'cancelImportsForConnection',
-      'cancelImportsForOrganization',
-      'finalizePropertyDeletion',
-      'preparePropertyDeletion',
-    ])
     expect(Object.keys(container.integrationWebhookRuntime)).toEqual([
       'handleNotification',
     ])
@@ -278,7 +270,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(Object.isFrozen(container.integrationPublicApi.performance)).toBe(true)
     expect(Object.isFrozen(container.integrationMaintenanceRuntime)).toBe(true)
     expect(Object.isFrozen(container.integrationMaintenanceRuntime.imports)).toBe(true)
-    expect(Object.isFrozen(container.integrationLifecycleRuntime)).toBe(true)
     expect(Object.isFrozen(container.integrationWebhookRuntime)).toBe(true)
     expect(Object.isFrozen(container.integrationWorkerRuntime)).toBe(true)
   })

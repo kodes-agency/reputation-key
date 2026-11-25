@@ -208,26 +208,8 @@ export type IntegrationContextApi = Readonly<{
     subscribeNotifications: ReturnType<typeof createGbpSubscribeBackfill>
     imports: Readonly<{
       inspectBacklog: ReturnType<typeof createGoogleImportLifecycle>['inspectBacklog']
-      inspectScope: ReturnType<typeof createGoogleImportLifecycle>['inspectScope']
-      inspectRequest: ReturnType<typeof createGoogleImportLifecycle>['inspectRequest']
-      cancelRequest: ReturnType<typeof createGoogleImportLifecycle>['cancelRequest']
       sweep: ReturnType<typeof createGoogleImportLifecycle>['sweep']
     }>
-  }>
-  /** Cross-context account/import teardown authority. */
-  lifecycle: Readonly<{
-    cancelImportsForConnection: ReturnType<
-      typeof createGoogleImportLifecycle
-    >['cancelConnection']
-    cancelImportsForOrganization: ReturnType<
-      typeof createGoogleImportLifecycle
-    >['cancelOrganization']
-    preparePropertyDeletion: ReturnType<
-      typeof createGoogleImportLifecycle
-    >['preparePropertyDeletion']
-    finalizePropertyDeletion: ReturnType<
-      typeof createGoogleImportLifecycle
-    >['finalizePropertyDeletion']
   }>
   /** Authenticated GBP notification ingress. */
   webhook: Readonly<{ handleNotification: HandleGbpNotification }>
@@ -288,30 +270,9 @@ export type IntegrationContextApi = Readonly<{
       inspectGoogleImportLifecycle: ReturnType<
         typeof createGoogleImportLifecycle
       >['inspectBacklog']
-      inspectGoogleImportLifecycleScope: ReturnType<
-        typeof createGoogleImportLifecycle
-      >['inspectScope']
-      cancelGoogleImportForConnection: ReturnType<
-        typeof createGoogleImportLifecycle
-      >['cancelConnection']
       cancelGoogleImportForUser: ReturnType<
         typeof createGoogleImportLifecycle
       >['cancelUser']
-      cancelGoogleImportForOrganization: ReturnType<
-        typeof createGoogleImportLifecycle
-      >['cancelOrganization']
-      prepareGoogleImportPropertyDeletion: ReturnType<
-        typeof createGoogleImportLifecycle
-      >['preparePropertyDeletion']
-      finalizeGoogleImportPropertyDeletion: ReturnType<
-        typeof createGoogleImportLifecycle
-      >['finalizePropertyDeletion']
-      cancelGoogleImportRequest: ReturnType<
-        typeof createGoogleImportLifecycle
-      >['cancelRequest']
-      inspectGoogleImportRequest: ReturnType<
-        typeof createGoogleImportLifecycle
-      >['inspectRequest']
     }>
   }>
 }>
@@ -523,14 +484,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     renewGooglePerformanceLease,
     sweepGoogleImportLifecycle: googleImportLifecycle.sweep,
     inspectGoogleImportLifecycle: googleImportLifecycle.inspectBacklog,
-    inspectGoogleImportLifecycleScope: googleImportLifecycle.inspectScope,
-    cancelGoogleImportForConnection: googleImportLifecycle.cancelConnection,
     cancelGoogleImportForUser: googleImportLifecycle.cancelUser,
-    cancelGoogleImportForOrganization: googleImportLifecycle.cancelOrganization,
-    prepareGoogleImportPropertyDeletion: googleImportLifecycle.preparePropertyDeletion,
-    finalizeGoogleImportPropertyDeletion: googleImportLifecycle.finalizePropertyDeletion,
-    cancelGoogleImportRequest: googleImportLifecycle.cancelRequest,
-    inspectGoogleImportRequest: googleImportLifecycle.inspectRequest,
 
     getGoogleAuthUrl: connections.oauth.authorizationUrl,
     redeemGoogleOAuthState: connections.oauth.redeemState,
@@ -605,17 +559,8 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       subscribeNotifications: useCases.gbpSubscribeBackfill,
       imports: Object.freeze({
         inspectBacklog: useCases.inspectGoogleImportLifecycle,
-        inspectScope: useCases.inspectGoogleImportLifecycleScope,
-        inspectRequest: useCases.inspectGoogleImportRequest,
-        cancelRequest: useCases.cancelGoogleImportRequest,
         sweep: useCases.sweepGoogleImportLifecycle,
       }),
-    }),
-    lifecycle: Object.freeze({
-      cancelImportsForConnection: useCases.cancelGoogleImportForConnection,
-      cancelImportsForOrganization: useCases.cancelGoogleImportForOrganization,
-      preparePropertyDeletion: useCases.prepareGoogleImportPropertyDeletion,
-      finalizePropertyDeletion: useCases.finalizeGoogleImportPropertyDeletion,
     }),
     webhook: Object.freeze({ handleNotification: gbpNotificationHandler }),
     worker: Object.freeze({
