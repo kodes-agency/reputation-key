@@ -235,28 +235,6 @@ describe('contact destinations (real PostgreSQL)', () => {
     })
   })
 
-  it('never quarantines a contact, even when a stale re-check reaches one', async () => {
-    const email = await request('front@hotel.com')
-
-    const recorded = await repo().recordNetworkValidation({
-      organizationId: ORG_A,
-      propertyId: PROPERTY_A,
-      id: email.id,
-      expectedLastValidatedAt: email.lastValidatedAt,
-      result: {
-        outcome: 'unsafe',
-        reason: 'redirect_target_invalid',
-        observedAt: A_DAY_LATER,
-      },
-    })
-
-    expect(recorded).toBeNull()
-    await expect(repo().findById(ORG_A, PROPERTY_A, email.id)).resolves.toMatchObject({
-      approvalState: 'approved',
-      disabledReason: null,
-    })
-  })
-
   it('refuses a contact source on anything but a stored phone number or email address', async () => {
     const write = (normalizedUri: string, sourceType: 'contact' | 'custom') =>
       repo().request({

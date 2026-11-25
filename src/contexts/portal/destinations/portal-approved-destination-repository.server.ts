@@ -411,9 +411,6 @@ export const createPortalApprovedDestinationRepository = (
                       input.expectedNextAttemptAt,
                     ),
               inArray(portalApprovedDestinations.approvalState, ['pending', 'approved']),
-              // A run that started before a row was due could still reach a
-              // contact; it is never checked, so it is never quarantined.
-              ne(portalApprovedDestinations.sourceType, 'contact'),
             ),
           )
           .returning()

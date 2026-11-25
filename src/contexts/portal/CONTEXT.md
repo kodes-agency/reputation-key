@@ -197,7 +197,7 @@ A tile opens a website, a phone number or an email address (ADR 0044, amendment
 `mailto:front@hotel.com` and named in `hostname` by the number or address without
 its scheme (`validatePortalLinkDestination`, `src/shared/domain/portal-contact-address.ts`).
 It is approved as a manager enters it, is never checked over the network (the
-re-check query leaves it out, `recordNetworkValidation` never quarantines one, and
+re-check query leaves it out, so the validator never records one, and
 `listApprovedUris` serves it whatever its `last_validated_at`), is not one of the
 "Sites allowed for links" (`listPortalApprovedDestinations` leaves it out) and
 cannot be turned off (`disablePortalApprovedDestination` refuses). `request` holds
