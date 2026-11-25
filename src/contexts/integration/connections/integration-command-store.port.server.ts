@@ -26,7 +26,7 @@ export type ConnectGoogleAccountCommand = Readonly<{
 }>
 
 /**
- * Reconnect (same org): tokens + status→active + visibility update +
+ * Reconnect (same org): tokens + status→active +
  * google_account.connected fact in one transaction. Applies only to the exact
  * lifecycle, access and credential versions the OAuth ceremony was approved
  * against, so a disconnect, departure fence or other grant that committed

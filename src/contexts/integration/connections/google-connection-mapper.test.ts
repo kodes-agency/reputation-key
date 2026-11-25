@@ -59,7 +59,6 @@ describe('googleConnectionFromRow', () => {
       'https://www.googleapis.com/auth/business.manage',
       'https://www.googleapis.com/auth/plus.me',
     ])
-    expect(conn.visibility).toBe('organization')
     expect(conn.status).toBe('active')
     expect(conn.credentialUseState).toBe('active')
     expect(conn.cleanupMaterialDeadlineAt).toBeNull()
@@ -77,12 +76,6 @@ describe('googleConnectionFromRow', () => {
     const conn = googleConnectionFromRow(row)
     expect(conn.status).toBe('disconnected')
   })
-
-  it('handles private visibility', () => {
-    const row = { ...sampleRow, visibility: 'private' as const }
-    const conn = googleConnectionFromRow(row)
-    expect(conn.visibility).toBe('private')
-  })
 })
 
 describe('googleConnectionToInsert', () => {
@@ -98,7 +91,6 @@ describe('googleConnectionToInsert', () => {
     expect(insert.tokenExpiresAt).toBe(sampleRow.tokenExpiresAt)
     expect(insert.scopes).toEqual([...sampleRow.scopes])
     expect(insert.connectedBy).toBe(sampleRow.connectedBy)
-    expect(insert.visibility).toBe(sampleRow.visibility)
     expect(insert.status).toBe(sampleRow.status)
     expect(insert.credentialUseState).toBe(sampleRow.credentialUseState)
     expect(insert.cleanupMaterialDeadlineAt).toBe(sampleRow.cleanupMaterialDeadlineAt)

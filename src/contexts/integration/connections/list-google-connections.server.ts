@@ -1,10 +1,7 @@
 // Integration context — list Google connections use case
 // Authorization: can() check lives here (use-case layer), not in the repo.
 
-import type {
-  GoogleConnectionRepository,
-  ConnectionVisibilityFilter,
-} from './google-connection-repository.port.server'
+import type { GoogleConnectionRepository } from './google-connection-repository.port.server'
 import type { GoogleConnection } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { integrationError } from '../domain/errors'
@@ -24,9 +21,7 @@ export const listGoogleConnections =
       )
     }
 
-    const filter: ConnectionVisibilityFilter = { showAll: true }
-
-    return deps.connectionRepo.listByOrganization(ctx.organizationId, filter)
+    return deps.connectionRepo.listByOrganization(ctx.organizationId)
   }
 
 export type ListGoogleConnections = ReturnType<typeof listGoogleConnections>
