@@ -191,9 +191,10 @@ The commands:
 
 - `ops:triage-beta-feedback --operator <id>` — list the global content-free native-feedback support queue. Applying one exact local-reference transition additionally requires all 14 reviewed positional values, `--ticket`, `--reason`, and `--apply`; it is revision/transition-ID guarded, appends immutable evidence, and never reads report text/downloads attachments or creates an engineering issue. §16
 - Operational Action History currently exposes a context-owned restricted
-  AccountAdmin list/export seam, wired to current Identity authority, plus internal readiness, hold,
-  redaction, and retention-assessment use cases. There is intentionally no
-  standalone operator command or destructive retention apply yet. Follow
+  AccountAdmin list/export seam, wired to current Identity authority. The
+  internal readiness, hold, redaction and retention-assessment use cases were
+  removed as unused. There is intentionally no operator command or destructive
+  retention apply. Follow
   `operational-action-history.md`; counsel approval is required before any
   destructive retention path is designed or enabled.
 - `ops:inspect policy <permission> <userId> --org <id> [--property <id>] --operator <id>` — explain one read-only ExecutionPolicy decision.

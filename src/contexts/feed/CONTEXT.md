@@ -98,13 +98,15 @@ Recent Activity rows only age out (90-day expiry); their erasure
 lives in `rights/`. No projection
 writer, recovery command or manager read API remains. Existing rows retain their 90-day expiry. Inbox item timeline and
 Portal history use their own stores. Operational Action History is append-oriented,
-organization-scoped evidence with restricted list/export access and legal-hold
-handling. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
+organization-scoped evidence with restricted list/export access. The
+legal-hold table and the erasure check that refuses while a hold is active stay;
+the operations that placed or released holds, redacted subjects, assessed
+retention or reported readiness were removed as unused. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
 are that restricted AccountAdmin API and have no UI on purpose
 (`docs/operations/operational-action-history.md`, "Access and export"). A
-restricted read and a retention assessment take the tenant's sequence-head lock
-first and read after it, at the default isolation level: an append in flight
-makes them wait, where a snapshot taken before the lock ended them with
+restricted read takes the tenant's sequence-head lock first and reads after it,
+at the default isolation level: an append in flight makes it wait, where a
+snapshot taken before the lock ended it with
 SQLSTATE 40001 and a false "authority unavailable" access record. A Google
 disconnect is recorded as the AccountAdmin's action when its fact names one, and
 as a system action when it does not.

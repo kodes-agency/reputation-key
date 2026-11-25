@@ -7,14 +7,14 @@ Portal publish/archive, approved-destination policy and hero validation,
 member-role and Merchant AI capability change, Google connection/disconnection,
 and provider-confirmed Google reply publication paths are implemented. Broader
 action-family coverage and a counsel-approved destructive lifecycle are not
-complete.
+complete. The readiness, retention-assessment, legal-hold and redaction
+operations were removed as unused (see "Removed lifecycle operations").
 
 ## Trigger and impact
 
 Use this runbook when a restricted action-history read is unavailable, sequence
-coverage reports a gap, a legal hold or redaction needs review, or the proposed
-365-day retention horizon needs assessment. Operational Action History is
-separate from the user-facing Recent Activity feed. Recent Activity must never
+coverage shows a gap, or a legal hold or retention question reaches the
+Activity owner. Operational Action History is separate from the user-facing Recent Activity feed. Recent Activity must never
 be used to fill a gap or presented as security/action evidence.
 
 An unavailable history read does not block the source business action. It does
@@ -32,7 +32,7 @@ tokens, credentials, URLs, or raw/pseudonymous network values.
 
 Database mutation guards reject core updates, deletes, and truncation. They
 permit only one-way actor/resource identifier redaction outside an active legal
-hold. Tenant heads reject deletion/truncation and accept only a one-step,
+hold; no application code performs that redaction. Tenant heads reject deletion/truncation and accept only a one-step,
 monotonic record-time advance. This is ordinary defense in depth. Do not call
 it immutable, tamper-evident, cryptographically verifiable, or compliance-grade. Sequence
 coverage detects ordinary gaps; the export fingerprint proves only that two
@@ -84,10 +84,10 @@ decisions, other policy/capability changes, sensitive-data access/export,
 privacy requests, feedback moderation, and general operator commands still
 need their own atomic source seams before they may be claimed.
 
-Readiness is `ready/sequence_current` only when the tenant head equals the
-covered distinct sequence count and there are no duplicate sequences. A gap is
-`unavailable/unaccounted_sequence_gap`; a failed database read is
-`unavailable/authority_store_unavailable` with unknown counts, never zeros.
+No code reports readiness any more. Sequence coverage is complete only when the
+tenant head equals the count of distinct sequences in
+`operational_action_history_records` and there are no duplicates; an operator
+who needs that answer reads it from the two tables directly.
 
 For an interrupted append, retry the exact source fact or canonical command
 with the same provenance identity. The store serializes allocation on the
@@ -96,38 +96,27 @@ as a duplicate success. A conflicting use of the same provenance fails closed.
 Never synthesize provenance or reconstruct a missing record from
 `recent_activity_entries`, `recent_activity_replay_facts`, or legacy `audit_logs`.
 
-## Legal holds and redaction
+## Removed lifecycle operations
 
-Legal holds are Organization-scoped occurrence-time intervals with a reason
-code and named operator identifier. Placement and its history action commit
-together. Release is a one-time transition with a named operator and reason
-code; direct rewrite, deletion, and truncation are rejected.
+The readiness report, retention assessment, legal-hold placement and release,
+and subject redaction operations (and their store methods) were removed as
+unused: no screen, ops command or job called them and nobody asked for them.
+The `operational_action_history_legal_holds` table and its database guards stay,
+and so does the rights/erasure check that refuses while a legal hold is active.
+Holds can therefore only be placed or released by a reviewed database change.
+Nothing assesses the proposed 365-day retention horizon; it is not enforced and
+there is no delete/apply method or shared retention-sweep rule.
 
-Actor/resource redaction handles at most 100 matching records per call. Rows
-covered by an active hold remain unchanged and are reported as held. The only
-allowed record mutation sets the selected identifier to null and its redaction
-timestamp once; action, outcome, provenance, sequence, and all other fields stay
-unchanged. Retrying a completed correlation is a reported duplicate and cannot
-consume another batch; continuing an incomplete redaction requires a new
-correlation identity.
-
-## Retention
-
-The proposed horizon is 365 days, but repository behavior is
-`report_only_pending_counsel`. Assessment appends a lifecycle action and returns
-only cutoff, eligible count, held count, and oldest eligible time. There is no
-delete/apply method and no shared retention-sweep rule.
-
-Do not add destructive behavior until counsel approves the policy and the
-change has separately reviewed authority for legal-hold precedence, redaction,
-export, restore/fork behavior, and deletion evidence.
+Do not add destructive behavior, or bring any of these operations back, until
+counsel approves the policy and the change has separately reviewed authority for
+legal-hold precedence, redaction, export, restore/fork behavior, and deletion
+evidence.
 
 ## Verification and escalation
 
-Repository verification consists of the domain/access/lifecycle unit suites,
+Repository verification consists of the domain/access unit suites,
 the migration guard suite, an empty-to-current PostgreSQL migration, schema
-drift, and the real-database append/fault/pagination/hold/redaction/assessment
-suite. Capture only content-free totals, journal head, test result, and failure
+drift, and the real-database append/fault/pagination/race suites. Capture only content-free totals, journal head, test result, and failure
 codes in incident evidence.
 
 Escalate any analysis coverage discontinuity, provenance conflict, direct-mutation rejection, or

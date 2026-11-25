@@ -376,20 +376,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/audit/operational-action-history-store.server.ts',
-    symbol: 'placeLegalHold',
-    reason:
-      'A legal hold is read by its id to settle a retry, and a row whose Organization differs from the hold being placed is refused as a conflict.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/feed/audit/operational-action-history-store.server.ts',
-    symbol: 'releaseLegalHold',
-    reason:
-      'A legal hold is locked by its id, and a hold of another Organization is reported as not found before it can be released.',
-    category: 'TENANT-CHECKED',
-  },
-  {
     file: 'src/contexts/feed/preferences/copy-category-defaults.server.ts',
     symbol: 'countCategoryDefaultsToCopy',
     reason:
