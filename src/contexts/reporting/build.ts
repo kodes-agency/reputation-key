@@ -47,10 +47,6 @@ import { createGoalProgramService } from './monthly-goals/goal-programs.server'
 import { type GoalExecutionPolicy } from './application/use-cases/goal-program-shared'
 import { withGoalProgramVisibility } from './monthly-goals/goal-program-visibility.server'
 import { createGoalsForSubjects } from './monthly-goals/goal-bulk-create.server'
-import {
-  readPortalGoalRecommendation,
-  type PortalGoalRecommendationRequestApi,
-} from './monthly-goals/goal-recommendation-read.server'
 import type { GoalRecommendationFactsPort } from './monthly-goals/goal-recommendation-facts.port.server'
 import { readMonthlyPortalGoalCard } from './monthly-goals/monthly-portal-goal-card.server'
 import { readMonthlyPortalGoalPage } from './monthly-goals/monthly-portal-goal-page.server'
@@ -74,7 +70,6 @@ import { readPortalGoalSinglePage } from './monthly-goals/get-portal-goal-page.s
 import { readGoalRecommendationCounts } from './monthly-goals/goal-recommendation-readings.server'
 import { createGoalProgressReader } from './monthly-goals/goal-progress.server'
 import { createGoalListProgressReader } from './monthly-goals/goal-list-progress.server'
-import type { GoalProgramRepository } from './application/ports/goal-program.repository'
 import {
   createPropertyRatingGoalRepository,
   createRatingGoalPropertyFactsReader,
@@ -233,10 +228,6 @@ function buildMetricModule(input: ReportingContextBuildInput) {
       },
     },
     worker: Object.freeze({ registerOutboxConsumers }),
-    internal: {
-      repos: {} as const,
-      useCases: {},
-    },
   } as const
 }
 
@@ -334,10 +325,6 @@ function buildGoalModule(
     subjects: goalProgramSubjects,
     facts: goalRecommendationFacts,
     now: input.clock,
-  })
-  const goalRecommendation: PortalGoalRecommendationRequestApi = Object.freeze({
-    read: (policy, ...args) =>
-      readPortalGoalRecommendation(goalRecommendationDeps(policy), ...args),
   })
   // Each use case authorizes goal.create before reading; running figures use
   // governed progress rather than recommendation counts.
@@ -463,13 +450,6 @@ function buildGoalModule(
           createGoalProgramMaintenanceHandler(buildGoalPrograms(policy), input.logger),
       }),
     }),
-    internal: {
-      repos: { goalProgramRepo } satisfies Readonly<{
-        goalProgramRepo: GoalProgramRepository
-      }>,
-      // Direct reads retain their own goal.create authorization.
-      useCases: { goalRecommendation },
-    },
   } as const
 }
 
@@ -594,18 +574,6 @@ function buildDashboardModule(
       getPropertySetup: getPropertySetupRead,
       listPropertySetupSummaries: listPropertySetupSummariesRead,
     },
-    internal: {
-      repos: { dashboardRepo, propertySetupRepo },
-      useCases: {
-        getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
-        getPortalAnalytics: getPortal,
-        getPortalResultsOverview: getResultsOverview,
-        getPropertyOverview: getOverview,
-        getFleetOverview: getFleet,
-        getPropertySetup: getPropertySetupRead,
-        listPropertySetupSummaries: listPropertySetupSummariesRead,
-      },
-    },
   } as const
 }
 
@@ -633,18 +601,6 @@ export function buildReportingContext(input: ReportingContextBuildInput) {
       },
       programMaintenance: goal.worker.programMaintenance,
       ratingGoalEvaluation: ratingGoal.worker.evaluation,
-    }),
-    internal: Object.freeze({
-      repos: {
-        ...metric.internal.repos,
-        ...goal.internal.repos,
-        ...dashboard.internal.repos,
-      },
-      useCases: {
-        ...metric.internal.useCases,
-        ...goal.internal.useCases,
-        ...dashboard.internal.useCases,
-      },
     }),
   } as const)
 }

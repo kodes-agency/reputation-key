@@ -138,7 +138,6 @@ export function buildContainerCapabilities({
     /** Bounded, operator-only Inbox projection repair authority. */
     inboxMaintenanceRuntime: inbox.maintenance,
     inboxRuntime: inbox.runtime,
-    metricPublicApi: reporting.publicApi,
     dashboardPublicApi: reporting.publicApi,
     goalPublicApi: reporting.publicApi,
     goalWorkerRuntime: reporting.worker,
