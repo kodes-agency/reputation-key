@@ -17,7 +17,7 @@ import type {
 } from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { fencePortalRevision } from './portal-aggregate-fence.server'
-import { sameInstant } from './portal-command-guards.server'
+import { isFactAt, sameInstant } from './portal-command-guards.server'
 import { NO_SEALED_ADDRESS } from '../addresses/portal-sealed-address-columns.server'
 import {
   areWellFormedPrintCodeHashes,
@@ -144,8 +144,7 @@ function accessArtifactSetMatches(
       event.propertyId === command.propertyId &&
       event.portalId === command.portalId &&
       event.channel === artifact.channel &&
-      event.sourceAggregateVersion === command.revision.toISOString() &&
-      sameInstant(event.occurredAt, command.occurredAt)
+      isFactAt(event, command.revision, command.occurredAt)
     )
   })
 }
@@ -162,8 +161,7 @@ function assertIssueTokenCommand(command: IssuePortalTokenCommand): void {
     command.event.portalId !== command.portalId ||
     command.event.tokenIdentifier !== command.token.tokenIdentifier ||
     command.event.version !== command.token.version ||
-    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(command.event.occurredAt, command.occurredAt) ||
+    !isFactAt(command.event, command.revision, command.occurredAt) ||
     !sameInstant(command.token.issuedAt, command.occurredAt) ||
     !isWellFormedProvenance(command)
   ) {
@@ -191,9 +189,8 @@ function assertRotateTokenCommand(command: RotatePortalTokenCommand): void {
     command.event.portalId !== command.portalId ||
     command.event.previousVersion !== oldToken.version ||
     command.event.version !== newToken.version ||
-    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
     !sameInstant(command.event.gracePeriodEnds, oldToken.gracePeriodEnds) ||
-    !sameInstant(command.event.occurredAt, command.occurredAt) ||
+    !isFactAt(command.event, command.revision, command.occurredAt) ||
     !sameInstant(newToken.issuedAt, command.occurredAt) ||
     !isWellFormedProvenance(command)
   ) {
@@ -207,8 +204,7 @@ function assertRevokeTokenCommand(command: RevokePortalTokensCommand): void {
     command.event.organizationId !== command.organizationId ||
     command.event.propertyId !== command.propertyId ||
     command.event.portalId !== command.portalId ||
-    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(command.event.occurredAt, command.occurredAt)
+    !isFactAt(command.event, command.revision, command.occurredAt)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal token revoke')
   }

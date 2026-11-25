@@ -10,7 +10,11 @@
 import { MAX_PORTAL_LINKS } from '../domain/portal-linktree'
 import { portalError } from '../domain/errors'
 import type { CreatePortalCommand } from './portal-command-store-port.server'
-import { sameInstant } from './portal-command-guards.server'
+import {
+  assertRevisionAdvances,
+  isFactAt,
+  sameInstant,
+} from './portal-command-guards.server'
 import { assertMembershipCommand } from './portal-group-commands.server'
 
 /** The `portal.created` fact must name exactly the Portal being written. */
@@ -22,8 +26,7 @@ function matchesPortalCreationScope(command: CreatePortalCommand): boolean {
     event.propertyId === portal.propertyId &&
     event.portalId === portal.id &&
     event.publicationState === portal.publicationState &&
-    event.sourceAggregateVersion === portal.updatedAt.toISOString() &&
-    sameInstant(event.occurredAt, portal.createdAt)
+    isFactAt(event, portal.updatedAt, portal.createdAt)
   )
 }
 
@@ -50,8 +53,7 @@ function matchesResponsibilityFactScope(
     fact.organizationId === command.organizationId &&
     fact.propertyId === portal.propertyId &&
     fact.portalId === portal.id &&
-    fact.sourceAggregateVersion === portal.updatedAt.toISOString() &&
-    sameInstant(fact.occurredAt, portal.createdAt)
+    isFactAt(fact, portal.updatedAt, portal.createdAt)
   )
 }
 
@@ -93,12 +95,11 @@ function assertGroupMembership(command: CreatePortalCommand): void {
   if (portal.createdBy === null) {
     throw portalError('forbidden', 'A Portal joining a group needs its creator')
   }
-  if (membership.revision.getTime() <= membership.expectedGroupUpdatedAt.getTime()) {
-    throw portalError(
-      'revision_conflict',
-      'Portal Group command revision must advance monotonically',
-    )
-  }
+  assertRevisionAdvances(
+    membership.revision,
+    membership.expectedGroupUpdatedAt,
+    'Portal Group',
+  )
   assertMembershipCommand(
     {
       organizationId: command.organizationId,

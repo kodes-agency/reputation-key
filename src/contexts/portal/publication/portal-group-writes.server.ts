@@ -21,7 +21,10 @@ import type {
 import { unbrand } from '#/shared/domain/ids'
 import { portalError } from '../domain/errors'
 import type { PortalGroupHistoryDraft } from '../domain/portal-group-history'
-import { assertCommittedRevision } from './portal-command-guards.server'
+import {
+  assertCommittedRevision,
+  assertRevisionAdvances,
+} from './portal-command-guards.server'
 
 export type PortalGroupFence = Readonly<{
   organizationId: OrganizationId
@@ -47,12 +50,7 @@ export async function fencePortalGroup(
   fence: PortalGroupFence,
   patch: Readonly<{ name?: string }> = {},
 ): Promise<void> {
-  if (fence.revision.getTime() <= fence.expectedUpdatedAt.getTime()) {
-    throw portalError(
-      'revision_conflict',
-      'Portal Group command revision must advance monotonically',
-    )
-  }
+  assertRevisionAdvances(fence.revision, fence.expectedUpdatedAt, 'Portal Group')
   await lockStaffTargetProperty(tx, fence.organizationId, fence.propertyId)
   const [updated] = await tx
     .update(portalGroups)
