@@ -18,12 +18,13 @@ import type {
   ReviewSourceMeta,
 } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { ApplyReceiptStatus } from '#/contexts/reputation/inbox/command-store.port.server'
-import type { ReplyObservationAuthorityPort } from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
-import type { SourceTransitionAuthorityPort } from '#/contexts/reputation/inbox/review-source-transition-authority.port.server'
+import type { ReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
+import type { ReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.port.server'
 import type {
-  ReviewResponseTargetAuthorityPort,
+  ReviewResponseTargetAuthority,
   ReviewResponseTargetExpectation,
-} from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+} from '#/contexts/reputation/reviews/response-target-authority.port.server'
+import { noLentReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.test-fixtures'
 import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import {
   createInboxDatabaseStores,
@@ -355,21 +356,24 @@ export async function makeDeps(overrides: {
       }
       return {
         status: 'current' as const,
-        value: await apply({
-          ...expectation,
-          state: expectation.resolution === 'absent' ? 'absent' : 'live',
-          observedAt: expectation.occurredAt,
-          providerReplyUpdatedAt: overrides.providerReplyUpdatedAt ?? null,
-          authority: 'review.current-google-reply-observation.v1',
-          sourceEpochCarryFromMaterialReviewRevision:
-            overrides.sourceEpochCarryFromMaterialReviewRevision ?? null,
-          reviewSourceContentState: 'active',
-          responseTargetEligibility: 'measured',
-          responseTargetStartAt: SOURCE_META.sourceDate,
-        }),
+        value: await apply(
+          {
+            ...expectation,
+            state: expectation.resolution === 'absent' ? 'absent' : 'live',
+            observedAt: expectation.occurredAt,
+            providerReplyUpdatedAt: overrides.providerReplyUpdatedAt ?? null,
+            authority: 'review.current-google-reply-observation.v1',
+            sourceEpochCarryFromMaterialReviewRevision:
+              overrides.sourceEpochCarryFromMaterialReviewRevision ?? null,
+            reviewSourceContentState: 'active',
+            responseTargetEligibility: 'measured',
+            responseTargetStartAt: SOURCE_META.sourceDate,
+          },
+          noLentReviewTransaction,
+        ),
       }
     }),
-  } satisfies ReplyObservationAuthorityPort
+  } satisfies ReviewReplyObservationAuthority
 
   const sourceTransitionAuthority = {
     withExactCurrent: vi.fn(async (expectation, apply) => {
@@ -378,13 +382,16 @@ export async function makeDeps(overrides: {
       }
       return {
         status: 'current' as const,
-        value: await apply({
-          ...expectation,
-          authority: 'review.current-source-transition.v1',
-        }),
+        value: await apply(
+          {
+            ...expectation,
+            authority: 'review.current-source-transition.v1',
+          },
+          noLentReviewTransaction,
+        ),
       }
     }),
-  } satisfies SourceTransitionAuthorityPort
+  } satisfies ReviewSourceTransitionAuthority
 
   const responseTargetAuthority = {
     withExactCurrent: vi.fn(async (expectation, apply) => {
@@ -394,13 +401,16 @@ export async function makeDeps(overrides: {
       const meta = overrides.sourceMeta === undefined ? SOURCE_META : overrides.sourceMeta
       return {
         status: 'current' as const,
-        value: await apply({
-          ...expectation,
-          authority: 'review.current-response-target.v1',
-          materialReviewRevision: meta?.materialReviewRevision ?? 1,
-          eligibility: 'measured',
-          responseTargetStartAt: meta?.sourceDate ?? NOW,
-        }),
+        value: await apply(
+          {
+            ...expectation,
+            authority: 'review.current-response-target.v1',
+            materialReviewRevision: meta?.materialReviewRevision ?? 1,
+            eligibility: 'measured',
+            responseTargetStartAt: meta?.sourceDate ?? NOW,
+          },
+          noLentReviewTransaction,
+        ),
       }
     }),
     withExactCurrentBatch: vi.fn(async (expectations, apply) => {
@@ -418,6 +428,7 @@ export async function makeDeps(overrides: {
             eligibility: 'measured' as const,
             responseTargetStartAt: meta?.sourceDate ?? NOW,
           })),
+          noLentReviewTransaction,
         ),
       }
     }),
@@ -433,46 +444,49 @@ export async function makeDeps(overrides: {
       const revisionCount = meta.materialReviewRevision ?? 1
       return {
         status: 'current' as const,
-        value: await apply({
-          authority: 'review.current-inbox-projection.v1',
-          organizationId: expectation.organizationId,
-          propertyId: expectation.propertyId,
-          reviewId: expectation.reviewId,
-          sourceEpoch: expectation.sourceEpoch,
-          platform: 'google',
-          sourceDate: meta.sourceDate,
-          sourceContentState: 'active',
-          sourceContentErasedAt: null,
-          currentMaterialReviewRevision: revisionCount,
-          revisions: Array.from({ length: revisionCount }, (_, index) => ({
-            authority: 'review.inbox-projection-revision.v1' as const,
+        value: await apply(
+          {
+            authority: 'review.current-inbox-projection.v1',
             organizationId: expectation.organizationId,
             propertyId: expectation.propertyId,
             reviewId: expectation.reviewId,
             sourceEpoch: expectation.sourceEpoch,
-            materialReviewRevision: index + 1,
-            eligibility: 'measured' as const,
-            responseTargetStartAt: meta.sourceDate,
-            observedAt: new Date(NOW.getTime() + index),
-            sourceEpochCarry: false,
-          })) as [
-            {
-              authority: 'review.inbox-projection-revision.v1'
-              organizationId: string
-              propertyId: string
-              reviewId: string
-              sourceEpoch: number
-              materialReviewRevision: number
-              eligibility: 'measured'
-              responseTargetStartAt: Date
-              observedAt: Date
-              sourceEpochCarry: boolean
-            },
-          ],
-        }),
+            platform: 'google',
+            sourceDate: meta.sourceDate,
+            sourceContentState: 'active',
+            sourceContentErasedAt: null,
+            currentMaterialReviewRevision: revisionCount,
+            revisions: Array.from({ length: revisionCount }, (_, index) => ({
+              authority: 'review.inbox-projection-revision.v1' as const,
+              organizationId: expectation.organizationId,
+              propertyId: expectation.propertyId,
+              reviewId: expectation.reviewId,
+              sourceEpoch: expectation.sourceEpoch,
+              materialReviewRevision: index + 1,
+              eligibility: 'measured' as const,
+              responseTargetStartAt: meta.sourceDate,
+              observedAt: new Date(NOW.getTime() + index),
+              sourceEpochCarry: false,
+            })) as [
+              {
+                authority: 'review.inbox-projection-revision.v1'
+                organizationId: string
+                propertyId: string
+                reviewId: string
+                sourceEpoch: number
+                materialReviewRevision: number
+                eligibility: 'measured'
+                responseTargetStartAt: Date
+                observedAt: Date
+                sourceEpochCarry: boolean
+              },
+            ],
+          },
+          noLentReviewTransaction,
+        ),
       }
     }),
-  } satisfies ReviewResponseTargetAuthorityPort
+  } satisfies ReviewResponseTargetAuthority
 
   const deps: InboxConsumerDeps = {
     commandStore,

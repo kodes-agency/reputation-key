@@ -22,7 +22,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import { createGoogleReplyObservationStore } from '#/contexts/reputation/publication/google-reply-observation-store.server'
-import type { CurrentReplyObservationPermit } from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
+import type { ReviewCurrentReplyObservationPermit } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import type { InboxConsumerDeps } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import type { ConsumerEvent } from '#/shared/outbox'
@@ -473,7 +473,7 @@ export function consumerDeps(): InboxConsumerDeps {
 export function command(
   item: InboxItem,
   eventId: string,
-  currentObservation: CurrentReplyObservationPermit,
+  currentObservation: ReviewCurrentReplyObservationPermit,
 ) {
   return {
     eventId,

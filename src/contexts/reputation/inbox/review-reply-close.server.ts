@@ -21,7 +21,7 @@ import type {
   HandlingCycleCreationAnchor,
   ReviewCycleCreationAnchor,
 } from './command-store.port.server'
-import type { CurrentReplyObservationPermit } from './review-reply-observation-authority.port.server'
+import type { ReviewCurrentReplyObservationPermit } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import { transitionInsert } from './review-handling-cycle-store.server'
 import { completeGoogleReviewTarget } from '../response-targets/google-review-target-completion.server'
 import {
@@ -48,7 +48,7 @@ import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head.ser
 export async function lockReviewRowsForObservation(
   tx: Tx,
   item: InboxItem,
-  observation: CurrentReplyObservationPermit,
+  observation: ReviewCurrentReplyObservationPermit,
 ): Promise<Readonly<{ headRow: PersistedHead; itemRow: PersistedItem }>> {
   const itemRows = await tx
     .select()
@@ -118,7 +118,7 @@ export async function closeReviewCycleOnGoogleReply(
     item: InboxItem
     headRow: PersistedHead
     itemRow: PersistedItem
-    observation: CurrentReplyObservationPermit
+    observation: ReviewCurrentReplyObservationPermit
     triggerEventId: string | null
     recordedAt?: Date
   }>,
@@ -192,7 +192,7 @@ export async function closeReviewCycleOnGoogleReply(
  * what `inbox.on-reply-observed` closes on. Anything else is a caller bug.
  */
 function assertPermitAnswersNewItem(
-  observation: CurrentReplyObservationPermit,
+  observation: ReviewCurrentReplyObservationPermit,
   item: InboxItem,
   anchor: ReviewCycleCreationAnchor,
 ): void {
@@ -227,7 +227,7 @@ export async function insertReviewItemAnsweredOnGoogle(
   input: Readonly<{
     item: InboxItem
     anchor: ReviewCycleCreationAnchor
-    observation: CurrentReplyObservationPermit
+    observation: ReviewCurrentReplyObservationPermit
     now: Date
   }>,
   insertItem: InsertItemIdempotent,

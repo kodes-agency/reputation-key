@@ -104,6 +104,8 @@ describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
           ],
         }),
       }),
+      // The fake authority lends no Review transaction.
+      undefined,
     )
     await expectReceipt('inbox.on-review-created', 'applied')
   })
@@ -306,6 +308,8 @@ describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () =>
         }),
         now: NOW,
       }),
+      // The fake authority lends no Review transaction.
+      undefined,
     )
   })
 

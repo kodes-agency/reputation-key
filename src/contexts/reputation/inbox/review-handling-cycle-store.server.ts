@@ -34,7 +34,7 @@ import {
   assertReviewResponseTargetAuthorityMatchesCycle,
   insertResponseTargetForHandlingCycle,
 } from '../response-targets/store.server'
-import type { ReviewCycleTargetAnchor } from './review-response-target-authority.port.server'
+import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.server'
 import {
   cycleHeadItemColumns,
   persistedHeadFromItemRow,

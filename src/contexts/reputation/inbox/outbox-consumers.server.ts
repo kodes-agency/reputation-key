@@ -20,13 +20,10 @@ import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-
 import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
-import type { ReplyObservationAuthorityPort } from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
-import type { SourceTransitionAuthorityPort } from '#/contexts/reputation/inbox/review-source-transition-authority.port.server'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
-import {
-  borrowReviewTransaction,
-  lentTransactionArgs,
-} from '#/contexts/reputation/inbox/review-open-transaction.port.server'
+import type { ReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
+import type { ReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
+import { borrowReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
 import type { InboxItemId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
@@ -40,9 +37,9 @@ import { organizationId, propertyId, reviewId, unbrand } from '#/shared/domain/i
 export type InboxConsumerDeps = Readonly<{
   commandStore: InboxCommandStore
   handlingCycleStore: ReviewHandlingCycleStore
-  replyObservationAuthority: ReplyObservationAuthorityPort
-  responseTargetAuthority: ReviewResponseTargetAuthorityPort
-  sourceTransitionAuthority: SourceTransitionAuthorityPort
+  replyObservationAuthority: ReviewReplyObservationAuthority
+  responseTargetAuthority: ReviewResponseTargetAuthority
+  sourceTransitionAuthority: ReviewSourceTransitionAuthority
   reviewLookup: ReviewLookupPort
   reviewSourceLookup: ReviewSourceLookupPort
   inboxRepo: InboxRepository
@@ -181,7 +178,7 @@ async function handleInboxReviewProjection(
           projection,
           now: deps.clock(),
         },
-        ...lentTransactionArgs(reviewTx),
+        borrowReviewTransaction(reviewTx),
       )
     },
   )

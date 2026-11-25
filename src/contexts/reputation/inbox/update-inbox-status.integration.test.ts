@@ -16,7 +16,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import {
   buildFixtureItem,
   createInboxDatabaseStores,
@@ -25,6 +25,7 @@ import {
   readOutboxFacts,
   seedInboxScope,
 } from '#/contexts/reputation/inbox/inbox-database.test-fixtures'
+import { noLentReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.test-fixtures'
 
 const SCOPE = 'update-inbox-status'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -87,17 +88,20 @@ const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
     getReviewSourceMetaByIds: async () => [],
     listReviewSources: async () => [],
   }
-  const responseTargetAuthority: ReviewResponseTargetAuthorityPort = {
+  const responseTargetAuthority: ReviewResponseTargetAuthority = {
     withExactCurrent: async (expectation, apply) => ({
       status: 'current',
-      value: await apply({
-        ...expectation,
-        authority: 'review.current-response-target.v1',
-        materialReviewRevision: 1,
-        eligibility: 'measured',
-        responseTargetStartAt: PROVIDER_TIME,
-        rating: null,
-      }),
+      value: await apply(
+        {
+          ...expectation,
+          authority: 'review.current-response-target.v1',
+          materialReviewRevision: 1,
+          eligibility: 'measured',
+          responseTargetStartAt: PROVIDER_TIME,
+          rating: null,
+        },
+        noLentReviewTransaction,
+      ),
     }),
     withInboxProjection: async () => ({ status: 'obsolete' }),
     withExactCurrentBatch: async () => ({ status: 'obsolete' }),
@@ -255,6 +259,8 @@ describe.sequential('updateInboxStatus', () => {
           targetStart: { basis: 'operational_reopen', at: FIXED_TIME },
         }),
       }),
+      // The fake authority lends no Review transaction.
+      undefined,
     )
   })
 

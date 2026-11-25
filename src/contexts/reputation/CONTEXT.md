@@ -85,7 +85,8 @@ callers: `sync/google-review-api.port.server.ts` and
 `sync/targeted-google-review-reference.port.server.ts` (Integration's
 review-sync adapters implement them, taking their types through `public-api.ts`),
 `sync/review-queue.port.server.ts` and `replies/reply-writer.port.server.ts`.
-Inbox's copies of Review's authority ports are `inbox/review-*.port.server.ts`.
+Inbox imports Review's authority ports and its open-transaction handle from
+`reviews/` instead of keeping copies (ADR 0008, note 2026-11-25).
 
 ## Feature layout
 
@@ -462,7 +463,7 @@ events and errors are in `domain/`: `inbox-types.ts`, `inbox-rules.ts`,
 | Status, escalation                   | `updateInboxStatusFn`, `bulkUpdateInboxStatusFn`, `escalateInboxItemFn`, `resolveEscalationFn` (`inbox-status.ts`)                                                        | `inbox/update-inbox-status.server.ts`, `inbox/bulk-update-inbox-status.server.ts`, `inbox/escalate-inbox-item.server.ts`, `inbox/resolve-escalation.server.ts`   |
 | Manager priority                     | `setInboxItemPriorityFn` (`inbox-priority.ts`)                                                                                                                            | `inbox/set-inbox-item-priority.server.ts`, `inbox/inbox-priority-history.server.ts`                                                                              |
 | Private feedback outcome             | `markFeedbackHandledFn`, `correctFeedbackHandlingOutcomeFn` (`inbox-feedback-handling.ts`)                                                                                | `inbox/mark-feedback-handled.server.ts`, `inbox/correct-feedback-handling-outcome.server.ts`, `inbox/feedback-handling-store.server.ts`                          |
-| Check a review on Google             | `checkReviewOnGoogleFn` (`inbox-google-check.ts`)                                                                                                                         | `inbox/check-inbox-review-on-google.server.ts` over `inbox/google-review-check.port.server.ts`                                                                   |
+| Check a review on Google             | `checkReviewOnGoogleFn` (`inbox-google-check.ts`)                                                                                                                         | `inbox/check-inbox-review-on-google.server.ts` over Review's `CheckReviewOnGoogle` (`sync/check-review-on-google.server.ts`)                                     |
 | Response Target policy and analytics | `getResponseTargetPolicySettingsFn`, `setResponseTargetPolicyFn`, `getPrivateFeedbackTargetAnalyticsFn`, `getGoogleReviewTargetAnalyticsFn` (`inbox-response-targets.ts`) | `response-targets/{set-response-target-policy,get-response-targets,policy.store,analytics.store}.server.ts`                                                      |
 
 AI reading of a Review item (`aiInsights`, "Not right?" correction) is bound to

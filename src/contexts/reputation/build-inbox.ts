@@ -73,7 +73,6 @@ import type {
   ReviewGoogleReviewCheck,
   ReviewResponseTargetAuthority,
 } from '#/contexts/reputation/public-api'
-import { createGoogleReviewCheckAdapter } from './inbox/google-review-check.adapter.server'
 import { createGoogleCheckRateLimitAdapter } from './inbox/google-check-rate-limit.adapter.server'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { createInboxActorDirectoryAdapter } from './inbox/inbox-actor-directory.adapter.server'
@@ -169,9 +168,6 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     responseTargetAuthority,
     sourceTransitionAuthority,
   } = input.sources
-  const googleReviewCheck = createGoogleReviewCheckAdapter(
-    input.sources.googleReviewCheck,
-  )
 
   const inboxRepo = createInboxRepository(
     input.db,
@@ -224,7 +220,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     reviewSourceLookup,
     replyLookup,
     replyObservationAuthority,
-    googleReviewCheck,
+    googleReviewCheck: input.sources.googleReviewCheck,
     googleCheckRateLimit: createGoogleCheckRateLimitAdapter(input.rateLimiter),
     propertyLookup,
     staffPublicApi: input.staffPublicApi,
