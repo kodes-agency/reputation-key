@@ -11,11 +11,7 @@
 // target's floor depends on the plan's target, so the command decides that
 // too (`invalid_quality`).
 //
-// A pace is sent in tenths of a review a week (`paceTenthsPerWeek`, migration
-// 0060). For one release a page opened before it may still send whole reviews
-// a week as `pacePerWeek`: it is mapped x 10, and a request naming the pace
-// both ways is refused. Without the mapping zod would strip the old key and an
-// open tab's change would half-apply.
+// A pace is sent in tenths of a review a week (`paceTenthsPerWeek`).
 
 import { z } from 'zod/v4'
 import {
@@ -36,39 +32,6 @@ const paceTenthsSchema = z
   .min(MIN_PACE_TENTHS_PER_WEEK)
   .max(MAX_PACE_TENTHS_PER_WEEK)
 
-// Legacy: one release, dropped with pace_per_week (contract follow-up).
-/** Whole new reviews a week, as a page opened before tenths sends them. */
-const legacyPaceSchema = z.int().min(1).max(200)
-
-type PaceFields = Readonly<{
-  paceTenthsPerWeek?: number | null
-  // Legacy: one release, dropped with pace_per_week (contract follow-up).
-  pacePerWeek?: number | null
-}>
-
-/** The pace a request names, in tenths a week; undefined when it names none. */
-function paceInTenths(input: PaceFields): number | null | undefined {
-  if (input.paceTenthsPerWeek !== undefined) return input.paceTenthsPerWeek
-  if (input.pacePerWeek === undefined || input.pacePerWeek === null) {
-    return input.pacePerWeek
-  }
-  return input.pacePerWeek * 10
-}
-
-const sentOnce = (input: PaceFields): boolean =>
-  input.paceTenthsPerWeek === undefined || input.pacePerWeek === undefined
-
-const SENT_ONCE = { path: ['pacePerWeek'], message: 'Send the pace once' }
-
-/** The request without the legacy field, its pace in tenths when it names one. */
-function withPaceInTenths<T extends PaceFields>(
-  input: T,
-): Omit<T, 'pacePerWeek' | 'paceTenthsPerWeek'> & { paceTenthsPerWeek?: number | null } {
-  const { pacePerWeek: _legacy, paceTenthsPerWeek: _tenths, ...rest } = input
-  const pace = paceInTenths(input)
-  return pace === undefined ? rest : { ...rest, paceTenthsPerWeek: pace }
-}
-
 /** The planned average stars of new reviews, in tenths: 45 is 4.5★. */
 const qualityTenthsSchema = z.int().min(LOWEST_TARGET_TENTHS).max(PERFECT_TENTHS)
 
@@ -85,15 +48,12 @@ export const setRatingGoalSchema = z
     targetTenths: targetTenthsSchema,
     qualityTenths: qualityTenthsSchema.nullable(),
     paceTenthsPerWeek: paceTenthsSchema.nullable().optional(),
-    // Legacy: one release, dropped with pace_per_week (contract follow-up).
-    pacePerWeek: legacyPaceSchema.nullable().optional(),
   })
-  .refine(sentOnce, SENT_ONCE)
   .refine(
-    (input) => {
-      const pace = paceInTenths(input)
-      return input.mode === 'climb' ? typeof pace === 'number' : pace === null
-    },
+    (input) =>
+      input.mode === 'climb'
+        ? typeof input.paceTenthsPerWeek === 'number'
+        : input.paceTenthsPerWeek === null,
     {
       path: ['paceTenthsPerWeek'],
       message: 'A goal to climb needs a pace; a goal to keep has none',
@@ -104,8 +64,8 @@ export const setRatingGoalSchema = z
     message: 'A goal to climb needs a planned quality; a goal to keep has none',
   })
   .transform((input) => ({
-    ...withPaceInTenths(input),
-    paceTenthsPerWeek: paceInTenths(input) ?? null,
+    ...input,
+    paceTenthsPerWeek: input.paceTenthsPerWeek ?? null,
   }))
 
 /** Any of target, quality, pace and mode, against the version the form was opened on. */
@@ -118,19 +78,15 @@ export const changeRatingGoalSchema = z
     targetTenths: targetTenthsSchema.optional(),
     qualityTenths: qualityTenthsSchema.nullable().optional(),
     paceTenthsPerWeek: paceTenthsSchema.nullable().optional(),
-    // Legacy: one release, dropped with pace_per_week (contract follow-up).
-    pacePerWeek: legacyPaceSchema.nullable().optional(),
   })
-  .refine(sentOnce, SENT_ONCE)
   .refine(
     (input) =>
       input.mode !== undefined ||
       input.targetTenths !== undefined ||
       input.qualityTenths !== undefined ||
-      paceInTenths(input) !== undefined,
+      input.paceTenthsPerWeek !== undefined,
     { message: 'Change the target, the quality, the pace or the mode' },
   )
-  .transform(withPaceInTenths)
 
 export const endRatingGoalSchema = z.object({
   propertyId: uuid,
