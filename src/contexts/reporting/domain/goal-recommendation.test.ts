@@ -78,7 +78,6 @@ function recommend(patch: Partial<RecommendPortalGoalInput>) {
     timezone: SOFIA,
     versionFrom: VERSION_FROM,
     portals: [],
-    truncated: false,
     days: [],
     unreadable: [],
     lastScanAt: new Map(),
@@ -709,13 +708,12 @@ describe('what the recommendation says about each portal', () => {
     })
   })
 
-  it('carries the read as it was asked: when, where, and whether the list was cut', () => {
-    const recommendation = recommend({ truncated: true })
+  it('carries the read as it was asked: when and where', () => {
+    const recommendation = recommend({})
 
     expect(recommendation).toMatchObject({
       asOf: '2026-10-23T09:00:00.000Z',
       timezone: SOFIA,
-      truncated: true,
     })
   })
 })

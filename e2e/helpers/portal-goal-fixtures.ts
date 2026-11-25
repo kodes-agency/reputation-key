@@ -496,7 +496,6 @@ export async function seedPortalHistory(
       ),
     ),
     portals,
-    truncated: false,
     days,
     unreadable: [],
     lastScanAt,

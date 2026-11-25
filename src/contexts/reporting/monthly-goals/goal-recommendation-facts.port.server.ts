@@ -44,11 +44,11 @@ export type GoalRecommendationCounts = Readonly<{
 }>
 
 export type GoalRecommendationFactsPort = Readonly<{
-  /** Every non-archived Portal of the Property, in name order, at most 100. */
+  /** Every non-archived Portal of the Property, in name order. */
   listPortalReadiness(
     organizationId: string,
     propertyId: string,
     asOf: Date,
-  ): Promise<Readonly<{ portals: readonly RecommendationPortal[]; truncated: boolean }>>
+  ): Promise<Readonly<{ portals: readonly RecommendationPortal[] }>>
   readDailyCounts(query: GoalRecommendationCountsQuery): Promise<GoalRecommendationCounts>
 }>

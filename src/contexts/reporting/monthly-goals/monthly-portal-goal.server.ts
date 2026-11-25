@@ -84,8 +84,7 @@ async function assertPrivateRatingsAvailable(
   const candidates = published.length > 0 ? published : listed.portals
   const skipped =
     subject.kind === 'property'
-      ? !listed.truncated &&
-        candidates.length > 0 &&
+      ? candidates.length > 0 &&
         candidates.every((portal) => portal.skipPrivateRating === true)
       : ratingSubjectSkipsPrivateRating(listed.portals, subject)
   if (skipped) throw new GoalProgramError('private_ratings_skipped')

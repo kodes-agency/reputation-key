@@ -377,7 +377,7 @@ export function fakeWorld(world: World = {}) {
   const facts = {
     listPortalReadiness: vi.fn(async () => {
       calls.push('portals')
-      return { portals: world.portals ?? [], truncated: false }
+      return { portals: world.portals ?? [] }
     }),
     readDailyCounts: vi.fn(async () => {
       calls.push('counts')

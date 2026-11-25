@@ -529,7 +529,6 @@ describe('readMonthlyPortalGoalPage', () => {
       ],
       elsewhere: 2,
       total: 23,
-      truncated: false,
     })
   })
 

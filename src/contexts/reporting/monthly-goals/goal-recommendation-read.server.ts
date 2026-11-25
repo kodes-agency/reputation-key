@@ -135,7 +135,6 @@ export function recommendationFrom(facts: PortalGoalFacts): PortalGoalRecommenda
     timezone,
     versionFrom: MEASURES_FROM,
     portals: listed.portals,
-    truncated: listed.truncated,
     ...counts,
   })
 }

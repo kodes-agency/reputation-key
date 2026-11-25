@@ -163,7 +163,6 @@ describe('setMonthlyPortalGoal', () => {
           { ...portal('Reception', '2026-10-09'), skipPrivateRating: true },
           { ...portal('Restaurant', '2026-10-09'), publicationState: 'draft' },
         ],
-        truncated: false,
       })
 
       await expect(

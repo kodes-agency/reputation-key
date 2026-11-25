@@ -181,7 +181,6 @@ describe('fromPortalsWords', () => {
         ],
         elsewhere: 2,
         total: 23,
-        truncated: false,
       },
       {},
       portals,
@@ -194,7 +193,6 @@ describe('fromPortalsWords', () => {
         { key: 'elsewhere', name: 'Other portals', count: '2' },
       ],
       total: '23',
-      truncated: null,
       quiet: [],
     })
   })
@@ -256,16 +254,6 @@ describe('fromPortalsWords', () => {
     )
 
     expect(words.quiet.map(({ portalId }) => portalId)).toEqual(['portal-spa'])
-  })
-
-  it('says when only the first 100 portals are listed', () => {
-    const words = fromPortalsWords(
-      { portals: [], elsewhere: 4, total: 4, truncated: true },
-      {},
-      [],
-    )
-
-    expect(words.truncated).toBe('Showing the first 100 portals by name.')
   })
 })
 

@@ -2,17 +2,14 @@
 // locale-set fact and keeping every link named when the primary language
 // changes. Split out of portal-command-store.ts.
 
-import { portals } from '#/shared/db/schema'
 import { parseGuestLocale } from '#/shared/domain/guest-locale'
 import { unbrand } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import type { UpdatePortalCommand } from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { sameInstant } from './portal-command-guards.server'
-import {
-  portalScopeWhere,
-  reconcileLinkTextsToPrimary,
-} from '../links/portal-link-texts-store.server'
+import { reconcileLinkTextsToPrimary } from '../links/portal-link-texts-store.server'
+import type { PortalSettingsBefore } from './portal-settings-edits.server'
 
 /** An emitted locale-set fact must restate exactly the locales this patch writes. */
 export function assertLocaleSetFact(command: UpdatePortalCommand): void {
@@ -33,14 +30,15 @@ export function assertLocaleSetFact(command: UpdatePortalCommand): void {
 }
 
 /**
- * Call inside the update transaction, before the Portal row is written (the old
- * primary is only visible then). The returned function, called after the write,
+ * Call inside the update transaction, before the Portal row is written, with the
+ * settings read there (the old primary is only visible then). The returned function, called after the write,
  * keeps each link named in the old and the new primary language when the
  * primary language actually changed, and does nothing otherwise.
  */
 export async function watchPrimaryLocaleChange(
   tx: Tx,
   command: UpdatePortalCommand,
+  settingsBefore: PortalSettingsBefore,
 ): Promise<() => Promise<void>> {
   const next = command.patch.primaryGuestLocale
   if (!next) return async () => {}
@@ -49,13 +47,8 @@ export async function watchPrimaryLocaleChange(
     propertyId: unbrand(command.propertyId),
     portalId: unbrand(command.portalId),
   }
-  const [before] = await tx
-    .select({ primary: portals.primaryGuestLocale })
-    .from(portals)
-    .where(portalScopeWhere(scope))
-    .limit(1)
-  if (!before) return async () => {}
-  const previous = parseGuestLocale(before.primary)
+  if (settingsBefore.primaryGuestLocale === undefined) return async () => {}
+  const previous = parseGuestLocale(settingsBefore.primaryGuestLocale)
   if (!previous) throw new Error('Portal has a guest locale outside the catalogue')
   if (previous === next) return async () => {}
   return () =>
