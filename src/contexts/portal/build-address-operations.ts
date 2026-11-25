@@ -25,10 +25,7 @@ export function buildPortalAddressOperations(
   return {
     issuePortalToken: issuePortalToken(deps),
     ensurePersonalPortalToken: ensurePersonalPortalToken(deps),
-    rotatePortalToken: rotatePortalToken({
-      ...deps,
-      defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
-    }),
+    rotatePortalToken: rotatePortalToken(deps),
     revealPortalAddress: revealPortalAddress(deps),
     getOwnPersonalCode: getOwnPersonalCode(deps),
     getOwnPersonalLook: getOwnPersonalLook(deps),

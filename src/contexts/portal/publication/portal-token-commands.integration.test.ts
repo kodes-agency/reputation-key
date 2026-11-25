@@ -82,7 +82,7 @@ function wire() {
   }
   return {
     issue: issuePortalToken(common),
-    rotate: rotatePortalToken({ ...common, defaultGracePeriodSeconds: 30 * 86_400 }),
+    rotate: rotatePortalToken(common),
     revoke: revokePortalTokens(common),
   }
 }
@@ -180,18 +180,10 @@ describe.sequential('Portal token commands (real PostgreSQL, two tenants)', () =
     expect(await factsOf(ORG_A, 'portal.token.rotated')).toHaveLength(1)
   })
 
-  it('replaces the address at once for a security replacement and refuses a window with it', async () => {
+  it('replaces the address at once for a security replacement', async () => {
     const portal = await seedPortal(ORG_A)
     const { issue, rotate } = wire()
     await issue({ portalId: portal.id }, ctxOf(ORG_A))
-
-    await expect(
-      rotate(
-        { portalId: portal.id, replacementKind: 'security', gracePeriodDays: 7 },
-        ctxOf(ORG_A),
-      ),
-    ).rejects.toMatchObject({ code: 'token_unavailable' })
-    expect(await tokensOf(portal)).toHaveLength(1)
 
     const rotated = await rotate(
       { portalId: portal.id, replacementKind: 'security' },

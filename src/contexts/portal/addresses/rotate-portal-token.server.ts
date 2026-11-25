@@ -11,12 +11,12 @@ import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
 import { mintNewCode, reportingPrintCodeCollision } from './mint-new-code.server'
 import { rotateToken } from '../domain/portal-token'
 import { portalError } from '../domain/errors'
+import { DEFAULT_GRACE_DAYS } from './portal-token-lifecycle.contracts'
 import { portalTokenRotated } from '../domain/events'
 import type { PortalCommandStore } from '../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../publication/portal-command-version.server'
 
-const SECONDS_PER_DAY = 24 * 60 * 60
-const MAX_PLANNED_GRACE_DAYS = 90
+const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 export type RotatePortalTokenDeps = Readonly<{
   portalRepo: PortalRepository
@@ -30,7 +30,6 @@ export type RotatePortalTokenDeps = Readonly<{
   idGen: () => string
   clock: () => Date
   address: PortalAddressFormat
-  defaultGracePeriodSeconds: number
 }>
 
 export const rotatePortalToken =
@@ -59,26 +58,10 @@ export const rotatePortalToken =
       forbiddenMessage: 'Insufficient permissions to rotate portal tokens',
     })
     const replacementKind = input.replacementKind ?? 'planned'
-    if (replacementKind === 'security' && input.gracePeriodDays !== undefined) {
-      throw portalError(
-        'token_unavailable',
-        'Immediate security replacement cannot include a grace period',
-      )
-    }
-    const defaultGraceDays = deps.defaultGracePeriodSeconds / SECONDS_PER_DAY
-    const graceDays = input.gracePeriodDays ?? defaultGraceDays
-    if (
-      replacementKind === 'planned' &&
-      (!Number.isInteger(graceDays) ||
-        graceDays < 1 ||
-        graceDays > MAX_PLANNED_GRACE_DAYS)
-    ) {
-      throw portalError(
-        'token_unavailable',
-        'Planned replacement must keep existing printed links for 1 to 90 days',
-      )
-    }
-    const graceSeconds = replacementKind === 'security' ? 0 : graceDays * SECONDS_PER_DAY
+    const graceMs =
+      replacementKind === 'security'
+        ? 0
+        : (input.gracePeriodDays ?? DEFAULT_GRACE_DAYS) * MS_PER_DAY
     const current = await deps.portalTokenRepo.findLatestForPortal(
       ctx.organizationId,
       portal.id,
@@ -99,7 +82,7 @@ export const rotatePortalToken =
         tokenKeyVersion: material.tokenKeyVersion,
         version: current.version + 1,
       },
-      graceSeconds * 1000,
+      graceMs,
       occurredAt,
     )
     const { gracePeriodEnds } = result.oldToken

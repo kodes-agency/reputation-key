@@ -124,6 +124,16 @@ describe('Portal form DTO contracts', () => {
         gracePeriodDays: 30,
       }).success,
     ).toBe(false)
+    for (const gracePeriodDays of [0, 91, 1.5]) {
+      expect(
+        rotatePortalTokenInputSchema.safeParse({
+          portalId: 'portal-1',
+          replacementKind: 'planned',
+          gracePeriodDays,
+        }).success,
+        String(gracePeriodDays),
+      ).toBe(false)
+    }
     expect(
       revokePortalTokensInputSchema.parse({
         portalId: 'portal-1',

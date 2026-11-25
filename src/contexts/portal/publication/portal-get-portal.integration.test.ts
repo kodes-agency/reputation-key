@@ -99,7 +99,7 @@ function wire(options: Wiring = {}) {
         : cipherOf(options.readWith)
   return {
     issue: issuePortalToken(common),
-    rotate: rotatePortalToken({ ...common, defaultGracePeriodSeconds: 30 * 86_400 }),
+    rotate: rotatePortalToken(common),
     revoke: revokePortalTokens(common),
     read: getPortal({
       portalRepo: common.portalRepo,

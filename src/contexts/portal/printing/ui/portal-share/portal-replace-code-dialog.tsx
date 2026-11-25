@@ -9,6 +9,7 @@ import { Input } from '#/components/ui/input'
 import { RadioGroup } from '#/components/ui/radio-group'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import {
+  DEFAULT_GRACE_DAYS,
   portalCodeReplacementFormSchema,
   toRotatePortalTokenInput,
   type PortalCodeReplacementForm,
@@ -16,7 +17,6 @@ import {
 import { PortalReplacementChoice } from './portal-replacement-choice'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
 
-const DEFAULT_TRANSITION_DAYS = 30
 const TRANSITION_HELP = '30 days is recommended. You can choose between 1 and 90 days.'
 
 type Kind = PortalCodeReplacementForm['replacementKind']
@@ -37,7 +37,7 @@ export function PortalReplaceCodeDialog({
   const form = useForm({
     defaultValues: {
       replacementKind: 'planned' as Kind,
-      gracePeriodDays: DEFAULT_TRANSITION_DAYS,
+      gracePeriodDays: DEFAULT_GRACE_DAYS,
     },
     validators: { onSubmit: portalCodeReplacementFormSchema },
     onSubmit: async ({ value }) => {

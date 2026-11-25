@@ -113,7 +113,7 @@ function wire(options: Wiring = {}) {
     reported,
     portalAddressRepo,
     issue: issuePortalToken(common),
-    rotate: rotatePortalToken({ ...common, defaultGracePeriodSeconds: 30 * 86_400 }),
+    rotate: rotatePortalToken(common),
     revoke: revokePortalTokens(common),
     reveal: revealPortalAddress(revealDeps),
     revealWith: (overrides: Overrides) =>
