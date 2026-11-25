@@ -68,8 +68,6 @@ const GOOGLE_BINDING_MEMBERS = Object.keys({
   createBoundProperty: true,
   relink: true,
   disconnect: true,
-  scrubProviderIdentity: true,
-  releaseRetention: true,
   releaseRetentionFromEvent: true,
   sweepReleasedExpired: true,
   countUnreleasedExpired: true,
