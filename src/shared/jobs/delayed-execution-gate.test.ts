@@ -6,8 +6,7 @@
 //   1. request building from the entry-point catalogue + job/event envelope
 //      (org from payload, TENANT_CROSS_ORG sentinel for tenant_cross/none
 //      rows, resolver-provided property scope, content-free policy context);
-//   2. outcome mapping (allow / deny_terminal / deny_retry — only
-//      policy_unavailable retries; every other deny is terminal);
+//   2. outcome mapping (allow / deny_terminal — every deny is terminal);
 //   3. the REAL BQC-2.5 policy driven by the shared DELAYED_CONTRACT_FIXTURES
 //      envs (execution ownership: BQC-2 IMPLEMENTS the contract, BQC-3
 //      INTEGRATES it — the same fixtures prove both sides).
@@ -265,17 +264,7 @@ describe('gateJob — outcome mapping (stubbed policy)', () => {
     expect(outcome).toEqual({ kind: 'allow', decision: ALLOW })
   })
 
-  it('maps policy_unavailable to deny_retry (transient — the caller throws for BullMQ retry)', async () => {
-    installStub()
-    decideMock.mockResolvedValue(
-      decision({ reason: 'policy_unavailable', freshRead: true }),
-    )
-    const outcome = await gateJob('health-check', {}, 'worker:default', 'worker')
-    expect(outcome.kind).toBe('deny_retry')
-    expect(outcome.decision.reason).toBe('policy_unavailable')
-  })
-
-  it('maps every other deny reason to deny_terminal', async () => {
+  it('maps every deny reason to deny_terminal', async () => {
     installStub()
     for (const reason of [
       'capability_blocked',

@@ -60,7 +60,6 @@ function connection(overrides: Partial<GoogleConnection> = {}): GoogleConnection
     tokenExpiresAt: new Date('2026-08-27T12:00:00.000Z'),
     scopes: ['https://www.googleapis.com/auth/business.manage'],
     connectedBy: userId('departed-connector'),
-    visibility: 'private',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,

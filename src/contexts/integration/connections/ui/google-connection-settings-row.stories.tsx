@@ -14,7 +14,6 @@ const connection: GoogleConnectionDto = {
   accountEmail: 'owner@harborline.test',
   scopes: [],
   connectedBy: 'user-1',
-  visibility: 'organization',
   status: 'active',
   createdAt: new Date('2026-08-27T00:00:00Z'),
   updatedAt: new Date('2026-08-27T00:00:00Z'),

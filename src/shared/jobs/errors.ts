@@ -28,25 +28,6 @@ export class UnknownJobError extends Error {
 }
 
 /**
- * The delayed execution gate denied a job with a RETRYABLE reason
- * (policy_unavailable): protected work must never run without a decision,
- * and an unavailable policy is transient, not a revocation — so the job
- * throws and BullMQ retries with backoff. Carries the gate's deny reason so
- * the failure quarantine can record it as `policyReason`. On-demand work
- * only: a schedule firing that exhausts its retries on this reason is logged
- * and captured instead, never dead-lettered (failure-quarantine.ts).
- */
-export class GateDenyRetryError extends Error {
-  readonly reason: string
-
-  constructor(jobName: string, reason: string) {
-    super(`delayed execution denied — retry (${reason}) for job '${jobName}'`)
-    this.name = 'GateDenyRetryError'
-    this.reason = reason
-  }
-}
-
-/**
  * A job exceeded its catalogue deadline. The gate aborts its handler and
  * waits for cleanup before failing the attempt. Work that outlives the grace
  * period terminates the worker while its BullMQ slot is still occupied.

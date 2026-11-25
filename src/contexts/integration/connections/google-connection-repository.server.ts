@@ -7,10 +7,7 @@ import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import { organizationId } from '#/shared/domain/ids'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import type {
-  GoogleConnectionRepository,
-  ConnectionVisibilityFilter,
-} from './google-connection-repository.port.server'
+import type { GoogleConnectionRepository } from './google-connection-repository.port.server'
 import { uniqueViolationError } from './google-connection-repository.port.server'
 import {
   googleConnectionFromRow,
@@ -59,7 +56,7 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  listByOrganization: async (orgId, _filter: ConnectionVisibilityFilter) => {
+  listByOrganization: async (orgId) => {
     return trace('googleConnection.listByOrganization', async () => {
       const rows = await db
         .select()
@@ -163,21 +160,6 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  updateVisibility: async (orgId, id, visibility) => {
-    return trace('googleConnection.updateVisibility', async () => {
-      await db
-        .update(googleConnections)
-        .set({
-          visibility,
-          accessVersion: sql`${googleConnections.accessVersion} + 1`,
-          updatedAt: clock(),
-        })
-        .where(
-          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
-        )
-    })
-  },
-
   updateReconnection: async (
     orgId,
     id,
@@ -185,7 +167,6 @@ export const createGoogleConnectionRepository = (
     accessToken,
     refreshToken,
     expiresAt,
-    visibility,
     scopes,
     credentialAuthorizedBy,
     credentialAuthorizedAt,
@@ -203,7 +184,6 @@ export const createGoogleConnectionRepository = (
           status: 'active',
           statusReason: null,
           statusChangedAt: credentialAuthorizedAt,
-          visibility,
           scopes: [...scopes],
           credentialAuthorizedBy,
           credentialAuthorizedAt,

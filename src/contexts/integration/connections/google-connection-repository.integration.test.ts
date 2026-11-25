@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
 import { createGoogleConnectionRepository } from './google-connection-repository.server'
 import { getDb } from '#/shared/db'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
-import { organizationId, userId, googleConnectionId } from '#/shared/domain/ids'
+import { organizationId, googleConnectionId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 
 const ORG_A = organizationId('org-gc-aaaaaaaaaa')
@@ -82,7 +82,7 @@ describe('googleConnectionRepository (integration)', () => {
   })
 
   describe('listByOrganization', () => {
-    it('lists all connections when showAll filter is passed', async () => {
+    it('lists every connection of the organization', async () => {
       const repo = makeRepo()
       await repo.insert(
         buildTestGoogleConnection({
@@ -99,37 +99,7 @@ describe('googleConnectionRepository (integration)', () => {
         }),
       )
 
-      const results = await repo.listByOrganization(ORG_A, { showAll: true })
-      expect(results).toHaveLength(2)
-    })
-
-    it('treats the legacy visibility filter as compatibility-only', async () => {
-      const repo = makeRepo()
-      const otherUser = userId('user-other')
-
-      await repo.insert(
-        buildTestGoogleConnection({
-          id: crypto.randomUUID(),
-          organizationId: ORG_A,
-          googleSubject: `signed-${crypto.randomUUID()}`,
-          visibility: 'organization',
-          connectedBy: userId('user-someone-else'),
-        }),
-      )
-      await repo.insert(
-        buildTestGoogleConnection({
-          id: crypto.randomUUID(),
-          organizationId: ORG_A,
-          googleSubject: `signed-${crypto.randomUUID()}`,
-          visibility: 'organization',
-          connectedBy: otherUser,
-        }),
-      )
-
-      const results = await repo.listByOrganization(ORG_A, {
-        showAll: false,
-        userId: otherUser,
-      })
+      const results = await repo.listByOrganization(ORG_A)
       expect(results).toHaveLength(2)
     })
   })
@@ -209,27 +179,30 @@ describe('googleConnectionRepository (integration)', () => {
     })
   })
 
-  describe('updateVisibility', () => {
-    it('rejects the legacy private visibility without changing Organization ownership', async () => {
+  describe('Organization ownership', () => {
+    it('keeps the database check that refuses a private connection', async () => {
       const repo = makeRepo()
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
         googleSubject: `signed-${crypto.randomUUID()}`,
-        visibility: 'organization',
       })
       await repo.insert(conn)
 
       await expect(
-        repo.updateVisibility(ORG_A, conn.id, 'private'),
+        getPool().query(
+          "UPDATE google_connections SET visibility = 'private' WHERE organization_id = $1 AND id = $2",
+          [ORG_A, conn.id],
+        ),
       ).rejects.toMatchObject({
-        cause: {
-          code: '23514',
-          constraint: 'google_connections_organization_owned_check',
-        },
+        code: '23514',
+        constraint: 'google_connections_organization_owned_check',
       })
-      const found = await repo.findById(ORG_A, conn.id)
-      expect(found!.visibility).toBe('organization')
+      const stored = await getPool().query(
+        'SELECT visibility FROM google_connections WHERE organization_id = $1 AND id = $2',
+        [ORG_A, conn.id],
+      )
+      expect(stored.rows).toEqual([{ visibility: 'organization' }])
     })
   })
 

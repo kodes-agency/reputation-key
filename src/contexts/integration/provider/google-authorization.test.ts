@@ -72,7 +72,6 @@ async function setup(surface: Surface) {
       scopes: ['https://www.googleapis.com/auth/business.manage'],
       connectedBy: USER,
       credentialAuthorizedBy: USER,
-      visibility: 'organization',
       status: 'active',
       credentialUseState: 'active',
       cleanupMaterialDeadlineAt: null,

@@ -51,7 +51,6 @@ export function makeConnection(
     tokenExpiresAt: new Date('2026-06-01T13:00:00.000Z'),
     scopes: ['scope-a'],
     connectedBy: INITIATOR_ID,
-    visibility: 'organization',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,

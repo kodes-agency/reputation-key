@@ -46,7 +46,6 @@ describe('Google connection repository time authority', () => {
     )
     await repository.updateStatus(ORG, CONNECTION, 'degraded')
     await repository.redactForDisconnect(ORG, CONNECTION)
-    await repository.updateVisibility(ORG, CONNECTION, 'organization')
     await repository.updateReconnection(
       ORG,
       CONNECTION,
@@ -54,15 +53,14 @@ describe('Google connection repository time authority', () => {
       'access-4',
       'refresh-4',
       expiresAt,
-      'organization',
       ['scope-a'],
       ACTOR,
       new Date('2099-01-01T12:30:00.000Z'),
       'owner@example.com',
     )
 
-    expect(clock).toHaveBeenCalledTimes(5)
-    expect(updateSets).toHaveLength(5)
+    expect(clock).toHaveBeenCalledTimes(4)
+    expect(updateSets).toHaveLength(4)
     for (const values of updateSets) {
       expect(values.updatedAt).toBe(NOW)
     }

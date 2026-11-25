@@ -136,8 +136,7 @@ describe('disconnectGoogleAccount', () => {
       hasOtherActiveAccountBinding: createGoogleNotificationAccountUsageReader({
         ...bindingReads,
         listOrganizations: connectionRepo.listOrganizationIdsWithActiveConnections,
-        listConnections: (org) =>
-          connectionRepo.listByOrganization(org, { showAll: true }),
+        listConnections: (org) => connectionRepo.listByOrganization(org),
       }),
       notifications,
       pubsubTopic: 'projects/test/topics/gbp-reviews',
