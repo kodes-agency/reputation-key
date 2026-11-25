@@ -118,7 +118,7 @@ describe('buildReportingContext', () => {
         return { rows: [] }
       }),
     }
-    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [], truncated: false }))
+    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [] }))
     const context = build({
       db: {
         transaction: async (read: (inner: typeof tx) => Promise<unknown>) => read(tx),
@@ -155,7 +155,7 @@ describe('buildReportingContext', () => {
   })
 
   it("composes the Monthly portal goal's card behind its own goal.create check", async () => {
-    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [], truncated: false }))
+    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [] }))
     const context = build({
       portalApi: {
         listGoalReadinessFacts,
@@ -180,7 +180,7 @@ describe('buildReportingContext', () => {
   })
 
   it("composes the Monthly portal goal's set behind its own goal.create check", async () => {
-    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [], truncated: false }))
+    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [] }))
     const context = build({
       portalApi: {
         listGoalReadinessFacts,

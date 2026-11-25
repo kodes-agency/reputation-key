@@ -21,7 +21,6 @@ const counts = (
   portals: each.map(([name, count]) => ({ portalId: `portal-${name}`, name, count })),
   elsewhere: 0,
   total: each.reduce((total, [, count]) => total + count, 0),
-  truncated: false,
 })
 
 describe('whereBand: where are they coming from?', () => {

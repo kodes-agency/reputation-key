@@ -62,7 +62,7 @@ function setup(
   const facts = {
     listPortalReadiness: vi.fn(async () => {
       calls.push('portals')
-      return { portals: options.portals ?? [], truncated: false }
+      return { portals: options.portals ?? [] }
     }),
     readDailyCounts: vi.fn(async (query: GoalRecommendationCountsQuery) => {
       calls.push('counts')

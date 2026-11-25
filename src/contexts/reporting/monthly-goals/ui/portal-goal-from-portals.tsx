@@ -71,9 +71,6 @@ export function PortalGoalFromPortals({ propertyId, words }: Props) {
           </li>
         )}
       </ul>
-      {words.truncated === null ? null : (
-        <p className="text-sm text-muted-foreground">{words.truncated}</p>
-      )}
     </div>
   )
 }

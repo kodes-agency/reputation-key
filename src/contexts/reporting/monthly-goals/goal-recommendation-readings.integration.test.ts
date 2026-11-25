@@ -151,7 +151,7 @@ function recommendationOf(property: string, portals: readonly RecommendationPort
       policy: { authorize: async () => undefined },
       subjects: { getTimezone: async () => SOFIA },
       facts: {
-        listPortalReadiness: async () => ({ portals, truncated: false }),
+        listPortalReadiness: async () => ({ portals }),
         readDailyCounts: (query) => readGoalRecommendationCounts(db, query),
       },
       now: () => NOW,

@@ -99,7 +99,7 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
       recommendation: {
         subjects: { getTimezone: async () => TIMEZONE },
         facts: {
-          listPortalReadiness: async () => ({ portals: [], truncated: false }),
+          listPortalReadiness: async () => ({ portals: [] }),
           readDailyCounts: async () => ({
             days: [],
             unreadable: [],

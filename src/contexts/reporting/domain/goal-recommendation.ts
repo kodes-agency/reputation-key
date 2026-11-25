@@ -456,7 +456,6 @@ export function recommendPortalGoal(
   )
   const candidates = published.length > 0 ? published : input.portals
   const ratingsAvailable =
-    input.truncated ||
     candidates.length === 0 ||
     candidates.some((portal) => portal.skipPrivateRating !== true)
   const state = recommendationState(
@@ -488,7 +487,6 @@ export function recommendPortalGoal(
     drafts: input.portals
       .filter((portal) => portal.publicationState === 'draft')
       .map(({ portalId, name }) => ({ portalId, name })),
-    truncated: input.truncated,
   }
 }
 

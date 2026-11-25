@@ -160,13 +160,13 @@ export function monthCountsOf(
  * The card's counts of the running month (`monthCountsOf`). One Portal that
  * brought in all of it is named, but not while the month has nothing in: 0 is
  * no Portal's doing, so it is a row. From 5 Portals the card says how many. A
- * list cut at 100 Portals, or no published Portal, draws none.
+ * month with no published Portal draws none.
  */
 function rowsOf(
   recommendation: PortalGoalRecommendation,
   month: PortalGoalRunningMonth,
 ): PortalGoalRows | null {
-  const counts = recommendation.truncated ? null : monthCountsOf(recommendation, month)
+  const counts = monthCountsOf(recommendation, month)
   if (counts === null || counts.portals.length === 0) return null
   const { portals, elsewhere, total } = counts
   const lines =

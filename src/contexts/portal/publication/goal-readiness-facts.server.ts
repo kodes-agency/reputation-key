@@ -55,8 +55,6 @@ type GoalReadinessFact = Readonly<{
 
 export type GoalReadinessFacts = Readonly<{
   portals: readonly GoalReadinessFact[]
-  /** Kept for existing consumers; this read includes the complete roster. */
-  truncated: boolean
 }>
 
 type GoalReadinessFactsDeps = Readonly<{
@@ -78,12 +76,10 @@ export const createGoalReadinessFacts = (deps: GoalReadinessFactsDeps) => ({
     propertyId: PropertyId,
     asOf: Date,
   ): Promise<GoalReadinessFacts> => {
-    const candidates = (await deps.portalRepo.listByProperty(organizationId, propertyId))
+    const portals = (await deps.portalRepo.listByProperty(organizationId, propertyId))
       .filter(isCandidate)
       .sort(comparePortalsByName)
-    const portals = candidates
-    const truncated = false
-    if (portals.length === 0) return { portals: [], truncated }
+    if (portals.length === 0) return { portals: [] }
 
     const portalIds = portals.map((portal) => portal.id)
     const since = new Date(asOf.getTime() - LIVE_INTERVAL_LOOKBACK_MS)
@@ -100,7 +96,6 @@ export const createGoalReadinessFacts = (deps: GoalReadinessFactsDeps) => ({
     const groupByPortal = new Map(groups.map((row) => [String(row.portalId), row.group]))
 
     return {
-      truncated,
       portals: portals.map((portal) => {
         const own = activations.filter((row) => row.portalId === portal.id)
         const code = tokenByPortal.get(portal.id)

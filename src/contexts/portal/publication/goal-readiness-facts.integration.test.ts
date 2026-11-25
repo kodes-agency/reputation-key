@@ -144,7 +144,6 @@ describe('listGoalReadinessFacts', () => {
     const read = await facts.listGoalReadinessFacts(ORG, PROPERTY, AS_OF)
 
     expect(read).toEqual({
-      truncated: false,
       portals: [
         {
           portalId: lobby.id,
@@ -296,7 +295,6 @@ describe('listGoalReadinessFacts', () => {
 
     const read = await facts.listGoalReadinessFacts(ORG, PROPERTY, AS_OF)
 
-    expect(read.truncated).toBe(false)
     expect(read.portals).toHaveLength(101)
     expect(read.portals[0]?.name).toBe('Portal 001')
     expect(read.portals[99]?.name).toBe('Portal 100')
@@ -304,9 +302,8 @@ describe('listGoalReadinessFacts', () => {
 
     await getPool().query(`DELETE FROM portals WHERE id = $1`, [portals[0]!.id])
     const exactly = await setup({ portals: [] })
-    await expect(
-      exactly.facts.listGoalReadinessFacts(ORG, PROPERTY, AS_OF),
-    ).resolves.toMatchObject({ truncated: false })
+    const remaining = await exactly.facts.listGoalReadinessFacts(ORG, PROPERTY, AS_OF)
+    expect(remaining.portals).toHaveLength(100)
   })
 
   it('never includes another organization’s portals', async () => {
@@ -334,7 +331,6 @@ describe('listGoalReadinessFacts', () => {
 
     await expect(facts.listGoalReadinessFacts(ORG, PROPERTY, AS_OF)).resolves.toEqual({
       portals: [],
-      truncated: false,
     })
     expect(listActivationsForPortals).not.toHaveBeenCalled()
     expect(findResolvableSummariesForPortals).not.toHaveBeenCalled()
