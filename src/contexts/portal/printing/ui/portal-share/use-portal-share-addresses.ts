@@ -14,7 +14,7 @@ import { useCopyLink } from './use-copy-link'
 export function usePortalShareAddresses(props: PortalShareProps) {
   const publicUrl = props.issuedLink?.publicUrl ?? null
   const directUrl = directAddressOf(props.issuedLink)
-  const nfcPublicUrl = props.issuedLink?.publicUrls?.nfc ?? null
+  const nfcPublicUrl = props.issuedLink?.publicUrls.nfc ?? null
   const direct = useCopyLink(directUrl)
   const nfc = useCopyLink(nfcPublicUrl)
   const reveal = useAddressReveal(props)
@@ -29,8 +29,6 @@ export function usePortalShareAddresses(props: PortalShareProps) {
     copyNfcAddress: () =>
       nfcPublicUrl !== null
         ? nfc.copyLink()
-        : nfc.copyFetchedLink(
-            async () => (await reveal('copy'))?.publicUrls?.nfc ?? null,
-          ),
+        : nfc.copyFetchedLink(async () => (await reveal('copy'))?.publicUrls.nfc ?? null),
   }
 }

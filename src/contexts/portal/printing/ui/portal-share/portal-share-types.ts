@@ -14,7 +14,7 @@ export type PortalAddresses = Readonly<{ qr: string; nfc: string; direct: string
 
 export type IssuedPortalLink = Readonly<{
   publicUrl: string
-  publicUrls?: PortalAddresses
+  publicUrls: PortalAddresses
   /** Set by the page when the address was fetched again rather than made. */
   revealed?: boolean
   /**
