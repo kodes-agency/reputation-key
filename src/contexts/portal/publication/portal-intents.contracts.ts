@@ -39,14 +39,6 @@ export const updatePortalSettingsInputSchema = z
   .strict()
 export type UpdatePortalSettingsInput = z.infer<typeof updatePortalSettingsInputSchema>
 
-export const changePortalSlugInputSchema = z
-  .object({
-    portalId: portalIdField,
-    slug: z.string().min(2, 'Must be at least 2 characters').max(64),
-  })
-  .strict()
-export type ChangePortalSlugInput = z.infer<typeof changePortalSlugInputSchema>
-
 export const changePortalLanguagesInputSchema = z
   .object({
     portalId: portalIdField,

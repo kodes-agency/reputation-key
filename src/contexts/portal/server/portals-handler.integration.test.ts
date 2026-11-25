@@ -25,7 +25,6 @@ import {
 import {
   archivePortal,
   changePortalLanguages,
-  changePortalSlug,
   disablePortal,
   getPortal,
   getPortalHistory,
@@ -148,13 +147,6 @@ const COMMANDS: readonly Command[] = [
     prepare: draft,
     run: (portalId) => updatePortalSettings({ data: { portalId, name: 'Renamed' } }),
     changed: { name: 'Renamed' },
-  },
-  {
-    name: 'changePortalSlug',
-    managerMayRun: true,
-    prepare: draft,
-    run: (portalId) => changePortalSlug({ data: { portalId, slug: 'new-slug' } }),
-    changed: { slug: 'new-slug' },
   },
   {
     name: 'changePortalLanguages',
@@ -282,30 +274,6 @@ describe.each(COMMANDS)('$name', (command) => {
 })
 
 describe('Portal command refusals on the wire', () => {
-  it('refuses a slug already in use with its status and message', async () => {
-    const { admin, property, portal } = await hotel()
-    const other = await wholeMilliseconds(
-      await harness.seedPortal(property, { name: 'Other' }),
-    )
-    const taken = (await wholeRow(other)).slug as string
-
-    await expect(
-      harness.callAs(admin, () =>
-        changePortalSlug({ data: { portalId: portal.id, slug: taken } }),
-      ),
-    ).rejects.toMatchObject({ name: 'PortalError', code: 'slug_taken', status: 409 })
-  })
-
-  it('refuses an invalid slug', async () => {
-    const { admin, portal } = await hotel()
-
-    await expect(
-      harness.callAs(admin, () =>
-        changePortalSlug({ data: { portalId: portal.id, slug: 'Not A Slug!' } }),
-      ),
-    ).rejects.toMatchObject({ code: 'invalid_slug', status: 400 })
-  })
-
   it('refuses to disable a draft', async () => {
     const { admin, portal } = await hotel()
 

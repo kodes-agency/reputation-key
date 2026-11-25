@@ -62,7 +62,6 @@ import { getPortalCreationOptions } from './publication/get-portal-creation-opti
 import {
   archivePortal,
   changePortalLanguages,
-  changePortalSlug,
   disablePortal,
   publishPortal,
   restorePortal,
@@ -374,7 +373,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       experienceRepo: portalExperienceRepo,
     }),
     updatePortalSettings: updatePortalSettings(publishChangesDeps),
-    changePortalSlug: changePortalSlug(publishChangesDeps),
     changePortalLanguages: changePortalLanguages(publishChangesDeps),
     publishPortal: publishPortal(publishChangesDeps),
     disablePortal: disablePortal(publishChangesDeps),

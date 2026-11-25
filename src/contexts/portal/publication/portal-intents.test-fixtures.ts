@@ -26,7 +26,6 @@ import { createCreationQueries } from './portal-creation-queries.test-fixtures'
 import {
   archivePortal,
   changePortalLanguages,
-  changePortalSlug,
   disablePortal,
   publishPortal,
   restorePortal,
@@ -41,7 +40,6 @@ export const NO_BRAND_PROPERTY = propertyId('c3a10000-0000-4000-8000-00000000000
 export const NO_WORDING_PROPERTY = propertyId('c3a10000-0000-4000-8000-000000000003')
 export const PROPERTY_B = propertyId('c3a10000-0000-4000-8000-00000000000b')
 export const PORTAL = 'c3b10000-0000-4000-8000-000000000001'
-export const PORTAL_TWO = 'c3b10000-0000-4000-8000-000000000002'
 export const PORTAL_B = 'c3b10000-0000-4000-8000-0000000000b1'
 export const MISSING = 'c3b10000-0000-4000-8000-0000000000ff'
 export const GROUP = 'c3a20000-0000-4000-8000-000000000001'
@@ -168,7 +166,6 @@ export function world(options: World = {}) {
   }
   return {
     settings: updatePortalSettings(deps),
-    slug: changePortalSlug(deps),
     languages: changePortalLanguages(deps),
     publish: publishPortal(deps),
     disable: disablePortal(deps),

@@ -23,7 +23,6 @@ import {
   PROPERTY_B,
   PORTAL,
   PORTAL_B,
-  PORTAL_TWO,
   MANAGER,
 } from './portal-intents.test-fixtures'
 
@@ -64,15 +63,6 @@ describe.sequential('portal intents', () => {
     })
   })
 
-  it('updates slug', async () => {
-    const { slug } = world()
-    await seedPortal({ slug: 'old-slug' })
-    expect((await slug({ portalId: PORTAL, slug: 'new-slug' }, manager)).slug).toBe(
-      'new-slug',
-    )
-    expect((await portalRow()).slug).toBe('new-slug')
-  })
-
   it('rejects users who cannot edit', async () => {
     const { settings } = world()
     await seedPortal()
@@ -91,12 +81,11 @@ describe.sequential('portal intents', () => {
   })
 
   it('treats a Portal of another organization as unknown and leaves it alone', async () => {
-    const { settings, slug, publish, archive } = world()
+    const { settings, publish, archive } = world()
     await seedPortal({ id: PORTAL_B, org: ORG_B, property: PROPERTY_B, name: 'Theirs' })
     const admin = asRole('AccountAdmin')
     for (const run of [
       () => settings({ portalId: PORTAL_B, name: 'Mine now' }, admin),
-      () => slug({ portalId: PORTAL_B, slug: 'mine-now' }, admin),
       () => publish({ portalId: PORTAL_B }, admin),
       () => archive({ portalId: PORTAL_B }, admin),
     ]) {
@@ -108,23 +97,6 @@ describe.sequential('portal intents', () => {
       publication_state: 'draft',
     })
     expect(await outboxCount(ORG_B)).toBe(0)
-  })
-
-  it('rejects duplicate slug', async () => {
-    const { slug } = world()
-    await seedPortal({ slug: 'slug-a' })
-    await seedPortal({ id: PORTAL_TWO, slug: 'slug-b' })
-    expect(await codeOf(slug({ portalId: PORTAL_TWO, slug: 'slug-a' }, manager))).toBe(
-      'slug_taken',
-    )
-    expect((await portalRow(PORTAL_TWO)).slug).toBe('slug-b')
-  })
-
-  it('allows an address another organization holds', async () => {
-    const { slug } = world()
-    await seedPortal({ slug: 'old' })
-    await seedPortal({ id: PORTAL_B, org: ORG_B, property: PROPERTY_B, slug: 'taken' })
-    expect((await slug({ portalId: PORTAL, slug: 'taken' }, manager)).slug).toBe('taken')
   })
 
   it('reports an invalid publication transition for an archived Portal', async () => {
@@ -284,13 +256,11 @@ describe.sequential('portal intents', () => {
   })
 
   it('returns existing portal unchanged when no fields are different', async () => {
-    const { settings, slug, writes } = world()
-    await seedPortal({ name: 'Same Name', slug: 'same-slug' })
+    const { settings, writes } = world()
+    await seedPortal({ name: 'Same Name' })
 
     const result = await settings({ portalId: PORTAL, name: 'Same Name' }, manager)
-    const sameSlug = await slug({ portalId: PORTAL, slug: 'same-slug' }, manager)
 
-    expect(sameSlug).toEqual(result)
     expect(result.name).toBe('Same Name')
     expect(await factsOf('portal.updated')).toHaveLength(0)
     expect(writes()).toBe(0)
