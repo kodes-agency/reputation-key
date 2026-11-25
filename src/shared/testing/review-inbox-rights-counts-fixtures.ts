@@ -362,17 +362,6 @@ async function seedInbox(
       status: 'open',
     },
   )
-  // Rows the retired head table still holds for items written before it was
-  // retired: a closure reports and erases them with their item until it is dropped.
-  await q(
-    `INSERT INTO inbox_handling_cycle_heads (
-       inbox_item_id, organization_id, property_id, source_type, source_id,
-       current_source_revision, review_id, current_cycle_number,
-       current_material_review_revision, state_revision, status)
-     VALUES ($1, $2, $3, 'feedback', $4, 1, NULL, 1, NULL, 2, 'closed'),
-            ($5, $2, $3, 'review', $6, 1, $6, 1, 1, 1, 'open')`,
-    [feedbackItem, org, propertyId, feedbackId, reviewItem, reviewId],
-  )
   await q(
     `INSERT INTO inbox_handling_cycle_transitions (
        inbox_item_id, state_revision, cycle_number, organization_id, property_id,

@@ -5315,29 +5315,6 @@ CREATE TABLE "public"."inbox_feedback_handling_outcomes" (
 
 
 --
--- Name: inbox_handling_cycle_heads; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."inbox_handling_cycle_heads" (
-    "inbox_item_id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "source_type" "public"."inbox_source_type" NOT NULL,
-    "source_id" "uuid" NOT NULL,
-    "current_source_revision" bigint NOT NULL,
-    "review_id" "uuid",
-    "current_cycle_number" bigint NOT NULL,
-    "current_material_review_revision" bigint,
-    "state_revision" bigint DEFAULT 1 NOT NULL,
-    "status" "public"."inbox_status" DEFAULT 'open'::"public"."inbox_status" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "inbox_handling_cycle_heads_revisions_safe" CHECK (((("current_cycle_number" >= 1) AND ("current_cycle_number" <= '9007199254740991'::bigint)) AND (("current_source_revision" >= 1) AND ("current_source_revision" <= '9007199254740991'::bigint)) AND (("state_revision" >= 1) AND ("state_revision" <= '9007199254740991'::bigint)))),
-    CONSTRAINT "inbox_handling_cycle_heads_source_anchor_valid" CHECK (((("source_type" = 'review'::"public"."inbox_source_type") AND ("review_id" = "source_id") AND ("current_material_review_revision" = "current_source_revision")) OR (("source_type" = 'feedback'::"public"."inbox_source_type") AND ("review_id" IS NULL) AND ("current_material_review_revision" IS NULL))))
-);
-
-
---
 -- Name: inbox_handling_cycle_response_targets; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8690,14 +8667,6 @@ ALTER TABLE ONLY "public"."inbox_feedback_handling_outcomes"
 
 
 --
--- Name: inbox_handling_cycle_heads inbox_handling_cycle_heads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."inbox_handling_cycle_heads"
-    ADD CONSTRAINT "inbox_handling_cycle_heads_pkey" PRIMARY KEY ("inbox_item_id");
-
-
---
 -- Name: inbox_handling_cycle_response_targets inbox_handling_cycle_response_targets_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10535,13 +10504,6 @@ CREATE UNIQUE INDEX "inbox_feedback_handling_outcomes_cycle_revision_unique" ON 
 --
 
 CREATE INDEX "inbox_feedback_handling_outcomes_scope_idx" ON "public"."inbox_feedback_handling_outcomes" USING "btree" ("organization_id", "property_id", "inbox_item_id", "cycle_number", "outcome_revision");
-
-
---
--- Name: inbox_handling_cycle_heads_scope_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "inbox_handling_cycle_heads_scope_idx" ON "public"."inbox_handling_cycle_heads" USING "btree" ("organization_id", "property_id", "status");
 
 
 --
@@ -13368,38 +13330,6 @@ ALTER TABLE ONLY "public"."inbox_feedback_handling_outcomes"
 
 ALTER TABLE ONLY "public"."inbox_feedback_handling_outcomes"
     ADD CONSTRAINT "inbox_feedback_handling_outcomes_supersedes_fk" FOREIGN KEY ("inbox_item_id", "cycle_number", "supersedes_outcome_id", "supersedes_outcome_revision") REFERENCES "public"."inbox_feedback_handling_outcomes"("inbox_item_id", "cycle_number", "id", "outcome_revision") ON DELETE CASCADE;
-
-
---
--- Name: inbox_handling_cycle_heads inbox_handling_cycle_heads_current_cycle_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."inbox_handling_cycle_heads"
-    ADD CONSTRAINT "inbox_handling_cycle_heads_current_cycle_fk" FOREIGN KEY ("inbox_item_id", "current_cycle_number") REFERENCES "public"."inbox_handling_cycles"("inbox_item_id", "cycle_number") ON DELETE CASCADE;
-
-
---
--- Name: inbox_handling_cycle_heads inbox_handling_cycle_heads_inbox_item_id_inbox_items_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."inbox_handling_cycle_heads"
-    ADD CONSTRAINT "inbox_handling_cycle_heads_inbox_item_id_inbox_items_id_fk" FOREIGN KEY ("inbox_item_id") REFERENCES "public"."inbox_items"("id") ON DELETE CASCADE;
-
-
---
--- Name: inbox_handling_cycle_heads inbox_handling_cycle_heads_material_revision_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."inbox_handling_cycle_heads"
-    ADD CONSTRAINT "inbox_handling_cycle_heads_material_revision_fk" FOREIGN KEY ("review_id", "current_material_review_revision") REFERENCES "public"."material_review_revisions"("review_id", "revision") ON DELETE RESTRICT;
-
-
---
--- Name: inbox_handling_cycle_heads inbox_handling_cycle_heads_source_scope_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."inbox_handling_cycle_heads"
-    ADD CONSTRAINT "inbox_handling_cycle_heads_source_scope_fk" FOREIGN KEY ("inbox_item_id", "organization_id", "source_type", "source_id") REFERENCES "public"."inbox_items"("id", "organization_id", "source_type", "source_id") ON DELETE CASCADE;
 
 
 --

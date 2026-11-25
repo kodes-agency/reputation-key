@@ -1,7 +1,7 @@
 // The Handling Cycle head table used to carry a RESTRICT foreign key to the
-// Material Review Revision. It is retired and no longer written; the revision an
-// Inbox item's current cycle is anchored to stays protected by the cycle row's
-// own key, `inbox_handling_cycles_material_revision_fk`.
+// Material Review Revision; the table is dropped. The revision an Inbox item's
+// current cycle is anchored to is protected by the cycle row's own key,
+// `inbox_handling_cycles_material_revision_fk`.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
@@ -90,14 +90,6 @@ const revisionCount = async (revision: number): Promise<number> =>
   ).rowCount ?? 0
 
 describe('the revision an Inbox item current cycle is anchored to', () => {
-  it('is seeded without a head row', async () => {
-    const heads = await pool.query(
-      'SELECT 1 FROM inbox_handling_cycle_heads WHERE inbox_item_id = $1',
-      [ITEM],
-    )
-    expect(heads.rowCount).toBe(0)
-  })
-
   it('cannot be deleted while the current cycle row names it', async () => {
     await expect(deleteRevision(CYCLE_REVISION)).rejects.toMatchObject({
       code: FOREIGN_KEY_VIOLATION,

@@ -335,7 +335,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     schemaFile: 'inbox.schema.ts',
     exportNames: [
       'inboxAssignmentHistory',
-      'inboxHandlingCycleHeads',
       'inboxHandlingCycleResponseTargets',
       'inboxHandlingCycles',
       'inboxItems',
