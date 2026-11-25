@@ -32,33 +32,6 @@ export type OperationalActionHistoryPage = Readonly<{
   nextCursor: OperationalActionHistoryCursor | null
 }>
 
-export type OperationalActionHistoryReadinessSnapshot = Readonly<{
-  lastSequence: number
-  coveredSequenceCount: number
-  duplicateSequenceCount: number
-  minimumSequence: number | null
-  maximumSequence: number | null
-  oldestRecordAt: Date | null
-  newestRecordAt: Date | null
-  activeLegalHoldCount: number
-}>
-
-export type OperationalActionHistoryRetentionAssessment = Readonly<{
-  eligibleCount: number
-  heldCount: number
-  oldestEligibleAt: Date | null
-}>
-
-export type OperationalActionHistoryLegalHold = Readonly<{
-  id: string
-  organizationId: OrganizationId
-  reasonCode: string
-  protectsFrom: Date
-  protectsThrough: Date | null
-  placedAt: Date
-  placedByActorId: string
-}>
-
 export type OperationalActionHistoryStore = Readonly<{
   append(
     record: OperationalActionRecord,
@@ -69,50 +42,6 @@ export type OperationalActionHistoryStore = Readonly<{
       accessRecord: OperationalActionRecord
     }>,
   ): Promise<OperationalActionHistoryPage>
-  readReadiness(
-    organizationId: OrganizationId,
-  ): Promise<OperationalActionHistoryReadinessSnapshot>
-  assessRetention(
-    input: Readonly<{
-      organizationId: OrganizationId
-      cutoff: Date
-      assessmentRecord: OperationalActionRecord
-    }>,
-  ): Promise<OperationalActionHistoryRetentionAssessment>
-  placeLegalHold(
-    input: Readonly<{
-      hold: OperationalActionHistoryLegalHold
-      actionRecord: OperationalActionRecord
-    }>,
-  ): Promise<Readonly<{ status: 'placed' | 'duplicate'; holdId: string }>>
-  releaseLegalHold(
-    input: Readonly<{
-      organizationId: OrganizationId
-      holdId: string
-      releasedAt: Date
-      releasedByActorId: string
-      reasonCode: string
-      actionRecord: OperationalActionRecord
-    }>,
-  ): Promise<'released' | 'duplicate'>
-  redactSubject(
-    input: Readonly<{
-      organizationId: OrganizationId
-      subjectType: 'actor' | 'resource'
-      subjectId: string
-      reasonCode: string
-      redactedAt: Date
-      limit: number
-      actionRecord: OperationalActionRecord
-    }>,
-  ): Promise<
-    Readonly<{
-      status: 'applied' | 'duplicate'
-      redacted: number
-      held: number
-      complete: boolean
-    }>
-  >
 }>
 
 export type OperationalActionHistoryDeliveryStore = Readonly<{

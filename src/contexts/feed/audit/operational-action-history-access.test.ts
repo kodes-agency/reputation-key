@@ -66,29 +66,6 @@ const storeFixture = () => {
         nextCursor: null,
       }
     },
-    readReadiness: async () => ({
-      lastSequence: 0,
-      coveredSequenceCount: 0,
-      duplicateSequenceCount: 0,
-      minimumSequence: null,
-      maximumSequence: null,
-      oldestRecordAt: null,
-      newestRecordAt: null,
-      activeLegalHoldCount: 0,
-    }),
-    assessRetention: async () => ({
-      eligibleCount: 0,
-      heldCount: 0,
-      oldestEligibleAt: null,
-    }),
-    placeLegalHold: async (input) => ({ status: 'placed', holdId: input.hold.id }),
-    releaseLegalHold: async () => 'released',
-    redactSubject: async () => ({
-      status: 'applied',
-      redacted: 0,
-      held: 0,
-      complete: true,
-    }),
   }
   return { store, appended, reads }
 }
