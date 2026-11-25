@@ -27,7 +27,7 @@ import {
   type PortalLinkId,
 } from '#/shared/domain/ids'
 import type { Portal, PortalLink, PortalLinkCategory } from '../domain/types'
-import { MAX_PORTAL_LINKS, type ResolvedPortalLinkText } from '../domain/portal-linktree'
+import { MAX_PORTAL_LINKS, type StoredPortalLinkText } from '../domain/portal-linktree'
 import {
   lookSourcesOf,
   portalLookColumnsOf,
@@ -47,7 +47,7 @@ export type PortalCopySource = Readonly<{
   overrides: readonly PortalLocalizedOverride[]
   categories: readonly PortalLinkCategory[]
   links: readonly PortalLink[]
-  linkTexts: readonly ResolvedPortalLinkText[]
+  linkTexts: readonly StoredPortalLinkText[]
   /** The Property's destinations that are approved now; a link elsewhere stays behind. */
   approvedDestinationIds: ReadonlySet<string>
   /** The source's own look and the Property look's version; null when it follows the Property look. */

@@ -291,28 +291,19 @@ describe('portalLinkRepository (integration)', () => {
         return link
       }
 
-      it('reads stored texts, and the legacy label for a link that has none', async () => {
+      it('reads stored texts, and nothing for a link that has none', async () => {
         const repo = createPortalLinkRepository(getDb())
         const portal = await seedPortal(ORG_A, 'texts-fallback')
         const cat = await seedCategory(ORG_A, portal, 'Links')
         const written = await seedLink(ORG_A, portal, cat.id, 'Old spa', 'a0')
-        const legacy = await seedLink(ORG_A, portal, cat.id, 'Old menu', 'a1')
+        await seedLink(ORG_A, portal, cat.id, 'Old menu', 'a1')
         await insertText(ORG_A, portal, written.id, 'en', 'Spa', 'Open daily')
 
         const texts = await repo.listLinkTexts(ORG_A, portal.id, 'en')
 
         expect(
-          texts.map((text) => [
-            text.linkId,
-            text.locale,
-            text.label,
-            text.line,
-            text.source,
-          ]),
-        ).toEqual([
-          [written.id, 'en', 'Spa', 'Open daily', 'text'],
-          [legacy.id, 'en', 'Old menu', null, 'legacy_label'],
-        ])
+          texts.map((text) => [text.linkId, text.locale, text.label, text.line]),
+        ).toEqual([[written.id, 'en', 'Spa', 'Open daily']])
       })
 
       it('puts the primary language first and follows link order', async () => {
@@ -327,13 +318,10 @@ describe('portalLinkRepository (integration)', () => {
 
         const texts = await repo.listLinkTexts(ORG_A, portal.id, 'bg')
 
-        expect(
-          texts.map((text) => `${text.label}:${text.locale}:${text.source}`),
-        ).toEqual([
-          'Първи:bg:text',
-          'First:en:text',
-          'Second:bg:legacy_label',
-          'Second:en:text',
+        expect(texts.map((text) => `${text.label}:${text.locale}`)).toEqual([
+          'Първи:bg',
+          'First:en',
+          'Second:en',
         ])
       })
 

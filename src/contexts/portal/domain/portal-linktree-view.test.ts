@@ -5,7 +5,7 @@ import {
   summarizeLinkDestination,
 } from './portal-linktree-view'
 import type { PortalApprovedDestination } from './approved-destination'
-import type { ResolvedPortalLinkText } from './portal-linktree'
+import type { StoredPortalLinkText } from './portal-linktree'
 import {
   buildTestPortal,
   buildTestPortalLink,
@@ -45,10 +45,10 @@ const destination = (
 
 const text = (
   linkId: string,
-  locale: ResolvedPortalLinkText['locale'],
+  locale: StoredPortalLinkText['locale'],
   label: string,
-  overrides: Partial<ResolvedPortalLinkText> = {},
-): ResolvedPortalLinkText => ({
+  overrides: Partial<StoredPortalLinkText> = {},
+): StoredPortalLinkText => ({
   linkId,
   locale,
   label,
@@ -57,7 +57,6 @@ const text = (
   version: 1,
   updatedBy: 'user-1',
   updatedAt: AT,
-  source: 'text',
   ...overrides,
 })
 

@@ -11,7 +11,7 @@ import {
   portalLinkCategoryId,
   portalLinkId,
 } from '#/shared/domain/ids'
-import type { ResolvedPortalLinkText } from '../domain/portal-linktree'
+import type { StoredPortalLinkText } from '../domain/portal-linktree'
 import type { PortalLookOverride } from '../domain/portal-look'
 import type { PortalLocalizedOverride } from '../editor/portal-experience-repository.port.server'
 import type { NewPortalLocales } from '../domain/portal-new-locales'
@@ -33,10 +33,10 @@ const sequentialIds = () => {
 
 const text = (
   linkId: string,
-  locale: ResolvedPortalLinkText['locale'],
+  locale: StoredPortalLinkText['locale'],
   label: string,
   line: string | null = null,
-): ResolvedPortalLinkText => ({
+): StoredPortalLinkText => ({
   linkId,
   locale,
   label,
@@ -45,7 +45,6 @@ const text = (
   version: 1,
   updatedBy: 'user-1',
   updatedAt: NOW,
-  source: 'text',
 })
 
 const override = (
