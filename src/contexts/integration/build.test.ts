@@ -94,12 +94,11 @@ function buildDeps(overrides: {
 }
 
 describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
-  it('exposes frozen capabilities for requests, maintenance, lifecycle, webhook, and workers', () => {
+  it('exposes frozen capabilities for requests, maintenance, webhook, and workers', () => {
     const ctx = buildIntegrationContext(buildDeps({}))
 
     expect(Object.keys(ctx).sort()).toEqual([
       'internal',
-      'lifecycle',
       'maintenance',
       'publicApi',
       // ARC-03-T12: the named provider capabilities the Review build consumes.
@@ -149,7 +148,6 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(Object.isFrozen(ctx.publicApi.performance)).toBe(true)
     expect(Object.isFrozen(ctx.maintenance)).toBe(true)
     expect(Object.isFrozen(ctx.maintenance.imports)).toBe(true)
-    expect(Object.isFrozen(ctx.lifecycle)).toBe(true)
     expect(Object.isFrozen(ctx.webhook)).toBe(true)
     expect(Object.isFrozen(ctx.worker)).toBe(true)
   })

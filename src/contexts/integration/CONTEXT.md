@@ -65,6 +65,12 @@ whole import cascade in one transaction. Its 30-day clock starts when the whole
 import first becomes terminal and retries never renew it. Query indexes cover
 parent reads, recovery appointments, expiry, retention and lifecycle scopes.
 
+The import lifecycle cancels by connection, user or one request, and its
+maintenance surface is `inspectBacklog` and `sweep`. Organization-wide and
+Property-deletion cancels, per-scope and per-request inspection and the
+operator request cancel were removed as unused; `property_deleted` stays a
+stored outcome.
+
 The earlier import tables (`gbp_import_requests`, `gbp_import_request_items`
 and `gbp_import_sagas`) are gone; history in them was not copied.
 The public-command acceptance and recovery suites in

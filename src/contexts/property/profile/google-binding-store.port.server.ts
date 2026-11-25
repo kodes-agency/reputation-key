@@ -200,5 +200,4 @@ export type PropertyGoogleBindingStore = Readonly<{
       limit: number
     }>,
   ) => Promise<number>
-  cleanupOrganization: (organizationId: OrganizationId) => Promise<number>
 }>

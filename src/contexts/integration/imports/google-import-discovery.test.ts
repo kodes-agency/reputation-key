@@ -144,7 +144,6 @@ function setup(
         renewAfterMs: 10_000 as const,
       },
     })),
-    invalidateOrganization: vi.fn(async () => true),
     invalidateUser: vi.fn(async () => true),
     invalidateConnection: vi.fn(async () => true),
     invalidateProperty: vi.fn(async () => true),

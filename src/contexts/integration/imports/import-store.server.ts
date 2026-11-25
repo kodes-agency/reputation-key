@@ -284,8 +284,6 @@ export function createImportStore(
 
     reserveDueItems: createImportDueReservation(db),
 
-    getOperatorProgress: (organizationId, importId) =>
-      getImportProgress(db, organizationId, importId, clock),
     getProgress: (organizationId, userId, importId) =>
       getImportProgress(db, organizationId, importId, clock, userId),
   })

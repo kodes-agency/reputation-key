@@ -10,27 +10,17 @@ import { assertLifecycleSweepLimit } from './import-store-helpers.server'
 function lifecycleScopePredicate(scope: GoogleImportLifecycleScope) {
   const tenant = eq(googleImportItems.organizationId, scope.organizationId)
   switch (scope.kind) {
-    case 'organization':
-      return tenant
     case 'user':
       return and(tenant, eq(googleImports.initiatedBy, scope.userId))
     case 'connection':
       return and(tenant, eq(googleImportItems.connectionId, scope.connectionId))
-    case 'property':
-      return and(
-        tenant,
-        or(
-          eq(googleImportItems.existingPropertyId, scope.propertyId),
-          eq(googleImportItems.destinationPropertyId, scope.propertyId),
-        ),
-      )
     case 'request':
       return and(tenant, eq(googleImports.id, scope.importJobId))
   }
 }
 
 // Provider authority still held by an item: the lifecycle sweeps for a
-// connection, user or organization visit these rows to cancel and scrub them.
+// connection, user or request visit these rows to cancel and scrub them.
 // The destination Property is deliberately absent: a terminal `imported` row
 // keeps it as a plain internal reference and holds no authority through it.
 const lifecycleAuthorityPresent = or(
@@ -47,17 +37,6 @@ const lifecycleAuthorityPresent = or(
   isNotNull(googleImportItems.expectedProfileVersion),
 )
 
-// A Property deletion must also find the terminal rows that still name the
-// Property, so its sweep selects on the reference as well as on authority.
-function lifecycleSweepPredicate(scope: GoogleImportLifecycleScope) {
-  return scope.kind === 'property'
-    ? and(
-        lifecycleScopePredicate(scope),
-        or(lifecycleAuthorityPresent, isNotNull(googleImportItems.destinationPropertyId)),
-      )
-    : and(lifecycleScopePredicate(scope), lifecycleAuthorityPresent)
-}
-
 export function createImportLifecycleStore(
   db: Database,
 ): Pick<
@@ -66,7 +45,6 @@ export function createImportLifecycleStore(
   | 'fenceLifecycleParent'
   | 'listLifecycleScopeItems'
   | 'scrubLifecycleItems'
-  | 'countLifecycleScopeItems'
 > {
   return {
     listLifecycleScopeParents: async (scope, limit) => {
@@ -127,7 +105,7 @@ export function createImportLifecycleStore(
             eq(googleImports.id, googleImportItems.importId),
           ),
         )
-        .where(lifecycleSweepPredicate(scope))
+        .where(and(lifecycleScopePredicate(scope), lifecycleAuthorityPresent))
         .orderBy(asc(googleImportItems.createdAt), asc(googleImportItems.id))
         .limit(limit)
       return rows.map((row) => ({
@@ -180,24 +158,6 @@ export function createImportLifecycleStore(
           ),
         )
         .returning({ id: googleImportItems.id })
-      return rows.length
-    },
-
-    countLifecycleScopeItems: async (scope, limit) => {
-      assertLifecycleSweepLimit(limit)
-      const rows = await db
-        .select({ itemId: googleImportItems.id })
-        .from(googleImportItems)
-        .innerJoin(
-          googleImports,
-          and(
-            eq(googleImports.organizationId, googleImportItems.organizationId),
-            eq(googleImports.id, googleImportItems.importId),
-          ),
-        )
-        .where(lifecycleSweepPredicate(scope))
-        .orderBy(asc(googleImportItems.createdAt), asc(googleImportItems.id))
-        .limit(limit)
       return rows.length
     },
   }

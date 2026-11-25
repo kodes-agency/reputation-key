@@ -181,10 +181,8 @@ export type GoogleImportPurgeCandidate = Readonly<{
 }>
 
 export type GoogleImportLifecycleScope =
-  | Readonly<{ kind: 'organization'; organizationId: string }>
   | Readonly<{ kind: 'user'; organizationId: string; userId: string }>
   | Readonly<{ kind: 'connection'; organizationId: string; connectionId: string }>
-  | Readonly<{ kind: 'property'; organizationId: string; propertyId: string }>
   | Readonly<{ kind: 'request'; organizationId: string; importJobId: string }>
 
 export type GoogleImportLifecycleParent = Readonly<{
@@ -363,14 +361,6 @@ export type GoogleImportStore = Readonly<{
       now: Date
     }>,
   ): Promise<number>
-  countLifecycleScopeItems(
-    scope: GoogleImportLifecycleScope,
-    limit: number,
-  ): Promise<number>
-  getOperatorProgress(
-    organizationId: string,
-    importJobId: string,
-  ): Promise<ImportProgressDto | null>
   getProgress(
     organizationId: string,
     userId: string,

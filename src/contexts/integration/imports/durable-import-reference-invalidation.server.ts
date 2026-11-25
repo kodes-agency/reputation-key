@@ -13,22 +13,14 @@ import { acquireDurableImportScopeLocks } from './durable-import-reference-persi
 
 const INVALIDATION_FENCE_MS = 30_000
 
-type InvalidationMethod =
-  | 'invalidateOrganization'
-  | 'invalidateUser'
-  | 'invalidateConnection'
-  | 'invalidateProperty'
+type InvalidationMethod = 'invalidateUser' | 'invalidateConnection' | 'invalidateProperty'
 
 type InvalidationInput =
-  | Readonly<{ kind: 'organization'; organizationId: string }>
   | Readonly<{ kind: 'user'; organizationId: string; userId: string }>
   | Readonly<{ kind: 'connection'; organizationId: string; connectionId: string }>
   | Readonly<{ kind: 'property'; organizationId: string; propertyId: string }>
 
 const scopeFor = (input: InvalidationInput): DurableImportInvalidationScope => {
-  if (input.kind === 'organization') {
-    return invalidationScopeFor('organization', [input.organizationId])
-  }
   if (input.kind === 'user') {
     return invalidationScopeFor('user', [input.organizationId, input.userId])
   }
@@ -46,9 +38,7 @@ const deleteScope = async (
     googleImportDiscoveryRecords.organizationId,
     input.organizationId,
   )
-  if (input.kind === 'organization') {
-    await tx.delete(googleImportDiscoveryRecords).where(organization)
-  } else if (input.kind === 'user') {
+  if (input.kind === 'user') {
     await tx
       .delete(googleImportDiscoveryRecords)
       .where(and(organization, eq(googleImportDiscoveryRecords.userId, input.userId)))
@@ -115,8 +105,6 @@ export const createDurableImportReferenceInvalidation = (
   }
 
   return Object.freeze({
-    invalidateOrganization: (input) =>
-      invalidate({ kind: 'organization', organizationId: input.organizationId }),
     invalidateUser: (input) =>
       invalidate({
         kind: 'user',

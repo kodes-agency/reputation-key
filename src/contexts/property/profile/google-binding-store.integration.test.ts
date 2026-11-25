@@ -659,7 +659,6 @@ describe.sequential('Property Google binding store', () => {
       [ORG_ID],
     )
     expect(receiptRows.rows).toEqual([{ idempotency_key: retainedKey }])
-    expect(await store.cleanupOrganization(ORG_ID)).toBe(1)
   })
 
   describe('the Google primary category', () => {

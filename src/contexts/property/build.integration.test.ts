@@ -73,7 +73,6 @@ const GOOGLE_BINDING_MEMBERS = Object.keys({
   releaseRetentionFromEvent: true,
   sweepReleasedExpired: true,
   countUnreleasedExpired: true,
-  cleanupOrganization: true,
 } satisfies Record<keyof PropertyGoogleBindingStore, true>) as Array<
   keyof PropertyGoogleBindingStore
 >

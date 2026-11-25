@@ -234,23 +234,7 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
         invalidProfileField: null,
       })
 
-      // Deleting that Property finds and clears the reference like an import's.
-      const propertyScope = {
-        kind: 'property' as const,
-        organizationId: ORG_ID,
-        propertyId: existingPropertyId,
-      }
-      await expect(
-        suite.store.listLifecycleScopeItems(propertyScope, 100),
-      ).resolves.toEqual([
-        {
-          organizationId: ORG_ID,
-          importJobId: REQUEST_ID,
-          itemId: ITEM_ID,
-          retryRevision: 0,
-          active: false,
-        },
-      ])
+      // A scrub clears that reference like an import's.
       await expect(scrub()).resolves.toBe(1)
       const afterSweep = await suite.store.getProgress(ORG_ID, USER_ID, REQUEST_ID)
       expect(afterSweep?.items[0]).toMatchObject({
