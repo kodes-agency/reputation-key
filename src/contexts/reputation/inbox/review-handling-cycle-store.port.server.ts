@@ -1,12 +1,6 @@
 import type { Tx } from '#/shared/outbox/commit'
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
-import type { HandlingCycleHead, ReviewHandlingCycleHead } from '../domain/inbox-types'
-
-export type ReviewHandlingCycleExpectation = Readonly<{
-  cycleNumber: number
-  materialReviewRevision: number
-  stateRevision: number
-}>
+import type { HandlingCycleHead } from '../domain/inbox-types'
 
 export type HandlingCycleExpectation = Readonly<{
   cycleNumber: number
@@ -15,13 +9,9 @@ export type HandlingCycleExpectation = Readonly<{
 }>
 
 export type ReviewHandlingCycleStore = Readonly<{
-  findSourceHead?(
-    inboxItemId: InboxItemId,
-    organizationId: OrganizationId,
-  ): Promise<HandlingCycleHead | null>
   findHead(
     inboxItemId: InboxItemId,
     organizationId: OrganizationId,
     tx?: Tx,
-  ): Promise<ReviewHandlingCycleHead | null>
+  ): Promise<HandlingCycleHead | null>
 }>

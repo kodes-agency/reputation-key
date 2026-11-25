@@ -4,6 +4,7 @@
 // repository and command stores over stubbed cross-context lookups, readers
 // for the facts a command committed, and tenant cleanup.
 
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { createHash, randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
@@ -87,7 +88,7 @@ export async function seedInboxItem(
     propertyId: item.propertyId,
     sourceDate: item.sourceDate,
   })
-  return (await store.createItem(item, null, { materialReviewRevision: 1 })).item
+  return (await store.createItem(item, null, reviewOpeningAnchor(item))).item
 }
 
 // ── review sources ──────────────────────────────────────────────────

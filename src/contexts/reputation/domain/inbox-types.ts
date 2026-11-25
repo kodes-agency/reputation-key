@@ -110,25 +110,6 @@ export type HandlingCycleTransition = Readonly<{
   transitionedAt: Date
 }>
 
-/**
- * Review compatibility views retain the established field names while the
- * persistence authority is source-neutral. New cross-source code should use
- * `HandlingCycle` / `HandlingCycleHead` directly.
- */
-export type ReviewHandlingCycleHead = Readonly<{
-  inboxItemId: InboxItemId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  reviewId: ReviewId
-  currentCycleNumber: number
-  currentMaterialReviewRevision: number
-  stateRevision: number
-  status: InboxStatus
-  sourceType?: 'review'
-  sourceId?: ReviewId
-  currentSourceRevision?: number
-}>
-
 export type InboxItemReplyState = Readonly<{
   status: ReplyStatus
   publicationState: ReplyPublicationState | null

@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { describe, it, expect, vi } from 'vitest'
 import { inboxItemId, feedbackId, propertyId } from '#/shared/domain/ids'
 import type {} from '#/contexts/reputation/domain/review-types'
@@ -396,7 +397,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       await seedReviewRevisionOne()
       const store = createAtomicInboxCommandStore(db)
       let item = makeItem()
-      await store.createItem(item, null, { materialReviewRevision: 1 })
+      await store.createItem(item, null, reviewOpeningAnchor(item))
       const earlier = new Date(NOW.getTime() - 60_000)
       const decisions = [
         { assignedTo: USER_A, at: NOW },
@@ -474,7 +475,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     )
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
 
     const assigned = await store.assign(
       item,
@@ -522,7 +523,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
 
     const escalated = await store.escalate(
       item,
@@ -609,7 +610,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
 
     const ghost = {
       ...inboxItemEscalated({

@@ -49,6 +49,7 @@ import {
   persistedHeadFromItemRow,
   type PersistedHead,
 } from '#/contexts/reputation/inbox/inbox-cycle-head.server'
+import { handlingCycleHeadFromRow } from '#/contexts/reputation/inbox/inbox-command-guards.server'
 import { transitionInsert } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import { completePrivateFeedbackTarget } from '#/contexts/reputation/response-targets/store.server'
 
@@ -72,18 +73,6 @@ const outcomeFromRow = (row: OutcomeRow): FeedbackHandlingOutcomeFact => ({
   completionAt: row.completionAt,
   deadlineResult: row.deadlineResult as FeedbackHandlingOutcomeFact['deadlineResult'],
   supersedesOutcomeId: row.supersedesOutcomeId,
-})
-
-const headFromRow = (row: HeadRow): HandlingCycleHead => ({
-  inboxItemId: inboxItemId(row.inboxItemId),
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  sourceType: row.sourceType,
-  sourceId: feedbackId(row.sourceId),
-  currentCycleNumber: row.currentCycleNumber,
-  currentSourceRevision: row.currentSourceRevision,
-  stateRevision: row.stateRevision,
-  status: row.status,
 })
 
 const itemFromRow = (row: ItemRow, snapshot: InboxItem): InboxItem => ({
@@ -285,7 +274,7 @@ export const createFeedbackHandlingStore = (
           .limit(1)
         const row = itemRow ? persistedHeadFromItemRow(itemRow) : null
         if (!row) return null
-        const head = headFromRow(row)
+        const head = handlingCycleHeadFromRow(row)
         return toState(
           head,
           await historyFor(db, itemId, head.currentCycleNumber, orgId),
@@ -319,7 +308,7 @@ export const createFeedbackHandlingStore = (
             actorUserId: command.actorUserId,
             recordedAt: command.recordedAt,
           })
-          const current = headFromRow(locked.head)
+          const current = handlingCycleHeadFromRow(locked.head)
           await assertManagerHandlingStillHonest(tx, current)
           const deadlineResult = await completePrivateFeedbackTarget(
             tx,
@@ -461,10 +450,13 @@ export const createFeedbackHandlingStore = (
             actorUserId: command.actorUserId,
             recordedAt: command.recordedAt,
           })
-          await assertManagerHandlingStillHonest(tx, headFromRow(locked.head))
+          await assertManagerHandlingStillHonest(
+            tx,
+            handlingCycleHeadFromRow(locked.head),
+          )
           const corrected = correctFeedbackHandlingOutcomeFact({
             id: command.outcomeId,
-            current: headFromRow(locked.head),
+            current: handlingCycleHeadFromRow(locked.head),
             previous: outcomeFromRow(latestRow),
             outcome: command.outcome,
             internalNote: command.internalNote,
@@ -507,7 +499,7 @@ export const createFeedbackHandlingStore = (
           return {
             item: itemFromRow(savedItem, command.item),
             feedbackHandling: toState(
-              headFromRow(locked.head),
+              handlingCycleHeadFromRow(locked.head),
               history,
               'private_feedback_handled',
             ),

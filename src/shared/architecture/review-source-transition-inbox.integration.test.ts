@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from '#/contexts/reputation/inbox/review-opening-anchor.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Pool, PoolClient } from 'pg'
 import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
@@ -160,7 +161,7 @@ describe.sequential('Review source transition -> Inbox exact-current boundary', 
       allowAllCommandAuthority,
       () => TRANSITIONED_AT,
     )
-    await commandStore.createItem(item(), null, { materialReviewRevision: 1 })
+    await commandStore.createItem(item(), null, reviewOpeningAnchor(item()))
 
     const source = reviewSourceTransitioned({
       reviewId: REVIEW,

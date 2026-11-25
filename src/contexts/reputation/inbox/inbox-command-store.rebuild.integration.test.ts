@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { seedReply } from '../replies/reply-seed.test-fixtures'
 import { getDb } from '#/shared/db'
 import { describe, it, expect } from 'vitest'
@@ -87,7 +88,13 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
         sourceId: livePublished.id,
       }),
       null,
-      { materialReviewRevision: storedLivePublished.sourceRevision },
+      reviewOpeningAnchor(
+        makeItem({
+          id: inboxItemId('4d000000-0000-0000-0000-000000000021'),
+          sourceId: livePublished.id,
+        }),
+        storedLivePublished.sourceRevision,
+      ),
     )
     // MISSING: review live, no item — heal = create (no created fact).
     const missing = makeReview({ id: reviewId('4d000000-0000-0000-0000-000000000012') })
@@ -104,7 +111,13 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
         sourceId: expired.id,
       }),
       null,
-      { materialReviewRevision: storedExpired.sourceRevision },
+      reviewOpeningAnchor(
+        makeItem({
+          id: inboxItemId('4d000000-0000-0000-0000-000000000022'),
+          sourceId: expired.id,
+        }),
+        storedExpired.sourceRevision,
+      ),
     )
     // PURGED/ORPHAN: deliberately raw repair fixture. It remains hidden from
     // active reads and rebuild must not guess a status transition.
@@ -131,7 +144,20 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
         escalatedBy: USER_A,
       }),
       null,
-      { materialReviewRevision: storedHealthy.sourceRevision },
+      reviewOpeningAnchor(
+        makeItem({
+          id: inboxItemId('4d000000-0000-0000-0000-000000000024'),
+          sourceId: healthy.id,
+          status: 'closed',
+          closedAt: NOW,
+          firstReplyPublishedAt: NOW,
+          assignedTo: USER_A,
+          isEscalated: true,
+          escalatedAt: NOW,
+          escalatedBy: USER_A,
+        }),
+        storedHealthy.sourceRevision,
+      ),
     )
   }
 
@@ -253,7 +279,13 @@ describe.sequential('inboxCommandStore lent transaction (integration)', () => {
     await expect(
       db.transaction(async (tx) => {
         const outcome = await store.applySourceCreatedOnce(
-          { eventId: source.eventId, consumerName: CONSUMER, item, fact },
+          {
+            eventId: source.eventId,
+            consumerName: CONSUMER,
+            item,
+            fact,
+            cycleAnchor: { ...reviewOpeningAnchor(item), triggerEventId: source.eventId },
+          },
           tx,
         )
         expect(outcome).toBe('applied')
@@ -286,7 +318,13 @@ describe.sequential('inboxCommandStore lent transaction (integration)', () => {
 
     await db.transaction(async (tx) => {
       await store.applySourceCreatedOnce(
-        { eventId: source.eventId, consumerName: CONSUMER, item, fact },
+        {
+          eventId: source.eventId,
+          consumerName: CONSUMER,
+          item,
+          fact,
+          cycleAnchor: { ...reviewOpeningAnchor(item), triggerEventId: source.eventId },
+        },
         tx,
       )
     })
@@ -312,7 +350,7 @@ describe.sequential('inboxCommandStore lent transaction (integration)', () => {
 
     await expect(
       db.transaction(async (tx) => {
-        await store.createItem(item, createdFact(item), { materialReviewRevision: 1 }, tx)
+        await store.createItem(item, createdFact(item), reviewOpeningAnchor(item), tx)
 
         expect((await repo.findBySource('review', item.sourceId, ORG_A, tx))?.id).toBe(
           item.id,
@@ -333,7 +371,7 @@ describe.sequential('inboxCommandStore lent transaction (integration)', () => {
     const item = makeItem()
 
     const assigned = await db.transaction(async (tx) => {
-      await store.createItem(item, null, { materialReviewRevision: 1 }, tx)
+      await store.createItem(item, null, reviewOpeningAnchor(item), tx)
       return store.assign(
         item,
         { assignedTo: USER_A },
