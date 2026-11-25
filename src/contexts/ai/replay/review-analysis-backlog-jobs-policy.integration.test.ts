@@ -13,7 +13,7 @@ import {
   createWorker,
 } from '#/contexts/ai/replay/backlog-policy-handler.test-fixtures'
 import type { DomainEvent } from '#/shared/events/events'
-import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import { createEventDispatcher } from '#/shared/outbox/dispatcher'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -44,7 +44,7 @@ function delivered(fact: DomainEvent, recordedAtEpochMillis: number) {
 
 const worker = createWorker({
   delivered,
-  createDispatcher: createDispatcherHandler,
+  createDispatcher: createEventDispatcher,
   logger: createMockLogger(),
 })
 

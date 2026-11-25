@@ -2,15 +2,15 @@
 // enqueue. Consumer receipts prevent duplicate effects after acknowledgement loss.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import type { Job, Queue } from 'bullmq'
+import type { Queue } from 'bullmq'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   initDelayedExecutionPolicy,
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
 import { createConsumerRegistry, type ConsumerRegistry } from './consumer-registry'
-import { createDispatcherHandler } from './dispatcher'
-import { buildConsumerEvent, parseConsumerEvent } from './envelope'
+import { createEventDispatcher } from './dispatcher'
+import { buildConsumerEvent } from './envelope'
 import { createOutboxRelay } from './relay'
 import { reconcileWorkItems } from '#/shared/jobs/work-items.server'
 import { z, ZodError } from 'zod/v4'
@@ -224,12 +224,9 @@ describe('outbox crash boundaries', () => {
     it('relay→dispatcher envelope includes eventType (BQR-2.1)', () => {
       // Pre-fix: queue.add(name, barePayload) → dispatcher saw eventType undefined.
       const row = committedFact()
-      const jobData = buildConsumerEvent(row)
-      const parsed = parseConsumerEvent(jobData)
-      expect(parsed).not.toBeNull()
-      expect(parsed!.eventType).toBe(TEST_EVENT_TYPE)
-      expect(parsed!.eventId).toBe('evt-001')
-      expect(parseConsumerEvent(row.payload)).toBeNull()
+      const built = buildConsumerEvent(row)
+      expect(built.eventType).toBe(TEST_EVENT_TYPE)
+      expect(built.eventId).toBe('evt-001')
     })
   })
 
@@ -294,18 +291,14 @@ describe('outbox crash boundaries', () => {
           return { status: 'applied' }
         },
       })
-      const dispatch = createDispatcherHandler(outbox.repo, {
+      const dispatch = createEventDispatcher(outbox.repo, {
         consumers: consumerRegistry,
       })
-      const job = {
-        id: 'evt-001',
-        name: TEST_EVENT_TYPE,
-        data: buildConsumerEvent(committedFact()),
-      } as unknown as Job
+      const event = buildConsumerEvent(committedFact())
 
-      await dispatch(job)
+      await dispatch(event)
       // The worker died before it acknowledged the job, so BullMQ delivers it again.
-      await dispatch(job)
+      await dispatch(event)
 
       expect(applied).toEqual(['evt-001'])
       expect([...outbox.receipts]).toEqual(['evt-001:projects-once'])

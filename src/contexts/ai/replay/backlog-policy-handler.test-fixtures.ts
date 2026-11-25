@@ -452,12 +452,7 @@ function reviewEventDelivery(
       occurredAt: new Date(wiring.clock.now),
     })
     const envelope = wiring.helpers.delivered(fact, wiring.clock.now)
-    const job = {
-      id: envelope.eventId,
-      name: envelope.eventType,
-      data: envelope,
-    } as unknown as Job
-    const delivery = await dispatchEvent(job).then(
+    const delivery = await dispatchEvent(envelope).then(
       () => 'completed' as const,
       () => 'retried' as const,
     )
@@ -474,7 +469,7 @@ type WorkerHelpers = Readonly<{
   createDispatcher: (
     receipts: OutboxRepository,
     options: Readonly<{ consumers: ConsumerRegistry }>,
-  ) => (job: Job) => Promise<unknown>
+  ) => (event: ConsumerEvent) => Promise<unknown>
   logger: LoggerPort
 }>
 

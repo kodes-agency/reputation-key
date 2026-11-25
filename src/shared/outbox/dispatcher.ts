@@ -30,7 +30,7 @@ import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
 import { PrerequisiteNotReadyError } from './prerequisite-not-ready'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
-import { buildConsumerEvent, parseConsumerEvent, type ConsumerEvent } from './envelope'
+import { buildConsumerEvent, type ConsumerEvent } from './envelope'
 import {
   OUTBOX_DELIVERY_KIND,
   OUTBOX_DELIVERY_LEASE_MS,
@@ -163,10 +163,10 @@ async function invokeConsumer(
 }
 
 /**
- * Create a dispatcher handler for the BullMQ 'domain-events' worker.
- * This function is passed to createJobWorker as the handler.
+ * Deliver one built event to its registered consumers. The work-ledger handler
+ * below calls this with the event it just built from the stored fact.
  */
-function createEnvelopeDispatcher(
+export function createEventDispatcher(
   repo: OutboxRepository,
   options: Readonly<{
     /**
@@ -179,37 +179,11 @@ function createEnvelopeDispatcher(
 ) {
   const logger = getLogger()
 
-  return async (job: Job) => {
+  return async (event: ConsumerEvent) => {
     // Pre-existing marginal finding (cognitive 16); the 7.3 sweep only stripped banned log fields.
     // fallow-ignore-next-line complexity
     await trace('outbox.dispatch', async () => {
-      const { id: jobId, name: jobName, data } = job
-      if (!jobId) {
-        // BQC-3.6: no retry — content-free reason (job name only).
-        logger.error({ jobName }, 'Job has no ID — unrecoverable')
-        throw new UnrecoverableError(
-          `outbox job '${jobName}' has no id — unrecoverable (BQC-3.6)`,
-        )
-      }
-
-      // BQR-2.1: require full ConsumerEvent envelope (relay must not send bare payload)
-      const event = parseConsumerEvent(data)
-      if (!event) {
-        // BQC-3.6: malformed envelopes are unrecoverable — the job lands in
-        // BullMQ failed state immediately (quarantine substrate; 3.7 alerting
-        // picks it up). Reason is content-free: job name only (BQC-7.3 — no
-        // job/event ids in logs or failure reasons).
-        logger.error(
-          { jobName },
-          'Job data is not a ConsumerEvent envelope — unrecoverable (BQC-3.6)',
-        )
-        throw new UnrecoverableError(
-          `outbox envelope malformed (job '${jobName}') — schema/envelope mismatch, no retry`,
-        )
-      }
-
-      // Prefer envelope eventId; fall back to BullMQ job ID (relay sets jobId = event UUID)
-      const eventId = event.eventId || jobId
+      const eventId = event.eventId
       const eventType = event.eventType
 
       // Validate payload against the schema registry
@@ -295,14 +269,12 @@ export function createDispatcherHandler(
   repo: OutboxRepository,
   options: Readonly<{ consumers: ConsumerRegistry }>,
 ) {
-  const dispatch = createEnvelopeDispatcher(repo, options)
+  const dispatch = createEventDispatcher(repo, options)
   return async (job: Job) => {
+    // Every producer carries only the durable work ID.
     const data: unknown = job.data
-    // Drain envelopes accepted by the previous release during a rolling deploy.
-    // Every new producer carries only the durable work ID.
-    if (!data || typeof data !== 'object' || !Object.hasOwn(data, 'workId'))
-      return dispatch(job)
-    const workId = (data as { workId: unknown }).workId
+    const workId =
+      data && typeof data === 'object' ? (data as { workId?: unknown }).workId : undefined
     if (typeof workId !== 'string' || !workId)
       throw new UnrecoverableError('Invalid outbox work ID')
     const { workItems, readEvent } = repo.delivery
@@ -319,11 +291,7 @@ export function createDispatcherHandler(
       try {
         const event = await readEvent(work.organizationId, work.subjectId)
         if (event) {
-          await dispatch({
-            id: job.id,
-            name: event.eventType,
-            data: buildConsumerEvent(event),
-          } as Job)
+          await dispatch(buildConsumerEvent(event))
           const required = new Set([
             ...durableConsumersFor(event.eventType).map(({ name }) => name),
             ...options.consumers

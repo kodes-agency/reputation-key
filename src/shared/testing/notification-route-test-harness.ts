@@ -13,10 +13,9 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import { createEventDispatcher } from '#/shared/outbox/dispatcher'
 import { buildConsumerEvent, type ConsumerEvent } from '#/shared/outbox/envelope'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import type { Job } from 'bullmq'
 import { expect, vi } from 'vitest'
 import type { BetaNotificationTriggerMatrixRow } from '#/contexts/feed/notify/beta-notification-trigger-matrix.server'
 import type { EscalationResolutionLookupPort } from '#/contexts/feed/notify/escalation-resolution-lookup.port.server'
@@ -345,11 +344,7 @@ export async function dispatch(
     },
   } as unknown as OutboxRepository
 
-  await createDispatcherHandler(repo, { consumers: registry })({
-    id: envelope.eventId,
-    name: envelope.eventType,
-    data: envelope,
-  } as unknown as Job)
+  await createEventDispatcher(repo, { consumers: registry })(envelope)
 
   return { envelope, receipts, gateDenials, queued }
 }
