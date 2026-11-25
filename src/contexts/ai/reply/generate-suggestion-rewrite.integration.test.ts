@@ -10,6 +10,7 @@ import {
   createV2Harness,
 } from '#/contexts/ai/reply/reply-rewrite-handler.test-fixtures'
 import { userId } from '#/shared/domain/ids'
+import { getLogger } from '#/shared/observability/logger'
 import { describe, expect, it, vi } from 'vitest'
 
 import { replyProgressResponse } from '../server/reply-progress-stream.server'
@@ -105,6 +106,10 @@ describe('dark reply v2 rewrite orchestration', () => {
     const consoleSpies = ['log', 'info', 'warn', 'error', 'debug'].map((method) =>
       vi.spyOn(console, method as 'log').mockImplementation(() => {}),
     )
+    // The shared logger writes to the file descriptor, not through process.stdout.
+    const loggerSpies = ['info', 'warn', 'error'].map((level) =>
+      vi.spyOn(getLogger(), level as 'info').mockImplementation(() => {}),
+    )
     try {
       const result = await h.generate(INPUT)
       expect(result.status).toBe('ready')
@@ -119,6 +124,7 @@ describe('dark reply v2 rewrite orchestration', () => {
           stdout.mock.calls,
           stderr.mock.calls,
           ...consoleSpies.map((spy) => spy.mock.calls),
+          ...loggerSpies.map((spy) => spy.mock.calls),
         ],
         events: h.refusals,
         persisted: [
@@ -139,6 +145,7 @@ describe('dark reply v2 rewrite orchestration', () => {
       stdout.mockRestore()
       stderr.mockRestore()
       for (const spy of consoleSpies) spy.mockRestore()
+      for (const spy of loggerSpies) spy.mockRestore()
     }
   })
 

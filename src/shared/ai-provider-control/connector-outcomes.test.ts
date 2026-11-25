@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AiAdmissionDescriptorV1 } from '#/shared/ai-gateway/ai-internal-transport-contract'
+import { getLogger } from '#/shared/observability/logger'
 import {
   type OneShotProviderFetchState,
   type ProviderBoundaryInvocation,
@@ -87,7 +88,7 @@ describe('what a provider call that threw came to', () => {
     ['no one-shot fetch was ever built', null],
     ['the outbound fetch was never reached', state({ outboundFetchUsed: false })],
   ])('is no_dispatch, and says why, when %s', (_name, recorded) => {
-    const write = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    const write = vi.spyOn(getLogger(), 'error').mockImplementation(() => {})
 
     const outcome = throwOutcome({ state: recorded, pinnedAbsent: true })
 
@@ -95,12 +96,15 @@ describe('what a provider call that threw came to', () => {
       disposition: 'no_dispatch',
       outboundFetchUsed: false,
     })
-    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
-      event: 'gateway_no_dispatch',
-      stage: 'dispatch_threw_before_outbound',
-      pinnedNull: true,
-      boundaryNull: recorded === null,
-    })
+    expect(write.mock.calls[0]).toEqual([
+      expect.objectContaining({
+        event: 'gateway_no_dispatch',
+        stage: 'dispatch_threw_before_outbound',
+        pinnedNull: true,
+        boundaryNull: recorded === null,
+      }),
+      'gateway_no_dispatch',
+    ])
     write.mockRestore()
   })
 
@@ -191,7 +195,7 @@ describe('the gate before a provider call', () => {
   )
 
   it('refuses, names the crash and zeroes the bytes when the attestation throws', () => {
-    const write = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    const write = vi.spyOn(getLogger(), 'error').mockImplementation(() => {})
     const bytes = Uint8Array.of(1, 2, 3)
 
     const outcome = refusalAtProviderDispatchGate({
@@ -205,15 +209,18 @@ describe('the gate before a provider call', () => {
       outboundFetchUsed: false,
     })
     expect(bytes).toEqual(Uint8Array.of(0, 0, 0))
-    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
-      event: 'gateway_no_dispatch',
-      stage: 'attestation_threw',
-    })
+    expect(write.mock.calls[0]).toEqual([
+      expect.objectContaining({
+        event: 'gateway_no_dispatch',
+        stage: 'attestation_threw',
+      }),
+      'gateway_no_dispatch',
+    ])
     write.mockRestore()
   })
 
   it('refuses when the clock itself fails, rather than letting the call through', () => {
-    const write = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    const write = vi.spyOn(getLogger(), 'error').mockImplementation(() => {})
 
     const outcome = refusalAtProviderDispatchGate({
       invocation: { ...invocation, canonicalProviderBytes: Uint8Array.of(9) },
