@@ -669,7 +669,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     const { registerReviewWorkerJobs } =
       await import('./sync/review-worker-runtime.server')
     await registerReviewWorkerJobs({
-      replyEffects: input.replyEffects,
       db: input.db,
       pool: input.workerRuntime.pool,
       registry: input.workerRuntime.registry,

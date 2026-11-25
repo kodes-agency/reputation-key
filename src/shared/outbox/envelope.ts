@@ -7,8 +7,7 @@
 // BQC-3.7 / ARC-01: the envelope preserves envelope-grade metadata alongside
 // the identifier-only payload: occurred/recorded time, aggregate identity,
 // correlation/causation/command identity and source aggregate version — never
-// content. Back-compat parsing accepts historical 8-field envelopes; build
-// always populates the current fields.
+// content.
 //
 // Job name remains eventType; job ID remains the outbox event UUID (dedup).
 
@@ -35,7 +34,8 @@ export type ConsumerEvent = Readonly<{
   sourceAggregateId: string
   /**
    * ARC-01: derived from the persisted identifier payload at relay time.
-   * Always set by buildConsumerEvent; optional only for in-flight envelopes.
+   * Always set by buildConsumerEvent; optional in the type so hand-built
+   * test events can omit it.
    */
   aggregateType?: string
   /**
@@ -53,26 +53,23 @@ export type ConsumerEvent = Readonly<{
   /** BQC-3.7: domain-occurrence time (ISO) when the payload carries it. */
   occurredAt?: string
   /**
-   * BQC-3.7: outbox row insert time (ISO). Always set by buildConsumerEvent
-   * (required going forward); optional in the type so pre-3.7 in-flight
-   * envelopes still parse.
+   * BQC-3.7: outbox row insert time (ISO). Always set by buildConsumerEvent;
+   * optional in the type so hand-built test events can omit it.
    */
   recordedAt?: string
   /** BQC-3.7: trace identifier — envelope-grade metadata, never content. */
   correlationId?: string | null
   /**
    * ARC-01: identifier of the command at the root of this causal chain.
-   * Always set by buildConsumerEvent; optional only for in-flight envelopes.
+   * Always set by buildConsumerEvent; optional in the type so hand-built
+   * test events can omit it.
    */
   commandId?: string
-  /**
-   * ARC-01: direct cause of this fact. New envelopes always carry a string;
-   * null remains accepted only for pre-ARC-01 in-flight envelopes.
-   */
+  /** ARC-01: direct cause of this fact. */
   causationId?: string | null
   /**
-   * BQC-3.7: source aggregate version for version fencing. Optional only for
-   * legacy or unversioned event families.
+   * BQC-3.7: source aggregate version for version fencing. Null for
+   * unversioned event families.
    */
   sourceAggregateVersion?: string | number | null
 }>
@@ -125,144 +122,4 @@ export function buildConsumerEvent(event: UnpublishedEvent): ConsumerEvent {
         ? payload.sourceAggregateVersion
         : null,
   }
-}
-
-type EnvelopeMetadataFields = Pick<
-  ConsumerEvent,
-  | 'aggregateType'
-  | 'occurredAt'
-  | 'recordedAt'
-  | 'correlationId'
-  | 'commandId'
-  | 'causationId'
-  | 'sourceAggregateVersion'
-  | 'commandClassification'
-  | 'contentClassification'
->
-
-const isAbsentOrString = (value: unknown): boolean =>
-  value === undefined || typeof value === 'string'
-
-const isAbsentOrNullableString = (value: unknown): boolean =>
-  value === undefined || value === null || typeof value === 'string'
-
-const isAbsentOrNullableAggregateVersion = (value: unknown): boolean =>
-  value === undefined ||
-  value === null ||
-  typeof value === 'string' ||
-  typeof value === 'number'
-
-const isAbsentOrLiteral = (value: unknown, literal: string): boolean =>
-  value === undefined || value === literal
-
-/**
- * Validate the BQC-3.7 scalar metadata fields when present. Absent fields are
- * the pre-3.7 shape (accepted); present fields must be well-typed.
- */
-function parseEnvelopeMetadata(
-  data: Record<string, unknown>,
-): EnvelopeMetadataFields | null {
-  const {
-    aggregateType,
-    occurredAt,
-    recordedAt,
-    correlationId,
-    commandId,
-    causationId,
-    sourceAggregateVersion,
-    commandClassification,
-    contentClassification,
-  } = data
-  if (!isAbsentOrString(aggregateType)) return null
-  if (!isAbsentOrString(occurredAt)) return null
-  if (!isAbsentOrString(recordedAt)) return null
-  if (!isAbsentOrNullableString(correlationId)) return null
-  if (!isAbsentOrString(commandId)) return null
-  if (!isAbsentOrNullableString(causationId)) return null
-  if (!isAbsentOrNullableAggregateVersion(sourceAggregateVersion)) return null
-  if (!isAbsentOrLiteral(commandClassification, DURABLE_COMMAND_CLASSIFICATION))
-    return null
-  if (!isAbsentOrLiteral(contentClassification, IDENTIFIER_ONLY_CONTENT_CLASSIFICATION))
-    return null
-
-  return {
-    aggregateType: aggregateType as string | undefined,
-    occurredAt: occurredAt as string | undefined,
-    recordedAt: recordedAt as string | undefined,
-    correlationId: (correlationId ?? null) as string | null,
-    commandId: commandId as string | undefined,
-    causationId: (causationId ?? null) as string | null,
-    sourceAggregateVersion: (sourceAggregateVersion ?? null) as string | number | null,
-    ...(commandClassification !== undefined
-      ? { commandClassification: DURABLE_COMMAND_CLASSIFICATION }
-      : {}),
-    ...(contentClassification !== undefined
-      ? { contentClassification: IDENTIFIER_ONLY_CONTENT_CLASSIFICATION }
-      : {}),
-  }
-}
-
-type RequiredEnvelopeFields = Pick<
-  ConsumerEvent,
-  | 'eventId'
-  | 'eventType'
-  | 'eventVersion'
-  | 'payload'
-  | 'organizationId'
-  | 'propertyId'
-  | 'sourceContext'
-  | 'sourceAggregateId'
->
-
-/** Validate the pre-3.7 base fields (every historical envelope carries them). */
-function parseRequiredFields(
-  data: Record<string, unknown>,
-): RequiredEnvelopeFields | null {
-  const {
-    eventId,
-    eventType,
-    eventVersion,
-    payload,
-    organizationId,
-    propertyId,
-    sourceContext,
-    sourceAggregateId,
-  } = data
-
-  if (typeof eventId !== 'string' || eventId.length === 0) return null
-  if (typeof eventType !== 'string' || eventType.length === 0) return null
-  if (typeof eventVersion !== 'number' || !Number.isInteger(eventVersion)) return null
-  if (!('payload' in data)) return null
-  if (typeof organizationId !== 'string') return null
-  if (propertyId !== null && typeof propertyId !== 'string') return null
-  if (typeof sourceContext !== 'string' || sourceContext.length === 0) return null
-  if (typeof sourceAggregateId !== 'string' || sourceAggregateId.length === 0) return null
-
-  return {
-    eventId,
-    eventType,
-    eventVersion,
-    payload,
-    organizationId,
-    propertyId: propertyId as string | null,
-    sourceContext,
-    sourceAggregateId,
-  }
-}
-
-/**
- * Parse and structurally validate job data as a ConsumerEvent.
- * Returns null when the shape is not a full envelope (e.g. bare payload).
- * Does not run Zod schema validation — callers use the event schema registry.
- */
-export function parseConsumerEvent(data: unknown): ConsumerEvent | null {
-  if (!isRecord(data)) return null
-
-  const required = parseRequiredFields(data)
-  if (!required) return null
-
-  const metadata = parseEnvelopeMetadata(data)
-  if (!metadata) return null
-
-  return { ...required, ...metadata }
 }

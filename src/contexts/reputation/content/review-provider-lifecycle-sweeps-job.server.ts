@@ -1,6 +1,5 @@
 import type { Job } from 'bullmq'
 import { reviewId } from '#/shared/domain/ids'
-import type { ReviewProviderSnapshotRepository } from '../sync/review-provider-snapshot-repository.port.server'
 import { trace } from '#/shared/observability/trace'
 
 export const EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME =
@@ -12,12 +11,6 @@ export type ReviewProviderLifecycleSweepJobData = Readonly<{
   beforeOrAtEpochMillis: number
   afterReviewId: string | null
   limit: number
-}>
-
-type Dependencies = Readonly<{
-  repository: ReviewProviderSnapshotRepository
-  enqueueExpiryContinuation(data: ReviewProviderLifecycleSweepJobData): Promise<void>
-  enqueueTombstoneContinuation(data: ReviewProviderLifecycleSweepJobData): Promise<void>
 }>
 
 const parseSweepData = (data: ReviewProviderLifecycleSweepJobData) => {
@@ -37,27 +30,27 @@ const parseSweepData = (data: ReviewProviderLifecycleSweepJobData) => {
   }
 }
 
-export const createExpireReviewProviderSourceHandler =
-  (dependencies: Dependencies) => async (job: Job<ReviewProviderLifecycleSweepJobData>) =>
-    trace('job.expireReviewProviderSource', async () => {
-      // Validate stale queue payloads, then drain them harmlessly. The legacy
-      // repository adapter now delegates to the Review-owned checkpointed
-      // report authority, while recurring apply remains unreachable until an
-      // explicit reviewed cutover supplies both confirmation and approval.
-      parseSweepData(job.data)
-      void dependencies
-      return { status: 'quarantined' as const, transitioned: 0, nextReviewId: null }
-    })
+export const expireReviewProviderSourceHandler = async (
+  job: Job<ReviewProviderLifecycleSweepJobData>,
+) =>
+  trace('job.expireReviewProviderSource', async () => {
+    // Validate stale queue payloads, then drain them harmlessly. The legacy
+    // repository adapter now delegates to the Review-owned checkpointed
+    // report authority, while recurring apply remains unreachable until an
+    // explicit reviewed cutover supplies both confirmation and approval.
+    parseSweepData(job.data)
+    return { status: 'quarantined' as const, transitioned: 0, nextReviewId: null }
+  })
 
-export const createSweepReviewProviderTombstonesHandler =
-  (dependencies: Dependencies) => async (job: Job<ReviewProviderLifecycleSweepJobData>) =>
-    trace('job.sweepReviewProviderTombstones', async () => {
-      // Validate stale queue payloads, then drain them harmlessly. Nothing
-      // seeds this sweep, and it stays quarantined until a reviewed cutover:
-      // the setup checklist and Property setup still read the completed
-      // snapshot runs sweepExpiredTombstones would delete. Snapshot runs are
-      // bounded by the retention sweep's keep rule instead.
-      parseSweepData(job.data)
-      void dependencies
-      return { status: 'quarantined' as const, deleted: 0, nextReviewId: null }
-    })
+export const sweepReviewProviderTombstonesHandler = async (
+  job: Job<ReviewProviderLifecycleSweepJobData>,
+) =>
+  trace('job.sweepReviewProviderTombstones', async () => {
+    // Validate stale queue payloads, then drain them harmlessly. Nothing
+    // seeds this sweep, and it stays quarantined until a reviewed cutover:
+    // the setup checklist and Property setup still read the completed
+    // snapshot runs sweepExpiredTombstones would delete. Snapshot runs are
+    // bounded by the retention sweep's keep rule instead.
+    parseSweepData(job.data)
+    return { status: 'quarantined' as const, deleted: 0, nextReviewId: null }
+  })

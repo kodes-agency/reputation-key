@@ -83,7 +83,6 @@ export type SystemAction =
   | 'system:ai.review_analysis_enrollment'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
-  | 'system:property.import_retired'
   | 'system:integration.gbp_subscription_reconcile'
   | 'system:goal.reconcile'
   | 'system:goal.maintain'

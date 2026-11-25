@@ -53,14 +53,12 @@ import {
 import { createGoogleReplyObservationStore } from '../publication/google-reply-observation-store.server'
 import { createPublicationReconciliationRunLease } from '../publication/publication-reconciliation-run-lease.server'
 import {
-  createExpireReviewProviderSourceHandler,
-  createSweepReviewProviderTombstonesHandler,
+  expireReviewProviderSourceHandler,
+  sweepReviewProviderTombstonesHandler,
   EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
   SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
   type ReviewProviderLifecycleSweepJobData,
 } from '../content/review-provider-lifecycle-sweeps-job.server'
-import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
-import { createReviewProviderSnapshotRepository } from './review-provider-snapshot-repository.server'
 import {
   createReconcileAmbiguousPublicationsHandler,
   JOB_NAME as RECONCILE_AMBIGUOUS_JOB_NAME,
@@ -74,7 +72,6 @@ type ReconcileHandlerDependencies = Parameters<
 
 export type ReviewWorkerRegistrationInput = Readonly<{
   db: Database
-  replyEffects: ReplyScopeEffects
   pool: Pool
   registry: Pick<JobRegistry, 'register'>
   backgroundQueue: Pick<Queue, 'add'> | undefined
@@ -169,41 +166,6 @@ export async function registerReviewWorkerJobs(
     'registered sync-property-reviews job handler',
   )
 
-  const reviewProviderSnapshotRepository = createReviewProviderSnapshotRepository(
-    input.db,
-    input.idGen,
-    input.replyEffects,
-  )
-  const enqueueProviderLifecycleContinuation = async (
-    jobName:
-      | typeof EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME
-      | typeof SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
-    data: ReviewProviderLifecycleSweepJobData,
-  ): Promise<void> => {
-    if (!input.backgroundQueue) {
-      throw new Error('Review provider lifecycle queue is unavailable')
-    }
-    await input.backgroundQueue.add(jobName, data, {
-      jobId: `${jobName}-${data.beforeOrAtEpochMillis}-${data.afterReviewId ?? 'start'}`,
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 50 },
-      ...jobEnqueueOptions(jobName),
-    })
-  }
-  const lifecycleDependencies = {
-    repository: reviewProviderSnapshotRepository,
-    enqueueExpiryContinuation: (data: ReviewProviderLifecycleSweepJobData) =>
-      enqueueProviderLifecycleContinuation(EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME, data),
-    enqueueTombstoneContinuation: (data: ReviewProviderLifecycleSweepJobData) =>
-      enqueueProviderLifecycleContinuation(
-        SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
-        data,
-      ),
-  }
-  const expireReviewProviderSourceHandler =
-    createExpireReviewProviderSourceHandler(lifecycleDependencies)
-  const sweepReviewProviderTombstonesHandler =
-    createSweepReviewProviderTombstonesHandler(lifecycleDependencies)
   input.registry.register(EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME, async (job) => {
     await expireReviewProviderSourceHandler(
       job as Job<ReviewProviderLifecycleSweepJobData>,
