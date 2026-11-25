@@ -29,13 +29,13 @@ function makeHarness(options: HarnessOptions = {}) {
   const order: string[] = []
   const outboxRows: Array<Record<string, unknown>> = []
   const tx = {
-    execute: vi.fn(async () => {
-      order.push('tx.portal-lock')
-      return { rows: [{ publicationState }] }
-    }),
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
+          for: vi.fn(async () => {
+            order.push('tx.portal-lock')
+            return [{ publicationState }]
+          }),
           limit: vi.fn(async () => {
             order.push('tx.check')
             return alreadyRecorded ? [{ id: 'existing' }] : []

@@ -42,12 +42,6 @@ export const rollbackPortalPublication =
       activatedAt: Date
     }>
   > => {
-    if (!Number.isSafeInteger(input.version) || input.version < 1) {
-      throw portalError(
-        'publication_snapshot_unavailable',
-        'Publication version must be a positive integer',
-      )
-    }
     const pid = portalId(input.portalId)
     const portal = await loadPortalOrThrow(deps, ctx, pid, {
       permission: 'portal.update',
