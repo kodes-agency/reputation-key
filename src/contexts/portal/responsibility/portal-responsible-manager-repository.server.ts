@@ -56,6 +56,54 @@ async function announcesResponsibilityGap(
   return property?.lifecycleState === 'active'
 }
 
+/**
+ * Ends the given active manager intervals: rows that began at or after `at`
+ * never took effect and are deleted, older ones are closed with `reason`.
+ * Returns the rows that were deleted or closed.
+ */
+async function endManagerIntervals(
+  tx: Tx,
+  organizationId: string,
+  rows: ReadonlyArray<typeof portalResponsibleManagers.$inferSelect>,
+  at: Date,
+  reason: typeof portalResponsibleManagers.$inferInsert.endReason,
+) {
+  const transientIds = rows
+    .filter((row) => row.effectiveFrom.getTime() >= at.getTime())
+    .map((row) => row.id)
+  const historicalIds = rows
+    .filter((row) => row.effectiveFrom.getTime() < at.getTime())
+    .map((row) => row.id)
+  const deletedRows =
+    transientIds.length === 0
+      ? []
+      : await tx
+          .delete(portalResponsibleManagers)
+          .where(
+            and(
+              eq(portalResponsibleManagers.organizationId, organizationId),
+              inArray(portalResponsibleManagers.id, transientIds),
+              isNull(portalResponsibleManagers.effectiveTo),
+            ),
+          )
+          .returning()
+  const endedRows =
+    historicalIds.length === 0
+      ? []
+      : await tx
+          .update(portalResponsibleManagers)
+          .set({ effectiveTo: at, endReason: reason })
+          .where(
+            and(
+              eq(portalResponsibleManagers.organizationId, organizationId),
+              inArray(portalResponsibleManagers.id, historicalIds),
+              isNull(portalResponsibleManagers.effectiveTo),
+            ),
+          )
+          .returning()
+  return [...deletedRows, ...endedRows]
+}
+
 export const createPortalResponsibleManagerRepository = (
   db: Database,
 ): PortalResponsibleManagerRepository => ({
@@ -110,14 +158,6 @@ export const createPortalResponsibleManagerRepository = (
 
   replace: async (input) =>
     db.transaction(async (tx) => {
-      await tx.execute(sql`
-        SELECT id FROM portals
-        WHERE organization_id = ${input.organizationId}
-          AND property_id = ${input.propertyId}
-          AND id = ${input.portalId}
-          AND deleted_at IS NULL
-        FOR UPDATE
-      `)
       const [portal] = await tx
         .select({
           id: portals.id,
@@ -135,6 +175,7 @@ export const createPortalResponsibleManagerRepository = (
           ),
         )
         .limit(1)
+        .for('update')
       if (!portal) throw portalError('portal_not_found', 'portal not found')
       if (portal.revision !== input.expectedRevision) {
         throw portalError(
@@ -157,12 +198,6 @@ export const createPortalResponsibleManagerRepository = (
       const desired = new Set(input.managerUserIds)
       const current = new Set(currentRows.map((row) => row.userId))
       const rowsToEnd = currentRows.filter((row) => !desired.has(row.userId))
-      const transientRowsToEnd = rowsToEnd.filter(
-        (row) => row.effectiveFrom.getTime() >= input.at.getTime(),
-      )
-      const historicalRowsToEnd = rowsToEnd.filter(
-        (row) => row.effectiveFrom.getTime() < input.at.getTime(),
-      )
       const usersToInsert = input.managerUserIds.filter((userId) => !current.has(userId))
 
       if (rowsToEnd.length === 0 && usersToInsert.length === 0) {
@@ -173,36 +208,13 @@ export const createPortalResponsibleManagerRepository = (
         }
       }
 
-      if (transientRowsToEnd.length > 0) {
-        await tx.delete(portalResponsibleManagers).where(
-          and(
-            eq(portalResponsibleManagers.organizationId, input.organizationId),
-            inArray(
-              portalResponsibleManagers.id,
-              transientRowsToEnd.map((row) => row.id),
-            ),
-            isNull(portalResponsibleManagers.effectiveTo),
-          ),
-        )
-      }
-      if (historicalRowsToEnd.length > 0) {
-        await tx
-          .update(portalResponsibleManagers)
-          .set({
-            effectiveTo: input.at,
-            endReason: 'responsibility_reassigned',
-          })
-          .where(
-            and(
-              eq(portalResponsibleManagers.organizationId, input.organizationId),
-              inArray(
-                portalResponsibleManagers.id,
-                historicalRowsToEnd.map((row) => row.id),
-              ),
-              isNull(portalResponsibleManagers.effectiveTo),
-            ),
-          )
-      }
+      await endManagerIntervals(
+        tx,
+        input.organizationId,
+        rowsToEnd,
+        input.at,
+        'responsibility_reassigned',
+      )
       if (usersToInsert.length > 0) {
         await tx.insert(portalResponsibleManagers).values(
           usersToInsert.map((userId) => ({
@@ -340,46 +352,13 @@ export const createPortalResponsibleManagerRepository = (
           'Portal responsibility scope changed during release',
         )
       }
-      const transientRows = activeRows.filter(
-        (row) => row.effectiveFrom.getTime() >= input.at.getTime(),
+      const releasedRows = await endManagerIntervals(
+        tx,
+        input.organizationId,
+        activeRows,
+        input.at,
+        input.endReason,
       )
-      const historicalRows = activeRows.filter(
-        (row) => row.effectiveFrom.getTime() < input.at.getTime(),
-      )
-      const deletedRows =
-        transientRows.length === 0
-          ? []
-          : await tx
-              .delete(portalResponsibleManagers)
-              .where(
-                and(
-                  eq(portalResponsibleManagers.organizationId, input.organizationId),
-                  inArray(
-                    portalResponsibleManagers.id,
-                    transientRows.map((row) => row.id),
-                  ),
-                  isNull(portalResponsibleManagers.effectiveTo),
-                ),
-              )
-              .returning()
-      const endedRows =
-        historicalRows.length === 0
-          ? []
-          : await tx
-              .update(portalResponsibleManagers)
-              .set({ effectiveTo: input.at, endReason: input.endReason })
-              .where(
-                and(
-                  eq(portalResponsibleManagers.organizationId, input.organizationId),
-                  inArray(
-                    portalResponsibleManagers.id,
-                    historicalRows.map((row) => row.id),
-                  ),
-                  isNull(portalResponsibleManagers.effectiveTo),
-                ),
-              )
-              .returning()
-      const releasedRows = [...deletedRows, ...endedRows]
       if (releasedRows.length === 0) {
         return { released: 0 }
       }
