@@ -14,11 +14,15 @@ export const revealPortalAddressInputSchema = issuePortalTokenInputSchema.extend
   purpose: z.enum(['download', 'copy', 'show']),
 })
 
+/** Days a replaced printed code keeps working when the manager does not choose. */
+export const DEFAULT_GRACE_DAYS = 30
+export const MAX_GRACE_DAYS = 90
+
 const portalTokenGracePeriodDaysSchema = z
   .number()
   .int('Transition period must be a whole number')
   .min(1, 'Transition period must be at least 1 day')
-  .max(90, 'Transition period must be no more than 90 days')
+  .max(MAX_GRACE_DAYS, `Transition period must be no more than ${MAX_GRACE_DAYS} days`)
 
 /**
  * The replace-code form: a planned replacement keeps the old code working for a
