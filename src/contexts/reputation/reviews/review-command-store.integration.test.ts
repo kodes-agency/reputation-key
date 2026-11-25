@@ -6,8 +6,10 @@ import { createReviewResponseTargetAuthority } from '#/contexts/reputation/revie
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { createReviewObservationRepository } from './review-observation-repository.server'
-import { readObservationHistory } from './review-observation-history.test-fixtures'
+import {
+  readMaterialRevisions,
+  readObservationHistory,
+} from './review-observation-history.test-fixtures'
 import {
   ORG,
   OTHER_ORG,
@@ -130,9 +132,7 @@ describe('atomic review re-observation', () => {
       'historical_onboarding',
     )
 
-    const revisions = await createReviewObservationRepository(
-      getDb(),
-    ).findMaterialRevisions(REVIEW, ORG)
+    const revisions = await readMaterialRevisions(getDb(), REVIEW, ORG)
     expect(revisions).toEqual([
       expect.objectContaining({
         revision: 1,
@@ -159,9 +159,7 @@ describe('atomic review re-observation', () => {
     )
 
     const observations = await readObservationHistory(getDb(), REVIEW, ORG)
-    const revisions = await createReviewObservationRepository(
-      getDb(),
-    ).findMaterialRevisions(REVIEW, ORG)
+    const revisions = await readMaterialRevisions(getDb(), REVIEW, ORG)
     expect(observations[0]).toMatchObject({
       sourceEpoch: 0,
       materialRevision: 1,
@@ -296,12 +294,10 @@ describe('atomic review re-observation', () => {
       analysisSequence: 3,
       text: 'Re-observed review',
     })
-
-    const history = createReviewObservationRepository(getDb())
     const observations = await readObservationHistory(getDb(), REVIEW, ORG)
-    const revisions = await history.findMaterialRevisions(REVIEW, ORG)
+    const revisions = await readMaterialRevisions(getDb(), REVIEW, ORG)
     await expect(readObservationHistory(getDb(), REVIEW, OTHER_ORG)).resolves.toEqual([])
-    await expect(history.findMaterialRevisions(REVIEW, OTHER_ORG)).resolves.toEqual([])
+    await expect(readMaterialRevisions(getDb(), REVIEW, OTHER_ORG)).resolves.toEqual([])
     expect(observations).toMatchObject([
       {
         observationSequence: 1,
@@ -459,10 +455,8 @@ describe('atomic review re-observation', () => {
     expect(materialChange.sourceRevision).toBe(2)
     expect(duplicateEvent).not.toHaveBeenCalled()
     expect(outOfOrderEvent).not.toHaveBeenCalled()
-
-    const history = createReviewObservationRepository(getDb())
     const observations = await readObservationHistory(getDb(), REVIEW, ORG)
-    const revisions = await history.findMaterialRevisions(REVIEW, ORG)
+    const revisions = await readMaterialRevisions(getDb(), REVIEW, ORG)
     expect(
       observations.map((entry) => [
         entry.observationSequence,
@@ -558,9 +552,8 @@ describe('atomic review re-observation', () => {
       sourceRevision: 1,
       analysisSequence: 2,
     })
-    const history = createReviewObservationRepository(getDb())
     const observations = await readObservationHistory(getDb(), REVIEW, ORG)
-    const revisions = await history.findMaterialRevisions(REVIEW, ORG)
+    const revisions = await readMaterialRevisions(getDb(), REVIEW, ORG)
     expect(observations).toMatchObject([
       { observationSequence: 1, materialRevision: 1, contentState: 'source_expired' },
       { observationSequence: 2, materialRevision: 1, contentState: 'active' },

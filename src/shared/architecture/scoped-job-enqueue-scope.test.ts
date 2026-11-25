@@ -1,4 +1,3 @@
-import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Scoped job families — what a family is enqueued with must give the
 // delayed-execution gate a scope.
 //
@@ -39,7 +38,7 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/replay/ai-job-enqueue.server'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails-job.server'
 import { createGoogleImportQueue } from '#/contexts/integration/imports/google-import-queue.server'
-import { buildReviewContext } from '#/contexts/reputation/build-review'
+import { createReviewQueues } from '#/contexts/reputation/sync/review-queues.server'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => createMockLogger(),
@@ -78,42 +77,6 @@ const producer = (enqueue: (queue: Queue) => Promise<void>): ScopedJobEnqueue =>
   enqueue,
 })
 
-function reviewContext(jobQueue: Queue) {
-  return buildReviewContext({
-    replyEffects: replyScopeEffects,
-    publicationActorAuthority: async () => true,
-    replyBrandProfiles: { isCurrentAiReplyBrandProfile: async () => true },
-    db: {} as never,
-    outboxRepo: { insertReceipt: vi.fn() } as never,
-    clock: () => new Date('2026-10-11T00:00:00Z'),
-    idGen: () => 'scoped-job-enqueue-id',
-    snapshotRunIdGen: () => 'scoped-job-enqueue-snapshot-run-id',
-    googleReviewApi: {} as never,
-    googleConnectionStatus: { findStatus: async () => null },
-    jobQueue,
-    workerRuntime: {
-      pool: {} as never,
-      registry: { register: vi.fn() },
-      backgroundQueue: undefined,
-    },
-    logger: createMockLogger(),
-    staffPublicApi: {
-      getAccessiblePropertyIds: async () => null,
-      getAssignedPortals: async () => [],
-    },
-    propertyApi: {
-      getSourceEpoch: async () => ({ sourceEpoch: 0 }),
-      getPublicationScope: async () => ({ lifecycleState: 'active', sourceEpoch: 0 }),
-      getGoogleReadScope: async () => ({
-        lifecycleState: 'active',
-        googleBindingState: 'unbound',
-        googleConnectionId: null,
-        sourceEpoch: 0,
-      }),
-    },
-  })
-}
-
 const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
   'import-gbp-property-item': producer(async (queue) => {
     await createGoogleImportQueue(queue).addImportItemJobs([
@@ -128,14 +91,14 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
     ])
   }),
   'sync-property-reviews': producer(async (queue) => {
-    const review = reviewContext(queue)
-    await review.internal.repos.queue.addSyncJob({
+    const review = createReviewQueues(queue)
+    await review.queue.addSyncJob({
       organizationId: ORGANIZATION,
       propertyId: PROPERTY,
       connectionId: 'connection-1',
       locationName: 'locations/1',
     })
-    await review.publicApi.syncAdmission.addTargetedFetchJob(
+    await review.targetedQueue.addTargetedFetchJob(
       {
         mode: 'targeted',
         organizationId: ORGANIZATION,
@@ -149,7 +112,7 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
       { jobId: `gbp-push-${ID(4)}` },
     )
     // The dark head check a skipped discovery look hands the queue.
-    await review.internal.repos.headCheckQueue.addHeadCheckJob(
+    await review.headCheckQueue.addHeadCheckJob(
       {
         mode: 'head',
         organizationId: ORGANIZATION,
@@ -162,7 +125,7 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
     )
   }),
   'publish-reply': producer(async (queue) => {
-    await reviewContext(queue).internal.repos.replyQueue.addPublishJob({
+    await createReviewQueues(queue).replyQueue.addPublishJob({
       replyId: ID(5),
       organizationId: ORGANIZATION,
       propertyId: PROPERTY,

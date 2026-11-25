@@ -10,8 +10,10 @@ import type { Review } from '../domain/review-types'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { createReviewObservationRepository } from './review-observation-repository.server'
-import { readObservationHistory } from './review-observation-history.test-fixtures'
+import {
+  readMaterialRevisions,
+  readObservationHistory,
+} from './review-observation-history.test-fixtures'
 
 // Google can change how it wraps translated review text without moving
 // updateTime. A comparison that still finds a difference would create Material
@@ -184,8 +186,7 @@ describe('a review Google restated at an unmoved updateTime', () => {
       [1, 1, 'initial_material_revision'],
       [2, 1, 'normalization_shadow_match'],
     ])
-    const history = createReviewObservationRepository(getDb())
-    expect(await history.findMaterialRevisions(REVIEW, ORG)).toHaveLength(1)
+    expect(await readMaterialRevisions(getDb(), REVIEW, ORG)).toHaveLength(1)
     // The reply waiting for approval answers a review nobody edited.
     expect(await replyStatus()).toBe('pending_approval')
     expect(await cancellationCauses()).toEqual([])
@@ -205,7 +206,7 @@ describe('a review Google restated at an unmoved updateTime', () => {
       [2, 1, 'normalization_shadow_match'],
       [3, 2, 'material_change'],
     ])
-    expect(await history.findMaterialRevisions(REVIEW, ORG)).toHaveLength(2)
+    expect(await readMaterialRevisions(getDb(), REVIEW, ORG)).toHaveLength(2)
     expect(await replyStatus()).toBe('draft')
     expect(await cancellationCauses()).toEqual(['source_changed'])
   })

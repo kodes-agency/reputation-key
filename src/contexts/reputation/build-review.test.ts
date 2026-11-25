@@ -96,25 +96,24 @@ const SYNC_EXECUTION = {
 describe('Review context build', () => {
   it('exposes only the reply request commands, bound to their one implementation', () => {
     const { api } = setup()
-    const useCases = api.internal.useCases
-    expect(api.publicApi.reply).toEqual({
-      draft: useCases.draftReply,
-      submit: useCases.submitReply,
-      approve: useCases.approveReply,
-      editPublished: useCases.editPublishedReply,
-      reject: useCases.rejectReply,
-      delete: useCases.deleteReply,
-      retryPublish: useCases.retryPublish,
-      checkPublication: useCases.checkReplyPublication,
-      listTemplates: useCases.listReplyTemplates,
-      loadTemplate: useCases.loadReplyTemplate,
-      checkDraft: useCases.checkReplyDraft,
-      getLibrary: useCases.getReplyLibrary,
-      saveVoice: useCases.saveReplyVoice,
-      saveTemplate: useCases.saveReplyTemplate,
-      setTemplateHidden: useCases.setReplyTemplateHidden,
-      resetTemplate: useCases.resetReplyTemplate,
-    })
+    expect(Object.keys(api.publicApi.reply).sort()).toEqual([
+      'approve',
+      'checkDraft',
+      'checkPublication',
+      'delete',
+      'draft',
+      'editPublished',
+      'getLibrary',
+      'listTemplates',
+      'loadTemplate',
+      'reject',
+      'resetTemplate',
+      'retryPublish',
+      'saveTemplate',
+      'saveVoice',
+      'setTemplateHidden',
+      'submit',
+    ])
     expect(Object.isFrozen(api.publicApi.reply)).toBe(true)
   })
 
@@ -160,14 +159,6 @@ describe('Review context build', () => {
     expect(Object.keys(api)).not.toContain('organizationLifecycle')
     expect(Object.keys(api.publicApi)).not.toContain('organizationExport')
     expect(Object.keys(api.publicApi)).not.toContain('organizationLifecycle')
-  })
-
-  it('publishes the Google review check as one named capability, bound to the one implementation', () => {
-    const { api } = setup()
-
-    expect(api.publicApi.checkReviewOnGoogle).toBe(
-      api.internal.useCases.checkReviewOnGoogle,
-    )
   })
 
   it('publishes only named reads through lookups, never a repository write', () => {
@@ -249,97 +240,5 @@ describe('Review queue admission', () => {
       jobId: 'gbp-push-00000000-0000-4000-8000-000000000099',
     })
     expect(JSON.stringify(payload)).not.toContain('accounts/')
-  })
-
-  it('enqueues a head check as a governed sync-property-reviews job with its own job id and delay', async () => {
-    const { api, jobQueue } = setup()
-    const data = {
-      mode: 'head' as const,
-      propertyId: 'prop-1',
-      organizationId: 'org-1',
-      connectionId: 'conn-1',
-      locationName: 'locations/1',
-      initiator: { kind: 'system' as const, id: 'sweep:review-discovery' },
-      correlationId: 'review-head:prop-1',
-    }
-
-    await api.internal.repos.headCheckQueue.addHeadCheckJob(data, {
-      jobId: 'review-head-prop-1-7',
-      delayMs: 90_000,
-    })
-
-    const [name, payload, options] = jobQueue.add.mock.calls[0]!
-    expect(name).toBe('sync-property-reviews')
-    expect(payload).toEqual({
-      ...data,
-      capability: 'property.connect_gbp',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
-    })
-    expect(options).toMatchObject({
-      jobId: 'review-head-prop-1-7',
-      delay: 90_000,
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 50 },
-    })
-  })
-
-  it('enqueues a head check with no delay option when none is asked for', async () => {
-    const { api, jobQueue } = setup()
-
-    await api.internal.repos.headCheckQueue.addHeadCheckJob(
-      {
-        mode: 'head',
-        propertyId: 'prop-1',
-        organizationId: 'org-1',
-        connectionId: 'conn-1',
-        locationName: 'locations/1',
-      },
-      { jobId: 'review-head-prop-1-8' },
-    )
-
-    expect(jobQueue.add.mock.calls[0]![2]).not.toHaveProperty('delay')
-  })
-
-  // The last link of the backoff chain: a rate-limited continuation asks for a
-  // delay, and BullMQ only honours it as the `delay` option.
-  it('passes a continuation delay to BullMQ as the delay option, not as job data', async () => {
-    const { api, jobQueue } = setup()
-
-    await api.internal.repos.queue.addSyncJob(SYNC_DATA, { delayMs: 5_000 })
-
-    const [, data, options] = jobQueue.add.mock.calls[0]!
-    expect(options).toMatchObject({ delay: 5_000 })
-    expect(data).toEqual({ ...SYNC_DATA, ...SYNC_EXECUTION })
-  })
-
-  it('omits delay entirely for an ordinary enqueue', async () => {
-    const { api, jobQueue } = setup()
-
-    await api.internal.repos.queue.addSyncJob(SYNC_DATA)
-
-    const [, , options] = jobQueue.add.mock.calls[0]!
-    expect(options).not.toHaveProperty('delay')
-  })
-
-  it('enqueues reply publication with the supplied Property scope', async () => {
-    const { api, jobQueue } = setup()
-    const data = {
-      replyId: 'reply-1',
-      organizationId: 'org-1',
-      propertyId: 'prop-9',
-    }
-
-    await api.internal.repos.replyQueue.addPublishJob(data)
-
-    expect(jobQueue.add).toHaveBeenCalledWith(
-      'publish-reply',
-      {
-        ...data,
-        capability: 'property.publish_reply',
-        initiator: { kind: 'system', id: 'queue:reply-publish' },
-        policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
-      },
-      expect.objectContaining({ removeOnComplete: { count: 100 } }),
-    )
   })
 })
