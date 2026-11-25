@@ -1,6 +1,6 @@
 // Review composition: storage, provider transport, reply wiring and worker contributions.
 
-import { wireReplyUseCases, projectReviewReplyApi } from './build-reply-use-cases.server'
+import { wireReplyUseCases } from './build-reply-use-cases.server'
 import type { ResolveReplyTemplateLanguage } from './library/layered-reply-template-operations.server'
 import { admitGoogleImportSync } from './sync/google-import-sync-acceptance.server'
 import { randomUUID } from 'node:crypto'
@@ -21,28 +21,17 @@ import type {
   PropertyPublicationScopePort,
   ReviewPropertyPublicationLifecycle,
 } from './replies/property-publication-scope.port.server'
-import type {
-  ReviewLookups,
-  ReviewRepository,
-} from './reviews/review-repository.port.server'
-import type { ReviewObservationRepository } from './reviews/review-observation-repository.port.server'
-import type {
-  ReplyLookups,
-  ReplyRepository,
-} from './replies/reply-repository.port.server'
+import type { ReviewLookups } from './reviews/review-repository.port.server'
+import type { ReplyLookups } from './replies/reply-repository.port.server'
 import type { FindAmbiguousPublicationReconciliationCandidates } from './publication/publication-reconciliation-candidate-repository.port.server'
 import type { ListRestatedMaterialRevisions } from './response-targets/restated-revision-repository.port.server'
 import type { ObservationRetention } from './reviews/observation-retention-repository.port.server'
 import type { SnapshotRunRetention } from './sync/snapshot-run-retention-repository.port.server'
-import type { ReplyCommandStore } from './replies/reply-command-store.port.server'
 import type {
-  ReviewHeadCheckQueuePort,
-  ReviewProviderJobData,
   ReviewQueuePort,
   TargetedGoogleReviewQueuePort,
 } from './sync/review-queue.port.server'
 import type { TargetedGoogleReviewReferenceResolver } from './sync/targeted-google-review-reference.port.server'
-import type { ReplyQueuePort } from './publication/reply-queue.port.server'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PropertyLifecycleState,
@@ -53,7 +42,6 @@ import type {
 import type { AiReplyProvenancePublicKeyring } from './replies/ai-suggested-draft-store.port.server'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
 import { createReviewRepository } from './reviews/review-repository.server'
-import { createReviewObservationRepository } from './reviews/review-observation-repository.server'
 import { createReplyRepository } from './replies/reply-repository.server'
 import { createReplyLibraryRepository } from './library/reply-library-repository.server'
 import {
@@ -89,7 +77,6 @@ import { createAiSuggestedDraftStore } from './replies/ai-suggested-draft-store.
 import {
   createReviewProviderSubjectKeyService,
   createUnavailableReviewProviderSubjectKeyService,
-  type ReviewProviderSubjectKeyService,
   type ReviewProviderSubjectSecretKeyring,
 } from './sync/provider-subject-keyring.server'
 import { createReviewProviderSubjectKeyInventoryRepository } from './sync/provider-subject-key-inventory-repository.server'
@@ -139,8 +126,7 @@ import {
 } from './reviews/eligible-reads.server'
 import { reviewId, replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { ReviewHeadChecksMode } from './domain/head-check'
-import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
+import { createReviewQueues } from './sync/review-queues.server'
 import { registerReplyPublicationConsumers } from './publication/publication-outbox-consumers.server'
 
 export type ReviewContextBuildInput = Readonly<{
@@ -219,7 +205,7 @@ export type ReviewContextApi = Readonly<{
         } & Pick<TargetedGoogleReviewQueuePort, 'addTargetedFetchJob'>
       >
       /** Review-owned reply workflow presented to Review HTTP adapters. */
-      reply: ReturnType<typeof projectReviewReplyApi>
+      reply: ReturnType<typeof wireReplyUseCases>
     }>
   /** Bounded operator maintenance. These capabilities preserve Review's
    * invariants without exposing its repositories or request workflows. */
@@ -265,43 +251,6 @@ export type ReviewContextApi = Readonly<{
     /** Counts and star sums of current Google reviews for the rating goal. */
     googleRatingReads: ReviewGoogleRatingReads
   }>
-  internal: Readonly<{
-    repos: Readonly<{
-      reviewRepo: ReviewRepository
-      observationRepo: ReviewObservationRepository
-      replyRepo: ReplyRepository
-      replyCommandStore: ReplyCommandStore
-      queue: ReviewQueuePort
-      targetedQueue: TargetedGoogleReviewQueuePort
-      headCheckQueue: ReviewHeadCheckQueuePort
-      replyQueue: ReplyQueuePort
-    }>
-    useCases: ReturnType<typeof wireReplyUseCases> &
-      Readonly<{
-        runReviewProviderSnapshot: ReturnType<typeof runReviewProviderSnapshot>
-        runTargetedGoogleReviewFetch: ReturnType<typeof runTargetedGoogleReviewFetch>
-        checkReviewOnGoogle: CheckReviewOnGoogle
-        reconcileReplyPublication: ReturnType<typeof reconcileReplyPublication>
-        runReviewSourceContentLifecycle: RunReviewSourceContentLifecycle
-      }>
-    /**
-     * Review-owned governed aggregate serving reads (ADR 0031
-     * eligibility enforced here). Composition passes this to foreign
-     * consumers (dashboard) as their review-stats dep port.
-     */
-    servingStats: ReviewServingStats
-    /** Content-minimized Review source for authorized AI workloads. */
-    aiReviewSource: ReturnType<typeof createAiReviewSource>
-    /** Masked-inventory-verified derivation/rotation authority for Review writers. */
-    providerSubjectKeys: ReviewProviderSubjectKeyService
-    /** Review-owned registration against the root's one canonical job registry. */
-    registerWorkerJobs: (runtime: {
-      discoveryIntervalMs: number
-      discoverySkipRecentlyReconciled: boolean
-      headChecks: ReviewHeadChecksMode
-      reconcileWithinMs: number
-    }) => Promise<void>
-  }>
 }>
 
 /** Review's publication vocabulary for a Property lifecycle state. */
@@ -328,7 +277,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     input.logger,
     input.replyEffects,
   )
-  const observationRepo = createReviewObservationRepository(input.db)
   const replyRepo = createReplyRepository(input.db, input.clock)
   const replyLibraryRepo = createReplyLibraryRepository(input.db, input.clock)
   const aiReplyVoice = createAiReplyVoicePublicApi({
@@ -367,83 +315,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     )
   const jobQueue = input.jobQueue
 
-  /**
-   * Every sync-property-reviews job (a snapshot step, a push-targeted fetch, a
-   * head check): one family, one capability, one retry row and retention. Only
-   * the default initiator, the job id and the start delay differ.
-   */
-  const addSyncPropertyReviewsJob = async (
-    data: ReviewProviderJobData,
-    defaultInitiatorId: string,
-    options?: Readonly<{ jobId?: string; delayMs?: number }>,
-  ): Promise<void> => {
-    const execution = createJobExecutionEnvelope({
-      organizationId: data.organizationId,
-      propertyId: data.propertyId,
-      capability: 'property.connect_gbp',
-      initiator: data.initiator ?? { kind: 'system', id: defaultInitiatorId },
-      correlationId: data.correlationId,
-    })
-    await jobQueue.add(
-      'sync-property-reviews',
-      { ...data, ...execution },
-      {
-        jobId: options?.jobId,
-        ...(options?.delayMs === undefined ? {} : { delay: options.delayMs }),
-        removeOnComplete: { count: 100 },
-        removeOnFail: { count: 50 },
-        // Attempts/backoff+jitter/timeout from the job catalogue.
-        ...jobEnqueueOptions('sync-property-reviews'),
-      },
-    )
-  }
-
-  const queue: ReviewQueuePort = {
-    addSyncJob: (data, options) =>
-      addSyncPropertyReviewsJob(data, 'queue:review-sync', options),
-  }
-
-  const targetedQueue: TargetedGoogleReviewQueuePort = {
-    addTargetedFetchJob: (data, options) =>
-      addSyncPropertyReviewsJob(data, 'queue:review-targeted', options),
-  }
-
-  // A head check is a sync-property-reviews job of mode 'head', with a
-  // deterministic job id per Property and interval bucket (reputation/domain/head-check.ts).
-  const headCheckQueue: ReviewHeadCheckQueuePort = {
-    addHeadCheckJob: (data, options) =>
-      addSyncPropertyReviewsJob(data, 'queue:review-head', options),
-  }
-
-  const replyQueue: ReplyQueuePort = {
-    addPublishJob: async (data, options) => {
-      const execution = createJobExecutionEnvelope({
-        organizationId: data.organizationId,
-        propertyId: data.propertyId,
-        capability: 'property.publish_reply',
-        initiator: data.initiator ?? { kind: 'system', id: 'queue:reply-publish' },
-        correlationId: data.correlationId,
-      })
-      await jobQueue.add(
-        'publish-reply',
-        { ...data, ...execution },
-        {
-          // Saga idempotency key as BullMQ jobId — a duplicate enqueue
-          // of the same approval cycle is deduped by the queue.
-          jobId: options?.idempotencyKey,
-          removeOnComplete: { count: 100 },
-          removeOnFail: { count: 50 },
-          // Attempts/backoff+jitter/timeout from the job catalogue
-          // (job-definitions.ts publish-reply: 5 attempts, exponential
-          // from 30 s; job-policy.ts 0.5 jitter, so the first retry lands
-          // 15-30 s later; 120 s timeout). Only a retryable failure spends
-          // them on another write; an uncertain send is re-read on the D3
-          // schedule and never written again.
-          ...jobEnqueueOptions('publish-reply'),
-        },
-      )
-    },
-  }
+  const { queue, targetedQueue, headCheckQueue, replyQueue } =
+    createReviewQueues(jobQueue)
 
   // Read the source epoch atomically so review synchronization can reject
   // provider results after a relink or disconnect race.
@@ -575,14 +448,14 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     subjectKeyService: providerSubjectKeys,
     subjectSightings,
   })
+  const reply = wireReplyUseCases({
+    deps: replyDeps,
+    library: replyLibraryRepo,
+    resolveReplyLanguage: input.resolveReplyLanguage,
+    reconcileReplyPublication: reconcileReplyPublicationUseCase,
+    logger: input.logger,
+  })
   const useCases = {
-    ...wireReplyUseCases({
-      deps: replyDeps,
-      library: replyLibraryRepo,
-      resolveReplyLanguage: input.resolveReplyLanguage,
-      reconcileReplyPublication: reconcileReplyPublicationUseCase,
-      logger: input.logger,
-    }),
     runReviewProviderSnapshot: runReviewProviderSnapshot({
       repository: snapshotRepository,
       googleReviewApi: input.googleReviewApi,
@@ -739,7 +612,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         }),
         addTargetedFetchJob: targetedQueue.addTargetedFetchJob,
       }),
-      reply: projectReviewReplyApi(useCases),
+      reply,
     },
     maintenance: Object.freeze({
       publicationReconciliation: Object.freeze({
@@ -798,22 +671,5 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       servingStats,
       googleRatingReads,
     }),
-    internal: {
-      repos: {
-        reviewRepo,
-        observationRepo,
-        replyRepo,
-        replyCommandStore,
-        queue,
-        targetedQueue,
-        headCheckQueue,
-        replyQueue,
-      },
-      useCases,
-      servingStats,
-      aiReviewSource,
-      providerSubjectKeys,
-      registerWorkerJobs,
-    },
   }
 }
