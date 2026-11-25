@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
 import { createGoogleConnectionRepository } from './google-connection-repository.server'
 import { getDb } from '#/shared/db'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
-import { organizationId, userId, googleConnectionId } from '#/shared/domain/ids'
+import { organizationId, googleConnectionId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 
 const ORG_A = organizationId('org-gc-aaaaaaaaaa')
@@ -82,7 +82,7 @@ describe('googleConnectionRepository (integration)', () => {
   })
 
   describe('listByOrganization', () => {
-    it('lists all connections when showAll filter is passed', async () => {
+    it('lists every connection of the organization', async () => {
       const repo = makeRepo()
       await repo.insert(
         buildTestGoogleConnection({
@@ -99,35 +99,7 @@ describe('googleConnectionRepository (integration)', () => {
         }),
       )
 
-      const results = await repo.listByOrganization(ORG_A, { showAll: true })
-      expect(results).toHaveLength(2)
-    })
-
-    it('treats the legacy visibility filter as compatibility-only', async () => {
-      const repo = makeRepo()
-      const otherUser = userId('user-other')
-
-      await repo.insert(
-        buildTestGoogleConnection({
-          id: crypto.randomUUID(),
-          organizationId: ORG_A,
-          googleSubject: `signed-${crypto.randomUUID()}`,
-          connectedBy: userId('user-someone-else'),
-        }),
-      )
-      await repo.insert(
-        buildTestGoogleConnection({
-          id: crypto.randomUUID(),
-          organizationId: ORG_A,
-          googleSubject: `signed-${crypto.randomUUID()}`,
-          connectedBy: otherUser,
-        }),
-      )
-
-      const results = await repo.listByOrganization(ORG_A, {
-        showAll: false,
-        userId: otherUser,
-      })
+      const results = await repo.listByOrganization(ORG_A)
       expect(results).toHaveLength(2)
     })
   })

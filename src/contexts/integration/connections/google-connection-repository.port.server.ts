@@ -27,10 +27,6 @@ export const isUniqueViolationError = (e: unknown): e is UniqueViolationError =>
   e !== null &&
   (e as UniqueViolationError)._tag === 'UniqueViolationError'
 
-/** Pre-computed visibility filter — the use case decides this, not the repo. */
-export type ConnectionVisibilityFilter = Readonly<
-  { showAll: true } | { showAll: false; userId: UserId }
->
 export type GoogleConnectionIdentityLookup = Readonly<{
   googleSubject: string
 }>
@@ -48,10 +44,7 @@ export type GoogleConnectionRepository = Readonly<{
   findByGoogleIdentityGlobal: (
     identity: GoogleConnectionIdentityLookup,
   ) => Promise<GoogleConnection | null>
-  listByOrganization: (
-    orgId: OrganizationId,
-    filter: ConnectionVisibilityFilter,
-  ) => Promise<ReadonlyArray<GoogleConnection>>
+  listByOrganization: (orgId: OrganizationId) => Promise<ReadonlyArray<GoogleConnection>>
   /**
    * Tenant-cross, identifiers only: every organization holding an `active`
    * connection (the only status that can call Google), once each. The

@@ -7,10 +7,7 @@ import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import { organizationId } from '#/shared/domain/ids'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import type {
-  GoogleConnectionRepository,
-  ConnectionVisibilityFilter,
-} from './google-connection-repository.port.server'
+import type { GoogleConnectionRepository } from './google-connection-repository.port.server'
 import { uniqueViolationError } from './google-connection-repository.port.server'
 import {
   googleConnectionFromRow,
@@ -59,7 +56,7 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  listByOrganization: async (orgId, _filter: ConnectionVisibilityFilter) => {
+  listByOrganization: async (orgId) => {
     return trace('googleConnection.listByOrganization', async () => {
       const rows = await db
         .select()
