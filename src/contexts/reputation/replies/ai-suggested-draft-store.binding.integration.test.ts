@@ -12,7 +12,7 @@ import { aiOperations, replies } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { createAiReplyAdoptionFixture } from './ai-reply-adoption.test-fixtures'
 import { eraseKeepingContentClock } from '#/shared/testing/review-tombstone-fixtures'
-import type { AiReplyProvenancePayloadV1 } from '#/shared/reply/ai-reply-provenance'
+import type { AiReplyProvenancePayload } from '#/shared/reply/ai-reply-provenance'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store.server'
 
@@ -66,7 +66,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
   /** Signs a payload the signer's schema would refuse, as a token minted elsewhere. */
   function signWithoutValidation(
     rawPayload: Readonly<Record<string, unknown>>,
-    version: 'ai-reply-provenance-v1',
+    version: AiReplyProvenancePayload['version'],
   ): string {
     const canonical = canonicalizeRfc8785(rawPayload)
     const signature = sign(
@@ -74,7 +74,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       Buffer.from(`repkey-${version}\0${canonical}`, 'utf8'),
       privateKey,
     )
-    return `rk_ai_reply_v1.${Buffer.from(canonical, 'utf8').toString('base64url')}.${signature.toString('base64url')}`
+    return `rk_ai_reply_v4.${Buffer.from(canonical, 'utf8').toString('base64url')}.${signature.toString('base64url')}`
   }
 
   beforeAll(async () => {
@@ -267,7 +267,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     it('adopts a permit-bound draft only for the permit and attempt that delivered it', async () => {
       const bound = (
         binding: Readonly<{ executionPermitId: string; executionAttempt: number }>,
-        overrides: Partial<AiReplyProvenancePayloadV1> = {},
+        overrides: Partial<AiReplyProvenancePayload> = {},
       ) =>
         provenanceToken({
           operationId: PERMIT_OPERATION,

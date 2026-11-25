@@ -213,8 +213,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'createBoundProperty',
       'relink',
       'disconnect',
-      'scrubProviderIdentity',
-      'releaseRetention',
       'releaseRetentionFromEvent',
       'sweepReleasedExpired',
       'countUnreleasedExpired',

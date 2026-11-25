@@ -143,7 +143,9 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
   if (adopt && adoptedLocation === undefined) {
     throw new Error('An adopting v3 seed needs the externalLocationId its reviews carry')
   }
-  const outputs = createAiOutputStoreAdapter(db)
+  const outputs = createAiOutputStoreAdapter(db, {
+    isCurrentAiReplyBrandProfile: async () => true,
+  })
   const aggregates = createAiPropertyAggregateStoreAdapter(db)
   let initialControls: ReadonlyArray<{
     scopeKey: string

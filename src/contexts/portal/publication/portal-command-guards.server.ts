@@ -37,7 +37,7 @@ export function assertCommittedRevision(
   expected: Date,
   aggregate: 'Portal' | 'Portal Group',
   conflictMessage: string,
-): void {
+): asserts persisted {
   if (!persisted) {
     throw portalError('revision_conflict', conflictMessage)
   }

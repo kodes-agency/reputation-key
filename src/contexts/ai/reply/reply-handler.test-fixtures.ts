@@ -214,7 +214,7 @@ async function createHarness(
           route: 'reply-suggestion' as const,
           status: 'success' as const,
           result: {
-            profileVersion: 'reply-draft-v3' as const,
+            profileVersion: 'reply-draft-v4' as const,
             replyText: 'Thank you for your thoughtful review.',
             provenanceToken: 'signed-provenance-token',
             expiresAtEpochMillis: NOW + 5 * 60_000,

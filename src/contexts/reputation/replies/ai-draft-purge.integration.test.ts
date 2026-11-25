@@ -40,7 +40,7 @@ import { properties } from '#/shared/db/schema'
 import {
   createAiReplyAdoptionSeeder,
   DAY_MS,
-  PROVIDER_PROFILE,
+  OPERATION_PROVIDER_PROFILE,
   SOURCE_EPOCH,
   SUGGESTION,
   WITHDRAWN,
@@ -88,7 +88,7 @@ const draftStore = createAiSuggestedDraftStore(
     resolveSavedFrame: async () => null,
     resolveV2Frame: async () => null,
     resolveLocalFrame: async () => null,
-    isCurrentVoice: async () => false,
+    isCurrentVoice: async () => true,
   },
 )
 const profiles = createPropertyProcessingProfileAdapter(
@@ -228,7 +228,7 @@ const PURGE_ENTRY_POINTS: ReadonlyArray<readonly [string, PurgeEntryPoint]> = [
       purgeAiDraftsForControl(
         tx,
         'provider_deployment_profile',
-        PROVIDER_PROFILE,
+        OPERATION_PROVIDER_PROFILE,
         replyScopeEffects,
       ),
   ],

@@ -7,7 +7,6 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { reviewId } from '#/shared/domain/ids'
-import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { replyProgressResponse } from './reply-progress-stream.server'
 
@@ -60,19 +59,6 @@ export const generateReplySuggestionStreamFn = createServerFn({ method: 'POST' }
               organizationId: ctx.organizationId,
               reviewId: id,
             })
-          // No request parameter can activate the dark contract.
-          if (
-            getAiRuntimeCapability('reply_drafting').operationProfileVersion !==
-            'reply-suggestion-v2'
-          )
-            return replyProgressResponse(
-              async () => ({
-                status: 'unavailable',
-                code: 'policy_unavailable',
-                retryAfterEpochMillis: null,
-              }),
-              data.intent,
-            )
           const browserSignal = getRequest().signal
           return replyProgressResponse(
             (onProgress) =>
