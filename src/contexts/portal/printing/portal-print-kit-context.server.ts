@@ -6,10 +6,6 @@
 // made of the live version: the languages it serves, the titles and the look it
 // published. The preview on the Share tab and the PDF read the same functions,
 // so the card a manager sees is the card that prints.
-//
-// A live version from before the Immersive Hub carries no look of its own the
-// print can use; for one of those the working copy supplies the look and titles,
-// but the languages are still the live version's.
 
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalMediaPublicPath } from '#/shared/domain/portal-media'
@@ -18,17 +14,11 @@ import type {
   PrintPhotoChange,
 } from '#/shared/domain/portal-print-last'
 import type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
-import {
-  IMMERSIVE_HUB_SCHEMA_VERSION,
-  isLocalizedConfiguration,
-  type ImmersiveHeroReference,
-  type ImmersivePortalPublicationConfiguration,
-  type PortalPublicationConfiguration,
+import type {
+  ImmersiveBrandProfile,
+  ImmersiveHeroReference,
+  ImmersivePortalPublicationConfiguration,
 } from '../domain/portal-publication-snapshot'
-import {
-  brandProfileOf,
-  type PortalPublicationSource,
-} from '../domain/portal-publication-source'
 
 export type PortalPrintKitLook = Readonly<{
   /** The brand set as text: the wordmark, else the Property's name. */
@@ -87,39 +77,20 @@ function titlesOf(
   )
 }
 
-/**
- * The print from the working copy. `liveLocales`, when given, are the languages
- * the live version serves and in what order: the working copy may offer more,
- * but a print in a language the page does not have is a card nobody can fix.
- */
-export function buildPortalPrintKitContext(
-  source: PortalPublicationSource,
-  liveLocales?: readonly GuestLocale[],
-): PortalPrintKitContext {
-  const brand = brandProfileOf(source)
-  const locales = liveLocales ?? source.localeSet
-  return {
-    portalName: source.portal.name,
-    primaryLocale: locales[0] ?? source.primaryGuestLocale,
-    locales,
-    titles: titlesOf(locales, (locale) => source.wording[locale]?.title),
-    look: {
-      wordmark: written(brand.wordmark) ? brand.wordmark.trim() : brand.displayName,
-      propertyName: brand.displayName,
-      accentColour: brand.accentColour,
-      fieldColour: brand.fieldColour,
-      hero: heroOf(brand.hero),
-      logo: brand.logo ? { assetId: brand.logo.assetId } : null,
-    },
-  }
-}
+const lookOf = (brand: ImmersiveBrandProfile): PortalPrintKitLook => ({
+  wordmark: written(brand.wordmark) ? brand.wordmark.trim() : brand.displayName,
+  propertyName: brand.displayName,
+  accentColour: brand.accentColour,
+  fieldColour: brand.fieldColour,
+  hero: heroOf(brand.hero),
+  logo: brand.logo ? { assetId: brand.logo.assetId } : null,
+})
 
 /** The print from what the live Immersive Hub version published. */
 export function printKitContextOfLive(
   portalName: string,
   configuration: ImmersivePortalPublicationConfiguration,
 ): PortalPrintKitContext {
-  const { brandProfile: brand } = configuration
   return {
     portalName,
     primaryLocale: configuration.guestLocale,
@@ -128,27 +99,8 @@ export function printKitContextOfLive(
       configuration.localeSet,
       (locale) => configuration.localizedContent[locale]?.title.value,
     ),
-    look: {
-      wordmark: written(brand.wordmark) ? brand.wordmark.trim() : brand.displayName,
-      propertyName: brand.displayName,
-      accentColour: brand.accentColour,
-      fieldColour: brand.fieldColour,
-      hero: heroOf(brand.hero),
-      logo: brand.logo ? { assetId: brand.logo.assetId } : null,
-    },
+    look: lookOf(configuration.brandProfile),
   }
-}
-
-export const isImmersiveConfiguration = (
-  configuration: PortalPublicationConfiguration,
-): configuration is ImmersivePortalPublicationConfiguration =>
-  configuration.schemaVersion >= IMMERSIVE_HUB_SCHEMA_VERSION
-
-/** The languages a live version serves, the primary first; a version 1 page is English only. */
-export function liveLocalesOf(
-  configuration: PortalPublicationConfiguration,
-): readonly GuestLocale[] {
-  return isLocalizedConfiguration(configuration) ? configuration.localeSet : ['en']
 }
 
 /**
@@ -166,8 +118,6 @@ export type PortalPrintKitLastPrint = Readonly<{
 export type PortalPrintKitView = Readonly<{
   personal?: boolean
   portalId: string
-  /** Retained for existing clients. */
-  kit: 'final'
   /** The final kit's memory of the last print; null for a Portal never printed. */
   lastPrint: PortalPrintKitLastPrint | null
   /** The wording the manager saved for Share to open on; null when none was saved. */
@@ -199,7 +149,6 @@ export function presentPortalPrintKit(
   const { look } = context
   return {
     portalId,
-    kit: 'final',
     lastPrint,
     savedWording,
     portalName: context.portalName,

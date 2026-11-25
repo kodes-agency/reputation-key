@@ -21,7 +21,7 @@ export type PortalPrintKitDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   publicationRepo: Pick<
     PortalPublicationRepository,
-    'loadWorkingCopy' | 'loadWorkingCopyWithLook' | 'findActiveForPortal'
+    'loadWorkingCopyWithLook' | 'findActiveForPortal'
   >
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
   /** The kit's memory of each Portal's last print. */

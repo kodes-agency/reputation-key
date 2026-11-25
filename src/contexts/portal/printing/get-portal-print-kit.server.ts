@@ -20,10 +20,7 @@ import { presentLastPrint } from './portal-print-kit-last-print.server'
 export type GetPortalPrintKitDeps = Readonly<{
   portalRepo: PortalRepository
   staffPublicApi: StaffPublicApi
-  publicationRepo: Pick<
-    PortalPublicationRepository,
-    'loadWorkingCopy' | 'findActiveForPortal'
-  >
+  publicationRepo: Pick<PortalPublicationRepository, 'findActiveForPortal'>
   /** The Portal's last print, and the photo it names, for the kit's Last printed. */
   lastPrintRepo: Pick<PortalLastPrintRepository, 'find'>
   /** The wording the Portal saved, which Share opens on. */

@@ -107,7 +107,6 @@ async function expectPersonalPortalNameStaysPrivate(
     {
       publicationRepo: {
         findActiveForPortal: async () => snapshot,
-        loadWorkingCopy: async () => null,
       },
     },
     { organizationId: portal.organizationId, portal },

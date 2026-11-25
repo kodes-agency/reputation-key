@@ -47,7 +47,6 @@ async function wire(country: string | null = null, address: string = ADDRESS) {
       getAssignedPortals: async () => [],
     } as StaffPublicApi,
     publicationRepo: {
-      loadWorkingCopy: async () => null,
       loadWorkingCopyWithLook: async () => null,
       // A live look with no photo and no logo, so no picture is read from the store.
       findActiveForPortal: async () =>
@@ -76,13 +75,6 @@ describe('buildPortalPrintKit', () => {
     const { portal, useCases } = await wire()
     const view = await useCases.getPortalPrintKit({ portalId: portal.id }, world.ctx())
     expect(view.locales).toEqual(['en', 'bg'])
-    expect(view.kit).toBe('final')
-  })
-
-  it('always reads the current print kit without a rollout setting', async () => {
-    const { portal, useCases } = await wire()
-    const view = await useCases.getPortalPrintKit({ portalId: portal.id }, world.ctx())
-    expect(view.kit).toBe('final')
   })
 
   it('remembers a print as the last, and tells the Share tab of it', async () => {

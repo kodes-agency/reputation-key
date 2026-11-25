@@ -282,7 +282,7 @@ check as the Property's (active, of this Property, and of the slot's purpose,
 the Property's. With no Brand Profile the default look is used and any row is ignored
 (writers refuse with `brand_profile_missing`, so a row cannot exist without a profile).
 The working-copy reader (publish, the in-transaction re-check, Review, History's
-pending test, the completeness fact and the print kit's legacy path) and the draft
+pending test and the completeness fact) and the draft
 preview both use it, and the preview's `brandOf` shares `fieldColourOf`, which is
 `brandProfileOf`'s expression extracted unchanged; a parity test holds the two on
 content (brand and `heroAlt`) with an explicit allow-list of the differences that

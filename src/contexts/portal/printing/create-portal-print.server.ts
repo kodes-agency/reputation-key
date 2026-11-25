@@ -62,7 +62,7 @@ export type CreatePortalPrintDeps = RememberLastPrintDeps &
     staffPublicApi: StaffPublicApi
     publicationRepo: Pick<
       PortalPublicationRepository,
-      'loadWorkingCopy' | 'loadWorkingCopyWithLook' | 'findActiveForPortal'
+      'loadWorkingCopyWithLook' | 'findActiveForPortal'
     >
     mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
     objectStore: Pick<StoragePort, 'getObject'>
