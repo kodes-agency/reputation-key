@@ -24,65 +24,39 @@
 # grype's own identity line).
 
 ignore:
-  # ── Debian trixie base packages, perl-base 5.40.1-6 (13 CVEs) ─────────
-  # owner: platform — reason: Debian marks these won't-fix/not-fixed for
-  # trixie (tracker read 2026-09-07 from the CI scan of the trixie image);
-  # perl-base is dpkg infrastructure only — the CMD is node and nothing in the
-  # image executes perl. expiresAt: 2026-12-07
-  - vulnerability: CVE-2026-12087 # not-fixed
-  - vulnerability: CVE-2026-13221 # not-fixed
-  - vulnerability: CVE-2026-42496 # wont-fix
-  - vulnerability: CVE-2026-42497 # wont-fix
-  - vulnerability: CVE-2026-48959 # not-fixed
-  - vulnerability: CVE-2026-48961 # not-fixed (new in the trixie scan)
-  - vulnerability: CVE-2026-48962 # not-fixed
-  - vulnerability: CVE-2026-57432 # not-fixed
-  - vulnerability: CVE-2026-57433 # not-fixed
-  - vulnerability: CVE-2026-7017 # not-fixed
-  - vulnerability: CVE-2026-8376 # wont-fix
-  - vulnerability: CVE-2026-9538 # wont-fix
-  # CVE-2026-82560 (added 2026-09-22, first reported by the grype DB built
-  # that morning): `perl-base` 5.40.1-6 deb CVE-2026-82560 High, no fixed
-  # version. Pod::Text loops without consuming input on deeply nested `=over`
-  # blocks, exhausting CPU and memory while formatting POD. The Debian tracker
-  # (read 2026-09-22) lists bookworm, trixie and forky/sid all vulnerable; the
-  # fix exists only upstream (podlators 6.1.1). Nothing in the image formats
-  # POD or runs perl: the CMD is node. Drop this entry at the first trixie
-  # perl update that carries the podlators fix. expiresAt: 2026-12-07
-  - vulnerability: CVE-2026-82560 # not-fixed (all Debian releases)
+  # ── Debian trixie base packages, perl-base 5.40.1-6+deb13u1 (2 CVEs) ──
+  # owner: platform — reason: Debian leaves these two unfixed for trixie
+  # (tracker read 2026-11-25: CVE-2026-9538 `postponed`, minor issue, fixed
+  # only in forky/sid 5.44.0-3; CVE-2026-82560 `<no-dsa>` minor issue, no fixed
+  # Debian package in any release, the fix exists only upstream as podlators
+  # 6.1.1). A scan of the pinned base on 2026-11-25 reports no other perl-base
+  # finding, so the eleven other perl CVEs that used to sit in this group are
+  # gone from the file. CVE-2026-82560: Pod::Text loops without consuming input
+  # on deeply nested `=over` blocks, exhausting CPU and memory while formatting
+  # POD. perl-base is dpkg infrastructure only: the CMD is node, nothing in the
+  # image runs perl or formats POD. Renewed 2026-11-25: `apt-cache policy
+  # perl-base` in the pinned base offers only 5.40.1-6+deb13u1. Drop these at
+  # the first trixie perl update that fixes them. expiresAt: 2026-12-21
+  - vulnerability: CVE-2026-9538 # postponed, minor issue (fixed in forky/sid only)
+  - vulnerability: CVE-2026-82560 # no-dsa, minor issue (unfixed in every Debian release)
 
-  # ── Debian trixie base packages, glibc 2.41-12+deb13u3 (4 CVEs) ────────
-  # owner: platform — reason: won't-fix by Debian triage (assessed not
-  # exploitable in practice); no patched trixie package exists.
-  # CVE-2026-19499 (added 2026-09-15, first reported by the grype DB built
-  # that morning): `libc-bin`/`libc6` 2.41-12+deb13u3 (won't fix) deb
-  # CVE-2026-19499 High. An out-of-bounds write in `strfmon`/`strfmon_l` when a
-  # conversion uses right-justified width padding (glibc 2.38–2.44). The
-  # Debian tracker (read 2026-09-15) marks it a minor issue, no-dsa for trixie
-  # and postponed for bookworm; only sid/forky carry the fix (2.43-5). Nothing
-  # in the image calls strfmon: the CMD is node, which formats money and
-  # numbers through its bundled ICU (`Intl`), not the C locale's monetary
-  # functions. Drop this entry at the first trixie glibc update that fixes it.
-  # expiresAt: 2026-12-07
-  - vulnerability: CVE-2026-5450 # wont-fix (critical per NVD, wont-fix per Debian)
-  - vulnerability: CVE-2026-5435 # wont-fix
-  - vulnerability: CVE-2026-5928 # wont-fix
-  - vulnerability: CVE-2026-19499 # strfmon overflow, no-dsa minor issue on trixie
-
-  # ── glibc 2.41-12+deb13u4 gettext LANGUAGE paths: no fix anywhere (1 CVE) ─
+  # ── glibc 2.41-12+deb13u5 gettext LANGUAGE paths: no fix anywhere (1 CVE) ─
   # owner: platform — reason: CVE-2026-84243 (added 2026-10-31, first reported
   # by the grype DB the PR #1046 scan used): `libc-bin`/`libc6`
-  # 2.41-12+deb13u4 deb CVE-2026-84243 High, no fixed version. The gettext
+  # 2.41-12+deb13u5 deb CVE-2026-84243 High, no fixed version. The gettext
   # family accepts LANGUAGE entries containing "/" or "..", so whoever controls
   # LANGUAGE can make a program load a message catalog from any path, and a
   # crafted .mo file can crash it or run code; it also needs another installed
   # locale selected through LANG or LC_ALL (GLIBC-SA-2026-0025). The Debian
   # tracker (read 2026-10-31) lists bookworm, trixie, forky and sid all
-  # vulnerable and unfixed (bug 1152640), so there is nothing to pin. In the
+  # vulnerable and unfixed (bug 1152640), so there is nothing to pin. Renewed
+  # 2026-11-25: the tracker still lists trixie 2.41-12+deb13u5 and forky/sid
+  # 2.43-7 vulnerable with no fixed version (`<no-dsa>`, minor issue), and the
+  # base pins the newest trixie glibc. In the
   # images nobody but the deployment sets the environment, no locale beyond the
   # slim base's C locale is installed, and the CMD is node, which takes its
   # messages from its bundled ICU, not gettext. Drop this entry at the first
-  # trixie glibc update that fixes it. expiresAt: 2026-11-30
+  # trixie glibc update that fixes it. expiresAt: 2026-12-21
   - vulnerability: CVE-2026-84243 # gettext LANGUAGE path traversal, unfixed in every Debian release
 
   # ── libgcc-s1 / libstdc++6 / gcc-14-base 14.2.0-19: no fix yet (1 CVE) ─
@@ -95,7 +69,12 @@ ignore:
   # fixes it. Extended 2026-10-01: the Debian tracker lists every release
   # vulnerable with no fixed package, and apt in the pinned base offers only
   # 14.2.0-19. Renewed 2026-11-16: the scan still matches only 14.2.0-19 and
-  # no newer trixie gcc-14 build is available to pin. expiresAt: 2026-11-30
+  # no newer trixie gcc-14 build is available to pin. Renewed 2026-11-25: the
+  # Debian tracker still lists trixie gcc-12, gcc-13 and gcc-14 (14.2.0-19)
+  # vulnerable, `<no-dsa>` minor issue, with fixes only in forky/sid
+  # (gcc-14 14.4.0-3), and `apt-cache policy` in the pinned base and in the
+  # 2026-11-24 rebuild of node:22.23.5-trixie-slim still offers only
+  # 14.2.0-19; grype's 2026-11-25 database matches that version. expiresAt: 2026-12-21
   - vulnerability: CVE-2026-102010
 
   # ── libgcc-s1 / libstdc++6 / gcc-14-base 14.2.0-19: second unfixed CVE ──
@@ -112,26 +91,27 @@ ignore:
   # Renewed 2026-10-18: packages.debian.org still lists trixie gcc-14 at
   # 14.2.0-19, so there is no newer build to pin, and the scan still matches
   # only that version (the Debian tracker did not answer that day). Renewed
-  # 2026-11-16 on the same grounds as CVE-2026-102010 above. expiresAt: 2026-11-30
+  # 2026-11-16 on the same grounds as CVE-2026-102010 above. Renewed
+  # 2026-11-25: the tracker still lists trixie gcc-14 14.2.0-19 vulnerable
+  # (`<no-dsa>`, minor issue; fixed in forky/sid from 14.4.0-3), so there is no
+  # trixie build to pin. expiresAt: 2026-12-21
   - vulnerability: CVE-2026-95619
     package:
       version: 14.2.0-19
       type: deb
 
-  # ── Debian trixie base packages, misc (7 CVEs) ─────────────────────────
-  # owner: platform — reason: won't-fix by Debian triage; the binaries/libs
-  # are unused by the app runtime (no gzip/ncurses/libacl/sqlite/pcre2 calls
-  # from node — Node bundles its own zlib, has no sqlite, and links no PCRE).
-  # libpcre2 was FIXABLE on bookworm (10.42-1+deb12u1 was pinned there); on
-  # trixie 10.46-1~deb13u1 Debian marks CVE-2026-86145 won't-fix and no newer
-  # package exists. expiresAt: 2026-12-07
-  - vulnerability: CVE-2026-41992 # gzip 1.13-1, wont-fix
+  # ── Debian trixie base packages, misc (3 CVEs) ─────────────────────────
+  # owner: platform — reason: won't-fix by Debian triage; the libs are unused
+  # by the app runtime (no ncurses/libacl calls from node, which links
+  # neither). Renewed 2026-11-25: `apt-cache policy` in the pinned base offers
+  # only the installed ncurses 6.5+20250216-2 and libacl1 2.3.2-2+b1, and
+  # grype's 2026-11-25 database still lists both won't-fix. The other four
+  # entries of this group (gzip CVE-2026-41992, libsqlite3-0 CVE-2026-11822 and
+  # CVE-2026-11824, libpcre2-8-0 CVE-2026-86145) no longer match anything in
+  # the scanned base and were removed. expiresAt: 2026-12-21
   - vulnerability: CVE-2025-69720 # ncurses 6.5+20250216-2, wont-fix
   - vulnerability: CVE-2026-54369 # libacl1 2.3.2-2+b1, wont-fix
   - vulnerability: CVE-2026-54370 # libacl1 2.3.2-2+b1, wont-fix
-  - vulnerability: CVE-2026-11822 # libsqlite3-0 3.46.1-7+deb13u1, wont-fix (new in the trixie scan)
-  - vulnerability: CVE-2026-11824 # libsqlite3-0 3.46.1-7+deb13u1, wont-fix (new in the trixie scan)
-  - vulnerability: CVE-2026-86145 # libpcre2-8-0 10.46-1~deb13u1, wont-fix on trixie
 
   # ── libsqlite3-0 3.46.1-7+deb13u2: no trixie fix (3 CVEs) ─────────────
   # owner: platform — reason: first reported by the grype DB of 2026-11-03 on
@@ -141,51 +121,31 @@ ignore:
   # trixie vulnerable and `<no-dsa> (Minor issue)`; the fix is only in sid
   # (3.54.1-1), so there is nothing to pin. As in the section above, node has no
   # call into the system SQLite, and the application's database is PostgreSQL.
-  # Drop these at the first trixie sqlite3 update that fixes them.
-  # expiresAt: 2026-12-03
+  # Drop these at the first trixie sqlite3 update that fixes them. Renewed
+  # 2026-11-25: the tracker (read that day) still lists trixie 3.46.1-7+deb13u2
+  # vulnerable, `<no-dsa>` minor issue, fixed only in forky/sid (3.54.1-2), and
+  # `apt-cache policy libsqlite3-0` in the pinned base offers nothing newer.
+  # expiresAt: 2026-12-21
   - vulnerability: CVE-2026-119373 # FTS5 fts5MergeRowidLists
   - vulnerability: CVE-2026-119374 # FTS5 fts5DoSecureDelete
   - vulnerability: CVE-2026-119379 # session extension sessionUpdateFind
 
-  # ── Go stdlib inside esbuild CLI binaries (prod node_modules) ─────────
-  # owner: platform — reason: the esbuild@0.18.20 (go1.20.7) and
-  # esbuild@0.25.12 (go1.23.12) binaries sit in prod node_modules only
-  # because better-auth declares drizzle-kit as a runtime dependency. Nothing
-  # executes esbuild in the image: the CMD is `node` on pre-built bundles and
-  # migrations run the bundled dist-worker/migrate-deploy.js (drizzle-orm
-  # migrator, not the drizzle-kit CLI). The findings are in an unreachable
-  # binary. Fix-forward: better-auth dropping the drizzle-kit runtime dep
-  # (tracked at the quarterly review). expiresAt: 2026-12-07
-  - package:
-      name: stdlib
-      version: go1.20.7
-      type: go-module
-  - package:
-      name: stdlib
-      version: go1.23.12
-      type: go-module
-
-  # ── Debian trixie base packages, util-linux 2.41.5-0+deb13u1 and zlib1g
-  #    1:1.3.dfsg+really1.3.1-1+b1 (6 CVEs) ───────────────────────────────
-  # owner: platform — reason: won't-fix on trixie as on bookworm (util-linux
-  # is fixed only in unstable; zlib is unfixed upstream). The reachable
-  # surface was removed rather than excepted:
-  #   - the four util-linux CVEs are local escalation through setuid mount
-  #     helpers; every production runtime stage drops every setuid/setgid
-  #     bit (`RUN find / -xdev -perm /6000 -type f -exec chmod ug-s {} +`),
-  #     and the processes run as a non-root user with no CAP_SYS_ADMIN;
-  #   - the zlib CVEs are in the system libz (CVE-2026-85091 in `gz_vacate()`;
-  #     CVE-2026-76844 added 2026-11-06, the Debian tracker listing trixie and
-  #     forky both vulnerable with no fix); the runtime `node` binary is built
-  #     with `shared_zlib: false` and does not link libz at all, so the
-  #     application cannot reach either.
-  # expiresAt: 2026-12-07
+  # ── Debian trixie base packages, util-linux 2.41.5-0+deb13u1 (4 CVEs) ──
+  # owner: platform — reason: won't-fix on trixie (util-linux is fixed only in
+  # unstable); `apt-cache policy util-linux` in the pinned base offers nothing
+  # newer than the installed 2.41.5-0+deb13u1 (checked 2026-11-25), and grype's
+  # 2026-11-25 database still lists all four won't-fix. The reachable surface
+  # was removed rather than excepted: the four CVEs are local escalation
+  # through setuid mount helpers; every production runtime stage drops every
+  # setuid/setgid bit (`RUN find / -xdev -perm /6000 -type f -exec chmod ug-s
+  # {} +`), and the processes run as a non-root user with no CAP_SYS_ADMIN.
+  # The zlib1g entries are gone: trixie ships 1:1.3.dfsg+really1.3.1-1+deb13u1,
+  # which the base stage now pins and which fixes CVE-2026-85091; CVE-2026-76844
+  # no longer matches. expiresAt: 2026-12-21
   - vulnerability: CVE-2026-76642 # util-linux, no trixie fix
   - vulnerability: CVE-2026-78408 # util-linux, no trixie fix
   - vulnerability: CVE-2026-78409 # util-linux, no trixie fix
   - vulnerability: CVE-2026-78410 # util-linux, no trixie fix
-  - vulnerability: CVE-2026-85091 # zlib1g, unfixed upstream
-  - vulnerability: CVE-2026-76844 # zlib1g, no trixie fix
 
   # ── Debian trixie base packages, libssl3t64 / openssl-provider-legacy
   #    3.5.7-1~deb13u3: no fix yet (7 CVEs) ───────────────────────────────
@@ -219,8 +179,14 @@ ignore:
   # 2026-11-22 on the pinned base with 3.5.9 installed), so the pin stays.
   # Same reachability argument as above. CVE-2026-107494 (High) was added by
   # grype's database of 2026-11-24 against the same packages, with no fixed
-  # version; same reachability argument.
-  # expiresAt: 2026-12-01
+  # version; same reachability argument. Renewed 2026-11-25: the Debian
+  # tracker lists CVE-2026-121482 and CVE-2026-107494 vulnerable with no fixed
+  # version in trixie (3.5.9-1~deb13u1) and trixie-security (3.5.7-1~deb13u3),
+  # forky and sid (3.6.5-1); the 2026-11-24 rebuild of
+  # node:22.23.5-trixie-slim ships 3.5.9-1~deb13u1 and a grype scan of it with
+  # the 2026-11-25 database reports all nine CVEs here against 3.5.9 too with no
+  # fixed version, so neither the pin nor a newer base clears them.
+  # expiresAt: 2026-12-21
   - vulnerability: CVE-2026-107496 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-88823 # libssl3t64 / openssl-provider-legacy, no trixie fix
   - vulnerability: CVE-2026-95691 # libssl3t64 / openssl-provider-legacy, no trixie fix
