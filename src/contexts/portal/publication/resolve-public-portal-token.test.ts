@@ -138,9 +138,8 @@ describe('resolvePublicPortalToken', () => {
 
     await expect(resolve('pt_key_secret')).resolves.toMatchObject({
       status: 'found',
-      data: {
+      result: {
         portal: { id: 'portal-1', slug: 'guest' },
-        categories: [],
         links: [],
         reviewGateway: {
           privateFeedbackThreshold: 3,
@@ -165,7 +164,6 @@ describe('resolvePublicPortalToken', () => {
         },
         organizationId: 'org-1',
         propertyId: 'property-1',
-        guestSurface: 'immersive',
         immersive: { timeZone: 'Europe/Sofia' },
         addressShape: 'long',
       },
@@ -197,7 +195,7 @@ describe('resolvePublicPortalToken', () => {
 
     await expect(resolve('7K3QZ0VD9MWX4HT2BN6R')).resolves.toMatchObject({
       status: 'found',
-      data: { addressShape: 'short', organizationId: 'org-1' },
+      result: { addressShape: 'short', organizationId: 'org-1' },
     })
     expect(resolvePublication).toHaveBeenCalledExactlyOnceWith(printCode, NOW)
   })
@@ -299,7 +297,7 @@ describe('resolvePublicPortalToken', () => {
       const outcome = await harness.resolve('pt_key_secret')
       expect(outcome).toMatchObject({
         status: 'found',
-        data: {
+        result: {
           reviewGateway: {
             privateFeedbackThreshold: 3,
             googleReview: { status: 'unavailable' },
@@ -322,7 +320,7 @@ describe('resolvePublicPortalToken', () => {
 
     await expect(harness.resolve('pt_key_secret')).resolves.toMatchObject({
       status: 'found',
-      data: {
+      result: {
         reviewGateway: { googleReview: { status: 'unavailable' } },
       },
     })
@@ -344,8 +342,8 @@ describe('resolvePublicPortalToken', () => {
     expect(available.status).toBe('found')
     expect(unavailable.status).toBe('found')
     if (available.status !== 'found' || unavailable.status !== 'found') return
-    expect(available.data.responseConfiguration.configurationDigest).not.toBe(
-      unavailable.data.responseConfiguration.configurationDigest,
+    expect(available.result.responseConfiguration.configurationDigest).not.toBe(
+      unavailable.result.responseConfiguration.configurationDigest,
     )
   })
 })

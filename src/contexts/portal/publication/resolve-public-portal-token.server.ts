@@ -45,7 +45,7 @@ function configurationDigest(value: unknown): string {
 }
 
 export type ResolvePublicPortalTokenOutcome =
-  | Readonly<{ status: 'found'; data: PublicPortalResult }>
+  | Readonly<{ status: 'found'; result: PublicPortalResult }>
   | Readonly<{ status: 'unavailable' }>
 type PublicPortalDecisionRequest = Readonly<{
   action: 'portal.public_read'
@@ -301,7 +301,6 @@ function selectPresentation(
 type ServedContent = Readonly<{
   portal: PublicPortalResult['portal']
   links: PublicPortalResult['links']
-  categories: PublicPortalResult['categories']
   immersive: PublicImmersiveExperience | null
 }>
 
@@ -324,7 +323,7 @@ async function resolveServedContent(
     approvedLinks,
     mediaUrls,
   )
-  return presented && { ...presented, categories: [] }
+  return presented
 }
 
 export const resolvePublicPortalToken =
@@ -362,7 +361,7 @@ export const resolvePublicPortalToken =
       now,
     )
     if (!served) return { status: 'unavailable' }
-    const { portal: localizedPortal, links, categories, immersive } = served
+    const { portal: localizedPortal, links, immersive } = served
 
     const reviewGateway = {
       privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
@@ -377,7 +376,6 @@ export const resolvePublicPortalToken =
       guestLocale: selectedLocale,
       languagePackVersion,
       portal: localizedPortal,
-      categories,
       links,
       reviewGateway,
       immersive,
@@ -394,9 +392,8 @@ export const resolvePublicPortalToken =
     }
     return {
       status: 'found',
-      data: {
+      result: {
         portal: localizedPortal,
-        categories,
         links,
         reviewGateway,
         localization: {
@@ -406,7 +403,6 @@ export const resolvePublicPortalToken =
           languagePackVersion,
         },
         responseConfiguration,
-        guestSurface: 'immersive',
         immersive,
         organizationId: snapshot.organizationId,
         propertyId: snapshot.propertyId,

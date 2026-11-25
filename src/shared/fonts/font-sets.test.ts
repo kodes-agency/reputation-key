@@ -6,7 +6,6 @@ import {
   GUEST_FONT_STYLESHEET,
   fontSetLinks,
   fontSetOfMatches,
-  fontSetForGuestSurface,
 } from './font-sets'
 
 const ROOT = join(import.meta.dirname, '..', '..', '..')
@@ -51,16 +50,6 @@ describe('font set of the guest Portal route', () => {
 
   it('does not move another route to the guest set', () => {
     expect(fontSetOfMatches([{ routeId: '/login', loaderData: null }])).toBe('app')
-  })
-})
-
-describe('font set of a guest surface', () => {
-  it('keeps the legacy surface on the app fonts', () => {
-    expect(fontSetForGuestSurface('legacy')).toBe('app')
-  })
-
-  it('moves the Immersive Hub to the guest fonts', () => {
-    expect(fontSetForGuestSurface('immersive')).toBe('guest')
   })
 })
 

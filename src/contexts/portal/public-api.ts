@@ -17,7 +17,6 @@ import type {
   PortalId,
   PortalGroupId,
 } from '#/shared/domain/ids'
-import type { GuestSurface } from './domain/portal-publication-snapshot'
 import type { PortalAccessArtifactChannel } from './domain/portal-access-artifact'
 import type { PortalHealthReason, PortalHealthStatus } from './domain/portal-health'
 import type {
@@ -111,18 +110,14 @@ export type PublicPortalResult = Readonly<{
     slug: string
     description: string | null
     heroImageUrl: string | null
-    theme: Record<string, string | number | boolean | null> | null
     logoUrl?: string | null
 
     organizationName: string
   }
-  categories: ReadonlyArray<{ id: string; title: string; sortKey: string }>
   links: ReadonlyArray<{
     id: string
     label: string
     url: string
-    categoryId: string | null
-    sortKey: string
   }>
   reviewGateway: Readonly<{
     /** Ratings at or below this inclusive threshold may add private feedback. */
@@ -139,12 +134,7 @@ export type PublicPortalResult = Readonly<{
     languagePackVersion: GuestLanguagePackVersion
   }>
   responseConfiguration: PublicPortalResponseConfiguration
-  /**
-   * Which guest page renders this publication, from its snapshot schema
-   * version. The Guest projection derives the page's web fonts from it.
-   */
-  guestSurface: GuestSurface
-  /** The Immersive Hub's content: present exactly when `guestSurface` is 'immersive'. */
+  /** The Immersive Hub's content. */
   immersive: PublicImmersiveExperience | null
   /**
    * Which shape of address opened the page: the long website address or a print
