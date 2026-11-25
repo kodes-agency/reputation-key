@@ -86,7 +86,10 @@ RUN corepack enable
 # 2026-09-29 OpenSSL advisory (CVE-2026-72897 / -84782 / -84784 High), and
 # PCRE2 10.46-1~deb13u3 closes CVE-2026-89161 and CVE-2026-103111 (High), and
 # apt 3.0.4 (trixie-security) closes CVE-2026-109518 (High) in `apt` and
-# `libapt-pkg7.0`. Exact so the build FAILS if the archive stops carrying any
+# `libapt-pkg7.0`, and glibc 2.41-12+deb13u5 (`libc6`, `libc-bin`) closes
+# CVE-2026-19499 and CVE-2026-5435 (High) and zlib
+# 1:1.3.dfsg+really1.3.1-1+deb13u1 closes CVE-2026-85091 (High; all found fixed
+# in trixie on 2026-11-25). Exact so the build FAILS if the archive stops carrying any
 # of these versions rather than silently drifting; every other stage derives
 # `FROM base`, so patching here covers all of them. Everything else the scan
 # reports is won't-fix on trixie and named in .grype.yaml.
@@ -94,9 +97,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         apt=3.0.4 \
         libapt-pkg7.0=3.0.4 \
+        libc-bin=2.41-12+deb13u5 \
+        libc6=2.41-12+deb13u5 \
         libpcre2-8-0=10.46-1~deb13u3 \
         libssl3t64=3.5.7-1~deb13u3 \
         openssl-provider-legacy=3.5.7-1~deb13u3 \
+        zlib1g=1:1.3.dfsg+really1.3.1-1+deb13u1 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 RUN node -e "const expected={node:'22.23.5',icu:'78.3',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
