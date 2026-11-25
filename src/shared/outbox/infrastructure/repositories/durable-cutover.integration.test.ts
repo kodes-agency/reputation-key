@@ -25,7 +25,7 @@ import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Pool } from 'pg'
-import { Queue, Worker, type ConnectionOptions, type Job } from 'bullmq'
+import { Queue, Worker, type ConnectionOptions } from 'bullmq'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -41,7 +41,10 @@ import {
   type InboxItemId,
 } from '#/shared/domain/ids'
 import { createOutboxRelay, type OutboxRelay } from '#/shared/outbox/relay'
-import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import {
+  createDispatcherHandler,
+  createEventDispatcher,
+} from '#/shared/outbox/dispatcher'
 import {
   createConsumerRegistry,
   type ConsumerRegistry,
@@ -318,7 +321,7 @@ async function receiptsFor(eventId: string): Promise<Array<Record<string, unknow
   return result.rows as Array<Record<string, unknown>>
 }
 
-async function redeliver(eventId: string, eventType: string): Promise<void> {
+async function redeliver(eventId: string): Promise<void> {
   const result = await pool.query('SELECT * FROM outbox_events WHERE id = $1', [eventId])
   const row = result.rows[0] as Record<string, unknown>
   const envelope = buildConsumerEvent({
@@ -332,8 +335,7 @@ async function redeliver(eventId: string, eventType: string): Promise<void> {
     sourceAggregateId: row.source_aggregate_id as string,
     recordedAt: row.created_at as Date,
   })
-  const handler = createDispatcherHandler(outboxRepo, { consumers: consumerRegistry })
-  await handler({ id: eventId, name: eventType, data: envelope } as unknown as Job)
+  await createEventDispatcher(outboxRepo, { consumers: consumerRegistry })(envelope)
 }
 
 async function itemsFor(sourceId: string): Promise<Array<Record<string, unknown>>> {
@@ -571,7 +573,7 @@ describe.sequential('outbox delivery end-to-end proof', () => {
       expect(await itemsFor(backlogReviewIds[i]!)).toHaveLength(1)
     }
 
-    await redeliver(backlogEventIds[0]!, 'review.created')
+    await redeliver(backlogEventIds[0]!)
     expect(await receiptsFor(backlogEventIds[0]!)).toHaveLength(1)
     expect(await itemsFor(backlogReviewIds[0]!)).toHaveLength(1)
   }, 60_000)
@@ -643,7 +645,7 @@ describe.sequential('outbox delivery end-to-end proof', () => {
       closedAt: OBSERVED_AT.toISOString(),
     })
 
-    await redeliver(observedEventId, 'review.reply.observed')
+    await redeliver(observedEventId)
     expect(await projectionSnapshot(OBSERVED_REVIEW)).toEqual(deliveredProjection)
     expect(await receiptsFor(observedEventId)).toEqual([
       { consumer_name: OBSERVED_CONSUMER, status: 'applied' },

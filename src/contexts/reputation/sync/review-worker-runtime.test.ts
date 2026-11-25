@@ -1,4 +1,3 @@
-import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
 import type { Database } from '#/shared/db'
@@ -20,7 +19,6 @@ describe('registerReviewWorkerJobs', () => {
     const registered: string[] = []
 
     await registerReviewWorkerJobs({
-      replyEffects: replyScopeEffects,
       db: {} as Database,
       pool: {} as Pool,
       registry: {

@@ -115,18 +115,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
     { attempts: 5, backoff: 'exponential:30000' },
   ),
   defineJob(
-    'import-gbp-property-item-v2',
-    'src/contexts/integration/imports/retired-import-item-job.server.ts',
-    {
-      queue: 'default',
-      capability: 'none',
-      action: 'system:property.import_retired',
-      scope: 'none',
-      schedule: 'none',
-      registration: 'quarantined',
-    },
-  ),
-  defineJob(
     'sync-property-reviews',
     'src/contexts/reputation/sync/sync-property-reviews-job.server.ts',
     {
