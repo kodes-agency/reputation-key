@@ -9,7 +9,7 @@ import {
 } from '../domain/inbox-events'
 import { createNextHandlingCycle } from '../domain/handling-cycles'
 import type { BulkReopenGovernance } from './command-store.port.server'
-import type { ReviewCycleTargetAnchor } from './review-response-target-authority.port.server'
+import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.server'
 import type { InboxItemBulkStatusChanged } from '../domain/inbox-events'
 import {
   bulkAssignmentReason,

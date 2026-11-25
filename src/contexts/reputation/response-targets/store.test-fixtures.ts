@@ -2,7 +2,7 @@
 // seeded Organization and Property, Review sources, the Review and feedback
 // cycle openers, and the repeated policy, outbox and analytics statements.
 
-import type { ReviewCycleTargetAnchor } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+import type { ReviewCycleTargetAnchor } from '#/contexts/reputation/inbox/review-cycle-target-anchor.server'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'

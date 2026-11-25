@@ -17,7 +17,7 @@ import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
 import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
 import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
-import type { ReplyObservationAuthorityPort } from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
+import type { ReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -57,7 +57,7 @@ const propertyLookup = {
 
 const obsoleteReplyAuthority = {
   withExactCurrent: async () => ({ status: 'obsolete' as const }),
-} satisfies ReplyObservationAuthorityPort
+} satisfies ReviewReplyObservationAuthority
 
 const item = (): InboxItem => ({
   id: ITEM,

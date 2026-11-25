@@ -21,7 +21,7 @@ import type {
   HandlingCycle,
   HandlingCycleHead,
 } from '#/contexts/reputation/domain/inbox-types'
-import type { ReviewCycleTargetAnchor } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+import type { ReviewCycleTargetAnchor } from '#/contexts/reputation/inbox/review-cycle-target-anchor.server'
 import {
   buildResponseTargetSnapshot,
   classifyResponseTargetCompletion,

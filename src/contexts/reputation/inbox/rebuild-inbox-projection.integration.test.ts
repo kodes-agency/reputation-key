@@ -31,9 +31,9 @@ import type {
   ReplyMilestones,
 } from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type {
-  CurrentReplyObservationPermit,
-  ReplyObservationAuthorityPort,
-} from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
+  ReviewCurrentReplyObservationPermit,
+  ReviewReplyObservationAuthority,
+} from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import {
   inboxItemId,
   organizationId,
@@ -42,6 +42,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { noLentReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.test-fixtures'
 
 const NOW = new Date('2026-06-15T12:00:00Z')
 const SCOPE = 'rebuild-inbox-projection'
@@ -122,10 +123,10 @@ function googleReply(
 
 /** Review's authority: issues the permit asked for, or reports it obsolete. */
 function fakeAuthority(answer: 'current' | 'obsolete') {
-  const authority: ReplyObservationAuthorityPort = {
+  const authority: ReviewReplyObservationAuthority = {
     withExactCurrent: vi.fn(async (expectation, apply) => {
       if (answer === 'obsolete') return { status: 'obsolete' as const }
-      const permit: CurrentReplyObservationPermit = {
+      const permit: ReviewCurrentReplyObservationPermit = {
         ...expectation,
         authority: 'review.current-google-reply-observation.v1',
         sourceEpochCarryFromMaterialReviewRevision: null,
@@ -137,7 +138,10 @@ function fakeAuthority(answer: 'current' | 'obsolete') {
         responseTargetStartAt: null,
         rating: 5,
       }
-      return { status: 'current' as const, value: await apply(permit) }
+      return {
+        status: 'current' as const,
+        value: await apply(permit, noLentReviewTransaction),
+      }
     }),
   }
   return authority

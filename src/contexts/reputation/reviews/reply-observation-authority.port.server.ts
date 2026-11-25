@@ -4,18 +4,9 @@
  * Implementations retain the Review observation fence until `apply` resolves.
  * A consumer can therefore commit its own transaction while the exact Review
  * head is stable, without receiving Review's transaction or table contracts.
- *
- * Inbox declares a mirror of the two shapes below in its own
- * `inbox/review-reply-observation-authority.port.server.ts`. That repetition is
- * ADR 0008 §1 working as intended: a consumer names the boundary it depends on
- * in its own context, and this file stays Review's published contract, free to
- * gain a field for one consumer without every other consumer's layer changing
- * with it. Neither side may import the other's type.
  */
 import type { ReviewOpenTransaction } from './open-transaction.port.server'
 
-// Review's published expectation; Inbox mirrors it on its side (ADR 0008).
-// fallow-ignore-next-line code-duplication
 export type ReviewReplyObservationExpectation = Readonly<{
   organizationId: string
   propertyId: string
@@ -31,8 +22,6 @@ export type ReviewReplyObservationExpectation = Readonly<{
   occurredAt: Date
 }>
 
-// Review's published permit; Inbox mirrors it on its side (ADR 0008).
-// fallow-ignore-next-line code-duplication
 export type ReviewCurrentReplyObservationPermit = Readonly<{
   authority: 'review.current-google-reply-observation.v1'
   organizationId: string

@@ -25,7 +25,7 @@ import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import {
   buildFixtureItem,
   createInboxDatabaseStores,
@@ -34,6 +34,7 @@ import {
   readOutboxFacts,
   seedInboxScope,
 } from '#/contexts/reputation/inbox/inbox-database.test-fixtures'
+import { noLentReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.test-fixtures'
 
 const SCOPE = 'bulk-update-inbox-status'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -112,7 +113,7 @@ const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
       }),
     listReviewSources: async () => [],
   }
-  const responseTargetAuthority: ReviewResponseTargetAuthorityPort = {
+  const responseTargetAuthority: ReviewResponseTargetAuthority = {
     withExactCurrent: async () => ({ status: 'obsolete' }),
     withInboxProjection: async () => ({ status: 'obsolete' }),
     withExactCurrentBatch: async (expectations, apply) => ({
@@ -126,6 +127,7 @@ const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
           responseTargetStartAt: PROVIDER_TIME,
           rating: null,
         })),
+        noLentReviewTransaction,
       ),
     }),
   }
