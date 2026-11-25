@@ -286,28 +286,6 @@ describe('dispatcher gate (BQC-3.2)', () => {
     expect(decideMock).not.toHaveBeenCalled()
   })
 
-  it('retry deny rethrows so the BullMQ job fails and retries', async () => {
-    decideMock.mockResolvedValue(
-      decision({ reason: 'policy_unavailable', freshRead: true }),
-    )
-    const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    consumerRegistry.registerConsumer({
-      eventType: TEST_EVENT_TYPE,
-      consumerName: 'c-retry',
-      module: TEST_MODULE,
-      handler,
-    })
-    const repo = makeRepo()
-
-    await expect(
-      createDispatcherHandler(repo, { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope()),
-      ),
-    ).rejects.toThrow(/policy_unavailable/)
-
-    expect(handler).not.toHaveBeenCalled()
-  })
-
   it('receipt check still short-circuits before the gate', async () => {
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
     consumerRegistry.registerConsumer({

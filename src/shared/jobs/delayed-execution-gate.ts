@@ -15,15 +15,13 @@
 //
 // Outcome mapping (phase BQC-3 §3.2 typed runtime outcomes):
 //   allow                        → allow — invoke the work
-//   deny 'policy_unavailable'    → deny_retry — the call site THROWS so BullMQ
-//                                  retries: protected work must never run
-//                                  without a decision, and an unavailable
-//                                  policy is transient, not a revocation
-//   every other deny             → deny_terminal — typed terminal state, no
+//   every deny                   → deny_terminal — typed terminal state, no
 //                                  side effect, no retry. The worker dispatch
 //                                  resolves a GateDeniedResult so the runtime
 //                                  observations record a denial, never a
 //                                  success (gate-denial.ts)
+// The policy decides from process-local state, so it never answers "cannot
+// read the policy": there is no retryable deny.
 
 import type { Job } from 'bullmq'
 import type { EntryPointRow, SystemAction } from '#/shared/domain/entry-point-types'
@@ -37,7 +35,7 @@ import type { Capability } from '#/shared/auth/beta-capabilities'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
-import { GateDenyRetryError, UnknownJobError } from './errors'
+import { UnknownJobError } from './errors'
 import type { GateDeniedExecutionKind, GateDeniedResult } from './gate-denial'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
@@ -98,7 +96,6 @@ export function createJobExecutionEnvelope(
 export type GateOutcome =
   | Readonly<{ kind: 'allow'; decision: DelayedDecision }>
   | Readonly<{ kind: 'deny_terminal'; decision: DelayedDecision }>
-  | Readonly<{ kind: 'deny_retry'; decision: DelayedDecision }>
 
 /**
  * Resolves property scope (e.g. reply → property). Ledger dispatches supply
@@ -186,7 +183,6 @@ async function resolvePropertyId(
 
 function toOutcome(decision: DelayedDecision): GateOutcome {
   if (decision.allowed) return { kind: 'allow', decision }
-  if (decision.reason === 'policy_unavailable') return { kind: 'deny_retry', decision }
   return { kind: 'deny_terminal', decision }
 }
 
@@ -238,8 +234,8 @@ export type ScheduledScopeAuthorizer = (
 
 /**
  * Authorizes one concrete target discovered by a tenant-cross schedule.
- * Policy unavailability is retryable; stable scope/capability denials skip
- * only that target so one ineligible tenant cannot block the eligible cohort.
+ * A scope or capability denial skips only that target, so one ineligible
+ * tenant cannot block the eligible cohort.
  */
 export function createScheduledScopeAuthorizer(
   action: SystemAction,
@@ -253,9 +249,6 @@ export function createScheduledScopeAuthorizer(
       executionKind: 'schedule',
       now: new Date(),
     })
-    if (!decision.allowed && decision.reason === 'policy_unavailable') {
-      throw new GateDenyRetryError(action, decision.reason)
-    }
     return decision.allowed
   }
 }
@@ -401,25 +394,20 @@ export function createGatedJobHandler(
       executionKind,
       resolveScope,
     )
-    if (outcome.kind === 'allow') {
-      const payload = isRecord(policyData) ? policyData : {}
-      const row = rowForJob(job.name, executionKind)
-      return withDispatchScope(
-        'job',
-        job.name,
-        row,
-        resolveOrganizationId(payload, row),
-        () =>
-          runJobWithDeadline(job.name, timeoutForJob(job.name), (signal) =>
-            handler(job, signal),
-          ),
-      )
-    }
     if (outcome.kind === 'deny_terminal') {
       return terminalDenial(logger, job.name, outcome.decision, executionKind)
     }
-    // deny_retry: an unavailable policy is transient — throw so BullMQ
-    // retries with backoff instead of running protected work undecided.
-    throw new GateDenyRetryError(job.name, outcome.decision.reason)
+    const payload = isRecord(policyData) ? policyData : {}
+    const row = rowForJob(job.name, executionKind)
+    return withDispatchScope(
+      'job',
+      job.name,
+      row,
+      resolveOrganizationId(payload, row),
+      () =>
+        runJobWithDeadline(job.name, timeoutForJob(job.name), (signal) =>
+          handler(job, signal),
+        ),
+    )
   }
 }
