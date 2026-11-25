@@ -126,7 +126,7 @@ export type UpdatePortalCommand = Readonly<{
   revision: Date
   /** Actual business time returned by the command clock. */
   occurredAt: Date
-  patch: Readonly<Omit<Partial<Portal>, 'updatedAt'>>
+  patch: Readonly<Omit<Partial<Portal>, 'updatedAt' | 'slug'>>
   publication?: PortalPublicationMutation
   health?: Readonly<{
     id: string

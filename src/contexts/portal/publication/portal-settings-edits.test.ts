@@ -43,7 +43,6 @@ describe('changedSettingEntries', () => {
   it('names every other changed setting by its field alone, never with wording', () => {
     expect(
       changedSettingEntries(before, {
-        slug: 'front-desk',
         heroImageUrl: 'https://example.test/hero.jpg',
         privateFeedbackThreshold: 2,
         primaryGuestLocale: 'bg',
@@ -51,7 +50,6 @@ describe('changedSettingEntries', () => {
         theme: { primaryColor: '#e11d48', backgroundColor: '#ffffff' },
       }),
     ).toEqual([
-      { key: 'settings:slug' },
       { key: 'settings:hero_image' },
       { key: 'settings:feedback_threshold' },
       { key: 'settings:primary_language' },
