@@ -7,7 +7,7 @@ import { unbrand } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import type { UpdatePortalCommand } from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
-import { sameInstant } from './portal-command-guards.server'
+import { isFactAt } from './portal-command-guards.server'
 import { reconcileLinkTextsToPrimary } from '../links/portal-link-texts-store.server'
 import type { PortalSettingsBefore } from './portal-settings-edits.server'
 
@@ -19,8 +19,7 @@ export function assertLocaleSetFact(command: UpdatePortalCommand): void {
     fact.organizationId !== command.organizationId ||
     fact.propertyId !== command.propertyId ||
     fact.portalId !== command.portalId ||
-    fact.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(fact.occurredAt, command.occurredAt) ||
+    !isFactAt(fact, command.revision, command.occurredAt) ||
     fact.primaryGuestLocale !== command.patch.primaryGuestLocale ||
     JSON.stringify(fact.additionalGuestLocales) !==
       JSON.stringify(command.patch.additionalGuestLocales)
