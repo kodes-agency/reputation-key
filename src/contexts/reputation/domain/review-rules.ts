@@ -1,10 +1,7 @@
 // Review context — domain rules
 
 import { sha256Hex } from '#/shared/domain/sha256'
-import type { ReplyStatus, Reply } from './review-types'
-import { ok, err } from '#/shared/domain'
-import type { Result } from '#/shared/domain'
-import type { ReviewError } from './review-errors'
+import type { ReplyStatus } from './review-types'
 import { reviewError } from './review-errors'
 
 /**
@@ -65,32 +62,6 @@ const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>
 
 export const canTransitionReply = (current: ReplyStatus, next: ReplyStatus): boolean =>
   REPLY_TRANSITIONS[current]?.includes(next) ?? false
-
-/**
- * Transition a reply to a new status.
- * Validates the transition is allowed and produces a new Reply with updated status/timestamp.
- */
-export const transitionReply = (
-  reply: Reply,
-  nextStatus: ReplyStatus,
-  now: Date,
-): Result<Reply, ReviewError> => {
-  if (!canTransitionReply(reply.status, nextStatus)) {
-    return err(
-      reviewError(
-        'invalid_transition',
-        `Cannot transition reply from '${reply.status}' to '${nextStatus}'`,
-      ),
-    )
-  }
-
-  return ok({
-    ...reply,
-    status: nextStatus,
-    updatedAt: now,
-    ...(nextStatus === 'published' ? { publishedAt: now } : {}),
-  })
-}
 
 /**
  * Mirrors `ReplyCommentProblem` (`shared/google-provider-control/reply-comment.ts`).

@@ -6,9 +6,10 @@
 // only redeliver that exact committed request/cycle. Approval IS the human
 // review: an aiGenerated reply is publishable only after a human passes it
 // through pending_approval → approved. The domain half of the proof lives in
-// src/contexts/reputation/domain/review-rules.test.ts (transitionReply — the single
-// authority for every reply write — refuses draft → approved for ANY reply,
-// aiGenerated included, so no code path can skip the human review).
+// src/contexts/reputation/domain/review-rules.test.ts (canTransitionReply — the
+// table every reply write is checked against — and the approve command's start
+// refuse draft → approved for ANY reply, aiGenerated included, so no code path
+// can skip the human review).
 //
 // This test pins the static half:
 //   (a) command-side request construction and enqueue share one chokepoint;

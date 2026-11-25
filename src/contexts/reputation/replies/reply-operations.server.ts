@@ -36,7 +36,7 @@ import {
 import { reviewError } from '../domain/review-errors'
 import { replyAuthor } from '../domain/reply-author'
 import { settleIfNeverDispatched } from '../publication/settle-never-dispatched-attempt.server'
-import { commitTransition, replyChangedConcurrently } from './reply-commit.server'
+import { replyChangedConcurrently } from './reply-commit.server'
 import {
   reviewReplySubmitted,
   reviewReplyApproved,
@@ -496,26 +496,24 @@ export const submitReply =
     await assertCurrentAiDraftBinding(deps, ctx, reply, 'submit')
 
     const now = deps.clock()
-    const submitted = await commitTransition(reply, 'pending_approval', now, () =>
-      deps.commandStore.submitReply(
-        reply,
-        // Whoever submits is who the decision is news to (replyAuthor).
-        { status: 'pending_approval', submittedAt: now, submittedBy: ctx.userId },
-        reviewReplySubmitted({
-          replyId: reply.id,
-          reviewId: reply.reviewId,
-          propertyId: review.propertyId,
-          organizationId: reply.organizationId,
-          userId: ctx.userId,
-          occurredAt: now,
-        }),
-        now,
-        input.measurement,
-      ),
+    const submitted = await deps.commandStore.submitReply(
+      reply,
+      // Whoever submits is who the decision is news to (replyAuthor).
+      { status: 'pending_approval', submittedAt: now, submittedBy: ctx.userId },
+      reviewReplySubmitted({
+        replyId: reply.id,
+        reviewId: reply.reviewId,
+        propertyId: review.propertyId,
+        organizationId: reply.organizationId,
+        userId: ctx.userId,
+        occurredAt: now,
+      }),
+      now,
+      input.measurement,
     )
-    if (submitted.isErr()) throw submitted.error
+    if (!submitted) throw replyChangedConcurrently()
 
-    return submitted.value
+    return submitted
   }
 
 // ── Approve reply ─────────────────────────────────────────────────────
@@ -571,27 +569,25 @@ export const approveReply =
       review,
       async (now, publicationIntent) => {
         // The approved fact and cycle commit together before queue admission.
-        const approvedResult = await commitTransition(reply, 'approved', now, () =>
-          deps.commandStore.markPublicationAuthorized(
-            reply,
-            { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
-            {
-              lifecycleEvent: reviewReplyApproved({
-                replyId: reply.id,
-                reviewId: reply.reviewId,
-                propertyId: review.propertyId,
-                organizationId: reply.organizationId,
-                userId: ctx.userId,
-                authorId: replyAuthor(reply),
-                occurredAt: now,
-              }),
-              publicationIntent,
-            },
-            now,
-          ),
+        const approved = await deps.commandStore.markPublicationAuthorized(
+          reply,
+          { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
+          {
+            lifecycleEvent: reviewReplyApproved({
+              replyId: reply.id,
+              reviewId: reply.reviewId,
+              propertyId: review.propertyId,
+              organizationId: reply.organizationId,
+              userId: ctx.userId,
+              authorId: replyAuthor(reply),
+              occurredAt: now,
+            }),
+            publicationIntent,
+          },
+          now,
         )
-        if (approvedResult.isErr()) throw approvedResult.error
-        return { reply: approvedResult.value, shouldEnqueue: true }
+        if (!approved) throw replyChangedConcurrently()
+        return { reply: approved, shouldEnqueue: true }
       },
     )
   }
@@ -641,23 +637,21 @@ export const editPublishedReply =
       review,
       async (now, publicationIntent) => {
         // Commit the edited text, cycle and fact before queue admission.
-        const updatedResult = await commitTransition(reply, 'approved', now, () =>
-          deps.commandStore.editPublishedReply(reply, {
-            text,
-            lifecycleEvent: reviewReplyUpdated({
-              replyId: reply.id,
-              reviewId: reply.reviewId,
-              propertyId: review.propertyId,
-              organizationId: reply.organizationId,
-              userId: ctx.userId,
-              occurredAt: now,
-            }),
-            publicationIntent,
-            now,
+        const updated = await deps.commandStore.editPublishedReply(reply, {
+          text,
+          lifecycleEvent: reviewReplyUpdated({
+            replyId: reply.id,
+            reviewId: reply.reviewId,
+            propertyId: review.propertyId,
+            organizationId: reply.organizationId,
+            userId: ctx.userId,
+            occurredAt: now,
           }),
-        )
-        if (updatedResult.isErr()) throw updatedResult.error
-        return { reply: updatedResult.value, shouldEnqueue: true }
+          publicationIntent,
+          now,
+        })
+        if (!updated) throw replyChangedConcurrently()
+        return { reply: updated, shouldEnqueue: true }
       },
     )
   }
@@ -677,30 +671,28 @@ export const rejectReply =
     assertReplyCommandMayStart('reject', reply)
 
     const now = deps.clock()
-    const updated = await commitTransition(reply, 'rejected', now, () =>
-      deps.commandStore.rejectReply(
-        reply,
-        {
-          status: 'rejected',
-          rejectedBy: ctx.userId,
-          rejectionReason: input.reason ?? null,
-        },
-        reviewReplyRejected({
-          replyId: reply.id,
-          reviewId: reply.reviewId,
-          propertyId: review.propertyId,
-          organizationId: reply.organizationId,
-          userId: ctx.userId,
-          authorId: replyAuthor(reply),
-          reason: input.reason ?? null,
-          occurredAt: now,
-        }),
-        now,
-      ),
+    const updated = await deps.commandStore.rejectReply(
+      reply,
+      {
+        status: 'rejected',
+        rejectedBy: ctx.userId,
+        rejectionReason: input.reason ?? null,
+      },
+      reviewReplyRejected({
+        replyId: reply.id,
+        reviewId: reply.reviewId,
+        propertyId: review.propertyId,
+        organizationId: reply.organizationId,
+        userId: ctx.userId,
+        authorId: replyAuthor(reply),
+        reason: input.reason ?? null,
+        occurredAt: now,
+      }),
+      now,
     )
-    if (updated.isErr()) throw updated.error
+    if (!updated) throw replyChangedConcurrently()
 
-    return updated.value
+    return updated
   }
 
 // ── Delete draft ──────────────────────────────────────────────────────
@@ -780,19 +772,13 @@ export const retryPublish =
       review,
       async (now, publicationIntent) => {
         // A retry keeps the approval and authorizes a new publication cycle.
-        const backToApprovedResult = await commitTransition(
+        const backToApproved = await deps.commandStore.markPublicationAuthorized(
           retryable,
-          'approved',
+          { status: 'approved' },
+          { lifecycleEvent: null, publicationIntent },
           now,
-          () =>
-            deps.commandStore.markPublicationAuthorized(
-              retryable,
-              { status: 'approved' },
-              { lifecycleEvent: null, publicationIntent },
-              now,
-            ),
         )
-        if (backToApprovedResult.isErr()) {
+        if (!backToApproved) {
           // The authorization CAS can lose to the same legitimate publication
           // transition. Durable published state means the requested outcome won,
           // but no new intent was committed and no enqueue is needed.
@@ -800,9 +786,9 @@ export const retryPublish =
           if (isSettledPublishedReply(current)) {
             return { reply: current, shouldEnqueue: false }
           }
-          throw backToApprovedResult.error
+          throw replyChangedConcurrently()
         }
-        return { reply: backToApprovedResult.value, shouldEnqueue: true }
+        return { reply: backToApproved, shouldEnqueue: true }
       },
     )
   }
