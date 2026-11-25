@@ -206,6 +206,11 @@ describe('private-rating eligibility from scoped Portal facts', () => {
   })
 })
 
+const isAllowed = async (
+  target: ReturnType<typeof reader>,
+  ...args: Parameters<NonNullable<ReturnType<typeof reader>['staffTargetProblem']>>
+) => (await target.staffTargetProblem!(...args)) === null
+
 describe('personal Portal scan targets', () => {
   it('refuses new personal targets while off and permits only scans when on', async () => {
     portalApi.resolvePortalContext.mockResolvedValue({
@@ -219,32 +224,17 @@ describe('personal Portal scan targets', () => {
       name: 'Polly',
     })
     const subject = { kind: 'portal' as const, portalId: 'personal' }
+    expect(await isAllowed(reader(), 'org', 'property', subject, 'qualified_scans')).toBe(
+      false,
+    )
     expect(
-      await reader().staffTargetAllowed!('org', 'property', subject, 'qualified_scans'),
-    ).toBe(false)
-    expect(
-      await reader(true).staffTargetAllowed!(
-        'org',
-        'property',
-        subject,
-        'qualified_scans',
-      ),
+      await isAllowed(reader(true), 'org', 'property', subject, 'qualified_scans'),
     ).toBe(true)
     expect(
-      await reader(true).staffTargetAllowed!(
-        'org',
-        'property',
-        subject,
-        'portal_rating_count',
-      ),
+      await isAllowed(reader(true), 'org', 'property', subject, 'portal_rating_count'),
     ).toBe(false)
     expect(
-      await reader(true).staffTargetAllowed!(
-        'org',
-        'property',
-        subject,
-        'portal_rating_average',
-      ),
+      await isAllowed(reader(true), 'org', 'property', subject, 'portal_rating_average'),
     ).toBe(false)
   })
   it('applies the same rule to a Group holding a personal Portal', async () => {
@@ -261,20 +251,10 @@ describe('personal Portal scan targets', () => {
     portalGroupApi.getGroupPortalIds.mockResolvedValue(['personal'])
     const subject = { kind: 'portal_group' as const, portalGroupId: 'group' }
     expect(
-      await reader(true).staffTargetAllowed!(
-        'org',
-        'property',
-        subject,
-        'portal_rating_count',
-      ),
+      await isAllowed(reader(true), 'org', 'property', subject, 'portal_rating_count'),
     ).toBe(false)
     expect(
-      await reader(true).staffTargetAllowed!(
-        'org',
-        'property',
-        subject,
-        'qualified_scans',
-      ),
+      await isAllowed(reader(true), 'org', 'property', subject, 'qualified_scans'),
     ).toBe(true)
   })
 })

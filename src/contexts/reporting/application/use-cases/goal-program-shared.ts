@@ -78,12 +78,6 @@ export type GoalProgramSubjectReader = Readonly<{
     subject: GoalSubject,
     metric: GoalMetric,
   ) => Promise<StaffTargetProblem | null>
-  staffTargetAllowed: (
-    organizationId: string,
-    propertyId: string,
-    subject: GoalSubject,
-    metric: GoalMetric,
-  ) => Promise<boolean>
   getTimezone(organizationId: string, propertyId: string): Promise<string | null>
   subjectBelongsToProperty(
     organizationId: string,
@@ -448,17 +442,6 @@ export async function assertRatingSubjectsAllowed(
   )
   const problem = problems.find((problem) => problem !== null)
   if (problem) throw new GoalProgramError(problem)
-  const allowed = await Promise.all(
-    input.subjects.map((subject) =>
-      deps.subjects.staffTargetAllowed(
-        organizationId,
-        input.propertyId,
-        subject,
-        input.metric,
-      ),
-    ),
-  )
-  if (allowed.some((value) => !value)) throw new GoalProgramError('invalid_subject')
   if (input.metric === 'qualified_scans') return
   const skipped = await deps.subjects.ratingSubjectsSkipPrivateRating(
     organizationId,

@@ -218,7 +218,6 @@ export function createGoalProgramHarness(
   const subjects: GoalProgramSubjectReader = {
     ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
     staffTargetProblem: vi.fn(async () => null),
-    staffTargetAllowed: vi.fn(async () => true),
     getTimezone: vi.fn(async () => 'UTC'),
     subjectBelongsToProperty: vi.fn<GoalProgramSubjectReader['subjectBelongsToProperty']>(
       async () => true,
