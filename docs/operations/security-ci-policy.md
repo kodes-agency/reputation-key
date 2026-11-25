@@ -182,8 +182,9 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   source-map uploader), and `@img/sharp-libvips-*` (LGPL-3.0-or-later,
   dev-only sharp binaries). Each carries owner/reason/expiry in
   `security/license-policy.json`.
-- Grype: 29 won't-fix/not-fixed Debian trixie CVE entries + 2 Go-stdlib
-  package entries in `.grype.yaml` (each with owner/reason/expiry). The base
+- Grype: 24 won't-fix/not-fixed Debian trixie CVE entries in `.grype.yaml`
+  (each with owner/reason/expiry; the Go-stdlib entries for esbuild CLI
+  binaries were removed on 2026-11-25 when no scanned esbuild carried one). The base
   moved to `node:22-trixie-slim` (Debian 13) on 2026-09-07. Node 22.23.2's
   CVE-2026-111497 (Critical, known-exploited), CVE-2026-105482 (High) and
   CVE-2026-106072 (Medium) then failed the gate with a fix available, so the
@@ -201,9 +202,13 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   upstream build until upstream rebuilds on it. Two more entries,
   CVE-2026-102010 and CVE-2026-95619 (gcc-14 runtime libraries), have no fix
   in any Debian release yet; the second is scoped to version 14.2.0-19 and is
-  the first to lapse (2026-10-17), which makes 33 rules in all. The families Debian
-  marks won't-fix (perl-base, glibc, util-linux, zlib, gzip, ncurses, libacl,
-  sqlite, pcre2) are the same on trixie as they were on bookworm; their
+  the first to lapse. On 2026-11-25 glibc `2.41-12+deb13u5`
+  (CVE-2026-19499, CVE-2026-5435) and zlib `1:1.3.dfsg+really1.3.1-1+deb13u1`
+  (CVE-2026-85091) turned out to be fixed in trixie, so every base stage pins
+  them exactly and their entries are gone, as are the entries that no longer
+  match anything in the scanned base. The families Debian
+  marks won't-fix (perl-base, glibc gettext, util-linux, ncurses, libacl,
+  sqlite) are the same on trixie as they were on bookworm; their
   reachable surface stays removed (npm CLI stripped, setuid/setgid bits
   dropped, runtime `node` built `shared_zlib: false`). A new entry needs the
   finding named (package, CVE, grype's identity line) plus owner/reason/expiry.
@@ -471,12 +476,8 @@ land before exceptions: the base digest is bumped deliberately (documented in
 the Dockerfile headers) and the **npm CLI is stripped from runtimes that do not
 execute package management** (the runtime never installs packages — this cleared all six
 npm-bundled findings, including a Critical `tar` advisory). What remains in
-`.grype.yaml` is wont-fix/not-fixed Debian triage noise (19 CVEs, no patched
-package exists) and Go-stdlib findings inside never-executed esbuild CLI
-binaries (in prod `node_modules` only via `better-auth → drizzle-kit`; the
-runtime CMD is `node` on pre-built bundles, migrations run the bundled
-`migrate-deploy.js` with the drizzle-orm migrator). SARIF output uploads to
-code scanning.
+`.grype.yaml` is wont-fix/not-fixed Debian triage noise (24 CVEs, no patched
+package exists). SARIF output uploads to code scanning.
 
 ### Secret scanning details
 
