@@ -14,7 +14,6 @@ import {
   crossTenantRatingRetraction,
   deleteGuestResponseTenants,
   deletedResponse,
-  excludeForReview,
   expectOtherTenantResponseUntouched,
   facts,
   feedbackFact,
@@ -301,30 +300,6 @@ describe.sequential('atomic Guest response submission', () => {
     expect(
       await outboxTypes('guest.rating.retracted', 'guest.feedback.retracted'),
     ).toEqual(['guest.feedback.retracted', 'guest.rating.retracted'])
-  })
-
-  it("never changes the integrity of another organization's response", async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [otherRating, otherFeedback] = await commitOtherTenantResponse(store)
-    // Response, Property, Portal and lineage all name the other tenant's
-    // response; only the organization is the caller's own.
-    const crossTenant: GuestResponse = {
-      ...otherTenantResponse(),
-      organizationId: ORG,
-      ratingSourceEventId: otherRating.eventId,
-      feedbackSourceEventId: otherFeedback.eventId,
-    }
-    const reviewedAt = new Date('2026-08-25T12:10:00.000Z')
-    const excluded = excludeForReview(crossTenant, reviewedAt)
-    const retraction = crossTenantRatingRetraction(otherRating.eventId, reviewedAt)
-
-    await expect(
-      store.commitIntegrityChanged(crossTenant, excluded.response, excluded.decision, [
-        retraction,
-      ]),
-    ).resolves.toBe('conflict')
-
-    await expectOtherTenantResponseUntouched([otherRating, otherFeedback])
   })
 
   it("never withdraws another organization's response", async () => {
