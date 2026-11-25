@@ -19,7 +19,7 @@ import {
   portalPublicationActivations,
   portalPublicationSnapshots,
 } from '#/shared/db/schema'
-import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { lockPortalPublicationProperty } from './portal-publication-serialization.server'
 import { resolvePortalPendingContentChanges } from './portal-pending-content-changes.server'
 import {
@@ -52,16 +52,10 @@ import {
 } from './portal-publication-commands.server'
 import { createPortalCreateCommand } from './portal-create-command.server'
 import { createPersonalPortalContentCommand } from '../personal-portals/portal-personal-content-command.server'
-import {
-  PORTAL_SLUG_UNIQUE,
-  refusingWhenTaken,
-  slugTaken,
-} from './portal-unique-violation.server'
 import { NO_SEALED_ADDRESS } from '../addresses/portal-sealed-address-columns.server'
 
 type PortalSetValues = {
   name?: string
-  slug?: string
   description?: string | null
   heroImageUrl?: string | null
   theme?: Record<string, unknown>
@@ -73,10 +67,11 @@ type PortalSetValues = {
   updatedAt?: Date
 }
 
-function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues {
+function buildPortalSetClause(
+  patch: Readonly<Omit<Partial<Portal>, 'slug'>>,
+): PortalSetValues {
   const set: PortalSetValues = {}
   if (patch.name !== undefined) set.name = patch.name
-  if (patch.slug !== undefined) set.slug = patch.slug
   if (patch.description !== undefined) set.description = patch.description
   if (patch.heroImageUrl !== undefined) set.heroImageUrl = patch.heroImageUrl
   if (patch.theme !== undefined)
@@ -436,10 +431,6 @@ export const createAtomicPortalCommandStore = (
     'findPortalRatingGoalBlockInTransaction'
   >,
 ): PortalCommandStore => {
-  /** A transaction whose address collision is the refusal the use case's own check gives. */
-  const addressing = <T>(run: (tx: Tx) => Promise<T>): Promise<T> =>
-    refusingWhenTaken(() => db.transaction(run), PORTAL_SLUG_UNIQUE, slugTaken)
-
   return {
     ...createPortalLinkCommands(db),
     ...createPortalGroupCommands(db),
@@ -450,7 +441,7 @@ export const createAtomicPortalCommandStore = (
     updatePortal: async (command) =>
       trace('portal.commandStore.updatePortal', async () => {
         assertUpdateCommand(command)
-        await addressing(async (tx) => {
+        await db.transaction(async (tx) => {
           // Goal fence, publication fence, then Portal and owned rows.
           await lockStaffTargetProperty(tx, command.organizationId, command.propertyId)
           await assertStaffScanSwitch(tx, command)

@@ -35,7 +35,11 @@ const PROPERTY_WIDE_KINDS: readonly PortalPageEditKind[] = [
 export const isPropertyWideEditKind = (kind: PortalPageEditKind): boolean =>
   PROPERTY_WIDE_KINDS.includes(kind)
 
-/** The working-copy settings a page-settings edit can name. */
+/**
+ * The working-copy settings a page-settings edit can name. `slug` is read-only
+ * now: no command writes it, but old ledger rows can still carry
+ * `settings:slug` and must keep their label.
+ */
 const PORTAL_SETTING_FIELDS = [
   'name',
   'slug',
@@ -52,7 +56,6 @@ export type PortalSettingField = (typeof PORTAL_SETTING_FIELDS)[number]
 /** Portal working-copy field (as the update patch names it) to its ledger setting. */
 const SETTING_BY_PATCH_KEY: Readonly<Record<string, PortalSettingField>> = {
   name: 'name',
-  slug: 'slug',
   description: 'description',
   heroImageUrl: 'hero_image',
   theme: 'theme',

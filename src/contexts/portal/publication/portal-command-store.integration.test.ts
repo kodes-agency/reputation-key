@@ -6,7 +6,6 @@
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
-import { portalId } from '#/shared/domain/ids'
 import {
   portalDeleted,
   portalResponsibilityNeeded,
@@ -278,7 +277,6 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       patch: {
         name: portal.name,
         description: 'Scan to tell us how your stay was',
-        slug: 'reception-desk',
         privateFeedbackThreshold: 2,
       },
       event: portalUpdated({
@@ -301,56 +299,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     ).toEqual([
       ['settings:description', null, 'Scan to tell us how your stay was'],
       ['settings:feedback_threshold', null, null],
-      ['settings:slug', null, null],
     ])
-  })
-
-  it('says the address is taken when a slug change meets another Portal at the Property, and changes nothing', async () => {
-    const store = createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
-    const holder = makePortal()
-    const other = makePortal({
-      id: portalId('6b000000-0000-4000-8000-000000000002'),
-      name: 'Lobby',
-      slug: 'lobby',
-      publicationState: 'draft',
-    })
-    for (const portal of [holder, other]) {
-      await store.createPortal({
-        organizationId: ORG_A,
-        portal,
-        initialResponsibleManagerIds: [MANAGER],
-        event: createdFact(portal),
-      })
-    }
-
-    await expect(
-      store.updatePortal({
-        organizationId: ORG_A,
-        propertyId: PROPERTY_A,
-        portalId: other.id,
-        actorUserId: MANAGER,
-        expectedUpdatedAt: CREATED_AT,
-        revision: UPDATED_AT,
-        occurredAt: UPDATED_AT,
-        patch: { slug: holder.slug },
-        event: portalUpdated({
-          portalId: other.id,
-          organizationId: other.organizationId,
-          propertyId: other.propertyId,
-          previousPublicationState: 'draft',
-          publicationState: 'draft',
-          sourceAggregateVersion: UPDATED_AT.toISOString(),
-          occurredAt: UPDATED_AT,
-        }),
-      }),
-    ).rejects.toMatchObject({ code: 'slug_taken' })
-
-    const stored = await getPool().query(
-      `SELECT slug, updated_at FROM portals WHERE organization_id = $1 AND id = $2`,
-      [ORG_A, other.id],
-    )
-    expect(stored.rows).toEqual([{ slug: 'lobby', updated_at: CREATED_AT }])
-    expect(await pageEditRows()).toEqual([])
   })
 
   it('rolls back Portal state and snapshot activation when the dedicated publication fact conflicts', async () => {
