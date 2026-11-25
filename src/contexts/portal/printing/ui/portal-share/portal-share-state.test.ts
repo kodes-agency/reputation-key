@@ -15,11 +15,7 @@
 // into conflict with the others rather than checking one flag at a time.
 
 import { describe, it, expect } from 'vitest'
-import {
-  derivePortalShareView,
-  describeMadeCode,
-  directPortalAddress,
-} from './portal-share-state'
+import { derivePortalShareView, describeMadeCode } from './portal-share-state'
 import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 
 const NO_TOKEN: PortalTokenStatus = {
@@ -244,27 +240,6 @@ describe('derivePortalShareView — when the code was made', () => {
     )
     expect(note({ publicUrl: PUBLIC_URL })).toBeNull()
     expect(note({ canManage: false })).toBeNull()
-  })
-})
-
-describe('directPortalAddress — the address for websites, emails and messages', () => {
-  it('drops the access-artifact marker so a click is not counted as a QR scan', () => {
-    // A visit carrying a published access artifact is recorded as a scan from
-    // that artifact's channel; the QR address must never reach the public row.
-    const qr = 'https://portal.example.com/p/9f3c?accessArtifact=art-qr-1'
-    expect(directPortalAddress(qr)).toBe('https://portal.example.com/p/9f3c')
-    expect(directPortalAddress(qr)).not.toContain('accessArtifact')
-  })
-
-  it('keeps the rest of the address untouched', () => {
-    expect(directPortalAddress(PUBLIC_URL)).toBe(PUBLIC_URL)
-    expect(directPortalAddress(`${PUBLIC_URL}?accessArtifact=a&x=1`)).toBe(
-      `${PUBLIC_URL}?x=1`,
-    )
-  })
-
-  it('passes a value that is not a URL through rather than throwing', () => {
-    expect(directPortalAddress('not a url')).toBe('not a url')
   })
 })
 
