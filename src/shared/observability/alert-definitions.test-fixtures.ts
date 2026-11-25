@@ -55,10 +55,6 @@ export function healthy(): MutableSnapshot {
     outbox: {
       unpublishedCount: 0,
       oldestUnpublishedAgeMs: null,
-      expiredLeaseCount: 0,
-      claimedCount: 0,
-      oldestClaimedAgeMs: null,
-      stalledLeaseCount: 0,
     },
     quarantine: { count: 0, oldestAgeMs: null },
     reviews: {

@@ -28,7 +28,7 @@ import {
 import {
   healthyAux,
   healthySnapshot,
-  stalledSnapshot,
+  failedSyncSnapshot,
 } from '#/shared/jobs/alert-injection.test-fixtures'
 
 const OWNER = 'Bozhidar Denev'
@@ -37,33 +37,33 @@ const OWNER = 'Bozhidar Denev'
 
 describe('evaluateAlerts hysteresis', () => {
   it('fires on the ok→firing edge only while the state says firing', () => {
-    const first = evaluateAlerts(stalledSnapshot(), healthyAux(), new Set(), new Set())
-    expect(first.toDispatch.map((e) => e.name)).toEqual(['queue.stalled'])
-    expect(first.firing).toEqual(['queue.stalled'])
+    const first = evaluateAlerts(failedSyncSnapshot(), healthyAux(), new Set(), new Set())
+    expect(first.toDispatch.map((e) => e.name)).toEqual(['sync.failed-nonzero'])
+    expect(first.firing).toEqual(['sync.failed-nonzero'])
 
     // Still breaching, state remembers firing — no re-dispatch.
     const second = evaluateAlerts(
-      stalledSnapshot(),
+      failedSyncSnapshot(),
       healthyAux(),
       new Set(first.firing),
       new Set(),
     )
     expect(second.toDispatch).toEqual([])
-    expect(second.firing).toEqual(['queue.stalled'])
+    expect(second.firing).toEqual(['sync.failed-nonzero'])
   })
 
   it('re-fires once the firing state has expired (24h re-notify)', () => {
     // The state store key expires after ALERT_STATE_TTL_SECONDS; the next
     // evaluation sees an empty previous state — a new edge.
-    const again = evaluateAlerts(stalledSnapshot(), healthyAux(), new Set(), new Set())
-    expect(again.toDispatch.map((e) => e.name)).toEqual(['queue.stalled'])
+    const again = evaluateAlerts(failedSyncSnapshot(), healthyAux(), new Set(), new Set())
+    expect(again.toDispatch.map((e) => e.name)).toEqual(['sync.failed-nonzero'])
   })
 
   it('recovery removes the alert from the firing set (state cleared by the caller)', () => {
     const recovered = evaluateAlerts(
       healthySnapshot(),
       healthyAux(),
-      new Set(['queue.stalled']),
+      new Set(['sync.failed-nonzero']),
       new Set(),
     )
     expect(recovered.toDispatch).toEqual([])
@@ -97,47 +97,49 @@ describe('alert firing-state store', () => {
   it('marks firing with the 24h re-notify TTL under a content-free key', async () => {
     const redis = createFakeRedis()
     const store = createRedisAlertStateStore(redis)
-    await store.markFiring('queue.stalled')
+    await store.markFiring('sync.failed-nonzero')
 
     expect(redis.sets).toEqual([
       {
-        key: `${ALERT_STATE_KEY_PREFIX}queue.stalled`,
+        key: `${ALERT_STATE_KEY_PREFIX}sync.failed-nonzero`,
         exSeconds: ALERT_STATE_TTL_SECONDS,
       },
     ])
     expect(ALERT_STATE_TTL_SECONDS).toBe(24 * 60 * 60)
-    expect(redis.map.get(`${ALERT_STATE_KEY_PREFIX}queue.stalled`)?.value).toBe('firing')
+    expect(redis.map.get(`${ALERT_STATE_KEY_PREFIX}sync.failed-nonzero`)?.value).toBe(
+      'firing',
+    )
   })
 
   it('currentlyFiring reports only the names still holding state', async () => {
     const redis = createFakeRedis()
     const store = createRedisAlertStateStore(redis)
-    await store.markFiring('queue.stalled')
+    await store.markFiring('sync.failed-nonzero')
     await store.markFiring('db.pool-exhaustion')
 
     const firing = await store.currentlyFiring([
-      'queue.stalled',
+      'sync.failed-nonzero',
       'db.pool-exhaustion',
       'queue.oldest-age',
     ])
-    expect([...firing].sort()).toEqual(['db.pool-exhaustion', 'queue.stalled'])
+    expect([...firing].sort()).toEqual(['db.pool-exhaustion', 'sync.failed-nonzero'])
   })
 
   it('re-fire after state expiry: an expired key reads as not firing', async () => {
     const redis = createFakeRedis()
     const store = createRedisAlertStateStore(redis)
-    await store.markFiring('queue.stalled')
+    await store.markFiring('sync.failed-nonzero')
     // Redis expires the key after the TTL — simulate the expiry.
-    redis.map.delete(`${ALERT_STATE_KEY_PREFIX}queue.stalled`)
-    expect(await store.currentlyFiring(['queue.stalled'])).toEqual(new Set())
+    redis.map.delete(`${ALERT_STATE_KEY_PREFIX}sync.failed-nonzero`)
+    expect(await store.currentlyFiring(['sync.failed-nonzero'])).toEqual(new Set())
   })
 
   it('clearFiring removes the state (recovery)', async () => {
     const redis = createFakeRedis()
     const store = createRedisAlertStateStore(redis)
-    await store.markFiring('queue.stalled')
-    await store.clearFiring('queue.stalled')
-    expect(await store.currentlyFiring(['queue.stalled'])).toEqual(new Set())
+    await store.markFiring('sync.failed-nonzero')
+    await store.clearFiring('sync.failed-nonzero')
+    expect(await store.currentlyFiring(['sync.failed-nonzero'])).toEqual(new Set())
   })
 
   it('holds a pending breach only until the next evaluation is due', async () => {
@@ -154,7 +156,10 @@ describe('alert firing-state store', () => {
     // Two 5-minute cadences: one missed evaluation breaks the streak.
     expect(ALERT_PENDING_TTL_SECONDS).toBe(10 * 60)
     expect(
-      await store.currentlyPending(['observability.snapshot-degraded', 'queue.stalled']),
+      await store.currentlyPending([
+        'observability.snapshot-degraded',
+        'sync.failed-nonzero',
+      ]),
     ).toEqual(new Set(['observability.snapshot-degraded']))
     // A pending breach is not a firing one.
     expect(await store.currentlyFiring(['observability.snapshot-degraded'])).toEqual(
@@ -172,14 +177,14 @@ describe('alert firing-state store', () => {
 
 describe('alert dispatcher', () => {
   const event: AlertEvent = {
-    name: 'queue.stalled',
+    name: 'sync.failed-nonzero',
     severity: 'P2',
     owner: OWNER,
-    runbook: 'runbooks.md §7',
+    runbook: 'runbooks.md §13',
     value: 2,
     threshold: 0,
     windowMs: 5 * 60 * 1000,
-    detail: '2 stalled outbox lease(s)',
+    detail: '2 Review sync(s) have a coded failure whose retry is due',
   }
   const clock = () => new Date('2026-07-31T12:00:00.000Z')
 
@@ -197,16 +202,16 @@ describe('alert dispatcher', () => {
 
     expect(error).toHaveBeenCalledOnce()
     const [fields, message] = error.mock.calls[0]!
-    expect(String(message)).toContain('queue.stalled')
+    expect(String(message)).toContain('sync.failed-nonzero')
     expect(fields).toMatchObject({
-      alert: 'queue.stalled',
+      alert: 'sync.failed-nonzero',
       severity: 'P2',
       owner: OWNER,
-      runbook: 'runbooks.md §7',
+      runbook: 'runbooks.md §13',
       value: 2,
       threshold: 0,
       windowMs: 5 * 60 * 1000,
-      detail: '2 stalled outbox lease(s)',
+      detail: '2 Review sync(s) have a coded failure whose retry is due',
       firedAt: '2026-07-31T12:00:00.000Z',
     })
     expect(fetchFn).not.toHaveBeenCalled()
@@ -338,36 +343,39 @@ describe('health-check job alert wiring', () => {
   }
 
   it('dispatches a breaching alert once, then not again while state holds', async () => {
-    const { deps, dispatched } = wiredDeps(stalledSnapshot())
+    const { deps, dispatched } = wiredDeps(failedSyncSnapshot())
     const handler = createHealthCheckHandler(deps)
 
     await handler({ id: '1', data: {} } as never)
-    expect(dispatched.map((e) => e.name)).toEqual(['queue.stalled'])
+    expect(dispatched.map((e) => e.name)).toEqual(['sync.failed-nonzero'])
 
     await handler({ id: '2', data: {} } as never)
     expect(dispatched).toHaveLength(1) // no re-dispatch while firing
   })
 
   it('re-fires after the firing state expires (24h re-notify)', async () => {
-    const { deps, dispatched, state } = wiredDeps(stalledSnapshot())
+    const { deps, dispatched, state } = wiredDeps(failedSyncSnapshot())
     const handler = createHealthCheckHandler(deps)
 
     await handler({ id: '1', data: {} } as never)
     await handler({ id: '2', data: {} } as never)
     expect(dispatched).toHaveLength(1)
 
-    state.expire('queue.stalled') // Redis TTL elapsed
+    state.expire('sync.failed-nonzero') // Redis TTL elapsed
     await handler({ id: '3', data: {} } as never)
-    expect(dispatched.map((e) => e.name)).toEqual(['queue.stalled', 'queue.stalled'])
+    expect(dispatched.map((e) => e.name)).toEqual([
+      'sync.failed-nonzero',
+      'sync.failed-nonzero',
+    ])
   })
 
   it('clears the firing state on recovery so a later breach fires immediately', async () => {
     const { deps, dispatched, state, readOperationsSnapshot } =
-      wiredDeps(stalledSnapshot())
+      wiredDeps(failedSyncSnapshot())
     const handler = createHealthCheckHandler(deps)
 
     await handler({ id: '1', data: {} } as never)
-    expect(state.all()).toEqual(['queue.stalled'])
+    expect(state.all()).toEqual(['sync.failed-nonzero'])
 
     // Recovery: the breach is gone — state clears, nothing dispatches.
     readOperationsSnapshot.mockResolvedValue(healthySnapshot())
@@ -376,18 +384,18 @@ describe('health-check job alert wiring', () => {
     expect(state.all()).toEqual([])
 
     // A new breach after recovery is a new edge — dispatches again.
-    readOperationsSnapshot.mockResolvedValue(stalledSnapshot())
+    readOperationsSnapshot.mockResolvedValue(failedSyncSnapshot())
     await handler({ id: '3', data: {} } as never)
     expect(dispatched).toHaveLength(2)
   })
 
   it('reports the firing/dispatched/held sets in the job result', async () => {
-    const { deps } = wiredDeps(stalledSnapshot())
+    const { deps } = wiredDeps(failedSyncSnapshot())
     const handler = createHealthCheckHandler(deps)
     const result = await handler({ id: '1', data: {} } as never)
     expect(result.alerts).toEqual({
-      firing: ['queue.stalled'],
-      dispatched: ['queue.stalled'],
+      firing: ['sync.failed-nonzero'],
+      dispatched: ['sync.failed-nonzero'],
       held: [],
       pending: [],
     })
@@ -465,7 +473,7 @@ describe('health-check job alert wiring', () => {
   })
 
   it('a rejecting dispatcher never throws into the job', async () => {
-    const { deps } = wiredDeps(stalledSnapshot(), {
+    const { deps } = wiredDeps(failedSyncSnapshot(), {
       dispatch: vi.fn(async () => {
         throw new Error('webhook exploded')
       }),

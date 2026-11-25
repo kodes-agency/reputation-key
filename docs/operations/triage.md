@@ -47,7 +47,7 @@ keeps firing and a quiet one stays quiet until the read answers again.
 
 | Symptom                                                                                  | Check                                    | Action                                  |
 | ---------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------- |
-| Queue backlog or old jobs (`queue.oldest-age`, `queue.stalled`)                          | Worker heartbeat; Redis connectivity     | §7.                                     |
+| Queue backlog or old jobs (`queue.oldest-age`)                                           | Worker heartbeat; Redis connectivity     | §7.                                     |
 | Quarantine not empty or growing (`queue.quarantine-nonempty`, `queue.quarantine-growth`) | Quarantined job families, not payloads   | Redrive after fixing the handler (§14). |
 | Job family unready (`worker.job-runtime-unready`)                                        | The unready reasons in the health report | §17.                                    |
 | Notifications or email stalled                                                           | Notification alert facts                 | §15; release steps §24.                 |
