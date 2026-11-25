@@ -45,7 +45,7 @@ import {
   reopenCycleOnDeletedReply,
   openNextFeedbackCycleOnResubmission,
   closeCycleForSourceTransition,
-  scrubTransitionedItemRow,
+  closeTransitionedItemRow,
 } from '#/contexts/reputation/inbox/inbox-source-projection.server'
 import type { CommandRuntime } from './command-runtime.server'
 
@@ -376,18 +376,14 @@ export const createSourceCommands = (
 
           const shouldCloseItem = command.closeIfOpen && current.status === 'open'
           const shouldCloseCycle = command.closeIfOpen && headRow?.status === 'open'
-          const needsScrub =
-            current.rating !== null ||
-            current.snippet !== null ||
-            current.reviewerName !== null
-          if (!shouldCloseItem && !shouldCloseCycle && !needsScrub) return
+          if (!shouldCloseItem && !shouldCloseCycle) return
 
           const cycleFact =
             shouldCloseCycle && headRow
               ? await closeCycleForSourceTransition(tx, command, headRow)
               : null
 
-          await scrubTransitionedItemRow(tx, command, current, shouldCloseItem)
+          await closeTransitionedItemRow(tx, command, current, shouldCloseItem)
           if (shouldCloseItem) await insertOutboxRow(tx, closeFact)
           if (cycleFact) await insertOutboxRow(tx, cycleFact)
         })

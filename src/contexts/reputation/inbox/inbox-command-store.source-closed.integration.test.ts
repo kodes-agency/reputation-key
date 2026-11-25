@@ -29,7 +29,6 @@ import {
   makeReview,
   insertSourceEvent,
   seedReviewRevisionOne,
-  restoreReviewSourceContentConstraint,
   pool,
   useInboxCommandStoreDb,
 } from './inbox-command-store.test-fixtures'
@@ -37,70 +36,60 @@ import {
 useInboxCommandStoreDb()
 
 describe.sequential('inboxCommandStore applyOnce (integration)', () => {
-  it('scrubs a seeded legacy Review projection once while preserving identity and notes', async () => {
+  it('closes a Review projection once on source expiry while preserving identity, assignment and notes', async () => {
+    await seedReviewRevisionOne()
+    const legacy = makeItem({
+      assignedTo: USER_A,
+      commandRevision: Number.MAX_SAFE_INTEGER,
+    })
+    const store = createAtomicInboxCommandStore(db)
+    await store.createItem(legacy, null, reviewOpeningAnchor(legacy))
+    const noteId = '4d000000-0000-0000-0000-000000000099'
     await pool.query(
-      'ALTER TABLE inbox_items DROP CONSTRAINT IF EXISTS inbox_items_review_source_content_free',
-    )
-    try {
-      await seedReviewRevisionOne()
-      const legacy = makeItem({
-        rating: 1,
-        snippet: 'legacy provider-controlled review text',
-        reviewerName: 'Legacy guest',
-        assignedTo: USER_A,
-        commandRevision: Number.MAX_SAFE_INTEGER,
-      })
-      const store = createAtomicInboxCommandStore(db)
-      await store.createItem(legacy, null, reviewOpeningAnchor(legacy))
-      const noteId = '4d000000-0000-0000-0000-000000000099'
-      await pool.query(
-        `INSERT INTO inbox_notes (
+      `INSERT INTO inbox_notes (
            id, inbox_item_id, organization_id, author_user_id, text, created_at
          ) VALUES ($1, $2, $3, $4, 'Manager-owned history', $5)`,
-        [noteId, legacy.id, ORG_A, USER_A, NOW],
-      )
+      [noteId, legacy.id, ORG_A, USER_A, NOW],
+    )
 
-      const source = reviewSourceTransitioned({
-        reviewId: REVIEW_A,
-        propertyId: PROP_A,
-        organizationId: ORG_A,
-        sourceEpoch: 1,
-        sourceRevision: 2,
-        analysisSequence: 2,
-        change: 'source_expired',
+    const source = reviewSourceTransitioned({
+      reviewId: REVIEW_A,
+      propertyId: PROP_A,
+      organizationId: ORG_A,
+      sourceEpoch: 1,
+      sourceRevision: 2,
+      analysisSequence: 2,
+      change: 'source_expired',
+      occurredAt: NOW,
+    })
+    await insertSourceEvent(source)
+    const command = {
+      eventId: source.eventId,
+      consumerName: 'inbox.on-review-source-transitioned',
+      item: legacy,
+      transitionedAt: NOW,
+      closeIfOpen: true,
+      closeFact: inboxItemStatusChanged({
+        inboxItemId: legacy.id,
+        organizationId: legacy.organizationId,
+        propertyId: legacy.propertyId,
+        oldStatus: 'open',
+        newStatus: 'closed',
         occurredAt: NOW,
-      })
-      await insertSourceEvent(source)
-      const command = {
-        eventId: source.eventId,
-        consumerName: 'inbox.on-review-source-transitioned',
-        item: legacy,
-        transitionedAt: NOW,
-        closeIfOpen: true,
-        closeFact: inboxItemStatusChanged({
-          inboxItemId: legacy.id,
-          organizationId: legacy.organizationId,
-          propertyId: legacy.propertyId,
-          oldStatus: 'open',
-          newStatus: 'closed',
-          occurredAt: NOW,
-        }),
-      } as const
-      await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
-        'applied',
-      )
-      await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
-        'applied',
-      )
+      }),
+    } as const
+    await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
+      'applied',
+    )
+    await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
+      'applied',
+    )
 
-      const proof = await pool.query(
-        `SELECT
+    const proof = await pool.query(
+      `SELECT
            item.id,
            item.source_id,
            item.status,
-           item.rating,
-           item.snippet,
-           item.reviewer_name,
            item.assigned_to,
            item.command_revision::text AS command_revision,
            (SELECT count(*)::int FROM inbox_notes note
@@ -115,96 +104,80 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
               AND fact.payload->>'inboxItemId' = item.id::text) AS status_fact_count
          FROM inbox_items item
          WHERE item.id = $1`,
-        [legacy.id, source.eventId, ORG_A],
-      )
-      expect(proof.rows).toEqual([
-        {
-          id: legacy.id,
-          source_id: REVIEW_A,
-          status: 'closed',
-          rating: null,
-          snippet: null,
-          reviewer_name: null,
-          assigned_to: USER_A,
-          command_revision: String(Number.MAX_SAFE_INTEGER),
-          note_count: 1,
-          receipt_count: 1,
-          status_fact_count: 1,
-        },
-      ])
-    } finally {
-      await restoreReviewSourceContentConstraint()
-    }
+      [legacy.id, source.eventId, ORG_A],
+    )
+    expect(proof.rows).toEqual([
+      {
+        id: legacy.id,
+        source_id: REVIEW_A,
+        status: 'closed',
+        assigned_to: USER_A,
+        command_revision: String(Number.MAX_SAFE_INTEGER),
+        note_count: 1,
+        receipt_count: 1,
+        status_fact_count: 1,
+      },
+    ])
   })
 
-  it('legacy expiry replay scrubs content without stale-closing the current Handling Cycle', async () => {
-    await pool.query(
-      'ALTER TABLE inbox_items DROP CONSTRAINT IF EXISTS inbox_items_review_source_content_free',
+  it('expiry replay without closeIfOpen leaves the open item and Handling Cycle untouched', async () => {
+    const reviewRepo = testReviewRepository(db)
+    await reviewRepo.upsert(
+      makeReview({ sourceRevision: 1, analysisSequence: 1 }),
+      NOW,
+      'b'.repeat(64),
     )
-    try {
-      const reviewRepo = testReviewRepository(db)
-      await reviewRepo.upsert(
-        makeReview({ sourceRevision: 1, analysisSequence: 1 }),
-        NOW,
-        'b'.repeat(64),
-      )
-      const legacy = makeItem({
-        rating: 2,
-        snippet: 'delayed legacy provider text',
-        reviewerName: 'Delayed legacy guest',
-        assignedTo: USER_A,
-        commandRevision: Number.MAX_SAFE_INTEGER,
-      })
-      const store = createAtomicInboxCommandStore(db)
-      await store.createItem(legacy, null, reviewOpeningAnchor(legacy))
-      const noteId = '4d000000-0000-0000-0000-000000000098'
-      await pool.query(
-        `INSERT INTO inbox_notes (
+    const legacy = makeItem({
+      assignedTo: USER_A,
+      commandRevision: Number.MAX_SAFE_INTEGER,
+    })
+    const store = createAtomicInboxCommandStore(db)
+    await store.createItem(legacy, null, reviewOpeningAnchor(legacy))
+    const noteId = '4d000000-0000-0000-0000-000000000098'
+    await pool.query(
+      `INSERT INTO inbox_notes (
            id, inbox_item_id, organization_id, author_user_id, text, created_at
          ) VALUES ($1, $2, $3, $4, 'Current manager history', $5)`,
-        [noteId, legacy.id, ORG_A, USER_A, NOW],
-      )
+      [noteId, legacy.id, ORG_A, USER_A, NOW],
+    )
 
-      const source = reviewExpired({
-        reviewId: REVIEW_A,
-        propertyId: PROP_A,
-        organizationId: ORG_A,
-        occurredAt: new Date('2026-06-01T12:05:00.000Z'),
-      })
-      await insertSourceEvent(source)
-      const command = {
-        eventId: source.eventId,
-        consumerName: 'inbox.on-review-expired',
-        item: legacy,
-        transitionedAt: source.occurredAt,
-        closeIfOpen: false,
-        closeFact: inboxItemStatusChanged({
-          inboxItemId: legacy.id,
-          organizationId: legacy.organizationId,
-          propertyId: legacy.propertyId,
-          oldStatus: 'open',
-          newStatus: 'closed',
-          occurredAt: source.occurredAt,
-        }),
-      } as const
+    const source = reviewExpired({
+      reviewId: REVIEW_A,
+      propertyId: PROP_A,
+      organizationId: ORG_A,
+      occurredAt: new Date('2026-06-01T12:05:00.000Z'),
+    })
+    await insertSourceEvent(source)
+    const command = {
+      eventId: source.eventId,
+      consumerName: 'inbox.on-review-expired',
+      item: legacy,
+      transitionedAt: source.occurredAt,
+      closeIfOpen: false,
+      closeFact: inboxItemStatusChanged({
+        inboxItemId: legacy.id,
+        organizationId: legacy.organizationId,
+        propertyId: legacy.propertyId,
+        oldStatus: 'open',
+        newStatus: 'closed',
+        occurredAt: source.occurredAt,
+      }),
+    } as const
 
-      await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
-        'applied',
-      )
-      await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
-        'applied',
-      )
+    await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
+      'applied',
+    )
+    await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
+      'applied',
+    )
 
-      const proof = await pool.query(
-        `SELECT
+    const proof = await pool.query(
+      `SELECT
            item.id,
            item.source_id,
            item.status AS item_status,
            head.status AS cycle_status,
            head.current_cycle_number::int AS cycle_number,
-           item.rating,
-           item.snippet,
-           item.reviewer_name,
            item.assigned_to,
            item.command_revision::text AS command_revision,
            (SELECT count(*)::int FROM inbox_notes note
@@ -219,28 +192,22 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
          FROM inbox_items item
          JOIN inbox_handling_cycle_heads head ON head.inbox_item_id = item.id
          WHERE item.id = $1`,
-        [legacy.id, source.eventId, ORG_A],
-      )
-      expect(proof.rows).toEqual([
-        {
-          id: legacy.id,
-          source_id: REVIEW_A,
-          item_status: 'open',
-          cycle_status: 'open',
-          cycle_number: 1,
-          rating: null,
-          snippet: null,
-          reviewer_name: null,
-          assigned_to: USER_A,
-          command_revision: String(Number.MAX_SAFE_INTEGER),
-          note_count: 1,
-          receipt_count: 1,
-          status_fact_count: 0,
-        },
-      ])
-    } finally {
-      await restoreReviewSourceContentConstraint()
-    }
+      [legacy.id, source.eventId, ORG_A],
+    )
+    expect(proof.rows).toEqual([
+      {
+        id: legacy.id,
+        source_id: REVIEW_A,
+        item_status: 'open',
+        cycle_status: 'open',
+        cycle_number: 1,
+        assigned_to: USER_A,
+        command_revision: String(Number.MAX_SAFE_INTEGER),
+        note_count: 1,
+        receipt_count: 1,
+        status_fact_count: 0,
+      },
+    ])
   })
 
   it('applySourceWithdrawnOnce closes feedback work with fact + receipt atomically', async () => {

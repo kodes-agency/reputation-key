@@ -230,29 +230,6 @@ export async function seedReviewRevisionOne(): Promise<void> {
   )
 }
 
-export async function restoreReviewSourceContentConstraint(): Promise<void> {
-  await pool.query(
-    `UPDATE inbox_items
-     SET rating = NULL, snippet = NULL, reviewer_name = NULL
-     WHERE source_type = 'review'
-       AND (rating IS NOT NULL OR snippet IS NOT NULL OR reviewer_name IS NOT NULL)`,
-  )
-  await pool.query(
-    'ALTER TABLE inbox_items DROP CONSTRAINT IF EXISTS inbox_items_review_source_content_free',
-  )
-  await pool.query(
-    `ALTER TABLE inbox_items
-     ADD CONSTRAINT inbox_items_review_source_content_free
-     CHECK (
-       source_type <> 'review'
-       OR (rating IS NULL AND snippet IS NULL AND reviewer_name IS NULL)
-     ) NOT VALID`,
-  )
-  await pool.query(
-    'ALTER TABLE inbox_items VALIDATE CONSTRAINT inbox_items_review_source_content_free',
-  )
-}
-
 export const createdFact = (item: InboxItem) =>
   inboxItemCreated({
     inboxItemId: item.id,
