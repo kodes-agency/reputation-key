@@ -1,11 +1,11 @@
-// A restricted read, or a retention assessment, that meets an append in flight.
+// A restricted read that meets an append in flight.
 //
-// Both lock the tenant's sequence head to serialize with appends, redaction and
-// hold lifecycle. They used to do it inside a REPEATABLE READ transaction whose
-// first statement already took the snapshot, so a same-tenant append that
-// committed while they waited for the lock ended them with SQLSTATE 40001, and
-// the access code recorded it as "authority unavailable". The lock itself is
-// the serialization, so they now take it first and read after it.
+// It locks the tenant's sequence head to serialize with appends. It used to do
+// that inside a REPEATABLE READ transaction whose first statement already took
+// the snapshot, so a same-tenant append that committed while it waited for the
+// lock ended it with SQLSTATE 40001, and the access code recorded it as
+// "authority unavailable". The lock itself is the serialization, so the read
+// now takes it first and reads after it.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -64,25 +64,6 @@ const accessRecord = (): OperationalActionRecord => ({
   provenance: {
     kind: 'history_access',
     id: `access:${randomUUID()}`,
-    eventType: null,
-    eventVersion: null,
-    sourceContext: null,
-    sourceAggregateId: null,
-  },
-})
-
-const assessmentRecord = (): OperationalActionRecord => ({
-  ...record(`assessment:${randomUUID()}`),
-  propertyId: null,
-  actorType: 'operator',
-  actorId: 'operator-1',
-  action: 'operational_history.retention_assessed',
-  resourceType: 'operational_history',
-  resourceId: 'history',
-  reasonCode: 'report_only_pending_counsel',
-  provenance: {
-    kind: 'history_lifecycle',
-    id: `lifecycle:${randomUUID()}`,
     eventType: null,
     eventVersion: null,
     sourceContext: null,
@@ -157,21 +138,5 @@ describe('Operational Action History reads that meet an append in flight (real P
       'read-race-in-flight',
       'seeded',
     ])
-  })
-
-  it('assesses retention after the append commits instead of failing the assessment', async () => {
-    const store = createOperationalActionHistoryStore(db)
-    const append = await appendInFlight('assess-race-in-flight')
-
-    const assessment = store.assessRetention({
-      organizationId: ORG,
-      cutoff: OBSERVED_AT,
-      assessmentRecord: assessmentRecord(),
-    })
-    await waitForBlockedBackend()
-    append.commit()
-    await append.committed
-
-    await expect(assessment).resolves.toMatchObject({ heldCount: 0 })
   })
 })

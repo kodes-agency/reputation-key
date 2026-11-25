@@ -100,8 +100,7 @@ The current notice wording follows these code paths:
   (`src/contexts/integration/imports/ui/google-import-candidate-list.tsx`). It is excepted from AI-result cleanup.
 - Reporting can retain legacy per-review star values awaiting removal
   (`src/shared/db/schema/metric.schema.ts`). Operational Action History has no
-  active deletion rule (`src/contexts/feed/audit/operational-action-history-lifecycle.server.ts`,
-  `report_only_pending_counsel`).
+  active deletion rule (`report_only_pending_counsel`; the unused assessment code was removed).
 
 ## 4. Capability authority
 
