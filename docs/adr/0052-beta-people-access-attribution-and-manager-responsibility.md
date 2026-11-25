@@ -114,7 +114,7 @@ offboarding does. `StaffUserLink` remains optional and deferred.
 
 [ADR 0076](0076-staff-accounts-and-personal-portals.md) amends this decision.
 
-StaffUserLink is live as a foundation behind `staff.accounts`, which remains off. It connects the session to the person's own code and narrow numeric results, and grants no Property access, manager command authority, Inbox assignment or notification responsibility. Each personal participation owns a personal Portal. Ordinary responsibility replacement, Supporting assignment and participation Archive cannot change or end that ownership. Remove denies access first, ends attribution and participation, archives the Portal, and ends the link at the person's last active Property. Only a staff-only Member login loses its membership and sessions; a manager's membership survives. Invitation acceptance commits membership and link together without a PropertyAccessGrant.
+StaffUserLink is live as a foundation behind `staff.accounts`, which remains off. It connects the session to the person's own code and narrow numeric results, and grants no Property access, manager command authority, Inbox assignment or notification responsibility. Each personal participation owns a personal Portal. Nothing replaces responsibilities or archives a participation outside Remove: the older participation commands were removed as unused. Remove denies access first, ends attribution and participation, archives the Portal, and ends the link at the person's last active Property. Only a staff-only Member login loses its membership and sessions; a manager's membership survives. Invitation acceptance commits membership and link together without a PropertyAccessGrant.
 
 ## Amendment 2026-11-03 — staff always have a login invitation
 

@@ -148,7 +148,7 @@ async function serve(id: PortalId) {
   }
   const outcome = await resolvePublicPortalToken(deps)('pt_look_secret')
   if (outcome.status !== 'found') throw new Error('expected a served Portal')
-  return outcome.data
+  return outcome.result
 }
 
 /** Reception follows the Property; Spa, a second Portal of it, has a look of its own. */

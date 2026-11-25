@@ -38,7 +38,7 @@ import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-event
 import { updateInboxStatus } from '#/contexts/reputation/inbox/update-inbox-status.server'
 import { bulkUpdateInboxStatus } from '#/contexts/reputation/inbox/bulk-update-inbox-status.server'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
 import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
@@ -101,7 +101,7 @@ const reviewSourceLookup = createReviewSourceLookupAdapter({
 })
 // A reopen that reaches Review's authority has already read the source, so
 // every case below must be answered before it. Reaching it is a failure.
-const unreachableAuthority: ReviewResponseTargetAuthorityPort = {
+const unreachableAuthority: ReviewResponseTargetAuthority = {
   withExactCurrent: async () => {
     throw new Error('the Response Target authority must not be reached')
   },

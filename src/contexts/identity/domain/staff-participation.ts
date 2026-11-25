@@ -6,9 +6,7 @@
 // projection of an optional current StaffUserLink.
 //
 // Per ADR 0052: removing property access does not erase participation
-// or history. Archiving is written by
-// staff/staff-participation-repository.server.ts, which ends the
-// participation's open Portal responsibility intervals in the same transaction.
+// or history.
 
 export type ParticipationStatus = 'active' | 'inactive' | 'archived'
 
@@ -27,31 +25,4 @@ export interface StaffParticipation {
   readonly revision: number
   readonly createdBy: string
   readonly updatedAt: Date
-}
-
-export function createParticipation(params: {
-  id: string
-  organizationId: string
-  propertyId: string
-  staffParticipantId: string
-  displayName: string
-  createdBy: string
-  now: Date
-}): StaffParticipation {
-  return {
-    id: params.id,
-    organizationId: params.organizationId,
-    propertyId: params.propertyId,
-    staffParticipantId: params.staffParticipantId,
-    linkedUserId: null,
-    personalPortalId: null,
-    displayName: params.displayName,
-    status: 'active',
-    startedAt: params.now,
-    endedAt: null,
-    archiveReason: null,
-    revision: 1,
-    createdBy: params.createdBy,
-    updatedAt: params.now,
-  }
 }

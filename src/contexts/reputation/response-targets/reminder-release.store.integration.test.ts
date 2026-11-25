@@ -469,9 +469,7 @@ describe.sequential('Pre-check tick over the real store (PostgreSQL)', () => {
       check?: () => Promise<
         Awaited<
           ReturnType<
-            Parameters<
-              typeof releaseDueResponseTargetReminders
-            >[0]['googleReviewCheck']['check']
+            Parameters<typeof releaseDueResponseTargetReminders>[0]['googleReviewCheck']
           >
         >
       >
@@ -482,7 +480,7 @@ describe.sequential('Pre-check tick over the real store (PostgreSQL)', () => {
       replyLookup: {
         getGoogleReplyHeadsByReviewIds: async () => input.heads?.() ?? new Map(),
       },
-      googleReviewCheck: { check: input.check ?? (async () => ({ status: 'read' })) },
+      googleReviewCheck: input.check ?? (async () => ({ status: 'read' })),
       clock: input.now,
       logger: { warn: vi.fn() },
     })()

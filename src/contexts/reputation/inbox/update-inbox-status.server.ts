@@ -4,7 +4,7 @@
 // closes private feedback.
 // Escalation is a separate, orthogonal action.
 
-import { lentTransactionArgs } from '#/contexts/reputation/inbox/review-open-transaction.port.server'
+import { borrowReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
 import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import type {
   InboxCommandStore,
@@ -19,7 +19,7 @@ import type {
 } from '#/contexts/reputation/domain/inbox-types'
 import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { validateTransition } from '#/contexts/reputation/domain/inbox-rules'
@@ -47,7 +47,7 @@ export type UpdateInboxStatusDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   cycleStore: ReviewHandlingCycleStore
   reviewSourceLookup: ReviewSourceLookupPort
-  responseTargetAuthority: ReviewResponseTargetAuthorityPort
+  responseTargetAuthority: ReviewResponseTargetAuthority
 }>
 
 /**
@@ -88,7 +88,7 @@ async function reopenUnderResponseTargetAuthority(
             targetStart: { basis: 'operational_reopen', at: now },
           },
         },
-        ...lentTransactionArgs(reviewTx),
+        borrowReviewTransaction(reviewTx),
       )
     },
   )

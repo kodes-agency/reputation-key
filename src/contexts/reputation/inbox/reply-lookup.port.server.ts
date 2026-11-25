@@ -88,7 +88,7 @@ export type GoogleObservedReplyView = Readonly<{
 /**
  * The Google reply observation Review's head selects for a review, without
  * its text: the identity Review's exact-current observation authority checks
- * (`ReplyObservationExpectation`) and what Google shows. Projection repair
+ * (`ReviewReplyObservationExpectation`) and what Google shows. Projection repair
  * reads it; a reply written on Google exists only as this head.
  */
 // fallow-ignore-next-line code-duplication

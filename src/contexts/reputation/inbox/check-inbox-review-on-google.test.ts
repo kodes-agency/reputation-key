@@ -15,10 +15,7 @@ import {
 import type { InboxItem } from '../domain/inbox-types'
 import { isInboxError } from '../domain/inbox-errors'
 import type { InboxRepository } from './inbox-repository.port.server'
-import type {
-  GoogleReviewCheckOutcome,
-  GoogleReviewCheckPort,
-} from './google-review-check.port.server'
+import type { CheckReviewOnGoogleResult } from '#/contexts/reputation/sync/check-review-on-google.server'
 import type {
   GoogleCheckRateLimitDecision,
   GoogleCheckRateLimitPort,
@@ -97,7 +94,7 @@ const MANAGER = ctxWith('inbox.read', 'review.read')
 type Options = Readonly<{
   item?: InboxItem | null
   accessible?: ReadonlyArray<string> | null
-  check?: GoogleReviewCheckOutcome | Error
+  check?: CheckReviewOnGoogleResult | Error
   heads?: ReadonlyMap<string, GoogleReplyHead> | Error
   limits?: (key: string) => GoogleCheckRateLimitDecision
 }>
@@ -120,12 +117,11 @@ function setup(options: Options = {}) {
         : options.accessible.map(propertyId),
     getAssignedPortals: async () => [],
   }
-  const check = vi.fn(async (): Promise<GoogleReviewCheckOutcome> => {
+  const check = vi.fn(async (): Promise<CheckReviewOnGoogleResult> => {
     const outcome = options.check ?? { status: 'read' }
     if (outcome instanceof Error) throw outcome
     return outcome
   })
-  const googleReviewCheck: GoogleReviewCheckPort = { check }
   const getHeads = vi.fn(async () => {
     const heads = options.heads ?? new Map<string, GoogleReplyHead>()
     if (heads instanceof Error) throw heads
@@ -151,7 +147,7 @@ function setup(options: Options = {}) {
   const useCase = checkInboxReviewOnGoogle({
     repo,
     staffPublicApi,
-    googleReviewCheck,
+    googleReviewCheck: check,
     replyLookup,
     rateLimit,
     logger,

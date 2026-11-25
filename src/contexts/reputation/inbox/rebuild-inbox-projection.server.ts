@@ -34,7 +34,7 @@
 // deletes items. Feedback-sourced items are OUT of scope: the guest context
 // is dark for beta (BQC-2.6), so its canonical data is not a rebuild source.
 
-import { lentTransactionArgs } from '#/contexts/reputation/inbox/review-open-transaction.port.server'
+import { borrowReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
 import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import type {
@@ -47,9 +47,9 @@ import type {
   ReplyMilestones,
 } from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type {
-  ReplyObservationAuthorityPort,
-  ReplyObservationExpectation,
-} from '#/contexts/reputation/inbox/review-reply-observation-authority.port.server'
+  ReviewReplyObservationAuthority,
+  ReviewReplyObservationExpectation,
+} from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   InboxItemId,
@@ -93,7 +93,7 @@ export type RebuildInboxProjectionDeps = Readonly<{
   commandStore: InboxCommandStore
   reviewSourceLookup: ReviewSourceLookupPort
   replyLookup: ReplyLookupPort
-  replyObservationAuthority: ReplyObservationAuthorityPort
+  replyObservationAuthority: ReviewReplyObservationAuthority
   idGen: () => InboxItemId
   clock: () => Date
   logger: LoggerPort
@@ -247,7 +247,7 @@ function answeringReplyExpectation(
   organizationId: OrganizationId,
   src: ReviewSourceMeta,
   head: GoogleReplyHead | undefined,
-): ReplyObservationExpectation | null {
+): ReviewReplyObservationExpectation | null {
   if (
     head === undefined ||
     !isAnsweringGoogleReply(head) ||
@@ -281,7 +281,7 @@ async function createAnsweredOnGoogle(
   deps: RebuildInboxProjectionDeps,
   item: InboxItem,
   anchor: Readonly<{ materialReviewRevision: number }>,
-  expectation: ReplyObservationExpectation,
+  expectation: ReviewReplyObservationExpectation,
 ): Promise<Readonly<{ created: boolean }> | null> {
   const result = await deps.replyObservationAuthority.withExactCurrent(
     expectation,
@@ -290,7 +290,7 @@ async function createAnsweredOnGoogle(
         item,
         anchor,
         permit,
-        ...lentTransactionArgs(reviewTx),
+        borrowReviewTransaction(reviewTx),
       ),
   )
   if (result.status === 'current') return result.value

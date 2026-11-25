@@ -5,11 +5,8 @@
 // (ADR 0052). A Portal has one active primary plus any supporting
 // responsibilities; reassignment changes future attribution only.
 //
-// These rules are enforced where responsibilities are written:
-// replaceResponsibilities in
-// staff/staff-participation-repository.server.ts ends and
-// starts intervals and refuses a primary Portal another participation holds,
-// backed by pr_unique_active_primary, pr_no_overlapping_primary_intervals and
+// The database enforces one primary per Portal at a time:
+// pr_unique_active_primary, pr_no_overlapping_primary_intervals and
 // pr_no_overlapping_responsibility_intervals.
 
 export type ResponsibilityKind = 'primary' | 'supporting'

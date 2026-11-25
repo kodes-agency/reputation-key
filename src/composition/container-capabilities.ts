@@ -128,7 +128,6 @@ export function buildContainerCapabilities({
     integrationPublicApi: integration.publicApi,
     integrationWorkerRuntime: integration.worker,
     integrationMaintenanceRuntime: integration.maintenance,
-    integrationLifecycleRuntime: integration.lifecycle,
     integrationWebhookRuntime: integration.webhook,
     propertyPublicApi: property.publicApi,
     reviewPublicApi: review.publicApi,

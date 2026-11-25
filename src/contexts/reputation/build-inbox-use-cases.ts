@@ -8,7 +8,7 @@ import type { ReviewHandlingCycleStore } from './inbox/review-handling-cycle-sto
 import type { FeedbackHandlingStore } from './inbox/feedback-handling-store.port.server'
 import type { ResponseTargetStore } from './response-targets/store.port.server'
 import type { ResponseTargetPolicyStore } from './response-targets/policy.store.port.server'
-import type { ReviewResponseTargetAuthorityPort } from './inbox/review-response-target-authority.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import type { ReviewSourceLookupPort } from './inbox/review-source-lookup.port.server'
 import type { ReplyLookupPort } from './inbox/reply-lookup.port.server'
 import type { AiReviewInsightsPort } from './inbox/ai-review-insights.port.server'
@@ -47,8 +47,8 @@ import { releaseDueResponseTargetReminders } from './response-targets/release-re
 import { checkInboxReviewOnGoogle } from './inbox/check-inbox-review-on-google.server'
 import type { InboxActorDirectory } from './inbox/inbox-actor-directory.port.server'
 import type { InboxHistoryRepository } from './inbox/inbox-history-repository.port.server'
-import type { ReplyObservationAuthorityPort } from './inbox/review-reply-observation-authority.port.server'
-import type { GoogleReviewCheckPort } from './inbox/google-review-check.port.server'
+import type { ReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
+import type { CheckReviewOnGoogle } from './sync/check-review-on-google.server'
 import type { GoogleCheckRateLimitPort } from './inbox/google-check-rate-limit.port.server'
 import { inboxItemId, inboxNoteId } from '#/shared/domain/ids'
 
@@ -62,11 +62,11 @@ type WireInput = Readonly<{
   feedbackHandlingStore: FeedbackHandlingStore
   responseTargetStore: ResponseTargetStore
   responseTargetPolicyStore: ResponseTargetPolicyStore
-  responseTargetAuthority: ReviewResponseTargetAuthorityPort
+  responseTargetAuthority: ReviewResponseTargetAuthority
   reviewSourceLookup: ReviewSourceLookupPort
   replyLookup: ReplyLookupPort
-  replyObservationAuthority: ReplyObservationAuthorityPort
-  googleReviewCheck: GoogleReviewCheckPort
+  replyObservationAuthority: ReviewReplyObservationAuthority
+  googleReviewCheck: CheckReviewOnGoogle
   googleCheckRateLimit: GoogleCheckRateLimitPort
   aiInsights?: AiReviewInsightsPort
   propertyLookup?: PropertyLookupPort

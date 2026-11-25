@@ -93,7 +93,7 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
       })
     })
 
-    it('keeps the produced Property on an imported item until its own deletion sweep', async () => {
+    it('keeps the produced Property on an imported item until a scrub clears it', async () => {
       await resetIntent()
       await recordReceipt()
 
@@ -131,30 +131,10 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
         { kind: 'user' as const, organizationId: ORG_ID, userId: USER_ID },
       ]) {
         await expect(suite.store.listLifecycleScopeItems(scope, 100)).resolves.toEqual([])
-        await expect(suite.store.countLifecycleScopeItems(scope, 100)).resolves.toBe(0)
       }
 
-      // Deleting the Property must still find and clear the reference.
-      const propertyScope = {
-        kind: 'property' as const,
-        organizationId: ORG_ID,
-        propertyId: PROPERTY_ID,
-      }
-      await expect(
-        suite.store.listLifecycleScopeItems(propertyScope, 100),
-      ).resolves.toEqual([
-        {
-          organizationId: ORG_ID,
-          importJobId: REQUEST_ID,
-          itemId: ITEM_ID,
-          retryRevision: 0,
-          active: false,
-        },
-      ])
+      // A scrub still clears the reference.
       await expect(scrub()).resolves.toBe(1)
-      await expect(
-        suite.store.listLifecycleScopeItems(propertyScope, 100),
-      ).resolves.toEqual([])
       const afterSweep = await suite.store.getProgress(ORG_ID, USER_ID, REQUEST_ID)
       expect(afterSweep?.items[0]).toMatchObject({ status: 'imported', propertyId: null })
     })
@@ -297,7 +277,6 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
         propertyBindingApi: {
           sweepReleasedExpired: async () => 0,
           countUnreleasedExpired: async () => 0,
-          cleanupOrganization: async () => 0,
         },
         clock: deadline,
         newEventId: () => randomUUID(),

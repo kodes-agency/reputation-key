@@ -4,7 +4,7 @@
 // Each candidate is checked against its owning source permission; escalation
 // remains orthogonal and is handled separately.
 
-import { lentTransactionArgs } from '#/contexts/reputation/inbox/review-open-transaction.port.server'
+import { borrowReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
 import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import { reviewId, type InboxItemId } from '#/shared/domain/ids'
@@ -30,7 +30,7 @@ import {
 import type { InboxSourceScope } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/reputation/inbox/review-response-target-authority.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 
 export type BulkReopenItemInput = Readonly<{
   inboxItemId: InboxItemId
@@ -69,7 +69,7 @@ export type BulkUpdateInboxStatusDeps = Readonly<{
   idGen: () => string
   staffPublicApi: StaffPublicApi
   reviewSourceLookup: ReviewSourceLookupPort
-  responseTargetAuthority: ReviewResponseTargetAuthorityPort
+  responseTargetAuthority: ReviewResponseTargetAuthority
   logger: LoggerPort
 }>
 
@@ -279,7 +279,7 @@ export const bulkUpdateInboxStatus =
             events,
             governance,
             byItemId,
-            ...lentTransactionArgs(reviewTx),
+            borrowReviewTransaction(reviewTx),
           )
         },
       )

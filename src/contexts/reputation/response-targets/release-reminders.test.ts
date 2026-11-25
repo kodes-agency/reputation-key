@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inboxItemId, organizationId, propertyId } from '#/shared/domain/ids'
-import type { GoogleReviewCheckOutcome } from '#/contexts/reputation/inbox/google-review-check.port.server'
+import type { CheckReviewOnGoogleResult } from '#/contexts/reputation/sync/check-review-on-google.server'
 import type { GoogleReplyHead } from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type {
   DueReminderCandidate,
@@ -67,7 +67,7 @@ function setup(
     now?: Date
     heads?: ReadonlyArray<GoogleReplyHead>
     /** Per review number: what the Google read does. Default: read ok. */
-    check?: (n: number, harness: Harness) => Promise<GoogleReviewCheckOutcome>
+    check?: (n: number, harness: Harness) => Promise<CheckReviewOnGoogleResult>
     release?: (key: DueReminderCandidate['key']) => Promise<ReminderSlotReleaseResult>
     /** How far one Google read moves the clock. */
     readTakesMs?: number
@@ -102,7 +102,7 @@ function setup(
     logger: { warn },
     targetStore: { listDueReminderCandidates, releaseReminderSlot },
     replyLookup: { getGoogleReplyHeadsByReviewIds },
-    googleReviewCheck: { check },
+    googleReviewCheck: check,
     clock: () => current,
   })
   const harness = {
@@ -281,7 +281,7 @@ describe('releaseDueResponseTargetReminders', () => {
   })
 
   describe('failures and the fifteen minute cap', () => {
-    const failing = (outcome: GoogleReviewCheckOutcome) => async () => outcome
+    const failing = (outcome: CheckReviewOnGoogleResult) => async () => outcome
 
     it('leaves a slot pending, writing nothing, while a transient failure is within 15 minutes of scheduled_for', async () => {
       const h = setup({

@@ -4,7 +4,6 @@
 
 import type { OrganizationId, PortalId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffParticipation } from '../domain/staff-participation'
 
 export type StaffPublicApi = Readonly<{
   /**
@@ -20,14 +19,6 @@ export type StaffPublicApi = Readonly<{
     input: { userId: UserId; propertyId: PropertyId },
     ctx: AuthContext,
   ) => Promise<ReadonlyArray<PortalId>>
-  findParticipationById?: (
-    organizationId: OrganizationId,
-    staffParticipationId: string,
-  ) => Promise<StaffParticipation | null>
-  listActiveParticipations?: (
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-  ) => Promise<readonly StaffParticipation[]>
 }>
 
 export type { StaffParticipation } from '../domain/staff-participation'

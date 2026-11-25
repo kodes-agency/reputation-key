@@ -104,12 +104,6 @@ import {
   resendOrganizationAdminInvitation,
   type ResendOrganizationAdminInvitation,
 } from './operator/resend-organization-admin-invitation.server'
-import {
-  archiveStaffParticipation,
-  createStaffParticipation,
-  listStaffParticipations,
-  updatePortalResponsibilities,
-} from './staff/staff-participations.server'
 import { submitBetaFeedback } from './feedback/submit-beta-feedback.server'
 import { updateMemberRole } from './members/update-member-role.server'
 import { updateOrganization } from './organization/update-organization.server'
@@ -477,17 +471,10 @@ function buildMerchantAi(
   }
 }
 
-function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'idGen'>) {
+function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock'>) {
   const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
   const participationRepo = createStaffParticipationRepository(deps.db)
   const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
-  const participation = {
-    repo: participationRepo,
-    accessibleProperties: accessiblePropertyLookup,
-    clock: deps.clock,
-    idGen: deps.idGen,
-  } as const
-
   const listAssignedPortalIds = createAssignedPortalLookup(participationRepo)
 
   return Object.freeze({
@@ -506,16 +493,6 @@ function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'id
       ctx: AuthContext,
     ) => listAssignedPortalIds(ctx.organizationId, input.userId, input.propertyId),
     resolvePrimaryStaffAttribution,
-    findParticipationById: (organizationId: OrganizationId, participationId: string) =>
-      participationRepo.findById(organizationId, participationId),
-    listActiveParticipations: (organizationId: OrganizationId, propertyId: PropertyId) =>
-      participationRepo.list(organizationId, { propertyId, activeOnly: true }),
-    management: Object.freeze({
-      createStaffParticipation: createStaffParticipation(participation),
-      listStaffParticipations: listStaffParticipations(participation),
-      archiveStaffParticipation: archiveStaffParticipation(participation),
-      updatePortalResponsibilities: updatePortalResponsibilities(participation),
-    }),
   })
 }
 

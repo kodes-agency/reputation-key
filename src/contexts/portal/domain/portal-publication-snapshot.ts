@@ -244,8 +244,6 @@ export function languagePackGenerationOf(schemaVersion: number): 1 | 2 {
   return schemaVersion >= IMMERSIVE_HUB_SCHEMA_VERSION ? 2 : 1
 }
 
-export type GuestSurface = 'legacy' | 'immersive'
-
 export type PortalPublicationSnapshot = Readonly<{
   id: string
   organizationId: string

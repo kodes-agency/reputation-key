@@ -24,7 +24,6 @@ import {
 import {
   initialGuestResponseIntegrityDecision,
   isRatingMetricEligible,
-  ratingMetricOccurredAt,
 } from '../domain/guest-response-integrity'
 import { primaryStaffAttributionEquals } from '#/shared/domain/primary-staff-attribution'
 import type { Clock } from '#/shared/domain/clock'
@@ -66,49 +65,6 @@ function sessionBindingExists(
 
 function privateFeedbackExpiry(submittedAt: Date): Date {
   return new Date(submittedAt.getTime() + PRIVATE_FEEDBACK_RETENTION_MS)
-}
-
-function integrityFactsMatch(
-  previous: Parameters<GuestResponseCommandStore['commitIntegrityChanged']>[0],
-  response: Parameters<GuestResponseCommandStore['commitIntegrityChanged']>[1],
-  facts: Parameters<GuestResponseCommandStore['commitIntegrityChanged']>[3],
-): boolean {
-  if (
-    facts.some(
-      (fact) =>
-        fact._tag !== 'guest.rating.submitted' && fact._tag !== 'guest.rating.retracted',
-    )
-  ) {
-    return false
-  }
-  const wasEligible = isRatingMetricEligible(previous)
-  const isEligible = isRatingMetricEligible(response)
-  if (wasEligible === isEligible) return facts.length === 0
-  if (facts.length !== 1) return false
-  const fact = facts[0]!
-  if (fact._tag !== 'guest.rating.submitted' && fact._tag !== 'guest.rating.retracted') {
-    return false
-  }
-  const commonMatches =
-    fact.ratingId === ratingId(response.id) &&
-    fact.organizationId === response.organizationId &&
-    fact.propertyId === response.propertyId &&
-    fact.portalId === response.portalId
-  if (!commonMatches) return false
-  if (wasEligible) {
-    return (
-      fact._tag === 'guest.rating.retracted' &&
-      previous.ratingSourceEventId !== null &&
-      fact.supersedesSourceEventId === previous.ratingSourceEventId &&
-      fact.occurredAt.getTime() === response.integrityAssessedAt.getTime()
-    )
-  }
-  return (
-    fact._tag === 'guest.rating.submitted' &&
-    fact.value === response.rating &&
-    (fact.supersedesSourceEventId ?? null) === previous.ratingSourceEventId &&
-    fact.occurredAt.getTime() === ratingMetricOccurredAt(response).getTime()
-  )
 }
 
 function initialIntegrityFactsMatch(
@@ -408,80 +364,6 @@ export const createAtomicGuestResponseCommandStore = (
             )
             .returning({ id: guestResponses.id })
           if (!updated[0]) return 'conflict' as const
-          for (const fact of facts) await insertOutboxRow(tx, fact)
-          return 'applied' as const
-        })
-        return outcome
-      }),
-
-    commitIntegrityChanged: (previous, response, decision, facts) =>
-      trace('guest.commandStore.commitIntegrityChanged', async () => {
-        if (
-          decision.responseId !== response.id ||
-          decision.organizationId !== response.organizationId ||
-          decision.propertyId !== response.propertyId ||
-          decision.portalId !== response.portalId ||
-          decision.revision !== response.integrityRevision ||
-          decision.outcome !== response.integrityOutcome ||
-          decision.reasonCode !== response.integrityReasonCode ||
-          decision.decidedAt.getTime() !== response.integrityAssessedAt.getTime() ||
-          decision.previousOutcome !== previous.integrityOutcome ||
-          response.integrityRevision !== previous.integrityRevision + 1 ||
-          response.organizationId !== previous.organizationId ||
-          response.propertyId !== previous.propertyId ||
-          response.portalId !== previous.portalId ||
-          response.id !== previous.id ||
-          !primaryStaffAttributionEquals(
-            previous.staffAttribution,
-            response.staffAttribution,
-          ) ||
-          !factsMatchStaffAttribution(response, facts) ||
-          !integrityFactsMatch(previous, response, facts)
-        ) {
-          throw new Error('Guest response integrity decision does not match aggregate')
-        }
-        const sourceLineage = lineage(response, facts)
-        const outcome = await db.transaction(async (tx) => {
-          const updated = await tx
-            .update(guestResponses)
-            .set({
-              integrityOutcome: response.integrityOutcome,
-              integrityReasonCode: response.integrityReasonCode,
-              integrityRevision: response.integrityRevision,
-              integrityAssessedAt: response.integrityAssessedAt,
-              ratingSourceEventId: sourceLineage.ratingSourceEventId,
-              updatedAt: response.integrityAssessedAt,
-            })
-            .where(
-              and(
-                eq(guestResponses.organizationId, previous.organizationId),
-                eq(guestResponses.propertyId, previous.propertyId),
-                eq(guestResponses.portalId, previous.portalId),
-                eq(guestResponses.id, previous.id),
-                eq(guestResponses.integrityOutcome, previous.integrityOutcome),
-                eq(guestResponses.integrityRevision, previous.integrityRevision),
-                previous.ratingSourceEventId
-                  ? eq(guestResponses.ratingSourceEventId, previous.ratingSourceEventId)
-                  : isNull(guestResponses.ratingSourceEventId),
-                isNull(guestResponses.deletedAt),
-              ),
-            )
-            .returning({ id: guestResponses.id })
-          if (!updated[0]) return 'conflict' as const
-          await tx.insert(guestResponseIntegrityDecisions).values({
-            responseId: decision.responseId,
-            organizationId: decision.organizationId,
-            propertyId: decision.propertyId,
-            portalId: decision.portalId,
-            revision: decision.revision,
-            previousOutcome: decision.previousOutcome,
-            outcome: decision.outcome,
-            reasonCode: decision.reasonCode,
-            source: decision.source,
-            actorId: decision.actorId,
-            decidedAt: decision.decidedAt,
-            createdAt: decision.decidedAt,
-          })
           for (const fact of facts) await insertOutboxRow(tx, fact)
           return 'applied' as const
         })

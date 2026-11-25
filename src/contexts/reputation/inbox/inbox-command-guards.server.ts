@@ -31,12 +31,12 @@ import type { Permission } from '#/shared/domain/permissions'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type { PersistedHead } from './inbox-cycle-head.server'
 import type { ApplyReviewProjectionCommand } from './command-store.port.server'
-import type { CurrentReplyObservationPermit } from './review-reply-observation-authority.port.server'
+import type { ReviewCurrentReplyObservationPermit } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
+import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.server'
 import type {
-  CurrentReviewInboxProjectionPermit,
-  ReviewCycleTargetAnchor,
+  ReviewCurrentInboxProjectionPermit,
   ReviewInboxProjectionRevisionPermit,
-} from './review-response-target-authority.port.server'
+} from '#/contexts/reputation/reviews/response-target-authority.port.server'
 
 export const sourceCommandPermission = (
   sourceType: InboxItem['sourceType'],
@@ -144,7 +144,7 @@ export const projectionTargetAnchor = (
 /** Review's current-projection permit must describe exactly the item being written. */
 function matchesReviewProjectionAuthority(
   item: InboxItem,
-  projection: CurrentReviewInboxProjectionPermit,
+  projection: ReviewCurrentInboxProjectionPermit,
 ): boolean {
   return (
     projection.authority === 'review.current-inbox-projection.v1' &&
@@ -191,7 +191,7 @@ function isContentFreeUnhandledReviewItem(item: InboxItem): boolean {
 
 /** An erasure instant is present exactly when the source content is no longer active. */
 function hasConsistentProjectionSourceState(
-  projection: CurrentReviewInboxProjectionPermit,
+  projection: ReviewCurrentInboxProjectionPermit,
 ): boolean {
   const active = projection.sourceContentState === 'active'
   const erasedAt = projection.sourceContentErasedAt
@@ -212,7 +212,7 @@ function hasConsistentProjectionSourceState(
 function isValidProjectionRevision(
   revision: ReviewInboxProjectionRevisionPermit,
   item: InboxItem,
-  projection: CurrentReviewInboxProjectionPermit,
+  projection: ReviewCurrentInboxProjectionPermit,
   index: number,
   previous: ReviewInboxProjectionRevisionPermit | undefined,
 ): boolean {
@@ -291,7 +291,7 @@ export function assertReviewProjectionCommand(
 
 /** Review's observation permit must have been issued for this exact Inbox item. */
 export function assertObservationMatchesItem(
-  observation: CurrentReplyObservationPermit,
+  observation: ReviewCurrentReplyObservationPermit,
   item: InboxItem,
 ): void {
   if (

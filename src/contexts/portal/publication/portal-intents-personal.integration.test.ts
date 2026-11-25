@@ -97,7 +97,7 @@ async function expectPersonalPortalNameStaysPrivate(
   const resolved = await resolve('pt_key_secret')
   expect(resolved.status).toBe('found')
   if (resolved.status !== 'found') throw new Error('The personal Portal must resolve')
-  const loader = toPublicPortalLoaderData(resolved.data, {
+  const loader = toPublicPortalLoaderData(resolved.result, {
     servedAt: snapshot.createdAt.toISOString(),
     guestSession: { csrfNonce: 'nonce' },
     response: null,
@@ -130,7 +130,7 @@ async function expectPersonalPortalNameStaysPrivate(
   }
   expect(portal.name).toBe('Polly Smith')
   expect(portal.slug).toMatch(/^portal-[a-f0-9]+$/)
-  for (const output of [snapshot, loader, resolved.data.portal.slug, metadata])
+  for (const output of [snapshot, loader, resolved.result.portal.slug, metadata])
     expect(JSON.stringify(output)).not.toMatch(/polly|smith/i)
 }
 

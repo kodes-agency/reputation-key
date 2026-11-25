@@ -24,7 +24,7 @@ import {
   assertReviewResponseTargetAuthorityMatchesCycle,
   insertResponseTargetForHandlingCycle,
 } from '../response-targets/store.server'
-import type { ReviewCycleTargetAnchor } from './review-response-target-authority.port.server'
+import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.server'
 import { handlingCycleHeadFromRow } from './inbox-command-guards.server'
 import { cycleHeadItemColumns, persistedHeadFromItemRow } from './inbox-cycle-head.server'
 

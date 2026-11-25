@@ -40,7 +40,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
           findCurrentGoogleReplyHeadsByReviewIds:
             replies.findCurrentGoogleReplyHeadsByReviewIds,
         } as unknown as Parameters<typeof createReplyLookupAdapter>[0]),
-        googleReviewCheck: { check },
+        googleReviewCheck: check,
         clock: () => now,
         logger,
       })()

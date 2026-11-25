@@ -47,3 +47,15 @@ The codebase has multiple bounded contexts (identity, staff, property, portal, t
 ### Risks
 
 - If developers bypass ports and write direct cross-context queries, the boundary degrades. Mitigate with lint rules or architectural tests that forbid cross-context internal imports.
+
+## Amended 2026-11-25 — the no-shared-types rule stops at the context boundary
+
+Rules 1 and 3 keep bounded contexts from importing each other's types. They do
+not apply inside one context. Review and Inbox now live in the single
+`reputation` context (`reviews/` and `inbox/`), so Inbox imports Review's
+exact-current authority ports, their expectation and permit types, the opaque
+`ReviewOpenTransaction` handle and `CheckReviewOnGoogleResult` directly, and the
+hand-mirrored copies in `inbox/` are gone. One declaration means a change to a
+permit reaches every caller at compile time instead of drifting in a copy. A
+type only Inbox needs, such as `ReviewCycleTargetAnchor`, stays in `inbox/`.
+Between `reputation` and any other context the rules above are unchanged.

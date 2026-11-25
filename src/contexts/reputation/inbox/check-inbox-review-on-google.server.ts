@@ -29,7 +29,10 @@ import type {
   GoogleCheckRateLimit,
   GoogleCheckRateLimitPort,
 } from './google-check-rate-limit.port.server'
-import type { GoogleReviewCheckPort } from './google-review-check.port.server'
+import type {
+  CheckReviewOnGoogle,
+  CheckReviewOnGoogleInput,
+} from '#/contexts/reputation/sync/check-review-on-google.server'
 import type { InboxRepository } from './inbox-repository.port.server'
 import type { ReplyLookupPort } from './reply-lookup.port.server'
 
@@ -71,7 +74,7 @@ export type CheckInboxReviewOnGoogleResult = Readonly<{
 export type CheckInboxReviewOnGoogleDeps = Readonly<{
   repo: Pick<InboxRepository, 'findBySource'>
   staffPublicApi: StaffPublicApi
-  googleReviewCheck: GoogleReviewCheckPort
+  googleReviewCheck: CheckReviewOnGoogle
   replyLookup: Pick<ReplyLookupPort, 'getGoogleReplyHeadsByReviewIds'>
   rateLimit: GoogleCheckRateLimitPort
   logger: Pick<LoggerPort, 'info'>
@@ -168,13 +171,13 @@ const spendBudget = async (
 /** Read Google once, then ask Review whether the head it now holds answers the review. */
 const readGoogle = async (
   deps: CheckInboxReviewOnGoogleDeps,
-  request: Parameters<GoogleReviewCheckPort['check']>[0],
+  request: CheckReviewOnGoogleInput,
 ): Promise<Logged> => {
   let read
   try {
-    read = await deps.googleReviewCheck.check(request)
+    read = await deps.googleReviewCheck(request)
   } catch {
-    // The port promises not to throw; a thrown one is a failed read.
+    // The capability promises not to throw; a thrown one is a failed read.
     return { outcome: 'unavailable', reason: 'check_threw' }
   }
   switch (read.status) {
@@ -195,7 +198,7 @@ const readGoogle = async (
 
 const answerFromHead = async (
   deps: CheckInboxReviewOnGoogleDeps,
-  request: Parameters<GoogleReviewCheckPort['check']>[0],
+  request: CheckReviewOnGoogleInput,
 ): Promise<Logged> => {
   try {
     const heads = await deps.replyLookup.getGoogleReplyHeadsByReviewIds(

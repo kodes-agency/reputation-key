@@ -112,10 +112,8 @@ function createTimeTraveller() {
   const releaseDue = releaseDueResponseTargetReminders({
     targetStore: createResponseTargetStore(db),
     replyLookup: { getGoogleReplyHeadsByReviewIds: async () => new Map() },
-    googleReviewCheck: {
-      check: async () => {
-        throw new Error('private feedback reminders must not read Google')
-      },
+    googleReviewCheck: async () => {
+      throw new Error('private feedback reminders must not read Google')
     },
     clock: () => current,
     logger: createMockLogger(),
