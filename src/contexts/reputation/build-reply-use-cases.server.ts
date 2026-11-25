@@ -63,14 +63,14 @@ export function wireReplyUseCases(
     staffPublicApi: input.deps.staffPublicApi,
   }
 
-  return {
-    draftReply: draftReplyUseCase,
-    submitReply: submitReply(input.deps),
-    approveReply: approveReply(input.deps),
-    rejectReply: rejectReply(input.deps),
-    deleteReply: deleteReply(input.deps),
+  return Object.freeze({
+    draft: draftReplyUseCase,
+    submit: submitReply(input.deps),
+    approve: approveReply(input.deps),
+    reject: rejectReply(input.deps),
+    delete: deleteReply(input.deps),
     retryPublish: retryPublish(input.deps),
-    checkReplyPublication: checkReplyPublication({
+    checkPublication: checkReplyPublication({
       replyRepo: input.deps.replyRepo,
       reviewRepo: input.deps.reviewRepo,
       staffPublicApi: input.deps.staffPublicApi,
@@ -80,35 +80,14 @@ export function wireReplyUseCases(
       clock: input.deps.clock,
       logger: input.logger,
     }),
-    editPublishedReply: editPublishedReply(input.deps),
-    listReplyTemplates: listReplyTemplates(layeredReplyTemplateDeps),
-    loadReplyTemplate: loadReplyTemplate(layeredReplyTemplateDeps),
-    checkReplyDraft: checkReplyDraft(layeredReplyTemplateDeps),
-    getReplyLibrary: getReplyLibrary(replyLibraryDeps),
-    saveReplyVoice: saveReplyVoice(replyLibraryDeps),
-    saveReplyTemplate: saveReplyTemplate(replyLibraryDeps),
-    setReplyTemplateHidden: setReplyTemplateHidden(replyLibraryDeps),
-    resetReplyTemplate: resetReplyTemplate(replyLibraryDeps),
-  } as const
-}
-
-export function projectReviewReplyApi(useCases: ReturnType<typeof wireReplyUseCases>) {
-  return Object.freeze({
-    draft: useCases.draftReply,
-    submit: useCases.submitReply,
-    approve: useCases.approveReply,
-    editPublished: useCases.editPublishedReply,
-    reject: useCases.rejectReply,
-    delete: useCases.deleteReply,
-    retryPublish: useCases.retryPublish,
-    checkPublication: useCases.checkReplyPublication,
-    listTemplates: useCases.listReplyTemplates,
-    loadTemplate: useCases.loadReplyTemplate,
-    checkDraft: useCases.checkReplyDraft,
-    getLibrary: useCases.getReplyLibrary,
-    saveVoice: useCases.saveReplyVoice,
-    saveTemplate: useCases.saveReplyTemplate,
-    setTemplateHidden: useCases.setReplyTemplateHidden,
-    resetTemplate: useCases.resetReplyTemplate,
+    editPublished: editPublishedReply(input.deps),
+    listTemplates: listReplyTemplates(layeredReplyTemplateDeps),
+    loadTemplate: loadReplyTemplate(layeredReplyTemplateDeps),
+    checkDraft: checkReplyDraft(layeredReplyTemplateDeps),
+    getLibrary: getReplyLibrary(replyLibraryDeps),
+    saveVoice: saveReplyVoice(replyLibraryDeps),
+    saveTemplate: saveReplyTemplate(replyLibraryDeps),
+    setTemplateHidden: setReplyTemplateHidden(replyLibraryDeps),
+    resetTemplate: resetReplyTemplate(replyLibraryDeps),
   })
 }

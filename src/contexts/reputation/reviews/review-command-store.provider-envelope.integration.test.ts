@@ -9,8 +9,10 @@ import type { Review } from '../domain/review-types'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { createReviewObservationRepository } from './review-observation-repository.server'
-import { readObservationHistory } from './review-observation-history.test-fixtures'
+import {
+  readMaterialRevisions,
+  readObservationHistory,
+} from './review-observation-history.test-fixtures'
 
 // Google can send translated reviews original-first. A parser that stored the
 // whole envelope as the guest's text would read as a guest edit and reopen
@@ -164,7 +166,6 @@ describe('a review stored with a provider envelope glued to its text', () => {
     expect(glued.sourceRevision).toBe(2)
     expect(repaired.sourceRevision).toBe(2)
     expect(reread.sourceRevision).toBe(2)
-    const history = createReviewObservationRepository(getDb())
     const observations = await readObservationHistory(getDb(), REVIEW, ORG)
     expect(
       observations.map((entry) => [
@@ -178,7 +179,7 @@ describe('a review stored with a provider envelope glued to its text', () => {
       [3, 2, 'normalization_shadow_match'],
       [4, 2, 'unchanged'],
     ])
-    expect(await history.findMaterialRevisions(REVIEW, ORG)).toHaveLength(2)
+    expect(await readMaterialRevisions(getDb(), REVIEW, ORG)).toHaveLength(2)
     const current = await getPool().query<{ text: string; translated_text: string }>(
       `SELECT text, translated_text FROM review_source_contents WHERE review_id = $1 AND organization_id = $2`,
       [REVIEW, ORG],
@@ -224,7 +225,6 @@ describe('a review whose glued text Google never updated', () => {
     const repaired = await observe(split, 3, updatedEvent)
 
     expect(repaired.sourceRevision).toBe(1)
-    const history = createReviewObservationRepository(getDb())
     expect(
       (await readObservationHistory(getDb(), REVIEW, ORG)).map((entry) => [
         entry.materialRevision,
@@ -237,7 +237,7 @@ describe('a review whose glued text Google never updated', () => {
       // The reread of the stored envelope names the cause, and runs first.
       [1, 'normalization_shadow_match'],
     ])
-    expect(await history.findMaterialRevisions(REVIEW, ORG)).toHaveLength(1)
+    expect(await readMaterialRevisions(getDb(), REVIEW, ORG)).toHaveLength(1)
     // Only the glued read is a restatement. The reread of the stored envelope is
     // a known format transition, stored the same way and not reported.
     expect(report.mock.calls).toEqual([

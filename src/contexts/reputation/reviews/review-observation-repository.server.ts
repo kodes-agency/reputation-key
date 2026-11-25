@@ -1,27 +1,14 @@
-import { and, asc, eq } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
+import { and, eq } from 'drizzle-orm'
 import {
   materialReviewRevisions,
   reviews,
   reviewSourceObservations,
 } from '#/shared/db/schema/review.schema'
-import {
-  organizationId,
-  propertyId,
-  reviewId,
-  type OrganizationId,
-  type ReviewId,
-} from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { parseGoogleReviewComment } from '#/shared/google-contracts/google-review-comment'
 import type { Tx } from '#/shared/outbox/commit'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeExpiredAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
-import type {
-  MaterialReviewRevision,
-  ReviewObservationComparison,
-  ReviewObservationRepository,
-} from './review-observation-repository.port.server'
 import {
   compareMaterialReviewRevision,
   computeReviewSourceObservationDigest,
@@ -32,10 +19,7 @@ import {
 } from '../domain/material-review-revision'
 import { reviewError } from '../domain/review-errors'
 import type { Review, StarRating } from '../domain/review-types'
-import type {
-  ReviewProviderObservationOrigin,
-  ReviewResponseTargetEligibility,
-} from './response-target-authority.port.server'
+import type { ReviewProviderObservationOrigin } from './response-target-authority.port.server'
 import {
   reviewFromRow,
   reviewFromRows,
@@ -56,6 +40,9 @@ const HEX_DIGEST = /^[0-9a-f]{64}$/u
 const EXPIRY_MOVE_MIN_MS = 24 * 60 * 60 * 1000
 
 type ReviewRow = typeof reviews.$inferSelect
+
+type ReviewObservationComparison =
+  'backfilled_unverified' | ReviewMaterialComparison | 'out_of_order_ignored'
 
 export type PersistedReviewObservation = Readonly<{
   review: Review
@@ -787,47 +774,4 @@ export async function persistReviewObservation(
     outOfOrder: false,
     providerRestatement: material.providerRestatement,
   }
-}
-
-function mapMaterialRevision(
-  row: typeof materialReviewRevisions.$inferSelect,
-): MaterialReviewRevision {
-  return {
-    reviewId: reviewId(row.reviewId),
-    organizationId: organizationId(row.organizationId),
-    propertyId: propertyId(row.propertyId),
-    sourceEpoch: row.sourceEpoch,
-    revision: row.revision,
-    normalizationVersion: row.normalizationVersion,
-    sourceDigest: row.sourceDigest,
-    normalizedDigest: row.normalizedDigest,
-    rating: row.rating as StarRating | null,
-    normalizedText: row.normalizedText,
-    responseTargetEligibility:
-      row.responseTargetEligibility as ReviewResponseTargetEligibility,
-    responseTargetStartAt: row.responseTargetStartAt,
-    contentState: row.contentState as MaterialReviewRevision['contentState'],
-    contentErasedAt: row.contentErasedAt,
-    createdAt: row.createdAt,
-  }
-}
-
-export const createReviewObservationRepository = (
-  db: Database,
-): ReviewObservationRepository => {
-  return Object.freeze({
-    findMaterialRevisions: async (id: ReviewId, orgId: OrganizationId) => {
-      const rows = await db
-        .select()
-        .from(materialReviewRevisions)
-        .where(
-          and(
-            eq(materialReviewRevisions.reviewId, id),
-            eq(materialReviewRevisions.organizationId, orgId),
-          ),
-        )
-        .orderBy(asc(materialReviewRevisions.revision))
-      return rows.map(mapMaterialRevision)
-    },
-  })
 }
