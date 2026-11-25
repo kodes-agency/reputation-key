@@ -320,12 +320,11 @@ and read; the one-screen setup follows in its own change.
 2. **One release of legacy fields.** `pace_per_week` stays as the whole weekly
    mirror, `GREATEST(1, (tenths + 5) / 10)`, held equal by the plan CHECK, so a
    worker still running the release before reads a pace it knows. The set and
-   change schemas also accept a legacy whole weekly `pacePerWeek` (1 to 200,
-   mapped × 10; a request naming the pace both ways is refused), so a page
-   opened before the release keeps working instead of having its pace stripped.
-   `goal.rating_goal.transitioned` adds `paceTenthsPerWeek` and keeps
-   `pacePerWeek` (widened to 350); Feed's payload carries both. A contract
-   migration drops the mirror and the legacy fields once no release reads them.
+   change schemas accepted a legacy whole weekly `pacePerWeek` for that release
+   only; they now take `paceTenthsPerWeek` alone. `goal.rating_goal.transitioned`
+   adds `paceTenthsPerWeek` and keeps `pacePerWeek` (widened to 350); Feed's
+   payload carries both. A contract migration drops the mirror and the legacy
+   event fields once no release reads them.
 3. **Two more Review reads, counts and sums only.** Review answers the totals
    of each Property-local calendar month with at least ten reviews and the count
    of reviews on each Property-local date (no sum: a date with one review would
