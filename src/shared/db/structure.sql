@@ -5452,6 +5452,7 @@ CREATE TABLE "public"."inbox_items" (
     "current_cycle_number" bigint,
     "current_source_revision" bigint,
     "state_revision" bigint,
+    "current_material_review_revision" bigint,
     CONSTRAINT "inbox_items_command_revision_safe" CHECK ((("command_revision" >= 1) AND ("command_revision" <= '9007199254740991'::bigint))),
     CONSTRAINT "inbox_items_cycle_head_facts_valid" CHECK (((("current_cycle_number" IS NULL) = ("current_source_revision" IS NULL)) AND (("current_cycle_number" IS NULL) = ("state_revision" IS NULL)) AND (("current_cycle_number" IS NULL) OR ((("current_cycle_number" >= 1) AND ("current_cycle_number" <= '9007199254740991'::bigint)) AND (("current_source_revision" >= 1) AND ("current_source_revision" <= '9007199254740991'::bigint)) AND (("state_revision" >= 1) AND ("state_revision" <= '9007199254740991'::bigint)))))),
     CONSTRAINT "inbox_items_manager_priority_stamped" CHECK (((("manager_priority" IS NULL) = ("manager_priority_set_by" IS NULL)) AND (("manager_priority" IS NULL) = ("manager_priority_set_at" IS NULL)))),
@@ -13448,6 +13449,14 @@ ALTER TABLE ONLY "public"."inbox_handling_cycles"
 
 ALTER TABLE ONLY "public"."inbox_handling_cycles"
     ADD CONSTRAINT "inbox_handling_cycles_source_scope_fk" FOREIGN KEY ("inbox_item_id", "organization_id", "source_type", "source_id") REFERENCES "public"."inbox_items"("id", "organization_id", "source_type", "source_id") ON DELETE CASCADE;
+
+
+--
+-- Name: inbox_items inbox_items_material_revision_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."inbox_items"
+    ADD CONSTRAINT "inbox_items_material_revision_fk" FOREIGN KEY ("source_id", "current_material_review_revision") REFERENCES "public"."material_review_revisions"("review_id", "revision") ON DELETE RESTRICT;
 
 
 --

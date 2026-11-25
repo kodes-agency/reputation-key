@@ -3,7 +3,7 @@ import type { Database } from '#/shared/db'
 import {
   inboxPrivateFeedbackTargetPropertyOverrides,
   inboxResponseTargetOrganizationPolicies,
-} from '#/shared/db/schema/inbox.schema'
+} from '#/shared/db/schema/inbox-response-target-policy.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'

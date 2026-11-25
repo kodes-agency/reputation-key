@@ -40,6 +40,7 @@ const sampleRow: InboxItemRow = {
   currentCycleNumber: null,
   currentSourceRevision: null,
   stateRevision: null,
+  currentMaterialReviewRevision: null,
 }
 
 describe('inboxItemFromRow', () => {

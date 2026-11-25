@@ -18,7 +18,6 @@
   "src/contexts/reputation/replies/ui/message/reply-message.stories.tsx": 1143,
   "src/contexts/reputation/sync/review-provider-snapshot-repository.server.ts": 1351,
   "src/shared/db/schema/ai.schema.ts": 938,
-  "src/shared/db/schema/inbox.schema.ts": 824,
   "src/shared/db/schema/review.schema.ts": 1360,
   "src/shared/outbox/event-adapter.test.ts": 908
 }

@@ -339,8 +339,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'inboxHandlingCycleResponseTargets',
       'inboxHandlingCycles',
       'inboxItems',
-      'inboxPrivateFeedbackTargetPropertyOverrides',
-      'inboxResponseTargetOrganizationPolicies',
       'inboxResponseTargetReminders',
     ],
     owner: 'inbox',
@@ -350,6 +348,16 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'inbox-workspace.schema.ts',
     exportNames: ['inboxNotes', 'inboxUserViews'],
+    owner: 'inbox',
+    disposition: 'active_authority',
+    authority: 'IBX-01',
+  }),
+  ...rows({
+    schemaFile: 'inbox-response-target-policy.schema.ts',
+    exportNames: [
+      'inboxPrivateFeedbackTargetPropertyOverrides',
+      'inboxResponseTargetOrganizationPolicies',
+    ],
     owner: 'inbox',
     disposition: 'active_authority',
     authority: 'IBX-01',

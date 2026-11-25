@@ -4,10 +4,12 @@ import { excludedFromResponseTargetReporting } from '#/shared/db/inbox-response-
 import {
   inboxHandlingCycleResponseTargets,
   inboxItems,
-  inboxPrivateFeedbackTargetPropertyOverrides,
-  inboxResponseTargetOrganizationPolicies,
   inboxResponseTargetReminders,
 } from '#/shared/db/schema/inbox.schema'
+import {
+  inboxPrivateFeedbackTargetPropertyOverrides,
+  inboxResponseTargetOrganizationPolicies,
+} from '#/shared/db/schema/inbox-response-target-policy.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { inboxItemId, organizationId, propertyId } from '#/shared/domain/ids'

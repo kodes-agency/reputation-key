@@ -271,6 +271,23 @@ function columnListEnd(tokens: readonly string[], start: number): number {
   return tokens[end] === ')' ? end + 1 : -1
 }
 
+/** `ON DELETE|UPDATE` clauses of a foreign key that name no column list. */
+function referentialActionsEnd(tokens: readonly string[], start: number): number {
+  let end = start
+  while (
+    tokens[end] === 'ON' &&
+    (tokens[end + 1] === 'DELETE' || tokens[end + 1] === 'UPDATE')
+  ) {
+    const action = tokens.slice(end + 2, end + 4).join(' ')
+    if (action === 'NO ACTION' || action === 'SET NULL' || action === 'SET DEFAULT') {
+      end += 4
+    } else if (tokens[end + 2] === 'RESTRICT' || tokens[end + 2] === 'CASCADE') {
+      end += 3
+    } else return -1
+  }
+  return end
+}
+
 function isConstraintAddition(tokens: readonly string[]): boolean {
   if (tokens[1] !== 'CONSTRAINT') return false
   let end = nameEnd(tokens, 2)
@@ -283,6 +300,8 @@ function isConstraintAddition(tokens: readonly string[]): boolean {
     end = nameEnd(tokens, end)
     if (end < 0) return false
     end = columnListEnd(tokens, end)
+    if (end < 0) return false
+    end = referentialActionsEnd(tokens, end)
   } else return false
   return end >= 0 && tokens.slice(end).join(' ') === 'NOT VALID'
 }
