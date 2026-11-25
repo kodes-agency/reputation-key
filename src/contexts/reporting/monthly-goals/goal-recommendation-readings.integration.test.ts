@@ -13,7 +13,7 @@ import {
 import { findMetricVersionById, METRIC_VERSION_IDS } from '../readings/contracts'
 import type { RecommendationPortal } from '../domain/goal-recommendation-types'
 import type { GoalRecommendationCountsQuery } from './goal-recommendation-facts.port.server'
-import { readPortalGoalRecommendation } from './goal-recommendation-read.server'
+import { gatherPortalGoalRecommendation } from './goal-recommendation-read.server'
 import { queryGoalAggregate } from '../readings/metric-repository.server'
 import { readGoalRecommendationCounts } from './goal-recommendation-readings.server'
 
@@ -146,18 +146,15 @@ function listed(portalId: string, name: string): RecommendationPortal {
 
 /** The whole read over the real statement, with Portal's facts given. */
 function recommendationOf(property: string, portals: readonly RecommendationPortal[]) {
-  return readPortalGoalRecommendation(
+  return gatherPortalGoalRecommendation(
     {
-      policy: { authorize: async () => undefined },
       subjects: { getTimezone: async () => SOFIA },
       facts: {
         listPortalReadiness: async () => ({ portals }),
         readDailyCounts: (query) => readGoalRecommendationCounts(db, query),
       },
-      now: () => NOW,
     },
-    { propertyId: property },
-    { organizationId: ORG, userId: 'manager-1', role: 'PropertyManager' },
+    { organizationId: ORG, propertyId: property, now: NOW },
   )
 }
 

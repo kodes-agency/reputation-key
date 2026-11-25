@@ -320,12 +320,10 @@ function buildGoalModule(
       ),
     readDailyCounts: (query) => readGoalRecommendationCounts(input.db, query),
   }
-  const goalRecommendationDeps = (policy: GoalExecutionPolicy) => ({
-    policy,
+  const goalRecommendationDeps = {
     subjects: goalProgramSubjects,
     facts: goalRecommendationFacts,
-    now: input.clock,
-  })
+  }
   // Each use case authorizes goal.create before reading; running figures use
   // governed progress rather than recommendation counts.
   const portalGoalPrompts = createPortalGoalPromptDeferralStore(input.db)
@@ -333,7 +331,7 @@ function buildGoalModule(
     policy,
     reads: readGoalPrograms(policy),
     metrics: metricApi,
-    recommendation: goalRecommendationDeps(policy),
+    recommendation: goalRecommendationDeps,
     prompts: portalGoalPrompts,
     now: input.clock,
   })
@@ -346,7 +344,7 @@ function buildGoalModule(
     policy,
     repository: goalProgramRepo,
     programs: buildGoalPrograms(policy),
-    recommendation: goalRecommendationDeps(policy),
+    recommendation: goalRecommendationDeps,
     now: input.clock,
   })
   const portalGoalAddDeps = (policy: GoalExecutionPolicy): PortalGoalAddDeps => ({
@@ -362,7 +360,7 @@ function buildGoalModule(
         ...args,
       ),
     subjectNames: goalProgramSubjects,
-    recommendation: goalRecommendationDeps(policy),
+    recommendation: goalRecommendationDeps,
     now: input.clock,
   })
   /** Every Goal use case with this request's policy bound; the actor is passed per call. */
@@ -401,7 +399,7 @@ function buildGoalModule(
         options: bind(readPortalGoalAddOptions, {
           policy,
           reads,
-          recommendation: goalRecommendationDeps(policy),
+          recommendation: goalRecommendationDeps,
           staffScanTargetsEnabled: input.staffScanTargetsEnabled ?? false,
           subjectNames: goalProgramSubjects,
           now: input.clock,
