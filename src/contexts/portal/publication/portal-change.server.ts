@@ -67,6 +67,7 @@ export type PortalPatch = Readonly<{
   theme: PortalTheme
   privateFeedbackThreshold: number
   skipPrivateRating: boolean
+  contactRequestsEnabled: boolean
   publicationState: Portal['publicationState']
   primaryGuestLocale: Portal['primaryGuestLocale']
   additionalGuestLocales: Portal['additionalGuestLocales']
@@ -80,6 +81,7 @@ function patchOf(existing: Portal, changes: Partial<PortalPatch>): PortalPatch {
     theme: existing.theme,
     privateFeedbackThreshold: existing.privateFeedbackThreshold,
     skipPrivateRating: existing.skipPrivateRating,
+    contactRequestsEnabled: existing.contactRequestsEnabled,
     publicationState: existing.publicationState,
     primaryGuestLocale: existing.primaryGuestLocale,
     additionalGuestLocales: existing.additionalGuestLocales,
@@ -95,6 +97,7 @@ function hasPortalChanges(existing: Portal, patch: PortalPatch): boolean {
     JSON.stringify(patch.theme) !== JSON.stringify(existing.theme) ||
     patch.privateFeedbackThreshold !== existing.privateFeedbackThreshold ||
     patch.skipPrivateRating !== existing.skipPrivateRating ||
+    patch.contactRequestsEnabled !== existing.contactRequestsEnabled ||
     patch.primaryGuestLocale !== existing.primaryGuestLocale ||
     JSON.stringify(patch.additionalGuestLocales) !==
       JSON.stringify(existing.additionalGuestLocales) ||
@@ -111,6 +114,7 @@ function applyPatchToPublicationSource(
     portal: { ...source.portal, name: patch.name },
     privateFeedbackThreshold: patch.privateFeedbackThreshold,
     skipPrivateRating: patch.skipPrivateRating,
+    contactRequests: patch.contactRequestsEnabled,
   }
 }
 

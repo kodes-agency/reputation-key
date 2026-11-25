@@ -67,6 +67,9 @@ export const portals = pgTable(
     // The Linktree (the link section of the guest page) is on unless a manager
     // turns it off. Its links and texts live in portal_links/portal_link_texts.
     linktreeEnabled: boolean('linktree_enabled').notNull().default(true),
+    // Whether this Portal offers contact requests. A publication carries it only
+    // while a Privacy Notice version in force covers them.
+    contactRequestsEnabled: boolean('contact_requests_enabled').notNull().default(false),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),

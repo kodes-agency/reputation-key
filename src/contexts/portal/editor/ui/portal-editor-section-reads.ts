@@ -61,6 +61,7 @@ export function withoutReadAnswers(
     publicationHistory: undefined,
     portalExperience: undefined,
     approvedDestinations: undefined,
+    contactRequestsLaunch: undefined,
   }
 }
 

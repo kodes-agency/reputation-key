@@ -74,6 +74,7 @@ export function createPortalReadsWorld(prefix: string) {
       theme: { primaryColor: '#6366F1' },
       privateFeedbackThreshold: 3,
       skipPrivateRating: false,
+      contactRequestsEnabled: false,
       publicationState: 'published',
       createdBy: userId(`user-${randomUUID()}`),
       responsibleManagerRevision: 1,

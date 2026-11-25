@@ -263,6 +263,19 @@ function isCompleteBrand(brand: ImmersiveBrandProfile): boolean {
   )
 }
 
+/** Contact requests are absent, or pinned to a notice the snapshot row's evidence check accepts. */
+function hasValidContactRequest(
+  contactRequest: ImmersivePortalPublicationConfiguration['reviewGateway']['contactRequest'],
+): boolean {
+  if (contactRequest === undefined) return true
+  return (
+    isBoundedId(contactRequest.noticeId) &&
+    isBoundedId(contactRequest.noticeVersion) &&
+    /^[0-9a-f]{64}$/u.test(contactRequest.noticeDigest) &&
+    isGuestLocale(contactRequest.noticeLocale)
+  )
+}
+
 /**
  * Whether a v3 configuration is complete: every locale of the set has its
  * language pack (generation 2 only) and all of its text, every link has text
@@ -275,6 +288,7 @@ export function isCompleteImmersiveConfiguration(
   return (
     (configuration.reviewGateway.skipPrivateRating === undefined ||
       typeof configuration.reviewGateway.skipPrivateRating === 'boolean') &&
+    hasValidContactRequest(configuration.reviewGateway.contactRequest) &&
     hasValidLocaleSet(configuration) &&
     hasGenerationTwoPacks(configuration) &&
     hasCompleteContent(configuration) &&

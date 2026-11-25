@@ -74,6 +74,7 @@ const copySource = (): PortalCopySource => {
       id: SOURCE_ID,
       description: 'Welcome to the pool',
       privateFeedbackThreshold: 4,
+      contactRequestsEnabled: true,
       linktreeEnabled: false,
       theme: { primaryColor: '#112233' },
     }),
@@ -105,6 +106,7 @@ describe('buildCreatePortalCommand', () => {
     expect(command.portal.primaryGuestLocale).toBe('en')
     expect(command.portal.additionalGuestLocales).toEqual(['bg'])
     expect(command.portal.responsibilityNeededSince).toBeNull()
+    expect(command.portal.contactRequestsEnabled).toBe(false)
     expect(command.initialResponsibleManagerIds).toEqual([MANAGER])
     expect(command.event._tag).toBe('portal.created')
     expect(command.responsibilityNeededEvent).toBeUndefined()
@@ -172,6 +174,7 @@ describe('buildCreatePortalCommand', () => {
     expect(command.portal.description).toBe('Welcome to the pool')
     expect(command.portal.privateFeedbackThreshold).toBe(4)
     expect(command.portal.linktreeEnabled).toBe(false)
+    expect(command.portal.contactRequestsEnabled).toBe(true)
     expect(command.portal.theme.primaryColor).toBe('#112233')
     const copied = command.copiedContent
     expect(copied?.links).toHaveLength(1)

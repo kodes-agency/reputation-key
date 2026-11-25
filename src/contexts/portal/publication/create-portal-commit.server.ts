@@ -69,6 +69,7 @@ export function buildCreatePortalCommand(
     privateFeedbackThreshold:
       input.privateFeedbackThreshold ?? copy?.settings.privateFeedbackThreshold,
     skipPrivateRating: input.skipPrivateRating ?? copy?.settings.skipPrivateRating,
+    ...(copy ? { contactRequestsEnabled: copy.settings.contactRequestsEnabled } : {}),
     createdBy: ctx.userId,
     hasInitialResponsibleManager: managerIds.length > 0,
     primaryGuestLocale: locales.primary,

@@ -48,6 +48,7 @@ export async function readPortalSettings(
       theme: portals.theme,
       privateFeedbackThreshold: portals.privateFeedbackThreshold,
       skipPrivateRating: portals.skipPrivateRating,
+      contactRequestsEnabled: portals.contactRequestsEnabled,
       primaryGuestLocale: portals.primaryGuestLocale,
       additionalGuestLocales: portals.additionalGuestLocales,
     })

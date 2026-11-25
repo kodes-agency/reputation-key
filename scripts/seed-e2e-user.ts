@@ -246,11 +246,8 @@ async function ensureProperty(
     googleReviewDestinationProfileVersion: GOOGLE_REVIEW_DESTINATION.profileVersion,
     updatedAt: new Date(),
   }
-  if (existing) {
-    await db.update(properties).set(values).where(eq(properties.id, id))
-  } else {
-    await db.insert(properties).values({ id, ...values })
-  }
+  if (existing) await db.update(properties).set(values).where(eq(properties.id, id))
+  else await db.insert(properties).values({ id, ...values })
   return id
 }
 
@@ -448,6 +445,7 @@ async function publishPortalSnapshot(input: {
       portal: { id: fixture.id, name: fixture.name, slug: fixture.slug },
       privateFeedbackThreshold: 3,
       skipPrivateRating: fixture.skipPrivateRating ?? false,
+      contactRequests: false,
       // Every offered guest locale, because the cross-browser gate proves the
       // Bulgarian, German and French contracts render and reflow. A snapshot
       // published with `en` alone makes `?locale=bg` fall back to English:

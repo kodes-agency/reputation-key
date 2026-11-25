@@ -1,3 +1,4 @@
+import type { ContactNoticeEvidence } from '#/shared/domain/contact-request-notice'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 
 export const LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION = 1 as const
@@ -198,6 +199,12 @@ export type ImmersivePortalPublicationConfiguration = Omit<
       Readonly<{
         /** Absent in snapshots published before this setting existed; reads as false. */
         skipPrivateRating?: boolean
+        /**
+         * The notice the Portal's contact requests were published under; absent
+         * (and read as off) unless the Portal offered them. Present means the
+         * snapshot row's contact evidence columns say the same.
+         */
+        contactRequest?: ContactNoticeEvidence
       }>
   }> &
   Readonly<{
