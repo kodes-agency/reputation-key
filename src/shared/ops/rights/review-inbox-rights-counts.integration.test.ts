@@ -136,7 +136,6 @@ const INBOX_PROBES: ReadonlyArray<Probe> = [
   ofItems('inbox_assignment_history'),
   ofItems('inbox_escalation_history'),
   ofItems('inbox_priority_history'),
-  ofItems('inbox_handling_cycle_heads'),
   ofItems('inbox_handling_cycle_transitions'),
   ofItems('inbox_handling_cycle_response_targets'),
   ofItems('inbox_response_target_reminders'),

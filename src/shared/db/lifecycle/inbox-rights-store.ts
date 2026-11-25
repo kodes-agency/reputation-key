@@ -22,7 +22,7 @@ import {
 } from './rights-primitives'
 
 // v2: `handlingCycleHeads` is read from the Inbox rows (the item's current cycle,
-// source revision and status) instead of the retired head table, so its rows no
+// source revision and status) instead of the dropped head table, so its rows no
 // longer carry their own `created_at` and `updated_at`; the Inbox row's are in `items`.
 const INBOX_EXPORT_VERSION = 'inbox-rights-export/v2'
 
@@ -65,9 +65,6 @@ const REPORT_TABLES = Object.freeze([
   'inbox_assignment_history',
   'inbox_escalation_history',
   'inbox_priority_history',
-  // Retired: nothing reads or writes it, but its rows go with their item through
-  // ON DELETE CASCADE, so a closure still reports them until the table is dropped.
-  'inbox_handling_cycle_heads',
   'inbox_handling_cycle_transitions',
   'inbox_handling_cycle_response_targets',
   'inbox_response_target_reminders',

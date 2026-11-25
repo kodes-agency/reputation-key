@@ -528,8 +528,9 @@ the request. The counts carry it as `replyStages`.
    The current cycle row's RESTRICT foreign key
    (`inbox_handling_cycles_material_revision_fk`) keeps the Material Review
    Revision it is anchored to from being deleted. Human mutations
-   compare-and-swap the observed item revision. `inbox_handling_cycle_heads` is
-   retired: nothing reads or writes it, and it stays until the table is dropped.
+   compare-and-swap the observed item revision. The head table
+   `inbox_handling_cycle_heads` that once mirrored those facts was dropped by
+   migration 0160; the Inbox row is their only home.
 3. Every human command authorizes its complete unique `(principal, Property)`
    set once inside the write transaction, in stable order. A single-item command
    decides Property scope before it answers the revision.

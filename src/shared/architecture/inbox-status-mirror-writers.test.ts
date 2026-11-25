@@ -1,7 +1,7 @@
 // `inbox_items` carries the current Handling Cycle's facts (cycle number, source
 // revision, state revision) beside its status, and
-// every serving read resolves from them. `inbox_handling_cycle_heads` is retired:
-// nothing reads or writes it, and the table stays only until it is dropped.
+// every serving read resolves from them. The head table that once mirrored them
+// is dropped, and a guard below keeps every source from naming it.
 //
 // So the WRITERS stay few. What remains is a small, explicitly named set of
 // writers that move the Inbox row's cycle facts inside the same transaction that
@@ -191,9 +191,17 @@ describe('inbox_items carries the Handling Cycle facts its readers resolve from'
     expect(offenders).toEqual([])
   })
 
-  it('neither reads nor writes the retired head table', () => {
-    const users = productionFiles
-      .filter((file) => /\binboxHandlingCycleHeads\b/.test(readFileSync(file, 'utf8')))
+  it('names the dropped head table nowhere in the schema or the context', () => {
+    const files = [
+      ...productionFiles,
+      join(REPO_SRC, 'shared', 'db', 'schema', 'inbox.schema.ts'),
+    ]
+    const users = files
+      .filter((file) =>
+        /\binboxHandlingCycleHeads\b|\binbox_handling_cycle_heads\b/.test(
+          readFileSync(file, 'utf8'),
+        ),
+      )
       .map(relativeToSrc)
       .sort()
     expect(users).toEqual([])

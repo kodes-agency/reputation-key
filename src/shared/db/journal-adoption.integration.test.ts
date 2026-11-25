@@ -26,6 +26,7 @@ const ADOPTED_FROM = 133
 const CONTRACTIONS: ReadonlySet<string> = new Set([
   '0156_ai_operations_drop_handshake_columns',
   '0157_drop_legacy_ratings_feedback',
+  '0160_drop_inbox_handling_cycle_heads',
 ])
 const AUTH_TABLES = [
   'user',

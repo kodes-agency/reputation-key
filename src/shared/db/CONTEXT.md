@@ -312,6 +312,8 @@ receipt authorization. The three retired tables must be empty under exclusive
 locks before contraction; their enum types remain. Construct parity checks cover
 these forward-only exceptions explicitly.
 
+`0160` drops `inbox_handling_cycle_heads`, the retired mirror of the Inbox row's Handling Cycle facts; its reader-removal release is #2401 (`be64e5724`). The table held rows when it went, since nothing reads them.
+
 `0129` drops the retired account tables, their guard functions and the grant enums.
 `db-constructs.sql` stays a byte-for-byte copy of `0001`, so it still states the
 triggers and functions that went with them; `structure.sql` is the authority for
