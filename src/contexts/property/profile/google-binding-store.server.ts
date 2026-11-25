@@ -320,7 +320,7 @@ export const createPropertyGoogleBindingStore = (
 
             const nextSourceEpoch = current.sourceEpoch + 1
             const nextProfileVersion = current.profileVersion + 1
-            const [updated] = await tx
+            await tx
               .update(properties)
               .set({
                 googleConnectionId: input.connectionId,
@@ -352,12 +352,8 @@ export const createPropertyGoogleBindingStore = (
                 and(
                   eq(properties.organizationId, input.organizationId),
                   eq(properties.id, input.propertyId),
-                  eq(properties.sourceEpoch, input.expectedSourceEpoch),
-                  eq(properties.profileVersion, input.expectedProfileVersion),
                 ),
               )
-              .returning({ id: properties.id })
-            if (!updated) deny('stale_binding')
             await purgeAiDraftsForProfile(
               tx,
               {
@@ -454,12 +450,9 @@ export const createPropertyGoogleBindingStore = (
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
-                eq(properties.sourceEpoch, input.expectedSourceEpoch),
-                eq(properties.profileVersion, input.expectedProfileVersion),
               ),
             )
             .returning()
-          if (!updated) deny('stale_binding')
           await purgeAiDraftsForProfile(
             tx,
             {
@@ -477,7 +470,7 @@ export const createPropertyGoogleBindingStore = (
             occurredAt: input.now,
           })
           await insertOutboxRow(tx, event)
-          return summaryFromRow(updated)
+          return summaryFromRow(updated!)
         }),
       )
       return result
