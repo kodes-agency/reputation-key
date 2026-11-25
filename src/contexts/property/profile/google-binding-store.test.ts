@@ -72,12 +72,17 @@ function harness(overrides: Record<string, unknown> = {}, connectionAvailable = 
     },
     update: () => ({
       set: (values: Record<string, unknown>) => ({
-        where: () => ({
-          returning: async () => {
+        where: () => {
+          const apply = async () => {
             row = { ...row, ...values }
             return [{ ...row }]
-          },
-        }),
+          }
+          return {
+            returning: apply,
+            // Awaited without `returning`: the UPDATE runs and its rows are unused.
+            then: (resolve: (rows: unknown) => unknown) => apply().then(resolve),
+          }
+        },
       }),
     }),
     insert: () => ({ values: async () => undefined }),
