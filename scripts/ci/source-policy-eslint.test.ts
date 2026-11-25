@@ -245,8 +245,8 @@ describe('common ESLint file-length limit', () => {
     },
   )
 
-  it('uses the common limit after a formerly oversized module shrinks', () => {
-    const filename = 'src/shared/events/schema-registrations.ts'
+  it('uses the common limit for a module without a ceiling', () => {
+    const filename = 'src/shared/events/consumer-definitions.ts'
     expect(lengthMessages(filename, codeLines(800))).toEqual([])
     expect(lengthMessages(filename, codeLines(801))).toEqual(['max-lines'])
     expect(lengthMessages(filename, codeLines(1524))).toEqual(['max-lines'])
