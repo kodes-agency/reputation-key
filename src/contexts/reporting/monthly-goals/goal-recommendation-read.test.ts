@@ -5,20 +5,12 @@ import type {
   GoalRecommendationCountsQuery,
   GoalRecommendationFactsPort,
 } from './goal-recommendation-facts.port.server'
+import { GoalProgramError } from '../application/use-cases/goal-program-shared'
 import {
-  GoalProgramError,
-  type GoalActor,
-} from '../application/use-cases/goal-program-shared'
-import {
-  readPortalGoalRecommendation,
-  type PortalGoalRecommendationDeps,
+  gatherPortalGoalRecommendation,
+  type PortalGoalRecommendationReads,
 } from './goal-recommendation-read.server'
 
-const actor: GoalActor = {
-  organizationId: 'org-1',
-  userId: 'manager-1',
-  role: 'PropertyManager',
-}
 const PROPERTY_ID = 'property-1'
 // Oct 23, 2026, midday in Sofia (UTC+3 until the 25th).
 const NOW = new Date('2026-10-23T09:00:00.000Z')
@@ -54,63 +46,37 @@ function setup(
     timezone?: string | null
     portals?: readonly RecommendationPortal[]
     counts?: GoalRecommendationCounts
-    now?: Date
   }> = {},
 ) {
-  const calls: string[] = []
   const queries: GoalRecommendationCountsQuery[] = []
   const facts = {
     listPortalReadiness: vi.fn(async () => {
-      calls.push('portals')
       return { portals: options.portals ?? [] }
     }),
     readDailyCounts: vi.fn(async (query: GoalRecommendationCountsQuery) => {
-      calls.push('counts')
       queries.push(query)
       return options.counts ?? NO_READINGS
     }),
   } satisfies GoalRecommendationFactsPort
   const deps = {
-    policy: {
-      authorize: vi.fn(async () => {
-        calls.push('authorize')
-      }),
-    },
     subjects: {
       getTimezone: vi.fn(async () => {
-        calls.push('timezone')
         return options.timezone === undefined ? 'Europe/Sofia' : options.timezone
       }),
     },
     facts,
-    now: () => options.now ?? NOW,
-  } satisfies PortalGoalRecommendationDeps
-  return { deps, calls, queries }
+  } satisfies PortalGoalRecommendationReads
+  return { deps, queries }
 }
 
-const read = (deps: PortalGoalRecommendationDeps) =>
-  readPortalGoalRecommendation(deps, { propertyId: PROPERTY_ID }, actor)
-
-describe('readPortalGoalRecommendation', () => {
-  it('asks goal.create under goal.use before reading', async () => {
-    const { deps, calls } = setup()
-
-    await read(deps)
-
-    expect(deps.policy.authorize).toHaveBeenCalledWith({
-      actor,
-      organizationId: 'org-1',
-      propertyId: PROPERTY_ID,
-      action: 'goal.create',
-    })
-    expect(calls[0]).toBe('authorize')
-
-    const refused = setup()
-    refused.deps.policy.authorize.mockRejectedValueOnce(new GoalProgramError('forbidden'))
-    await expect(read(refused.deps)).rejects.toMatchObject({ code: 'forbidden' })
-    expect(refused.calls).toEqual([])
+const read = (deps: PortalGoalRecommendationReads, now = NOW) =>
+  gatherPortalGoalRecommendation(deps, {
+    organizationId: 'org-1',
+    propertyId: PROPERTY_ID,
+    now,
   })
 
+describe('gatherPortalGoalRecommendation', () => {
   it('refuses a Property with no time zone', async () => {
     const { deps } = setup({ timezone: null })
 
@@ -169,8 +135,8 @@ describe('readPortalGoalRecommendation', () => {
 
   it('reads the basis and this month in one range, never before the measures began', async () => {
     const fromOn = async (now: Date) => {
-      const { deps, queries } = setup({ now })
-      await read(deps)
+      const { deps, queries } = setup()
+      await read(deps, now)
       return queries[0]
     }
 
@@ -192,8 +158,7 @@ describe('readPortalGoalRecommendation', () => {
     })
   })
 
-  it("reads the clock once and states the Property's recommendation from both reads", async () => {
-    const now = vi.fn(() => NOW)
+  it("states the Property's recommendation from both reads", async () => {
     const twoWeeks = Array.from({ length: 14 }, (_, index) => {
       const day = String(9 + index).padStart(2, '0')
       return `2026-10-${day}`
@@ -230,9 +195,8 @@ describe('readPortalGoalRecommendation', () => {
       },
     })
 
-    const recommendation = await read({ ...deps, now })
+    const recommendation = await read(deps)
 
-    expect(now).toHaveBeenCalledTimes(1)
     expect(deps.facts.listPortalReadiness).toHaveBeenCalledWith('org-1', PROPERTY_ID, NOW)
     expect(recommendation).toMatchObject({
       asOf: NOW.toISOString(),

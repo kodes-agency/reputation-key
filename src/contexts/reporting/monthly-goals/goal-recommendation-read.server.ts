@@ -1,12 +1,10 @@
 // Reporting — the Monthly portal goal's recommended number for one Property
 // (ADR 0068 decisions 4, 5 and 12).
 //
-// Who may read it is whoever may set the goal: it authorizes `goal.create`
-// (under `goal.use` and the Property grant, through the execution policy)
-// before anything is read, as the month preview does. A composed read that has
-// asked for `goal.create` itself (the Monthly portal goal's card) gathers it
-// with `gatherPortalGoalRecommendation` at the instant it read its own clock.
-// Either way it reads the Property's time zone and Portal's facts about its
+// Who may read it is whoever may set the goal: a composed read asks for
+// `goal.create` itself (under `goal.use` and the Property grant, through the
+// execution policy) and gathers it with `gatherPortalGoalRecommendation` at the
+// instant it read its own clock. It reads the Property's time zone and Portal's facts about its
 // Portals together, and the Property's goal-count readings in one statement: the
 // basis and this month as one range, never before both measures began, with
 // each published Portal's last scan looked for from its code's date (at most a
@@ -25,8 +23,6 @@ import type {
 } from './goal-recommendation-facts.port.server'
 import {
   GoalProgramError,
-  type GoalActor,
-  type GoalExecutionPolicy,
   type GoalProgramSubjectReader,
 } from '../application/use-cases/goal-program-shared'
 
@@ -46,13 +42,6 @@ const MEASURES_FROM = new Date(
     }),
   ),
 )
-
-export type PortalGoalRecommendationDeps = Readonly<{
-  policy: GoalExecutionPolicy
-  subjects: Pick<GoalProgramSubjectReader, 'getTimezone'>
-  facts: GoalRecommendationFactsPort
-  now: () => Date
-}>
 
 /** The basis and the current month as one half-open range, ending now. */
 function readingsFrom(now: Date, timezone: string): Date {
@@ -83,10 +72,10 @@ function scanLookbackOf(portals: readonly RecommendationPortal[], now: Date) {
 }
 
 /** What the recommendation reads, for a caller that has authorized `goal.create`. */
-export type PortalGoalRecommendationReads = Pick<
-  PortalGoalRecommendationDeps,
-  'subjects' | 'facts'
->
+export type PortalGoalRecommendationReads = Readonly<{
+  subjects: Pick<GoalProgramSubjectReader, 'getTimezone'>
+  facts: GoalRecommendationFactsPort
+}>
 
 /**
  * What the recommendation is worked out from, as read at `now`: the Property's
@@ -148,24 +137,4 @@ export async function gatherPortalGoalRecommendation(
   input: Readonly<{ organizationId: string; propertyId: string; now: Date }>,
 ): Promise<PortalGoalRecommendation> {
   return recommendationFrom(await gatherPortalGoalFacts(deps, input))
-}
-
-export async function readPortalGoalRecommendation(
-  deps: PortalGoalRecommendationDeps,
-  input: Readonly<{ propertyId: string }>,
-  actor: GoalActor,
-): Promise<PortalGoalRecommendation> {
-  const { organizationId } = actor
-  const { propertyId } = input
-  await deps.policy.authorize({
-    actor,
-    organizationId,
-    propertyId,
-    action: 'goal.create',
-  })
-  return gatherPortalGoalRecommendation(deps, {
-    organizationId,
-    propertyId,
-    now: deps.now(),
-  })
 }
