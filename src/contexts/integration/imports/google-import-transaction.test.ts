@@ -131,7 +131,6 @@ function referenceStore(claims: readonly ClaimedImportCandidate[]) {
     releaseCandidateClaims,
     consumeCandidateClaims,
     renewLease: vi.fn(notFound),
-    invalidateOrganization: vi.fn(async () => true),
     invalidateUser: vi.fn(async () => true),
     invalidateConnection: vi.fn(async () => true),
     invalidateProperty: vi.fn(async () => true),
@@ -195,8 +194,6 @@ function memoryStore() {
     fenceLifecycleParent: vi.fn(async () => 'lost' as const),
     listLifecycleScopeItems: vi.fn(async () => []),
     scrubLifecycleItems: vi.fn(async () => 0),
-    countLifecycleScopeItems: vi.fn(async () => 0),
-    getOperatorProgress: vi.fn(async () => null),
     getProgress,
   }
   return {

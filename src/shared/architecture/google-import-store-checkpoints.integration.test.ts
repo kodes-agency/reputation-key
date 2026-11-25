@@ -433,7 +433,7 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
       importJobId,
       initiatedBy: f.actor.userId,
     })
-    const retained = await f.store.getOperatorProgress(f.orgId, importJobId)
+    const retained = await f.store.getProgress(f.orgId, f.actor.userId, importJobId)
     expect(retained).toMatchObject({
       totalCount: 205,
       processedCount: 205,
@@ -445,7 +445,7 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
     const outboxEventId = randomUUID()
     expect(await f.store.purgeParent({ ...purgeInput, outboxEventId })).toBe('purged')
     expect(await f.store.findReplay(f.orgId, input.requestId)).toBeNull()
-    expect(await f.store.getOperatorProgress(f.orgId, importJobId)).toBeNull()
+    expect(await f.store.getProgress(f.orgId, f.actor.userId, importJobId)).toBeNull()
     expect(await f.store.listPendingDispatchItems(f.orgId, importJobId)).toBeNull()
     expect(
       await db

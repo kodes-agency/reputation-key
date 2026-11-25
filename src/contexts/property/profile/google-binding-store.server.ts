@@ -13,7 +13,7 @@ import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
 import { clearGooglePrimaryCategoryForProperty } from '#/shared/db/google-primary-category-purge'
 import { lockGoogleConnectionBindingAuthority } from '#/shared/db/google-connection-binding-authority'
-import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
+import { googleConnectionId } from '#/shared/domain/ids'
 import { normalizeGooglePrimaryCategory } from '#/shared/domain/google-primary-category'
 import { isGoogleResourceSuffix } from '../domain/google-binding-contract'
 import {
@@ -673,19 +673,6 @@ export const createPropertyGoogleBindingStore = (
         )
         return 'applied'
       })
-    },
-
-    cleanupOrganization: async (organizationIdValue: OrganizationId) => {
-      const rows = await db
-        .delete(idempotencyReceipts)
-        .where(
-          and(
-            eq(idempotencyReceipts.scope, 'property_operation'),
-            sql`${idempotencyReceipts.payload}->>'organizationId' = ${organizationIdValue}`,
-          ),
-        )
-        .returning({ key: idempotencyReceipts.key })
-      return rows.length
     },
   })
 }
