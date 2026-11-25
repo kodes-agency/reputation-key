@@ -5,7 +5,6 @@
 // BullMQ admission. It must use the committed publication cycle as both the
 // stale-intent fence and the deterministic publish-job identity.
 
-import type { Job } from 'bullmq'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrationGoogleAccountDisconnected } from '#/contexts/integration/domain/events'
 import { propertyArchived } from '#/contexts/property/domain/events'
@@ -35,7 +34,7 @@ import {
   type ConsumerRegistry,
   type ConsumerEvent,
 } from '#/shared/outbox/consumer-registry'
-import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import { createEventDispatcher } from '#/shared/outbox/dispatcher'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import type { Reply } from '../domain/review-types'
@@ -410,11 +409,7 @@ describe('google account disconnected consumer authorization', () => {
       insertReceipt: gateDenials,
     } as unknown as OutboxRepository
 
-    await createDispatcherHandler(repo, { consumers: consumerRegistry })({
-      id: envelope.eventId,
-      name: envelope.eventType,
-      data: envelope,
-    } as unknown as Job)
+    await createEventDispatcher(repo, { consumers: consumerRegistry })(envelope)
 
     expect(gateDenials.mock.calls).toEqual([])
     expect(subject.cancelPublicationsForConnection).toHaveBeenCalledWith({
@@ -566,11 +561,7 @@ describe('property archived consumer authorization', () => {
       insertReceipt: gateDenials,
     } as unknown as OutboxRepository
 
-    await createDispatcherHandler(repo, { consumers: consumerRegistry })({
-      id: envelope.eventId,
-      name: envelope.eventType,
-      data: envelope,
-    } as unknown as Job)
+    await createEventDispatcher(repo, { consumers: consumerRegistry })(envelope)
 
     expect(gateDenials.mock.calls).toEqual([])
     expect(subject.cancelPublicationsForProperty).toHaveBeenCalledWith({

@@ -246,8 +246,7 @@ expires before BullMQ recovery, and session advisory locks still isolate live
 consumers. Health reads also count quarantined delivery work directly from
 PostgreSQL, so final-attempt worker death remains covered by the existing
 quarantine alerts and error monitoring after Redis loss. Stored recovery fences still
-refuse delivery. Legacy queue envelopes drain during rolling releases; their
-producers and recovery sweeps are removed.
+refuse delivery.
 
 Outbox retention counts 30 days from publication and then removes only facts
 with every catalogued durable consumer receipt. Missing receipts survive even

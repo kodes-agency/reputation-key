@@ -79,9 +79,7 @@ the store, including large selections, receipt recovery and retention. The
 checkpoint suite there proves concurrent completion and atomic retention
 release. The stored enum contracts keep their `google_import_v2_*` names.
 
-The worker job is `import-gbp-property-item`. Deliveries still queued under
-`import-gbp-property-item-v2` are completed without effect by
-`imports/retired-import-item-job.server.ts`.
+The worker job is `import-gbp-property-item`.
 
 Each active item has a durable recovery appointment. The minute sweep reserves
 at most 100 due items with `FOR UPDATE SKIP LOCKED` and advances their
@@ -221,9 +219,7 @@ Server code is `*.server.ts`, and what the browser imports is a feature's
   API route imports them.
 
 Dispatch evidence and recovery stay in the import stores and the claim reaper:
-the dispatch consumer is registered by `build.ts` through the outbox registry, and
-the retired `import-gbp-property-item-v2` job stays registered so old deliveries
-drain.
+the dispatch consumer is registered by `build.ts` through the outbox registry.
 
 `imports/google-import-command-authorizer.server.ts` reauthorizes import provider
 calls against current membership and command authority after a credential refresh.

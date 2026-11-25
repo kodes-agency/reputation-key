@@ -19,7 +19,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
 import { z } from 'zod/v4'
-import { createDispatcherHandler } from './dispatcher'
+import { createDispatcherHandler, createEventDispatcher } from './dispatcher'
 import { PrerequisiteNotReadyError } from './prerequisite-not-ready'
 import {
   createConsumerRegistry,
@@ -107,14 +107,6 @@ function makeRepo() {
   } as unknown as OutboxRepository
 }
 
-function fakeJob(envelope: ConsumerEvent): Job {
-  return {
-    id: envelope.eventId,
-    name: envelope.eventType,
-    data: envelope,
-  } as unknown as Job
-}
-
 beforeEach(() => {
   overrideEventDescriptor({
     aggregate: { type: 'event', id: 'eventId' },
@@ -144,9 +136,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
     })
     const repo = makeRepo()
 
-    await createDispatcherHandler(repo, { consumers: consumerRegistry })(
-      fakeJob(makeEnvelope()),
-    )
+    await createEventDispatcher(repo, { consumers: consumerRegistry })(makeEnvelope())
 
     expect(handler).toHaveBeenCalledOnce()
     expect(decideMock).toHaveBeenCalledTimes(1)
@@ -171,8 +161,8 @@ describe('dispatcher gate (BQC-3.2)', () => {
       },
     })
 
-    await createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
-      fakeJob(makeEnvelope()),
+    await createEventDispatcher(makeRepo(), { consumers: consumerRegistry })(
+      makeEnvelope(),
     )
 
     expect(seen).toEqual([
@@ -204,8 +194,8 @@ describe('dispatcher gate (BQC-3.2)', () => {
       handler,
     })
 
-    await createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
-      fakeJob(makeEnvelope({ commandId: 'command-root-1' })),
+    await createEventDispatcher(makeRepo(), { consumers: consumerRegistry })(
+      makeEnvelope({ commandId: 'command-root-1' }),
     )
 
     expect(values).toHaveBeenCalledOnce()
@@ -229,9 +219,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
     const repo = makeRepo()
 
     await expect(
-      createDispatcherHandler(repo, { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope()),
-      ),
+      createEventDispatcher(repo, { consumers: consumerRegistry })(makeEnvelope()),
     ).resolves.toBeUndefined()
 
     expect(repo.hasReceipt).toHaveBeenCalledWith('evt-gate-1', 'c-deny')
@@ -273,9 +261,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
       insertReceipt: vi.fn(async () => undefined),
     } as unknown as OutboxRepository
 
-    await createDispatcherHandler(repo, { consumers: consumerRegistry })(
-      fakeJob(makeEnvelope()),
-    )
+    await createEventDispatcher(repo, { consumers: consumerRegistry })(makeEnvelope())
 
     expect(handler).not.toHaveBeenCalled()
     expect(decideMock).not.toHaveBeenCalled()
@@ -293,9 +279,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
       hasReceipt: vi.fn(async () => true),
     } as unknown as OutboxRepository
 
-    await createDispatcherHandler(repo, { consumers: consumerRegistry })(
-      fakeJob(makeEnvelope()),
-    )
+    await createEventDispatcher(repo, { consumers: consumerRegistry })(makeEnvelope())
 
     expect(handler).not.toHaveBeenCalled()
     expect(decideMock).not.toHaveBeenCalled()
@@ -319,8 +303,8 @@ describe('dispatcher gate (BQC-3.2)', () => {
       handler: vi.fn(async () => ({ status: 'applied' as const })),
     })
 
-    await createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
-      fakeJob(makeEnvelope()),
+    await createEventDispatcher(makeRepo(), { consumers: consumerRegistry })(
+      makeEnvelope(),
     )
 
     expect(decideMock).toHaveBeenCalledTimes(2)
@@ -357,9 +341,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     const repo = makeRepo()
 
     await expect(
-      createDispatcherHandler(repo, { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope()),
-      ),
+      createEventDispatcher(repo, { consumers: consumerRegistry })(makeEnvelope()),
     ).rejects.toThrow(/c-fails/)
 
     // Per-consumer isolation kept: every consumer was invoked this attempt.
@@ -381,8 +363,8 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     const repo = makeRepo()
 
     await expect(
-      createDispatcherHandler(repo, { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope({ eventType: DURABLE_TYPE })),
+      createEventDispatcher(repo, { consumers: consumerRegistry })(
+        makeEnvelope({ eventType: DURABLE_TYPE }),
       ),
     ).rejects.toThrow(new RegExp(DURABLE_TYPE))
 
@@ -401,8 +383,8 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     const repo = makeRepo()
 
     await expect(
-      createDispatcherHandler(repo, { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope({ eventType: AUDIT_ONLY_TYPE })),
+      createEventDispatcher(repo, { consumers: consumerRegistry })(
+        makeEnvelope({ eventType: AUDIT_ONLY_TYPE }),
       ),
     ).resolves.toBeUndefined()
 
@@ -412,7 +394,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     )
   })
 
-  it('malformed envelope throws UnrecoverableError (no retry, content-free reason)', async () => {
+  it('a job without a work ID throws UnrecoverableError (no retry)', async () => {
     const repo = makeRepo()
     const job = {
       id: 'evt-bad-1',
@@ -435,8 +417,8 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     })
 
     await expect(
-      createDispatcherHandler(repo, { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope({ payload: { wrong: 'shape' } })),
+      createEventDispatcher(repo, { consumers: consumerRegistry })(
+        makeEnvelope({ payload: { wrong: 'shape' } }),
       ),
     ).rejects.toThrow(UnrecoverableError)
 
@@ -465,9 +447,7 @@ describe('a consumer waiting for its prerequisite', () => {
     })
 
     await expect(
-      createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope()),
-      ),
+      createEventDispatcher(makeRepo(), { consumers: consumerRegistry })(makeEnvelope()),
     ).rejects.toBeInstanceOf(PrerequisiteNotReadyError)
 
     expect(loggerMocks.error).not.toHaveBeenCalled()
@@ -486,9 +466,7 @@ describe('a consumer waiting for its prerequisite', () => {
     register('c-other', other)
 
     await expect(
-      createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope()),
-      ),
+      createEventDispatcher(makeRepo(), { consumers: consumerRegistry })(makeEnvelope()),
     ).rejects.toBeInstanceOf(PrerequisiteNotReadyError)
 
     expect(other).toHaveBeenCalledOnce()
@@ -503,9 +481,9 @@ describe('a consumer waiting for its prerequisite', () => {
       throw new Error('projection boom')
     })
 
-    const failure = await createDispatcherHandler(makeRepo(), {
+    const failure = await createEventDispatcher(makeRepo(), {
       consumers: consumerRegistry,
-    })(fakeJob(makeEnvelope())).catch((err: unknown) => err)
+    })(makeEnvelope()).catch((err: unknown) => err)
 
     expect(failure).toBeInstanceOf(AggregateError)
     expect(failure).not.toBeInstanceOf(PrerequisiteNotReadyError)
@@ -526,8 +504,8 @@ describe('a failing consumer in the log', () => {
       module: TEST_MODULE,
       handler: () => Promise.reject(thrown),
     })
-    return createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
-      fakeJob(makeEnvelope()),
+    return createEventDispatcher(makeRepo(), { consumers: consumerRegistry })(
+      makeEnvelope(),
     ).catch((err: unknown) => err)
   }
 
