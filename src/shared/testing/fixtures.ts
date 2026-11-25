@@ -206,7 +206,6 @@ export function buildTestGoogleConnection(
     scopes: ['https://www.googleapis.com/auth/business.manage'],
     credentialAuthorizedBy: userId('user-00000000-0000-0000-0000-000000000001'),
     connectedBy: userId('user-00000000-0000-0000-0000-000000000001'),
-    visibility: 'organization',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,

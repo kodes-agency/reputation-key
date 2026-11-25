@@ -144,7 +144,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
     ).rejects.toSatisfy((e: unknown) => isUniqueViolationError(e))
   })
 
-  it('reconnectGoogleAccount commits token/visibility update + fact in one transaction', async () => {
+  it('reconnectGoogleAccount commits token update + fact in one transaction', async () => {
     const store = newStore()
     await connect(store)
 
@@ -154,17 +154,15 @@ describe.sequential('integrationCommandStore (integration)', () => {
       googleSubject: 'google-subject-2',
       googleAccountEmail: 'owner-2@example.com',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
-      visibility: 'organization',
     })
     const rows = await connectionRow(
-      'google_subject, google_account_email, encrypted_access_token, scopes, visibility, status',
+      'google_subject, google_account_email, encrypted_access_token, scopes, status',
     )
     expect(rows[0]).toMatchObject({
       google_subject: 'google-subject-2',
       google_account_email: 'owner-2@example.com',
       encrypted_access_token: 'enc-a2',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
-      visibility: 'organization',
       status: 'active',
     })
     expect(await outboxFacts(CONNECTED)).toHaveLength(2)

@@ -63,7 +63,6 @@ async function createAdapter(execute: GoogleAuthorizedProviderExecutor['execute'
       scopes: ['https://www.googleapis.com/auth/business.manage'],
       credentialAuthorizedBy: userId('synthetic-user'),
       connectedBy: userId('synthetic-user'),
-      visibility: 'organization',
       status: 'active',
       credentialUseState: 'active',
       cleanupMaterialDeadlineAt: null,

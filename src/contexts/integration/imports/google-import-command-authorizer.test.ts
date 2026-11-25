@@ -149,9 +149,8 @@ describe('authorizeGoogleImportCommand', () => {
     }
   })
 
-  it('treats connectedBy as provenance for a legacy private row', async () => {
+  it('treats connectedBy as provenance, not authority', async () => {
     const current = connection({
-      visibility: 'private',
       connectedBy: userId('former-connector'),
     })
     const fixture = setup({ current })

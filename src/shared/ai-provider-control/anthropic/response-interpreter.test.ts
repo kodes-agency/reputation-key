@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { getLogger } from '#/shared/observability/logger'
 import type { PreparedAnthropicInvocation } from './prepared-invocation'
 import { interpretAnthropicMessage } from './response-interpreter'
 
@@ -89,7 +90,7 @@ describe('Anthropic Message interpretation', () => {
   it.each(['general_harms', null] as const)(
     'reports a billed refusal with category %s but never its explanation',
     (category) => {
-      const write = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+      const write = vi.spyOn(getLogger(), 'warn').mockImplementation(() => {})
       const outcome = interpretAnthropicMessage(
         message({
           stop_reason: 'refusal',
@@ -107,10 +108,11 @@ describe('Anthropic Message interpretation', () => {
         usageKnown: true,
         providerRetryable: false,
       })
-      expect(String(write.mock.calls[0]?.[0])).toContain(
-        `"category":${category === null ? 'null' : `"${category}"`}`,
-      )
-      expect(String(write.mock.calls[0]?.[0])).not.toContain('explanation')
+      expect(write.mock.calls[0]).toEqual([
+        expect.objectContaining({ event: 'anthropic_refusal', category }),
+        'anthropic_refusal',
+      ])
+      expect(JSON.stringify(write.mock.calls[0])).not.toContain('explanation')
       write.mockRestore()
     },
   )
@@ -136,7 +138,7 @@ describe('Anthropic Message interpretation', () => {
   })
 
   it('names a refusal category it does not know as unlisted, never in the provider words', () => {
-    const write = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    const write = vi.spyOn(getLogger(), 'warn').mockImplementation(() => {})
     const outcome = interpretAnthropicMessage(
       message({
         stop_reason: 'refusal',
@@ -146,8 +148,11 @@ describe('Anthropic Message interpretation', () => {
       4_096,
     )
     expect(outcome).toMatchObject({ disposition: 'provider_refused', usageKnown: true })
-    expect(String(write.mock.calls[0]?.[0])).toContain('"category":"unlisted"')
-    expect(String(write.mock.calls[0]?.[0])).not.toContain('invented')
+    expect(write.mock.calls[0]).toEqual([
+      expect.objectContaining({ event: 'anthropic_refusal', category: 'unlisted' }),
+      'anthropic_refusal',
+    ])
+    expect(JSON.stringify(write.mock.calls[0])).not.toContain('invented')
     write.mockRestore()
   })
 

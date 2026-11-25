@@ -23,7 +23,6 @@ const connection: GoogleConnectionDto = {
   accountEmail: 'reviews@meridian-hotels.example',
   scopes: ['https://www.googleapis.com/auth/business.manage'],
   connectedBy: 'user-story',
-  visibility: 'organization',
   status: 'active',
   createdAt: new Date('2026-08-12T10:00:00.000Z'),
   updatedAt: new Date('2026-08-12T10:00:00.000Z'),

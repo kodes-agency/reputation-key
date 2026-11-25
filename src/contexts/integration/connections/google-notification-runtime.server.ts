@@ -37,7 +37,7 @@ export function createGoogleNotificationRuntime(
   const reads: Parameters<typeof createGoogleNotificationAccountCandidates>[0] = {
     listOrganizations: deps.connectionRepo.listOrganizationIdsWithActiveConnections,
     listConnections: (organization) =>
-      deps.connectionRepo.listByOrganization(organization, { showAll: true }),
+      deps.connectionRepo.listByOrganization(organization),
     findLinkedPropertyIds: deps.propertyApi.findIdsByGoogleConnection,
     readBinding: deps.propertyBindingApi.readInternal,
     accounts,

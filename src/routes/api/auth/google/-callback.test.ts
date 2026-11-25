@@ -158,7 +158,7 @@ describe('GET /api/auth/google/callback', () => {
   it('uses only redeemed server facts and redirects to the frozen route', async () => {
     const response = await handleGoogleOAuthCallback(
       request(
-        'state=v2.v2.secret.handle&code=provider-secret&visibility=organization&returnRoute=https://evil.test',
+        'state=v2.v2.secret.handle&code=provider-secret&returnRoute=https://evil.test',
       ),
     )
 
