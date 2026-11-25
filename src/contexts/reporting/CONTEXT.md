@@ -37,7 +37,7 @@ implementation as `<impl>.port.server.ts`.
 Reporting depends on the public interfaces of Property, Portal, Staff, Review, Inbox and
 Guest, never on their repositories. `buildReportingContext` returns one public interface,
 one outbox registration function, goal maintenance and the rights adapter. Root
-composition may keep the aliases `metricPublicApi`, `goalPublicApi` and
+composition may keep the aliases `goalPublicApi` and
 `dashboardPublicApi`; they point at the same interface. Clocks, identifiers, logging,
 storage and upstream reads are injected by composition
 (`src/shared/architecture/context-injected-runtime.test.ts`).
