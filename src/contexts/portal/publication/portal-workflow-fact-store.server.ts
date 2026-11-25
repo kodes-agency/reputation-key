@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portals } from '#/shared/db/schema/portal.schema'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
@@ -12,37 +12,30 @@ import type {
 } from './complete-content-review.server'
 import { nextLockedPortalRevision } from './portal-command-revision.server'
 
-function parsePublicationState(value: unknown): string | null {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return null
-  }
-  return 'publicationState' in value && typeof value.publicationState === 'string'
-    ? value.publicationState
-    : null
-}
-
 /** Lock the Portal and refuse anything but published content. */
 async function lockPublishedPortal(
   tx: Tx,
   command: PortalWorkflowFactCommand,
 ): Promise<void> {
-  const locked = await tx.execute(sql`
-    SELECT ${portals.publicationState} AS "publicationState"
-    FROM ${portals}
-    WHERE ${portals.organizationId} = ${command.organizationId}
-      AND ${portals.propertyId} = ${command.propertyId}
-      AND ${portals.id} = ${command.portalId}
-      AND ${portals.deletedAt} IS NULL
-    FOR UPDATE
-  `)
-  const publicationState = parsePublicationState(locked.rows[0])
-  if (publicationState === null) {
+  const [locked] = await tx
+    .select({ publicationState: portals.publicationState })
+    .from(portals)
+    .where(
+      and(
+        eq(portals.organizationId, command.organizationId),
+        eq(portals.propertyId, command.propertyId),
+        eq(portals.id, command.portalId),
+        isNull(portals.deletedAt),
+      ),
+    )
+    .for('update')
+  if (!locked) {
     throw portalError(
       'portal_not_found',
       'portal not found in the requested tenant scope',
     )
   }
-  if (publicationState !== 'published') {
+  if (locked.publicationState !== 'published') {
     throw portalError(
       'invalid_publication_transition',
       'content review can only be completed for published Portal content',

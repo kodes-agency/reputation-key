@@ -115,22 +115,6 @@ export function resolveSettingsFields(
   input: UpdatePortalSettingsInput,
   existing: Portal,
 ): Partial<PortalPatch> {
-  if (
-    input.skipPrivateRating !== undefined &&
-    typeof input.skipPrivateRating !== 'boolean'
-  ) {
-    throw portalError(
-      'invalid_skip_private_rating',
-      'Choose whether this portal skips the private rating.',
-    )
-  }
-  const requestedHeroImageUrl = (input as { heroImageUrl?: unknown }).heroImageUrl
-  if (requestedHeroImageUrl !== undefined && requestedHeroImageUrl !== null) {
-    throw portalError(
-      'invalid_url',
-      'Portal hero image URLs are server-owned upload derivatives',
-    )
-  }
   return {
     name:
       input.name !== undefined ? unwrap(validatePortalName(input.name)) : existing.name,
