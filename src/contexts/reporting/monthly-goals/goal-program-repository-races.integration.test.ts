@@ -229,7 +229,6 @@ describe.sequential('Goal Program repository races (integration)', () => {
       subjects: {
         ratingSubjectsSkipPrivateRating: async () => false,
         staffTargetProblem: async () => null,
-        staffTargetAllowed: async () => true,
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
       },
