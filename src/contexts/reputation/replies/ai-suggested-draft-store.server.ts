@@ -22,13 +22,13 @@ import type {
   AiSuggestedDraftStore,
 } from './ai-suggested-draft-store.port.server'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { replyFromRow } from './reply-mapper.server'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding.server'
 import type { AiReplyVoicePublicApi } from '../library/ai-reply-voice-frame.server'
 import { insertAdoptedAiDraft, updateAdoptedAiDraft } from './row-commands.server'
 
-const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
+// Recorded deployment evidence is historical; each provenance has its own execution.
+const REPLY_ADOPTION_DEPLOYMENT = 'private-beta-global-v3'
 
 // The locked row must be the execution the token names: its execution permit
 // and attempt.
@@ -87,24 +87,8 @@ export const createAiSuggestedDraftStore = (
       ) {
         return { status: 'rejected', reason: 'invalid' }
       }
-      const personalized = provenance.version !== 'ai-reply-provenance-v1'
-      const grounded = isGroundedProvenance(provenance)
-      const replyVoiceDigest = grounded ? provenance.replyVoiceDigest : undefined
+      const { replyVoiceDigest, replyProfileVersion } = provenance
       const bodyFrame = await adoptionBodyFrame(replyVoices, provenance, input)
-      const replyProfileVersion = personalized
-        ? provenance.replyProfileVersion
-        : provenance.operationProfileVersion
-      const replyTemplateProvenance = personalized
-        ? {
-            templateId: null,
-            catalogueVersion: null,
-            catalogueDigest: null,
-          }
-        : {
-            templateId: provenance.templateId,
-            catalogueVersion: provenance.replyTemplateCatalogueVersion,
-            catalogueDigest: provenance.replyTemplateCatalogueDigest,
-          }
 
       // fallow-ignore-next-line complexity -- one adoption transaction holds source, reply, consent and provenance fences through the atomic write
       return db.transaction(async (tx) => {
@@ -227,25 +211,15 @@ export const createAiSuggestedDraftStore = (
           operation.sourceRevision !== provenance.sourceRevision ||
           operation.baseReplyStateRevision !== provenance.baseReplyStateRevision ||
           operation.propertyProfileVersion !== provenance.propertyProfileVersion ||
-          provenance.providerDeploymentProfileVersion !==
-            replyAdoptionDeployment(provenance) ||
+          provenance.providerDeploymentProfileVersion !== REPLY_ADOPTION_DEPLOYMENT ||
           operation.operationProfileVersion !== provenance.operationProfileVersion ||
           operation.outputLeakageProfileVersion !==
             provenance.outputLeakageProfileVersion ||
           operation.outputLeakageProfileDigest !==
             provenance.outputLeakageProfileDigest ||
-          (grounded
-            ? operation.replyBrandProfileVersion !==
-                provenance.replyBrandProfileVersion ||
-              operation.replyBrandDisplayNameDigest !==
-                provenance.replyBrandDisplayNameDigest
-            : operation.replyBrandProfileVersion !== null ||
-              operation.replyBrandDisplayNameDigest !== null) ||
-          (!personalized &&
-            (operation.replyTemplateCatalogueVersion !==
-              provenance.replyTemplateCatalogueVersion ||
-              operation.replyTemplateCatalogueDigest !==
-                provenance.replyTemplateCatalogueDigest)) ||
+          operation.replyBrandProfileVersion !== provenance.replyBrandProfileVersion ||
+          operation.replyBrandDisplayNameDigest !==
+            provenance.replyBrandDisplayNameDigest ||
           operation.concreteReplyLanguageTag !== provenance.concreteLanguageTag ||
           operation.concreteReplyTemplateGroup !== provenance.templateGroup ||
           !replyFenceMatches(
@@ -271,7 +245,6 @@ export const createAiSuggestedDraftStore = (
 
         const brandProfileCurrent =
           operation.replyAdoptionDisposition !== 'none' ||
-          !grounded ||
           (await replyBrandProfiles.isCurrentAiReplyBrandProfile(tx, {
             organizationId: input.organizationId,
             propertyId: input.propertyId,
@@ -280,7 +253,6 @@ export const createAiSuggestedDraftStore = (
           }))
         const voiceCurrent =
           operation.replyAdoptionDisposition !== 'none' ||
-          replyVoiceDigest == null ||
           (await replyVoices.isCurrentVoice(tx, {
             organizationId: input.organizationId,
             propertyId: input.propertyId,
@@ -288,7 +260,6 @@ export const createAiSuggestedDraftStore = (
             voiceDigest: replyVoiceDigest,
           }))
         if (
-          grounded &&
           operation.replyAdoptionDisposition === 'none' &&
           (!brandProfileCurrent || !voiceCurrent)
         ) {
@@ -359,14 +330,12 @@ export const createAiSuggestedDraftStore = (
             existing.originReplyDraftingEpoch === provenance.replyDraftingEpoch &&
             existing.originPropertyProfileVersion === provenance.propertyProfileVersion &&
             existing.originAiProfileVersion === replyProfileVersion &&
-            existing.originReplyTemplateId === replyTemplateProvenance.templateId &&
-            existing.originReplyTemplateCatalogueVersion ===
-              replyTemplateProvenance.catalogueVersion &&
-            existing.originReplyTemplateCatalogueDigest ===
-              replyTemplateProvenance.catalogueDigest &&
+            existing.originReplyTemplateId === null &&
+            existing.originReplyTemplateCatalogueVersion === null &&
+            existing.originReplyTemplateCatalogueDigest === null &&
             existing.originConcreteLanguageTag === provenance.concreteLanguageTag &&
             existing.originTemplateGroup === provenance.templateGroup &&
-            existing.voiceDigest === (replyVoiceDigest ?? null) &&
+            existing.voiceDigest === replyVoiceDigest &&
             existing.aiDraftExpiresAt?.getTime() === provenance.draftExpiresAtEpochMillis
           return exactReplay
             ? ({ status: 'accepted', reply: replyFromRow(existing) } as const)
@@ -394,7 +363,7 @@ export const createAiSuggestedDraftStore = (
               templateRef: null,
               templateRevision: null,
               templateWordingKey: null,
-              voiceDigest: replyVoiceDigest ?? null,
+              voiceDigest: replyVoiceDigest,
               voiceChoices: replyV2VoiceChoices(provenance, bodyFrame),
               status: 'draft',
               aiGenerated: true,
@@ -406,10 +375,9 @@ export const createAiSuggestedDraftStore = (
               originReplyDraftingEpoch: provenance.replyDraftingEpoch,
               originPropertyProfileVersion: provenance.propertyProfileVersion,
               originAiProfileVersion: replyProfileVersion,
-              originReplyTemplateId: replyTemplateProvenance.templateId,
-              originReplyTemplateCatalogueVersion:
-                replyTemplateProvenance.catalogueVersion,
-              originReplyTemplateCatalogueDigest: replyTemplateProvenance.catalogueDigest,
+              originReplyTemplateId: null,
+              originReplyTemplateCatalogueVersion: null,
+              originReplyTemplateCatalogueDigest: null,
               originConcreteLanguageTag: provenance.concreteLanguageTag,
               originTemplateGroup: provenance.templateGroup,
               aiDraftExpiresAt: new Date(provenance.draftExpiresAtEpochMillis),
@@ -424,7 +392,7 @@ export const createAiSuggestedDraftStore = (
             organizationId: input.organizationId,
             text: input.text,
             replyLanguageTag: provenance.concreteLanguageTag,
-            voiceDigest: replyVoiceDigest ?? null,
+            voiceDigest: replyVoiceDigest,
             voiceChoices: replyV2VoiceChoices(provenance, bodyFrame),
             status: 'draft',
             source: 'internal',
@@ -441,9 +409,9 @@ export const createAiSuggestedDraftStore = (
             originReplyDraftingEpoch: provenance.replyDraftingEpoch,
             originPropertyProfileVersion: provenance.propertyProfileVersion,
             originAiProfileVersion: replyProfileVersion,
-            originReplyTemplateId: replyTemplateProvenance.templateId,
-            originReplyTemplateCatalogueVersion: replyTemplateProvenance.catalogueVersion,
-            originReplyTemplateCatalogueDigest: replyTemplateProvenance.catalogueDigest,
+            originReplyTemplateId: null,
+            originReplyTemplateCatalogueVersion: null,
+            originReplyTemplateCatalogueDigest: null,
             originConcreteLanguageTag: provenance.concreteLanguageTag,
             originTemplateGroup: provenance.templateGroup,
             aiDraftExpiresAt: new Date(provenance.draftExpiresAtEpochMillis),
@@ -534,11 +502,6 @@ function adoptionRuntimeMatches(
     providerDeploymentProfileVersion: string
   }>,
 ): boolean {
-  if (operation.operationProfileVersion === 'reply-suggestion-v1')
-    return (
-      authorization.capabilityRuntimeProfileVersions.reply_drafting ===
-      REPLY_DRAFTING_RUNTIME_PROFILE
-    )
   return isExecutionCompatibleWithConsent({
     capability: 'reply_drafting',
     acknowledgedNotice: authorization,
@@ -550,24 +513,10 @@ function adoptionRuntimeMatches(
   })
 }
 
-type Provenance = NonNullable<ReturnType<typeof verifyAiReplyProvenance>>
-type GroundedProvenance = Extract<
-  Provenance,
-  { version: 'ai-reply-provenance-v3' | 'ai-reply-provenance-v4' }
->
-
-function isGroundedProvenance(provenance: Provenance): provenance is GroundedProvenance {
-  return (
-    provenance.version === 'ai-reply-provenance-v3' ||
-    provenance.version === 'ai-reply-provenance-v4'
-  )
-}
-
 function replyV2VoiceChoices(
-  provenance: Provenance,
+  provenance: AiReplyProvenancePayload,
   frame: Readonly<{ prefix: string; suffix: string }> | null,
 ) {
-  if (provenance.version !== 'ai-reply-provenance-v4') return null
   return {
     ...provenance.voiceChoices,
     ...(frame
@@ -580,10 +529,9 @@ async function adoptReplyV2Frame(
   tx: Parameters<Parameters<Database['transaction']>[0]>[0],
   input: Parameters<AiSuggestedDraftStore['accept']>[0],
   selected: typeof aiOperations.$inferSelect.replyDraftingV2,
-  provenance: Provenance,
+  provenance: AiReplyProvenancePayload,
   databaseNow: Date,
 ): Promise<void> {
-  if (provenance.version !== 'ai-reply-provenance-v4') return
   if (
     !selected ||
     selected.voiceDigest !== provenance.replyVoiceDigest ||
@@ -607,19 +555,11 @@ async function adoptReplyV2Frame(
   if (reserved.length !== 1) throw new Error('AI reply frame reservation missing')
 }
 
-/** Recorded deployment evidence is historical; each provenance has its own execution. */
-function replyAdoptionDeployment(provenance: Provenance): string {
-  return provenance.version === 'ai-reply-provenance-v4'
-    ? 'private-beta-global-v3'
-    : AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion
-}
-
 async function adoptionBodyFrame(
   voices: AiReplyVoicePublicApi,
-  provenance: Provenance,
+  provenance: AiReplyProvenancePayload,
   input: Parameters<AiSuggestedDraftStore['accept']>[0],
 ) {
-  if (provenance.version !== 'ai-reply-provenance-v4') return null
   return (
     voices.resolveSavedFrame({
       organizationId: input.organizationId,

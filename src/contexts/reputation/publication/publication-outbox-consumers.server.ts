@@ -58,11 +58,12 @@ type PublicationRequestedPayload = Readonly<{
   organizationId: string
   userId: string
   publicationCycle: number
-  sourceEpoch?: number
-  materialReviewRevision?: number
-  baseObservationRevision?: number
+  sourceEpoch: number
+  materialReviewRevision: number
+  baseObservationRevision: number
 }>
 
+/** The shape of a version 2 event; callers settle version 1 events as obsolete first. */
 function parsePublicationRequested(event: ConsumerEvent): PublicationRequestedPayload {
   const payload = validateEventPayload(EVENT_TYPE, event.eventVersion, event.payload) as
     PublicationRequestedPayload | undefined
@@ -95,6 +96,7 @@ export async function handleReplyPublicationRequested(
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
   const payload = parsePublicationRequested(event)
+  if (event.eventVersion !== 2) return receipt(deps, event.eventId, 'obsolete')
   const current = await deps.replyRepo.findById(
     replyId(payload.replyId),
     organizationId(payload.organizationId),
@@ -107,10 +109,6 @@ export async function handleReplyPublicationRequested(
     !current ||
     current.reviewId !== payload.reviewId ||
     current.publicationCycle !== payload.publicationCycle ||
-    event.eventVersion !== 2 ||
-    payload.sourceEpoch === undefined ||
-    payload.materialReviewRevision === undefined ||
-    payload.baseObservationRevision === undefined ||
     current.status !== 'approved' ||
     (current.publicationState !== 'authorized' && current.publicationState !== 'sending')
   ) {
