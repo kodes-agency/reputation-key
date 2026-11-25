@@ -4,7 +4,7 @@ import {
 } from '../domain/personal-portal-public-text'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId, unbrand } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalRepository } from './portal-repository.port.server'
 import type { PortalPublicationRepository } from './portal-publication-repository.port.server'
 import type { PortalCommandStore } from './portal-command-store-port.server'
@@ -42,12 +42,6 @@ export const rollbackPortalPublication =
       activatedAt: Date
     }>
   > => {
-    if (!Number.isSafeInteger(input.version) || input.version < 1) {
-      throw portalError(
-        'publication_snapshot_unavailable',
-        'Publication version must be a positive integer',
-      )
-    }
     const pid = portalId(input.portalId)
     const portal = await loadPortalOrThrow(deps, ctx, pid, {
       permission: 'portal.update',

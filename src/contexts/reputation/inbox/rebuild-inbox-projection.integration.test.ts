@@ -13,7 +13,6 @@ import { Pool } from 'pg'
 import { rebuildInboxProjection } from './rebuild-inbox-projection.server'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createInboxDatabaseStores,
   dropInboxOrganization,
@@ -21,20 +20,20 @@ import {
   readOutboxFacts,
   seedInboxScope,
   seedReviewSource,
-} from '#/contexts/inbox/infrastructure/inbox-database-fixtures'
+} from '#/contexts/reputation/inbox/inbox-database.test-fixtures'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
-} from '#/contexts/inbox/application/ports/review-source-lookup.port'
+} from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type {
   GoogleReplyHead,
   ReplyLookupPort,
   ReplyMilestones,
-} from '#/contexts/inbox/application/ports/reply-lookup.port'
+} from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type {
-  CurrentReplyObservationPermit,
-  ReplyObservationAuthorityPort,
-} from '#/contexts/inbox/application/ports/reply-observation-authority.port'
+  ReviewCurrentReplyObservationPermit,
+  ReviewReplyObservationAuthority,
+} from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import {
   inboxItemId,
   organizationId,
@@ -42,7 +41,8 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { noLentReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.test-fixtures'
 
 const NOW = new Date('2026-06-15T12:00:00Z')
 const SCOPE = 'rebuild-inbox-projection'
@@ -123,10 +123,10 @@ function googleReply(
 
 /** Review's authority: issues the permit asked for, or reports it obsolete. */
 function fakeAuthority(answer: 'current' | 'obsolete') {
-  const authority: ReplyObservationAuthorityPort = {
+  const authority: ReviewReplyObservationAuthority = {
     withExactCurrent: vi.fn(async (expectation, apply) => {
       if (answer === 'obsolete') return { status: 'obsolete' as const }
-      const permit: CurrentReplyObservationPermit = {
+      const permit: ReviewCurrentReplyObservationPermit = {
         ...expectation,
         authority: 'review.current-google-reply-observation.v1',
         sourceEpochCarryFromMaterialReviewRevision: null,
@@ -138,7 +138,10 @@ function fakeAuthority(answer: 'current' | 'obsolete') {
         responseTargetStartAt: null,
         rating: 5,
       }
-      return { status: 'current' as const, value: await apply(permit) }
+      return {
+        status: 'current' as const,
+        value: await apply(permit, noLentReviewTransaction),
+      }
     }),
   }
   return authority
@@ -202,8 +205,6 @@ function setup(opts: {
 }
 
 describe.sequential('rebuildInboxProjection', () => {
-  registerAllEventSchemas()
-
   beforeEach(async () => {
     seq = 0
     await dropInboxOrganization(pool, ORG)

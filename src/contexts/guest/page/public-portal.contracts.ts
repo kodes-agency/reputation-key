@@ -1,6 +1,6 @@
 import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
-import type { PublicPortalResult } from '#/contexts/portal/application/public-api'
-import { fontSetForGuestSurface, type FontSet } from '#/shared/font-sets'
+import type { PublicPortalResult } from '#/contexts/portal/public-api'
+import type { FontSet } from '#/shared/fonts/font-sets'
 
 // F066: Re-export ScanSource from domain/types instead of duplicating the union
 export type { ScanSource } from '../domain/types'
@@ -45,12 +45,9 @@ export type PublicImmersiveLoaderData = Readonly<{
 export type PublicPortalLoaderData = Readonly<{
   portal: Pick<
     PublicPortalData['portal'],
-    'name' | 'description' | 'heroImageUrl' | 'theme' | 'logoUrl' | 'organizationName'
+    'name' | 'description' | 'heroImageUrl' | 'logoUrl' | 'organizationName'
   >
-  categories: ReadonlyArray<Pick<PublicPortalData['categories'][number], 'id' | 'title'>>
-  links: ReadonlyArray<
-    Pick<PublicPortalData['links'][number], 'id' | 'label' | 'categoryId'>
-  >
+  links: ReadonlyArray<Pick<PublicPortalData['links'][number], 'id' | 'label'>>
   reviewGateway: Readonly<{
     privateFeedbackThreshold: number
     skipPrivateRating: boolean
@@ -60,15 +57,13 @@ export type PublicPortalLoaderData = Readonly<{
   }>
   localization: PublicPortalData['localization']
   /**
-   * What the Immersive Hub renders, for a schema version 3 portal and null
-   * otherwise. Destinations, asset ids and provenance never appear in it.
+   * What the Immersive Hub renders. Destinations, asset ids and provenance never
+   * appear in it.
    */
   immersive: PublicImmersiveLoaderData | null
   /**
    * The web fonts the page loads. The root document reads it from the loader
-   * data to link the right stylesheets: 'guest' only for a portal on the
-   * Immersive Hub surface (snapshot schema v3), so every portal live today
-   * keeps the app fonts.
+   * data to link the right stylesheets.
    */
   fontSet: FontSet
 }> &
@@ -136,16 +131,10 @@ export function toPublicPortalLoaderData(
       name: portal.portal.name,
       description: portal.portal.description,
       heroImageUrl: portal.portal.heroImageUrl,
-      theme: portal.portal.theme,
       logoUrl: portal.portal.logoUrl,
       organizationName: portal.portal.organizationName,
     },
-    categories: portal.categories.map(({ id, title }) => ({ id, title })),
-    links: portal.links.map(({ id, label, categoryId }) => ({
-      id,
-      label,
-      categoryId,
-    })),
+    links: portal.links.map(({ id, label }) => ({ id, label })),
     reviewGateway: {
       privateFeedbackThreshold: portal.reviewGateway.privateFeedbackThreshold,
       skipPrivateRating: portal.reviewGateway.skipPrivateRating,
@@ -158,7 +147,7 @@ export function toPublicPortalLoaderData(
       languagePackVersion: portal.localization.languagePackVersion,
     },
     immersive: portal.immersive && toPublicImmersiveLoaderData(portal.immersive),
-    fontSet: fontSetForGuestSurface(portal.guestSurface),
+    fontSet: 'guest',
     ...state,
   }
 }

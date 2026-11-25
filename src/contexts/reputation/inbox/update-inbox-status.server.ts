@@ -4,31 +4,41 @@
 // closes private feedback.
 // Escalation is a separate, orthogonal action.
 
-import { lentTransactionArgs } from '#/contexts/inbox/application/ports/review-open-transaction'
-import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
+import { borrowReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
+import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import type {
   InboxCommandStore,
   ReopenReviewHandlingCycleCommand,
-} from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import { reviewId } from '#/shared/domain/ids'
+} from '#/contexts/reputation/inbox/command-store.port.server'
+import { reviewId, type InboxItemId } from '#/shared/domain/ids'
 import type {
   HandlingCycleHead,
   InboxItem,
-  ReviewHandlingCycleHead,
-} from '#/contexts/inbox/domain/types'
-import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/ports/review-handling-cycle.store'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
+  InboxStatus,
+  ManualReopenReason,
+} from '#/contexts/reputation/domain/inbox-types'
+import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { validateTransition } from '#/contexts/inbox/domain/rules'
-import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
-import { inboxError } from '#/contexts/inbox/domain/errors'
-import type {
-  UpdateInboxStatus,
-  UpdateInboxStatusInput,
-} from '#/contexts/inbox/application/inbox-status-commands'
-import { loadItemForCommand } from '#/contexts/inbox/application/inbox-access'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import { validateTransition } from '#/contexts/reputation/domain/inbox-rules'
+import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
+import { loadItemForCommand } from '#/contexts/reputation/inbox/inbox-access.server'
+
+export type UpdateInboxStatusInput = Readonly<{
+  inboxItemId: InboxItemId
+  newStatus: InboxStatus
+  expectedCommandRevision: number
+  reopenReason?: ManualReopenReason
+  reopenExplanation?: string | null
+}>
+
+export type UpdateInboxStatus = (
+  input: UpdateInboxStatusInput,
+  ctx: AuthContext,
+) => Promise<InboxItem>
 
 export type UpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository
@@ -37,41 +47,8 @@ export type UpdateInboxStatusDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   cycleStore: ReviewHandlingCycleStore
   reviewSourceLookup: ReviewSourceLookupPort
-  responseTargetAuthority: ReviewResponseTargetAuthorityPort
+  responseTargetAuthority: ReviewResponseTargetAuthority
 }>
-
-type CycleHead = HandlingCycleHead | ReviewHandlingCycleHead
-
-/** Permission, tenancy, role-scoped property access, then the optimistic fence. */
-async function authorizeStatusUpdate(
-  deps: UpdateInboxStatusDeps,
-  input: UpdateInboxStatusInput,
-  ctx: AuthContext,
-): Promise<InboxItem> {
-  return loadItemForCommand(deps, input, ctx)
-}
-
-/** Source-agnostic head when the store offers one; otherwise the Review-only head. */
-async function findCurrentCycleHead(
-  deps: UpdateInboxStatusDeps,
-  item: InboxItem,
-): Promise<CycleHead | null> {
-  if (deps.cycleStore.findSourceHead) {
-    return deps.cycleStore.findSourceHead(item.id, item.organizationId)
-  }
-  if (item.sourceType === 'review') {
-    return deps.cycleStore.findHead(item.id, item.organizationId)
-  }
-  return null
-}
-
-/** A Review-only head names the source revision under its Review-specific field. */
-function currentSourceRevisionOf(head: CycleHead): number {
-  if ('currentMaterialReviewRevision' in head) {
-    return head.currentSourceRevision ?? head.currentMaterialReviewRevision
-  }
-  return head.currentSourceRevision
-}
 
 /**
  * Review reopen runs under the Response Target authority so the new cycle's
@@ -80,7 +57,7 @@ function currentSourceRevisionOf(head: CycleHead): number {
 async function reopenUnderResponseTargetAuthority(
   deps: UpdateInboxStatusDeps,
   item: InboxItem,
-  head: CycleHead,
+  head: HandlingCycleHead,
   command: ReopenReviewHandlingCycleCommand,
   now: Date,
 ): Promise<InboxItem> {
@@ -111,7 +88,7 @@ async function reopenUnderResponseTargetAuthority(
             targetStart: { basis: 'operational_reopen', at: now },
           },
         },
-        ...lentTransactionArgs(reviewTx),
+        borrowReviewTransaction(reviewTx),
       )
     },
   )
@@ -124,8 +101,8 @@ async function reopenUnderResponseTargetAuthority(
 export const updateInboxStatus =
   (deps: UpdateInboxStatusDeps): UpdateInboxStatus =>
   async (input, ctx) => {
-    // 1. Find item + enforce role-scoped property access
-    const item = await authorizeStatusUpdate(deps, input, ctx)
+    // 1. Permission, tenancy, role-scoped property access, then the optimistic fence
+    const item = await loadItemForCommand(deps, input, ctx)
 
     // Every close is source-specific: Google observation closes Review work;
     // private feedback closes only after a manager chooses one outcome. The
@@ -157,39 +134,27 @@ export const updateInboxStatus =
       userId: ctx.userId,
       occurredAt: now,
     })
-    if (input.newStatus === 'open') {
-      if (!input.reopenReason) {
-        throw inboxError('invalid_input', 'A neutral reopen reason is required')
-      }
-      const head = await findCurrentCycleHead(deps, item)
-      if (!head) {
-        throw inboxError('not_found', 'Inbox item has no current Handling Cycle')
-      }
-      const command: ReopenReviewHandlingCycleCommand = {
-        item,
-        expected: {
-          cycleNumber: head.currentCycleNumber,
-          sourceRevision: currentSourceRevisionOf(head),
-          stateRevision: head.stateRevision,
-        },
-        reason: input.reopenReason,
-        explanation: input.reopenExplanation ?? null,
-        fact,
-        now,
-      }
-      if (item.sourceType !== 'review') {
-        return deps.commandStore.reopenReviewCycle(command)
-      }
-      return reopenUnderResponseTargetAuthority(deps, item, head, command, now)
+    if (!input.reopenReason) {
+      throw inboxError('invalid_input', 'A neutral reopen reason is required')
     }
-    // `InboxStatus` is exactly `open | closed`. `closed` was refused above and
-    // `open` returned above, so this arm is unreachable — and it used to be the
-    // one path in this use case that wrote `inbox_items.status` without the
-    // Handling Cycle head. It fails closed rather than keeping an unfenced
-    // writer of the compatibility mirror alive for a status that cannot exist.
-    throw inboxError(
-      'invalid_input',
-      'Inbox status has no transition outside open and closed',
-      { requestedStatus: input.newStatus },
-    )
+    const head = await deps.cycleStore.findHead(item.id, item.organizationId)
+    if (!head) {
+      throw inboxError('not_found', 'Inbox item has no current Handling Cycle')
+    }
+    const command: ReopenReviewHandlingCycleCommand = {
+      item,
+      expected: {
+        cycleNumber: head.currentCycleNumber,
+        sourceRevision: head.currentSourceRevision,
+        stateRevision: head.stateRevision,
+      },
+      reason: input.reopenReason,
+      explanation: input.reopenExplanation ?? null,
+      fact,
+      now,
+    }
+    if (item.sourceType !== 'review') {
+      return deps.commandStore.reopenReviewCycle(command)
+    }
+    return reopenUnderResponseTargetAuthority(deps, item, head, command, now)
   }

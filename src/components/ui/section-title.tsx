@@ -5,7 +5,7 @@
 // one h1 (`text-base`, semibold), an h3 is a part of a section (`text-sm`, medium). A
 // part is never the first heading under the h1.
 import type { ComponentProps } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 const LEVEL = {
   2: { tag: 'h2', className: 'text-base font-semibold' },

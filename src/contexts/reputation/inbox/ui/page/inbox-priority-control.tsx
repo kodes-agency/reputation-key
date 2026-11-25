@@ -13,13 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { TONE_INK } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import {
-  INBOX_PRIORITY_LEVELS,
-  type InboxItem,
-  type InboxPriority,
-} from '#/contexts/inbox/application/public-api'
+import { INBOX_PRIORITY_LEVELS } from '#/contexts/reputation/inbox/contracts'
+import type { InboxItem, InboxPriority } from '#/contexts/reputation/public-api'
 import type { InboxCurrentUser, InboxPriorityMenuBox } from '../inbox-case-toolbar-props'
 import { INBOX_SOURCE_HANDLE_PERMISSION } from './inbox-owner-control'
 import type { InboxAssignmentOption } from './inbox-owner-view'

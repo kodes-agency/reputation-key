@@ -1,4 +1,4 @@
-import type { EffectiveNotificationSettings } from '#/contexts/feed/application/public-api'
+import type { EffectiveNotificationSettings } from '#/contexts/feed/public-api'
 import type { NotificationFormattingValues } from '#/contexts/feed/preferences/contracts'
 
 /**

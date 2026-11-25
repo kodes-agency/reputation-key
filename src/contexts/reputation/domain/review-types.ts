@@ -1,0 +1,270 @@
+import type { ReplyFrameBand } from '#/shared/domain/reply-frame'
+// Review context — domain types
+// Per architecture: "Domain types use Readonly<> on every field."
+
+import type {
+  ReviewId,
+  ReplyId,
+  PropertyId,
+  OrganizationId,
+  GoogleConnectionId,
+  UserId,
+} from '#/shared/domain/ids'
+import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
+import type { ReplyModeration } from './reply-moderation'
+import type {
+  PersistedPublicationState,
+  PublicationFailureClass,
+} from './reply-publication-workflow'
+
+export type ReviewPlatform = 'google'
+
+/** Star rating 1–5. Branded to prevent accidental assignment of arbitrary numbers. */
+export type StarRating = 1 | 2 | 3 | 4 | 5
+
+/**
+ * Sentiment label from analysis. Currently only 'positive' | 'negative' | 'neutral' | 'mixed'
+ * are expected, but kept as string | null to allow future NLP provider values without migrations.
+ * Narrow to a union once the sentiment provider is stabilized.
+ */
+export type SentimentLabel = string | null
+
+export type Review = Readonly<{
+  id: ReviewId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  platform: ReviewPlatform
+  externalId: string
+  externalLocationId: string
+  googleConnectionId: GoogleConnectionId | null
+  reviewerName: string | null
+  reviewerProfilePhotoUrl: string | null
+  /**
+   * The review's own Business Profile page (Google's `reviewReplyUrl`), as the
+   * last successful fetch returned it, or null. Provider cache data under ADR
+   * 0031: stored with the erasable source content, rewritten on every applied
+   * fetch, erased with the content, and outside every digest, observation and
+   * AI input, so it never makes a Review look changed.
+   */
+  googleReviewUrl: string | null
+  rating: StarRating
+  text: string | null
+  /**
+   * Google's machine translation of `text`, split out of the single
+   * `(Translated by Google) … (Original) …` provider field. `text` always holds
+   * the guest's own words so language detection and the AI reply plane read the
+   * original; this field exists only for display.
+   */
+  translatedText: string | null
+  languageCode: string | null
+  reviewedAt: Date
+  sentimentLabel: SentimentLabel
+  sentimentScore: number | null
+  // Source content lifecycle (ADR 0031)
+  sourceCreatedAt: Date | null
+  sourceUpdatedAt: Date | null
+  firstFetchedAt: Date | null
+  lastFetchedAt: Date | null
+  contentExpiresAt: Date | null
+  contentHash: string | null
+  sourceSeenGeneration: string | null
+  /** Property binding generation captured for this source observation. */
+  sourceEpoch: number
+  /** Monotonic exact-material binding revision. Same-epoch unchanged refreshes
+   * preserve it; an epoch carry advances it to keep prior bindings immutable. */
+  sourceRevision: number
+  /** Gap-free source event sequence within the Property/source epoch. */
+  analysisSequence: number
+  /**
+   * Exact canonical ai-source-v1 byte length retained only in Review storage.
+   * For a source the AI contract refuses it is the marker one over the
+   * canonical limit (16,385), which every AI reader denies as too large.
+   */
+  aiSourceByteLength: number
+  /**
+   * Lowercase SHA-256 over the domain-separated canonical source bytes (over the
+   * raw source fields, for a source the AI contract refuses).
+   */
+  aiSourceDigest: string
+  createdAt: Date
+  updatedAt: Date
+}>
+
+export type ReplyStatus =
+  'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'publish_failed'
+export type ReplySource = 'google_sync' | 'internal'
+
+export type Reply = Readonly<{
+  id: ReplyId
+  reviewId: ReviewId
+  organizationId: OrganizationId
+  text: string
+  /** Canonical concrete language selected for the public reply text. */
+  replyLanguageTag?: string | null
+  /** Layered reply-library provenance. */
+  templateLayer?: 'builtin' | 'account' | 'property' | null
+  templateRef?: string | null
+  templateRevision?: number | null
+  templateWordingKey?: string | null
+  voiceDigest?: string | null
+  voiceChoices?: Readonly<{
+    ratingBand?: ReplyFrameBand
+    bodyPrefixLength?: number
+    bodySuffixLength?: number
+    closing: number
+    signOff: number
+    contactSentence: number
+    emoji: number
+    includeContact: boolean
+  }> | null
+  status: ReplyStatus
+  source: ReplySource
+  createdBy: UserId | null
+  /**
+   * Who last put the reply up for approval. Often not its creator: a draft
+   * handed to another manager is rewritten and submitted by them, and they
+   * are the one waiting on the decision. Absent or null on a reply never
+   * submitted, or submitted before this was recorded.
+   */
+  submittedBy?: UserId | null
+  approvedBy: UserId | null
+  rejectedBy: UserId | null
+  rejectionReason: string | null
+  measurementBaseReplyRevision?: number | null
+  measurementGenerationId?: string | null
+  aiGenerated: boolean
+  /** Monotonic lifecycle revision used to bind ephemeral AI suggestions. */
+  stateRevision: number
+  submittedAt: Date | null
+  approvedAt: Date | null
+  publishedAt: Date | null
+  // Durable publication state machine overlay (migration 0015).
+  // All four are null/0 when no publication workflow is active (drafts,
+  // pre-0015 legacy rows). See domain/reply-publication-workflow.ts.
+  publicationState: PersistedPublicationState | null
+  /**
+   * Monotonic authorization cycle. Queue jobs and durable publication intents
+   * carry this value so delivery from an older approval/edit/retry cycle can
+   * never claim the current reply. Zero is the legacy generation from before the cycle existed.
+   */
+  publicationCycle: number
+  publicationAttempts: number
+  publicationLastErrorClass: PublicationFailureClass | null
+  reconcileDueAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+}>
+
+/**
+ * Default source-lifecycle fields when constructing or refreshing a review.
+ *
+ * ADR 0031:
+ * - `lastFetchedAt` is the successful fetch instant (`now`). Stored, it means a
+ *   fetch within the last day: a re-read less than a day after the stored clock
+ *   leaves it and the expiry unmoved.
+ * - `contentExpiresAt` is derived from that fetch (policy TTL), never from
+ *   publication time; the observation writer keeps the stored one for a re-read
+ *   under a day later.
+ * - `contentHash` is supplied by the caller from current source fields so
+ *   unchanged vs content-changed refreshes can be distinguished.
+ */
+export function defaultReviewLifecycle(args: {
+  reviewedAt: Date
+  now: Date
+  /** Hash of current normalized source fields; required on production write paths. */
+  contentHash?: string | null
+  /** Current property binding generation. */
+  sourceEpoch?: number
+  /**
+   * Exact canonical source byte length computed by the infrastructure boundary,
+   * or the over-the-limit marker for a source the AI contract refuses.
+   */
+  aiSourceByteLength: number
+  /** Domain-separated lowercase SHA-256 computed by the infrastructure boundary. */
+  aiSourceDigest: string
+  existing?: Pick<
+    Review,
+    | 'sourceCreatedAt'
+    | 'sourceUpdatedAt'
+    | 'firstFetchedAt'
+    | 'lastFetchedAt'
+    | 'contentExpiresAt'
+    | 'contentHash'
+    | 'sourceSeenGeneration'
+    | 'sourceEpoch'
+    | 'sourceRevision'
+    | 'analysisSequence'
+    | 'aiSourceByteLength'
+    | 'aiSourceDigest'
+  > | null
+}): Pick<
+  Review,
+  | 'sourceCreatedAt'
+  | 'sourceUpdatedAt'
+  | 'firstFetchedAt'
+  | 'lastFetchedAt'
+  | 'contentExpiresAt'
+  | 'contentHash'
+  | 'sourceSeenGeneration'
+  | 'sourceEpoch'
+  | 'sourceRevision'
+  | 'analysisSequence'
+  | 'aiSourceByteLength'
+  | 'aiSourceDigest'
+> {
+  const existing = args.existing
+  const lastFetchedAt = args.now
+  const aiSourceDigest = args.aiSourceDigest
+  return {
+    sourceCreatedAt: existing?.sourceCreatedAt ?? args.reviewedAt,
+    sourceUpdatedAt: existing?.sourceUpdatedAt ?? null,
+    firstFetchedAt: existing?.firstFetchedAt ?? args.now,
+    lastFetchedAt,
+    contentExpiresAt: contentExpiresAtFromFetch(lastFetchedAt),
+    contentHash: args.contentHash ?? existing?.contentHash ?? null,
+    sourceSeenGeneration: existing?.sourceSeenGeneration ?? null,
+    sourceEpoch: args.sourceEpoch ?? existing?.sourceEpoch ?? 0,
+    // The repository-owned material comparator is the sole revision-number
+    // authority. Lifecycle defaults preserve an existing revision and never
+    // infer a guest edit from AI-source or metadata changes.
+    sourceRevision: existing?.sourceRevision ?? 1,
+    analysisSequence: existing?.analysisSequence ?? 0,
+    aiSourceByteLength: args.aiSourceByteLength,
+    aiSourceDigest,
+  }
+}
+
+/** Raw review data from Google API, before domain mapping. */
+export type GoogleReview = Readonly<{
+  reviewName: string
+  externalId: string
+  externalLocationId: string
+  reviewerName: string | null
+  reviewerProfilePhotoUrl: string | null
+  /**
+   * Google's `reviewReplyUrl` for this review, kept only in the one shape Google
+   * sends for the review's own location (`normalizeGoogleReviewReplyUrl`), else
+   * null. It opens the review on the Business Profile and needs the Google
+   * account that manages it; its token cannot be derived from `externalId`.
+   */
+  googleReviewUrl: string | null
+  rating: StarRating
+  text: string | null
+  /** Google's machine translation; `text` holds the guest's original words. */
+  translatedText: string | null
+  languageCode: string | null
+  reviewedAt: Date
+  /** Provider-authored creation clock, when supplied by the source adapter. */
+  sourceCreatedAt?: Date
+  /** Provider-authored update clock used to reject out-of-order observations. */
+  sourceUpdatedAt?: Date | null
+  replyText: string | null
+  replyUpdatedAt: Date | null
+  /**
+   * Google's moderation state for the reply (`reviewReplyState`,
+   * `policyViolation`), parsed and recorded only. No observation, confirmation,
+   * Inbox or metric rule reads it yet. Optional so fakes that predate it keep
+   * working; the Google adapter always sets it.
+   */
+  replyModeration?: ReplyModeration
+}>

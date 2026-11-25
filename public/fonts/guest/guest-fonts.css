@@ -9,7 +9,7 @@
    subsets are left out: none of the six guest languages needs them.
 
    Loaded only by pages whose loader declares the 'guest' font set (see
-   src/shared/font-sets.ts). The app fonts stay on every other page. Kept
+   src/shared/fonts/font-sets.ts). The app fonts stay on every other page. Kept
    outside the Vite pipeline on purpose: the bundle budget counts every emitted
    stylesheet, and this one is needed on guest pages alone. */
 

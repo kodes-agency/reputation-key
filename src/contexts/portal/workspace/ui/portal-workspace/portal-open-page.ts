@@ -31,7 +31,6 @@ import type { PortalTokenStatus } from '#/contexts/portal/application/portal-man
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import type { PortalDetailTab } from '#/contexts/portal/workspace/ui/portal-detail-rules'
-import { directAddressOf } from '../../../printing/ui/portal-share/portal-share-state'
 import type { PortalPublicationState } from '../shared/types'
 
 /**
@@ -66,7 +65,7 @@ export function deriveOpenPageMode(
 /** What a link holds for opening its page: its QR address and, from the server, its direct one. */
 export type OpenableLink = Readonly<{
   publicUrl: string
-  publicUrls?: { direct: string }
+  publicUrls: { direct: string }
 }>
 
 /**
@@ -76,7 +75,7 @@ export type OpenableLink = Readonly<{
  * printed code, and a manager checking their own page is not one.
  */
 export function openablePageAddress(link: OpenableLink): string | null {
-  const address = directAddressOf(link) ?? link.publicUrl
+  const address = link.publicUrls.direct
   try {
     const url = new URL(address)
     const isWeb = url.protocol === 'https:' || url.protocol === 'http:'

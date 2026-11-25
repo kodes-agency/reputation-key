@@ -45,17 +45,10 @@ import {
 } from '../domain/portal-experience'
 import {
   changedLookFacets,
-  type BackgroundMode,
   type LookFacet,
   type PropertyLook,
 } from '../domain/property-look'
-type BrandProfileFields = Omit<PortalBrandProfileSnapshot, 'version'> &
-  Readonly<{
-    /** Left out, a first profile has none and an existing one keeps its own. */
-    wordmark?: string | null
-    /** Left out, a first profile is automatic and an existing one keeps its own. */
-    backgroundMode?: BackgroundMode
-  }>
+type BrandProfileFields = Omit<PortalBrandProfileSnapshot, 'version'>
 
 /** Brand writes take the Property's publication lock before touching a row. */
 function lockPropertyPublication(tx: Tx, scope: PropertyScope): Promise<void> {
@@ -419,77 +412,6 @@ export const createPortalExperienceRepository = (
       return rows.map(overrideFromRow)
     }),
 
-  savePropertyProfile: (input) =>
-    trace('portalExperience.savePropertyProfile', async () => {
-      const committed = await db.transaction(async (tx) => {
-        await lockPropertyPublication(tx, input)
-        const scope = propertyProfileScope(input)
-        const [current] = await tx
-          .select()
-          .from(propertyPortalBrandProfiles)
-          .where(scope)
-          .limit(1)
-        if (!current) {
-          const [created] = await tx
-            .insert(propertyPortalBrandProfiles)
-            .values(firstProfileRow(input, input.profile, unbrand(input.updatedBy)))
-            .returning()
-          if (!created) throw new Error('Property Brand Profile was not saved')
-          await recordPropertyProfileChange(tx, input, {
-            nameChanged: true,
-            previousName: null,
-            displayName: created.displayName,
-            facets: [],
-            version: created.version,
-            lookVersion: created.lookVersion,
-            actorUserId: unbrand(input.updatedBy),
-          })
-          return profileFromRow(created)
-        }
-        const { wordmark, backgroundMode, ...fields } = input.profile
-        const next = {
-          ...fields,
-          wordmark: wordmark === undefined ? current.wordmark : wordmark,
-          backgroundMode: backgroundMode ?? profileFromRow(current).backgroundMode,
-        }
-        // The images this write has no field for stay as they are, so they are
-        // compared as they were.
-        const before = lookOfRow(current)
-        const facets = changedLookFacets(before, { ...before, ...next })
-        const nameChanged = current.displayName !== next.displayName
-        // A save that moves nothing still records who confirmed the profile.
-        const [row] = await tx
-          .update(propertyPortalBrandProfiles)
-          .set({
-            ...next,
-            version: nameChanged
-              ? sql`${propertyPortalBrandProfiles.version} + 1`
-              : current.version,
-            lookVersion:
-              facets.length > 0
-                ? sql`${propertyPortalBrandProfiles.lookVersion} + 1`
-                : current.lookVersion,
-            updatedBy: unbrand(input.updatedBy),
-            updatedAt: input.at,
-          })
-          .where(scope)
-          .returning()
-        if (!row) throw new Error('Property Brand Profile was not saved')
-        await recordPropertyProfileChange(tx, input, {
-          nameChanged,
-          previousName: current.displayName,
-          displayName: row.displayName,
-          facets,
-          version: row.version,
-          lookVersion: row.lookVersion,
-          actorUserId: unbrand(input.updatedBy),
-        })
-        return profileFromRow(row)
-      })
-
-      return committed
-    }),
-
   savePropertyLook: (input) =>
     trace('portalExperience.savePropertyLook', () =>
       withLockedProfile(db, input, async (tx, current) => {
@@ -754,7 +676,8 @@ export const createPortalExperienceRepository = (
           )
           .limit(1)
         const previousTitle = current?.title ?? null
-        const hasValue = Object.values(input.override).some((value) => value !== null)
+        const hasValue =
+          input.override.title !== null || input.override.shortDescription !== null
         if (!hasValue) {
           const scope = and(
             eq(portalLocalizedOverrides.organizationId, unbrand(input.organizationId)),
@@ -814,6 +737,7 @@ export const createPortalExperienceRepository = (
             ],
             set: {
               ...input.override,
+              heroImageUrl: null,
               version: sql`${portalLocalizedOverrides.version} + 1`,
               updatedBy: unbrand(input.updatedBy),
               updatedAt: input.at,

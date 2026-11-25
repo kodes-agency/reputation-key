@@ -1,0 +1,305 @@
+// Inbox context — build function (composition root)
+// Per architecture: "Build functions wire ports → adapters, deps → use cases."
+// Returns segregated request, lifecycle, maintenance, and worker capabilities;
+// persistence details remain context-internal.
+//
+// Runtime contribution exposed to the composition root:
+//   - worker.registerOutboxConsumers — registers Inbox's durable consumers
+//     before the worker begins processing outbox jobs.
+
+import type { Database } from '#/shared/db'
+import { registerInboxMemberOffboardingConsumers } from './inbox/member-offboarding-outbox-consumers.server'
+import type { ConsumerRegistry } from '#/shared/outbox'
+import {
+  createInboxAssignmentRuntime,
+  type InboxAssignmentRuntime,
+} from './inbox/inbox-assignment-runtime.server'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type {
+  ReviewReplyObservationAuthority,
+  ReviewSourceTransitionAuthority,
+} from '#/contexts/reputation/public-api'
+import { inboxItemId } from '#/shared/domain/ids'
+import type { InboxRepository } from './inbox/inbox-repository.port.server'
+import type { InboxNoteRepository } from './inbox/inbox-note-repository.port.server'
+import type { InboxViewRepository } from './inbox/inbox-view-repository.port.server'
+import type { InboxCommandStore } from './inbox/command-store.port.server'
+import type { ReviewHandlingCycleStore } from './inbox/review-handling-cycle-store.port.server'
+import type { FeedbackHandlingStore } from './inbox/feedback-handling-store.port.server'
+import type { ResponseTargetStore } from './response-targets/store.port.server'
+import type { ResponseTargetPolicyStore } from './response-targets/policy.store.port.server'
+import type { RestatedRevisionTargetExclusions } from './response-targets/restated-revision-target-exclusion-store.port.server'
+import type { ReviewLookupPort } from './inbox/review-lookup.port.server'
+import type { AiReviewInsightsPort } from './inbox/ai-review-insights.port.server'
+import type {
+  FeedbackLookupSource,
+  PropertyLookupSource,
+  ReplyLookupSource,
+  ReviewSourceLookupSource,
+} from './inbox/lookup-sources.port.server'
+import type { InboxPublicApi } from './public-api'
+import type { GetInboxResponseTarget } from './response-targets/get-response-targets.server'
+import type { RebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
+import {
+  createReleaseResponseTargetRemindersHandler,
+  JOB_NAME as RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
+} from './response-targets/release-reminders.job.server'
+import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
+import { createInboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.server'
+import { createInboxHistoryRepository } from '#/contexts/reputation/inbox/inbox-history-repository.server'
+import { createInboxViewRepository } from '#/contexts/reputation/inbox/inbox-view-repository.server'
+import {
+  createAtomicInboxCommandStore,
+  type InboxCommandAuthority,
+} from '#/contexts/reputation/inbox/command-store.server'
+import { createReviewHandlingCycleStore } from './inbox/review-handling-cycle-store.server'
+import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
+import { createResponseTargetStore } from './response-targets/store.server'
+import { createRestatedRevisionTargetExclusionStore } from './response-targets/restated-revision-target-exclusion-store.server'
+import {
+  createCycleHeadFactsStore,
+  type CycleHeadFactsStore,
+} from './inbox/inbox-cycle-head-facts-store.server'
+import { createResponseTargetPolicyStore } from './response-targets/policy.store.server'
+import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
+import { registerInboxPropertyLifecycleConsumers } from './response-targets/property-lifecycle-outbox-consumers.server'
+import { registerGuestFeedbackConsumer } from './inbox/guest-feedback-outbox-consumers.server'
+import { createFeedbackLookupAdapter } from './inbox/feedback-lookup.adapter.server'
+import { createPropertyLookupAdapter } from './inbox/property-lookup.adapter.server'
+import { createReplyLookupAdapter } from './inbox/reply-lookup.adapter.server'
+import { createReviewSourceLookupAdapter } from './inbox/review-source-lookup.adapter.server'
+import type {
+  ReviewGoogleReviewCheck,
+  ReviewResponseTargetAuthority,
+} from '#/contexts/reputation/public-api'
+import { createGoogleCheckRateLimitAdapter } from './inbox/google-check-rate-limit.adapter.server'
+import type { RateLimiter } from '#/shared/rate-limit/middleware'
+import { createInboxActorDirectoryAdapter } from './inbox/inbox-actor-directory.adapter.server'
+import { projectInboxRequestApi, wireUseCases } from './build-inbox-use-cases'
+
+export type InboxContextBuildInput = Readonly<{
+  db: Database
+  clock: () => Date
+  idGen: () => string
+  staffPublicApi: StaffPublicApi
+  /** BQC-1.4: review.publicApi IS the governed read interface — it satisfies
+   * the inbox ReviewLookupPort directly (single rule, one owner). */
+  reviewLookup: ReviewLookupPort
+  aiInsights?: AiReviewInsightsPort
+  /**
+   * BQC-5.2: foreign-owned read pieces the inbox build adapts into its lookup
+   * ports (guest feedback/rating reads, property names, review reply/metadata
+   * reads). Narrow structural contracts — no foreign infrastructure imports.
+   */
+  sources: Readonly<{
+    feedback: FeedbackLookupSource
+    property: PropertyLookupSource
+    reply: ReplyLookupSource
+    review: ReviewSourceLookupSource
+    replyObservationAuthority: ReviewReplyObservationAuthority
+    responseTargetAuthority: ReviewResponseTargetAuthority
+    sourceTransitionAuthority: ReviewSourceTransitionAuthority
+    /** Reads one review from Google once, before a Response Target reminder for it goes out. */
+    googleReviewCheck: ReviewGoogleReviewCheck
+  }>
+  /** The shared limiter: it budgets the manager-triggered "check on Google" reads. */
+  rateLimiter: RateLimiter
+  logger: LoggerPort
+  /** Current actor/assignee authority, evaluated inside each command transaction. */
+  authorizeCommand: InboxCommandAuthority
+}>
+
+export type InboxContextApi = Readonly<{
+  publicApi: InboxPublicApi
+  /** Event and cross-context workflow capabilities. These are deliberately
+   * separate from request handlers and operator repair commands. */
+  lifecycle: Readonly<{
+    getInboxResponseTarget: GetInboxResponseTarget
+  }>
+  /** Bounded operator repair capabilities owned by Inbox. */
+  maintenance: Readonly<{
+    rebuildInboxProjection: RebuildInboxProjection
+    /** Leaves the Response Targets of restated revisions out of every count
+     * (`pnpm ops inbox exclude-restated-revision-targets`). */
+    responseTargetExclusions: RestatedRevisionTargetExclusions
+    /** Copies the Handling Cycle facts from the heads onto the Inbox rows
+     * (`pnpm ops inbox-cycle-facts backfill`). */
+    cycleHeadFacts: CycleHeadFactsStore
+  }>
+  /** Context-owned worker registration; exposes no repositories or use cases. */
+  worker: Readonly<{
+    registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
+  }>
+  /** ARC-03-T12: the named member-authority capability. Replaces the root's
+   * `inbox.internal.commandStore` reach-through. */
+  assignments: InboxAssignmentRuntime
+  /** The scheduled reminder release Inbox contributes to the worker. */
+  runtime: Readonly<{
+    releaseResponseTargetRemindersJob: Readonly<{
+      name: string
+      handler: ReturnType<typeof createReleaseResponseTargetRemindersHandler>
+    }>
+  }>
+  internal: Readonly<{
+    repos: Readonly<{
+      inboxRepo: InboxRepository
+      inboxNoteRepo: InboxNoteRepository
+      inboxViewRepo: InboxViewRepository
+      staffPublicApi: StaffPublicApi
+    }>
+    /** BQC-3.4: atomic state+outbox command store — also drives the durable consumers. */
+    commandStore: InboxCommandStore
+    handlingCycleStore: ReviewHandlingCycleStore
+    feedbackHandlingStore: FeedbackHandlingStore
+    responseTargetStore: ResponseTargetStore
+    responseTargetPolicyStore: ResponseTargetPolicyStore
+    useCases: ReturnType<typeof wireUseCases>
+  }>
+}>
+
+export const buildInboxContext = (input: InboxContextBuildInput): InboxContextApi => {
+  const feedbackLookup = createFeedbackLookupAdapter(input.sources.feedback)
+  const propertyLookup = createPropertyLookupAdapter(input.sources.property)
+  const replyLookup = createReplyLookupAdapter(input.sources.reply)
+  const reviewSourceLookup = createReviewSourceLookupAdapter(input.sources.review)
+  const {
+    replyObservationAuthority,
+    responseTargetAuthority,
+    sourceTransitionAuthority,
+  } = input.sources
+
+  const inboxRepo = createInboxRepository(
+    input.db,
+    {
+      reviewLookup: input.reviewLookup,
+      feedbackLookup,
+      propertyLookup,
+      aiInsights: input.aiInsights,
+    },
+    {
+      clock: input.clock,
+      logger: input.logger,
+    },
+  )
+  const inboxNoteRepo = createInboxNoteRepository(input.db)
+  const inboxHistoryRepo = createInboxHistoryRepository(input.db)
+  // IBX-01-T6: bounded actor display-name resolution. Inbox owns the read
+  // because the alternative — rendering an eight-character id fragment — is not
+  // usable manager history.
+  const actorDirectory = createInboxActorDirectoryAdapter(input.db)
+  const inboxViewRepo = createInboxViewRepository(input.db, input.clock)
+
+  // BQC-3.4: every fact-producing command commits state and its outbox row in
+  // one transaction.
+  const commandStore = createAtomicInboxCommandStore(
+    input.db,
+    input.authorizeCommand,
+    input.clock,
+  )
+  const handlingCycleStore = createReviewHandlingCycleStore(input.db)
+  const feedbackHandlingStore = createFeedbackHandlingStore(
+    input.db,
+    input.authorizeCommand,
+  )
+  const responseTargetStore = createResponseTargetStore(input.db)
+  const responseTargetPolicyStore = createResponseTargetPolicyStore(input.db)
+
+  const useCases = wireUseCases({
+    inboxRepo,
+    inboxNoteRepo,
+    inboxHistoryRepo,
+    inboxViewRepo,
+    actorDirectory,
+    commandStore,
+    handlingCycleStore,
+    feedbackHandlingStore,
+    responseTargetStore,
+    responseTargetPolicyStore,
+    responseTargetAuthority,
+    reviewSourceLookup,
+    replyLookup,
+    replyObservationAuthority,
+    googleReviewCheck: input.sources.googleReviewCheck,
+    googleCheckRateLimit: createGoogleCheckRateLimitAdapter(input.rateLimiter),
+    propertyLookup,
+    staffPublicApi: input.staffPublicApi,
+    aiInsights: input.aiInsights,
+    logger: input.logger,
+    clock: input.clock,
+    idGen: input.idGen,
+  })
+  const publicApi: InboxPublicApi = projectInboxRequestApi(useCases, responseTargetStore)
+  const lifecycle = Object.freeze({
+    getInboxResponseTarget: useCases.getInboxResponseTarget,
+  })
+  const maintenance = Object.freeze({
+    rebuildInboxProjection: useCases.rebuildInboxProjection,
+    responseTargetExclusions: createRestatedRevisionTargetExclusionStore(input.db),
+    cycleHeadFacts: createCycleHeadFactsStore(input.db),
+  })
+
+  // Durable consumer registration is the single cross-context delivery path.
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
+    registerInboxConsumers(consumerRegistry, {
+      commandStore,
+      handlingCycleStore,
+      replyObservationAuthority,
+      responseTargetAuthority,
+      sourceTransitionAuthority,
+      reviewLookup: input.reviewLookup,
+      reviewSourceLookup,
+      inboxRepo,
+      idGen: () => inboxItemId(input.idGen()),
+      clock: input.clock,
+      logger: input.logger,
+    })
+    registerGuestFeedbackConsumer(consumerRegistry, {
+      commandStore,
+      feedbackLookup,
+      inboxRepo,
+      idGen: () => inboxItemId(input.idGen()),
+      clock: input.clock,
+    })
+    registerInboxPropertyLifecycleConsumers(consumerRegistry, {
+      responseTargetStore,
+      clock: input.clock,
+    })
+    registerInboxMemberOffboardingConsumers(consumerRegistry, {
+      db: input.db,
+      commandStore,
+      clock: input.clock,
+    })
+  }
+
+  return {
+    publicApi,
+    lifecycle,
+    maintenance,
+    worker: Object.freeze({ registerOutboxConsumers }),
+    assignments: createInboxAssignmentRuntime(commandStore),
+    runtime: Object.freeze({
+      releaseResponseTargetRemindersJob: Object.freeze({
+        name: RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
+        handler: createReleaseResponseTargetRemindersHandler({
+          release: useCases.releaseDueResponseTargetReminders,
+          logger: input.logger,
+        }),
+      }),
+    }),
+    internal: {
+      repos: {
+        inboxRepo,
+        inboxNoteRepo,
+        inboxViewRepo,
+        staffPublicApi: input.staffPublicApi,
+      },
+      commandStore,
+      handlingCycleStore,
+      feedbackHandlingStore,
+      responseTargetStore,
+      responseTargetPolicyStore,
+      useCases,
+    },
+  }
+}

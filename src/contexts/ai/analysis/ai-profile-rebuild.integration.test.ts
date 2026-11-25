@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb, type Tx } from '#/shared/db'
@@ -111,7 +111,9 @@ describe.sequential('processing profile rebuild through PostgreSQL', () => {
       .from(aiReviewAnalyses)
       .where(eq(aiReviewAnalyses.reviewId, seededReviewId(IDS, 1)))
     if (!analysis) throw new Error('Missing stored analysis')
-    const outputs = createAiOutputStoreAdapter(db)
+    const outputs = createAiOutputStoreAdapter(db, {
+      isCurrentAiReplyBrandProfile: async () => true,
+    })
     const request = {
       ...scope(version),
       actorUserId: userId('ai-profile-rebuild-actor'),
@@ -122,7 +124,7 @@ describe.sequential('processing profile rebuild through PostgreSQL', () => {
       analysisProfileVersion: 'review-analysis-v3',
       nowEpochMillis: new Date('2026-10-21T00:00:00Z').getTime(),
     }
-    const read = () => outputs.readAnalysisForDelivery(request, async (result) => result)
+    const read = () => outputs.readAnalysisForDelivery(request)
     const filter = () =>
       outputs.findCurrentReviewIdsByAttention({
         organizationId: seed.scope.organizationId,
@@ -209,7 +211,6 @@ describe.sequential('processing profile rebuild through PostgreSQL', () => {
         reviewId: reviewId(seededReviewId(IDS, 1)),
         sourceRevision: 1,
         analysisSequence: 1,
-        calendarProfileVersion: 'property-calendar-v1',
       }),
     ).resolves.toEqual({ status: 'stale' })
     expect(await facts(version)).toEqual(rebuilt)
@@ -242,7 +243,6 @@ describe.sequential('processing profile rebuild through PostgreSQL', () => {
       reviewId: reviewId(seededReviewId(IDS, 1)),
       sourceRevision: 1,
       analysisSequence: 1,
-      calendarProfileVersion: 'property-calendar-v1',
     })
     expect(await facts(version)).toEqual(rebuilt)
   })

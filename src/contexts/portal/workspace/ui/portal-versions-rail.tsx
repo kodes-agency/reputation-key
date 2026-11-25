@@ -8,7 +8,7 @@ import type { PortalVersions } from '#/contexts/portal/application/portal-manage
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import { countPendingChanges } from './portal-detail-rules'
 import { usePortalHistory } from './portal-history-context'

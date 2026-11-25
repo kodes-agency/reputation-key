@@ -70,13 +70,6 @@ export const createPropertyResponsibleManagerRepository = (
 
   replace: async (input) =>
     db.transaction(async (tx) => {
-      await tx.execute(sql`
-        SELECT id FROM properties
-        WHERE organization_id = ${input.organizationId}
-          AND id = ${input.propertyId}
-          AND deleted_at IS NULL
-        FOR UPDATE
-      `)
       const [property] = await tx
         .select({
           id: properties.id,
@@ -92,6 +85,7 @@ export const createPropertyResponsibleManagerRepository = (
             isNull(properties.deletedAt),
           ),
         )
+        .for('update')
         .limit(1)
       if (!property) throw propertyError('property_not_found', 'property not found')
       if (property.revision !== input.expectedRevision) {
@@ -167,7 +161,7 @@ export const createPropertyResponsibleManagerRepository = (
           await insertOutboxRow(tx, event, { recordedAt: input.at })
         }
       }
-      const [revised] = await tx
+      await tx
         .update(properties)
         .set({
           responsibleManagerRevision: nextRevision,
@@ -178,16 +172,8 @@ export const createPropertyResponsibleManagerRepository = (
           and(
             eq(properties.organizationId, input.organizationId),
             eq(properties.id, input.propertyId),
-            eq(properties.responsibleManagerRevision, input.expectedRevision),
           ),
         )
-        .returning({ revision: properties.responsibleManagerRevision })
-      if (!revised) {
-        throw propertyError(
-          'revision_conflict',
-          'responsible managers changed; reload them',
-        )
-      }
 
       const activeRows = await selectActive(tx, input.organizationId, input.propertyId)
       // Committed with the change, and only when the selection really moved:
@@ -205,7 +191,7 @@ export const createPropertyResponsibleManagerRepository = (
       )
       return {
         assignments: activeRows.map(fromRow),
-        revision: revised.revision,
+        revision: nextRevision,
         becameResponsibilityNeeded,
       }
     }),

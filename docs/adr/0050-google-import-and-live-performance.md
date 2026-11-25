@@ -36,7 +36,7 @@ The browser keeps the selection while the page is open, including in a hidden ta
 
 The provider-ephemeral Redis service has no volume, AOF, RDB snapshot, persistence-capable replication/backlog, backup, export, restore, or new outbound network path. It is not the general BullMQ/quota Redis.
 
-Browser DTOs carry 256-bit random opaque account, candidate, cursor, and lease handles. Checkpoint rows and lease keys use audience-separated, versioned HMACs of those handles. Browser code never receives account IDs, location IDs, provider page tokens, OAuth tokens, resource paths, or self-contained provider claims.
+Browser DTOs carry 256-bit random opaque account, candidate, cursor, and lease handles. Checkpoint rows are keyed by the handle itself, bound to the organization, user and connection and re-checked on every redemption; lease keys use audience-separated, versioned HMACs. Browser code never receives account IDs, location IDs, provider page tokens, OAuth tokens, resource paths, or self-contained provider claims.
 
 A durable import stores the manager's explicitly confirmed RepKey profile. Provider display fields may prefill review UI, but are not durable mutation/routing authority and are cleared with the discovery epoch.
 
@@ -56,7 +56,7 @@ Request-lifetime period sums and chart composition are reporting transformations
 
 ### 5. OAuth/OIDC integrity
 
-OAuth state v2 is a random 256-bit opaque handle. Provider Redis holds the authoritative record for at most ten minutes under an audience-separated HMAC. The record fixes organization, initiating user, visibility, server-selected purpose, connection mode/target or global absence, return-route key, independent OIDC nonce, PKCE S256 verifier/challenge, issue/expiry, and the initiating Better Auth session binding.
+OAuth state v2 is a random 256-bit opaque handle. Provider Redis holds the authoritative record for at most ten minutes under an audience-separated HMAC. The record fixes organization, initiating user, server-selected purpose, connection mode/target or global absence, return-route key, independent OIDC nonce, PKCE S256 verifier/challenge, issue/expiry, and the initiating Better Auth session binding.
 
 The initiating-session binding is a versioned, audience-separated HMAC of the stable server-side session ID. The raw session ID/cookie is never persisted. Callback handling re-resolves the same-site authenticated session and active organization, then atomically compares session digest, user, and organization before consuming state. Sessionless or mismatched callbacks:
 

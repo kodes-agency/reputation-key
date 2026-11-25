@@ -15,6 +15,18 @@ const periodInput = z
   })
   .strict()
 
+async function ownStaff(participationId: string) {
+  const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
+  const own = requireOwnParticipation(person, participationId)
+  await requireExecutionAllowed({
+    actor: ctx,
+    action: 'staff.self',
+    capability: 'staff.accounts',
+    propertyId: own.propertyId,
+  })
+  return { ctx, person, own }
+}
+
 export const getMyResultsHandler = createServerOnlyFn(
   async ({
     data,
@@ -22,14 +34,7 @@ export const getMyResultsHandler = createServerOnlyFn(
     data: { participationId: string; period: 'today' | 'week' | 'month' | 'last_month' }
   }) => {
     setResponseHeader('Cache-Control', 'private, no-store')
-    const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
-    const own = requireOwnParticipation(person, data.participationId)
-    await requireExecutionAllowed({
-      actor: ctx,
-      action: 'staff.self',
-      capability: 'staff.accounts',
-      propertyId: own.propertyId,
-    })
+    const { ctx, own } = await ownStaff(data.participationId)
     const result = await getContainer().dashboardPublicApi.staffSelf.results(
       { ...own, organizationId: ctx.organizationId },
       data.period,
@@ -57,15 +62,7 @@ export const getMyResults = createServerFn({ method: 'GET' })
 export const getMyGoalsHandler = createServerOnlyFn(
   async ({ data }: { data: { participationId: string } }) => {
     setResponseHeader('Cache-Control', 'private, no-store')
-    const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
-    const own = requireOwnParticipation(person, data.participationId)
-    await requireExecutionAllowed({
-      actor: ctx,
-      action: 'staff.self',
-      capability: 'staff.accounts',
-      propertyId: own.propertyId,
-    })
-    if (!getContainer().dashboardPublicApi.staffSelf.targetsEnabled) return { goals: [] }
+    const { ctx, own } = await ownStaff(data.participationId)
     const goals = await getContainer().dashboardPublicApi.staffSelf.goals({
       ...own,
       organizationId: ctx.organizationId,
@@ -92,14 +89,7 @@ export const getMyColleaguesHandler = createServerOnlyFn(
     data: { participationId: string; period: 'today' | 'week' | 'month' | 'last_month' }
   }) => {
     setResponseHeader('Cache-Control', 'private, no-store')
-    const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
-    const own = requireOwnParticipation(person, data.participationId)
-    await requireExecutionAllowed({
-      actor: ctx,
-      action: 'staff.self',
-      capability: 'staff.accounts',
-      propertyId: own.propertyId,
-    })
+    const { ctx, person, own } = await ownStaff(data.participationId)
     if (!own.colleagueListEnabled)
       throwContextError(
         'StaffAccountError',

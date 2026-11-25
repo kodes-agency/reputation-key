@@ -1,10 +1,8 @@
 // Integration context — disconnect Google account use case tests
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { disconnectGoogleAccount } from './disconnect-google-account.server'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
   createGoogleConnectionTestStore,
@@ -20,13 +18,11 @@ import {
 } from '#/shared/testing/fixtures'
 import { integrationError, isIntegrationError } from '../domain/errors'
 import type { GoogleDisconnectRevokeStore } from './google-disconnect-revoke.server'
-import { googleConnectionId, organizationId, reviewId } from '#/shared/domain/ids'
+import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import { createInMemoryMyBusinessNotificationsPort } from '#/shared/testing/in-memory-mybusiness-notifications-port'
 import { createGoogleNotificationAccountUsageReader } from './google-notification-account-usage.server'
 import { createGoogleNotificationProviderAuthorizer } from './google-notification-provider-authorizer.server'
 import { manageNotifications } from './manage-notifications.server'
-import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
-import { createRunReviewSourceContentLifecycle } from '#/contexts/review/application/use-cases/run-source-content-lifecycle'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -38,9 +34,6 @@ setupIntegrationDb({
   orgB: SECOND_ORG_ID,
   tables: ['google_connections', 'outbox_events'],
 })
-
-beforeAll(registerAllEventSchemas)
-afterAll(clearEventSchemas)
 
 const sealed = createTestTokenEncryption()
 
@@ -143,8 +136,7 @@ describe('disconnectGoogleAccount', () => {
       hasOtherActiveAccountBinding: createGoogleNotificationAccountUsageReader({
         ...bindingReads,
         listOrganizations: connectionRepo.listOrganizationIdsWithActiveConnections,
-        listConnections: (org) =>
-          connectionRepo.listByOrganization(org, { showAll: true }),
+        listConnections: (org) => connectionRepo.listByOrganization(org),
       }),
       notifications,
       pubsubTopic: 'projects/test/topics/gbp-reviews',
@@ -180,31 +172,16 @@ describe('disconnectGoogleAccount', () => {
     expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(2)
   })
 
-  it('redacts the signed identity and secrets, purges source content, and records a fact', async () => {
+  it('redacts the signed identity and secrets, and records a fact', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
     const ctx = adminContext({ role: 'AccountAdmin' })
     const connection = buildConnection({ status: 'active' })
     await connectionRepo.seed([connection])
-    const forConnection = vi.fn(async () => ({
-      subject: 'reviews.purge.connection',
-      batches: 1,
-      rowsDeleted: 0,
-      rowsRedacted: 3,
-    }))
-    const useCase = disconnectGoogleAccount({
-      ...baseDeps,
-      sourceContentPurge: {
-        forConnection,
-        forProperty: vi.fn(),
-        forOrganization: vi.fn(),
-        inboxForProperty: vi.fn(),
-      },
-    })
+    const useCase = disconnectGoogleAccount(baseDeps)
 
     const result = await useCase({ connectionId: connection.id as string }, ctx)
 
     expect(result.status).toBe('disconnected')
-    expect(forConnection).toHaveBeenCalledWith(ctx.organizationId, connection.id)
     await expect(
       connectionRepo.findById(ctx.organizationId, connection.id),
     ).resolves.toMatchObject({
@@ -259,94 +236,6 @@ describe('disconnectGoogleAccount', () => {
     expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
   })
 
-  it('keeps the original content deadline through repeated disconnect inspections', async () => {
-    const { baseDeps, connectionRepo, outbox } = setup()
-    const ctx = adminContext({ role: 'AccountAdmin' })
-    const connection = buildConnection({
-      id: 'b8000000-0000-4000-8000-000000000002',
-      status: 'active',
-    })
-    await connectionRepo.seed([connection])
-    let now = FIXED_TIME
-    const rows = [
-      {
-        reviewId: reviewId('b8000000-0000-4000-8000-000000000001'),
-        createdAt: new Date('2026-04-01T12:00:00Z'),
-        sourceContentState: 'active' as const,
-        lifecycleClock: new Date('2026-05-01T12:00:00Z'),
-        shadowFindings: [],
-      },
-    ]
-    const original = structuredClone(rows)
-    const store = {
-      readInspectionBatch: vi.fn(async () => rows),
-      applyLifecycleBatch: vi.fn(),
-    }
-    const runLifecycle = vi.fn(
-      createRunReviewSourceContentLifecycle({
-        store,
-        clock: () => now,
-      }),
-    )
-    const command = disconnectGoogleAccount({
-      ...baseDeps,
-      clock: () => now,
-      sourceContentPurge: createSourceContentPurge({
-        db: {} as never,
-        clock: () => now,
-        runLifecycle,
-      }),
-    })
-
-    await command({ connectionId: connection.id }, ctx)
-    now = new Date('2026-04-30T12:00:00Z')
-    await command({ connectionId: connection.id }, ctx)
-
-    expect(rows).toEqual(original)
-    expect(store.readInspectionBatch).toHaveBeenCalledTimes(2)
-    expect(store.applyLifecycleBatch).not.toHaveBeenCalled()
-    expect(runLifecycle).toHaveBeenCalledTimes(2)
-    for (const result of runLifecycle.mock.results) {
-      await expect(result.value).resolves.toMatchObject({
-        mode: 'report',
-        lifecycle: { eligible: 1, expired: 0 },
-        apply: { enabled: false },
-      })
-    }
-    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
-  })
-
-  it('retries local cleanup and an interrupted source purge without repeating provider cleanup', async () => {
-    const { baseDeps, connectionRepo, outbox } = setup()
-    const ctx = adminContext({ role: 'AccountAdmin' })
-    const connection = buildConnection({ status: 'active' })
-    await connectionRepo.seed([connection])
-    const cleanup = vi.spyOn(baseDeps.commandStore, 'disconnectGoogleAccount')
-    const unsubscribe = vi.fn()
-    const forConnection = vi.fn().mockRejectedValueOnce(new Error('purge interrupted'))
-    const command = disconnectGoogleAccount({
-      ...baseDeps,
-      unsubscribeFromNotifications: unsubscribe,
-      sourceContentPurge: {
-        forConnection,
-        forProperty: vi.fn(),
-        forOrganization: vi.fn(),
-        inboxForProperty: vi.fn(),
-      },
-    })
-
-    await expect(command({ connectionId: connection.id }, ctx)).rejects.toThrow(
-      'purge interrupted',
-    )
-    await expect(command({ connectionId: connection.id }, ctx)).resolves.toMatchObject({
-      status: 'disconnected',
-    })
-    expect(cleanup).toHaveBeenCalledTimes(2)
-    expect(forConnection).toHaveBeenCalledTimes(2)
-    expect(unsubscribe).toHaveBeenCalledTimes(1)
-    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
-  })
-
   it('returns the connection an overlapping disconnect committed first, without a second fact', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
     const ctx = adminContext({ role: 'AccountAdmin' })
@@ -376,7 +265,6 @@ describe('disconnectGoogleAccount', () => {
     const ctx = adminContext({ role: 'AccountAdmin' })
     const disconnected = buildConnection({ status: 'disconnected' })
     await connectionRepo.seed([disconnected])
-    const forConnection = vi.fn()
     const disconnect = baseDeps.commandStore.disconnectGoogleAccount
     const command = disconnectGoogleAccount({
       ...baseDeps,
@@ -393,7 +281,6 @@ describe('disconnectGoogleAccount', () => {
             encryptedRefreshToken: sealed.encrypt('new-refresh'),
             tokenExpiresAt: new Date(FIXED_TIME.getTime() + 3_600_000),
             scopes: ['https://www.googleapis.com/auth/business.manage'],
-            visibility: 'organization',
             event: {
               ...input.event,
               _tag: 'integration.google_account.connected',
@@ -402,12 +289,6 @@ describe('disconnectGoogleAccount', () => {
           })
           return disconnect(input)
         },
-      },
-      sourceContentPurge: {
-        forConnection,
-        forProperty: vi.fn(),
-        forOrganization: vi.fn(),
-        inboxForProperty: vi.fn(),
       },
     })
 
@@ -420,7 +301,6 @@ describe('disconnectGoogleAccount', () => {
       status: 'active',
       encryptedRefreshToken: expect.any(String),
     })
-    expect(forConnection).not.toHaveBeenCalled()
     expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
   })
 

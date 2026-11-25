@@ -31,10 +31,10 @@ import type {
   InboxSourceScope,
   Cursor,
   PaginatedResult,
-} from '#/contexts/inbox/application/ports/inbox.repository'
-import type { ReviewSnippet } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { FeedbackSnippet } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { InboxItem, SourceType } from '#/contexts/inbox/domain/types'
+} from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { ReviewSnippet } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { FeedbackSnippet } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import type { InboxItem, SourceType } from '#/contexts/reputation/domain/inbox-types'
 import type {
   InboxItemId,
   FeedbackId,
@@ -43,7 +43,7 @@ import type {
   ReviewId,
 } from '#/shared/domain/ids'
 import { reviewId, feedbackId, inboxItemId, propertyId } from '#/shared/domain/ids'
-import { inboxItemFromRow } from '#/contexts/inbox/infrastructure/mappers/inbox.mapper'
+import { inboxItemFromRow } from '#/contexts/reputation/inbox/inbox-mapper.server'
 import {
   findSuggestedRowLevels,
   inboxSourceIdMatchesAny,
@@ -54,7 +54,7 @@ import {
 import {
   feedbackItemDetail,
   reviewItemDetail,
-} from '#/contexts/inbox/infrastructure/mappers/inbox-detail.mapper'
+} from '#/contexts/reputation/inbox/inbox-detail-mapper.server'
 import { trace } from '#/shared/observability/trace'
 
 type InboxItemRow = Parameters<typeof inboxItemFromRow>[0]
@@ -131,27 +131,35 @@ export const createInboxRepository = (
 ): InboxRepository => {
   const log = runtime.logger.child({ component: 'inbox-repo' })
 
+  const readItemRow = async (
+    id: InboxItemId,
+    orgId: OrganizationId,
+  ): Promise<InboxItem | null> => {
+    const rows = await db
+      .select()
+      .from(inboxItems)
+      .where(
+        and(
+          hasActiveHandlingAuthority,
+          eq(inboxItems.id, id),
+          eq(inboxItems.organizationId, orgId),
+        ),
+      )
+      .limit(1)
+    return rows[0] ? withDefaults(rows[0]) : null
+  }
+
   return {
     findById: async (id: InboxItemId, orgId: OrganizationId) => {
       return trace('inbox.findById', async () => {
         const start = runtime.clock().getTime()
         log.debug('querying inbox findById')
-        const rows = await db
-          .select()
-          .from(inboxItems)
-          .where(
-            and(
-              hasActiveHandlingAuthority,
-              eq(inboxItems.id, id),
-              eq(inboxItems.organizationId, orgId),
-            ),
-          )
-          .limit(1)
+        const item = await readItemRow(id, orgId)
         log.debug(
           { duration: runtime.clock().getTime() - start },
           'inbox findById complete',
         )
-        return rows[0] ? withDefaults(rows[0]) : null
+        return item
       })
     },
 
@@ -228,7 +236,11 @@ export const createInboxRepository = (
         log.debug({ limit }, 'querying inbox findFilteredPaginated')
         const conditions = await resolveFilterConditions(ports, orgId, filters)
         if (conditions === null)
-          return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult
+          return {
+            items: [],
+            nextCursor: null,
+            totalCount: cursor ? null : 0,
+          } as PaginatedResult
 
         const pageConditions = [...conditions]
         const sort = filters.sort ?? 'newest'
@@ -246,11 +258,14 @@ export const createInboxRepository = (
 
         // Count and page use the same governed filter predicates. The count is
         // intentionally evaluated before the cursor predicate.
+        // Only the first page carries the total: later pages skip the count.
         const [countRows, rows] = await Promise.all([
-          db
-            .select({ count: sql<number>`count(*)` })
-            .from(inboxItems)
-            .where(and(...conditions)),
+          cursor
+            ? null
+            : db
+                .select({ count: sql<number>`count(*)` })
+                .from(inboxItems)
+                .where(and(...conditions)),
           db
             .select()
             .from(inboxItems)
@@ -262,7 +277,7 @@ export const createInboxRepository = (
             )
             .limit(limit + 1),
         ])
-        const totalCount = Number(countRows[0]?.count ?? 0)
+        const totalCount = countRows ? Number(countRows[0]?.count ?? 0) : null
 
         const sliced = rows.slice(0, limit)
 
@@ -439,25 +454,16 @@ export const createInboxRepository = (
       })
     },
 
-    findDetailById: async (id: InboxItemId, orgId: OrganizationId) => {
+    findDetailById: async (
+      id: InboxItemId,
+      orgId: OrganizationId,
+      loaded?: InboxItem,
+    ) => {
       return trace('inbox.findDetailById', async () => {
         const start = runtime.clock().getTime()
         log.debug('querying inbox findDetailById')
-        const rows = await db
-          .select()
-          .from(inboxItems)
-          .where(
-            and(
-              hasActiveHandlingAuthority,
-              eq(inboxItems.id, id),
-              eq(inboxItems.organizationId, orgId),
-            ),
-          )
-          .limit(1)
-
-        if (!rows[0]) return null
-
-        const item = withDefaults(rows[0])
+        const item = loaded ?? (await readItemRow(id, orgId))
+        if (!item) return null
 
         // Enrich with property name via lookup port
         const propertyName = await ports.propertyLookup.getPropertyNameById(

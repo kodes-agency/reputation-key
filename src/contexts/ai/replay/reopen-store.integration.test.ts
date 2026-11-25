@@ -3,7 +3,7 @@ import { seedReviewContent } from '../analysis/review-content.test-fixtures'
 // An enrollment cannot catch up while any of its reviews still waits for one.
 // These suites prove that recovery against PostgreSQL, including its limits.
 
-import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
@@ -12,10 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
-  aiExecutionControlHeads,
   aiOperations,
   aiPropertyAggregateSettlements,
   aiReviewAnalyses,
@@ -32,7 +29,12 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { readCurrentStopFence } from '#/shared/db/testing/ai-execution-control-fixture'
+import { seedEnabledReviewAnalysis } from '#/shared/db/testing/enabled-review-analysis-fixture'
+import {
+  insertAnalysisOperation,
+  seedAnalysisProperty,
+} from '#/shared/db/testing/review-analysis-store-fixture'
 import {
   analysisExecutionBinding,
   analysisOperationIdentity,
@@ -54,6 +56,7 @@ const LATER = new Date('2026-09-29T17:45:00.000Z')
 const BACKFILL = 'ai.review_analysis.backfill_requested'
 
 type Scope = Readonly<{ organizationId: string; propertyId: string; lineageId: string }>
+type OperationIds = Readonly<{ operationId: string; eventId: string }>
 
 function uuid(prefix: string, index: number): string {
   return `${prefix}-0000-4000-8000-${index.toString().padStart(12, '0')}`
@@ -76,47 +79,30 @@ async function clearScope(scope: Scope) {
 
 async function seedEnabledProperty(scope: Scope) {
   const db = getDb()
-  await db.execute(sql`
-    INSERT INTO organization (id, name, slug, "createdAt")
-    VALUES (${scope.organizationId}, 'AI reopen test', ${scope.organizationId}, ${NOW})
-  `)
-  await db.insert(properties).values({
-    id: scope.propertyId,
+  await seedAnalysisProperty(db, {
     organizationId: scope.organizationId,
-    name: 'AI reopen test property',
+    propertyId: scope.propertyId,
+    name: 'AI reopen test',
     slug: `ai-reopen-${scope.propertyId.slice(0, 8)}`,
     timezone: 'Europe/Sofia',
     countryCode: 'BG',
-    profileVersion: 1,
-    sourceEpoch: 0,
-  })
-  await db.insert(reviewAiAnalysisHeads).values({
-    organizationId: scope.organizationId,
-    propertyId: scope.propertyId,
     sourceEpoch: 0,
     headSequence: 0,
-    createdAt: NOW,
-    updatedAt: NOW,
+    now: NOW,
   })
-  const authorization = authorizationHead(scope)
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`)
-    await tx.insert(merchantAiConsentEvidence).values({
-      ...authorization,
-      stateVersion: 1,
-      transitionKind: 'enable',
-      actorUserId: 'ai-reopen-test-actor',
-      reasonCode: 'merchant_enabled',
-      idempotencyKey: `ai-reopen-enable-${scope.propertyId}`,
-      requestHash: 'c'.repeat(64),
-      occurredAt: NOW,
-    })
-    await tx.insert(merchantAiEnablement).values({
-      ...authorization,
-      stateVersion: 1,
-      updatedBy: 'ai-reopen-test-actor',
-      updatedAt: NOW,
-    })
+  await seedEnabledReviewAnalysis(db, {
+    organizationId: scope.organizationId,
+    propertyId: scope.propertyId,
+    authorizationLineageId: scope.lineageId,
+    analysisStartSequence: 0,
+    authorizedSourceEpoch: 0,
+    replyDrafting: true,
+    propertyTrends: true,
+    occurredAt: NOW,
+    actorUserId: 'ai-reopen-test-actor',
+    reasonCode: 'merchant_enabled',
+    idempotencyKey: `ai-reopen-enable-${scope.propertyId}`,
+    requestHash: 'c'.repeat(64),
   })
 }
 
@@ -216,71 +202,63 @@ function reviewFixture(scope: Scope) {
       state: 'failed' | 'succeeded' | 'pending'
       failureCode?: string | null
     }) {
-      const controls = await db
-        .select({
-          scopeKey: aiExecutionControlHeads.scopeKey,
-          controlId: aiExecutionControlHeads.controlId,
-          generation: aiExecutionControlHeads.generation,
-        })
-        .from(aiExecutionControlHeads)
-      const control = (scopeKey: string) => {
-        const found = controls.find((candidate) => candidate.scopeKey === scopeKey)
-        if (!found) throw new Error(`AI execution control ${scopeKey} is not seeded`)
-        return found
-      }
-      const globalControl = control('global')
-      const providerControl = control(
-        `provider:${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}`,
-      )
-      const capabilityControl = control('capability:review_analysis')
-      await db.insert(aiOperations).values({
+      await insertAnalysisOperation(db, {
         id: input.id,
-        idempotencyScope: `analysis:${input.id}`,
-        idempotencyKey: `analysis:${input.originEventId}`,
-        requestFingerprint: 'b'.repeat(64),
-        sourceDigest: 'c'.repeat(64),
-        sourceByteCount: 24,
-        command: 'analysis',
-        capability: 'review_analysis',
         organizationId: scope.organizationId,
         propertyId: scope.propertyId,
-        actorUserId: null,
-        systemPrincipal: 'review_event_consumer',
         reviewId: input.reviewId,
-        originEventId: input.originEventId,
-        subjectHmac: 'd'.repeat(64),
-        subjectHmacKeyVersion: 'ai-reopen-test-v1',
+        authorizationLineageId: scope.lineageId,
+        analysisSequence: input.analysisSequence,
         sourceEpoch: 0,
         sourceRevision: 1,
-        reviewedAtEpochMillis: NOW.getTime(),
-        analysisSequence: input.analysisSequence,
-        authorizationLineageId: scope.lineageId,
-        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-        evaluatedLanguage: 'en',
-        propertyProfileVersion: 1,
-        routingPolicyVersion: 1,
-        providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
-        operationProfileVersion: 'review-analysis-v2',
-        capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
-        sourcePolicyId: 'google-business-profile-source-policy-v1',
-        sourceCanonicalizerDigest: 'e'.repeat(64),
-        redactionProfileVersion: 'gbp-review-global-v1',
-        globalControlId: globalControl.controlId,
-        globalControlGeneration: globalControl.generation,
-        providerControlId: providerControl.controlId,
-        providerControlGeneration: providerControl.generation,
-        capabilityControlId: capabilityControl.controlId,
-        capabilityControlGeneration: capabilityControl.generation,
-        capabilityFences: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
-        routeKey: 'review-analysis',
+        profile: 'review-analysis-v2',
         state: input.state,
-        executionAttempt: 4,
-        failureCode: input.failureCode ?? null,
-        createdAt: NOW,
-        updatedAt: NOW,
+        idempotencyKey: `analysis:${input.originEventId}`,
+        originEventId: input.originEventId,
+        requestFingerprint: 'b'.repeat(64),
+        sourceDigest: 'c'.repeat(64),
+        subjectHmacKeyVersion: 'ai-reopen-test-v1',
+        reviewedAt: NOW,
+        now: NOW,
         expiresAt: new Date(NOW.getTime() + 24 * 60 * 60_000),
+        executionAttempt: 4,
+        failureCode: input.failureCode,
       })
+    },
+
+    /** An operation that gave up with this failure code, settled in the aggregate ledger. */
+    async abandon(
+      review: string,
+      sequence: number,
+      failureCode: string,
+      ids: OperationIds,
+    ) {
+      await this.operation({
+        id: ids.operationId,
+        reviewId: review,
+        analysisSequence: sequence,
+        originEventId: ids.eventId,
+        state: 'failed',
+        failureCode,
+      })
+      await this.settle(review, sequence)
+    },
+
+    /** A succeeded operation with its ready analysis, settled in the aggregate ledger. */
+    async analysed(review: string, sequence: number, ids: OperationIds) {
+      await this.operation({
+        id: ids.operationId,
+        reviewId: review,
+        analysisSequence: sequence,
+        originEventId: ids.eventId,
+        state: 'succeeded',
+      })
+      await this.readyAnalysis({
+        reviewId: review,
+        analysisSequence: sequence,
+        operationId: ids.operationId,
+      })
+      await this.settle(review, sequence)
     },
 
     /** The review's analysis sequence settled in the aggregate ledger. */
@@ -369,51 +347,25 @@ describe('reopening Review Analysis abandoned by a transient failure (real Postg
   const review = (index: number) => uuid('75000001', index)
   const operation = (index: number) => uuid('75000002', index)
   const event = (index: number) => uuid('75000003', index)
+  const ids = (index: number): OperationIds => ({
+    operationId: operation(index),
+    eventId: event(index),
+  })
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearScope(scope)
     await seedEnabledProperty(scope)
 
     // 1: the beta drop. Settled without a result after the operation gave up
     //    as ambiguous.
     await fixture.review({ id: review(1), analysisSequence: 1 })
-    await fixture.operation({
-      id: operation(1),
-      reviewId: review(1),
-      analysisSequence: 1,
-      originEventId: event(1),
-      state: 'failed',
-      failureCode: 'operation_ambiguous',
-    })
-    await fixture.settle(review(1), 1)
+    await fixture.abandon(review(1), 1, 'operation_ambiguous', ids(1))
     // 2: refused by the deterministic redactor. Every retry would repeat it.
     await fixture.review({ id: review(2), analysisSequence: 2 })
-    await fixture.operation({
-      id: operation(2),
-      reviewId: review(2),
-      analysisSequence: 2,
-      originEventId: event(2),
-      state: 'failed',
-      failureCode: 'redaction_blocked',
-    })
-    await fixture.settle(review(2), 2)
+    await fixture.abandon(review(2), 2, 'redaction_blocked', ids(2))
     // 3: analysed.
     await fixture.review({ id: review(3), analysisSequence: 3 })
-    await fixture.operation({
-      id: operation(3),
-      reviewId: review(3),
-      analysisSequence: 3,
-      originEventId: event(3),
-      state: 'succeeded',
-    })
-    await fixture.readyAnalysis({
-      reviewId: review(3),
-      analysisSequence: 3,
-      operationId: operation(3),
-    })
-    await fixture.settle(review(3), 3)
+    await fixture.analysed(review(3), 3, ids(3))
     // 4: abandoned again after it was already reopened the maximum number of
     //    times: one operation per earlier sequence, all given up on.
     const spentSequences = Array.from(
@@ -423,22 +375,18 @@ describe('reopening Review Analysis abandoned by a transient failure (real Postg
     const current = spentSequences.at(-1) ?? 4
     await fixture.review({ id: review(4), analysisSequence: current })
     for (const sequence of spentSequences) {
-      await fixture.operation({
-        id: operation(100 + sequence),
-        reviewId: review(4),
-        analysisSequence: sequence,
-        originEventId: event(100 + sequence),
-        state: 'failed',
-        failureCode: 'provider_unavailable',
-      })
-      await fixture.settle(review(4), sequence)
+      await fixture.abandon(
+        review(4),
+        sequence,
+        'provider_unavailable',
+        ids(100 + sequence),
+      )
     }
     await fixture.setHead(20)
   })
 
   afterAll(async () => {
     await clearScope(scope)
-    clearEventSchemas()
   })
 
   it('queues an abandoned review again under a fresh sequence, and nothing else', async () => {
@@ -542,15 +490,7 @@ describe('reopening Review Analysis abandoned by a transient failure (real Postg
   })
 
   it('leaves a Property alone once Review Analysis is switched off', async () => {
-    await fixture.operation({
-      id: operation(21),
-      reviewId: review(1),
-      analysisSequence: 21,
-      originEventId: event(21),
-      state: 'failed',
-      failureCode: 'operation_ambiguous',
-    })
-    await fixture.settle(review(1), 21)
+    await fixture.abandon(review(1), 21, 'operation_ambiguous', ids(21))
     await switchReviewAnalysisOff(scope)
 
     await expect(
@@ -592,8 +532,6 @@ describe('Review Analysis enrollment catch-up with an abandoned review (real Pos
     })
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearScope(scope)
     await seedEnabledProperty(scope)
     await db.insert(outboxEvents).values({
@@ -614,7 +552,6 @@ describe('Review Analysis enrollment catch-up with an abandoned review (real Pos
 
   afterAll(async () => {
     await clearScope(scope)
-    clearEventSchemas()
   })
 
   it('stays running while an enrolled review was abandoned, and catches up once it is analysed', async () => {
@@ -644,37 +581,18 @@ describe('Review Analysis enrollment catch-up with an abandoned review (real Pos
     // Every replayed review settles: one with its analysis, one after its
     // operation gave up as ambiguous (the beta drop), and one refused by the
     // deterministic redactor, which every retry would refuse again.
-    await fixture.operation({
-      id: '76100000-0000-4000-8000-000000000010',
-      reviewId: analysedReview,
-      analysisSequence: analysedSequence,
-      originEventId: '76100000-0000-4000-8000-000000000011',
-      state: 'succeeded',
-    })
-    await fixture.readyAnalysis({
-      reviewId: analysedReview,
-      analysisSequence: analysedSequence,
+    await fixture.analysed(analysedReview, analysedSequence, {
       operationId: '76100000-0000-4000-8000-000000000010',
+      eventId: '76100000-0000-4000-8000-000000000011',
     })
-    await fixture.settle(analysedReview, analysedSequence)
-    await fixture.operation({
-      id: '76100000-0000-4000-8000-000000000012',
-      reviewId: droppedReview,
-      analysisSequence: droppedSequence,
-      originEventId: '76100000-0000-4000-8000-000000000013',
-      state: 'failed',
-      failureCode: 'operation_ambiguous',
+    await fixture.abandon(droppedReview, droppedSequence, 'operation_ambiguous', {
+      operationId: '76100000-0000-4000-8000-000000000012',
+      eventId: '76100000-0000-4000-8000-000000000013',
     })
-    await fixture.settle(droppedReview, droppedSequence)
-    await fixture.operation({
-      id: '76100000-0000-4000-8000-000000000016',
-      reviewId: refusedReview,
-      analysisSequence: refusedSequence,
-      originEventId: '76100000-0000-4000-8000-000000000017',
-      state: 'failed',
-      failureCode: 'redaction_blocked',
+    await fixture.abandon(refusedReview, refusedSequence, 'redaction_blocked', {
+      operationId: '76100000-0000-4000-8000-000000000016',
+      eventId: '76100000-0000-4000-8000-000000000017',
     })
-    await fixture.settle(refusedReview, refusedSequence)
 
     // Every replayed event has settled, but one review has no analysis and
     // nothing has judged it: the enrollment is not caught up.
@@ -688,19 +606,10 @@ describe('Review Analysis enrollment catch-up with an abandoned review (real Pos
     // Queued again, not yet analysed: still not caught up.
     await expect(reconcile(LATER)).resolves.toEqual({ status: 'waiting_for_replay' })
 
-    await fixture.operation({
-      id: '76100000-0000-4000-8000-000000000014',
-      reviewId: droppedReview,
-      analysisSequence: reopenedSequence ?? 0,
-      originEventId: '76100000-0000-4000-8000-000000000015',
-      state: 'succeeded',
-    })
-    await fixture.readyAnalysis({
-      reviewId: droppedReview,
-      analysisSequence: reopenedSequence ?? 0,
+    await fixture.analysed(droppedReview, reopenedSequence ?? 0, {
       operationId: '76100000-0000-4000-8000-000000000014',
+      eventId: '76100000-0000-4000-8000-000000000015',
     })
-    await fixture.settle(droppedReview, reopenedSequence ?? 0)
 
     // Caught up with the refused review still unanalysed: it is settled as
     // not analysable, and waiting for it would never end.
@@ -739,33 +648,6 @@ describe('reopening a review whose operation was claimed before a control stop (
   const reopen = createAiReviewAnalysisReopenAdapter(db)
   const fixture = reviewFixture(scope)
   const provenance = { digest: 'c'.repeat(64), byteCount: 24 }
-
-  /** The stop fence the seeded control heads give an operation claimed now. */
-  async function currentStopFence(): Promise<AiExecutionStopFence> {
-    const heads = await db
-      .select({
-        scopeKey: aiExecutionControlHeads.scopeKey,
-        controlId: aiExecutionControlHeads.controlId,
-        generation: aiExecutionControlHeads.generation,
-      })
-      .from(aiExecutionControlHeads)
-    const head = (scopeKey: string) => {
-      const found = heads.find((candidate) => candidate.scopeKey === scopeKey)
-      if (!found) throw new Error(`AI execution control ${scopeKey} is not seeded`)
-      return found
-    }
-    const global = head('global')
-    const provider = head(`provider:${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}`)
-    const capability = head('capability:review_analysis')
-    return {
-      globalControlId: global.controlId,
-      globalGeneration: global.generation,
-      providerControlId: provider.controlId,
-      providerGeneration: provider.generation,
-      capabilityControlId: capability.controlId,
-      capabilityGeneration: capability.generation,
-    }
-  }
 
   /** The held review's analysis request as the use case builds and fingerprints it. */
   function requestUnder(stopFence: AiExecutionStopFence) {
@@ -840,8 +722,6 @@ describe('reopening a review whose operation was claimed before a control stop (
   }
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearScope(scope)
     await seedEnabledProperty(scope)
     await fixture.review({ id: heldReview, analysisSequence: 1 })
@@ -850,11 +730,10 @@ describe('reopening a review whose operation was claimed before a control stop (
 
   afterAll(async () => {
     await clearScope(scope)
-    clearEventSchemas()
   })
 
   it('answers conflict with the stored operation, closes it as suspended, and reopens the review', async () => {
-    const claimedUnder = await currentStopFence()
+    const claimedUnder = await readCurrentStopFence(db)
     const created = await claim(requestUnder(claimedUnder), NOW)
     // The kill and the restore: two transitions of the capability control.
     const restored = requestUnder({

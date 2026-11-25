@@ -13,6 +13,16 @@ import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { Tx } from '#/shared/outbox/commit'
+import {
+  affected,
+  notFound,
+  organizationExists,
+  scopeOf,
+  toCount,
+  type RightsRow,
+  type RightsScope,
+  type RightsTarget,
+} from './rights-primitives'
 
 const REVIEW_EXPORT_VERSION = 'review-rights-export/v1'
 
@@ -47,7 +57,7 @@ const REVIEW_EXCLUDED_RECORD_CLASSES = Object.freeze([
   },
 ])
 
-type Row = Readonly<Record<string, unknown>>
+type Row = RightsRow
 
 const BLOCKER_CODES = Object.freeze([
   'active_reply_publications',
@@ -68,10 +78,7 @@ const propertyScope = (organizationId: string) => sql`(
 )`
 
 /** One Organization, or one Property inside it. */
-export type ReviewRightsScope = Readonly<{
-  organizationId: string
-  propertyId?: string
-}>
+export type ReviewRightsScope = RightsScope
 
 /** Property ids of the scope: the Property itself, or the Organization's union. */
 const scopeProperties = (scope: ReviewRightsScope) =>
@@ -195,25 +202,6 @@ const countedTables = (scope: ReviewRightsScope) =>
     ({ organizationOnly }) => !(scope.propertyId && organizationOnly),
   ).map(({ table, rows }) => ({ table, rows: rows(scope) }))
 
-function toCount(row: Row | undefined, field: string): number {
-  const value = Number(row?.[field])
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new Error(`Review rights count is unavailable: ${field}`)
-  }
-  return value
-}
-
-async function affected(tx: Tx, statement: SQL): Promise<number> {
-  return (await tx.execute(statement)).rowCount ?? 0
-}
-
-async function organizationExists(tx: Tx, organizationId: string): Promise<boolean> {
-  const result = await tx.execute(
-    sql`SELECT 1 AS present FROM organization WHERE id = ${organizationId}`,
-  )
-  return result.rows.length > 0
-}
-
 /** The Property belongs to the Organization: its row, or a Review that names it. */
 async function propertyInOrganization(
   tx: Tx,
@@ -236,14 +224,7 @@ async function scopeExists(tx: Tx, scope: ReviewRightsScope): Promise<boolean> {
     : organizationExists(tx, scope.organizationId)
 }
 
-/** An Organization id or a scope, so the Organization entry points keep their shape. */
-export type ReviewRightsTarget = string | ReviewRightsScope
-
-const scopeOf = (target: ReviewRightsTarget): ReviewRightsScope =>
-  typeof target === 'string' ? { organizationId: target } : target
-
-const notFound = (scope: ReviewRightsScope) =>
-  scope.propertyId ? 'property not found' : 'organization not found'
+export type ReviewRightsTarget = RightsTarget
 
 async function readBlockers(
   tx: Tx,
@@ -274,9 +255,10 @@ async function readBlockers(
       ) AS open_provider_snapshot_runs
   `)
   const row = result.rows[0] as Row | undefined
-  return BLOCKER_CODES.map((code) => ({ code, count: toCount(row, code) })).filter(
-    (blocker) => blocker.count > 0,
-  )
+  return BLOCKER_CODES.map((code) => ({
+    code,
+    count: toCount('Review', row, code),
+  })).filter((blocker) => blocker.count > 0)
 }
 
 /** Counts and blocker codes only. */
@@ -295,7 +277,9 @@ export async function readReviewRightsReport(
           sql`SELECT count(*)::int AS held FROM ${sql.identifier(table)}
               WHERE ${rows}`,
         )
-        held.push(`${table}=${toCount(result.rows[0] as Row | undefined, 'held')}`)
+        held.push(
+          `${table}=${toCount('Review', result.rows[0] as Row | undefined, 'held')}`,
+        )
       }
       const found = await readBlockers(tx, scope, now)
       return [

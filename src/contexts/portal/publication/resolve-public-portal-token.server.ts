@@ -14,7 +14,7 @@ import type {
   PublicGoogleReviewDestination,
   PublicImmersiveExperience,
   PublicPortalResult,
-} from '../application/public-api'
+} from '../public-api'
 import {
   immersiveAssetIds,
   presentImmersivePortal,
@@ -24,7 +24,7 @@ import type {
   PortalTokenCodec,
   PresentedAddressDigest,
 } from '../addresses/portal-token-codec.port.server'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type {
   PortalPublicationRepository,
   ResolvedPortalPublication,
@@ -45,7 +45,7 @@ function configurationDigest(value: unknown): string {
 }
 
 export type ResolvePublicPortalTokenOutcome =
-  | Readonly<{ status: 'found'; data: PublicPortalResult }>
+  | Readonly<{ status: 'found'; result: PublicPortalResult }>
   | Readonly<{ status: 'unavailable' }>
 type PublicPortalDecisionRequest = Readonly<{
   action: 'portal.public_read'
@@ -67,33 +67,31 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
     uris: readonly string[],
     validatedAfter: Date,
   ) => Promise<readonly string[]>
-  isPropertyActive: import('#/contexts/property/application/public-api').PropertyLifecyclePublicApi['isPropertyActive']
-  getGoogleReviewDestination: import('#/contexts/property/application/public-api').PropertyGoogleReviewDestinationPublicApi['getGoogleReviewDestination']
+  isPropertyActive: import('#/contexts/property/public-api').PropertyLifecyclePublicApi['isPropertyActive']
+  getGoogleReviewDestination: import('#/contexts/property/public-api').PropertyGoogleReviewDestinationPublicApi['getGoogleReviewDestination']
   decidePublic: (
     request: PublicPortalDecisionRequest,
   ) => Promise<PublicPortalExecutionDecision>
-  reportGoogleDestinationFailure?: (error: unknown) => void
+  reportGoogleDestinationFailure: (error: unknown) => void
   /**
    * Serving a Portal with no destinations is a visible degradation, and it is
    * indistinguishable from a Portal that legitimately has none. Without this,
    * the fail-closed empty list below is silent.
    */
-  reportApprovedDestinationFailure?: (error: unknown) => void
+  reportApprovedDestinationFailure: (error: unknown) => void
   /**
    * The URL of each Portal media asset that may be served right now, by asset
-   * id; an asset left out (taken down, unknown) is not served. Absent until
-   * Portal media exists, which serves nothing: a v3 page then shows its no-photo
-   * look.
+   * id; an asset left out (taken down, unknown) is not served.
    */
-  resolvePortalMediaUrls?: (
+  resolvePortalMediaUrls: (
     organizationId: OrganizationId,
     propertyId: PropertyId,
     assetIds: readonly string[],
   ) => Promise<ServableMediaUrls>
   /** Fired when the media lookup fails: the page degrades to no media instead of failing. */
-  reportPortalMediaFailure?: (error: unknown) => void
+  reportPortalMediaFailure: (error: unknown) => void
   /** Fired when approval filtering removes destinations the snapshot published. */
-  reportApprovedDestinationsDropped?: (
+  reportApprovedDestinationsDropped: (
     counts: Readonly<{ published: number; served: number }>,
   ) => void
   clock: () => Date
@@ -104,6 +102,17 @@ export type GuestLocalePreference = Readonly<{
   sessionLocale?: string | null
   acceptLanguage?: string | null
 }>
+
+/** The scope of the admitted token, for a preference that is only trusted within it. */
+export type AdmittedPortalScope = Readonly<{
+  organizationId: string
+  propertyId: string
+  portalId: string
+}>
+
+export type GuestLocalePreferenceFor = (
+  scope: AdmittedPortalScope,
+) => GuestLocalePreference
 
 type AdmittedPublication = Readonly<{
   token: ResolvedPortalPublication['token']
@@ -187,7 +196,7 @@ async function resolveGoogleReviewGateway(
   } catch (error) {
     // Keep the private gateway available, but never fall back to a raw Portal
     // link or leak the last-known/stale Property destination.
-    deps.reportGoogleDestinationFailure?.(error)
+    deps.reportGoogleDestinationFailure(error)
   }
   const destinationMatchesSnapshot =
     destination?.state === 'verified' &&
@@ -225,14 +234,14 @@ async function resolveApprovedLinks<L extends Readonly<{ url: string }>>(
       // Not an error — an approval can legitimately lapse — but a published
       // destination disappearing from a live Portal is invisible to the guest
       // and to the operator, so it is worth saying out loud.
-      deps.reportApprovedDestinationsDropped?.({
+      deps.reportApprovedDestinationsDropped({
         published: links.length,
         served: approved.length,
       })
     }
     return approved
   } catch (error) {
-    deps.reportApprovedDestinationFailure?.(error)
+    deps.reportApprovedDestinationFailure(error)
     return []
   }
 }
@@ -247,7 +256,7 @@ async function resolveMediaUrls(
   configuration: ImmersivePortalPublicationConfiguration,
 ): Promise<ServableMediaUrls> {
   const assetIds = immersiveAssetIds(configuration)
-  if (assetIds.length === 0 || !deps.resolvePortalMediaUrls) return {}
+  if (assetIds.length === 0) return {}
   try {
     return await deps.resolvePortalMediaUrls(
       organizationId(token.organizationId),
@@ -255,7 +264,7 @@ async function resolveMediaUrls(
       assetIds,
     )
   } catch (error) {
-    deps.reportPortalMediaFailure?.(error)
+    deps.reportPortalMediaFailure(error)
     return {}
   }
 }
@@ -292,7 +301,6 @@ function selectPresentation(
 type ServedContent = Readonly<{
   portal: PublicPortalResult['portal']
   links: PublicPortalResult['links']
-  categories: PublicPortalResult['categories']
   immersive: PublicImmersiveExperience | null
 }>
 
@@ -315,14 +323,14 @@ async function resolveServedContent(
     approvedLinks,
     mediaUrls,
   )
-  return presented && { ...presented, categories: [] }
+  return presented
 }
 
 export const resolvePublicPortalToken =
   (deps: ResolvePublicPortalTokenDeps) =>
   async (
     rawToken: string,
-    preference: GuestLocalePreference = {},
+    preference: GuestLocalePreference | GuestLocalePreferenceFor = {},
   ): Promise<ResolvePublicPortalTokenOutcome> => {
     const digest = deps.tokenCodec.digest(rawToken)
     if (!digest) return { status: 'unavailable' }
@@ -333,7 +341,16 @@ export const resolvePublicPortalToken =
     const { token, snapshot, configuration } = admitted
 
     const googleReview = await resolveGoogleReviewGateway(deps, token, snapshot)
-    const presentation = selectPresentation(configuration, preference)
+    const presentation = selectPresentation(
+      configuration,
+      typeof preference === 'function'
+        ? preference({
+            organizationId: token.organizationId,
+            propertyId: token.propertyId,
+            portalId: token.portalId,
+          })
+        : preference,
+    )
     if (!presentation) return { status: 'unavailable' }
     const { selectedLocale, languagePackVersion } = presentation
     const served = await resolveServedContent(
@@ -344,7 +361,7 @@ export const resolvePublicPortalToken =
       now,
     )
     if (!served) return { status: 'unavailable' }
-    const { portal: localizedPortal, links, categories, immersive } = served
+    const { portal: localizedPortal, links, immersive } = served
 
     const reviewGateway = {
       privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
@@ -359,7 +376,6 @@ export const resolvePublicPortalToken =
       guestLocale: selectedLocale,
       languagePackVersion,
       portal: localizedPortal,
-      categories,
       links,
       reviewGateway,
       immersive,
@@ -376,9 +392,8 @@ export const resolvePublicPortalToken =
     }
     return {
       status: 'found',
-      data: {
+      result: {
         portal: localizedPortal,
-        categories,
         links,
         reviewGateway,
         localization: {
@@ -388,7 +403,6 @@ export const resolvePublicPortalToken =
           languagePackVersion,
         },
         responseConfiguration,
-        guestSurface: 'immersive',
         immersive,
         organizationId: snapshot.organizationId,
         propertyId: snapshot.propertyId,

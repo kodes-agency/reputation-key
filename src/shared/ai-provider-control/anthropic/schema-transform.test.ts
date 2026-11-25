@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
-import { REVIEW_CAUSE_PHRASE_PATTERN } from '#/shared/review-analysis-v3'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-operation/ai-route-output-schemas'
+import { REVIEW_CAUSE_PHRASE_PATTERN } from '#/shared/analysis/review-analysis-v3'
 import { anthropicWireSchemaOf } from './schema-transform'
 
 // A cause phrase's bounds as the transform writes them into its description: the pattern

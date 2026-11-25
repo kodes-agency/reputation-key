@@ -50,7 +50,7 @@ import {
   setupEligibility,
   type RatingGoalReading,
 } from './rating-goal-reading.server'
-import type { GoogleRatingRangeTotals } from '#/contexts/review/application/public-api'
+import type { GoogleRatingRangeTotals } from '#/contexts/reputation/public-api'
 import { recapView } from './rating-goal-recap-views.server'
 import {
   cardRate,

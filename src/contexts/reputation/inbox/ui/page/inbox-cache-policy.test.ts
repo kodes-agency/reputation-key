@@ -9,10 +9,7 @@ import {
   mergeInboxCommandItem,
 } from './inbox-cache-policy'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxItemDetailResult } from '#/contexts/reputation/public-api'
 
 // ── Fake QueryClient ────────────────────────────────────────────
 

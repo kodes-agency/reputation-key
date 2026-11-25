@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/profile/property-repository.server'
 import { getLogger } from '#/shared/observability/logger'
@@ -16,7 +15,6 @@ export function wireProperty(
     repo: createPropertyRepository(db),
     outboxRepo,
     clock,
-    idGen: randomUUID,
     staffPublicApi: identity.publicApi.people,
     identityManagerFacts: identity.publicApi.managerFacts,
     logger: getLogger(),

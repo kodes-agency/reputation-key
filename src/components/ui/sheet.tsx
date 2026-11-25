@@ -4,7 +4,7 @@ import * as React from 'react'
 import { Dialog as SheetPrimitive } from 'radix-ui'
 
 import type { SheetLayout } from './sheet-layouts'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { DialogCloseButton } from '#/components/ui/dialog-close-button'
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {

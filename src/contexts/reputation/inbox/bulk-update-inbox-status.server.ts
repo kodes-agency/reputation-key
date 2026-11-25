@@ -4,36 +4,63 @@
 // Each candidate is checked against its owning source permission; escalation
 // remains orthogonal and is handled separately.
 
-import { lentTransactionArgs } from '#/contexts/inbox/application/ports/review-open-transaction'
-import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import { reviewId } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { validateTransition } from '#/contexts/inbox/domain/rules'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+import { borrowReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
+import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
+import { reviewId, type InboxItemId } from '#/shared/domain/ids'
 import type {
-  BulkReopenItemInput,
-  BulkReopenItemResult,
-  BulkUpdateInboxStatus,
-  BulkUpdateInboxStatusInput,
-} from '#/contexts/inbox/application/inbox-status-commands'
+  InboxItem,
+  ManualReopenReason,
+} from '#/contexts/reputation/domain/inbox-types'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import { validateTransition } from '#/contexts/reputation/domain/inbox-rules'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import {
   inboxItemBulkStatusChanged,
   type InboxItemBulkStatusChanged,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import { canForContext } from '#/shared/domain/permissions'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   canHandleInboxSource,
   isInboxSourcePropertyWithinScopes,
   resolveInboxSourceScopes,
-} from '#/contexts/inbox/application/inbox-access'
-import type { InboxSourceScope } from '#/contexts/inbox/application/ports/inbox.repository'
-import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/dto/inbox.dto'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
+} from '#/contexts/reputation/inbox/inbox-access.server'
+import type { InboxSourceScope } from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
+
+export type BulkReopenItemInput = Readonly<{
+  inboxItemId: InboxItemId
+  expectedCommandRevision: number
+}>
+
+export type BulkReopenItemOutcome =
+  'reopened' | 'already_open' | 'revision_conflict' | 'unavailable'
+
+export type BulkReopenItemResult = Readonly<{
+  inboxItemId: InboxItemId
+  outcome: BulkReopenItemOutcome
+}>
+
+export type BulkUpdateInboxStatusInput = Readonly<{
+  items: ReadonlyArray<BulkReopenItemInput>
+  newStatus: 'open'
+  reopenReason: ManualReopenReason
+  reopenExplanation?: string | null
+}>
+
+export type BulkUpdateInboxStatusResult = Readonly<{
+  updated: number
+  results: ReadonlyArray<BulkReopenItemResult>
+}>
+
+export type BulkUpdateInboxStatus = (
+  input: BulkUpdateInboxStatusInput,
+  ctx: AuthContext,
+) => Promise<BulkUpdateInboxStatusResult>
 
 export type BulkUpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository
@@ -42,7 +69,7 @@ export type BulkUpdateInboxStatusDeps = Readonly<{
   idGen: () => string
   staffPublicApi: StaffPublicApi
   reviewSourceLookup: ReviewSourceLookupPort
-  responseTargetAuthority: ReviewResponseTargetAuthorityPort
+  responseTargetAuthority: ReviewResponseTargetAuthority
   logger: LoggerPort
 }>
 
@@ -252,7 +279,7 @@ export const bulkUpdateInboxStatus =
             events,
             governance,
             byItemId,
-            ...lentTransactionArgs(reviewTx),
+            borrowReviewTransaction(reviewTx),
           )
         },
       )

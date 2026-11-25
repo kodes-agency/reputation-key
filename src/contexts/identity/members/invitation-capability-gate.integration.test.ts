@@ -45,8 +45,6 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   invitationId,
   organizationId as toOrganizationId,
@@ -54,7 +52,7 @@ import {
   type InvitationId,
 } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { buildIdentityContext } from '../build'
 import { createInvitedRegistrationStore } from './invited-registration-store.server'
 import { createRecoverInvitedRegistrationsHandler } from './recover-invited-registrations-job.server'
@@ -230,9 +228,7 @@ function installPolicy(env: Readonly<Record<string, string>>): void {
   initExecutionPolicy(
     createExecutionPolicy({ listAccessiblePropertyIds: async () => [] }),
   )
-  initDelayedExecutionPolicy(
-    createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-  )
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 }
 
 type Posture = Readonly<{
@@ -278,7 +274,6 @@ function build(fixture: Fixture) {
       setActiveOrganization: async () => {},
       updateOrganization: async () => {},
       currentOrganizationName: async () => 'Gated invitation',
-      verifyPassword: async () => false,
     },
     deleteAssetObject: async () => {},
     listAssetObjects: async () => ({ objects: [], truncated: false }),
@@ -374,8 +369,6 @@ async function interruptRegistration(fixture: Fixture): Promise<void> {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   db = drizzle(lease.pool) as Database
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterEach(async () => {
@@ -388,7 +381,6 @@ afterEach(async () => {
 })
 
 afterAll(async () => {
-  clearEventSchemas()
   await cleanFixtures()
   await lease.release()
 })

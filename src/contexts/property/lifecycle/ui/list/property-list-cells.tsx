@@ -13,7 +13,7 @@ import {
   ROW_FIGURE_LINK,
   ROW_NAME_LINK,
 } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { PROPERTY_LIFECYCLE_STATUS } from '#/contexts/property/lifecycle/ui/property-lifecycle-model'
 import {
   propertySetupStepLabel,
@@ -29,7 +29,7 @@ import {
   type PropertyListRow,
   type PropertySetupProgress,
 } from './property-list-view'
-import { formatNumber, formatShortDate } from '#/lib/format'
+import { formatNumber, formatShortDate } from '#/shared/format/format'
 
 /** A link that keeps its own display and still reaches 44 px on a phone. */
 const PHONE_TOUCH_BOX =

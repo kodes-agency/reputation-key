@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // One Google location held by Properties in two Organizations, against real
 // PostgreSQL: the Property rows and their bindings are written by the import's
 // own store, the lookup is Property's, and the receipt and handoff facts are
@@ -15,7 +15,7 @@ import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_PROVIDER_FIXTURES_V1,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { buildGoogleImportedProperty } from '#/contexts/property/profile/build-google-imported-property.server'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/profile/property-repository.server'
@@ -31,8 +31,6 @@ import {
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -86,7 +84,6 @@ const property = buildPropertyContext({
   repo: createPropertyRepository(db),
   outboxRepo: createOutboxRepository(db),
   clock: () => now,
-  idGen: () => 'f9f00000-0000-4000-8000-000000000001',
   staffPublicApi: {
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
@@ -217,8 +214,6 @@ async function cleanup(): Promise<void> {
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   for (const tenant of TENANTS) {
     await pool.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
@@ -250,7 +245,6 @@ afterAll(async () => {
     ORGANIZATION_IDS,
   ])
   await deleteTestOrganizations(pool, ORGANIZATION_IDS)
-  clearEventSchemas()
   await pool.end()
 })
 

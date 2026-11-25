@@ -5,7 +5,7 @@ import { MAX_LIST_SEARCH_LENGTH } from '#/components/ui/list-search-limit'
 import { IconButton } from '#/components/ui/icon-button'
 import { Input } from '#/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#/components/ui/input-group'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /** The browser draws its own cancel glyph in a search input; the field draws one, so never two. */
 const NO_NATIVE_CANCEL = '[&::-webkit-search-cancel-button]:appearance-none'

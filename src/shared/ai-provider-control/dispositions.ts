@@ -1,7 +1,9 @@
 import { z } from 'zod/v4'
-import { type AiSettlementRequestV1 } from '#/shared/ai-internal-transport-contract'
-import { parseAiProviderJsonBytes } from '#/shared/ai-json'
-import type { OpenAiConnectorOutcome } from './contracts'
+import { type AiSettlementRequestV1 } from '#/shared/ai-gateway/ai-internal-transport-contract'
+import { parseAiProviderJsonBytes } from '#/shared/json/ai-json'
+import type { AiProviderOutcome } from './provider-contracts'
+import { PROVIDER_ZERO_USAGE } from './connector-boundary'
+import { writeGatewayEvent } from './connector-diagnostics'
 
 export type OpenAiProviderDisposition = AiSettlementRequestV1['disposition']
 
@@ -222,39 +224,29 @@ export function parseOpenAiRetryAfter(value: string | null): number | null {
   return seconds <= 300 ? seconds : null
 }
 
-const ZERO_USAGE = Object.freeze({
-  inputTokens: 0,
-  cachedTokens: 0,
-  outputTokens: 0,
-  reasoningTokens: 0,
-  totalTokens: 0,
-})
-
 export function enforceOutboundFetchDisposition<T>(
-  outcome: OpenAiConnectorOutcome<T>,
-): OpenAiConnectorOutcome<T> {
+  outcome: AiProviderOutcome<T>,
+): AiProviderOutcome<T> {
   const claimsNoDispatch = outcome.disposition === 'no_dispatch'
   if (claimsNoDispatch === !outcome.outboundFetchUsed) return outcome
   const disposition = outcome.outboundFetchUsed ? 'transport_ambiguous' : 'no_dispatch'
   // This rewrite DISCARDS the connector's original disposition, so a real provider
   // or output failure that never touched the network is reported as a bare
   // `no_dispatch`. Record what was overwritten before it is lost.
-  process.stderr.write(
-    `${JSON.stringify({
-      event: 'gateway_disposition_rewritten',
-      from: outcome.disposition,
-      to: disposition,
-      outboundFetchUsed: outcome.outboundFetchUsed,
-      usageKnown: outcome.usageKnown,
-    })}\n`,
-  )
+  writeGatewayEvent({
+    event: 'gateway_disposition_rewritten',
+    from: outcome.disposition,
+    to: disposition,
+    outboundFetchUsed: outcome.outboundFetchUsed,
+    usageKnown: outcome.usageKnown,
+  })
   return Object.freeze({
     disposition,
     reportedDisposition: disposition,
     result: null,
     usageKnown: false,
     providerRetryable: false,
-    usage: ZERO_USAGE,
+    usage: PROVIDER_ZERO_USAGE,
     retryAfterSeconds: null,
     outboundFetchUsed: outcome.outboundFetchUsed,
   })

@@ -1,7 +1,5 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import { createDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
 import {
@@ -50,11 +48,6 @@ function setup() {
   return { actor, connection, event, deps, run: () => handler(event) }
 }
 
-beforeAll(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-afterAll(() => clearEventSchemas())
 afterEach(() => resetCapabilityPolicyStore())
 
 describe('durable Google category refresh', () => {
@@ -62,7 +55,7 @@ describe('durable Google category refresh', () => {
     initCapabilityPolicyStore(
       createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'google' }),
     )
-    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const policy = createDelayedExecutionPolicy()
     const row = ENTRY_POINT_CATALOGUE.find(
       (entry) =>
         entry.kind === 'consumer' && entry.name === GOOGLE_CATEGORY_REFRESH_CONSUMER,

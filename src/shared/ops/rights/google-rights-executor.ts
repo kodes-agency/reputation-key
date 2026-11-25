@@ -12,7 +12,7 @@
 // until the Organization's admin has used ordinary Disconnect (which revokes
 // and redacts). Everything else is scoped to one organization_id.
 
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { Database } from '#/shared/db'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {

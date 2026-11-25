@@ -6,11 +6,8 @@ import { useId } from 'react'
 import { Button } from '#/components/ui/button'
 import { NavCount } from '#/components/ui/nav-count'
 import { Separator } from '#/components/ui/separator'
-import { cn } from '#/lib/utils'
-import type {
-  InboxQueue,
-  InboxQueueCounts,
-} from '#/contexts/inbox/application/public-api'
+import { cn } from '#/shared/class-names/utils'
+import type { InboxQueue, InboxQueueCounts } from '#/contexts/reputation/public-api'
 import type { InboxQueueSection } from './inbox-queue-sections'
 import { KIND_GLYPH, queueCount, type InboxQueueItem } from './inbox-queues'
 

@@ -34,22 +34,22 @@
 // deletes items. Feedback-sourced items are OUT of scope: the guest context
 // is dark for beta (BQC-2.6), so its canonical data is not a rebuild source.
 
-import { lentTransactionArgs } from '#/contexts/inbox/application/ports/review-open-transaction'
-import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import { borrowReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
+import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
-} from '#/contexts/inbox/application/ports/review-source-lookup.port'
+} from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type {
   GoogleReplyHead,
   ReplyLookupPort,
   ReplyMilestones,
-} from '#/contexts/inbox/application/ports/reply-lookup.port'
+} from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type {
-  ReplyObservationAuthorityPort,
-  ReplyObservationExpectation,
-} from '#/contexts/inbox/application/ports/reply-observation-authority.port'
+  ReviewReplyObservationAuthority,
+  ReviewReplyObservationExpectation,
+} from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   InboxItemId,
@@ -57,9 +57,9 @@ import type {
   PropertyId,
   ReviewId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { createInboxItem as buildInboxItem } from '#/contexts/inbox/domain/constructors'
-import { isAnsweringGoogleReply } from '#/contexts/inbox/domain/rules'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
+import { isAnsweringGoogleReply } from '#/contexts/reputation/domain/inbox-rules'
 
 export type RebuildInboxProjectionInput = Readonly<{
   organizationId: OrganizationId
@@ -93,7 +93,7 @@ export type RebuildInboxProjectionDeps = Readonly<{
   commandStore: InboxCommandStore
   reviewSourceLookup: ReviewSourceLookupPort
   replyLookup: ReplyLookupPort
-  replyObservationAuthority: ReplyObservationAuthorityPort
+  replyObservationAuthority: ReviewReplyObservationAuthority
   idGen: () => InboxItemId
   clock: () => Date
   logger: LoggerPort
@@ -247,7 +247,7 @@ function answeringReplyExpectation(
   organizationId: OrganizationId,
   src: ReviewSourceMeta,
   head: GoogleReplyHead | undefined,
-): ReplyObservationExpectation | null {
+): ReviewReplyObservationExpectation | null {
   if (
     head === undefined ||
     !isAnsweringGoogleReply(head) ||
@@ -281,7 +281,7 @@ async function createAnsweredOnGoogle(
   deps: RebuildInboxProjectionDeps,
   item: InboxItem,
   anchor: Readonly<{ materialReviewRevision: number }>,
-  expectation: ReplyObservationExpectation,
+  expectation: ReviewReplyObservationExpectation,
 ): Promise<Readonly<{ created: boolean }> | null> {
   const result = await deps.replyObservationAuthority.withExactCurrent(
     expectation,
@@ -290,7 +290,7 @@ async function createAnsweredOnGoogle(
         item,
         anchor,
         permit,
-        ...lentTransactionArgs(reviewTx),
+        borrowReviewTransaction(reviewTx),
       ),
   )
   if (result.status === 'current') return result.value
@@ -372,7 +372,13 @@ async function materializeMissingItem(
   }
   // Idempotent create, NO created/status fact — rebuild is repair, not
   // new information; the durable record is this report.
-  await deps.commandStore.createItem(item, null, anchor)
+  await deps.commandStore.createItem(item, null, {
+    sourceRevision: anchor.materialReviewRevision,
+    openedReason: 'review_observed',
+    actorType: 'provider',
+    triggerEventId: null,
+    openedAt: item.createdAt,
+  })
 }
 
 /**

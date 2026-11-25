@@ -1,9 +1,9 @@
 import { useRef, useState, type RefObject } from 'react'
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   MerchantAiNoticeUpdateDialog,
   focusAfterAiUpdate,

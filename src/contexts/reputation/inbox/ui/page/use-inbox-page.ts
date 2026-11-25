@@ -12,7 +12,7 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { ComposerFocusBox } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
 import type { InboxSearchParams } from './inbox-search-schema'
 import type { InboxServerFns } from './types'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { mergeInboxCommandItem } from './inbox-cache-policy'
 import { useInboxQueueState } from './use-inbox-queue-state'
 

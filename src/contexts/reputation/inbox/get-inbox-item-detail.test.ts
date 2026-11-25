@@ -1,0 +1,741 @@
+import { describe, it, expect, vi } from 'vitest'
+import { getInboxItemDetail } from './get-inbox-item-detail.server'
+import {
+  inboxItemId,
+  feedbackId,
+  organizationId,
+  propertyId,
+  replyId,
+  reviewId,
+  userId,
+} from '#/shared/domain/ids'
+import type {
+  InboxItem,
+  InboxItemDetail,
+  InboxStatus,
+  SourceType,
+} from '../domain/inbox-types'
+import type { ReplyLookupPort, ReplyView } from './reply-lookup.port.server'
+import type { InboxRepository } from './inbox-repository.port.server'
+import type { AiReviewInsightsPort } from './ai-review-insights.port.server'
+import type { FeedbackHandlingStore } from './feedback-handling-store.port.server'
+import type { ResponseTargetStore } from '../response-targets/store.port.server'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import { isInboxError } from '../domain/inbox-errors'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
+
+const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
+const ORG_ID = organizationId('org-1')
+const OTHER_ORG_ID = organizationId('org-2')
+const ITEM_ID = inboxItemId('ii-1')
+const PROP_ID = propertyId('prop-1')
+const USER_ID = userId('user-1')
+
+const adminStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
+}
+
+const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => ids.map(propertyId),
+  getAssignedPortals: async () => [],
+})
+
+function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
+  return {
+    id: ITEM_ID,
+    organizationId: ORG_ID,
+    propertyId: PROP_ID,
+    sourceType: 'review' as SourceType,
+    sourceId: reviewId('rev-1'),
+    status: 'new' as InboxStatus,
+    rating: 4,
+    sourceDate: FIXED_TIME,
+    platform: 'google',
+    snippet: 'Great!',
+    assignedTo: null,
+    reviewerName: null,
+    propertyName: null,
+    isEscalated: false,
+    escalatedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
+    closedAt: null,
+    firstReplySubmittedAt: null,
+    firstReplyPublishedAt: null,
+    commandRevision: 1,
+    createdAt: FIXED_TIME,
+    updatedAt: FIXED_TIME,
+    ...overrides,
+  }
+}
+
+/** `overrides` stands in for what the repository's snippet enrichment decided —
+ *  the use case never reaches the review lookup itself. */
+function makeDetail(
+  item: InboxItem,
+  overrides: Partial<InboxItemDetail> = {},
+): InboxItemDetail {
+  return {
+    item: { ...item, reviewerName: 'Test Reviewer' },
+    reviewText: 'Test review',
+    reviewTranslatedText: null,
+    reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
+    reviewContentStatus: 'available',
+    reviewRating: 4,
+    feedbackComment: null,
+    feedbackRatingValue: null,
+    ...overrides,
+  }
+}
+
+function makeReply(): ReplyView {
+  return {
+    id: replyId('reply-1'),
+    reviewId: reviewId('rev-1'),
+    organizationId: ORG_ID,
+    text: 'Drafted reply',
+    status: 'draft',
+    source: 'internal',
+    createdBy: USER_ID,
+    approvedBy: null,
+    rejectedBy: null,
+    rejectionReason: null,
+    aiGenerated: false,
+    stateRevision: 1,
+    submittedAt: null,
+    approvedAt: null,
+    publishedAt: null,
+    publicationState: null,
+    publicationAttempts: 0,
+    publicationCycle: 0,
+    publicationLastErrorClass: null,
+    reconcileDueAt: null,
+    createdAt: FIXED_TIME,
+    updatedAt: FIXED_TIME,
+  }
+}
+
+const setup = (
+  staffApi: StaffPublicApi = adminStaffApi,
+  reply: ReplyView | null = null,
+) => {
+  let storedDetail: InboxItemDetail | null = null
+  const replyCalls: string[] = []
+  const findDetailById = vi.fn(async (id, orgId) =>
+    storedDetail &&
+    storedDetail.item.id === id &&
+    storedDetail.item.organizationId === orgId
+      ? storedDetail
+      : null,
+  )
+  const repo: InboxRepository = {
+    findById: async (id, orgId) =>
+      storedDetail &&
+      storedDetail.item.id === id &&
+      storedDetail.item.organizationId === orgId
+        ? storedDetail.item
+        : null,
+    findBySource: async () => null,
+    findActiveReviewItemIds: async () => new Map(),
+    findFilteredPaginated: async () => ({
+      items: [],
+      nextCursor: null,
+      totalCount: 0,
+    }),
+    stampReplyMilestones: async () => storedDetail!.item,
+    countFiltered: async () => 0,
+    countFilteredByProperty: async () => [],
+    findByIds: async () => [],
+    countOpenSince: vi.fn(async () => 0),
+    scanReviewItems: vi.fn(async () => []),
+    findDetailById,
+  }
+  const replyLookup: ReplyLookupPort = {
+    getEffectiveReplyByReviewId: async (id) => {
+      replyCalls.push(id)
+      return reply
+    },
+    getReplyMilestonesByReviewIds: async () => new Map(),
+    getGoogleReplyHeadsByReviewIds: async () => new Map(),
+    getReplyStatesByReviewIds: async () => new Map(),
+    findReviewIdsByReplyStage: async () => ({ awaiting: [], waiting: [] }),
+  }
+  return {
+    repo,
+    staffApi,
+    replyLookup,
+    replyCalls,
+    findDetailById,
+    setDetail: (d: InboxItemDetail) => {
+      storedDetail = d
+    },
+  }
+}
+
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Member',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
+
+describe('getInboxItemDetail', () => {
+  it('returns detail for a valid inbox item', async () => {
+    const reply = makeReply()
+    const { repo, staffApi, replyLookup, replyCalls, setDetail } = setup(
+      adminStaffApi,
+      reply,
+    )
+    setDetail(makeDetail(makeItem()))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.item.id).toBe(ITEM_ID)
+    expect(result.item.reviewerName).toBe('Test Reviewer')
+    expect(result.reviewText).toBe('Test review')
+    // AccountAdmin holds reply.manage → reply is attached for review items.
+    expect(result.reply).toEqual(reply)
+    expect(replyCalls).toHaveLength(1)
+  })
+
+  it('hands the item it already loaded to the detail read', async () => {
+    const { repo, staffApi, replyLookup, findDetailById, setDetail } = setup()
+    const detail = makeDetail(makeItem())
+    setDetail(detail)
+
+    await getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })(
+      { inboxItemId: ITEM_ID },
+      ctxFor('AccountAdmin'),
+    )
+
+    expect(findDetailById).toHaveBeenCalledWith(
+      ITEM_ID,
+      detail.item.organizationId,
+      detail.item,
+    )
+  })
+
+  // ── reviewRating on the payload ─────────────────────────────────────
+  // The eligibility rule itself (null for `expired` / `not_found`) belongs to
+  // the repository, which is the only thing holding the `ReviewSnippet`, and is
+  // proved against the real mapper in `inbox.repository.test.ts` — asserting it
+  // here would only assert this file's own stub. What the use case owns is the
+  // payload contract the pane depends on: the key is always there, its value is
+  // always `number | null`, and it is never quietly refilled from `item.rating`.
+
+  it('carries the rating the repository read off the review snippet', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem(), { reviewRating: 5 }))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.reviewRating).toBe(5)
+  })
+
+  it('carries a null rating for an available review that has none', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem(), { reviewRating: null }))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    // Still an available review — the words arrive, the stars do not.
+    expect(result.reviewText).toBe('Test review')
+    expect(result.reviewRating).toBeNull()
+  })
+
+  it('returns an explicit null rather than undefined when the detail omits the rating', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    const { reviewRating: _omitted, ...withoutRating } = makeDetail(makeItem())
+    setDetail(withoutRating)
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    // `reviewRating` is optional on `InboxItemDetail` only so that fixtures
+    // predating it still compile. The payload a client reads must not inherit
+    // that softness: `'reviewRating' in detail` has to answer the same way for
+    // every repository implementation.
+    expect(result.reviewRating).toBeNull()
+    expect(Object.hasOwn(result, 'reviewRating')).toBe(true)
+  })
+
+  it('leaves the rating null for a feedback item that carries its own rating', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        // `rating` survives the projection for feedback (it is nulled only for
+        // reviews — `inbox-command-store.ts:936`), so this is the row shape that
+        // would catch a `reviewRating` quietly sourced from `item.rating`.
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+          rating: 3,
+        }),
+        { reviewContentStatus: null, reviewRating: null, feedbackRatingValue: 3 },
+      ),
+    )
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase(
+      { inboxItemId: ITEM_ID },
+      ctxWith('inbox.read', 'feedback.read'),
+    )
+
+    expect(result.item.rating).toBe(3)
+    expect(result.feedbackRatingValue).toBe(3)
+    expect(result.reviewRating).toBeNull()
+  })
+
+  // ── the way to Google ────────────────────────────────────────────────
+  // The per-review page rides on the repository's eligible snippet, like the
+  // words; the Property's public reviews page is the use case's own read.
+
+  /** Synthetic pages (test-fixtures/google-provider-identifiers-v1.json). */
+  const REVIEW_PAGE =
+    'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001'
+  const PROPERTY_PAGE =
+    'https://search.google.com/local/reviews?placeid=repkey-synthetic-place-0001'
+
+  const propertyLookup = (page: string | null) => ({
+    getPropertyNameById: vi.fn(async () => null),
+    getPropertyNamesByIds: vi.fn(async () => new Map()),
+    getPropertyGoogleReviewsPageById: vi.fn(async () => page),
+  })
+
+  it("returns the review's own page and the Property's reviews page for a review", async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem(), { googleReviewUrl: REVIEW_PAGE }))
+    const lookup = propertyLookup(PROPERTY_PAGE)
+
+    const useCase = getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      propertyLookup: lookup,
+    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.googleReviewUrl).toBe(REVIEW_PAGE)
+    expect(result.googlePropertyReviewsUrl).toBe(PROPERTY_PAGE)
+    expect(lookup.getPropertyGoogleReviewsPageById).toHaveBeenCalledWith(PROP_ID, ORG_ID)
+  })
+
+  it("keeps the Property's page when the review's content is no longer served", async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(
+      makeDetail(makeItem(), {
+        reviewText: null,
+        reviewContentStatus: 'expired',
+        reviewRating: null,
+        googleReviewUrl: null,
+      }),
+    )
+
+    const useCase = getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      propertyLookup: propertyLookup(PROPERTY_PAGE),
+    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.googleReviewUrl).toBeNull()
+    expect(result.googlePropertyReviewsUrl).toBe(PROPERTY_PAGE)
+  })
+
+  it('reads no Google page for private feedback', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(makeItem({ sourceType: 'feedback', sourceId: feedbackId('fb-1') }), {
+        reviewContentStatus: null,
+      }),
+    )
+    const lookup = propertyLookup(PROPERTY_PAGE)
+
+    const useCase = getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      propertyLookup: lookup,
+    })
+    const result = await useCase(
+      { inboxItemId: ITEM_ID },
+      ctxWith('inbox.read', 'feedback.read'),
+    )
+
+    expect(result.googlePropertyReviewsUrl).toBeNull()
+    expect(lookup.getPropertyGoogleReviewsPageById).not.toHaveBeenCalled()
+  })
+
+  it('answers an explicit null when no Property lookup is wired', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem()))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.googlePropertyReviewsUrl).toBeNull()
+    expect(Object.hasOwn(result, 'googlePropertyReviewsUrl')).toBe(true)
+  })
+
+  it('attaches only the current property-scoped review analysis', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem()))
+    const readCurrentReviewAnalysis = vi.fn(async () => ({
+      status: 'ready' as const,
+      sentiment: 'positive' as const,
+      aspects: [
+        { aspect: 'service' as const, polarity: 'positive' as const, intensity: 75 },
+      ],
+      primaryCategory: 'service' as const,
+      attention: 'low' as const,
+      generatedAtEpochMillis: FIXED_TIME.getTime(),
+    }))
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis,
+      findCurrentReviewIdsByAttention: vi.fn(async () => []),
+      findCurrentReviewIdsByIssue: vi.fn(async () => []),
+    }
+
+    const reader = ctxFor('AccountAdmin')
+    const result = await getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      aiInsights,
+    })({ inboxItemId: ITEM_ID }, reader)
+
+    // The AI context authorizes the reader for the review's Property itself,
+    // so it is handed the whole reader, not a user id.
+    expect(readCurrentReviewAnalysis).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      reviewId: reviewId('rev-1'),
+      actor: reader,
+    })
+    expect(result.analysis).toEqual({
+      status: 'ready',
+      sentiment: 'positive',
+      aspects: [{ aspect: 'service', polarity: 'positive', intensity: 75 }],
+      primaryCategory: 'service',
+      attention: 'low',
+      generatedAtEpochMillis: FIXED_TIME.getTime(),
+    })
+  })
+
+  it('attaches a Google-published reply with its source intact', async () => {
+    const mirror = {
+      ...makeReply(),
+      status: 'published' as const,
+      source: 'google_sync' as const,
+      submittedAt: FIXED_TIME,
+      approvedAt: FIXED_TIME,
+      publishedAt: FIXED_TIME,
+      publicationState: 'published' as const,
+      publicationAttempts: 1,
+    }
+    const { repo, staffApi, replyLookup, setDetail } = setup(adminStaffApi, mirror)
+    setDetail(makeDetail(makeItem()))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    // The panel receives replies Google shows, so it never renders a compose
+    // box over an existing Google-visible reply.
+    expect(result.reply?.source).toBe('google_sync')
+    expect(result.reply?.status).toBe('published')
+  })
+
+  it('throws not_found when item does not exist', async () => {
+    const { repo, staffApi, replyLookup } = setup()
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+
+    await expect(
+      useCase({ inboxItemId: inboxItemId('nonexistent') }, ctxFor('AccountAdmin')),
+    ).rejects.toThrow('Inbox item not found')
+  })
+
+  it('does not return item from another organization', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    const item = makeItem({ organizationId: OTHER_ORG_ID })
+    setDetail(makeDetail(item))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+
+    await expect(
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin')),
+    ).rejects.toThrow('Inbox item not found')
+  })
+
+  it('denies access without inbox.read permission for inaccessible property', async () => {
+    // Use a role not in the permission table to simulate lacking inbox.read
+    const scopedApi = createScopedStaffApi([])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    const item = makeItem()
+    setDetail(makeDetail(item))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    await expect(
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('Guest' as unknown as Role)),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
+    // PM holds inbox.read + inbox.manage, but per root CONTEXT.md L72 PM only
+    // manages ASSIGNED properties. assertPropertyAccessible must enforce the
+    // staff_assignment scope for PM, not bypass it.
+    const scopedApi = createScopedStaffApi(['other-prop']) // PM lacks PROP_ID
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    const item = makeItem() // propertyId = PROP_ID ('prop-1')
+    setDetail(makeDetail(item))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    await expect(
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager')),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  it('allows non-admin to access item for accessible property', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    const item = makeItem()
+    setDetail(makeDetail(item))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager'))
+
+    expect(result.item.id).toBe(ITEM_ID)
+  })
+
+  // ── Reply permission gate (#4) ─────────────────────────────────────
+  // reply.manage is a field-level scope: Member (who has inbox.read but NOT
+  // reply.manage) must receive reply === null and the lookup must NOT be called
+  // — preventing reply data from leaking to Member in the detail payload.
+
+  it('attaches the reply for a manager on a review item', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const reply = makeReply()
+    const { repo, staffApi, replyLookup, replyCalls, setDetail } = setup(scopedApi, reply)
+    setDetail(makeDetail(makeItem()))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager'))
+
+    expect(result.reply).toEqual(reply)
+    expect(replyCalls).toHaveLength(1)
+  })
+
+  it('does NOT attach reply for a reader without reply permission and never calls the lookup', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const reply = makeReply()
+    const { repo, staffApi, replyLookup, replyCalls, setDetail } = setup(scopedApi, reply)
+    setDetail(makeDetail(makeItem()))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase(
+      { inboxItemId: ITEM_ID },
+      ctxWith('inbox.read', 'review.read'),
+    )
+
+    expect(result.reply).toBeNull()
+    expect(replyCalls).toHaveLength(0)
+  })
+
+  it('does not call the lookup for feedback items (no reply concept)', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const reply = makeReply()
+    const { repo, staffApi, replyLookup, replyCalls, setDetail } = setup(scopedApi, reply)
+    setDetail(
+      makeDetail(
+        makeItem({ sourceType: 'feedback', sourceId: 'fb-1' as InboxItem['sourceId'] }),
+      ),
+    )
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.reply).toBeNull()
+    expect(replyCalls).toHaveLength(0)
+  })
+
+  it('attaches internal handling history only for a manager who can handle feedback', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+    const getState = vi.fn(async () => ({
+      cycleNumber: 1,
+      sourceRevision: 2,
+      stateRevision: 1,
+      status: 'open' as const,
+      closeReason: null,
+      currentOutcome: null,
+      history: [],
+    }))
+    const feedbackHandlingStore = { getState } as unknown as FeedbackHandlingStore
+
+    const result = await getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      feedbackHandlingStore,
+    })(
+      { inboxItemId: ITEM_ID },
+      ctxWith('inbox.read', 'inbox.write', 'feedback.read', 'feedback.handle'),
+    )
+
+    expect(result.feedbackHandling).toMatchObject({
+      cycleNumber: 1,
+      sourceRevision: 2,
+      status: 'open',
+    })
+    expect(getState).toHaveBeenCalledWith(ITEM_ID, ORG_ID)
+  })
+
+  it('attaches the exact current-cycle response target using one server instant', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+    const target = {
+      inboxItemId: ITEM_ID,
+      cycleNumber: 1,
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      targetKind: 'private_feedback_handling' as const,
+      eligibility: 'measured' as const,
+      durationMinutes: 2_880,
+      policySource: 'builtin_default' as const,
+      policyVersion: 1,
+      startAt: new Date('2026-04-14T12:00:00Z'),
+      dueAt: new Date('2026-04-16T12:00:00Z'),
+      completionAt: null,
+      result: null,
+      stopReason: null,
+      propertyTimezone: 'Europe/Sofia',
+      excludedFromReporting: false,
+      evaluation: { state: 'active' as const, overdue: false, elapsedMinutes: 1_440 },
+    }
+    const getCycleTarget = vi.fn(async () => target)
+    const responseTargetStore = {
+      getCycleTarget,
+    } as unknown as ResponseTargetStore
+
+    const result = await getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      responseTargetStore,
+      clock: () => FIXED_TIME,
+    })({ inboxItemId: ITEM_ID }, ctxWith('inbox.read', 'feedback.read'))
+
+    expect(result.responseTarget).toEqual(target)
+    expect(getCycleTarget).toHaveBeenCalledWith(ITEM_ID, ORG_ID, FIXED_TIME)
+  })
+
+  it('never loads or returns internal handling notes to a read-only feedback user', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+    const getState = vi.fn()
+    const feedbackHandlingStore = { getState } as unknown as FeedbackHandlingStore
+
+    const result = await getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      feedbackHandlingStore,
+    })({ inboxItemId: ITEM_ID }, ctxWith('inbox.read', 'feedback.read'))
+
+    expect(result.feedbackHandling).toBeNull()
+    expect(getState).not.toHaveBeenCalled()
+  })
+
+  it('rejects private-feedback detail before loading source content without feedback.read', async () => {
+    const { repo, staffApi, replyLookup, findDetailById, setDetail } = setup()
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+
+    await expect(
+      useCase({ inboxItemId: ITEM_ID }, ctxWith('inbox.read', 'review.read')),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(findDetailById).not.toHaveBeenCalled()
+  })
+
+  it('intersects feedback.read property scope before loading private content', async () => {
+    const scopedApi = createScopedStaffApi(['other-prop'])
+    const { repo, staffApi, replyLookup, findDetailById, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID },
+        createScopedAuthContext({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          permissions: [
+            ['inbox.read', 'organization'],
+            ['feedback.read', 'assigned-properties'],
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(findDetailById).not.toHaveBeenCalled()
+  })
+})

@@ -3,7 +3,7 @@ import { CheckInSection } from '#/components/ui/check-in-section'
 import { GoalColumns } from '#/components/goals/goal-columns'
 import { GoalMeter } from '#/components/goals/goal-meter'
 import { SectionTitle } from '#/components/ui/section-title'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import {
   staffColumns,
   staffGoalAnswer,

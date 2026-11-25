@@ -1,6 +1,7 @@
 import { generateKeyPairSync } from 'node:crypto'
+import { openAiPreparationRegistry } from './provider-registry.test-fixtures'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
@@ -27,6 +28,7 @@ function preparer(
     },
     provenanceKid: 'provenance-v1',
     provenancePrivateKey: provenance.privateKey,
+    providers: openAiPreparationRegistry(),
   })
 }
 

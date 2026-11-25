@@ -1,13 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import {
   feedbackId,
   inboxItemId,
@@ -17,9 +14,9 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
-import { isInboxError } from '#/contexts/inbox/domain/errors'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
+import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
@@ -108,13 +105,10 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 4 })
   const client = await pool.connect()
   client.release()
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
   await clean()
-  clearEventSchemas()
   await pool.end()
 })
 
@@ -375,10 +369,7 @@ describe.sequential('private-feedback handling store (PostgreSQL)', () => {
       supersedesSourceEventId: crypto.randomUUID(),
       occurredAt: COMPLETED_AT,
     })
-    await createOutboxRepository(db).insert({
-      ...toOutboxEvent(source),
-      id: source.eventId,
-    })
+    await recordOutboxFact(db, source)
     await createAtomicInboxCommandStore(db).applySourceWithdrawnOnce({
       eventId: source.eventId,
       consumerName: 'inbox.feedback-handling.withdrawal-proof',

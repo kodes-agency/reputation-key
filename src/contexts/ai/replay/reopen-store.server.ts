@@ -4,7 +4,7 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
-} from '#/shared/ai-review-source-contract'
+} from '#/shared/ai-review-source/ai-review-source-contract'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { aiReviewAnalysisBackfillRequested } from '../domain/events'
 import {
@@ -13,6 +13,7 @@ import {
 } from '../domain/review-analysis-reopen'
 import type { AiReviewAnalysisReopenPort } from './contracts'
 import { lockReviewAnalysisPropertyFence } from '../analysis/review-analysis-property-fence.server'
+import { rowValues } from './row-values.server'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
@@ -204,13 +205,9 @@ function abandonedInCurrentLineageSql(reopens: 'left' | 'spent'): SQL {
   `
 }
 
-function safeInteger(value: unknown, field: string, minimum = 0): number {
-  const parsed = typeof value === 'string' ? Number(value) : value
-  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed) || parsed < minimum) {
-    throw new Error(`Review Analysis reopen read an invalid ${field}`)
-  }
-  return parsed
-}
+const { safeInteger } = rowValues(
+  (field) => `Review Analysis reopen read an invalid ${field}`,
+)
 
 function instant(value: unknown, field: string): Date {
   const parsed = value instanceof Date ? value : new Date(String(value))

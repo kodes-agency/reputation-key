@@ -13,7 +13,7 @@ import {
   actionFailureMessage,
 } from '#/components/hooks/use-action-mutation'
 import { Button, type ButtonProps } from '#/components/ui/button'
-import type { GoogleAuthUrlInput } from '#/contexts/integration/application/public-api'
+import type { GoogleAuthUrlInput } from '#/contexts/integration/public-api'
 import {
   connectFailureMessage,
   NEW_GOOGLE_CONNECTION_AUTHORIZATION,

@@ -1,14 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
   operationalActionHistoryHeads,
-  operationalActionHistoryLegalHolds,
   operationalActionHistoryRecords,
 } from '#/shared/db/schema/activity.schema'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
@@ -16,7 +15,6 @@ import {
   operationalActionHistoryRecordId,
   type OperationalActionRecord,
 } from '../domain/operational-action-history'
-import { getOperationalActionHistoryReadiness } from './operational-action-history-lifecycle.server'
 import {
   createOperationalActionHistoryStore,
   type ActivityTransaction,
@@ -85,31 +83,32 @@ const access = (
   recordedAt: new Date('2026-08-28T12:00:00.000Z'),
 })
 
-const lifecycle = (
-  id: string,
-  action:
-    | 'operational_history.legal_hold_placed'
-    | 'operational_history.legal_hold_released'
-    | 'operational_history.redaction_applied'
-    | 'operational_history.retention_assessed',
-  reasonCode = 'legal_request',
-  resourceId = id,
-): OperationalActionRecord => ({
-  ...access(id),
-  actorType: 'operator',
-  actorId: 'operator-1',
-  action,
-  reasonCode,
-  resourceId,
-  provenance: {
-    kind: 'history_lifecycle',
-    id: `lifecycle:${id}`,
-    eventType: null,
-    eventVersion: null,
-    sourceContext: null,
-    sourceAggregateId: null,
-  },
-})
+const sequenceState = async (
+  executor: Database | ActivityTransaction,
+  tenant: OperationalActionRecord['organizationId'],
+) => {
+  const result = await executor.execute<{
+    last_sequence: string
+    covered_count: string
+    duplicate_count: string
+  }>(sql`
+    SELECT coalesce(head.last_sequence, 0)::text AS last_sequence,
+           count(record.id)::text AS covered_count,
+           (count(record.id) - count(DISTINCT record.sequence))::text AS duplicate_count
+    FROM (SELECT ${tenant as string}::varchar AS organization_id) AS scope
+    LEFT JOIN operational_action_history_heads AS head
+      ON head.organization_id = scope.organization_id
+    LEFT JOIN operational_action_history_records AS record
+      ON record.organization_id = scope.organization_id
+    GROUP BY head.last_sequence
+  `)
+  const row = result.rows[0]
+  return {
+    lastSequence: Number(row?.last_sequence ?? 0),
+    coveredSequenceCount: Number(row?.covered_count ?? 0),
+    duplicateSequenceCount: Number(row?.duplicate_count ?? 0),
+  }
+}
 
 const inRollback = async (run: (transaction: ActivityTransaction) => Promise<void>) => {
   try {
@@ -216,7 +215,7 @@ describe('Operational Action History store (real PostgreSQL)', () => {
       store.append(forOrganization(randomUUID(), 'concurrent-2')),
     ])
     expect(outcomes.map(({ sequence }) => sequence).sort()).toEqual([1, 2])
-    await expect(store.readReadiness(concurrentOrganization)).resolves.toMatchObject({
+    await expect(sequenceState(db, concurrentOrganization)).resolves.toMatchObject({
       lastSequence: 2,
       coveredSequenceCount: 2,
       duplicateSequenceCount: 0,
@@ -289,7 +288,7 @@ describe('Operational Action History store (real PostgreSQL)', () => {
         cause: { message: expect.stringMatching(/sequence authority/u) },
       })
 
-      await expect(store.readReadiness(ORG)).resolves.toMatchObject({
+      await expect(sequenceState(transaction, ORG)).resolves.toMatchObject({
         lastSequence: 3,
         coveredSequenceCount: 3,
         duplicateSequenceCount: 0,
@@ -338,313 +337,9 @@ describe('Operational Action History store (real PostgreSQL)', () => {
         occurredAt: new Date('2026-08-28T10:00:00.000Z'),
         sequence: 2,
       })
-      await expect(store.readReadiness(ORG)).resolves.toMatchObject({
+      await expect(sequenceState(transaction, ORG)).resolves.toMatchObject({
         lastSequence: 4,
         coveredSequenceCount: 4,
-      })
-    })
-  })
-
-  it('prevents redaction under an active hold, then permits identifier-only redaction after release', async () => {
-    await inRollback(async (transaction) => {
-      const store = createOperationalActionHistoryStore(transaction)
-      const target = entry('00000000-0000-4000-8000-000000001021', 'event-21')
-      await store.append(target)
-      const holdId = '00000000-0000-4000-8000-000000001022'
-      const hold = {
-        id: holdId,
-        organizationId: ORG,
-        reasonCode: 'legal_request',
-        protectsFrom: new Date('2026-01-01T00:00:00.000Z'),
-        protectsThrough: null,
-        placedAt: new Date('2026-08-28T12:00:00.000Z'),
-        placedByActorId: 'operator-1',
-      }
-      const placedAction = lifecycle(
-        '00000000-0000-4000-8000-000000001023',
-        'operational_history.legal_hold_placed',
-        'legal_request',
-        holdId,
-      )
-      await expect(
-        store.placeLegalHold({ hold, actionRecord: placedAction }),
-      ).resolves.toEqual({ status: 'placed', holdId })
-      await expect(
-        store.placeLegalHold({
-          hold: {
-            ...hold,
-            id: '00000000-0000-4000-8000-000000001027',
-            placedAt: new Date('2026-08-28T12:01:00.000Z'),
-          },
-          actionRecord: {
-            ...placedAction,
-            id: operationalActionHistoryRecordId('00000000-0000-4000-8000-000000001028'),
-            resourceId: '00000000-0000-4000-8000-000000001027',
-            occurredAt: new Date('2026-08-28T12:01:00.000Z'),
-            recordedAt: new Date('2026-08-28T12:01:00.000Z'),
-          },
-        }),
-      ).resolves.toEqual({ status: 'duplicate', holdId })
-      await expect(
-        transaction.transaction((nested) =>
-          nested
-            .update(operationalActionHistoryLegalHolds)
-            .set({ reasonCode: 'rewritten_reason' })
-            .where(eq(operationalActionHistoryLegalHolds.id, holdId)),
-        ),
-      ).rejects.toMatchObject({
-        cause: {
-          message: expect.stringMatching(/append-only legal-hold evidence/u),
-        },
-      })
-      await expect(
-        store.redactSubject({
-          organizationId: ORG,
-          subjectType: 'actor',
-          subjectId: 'user-1',
-          reasonCode: 'privacy_request',
-          redactedAt: new Date('2026-08-28T12:10:00.000Z'),
-          limit: 100,
-          actionRecord: lifecycle(
-            '00000000-0000-4000-8000-000000001024',
-            'operational_history.redaction_applied',
-            'privacy_request',
-          ),
-        }),
-      ).resolves.toEqual({
-        status: 'applied',
-        redacted: 0,
-        held: 1,
-        complete: false,
-      })
-
-      const releasedAction = lifecycle(
-        '00000000-0000-4000-8000-000000001025',
-        'operational_history.legal_hold_released',
-        'legal_request_closed',
-        holdId,
-      )
-      await store.releaseLegalHold({
-        organizationId: ORG,
-        holdId,
-        releasedAt: new Date('2026-08-28T12:20:00.000Z'),
-        releasedByActorId: 'operator-1',
-        reasonCode: 'legal_request_closed',
-        actionRecord: releasedAction,
-      })
-      await expect(
-        store.releaseLegalHold({
-          organizationId: ORG,
-          holdId,
-          releasedAt: new Date('2026-08-28T12:21:00.000Z'),
-          releasedByActorId: 'operator-1',
-          reasonCode: 'legal_request_closed',
-          actionRecord: {
-            ...releasedAction,
-            id: operationalActionHistoryRecordId('00000000-0000-4000-8000-000000001029'),
-            occurredAt: new Date('2026-08-28T12:21:00.000Z'),
-            recordedAt: new Date('2026-08-28T12:21:00.000Z'),
-          },
-        }),
-      ).resolves.toBe('duplicate')
-      await expect(
-        store.redactSubject({
-          organizationId: ORG,
-          subjectType: 'actor',
-          subjectId: 'user-1',
-          reasonCode: 'privacy_request',
-          redactedAt: new Date('2026-08-28T12:30:00.000Z'),
-          limit: 100,
-          actionRecord: lifecycle(
-            '00000000-0000-4000-8000-000000001026',
-            'operational_history.redaction_applied',
-            'privacy_request',
-          ),
-        }),
-      ).resolves.toEqual({
-        status: 'applied',
-        redacted: 1,
-        held: 0,
-        complete: true,
-      })
-
-      expect(
-        await transaction
-          .select({ actorId: operationalActionHistoryRecords.actorId })
-          .from(operationalActionHistoryRecords)
-          .where(eq(operationalActionHistoryRecords.id, target.id as string)),
-      ).toEqual([{ actorId: null }])
-    })
-  })
-
-  it('makes a completed redaction correlation a no-op instead of consuming another batch', async () => {
-    await inRollback(async (transaction) => {
-      const store = createOperationalActionHistoryStore(transaction)
-      const redactionOrganization = organizationId(
-        `operational-history-redaction-${randomUUID()}`,
-      )
-      const first = {
-        ...entry('00000000-0000-4000-8000-000000001051', 'event-51'),
-        organizationId: redactionOrganization,
-      }
-      const second = {
-        ...entry('00000000-0000-4000-8000-000000001052', 'event-52'),
-        organizationId: redactionOrganization,
-      }
-      await store.append(first)
-      await store.append(second)
-      const actionRecord = {
-        ...lifecycle(
-          '00000000-0000-4000-8000-000000001053',
-          'operational_history.redaction_applied',
-          'privacy_request',
-        ),
-        organizationId: redactionOrganization,
-      }
-
-      await expect(
-        store.redactSubject({
-          organizationId: redactionOrganization,
-          subjectType: 'actor',
-          subjectId: 'user-1',
-          reasonCode: 'privacy_request',
-          redactedAt: new Date('2026-08-28T12:30:00.000Z'),
-          limit: 1,
-          actionRecord,
-        }),
-      ).resolves.toEqual({
-        status: 'applied',
-        redacted: 1,
-        held: 0,
-        complete: false,
-      })
-      await expect(
-        store.redactSubject({
-          organizationId: redactionOrganization,
-          subjectType: 'actor',
-          subjectId: 'user-1',
-          reasonCode: 'privacy_request',
-          redactedAt: new Date('2026-08-28T12:31:00.000Z'),
-          limit: 1,
-          actionRecord: {
-            ...actionRecord,
-            id: operationalActionHistoryRecordId('00000000-0000-4000-8000-000000001054'),
-            occurredAt: new Date('2026-08-28T12:31:00.000Z'),
-            recordedAt: new Date('2026-08-28T12:31:00.000Z'),
-          },
-        }),
-      ).resolves.toEqual({
-        status: 'duplicate',
-        redacted: 0,
-        held: 0,
-        complete: false,
-      })
-
-      const targetRows = await transaction
-        .select({ actorId: operationalActionHistoryRecords.actorId })
-        .from(operationalActionHistoryRecords)
-        .where(
-          inArray(operationalActionHistoryRecords.id, [
-            first.id as string,
-            second.id as string,
-          ]),
-        )
-      expect(targetRows.filter(({ actorId }) => actorId === null)).toHaveLength(1)
-      expect(targetRows.filter(({ actorId }) => actorId === 'user-1')).toHaveLength(1)
-    })
-  })
-
-  it('assesses held and eligible 365-day records without deleting either', async () => {
-    await inRollback(async (transaction) => {
-      const store = createOperationalActionHistoryStore(transaction)
-      const oldHeld = entry(
-        '00000000-0000-4000-8000-000000001031',
-        'event-31',
-        new Date('2025-01-01T00:00:00.000Z'),
-      )
-      const oldEligible = entry(
-        '00000000-0000-4000-8000-000000001032',
-        'event-32',
-        new Date('2025-02-01T00:00:00.000Z'),
-      )
-      await store.append(oldHeld)
-      await store.append(oldEligible)
-      await store.placeLegalHold({
-        hold: {
-          id: '00000000-0000-4000-8000-000000001033',
-          organizationId: ORG,
-          reasonCode: 'legal_request',
-          protectsFrom: new Date('2024-12-01T00:00:00.000Z'),
-          protectsThrough: new Date('2025-01-15T00:00:00.000Z'),
-          placedAt: new Date('2026-08-28T12:00:00.000Z'),
-          placedByActorId: 'operator-1',
-        },
-        actionRecord: lifecycle(
-          '00000000-0000-4000-8000-000000001034',
-          'operational_history.legal_hold_placed',
-          'legal_request',
-          '00000000-0000-4000-8000-000000001033',
-        ),
-      })
-
-      await expect(
-        store.assessRetention({
-          organizationId: ORG,
-          cutoff: new Date('2025-08-28T12:00:00.000Z'),
-          assessmentRecord: lifecycle(
-            '00000000-0000-4000-8000-000000001035',
-            'operational_history.retention_assessed',
-            'report_only_pending_counsel',
-          ),
-        }),
-      ).resolves.toEqual({
-        eligibleCount: 1,
-        heldCount: 1,
-        oldestEligibleAt: new Date('2025-02-01T00:00:00.000Z'),
-      })
-      expect(
-        await transaction
-          .select({ id: operationalActionHistoryRecords.id })
-          .from(operationalActionHistoryRecords)
-          .where(eq(operationalActionHistoryRecords.organizationId, ORG)),
-      ).toHaveLength(4)
-    })
-  })
-
-  it('surfaces a bypassed sequence as unavailable without inferring repair', async () => {
-    await inRollback(async (transaction) => {
-      const store = createOperationalActionHistoryStore(transaction)
-      await store.append(entry('00000000-0000-4000-8000-000000001041', 'event-41'))
-      await transaction.execute(sql`
-        INSERT INTO operational_action_history_records (
-          id, organization_id, sequence, property_id, actor_type, actor_id,
-          action, outcome, resource_type, resource_id, reason_code,
-          provenance_kind, provenance_id, source_event_type,
-          source_event_version, source_context, source_aggregate_id,
-          occurred_at, recorded_at
-        )
-        SELECT '00000000-0000-4000-8000-000000001042'::uuid,
-               organization_id, 3, property_id, actor_type, actor_id,
-               action, outcome, resource_type, resource_id, reason_code,
-               provenance_kind, 'injected-gap', source_event_type,
-               source_event_version, source_context, source_aggregate_id,
-               occurred_at, recorded_at
-        FROM operational_action_history_records
-        WHERE id = '00000000-0000-4000-8000-000000001041'::uuid
-      `)
-
-      await expect(
-        getOperationalActionHistoryReadiness({ store })({
-          organizationId: ORG,
-          observedAt: new Date('2026-08-28T12:00:00.000Z'),
-        }),
-      ).resolves.toMatchObject({
-        state: 'unavailable',
-        reason: 'unaccounted_sequence_gap',
-        lastSequence: 1,
-        coveredSequenceCount: 2,
-        minimumSequence: 1,
-        maximumSequence: 3,
       })
     })
   })

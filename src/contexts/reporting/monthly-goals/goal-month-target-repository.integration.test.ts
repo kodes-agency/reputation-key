@@ -7,14 +7,11 @@ import {
 } from '#/shared/db/testing/held-transaction'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import type {
-  GoalMonthlyResult,
   GoalProgramBundle,
   GoalProgramRepository,
   GoalProgramVersion,
-  GoalSubjectAssignment,
 } from '../application/ports/goal-program.repository'
-import type { GoalSubject } from '../domain/goal-program'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../readings/contracts'
+import { goalAssignment, goalBundle } from './goal-program-bundle.test-fixtures'
 import { createGoalProgramRepository } from './goal-program-repository.server'
 import { hasPostgresErrorCode } from './goal-program-rows.server'
 
@@ -71,71 +68,6 @@ describe.sequential('Goal month target repository (integration)', () => {
     return created
   }
 
-  const versionOf = (place: Place, programId: string): GoalProgramVersion => ({
-    id: randomUUID(),
-    programId,
-    organizationId: place.organizationId,
-    propertyId: place.propertyId,
-    version: 1,
-    metricDefinitionId: METRIC_DEFINITION_IDS.qualifiedScan,
-    metricDefinitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
-    metric: 'qualified_scans',
-    metricMinimumSample: 0,
-    targetValue: 400,
-    propertyTimezone: 'UTC',
-    effectiveFrom: lastMonth.start,
-    effectiveTo: null,
-    changeReason: 'created',
-    createdBy: 'manager-1',
-    createdAt: lastMonth.start,
-  })
-
-  const assignmentOf = (
-    version: GoalProgramVersion,
-    subject: GoalSubject,
-  ): GoalSubjectAssignment => ({
-    id: randomUUID(),
-    programId: version.programId,
-    programVersionId: version.id,
-    organizationId: version.organizationId,
-    propertyId: version.propertyId,
-    metric: version.metric,
-    subject,
-    effectiveFrom: version.effectiveFrom,
-    effectiveTo: null,
-    createdBy: 'manager-1',
-    createdAt: version.createdAt,
-  })
-
-  const monthOf = (
-    assignment: GoalSubjectAssignment,
-    period: Month,
-  ): GoalMonthlyResult => ({
-    id: randomUUID(),
-    assignmentId: assignment.id,
-    programId: assignment.programId,
-    programVersionId: assignment.programVersionId,
-    organizationId: assignment.organizationId,
-    propertyId: assignment.propertyId,
-    periodStart: period.start,
-    periodEnd: period.end,
-    propertyTimezone: 'UTC',
-    status: 'open',
-    targetValue: null,
-    evaluation: {
-      state: 'updating',
-      value: null,
-      sampleCount: 0,
-      achieved: null,
-      reason: 'period_open',
-    },
-    sourceCompleteThrough: null,
-    evaluationWatermark: null,
-    closedAt: null,
-    createdAt: period.start,
-    updatedAt: period.start,
-  })
-
   /**
    * An active goal of 400 scans for a new Property and its group, with one
    * open month per subject in each of `periods`.
@@ -145,33 +77,20 @@ describe.sequential('Goal month target repository (integration)', () => {
     periods: readonly Month[],
   ): Promise<GoalProgramBundle> {
     const place = await createPlace(ownerOrganizationId)
-    const programId = randomUUID()
-    const version = versionOf(place, programId)
-    const assignments = [
-      assignmentOf(version, { kind: 'property', propertyId: place.propertyId }),
-      assignmentOf(version, { kind: 'portal_group', portalGroupId: place.portalGroupId }),
-    ]
-    const bundle: GoalProgramBundle = {
-      program: {
-        id: programId,
-        organizationId: place.organizationId,
-        propertyId: place.propertyId,
-        name: `Scans ${programId}`,
-        description: null,
-        status: 'active',
-        statusReason: null,
-        currentVersion: 1,
-        createdBy: 'manager-1',
-        createdAt: version.createdAt,
-        updatedAt: version.createdAt,
-      },
-      version,
-      versions: [version],
-      assignments,
-      results: periods.flatMap((period) =>
-        assignments.map((assignment) => monthOf(assignment, period)),
-      ),
-    }
+    const bundle = goalBundle({
+      goal: 'scans',
+      organizationId: place.organizationId,
+      propertyId: place.propertyId,
+      programId: randomUUID(),
+      status: 'active',
+      effectiveFrom: lastMonth.start,
+      at: lastMonth.start,
+      subjects: [
+        { kind: 'property', propertyId: place.propertyId },
+        { kind: 'portal_group', portalGroupId: place.portalGroupId },
+      ],
+      openMonths: periods.map((period) => ({ ...period, at: period.start })),
+    })
     await expect(
       repository.create({ bundle, auditAction: 'goal.program.created' }),
     ).resolves.toBe('created')
@@ -191,7 +110,9 @@ describe.sequential('Goal month target repository (integration)', () => {
     }
     return {
       version,
-      assignments: goal.assignments.map((known) => assignmentOf(version, known.subject)),
+      assignments: goal.assignments.map((known) =>
+        goalAssignment(version, { subject: known.subject }),
+      ),
       supersedeRowlessHead: false,
     }
   }
@@ -225,6 +146,14 @@ describe.sequential('Goal month target repository (integration)', () => {
       ...patch,
     }
   }
+
+  /** The goal as the repository reads it back. */
+  const read = (goal: GoalProgramBundle) =>
+    repository.get(goal.program.organizationId, goal.program.propertyId, goal.program.id)
+
+  /** The clock of a command that ran in the middle of last month. */
+  const midLastMonth = () =>
+    new Date((lastMonth.start.getTime() + lastMonth.end.getTime()) / 2)
 
   async function stateOf(goal: GoalProgramBundle) {
     const scope = [goal.program.organizationId, goal.program.propertyId, goal.program.id]
@@ -328,11 +257,7 @@ describe.sequential('Goal month target repository (integration)', () => {
       },
     ])
 
-    const stored = await repository.get(
-      organizationId,
-      goal.program.propertyId,
-      goal.program.id,
-    )
+    const stored = await read(goal)
     expect(stored?.version).toMatchObject({
       id: revision.version.id,
       targetValue: 300,
@@ -431,16 +356,12 @@ describe.sequential('Goal month target repository (integration)', () => {
       logged: [{ target_source: null }, { target_source: null }],
       versions: [{ version: 1, target_source: null }],
     })
-    const read = await repository.get(
-      sourced.program.organizationId,
-      sourced.program.propertyId,
-      sourced.program.id,
-    )
-    expect(read?.targetChanges?.map((change) => change.targetSource)).toEqual([
+    const sourcedRead = await read(sourced)
+    expect(sourcedRead?.targetChanges?.map((change) => change.targetSource)).toEqual([
       'recommended',
       'recommended',
     ])
-    expect(read?.version.targetSource).toBe('recommended')
+    expect(sourcedRead?.version.targetSource).toBe('recommended')
   })
 
   it('a month put back on its version’s target stores none of its own, and both changes stay logged', async () => {
@@ -522,16 +443,13 @@ describe.sequential('Goal month target repository (integration)', () => {
       // The command's clock reads the middle of last month; the database's
       // has passed that month's end, and its guard is what answers.
       const goal = await createProgram(organizationId, [lastMonth])
-      const midLastMonth = new Date(
-        (lastMonth.start.getTime() + lastMonth.end.getTime()) / 2,
-      )
 
       await expect(
         repository.changeMonthTarget(
           changeOf(
             goal,
             {
-              at: midLastMonth,
+              at: midLastMonth(),
               following: {
                 outcome: 'applied',
                 reason: null,
@@ -567,12 +485,9 @@ describe.sequential('Goal month target repository (integration)', () => {
         `UPDATE goal_monthly_results SET status = 'reconciling' WHERE id = ANY($1::uuid[])`,
         [ended.map((result) => result.id)],
       )
-      const midLastMonth = new Date(
-        (lastMonth.start.getTime() + lastMonth.end.getTime()) / 2,
-      )
 
       await expect(
-        repository.changeMonthTarget(changeOf(goal, { at: midLastMonth }, lastMonth)),
+        repository.changeMonthTarget(changeOf(goal, { at: midLastMonth() }, lastMonth)),
       ).resolves.toBe('month_locked')
 
       expect(await stateOf(goal)).toMatchObject({ logCount: 0, audits: [] })
@@ -663,13 +578,9 @@ describe.sequential('Goal month target repository (integration)', () => {
         }),
       )
 
-      const read = await repository.get(
-        organizationId,
-        goal.program.propertyId,
-        goal.program.id,
-      )
+      const stored = await read(goal)
       expect(
-        read?.targetChanges?.map((change) => [
+        stored?.targetChanges?.map((change) => [
           change.previousTargetValue,
           change.newTargetValue,
           change.createdAt,
@@ -681,7 +592,7 @@ describe.sequential('Goal month target repository (integration)', () => {
         [300, 250, now],
       ])
       const [listed] = await repository.list(organizationId, goal.program.propertyId)
-      expect(listed?.targetChanges).toEqual(read?.targetChanges)
+      expect(listed?.targetChanges).toEqual(stored?.targetChanges)
 
       // A Program with no change has an empty log, not a missing one.
       const quiet = await createProgram(organizationId, [thisMonth])
@@ -782,14 +693,10 @@ describe.sequential('Goal month target repository (integration)', () => {
         )
       }
 
-      const read = await repository.get(
-        organizationId,
-        goal.program.propertyId,
-        goal.program.id,
-      )
+      const stored = await read(goal)
       const [listed] = await repository.list(organizationId, goal.program.propertyId)
 
-      for (const bundle of [read, listed]) {
+      for (const bundle of [stored, listed]) {
         expect(bundle?.targetChanges?.map((change) => change.createdBy)).toEqual([
           'manager-1',
           'manager-1',

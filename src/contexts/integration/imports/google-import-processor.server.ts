@@ -3,7 +3,7 @@ import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/
 import {
   buildGoogleImportedProperty,
   type PropertyGoogleBindingPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobRetryDelayUpperBoundMs } from '#/shared/jobs/job-policy'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery.server'

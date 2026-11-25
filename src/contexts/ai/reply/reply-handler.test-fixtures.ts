@@ -5,7 +5,7 @@ import {
   useAiHandlerDatabase,
 } from '#/contexts/ai/infrastructure/testing/handler-harness.test-fixtures'
 import type { GenerateReplySuggestionDependencies } from '#/contexts/ai/reply/generate-suggestion.server'
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import { parseCanonicalReplyLanguageTag } from '#/shared/ai-review-language-catalogue'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { vi } from 'vitest'
@@ -214,7 +214,7 @@ async function createHarness(
           route: 'reply-suggestion' as const,
           status: 'success' as const,
           result: {
-            profileVersion: 'reply-draft-v3' as const,
+            profileVersion: 'reply-draft-v4' as const,
             replyText: 'Thank you for your thoughtful review.',
             provenanceToken: 'signed-provenance-token',
             expiresAtEpochMillis: NOW + 5 * 60_000,

@@ -3,7 +3,7 @@ import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
-import { LOW_RATING_THRESHOLDS } from '#/contexts/feed/application/public-api'
+import { LOW_RATING_THRESHOLDS } from '#/contexts/feed/public-api'
 import { RatingThresholdField } from './rating-threshold-field'
 
 /** The Portal editor's private note and the Organization's low-rating target: one of five ratings. */

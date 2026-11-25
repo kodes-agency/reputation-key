@@ -4,14 +4,12 @@
 // delivery ledger admits a published fact only while a required receipt is
 // missing. A consumer that finishes without its receipt must remain recoverable.
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { eq, inArray } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { workItems } from '#/shared/db/schema/work-items.schema'
 import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   createConsumerRegistry,
   type ConsumerEvent,
@@ -120,11 +118,6 @@ async function clearFixture(): Promise<void> {
 }
 
 describe.sequential('Goal metric-correction receipt (real PostgreSQL)', () => {
-  beforeAll(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   beforeEach(async () => {
     await clearFixture()
     await db.insert(outboxEvents).values(
@@ -145,7 +138,6 @@ describe.sequential('Goal metric-correction receipt (real PostgreSQL)', () => {
 
   afterAll(async () => {
     await clearFixture()
-    clearEventSchemas()
   })
 
   it('holds a receipt from every catalogued consumer after one delivery, so the sweep leaves the fact alone', async () => {

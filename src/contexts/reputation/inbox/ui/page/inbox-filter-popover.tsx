@@ -7,9 +7,9 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '#/components/ui/popover'
-import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
+import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/analysis/aspect-labels'
 import { ListFilter } from 'lucide-react'
-import type { InboxQueue } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue } from '#/contexts/reputation/public-api'
 import { filtersOffered } from './inbox-filter-offer'
 import { InboxFilterSelect } from './inbox-filter-select'
 import {

@@ -5,7 +5,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { InboxListRow } from './inbox-list-row'
 import { URGENT_ROW_TINT } from './inbox-list-row-tone'
 

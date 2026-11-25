@@ -29,11 +29,11 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { PortalRepository } from './portal-repository.port.server'
 import {
   MAX_HISTORY_SOURCE_ROWS,
@@ -317,11 +317,7 @@ export const getPortalReview =
     ] = await Promise.all([
       deps.publicationRepo.loadWorkingCopyWithLook(organizationId, pid),
       deps.publicationRepo.getCursor(organizationId, pid),
-      deps.publicationRepo.listOpenPendingContentChanges?.(
-        organizationId,
-        propertyId,
-        pid,
-      ) ?? Promise.resolve([]),
+      deps.publicationRepo.listOpenPendingContentChanges(organizationId, propertyId, pid),
       deps.publicationRepo.listActivationHistoryPage(organizationId, propertyId, pid, {
         beforeSequence: null,
         limit: 1,

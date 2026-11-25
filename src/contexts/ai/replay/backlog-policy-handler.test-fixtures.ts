@@ -28,8 +28,8 @@ const handlerDatabase = useAiHandlerDatabase()
 
 import {
   TEST_REVIEW_SENTENCES,
-  createTestReviewAnalysisContract,
-} from '#/contexts/ai/analysis/review-analysis-contract.test-fixtures'
+  createTestReviewAnalysisPorts,
+} from '#/contexts/ai/analysis/review-analysis-steps.test-fixtures'
 import type {
   AiReviewAnalysisBacklogEntry,
   AiReviewAnalysisBacklogOrigin,
@@ -52,7 +52,7 @@ import {
   AI_REVIEW_ANALYSIS_CONSUMER,
   registerAiConsumers,
 } from '#/contexts/ai/analysis/outbox-consumers.server'
-import { reviewCreated } from '#/contexts/review/application/public-api'
+import { reviewCreated } from '#/contexts/reputation/public-api'
 import {
   AI_REVIEW_LANGUAGE_ICU_VERSION,
   AI_REVIEW_LANGUAGE_UNICODE_VERSION,
@@ -71,8 +71,6 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { AI_REVIEW_LANGUAGE_REGION_NODE_VERSION } from '#/shared/generated/ai-review-language-canonical-regions-v1'
 import {
   createGatedJobHandler,
@@ -276,7 +274,8 @@ async function analysisWithOpenGates(
   }
   const persistence = fixtures[0]!
   const dependencies = {
-    contract: createTestReviewAnalysisContract({ storeAnalysisV3: async () => true }),
+    ...createTestReviewAnalysisPorts(),
+    outputs: { storeAnalysisV3: async () => true },
     authorization: persistence.authorization,
     control: persistence.control,
     inference: { analyzeReview },
@@ -425,6 +424,9 @@ function reviewEventDelivery(
     analyzeReviewEvent: wiring.analyzeReviewEvent,
     receipts: receiptStore,
     backlog: wiring.backlog,
+    applyAiAuthorizationLifecycle: async () => {
+      throw new Error('authorization lifecycle is not under test')
+    },
     nowEpochMillis: () => wiring.clock.now,
 
     authorizeScope: createScheduledScopeAuthorizer(
@@ -487,9 +489,7 @@ function createWorker(helpers: WorkerHelpers) {
     const restartUnder = (policy: Readonly<Record<string, string>>) =>
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore(policy))
     restartUnder(env)
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-    )
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
     const clock = { now: NOW }
     const switches: AiSwitches = {
       laneBusy: false,
@@ -573,7 +573,6 @@ const PLATFORM_STOPS: ReadonlyArray<readonly [string, Readonly<Record<string, st
   ]
 
 beforeEach(() => {
-  registerAllEventSchemas()
   // The analysis fails closed on a language runtime other than the pinned
   // one, which would hide the provider call this suite is looking for.
   Object.defineProperty(process, 'versions', {
@@ -598,7 +597,6 @@ afterEach(() => {
   })
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
-  clearEventSchemas()
 })
 
 export {

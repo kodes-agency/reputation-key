@@ -1,4 +1,14 @@
-export type PortalPublicationState = 'draft' | 'published' | 'disabled' | 'archived'
+export const PORTAL_PUBLICATION_STATES = [
+  'draft',
+  'published',
+  'disabled',
+  'archived',
+] as const
+export type PortalPublicationState = (typeof PORTAL_PUBLICATION_STATES)[number]
+
+export function isPortalPublicationState(value: string): value is PortalPublicationState {
+  return (PORTAL_PUBLICATION_STATES as readonly string[]).includes(value)
+}
 
 export type PortalPublicationError = Readonly<{
   code: 'invalid_publication_transition'
@@ -26,8 +36,4 @@ export function transitionPortalPublication(
     return { code: 'invalid_publication_transition', from, to }
   }
   return to
-}
-
-export function isPubliclyAvailable(state: PortalPublicationState): boolean {
-  return state === 'published'
 }

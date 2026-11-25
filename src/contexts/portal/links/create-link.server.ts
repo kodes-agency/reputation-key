@@ -12,7 +12,7 @@ import { portalLinkCategoryCreated, portalLinkCreated } from '../domain/events'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
 
 import type { PortalRepository } from '../publication/portal-repository.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
 import type {
   CreatePortalLinkCommand,

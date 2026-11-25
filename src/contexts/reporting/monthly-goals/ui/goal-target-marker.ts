@@ -2,9 +2,9 @@
 // value so a late reduction cannot look like the original target. The read omits the
 // marker when the target returns to its original value.
 
-import type { GoalMetric } from '#/contexts/reporting/application/public-api'
+import type { GoalMetric } from '#/contexts/reporting/public-api'
 import type { GoalMonthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
-import { formatShortDate } from '#/lib/format'
+import { formatShortDate } from '#/shared/format/format'
 import { goalFigure } from './goal-so-far'
 
 export type GoalMarkerFrame = Readonly<{

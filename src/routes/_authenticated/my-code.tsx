@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { validateStaffHomeSearch } from '#/shared/staff-home-search'
+import { validateStaffHomeSearch } from '#/shared/routing/staff-home-search'
 
 export const Route = createFileRoute('/_authenticated/my-code')({
   validateSearch: validateStaffHomeSearch,

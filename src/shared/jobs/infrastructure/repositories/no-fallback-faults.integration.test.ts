@@ -1,4 +1,5 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { seedReply } from '../../../../contexts/reputation/replies/reply-seed.test-fixtures'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // BQC-4.6 — no-fallback fault proof (real PostgreSQL + real Redis/BullMQ).
 //
 // fallow-ignore-file boundary-violation
@@ -34,7 +35,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // shared Redis is never killed or restarted. Skips cleanly when Redis is
 // unreachable (same convention as the BQC-3.6 quarantine suite).
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import {
   describe,
   it,
@@ -72,8 +73,6 @@ import {
   resetDelayedExecutionPolicy,
   type DelayedDecision,
 } from '#/shared/auth/system-execution-policy'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   organizationId,
   propertyId,
@@ -82,21 +81,21 @@ import {
   userId,
   googleConnectionId,
 } from '#/shared/domain/ids'
-import type { Reply, Review } from '#/contexts/review/domain/types'
-import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PublishReplyJobData } from '#/contexts/review/application/ports/reply-queue.port'
-import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
-import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
-import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
-import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
-import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
-import { createReplyPreReadForTests } from '#/contexts/review/infrastructure/testing/reply-pre-read-fixture'
+import type { Reply, Review } from '#/contexts/reputation/domain/review-types'
+import type { GoogleReviewApiPort } from '#/contexts/reputation/sync/google-review-api.port.server'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { PublishReplyJobData } from '#/contexts/reputation/publication/reply-queue.port.server'
+import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
+import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'
+import { createAtomicReplyCommandStore } from '#/contexts/reputation/replies/reply-command-store.server'
+import { createGoogleReplyObservationStore } from '#/contexts/reputation/publication/google-reply-observation-store.server'
+import { createPublishReplyHandler } from '#/contexts/reputation/publication/publish-reply-job.server'
+import { createReplyPreReadForTests } from '#/contexts/reputation/publication/reply-pre-read.test-fixtures'
 import {
   reviewReplyApproved,
   reviewReplyPublicationRequested,
-} from '#/contexts/review/domain/events'
-import { AMBIGUOUS_RECONCILE_DELAY_MS } from '#/contexts/review/domain/reply-publication-workflow'
+} from '#/contexts/reputation/domain/review-events'
+import { AMBIGUOUS_RECONCILE_DELAY_MS } from '#/contexts/reputation/domain/reply-publication-workflow'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
@@ -349,7 +348,6 @@ function makeReviewC(): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW_C,
-    expiresAt: new Date('2027-07-18T12:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW_C,
@@ -444,8 +442,6 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
   }
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await cleanOrgC()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -466,7 +462,6 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
   })
 
   afterAll(async () => {
-    clearEventSchemas()
     await cleanOrgC()
   })
 
@@ -518,7 +513,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       observedAt: NOW_C,
       contentExpiresAt: new Date(NOW_C.getTime() + 24 * 60 * 60 * 1000),
     })
-    const pendingReply = await replyRepo.upsert(makeReplyC(), NOW_C)
+    const pendingReply = await seedReply(getDb(), makeReplyC(), NOW_C)
     // Identity authority itself is outside this provider-fault proof. The
     // fixture grants the seeded manager explicitly; production composition
     // injects the real transaction-bound, fail-closed authority.
@@ -526,7 +521,6 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       db,
       () => new Date(),
       async () => true,
-      undefined,
       replyScopeEffects,
     )
     const authorizedReply = await replyCommandStore.markPublicationAuthorized(
@@ -723,7 +717,6 @@ describe('(d) parked work is operator-visible (BQC-4.6 / 3.7 metrics)', () => {
     expect(snapshot.outbox.unpublishedCount).toBe(1)
     expect(snapshot.outbox.oldestUnpublishedAgeMs).not.toBeNull()
     expect(snapshot.outbox.oldestUnpublishedAgeMs!).toBeGreaterThanOrEqual(4 * 60_000)
-    expect(snapshot.outbox.expiredLeaseCount).toBe(0)
     expect(snapshot.quarantine).not.toBeNull()
     expect(snapshot.quarantine!.count).toBe(1)
     expect(snapshot.quarantine!.oldestAgeMs).not.toBeNull()

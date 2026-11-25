@@ -13,7 +13,6 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import {
@@ -31,7 +30,7 @@ import {
 import { getGoalProgress } from '#/contexts/reporting/server/goal-programs'
 import { PortalGroupPage } from '#/components/features/portal/portal-group/portal-group-page'
 import { readStateOf } from '#/components/features/portal/portal-group/portal-group-read-state'
-import { portalGroupCachePolicy } from '#/contexts/portal/publication/ui/portal-group-cache-policy'
+import { invalidateGroupProjections } from '#/contexts/portal/publication/ui/portal-group-cache-policy'
 import { RouteNotFound } from '#/components/layout/route-page-state'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
@@ -85,7 +84,7 @@ export const Route = createFileRoute(
         propertyId: params.propertyId,
       },
     })
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'portal.read')) throw roleUnavailable('Portal group', 'properties')
   },
   staleTime: 30_000,
@@ -158,14 +157,14 @@ function PortalGroupRoute() {
   })
   const renameMutation = useActionMutation(updatePortalGroup, {
     successMessage: 'Group renamed',
-    onSuccess: () => portalGroupCachePolicy.onGroupUpdated(queryClient, propertyId),
+    onSuccess: () => invalidateGroupProjections(queryClient, propertyId),
   })
   const movePortalMutation = useActionMutation(movePortalToGroup, {
-    onSuccess: () => portalGroupCachePolicy.onGroupMemberAdded(queryClient, propertyId),
+    onSuccess: () => invalidateGroupProjections(queryClient, propertyId),
   })
   const removePortalMutation = useActionMutation(removePortalFromGroup, {
     successMessage: 'Portal removed from group',
-    onSuccess: () => portalGroupCachePolicy.onGroupMemberRemoved(queryClient, propertyId),
+    onSuccess: () => invalidateGroupProjections(queryClient, propertyId),
   })
   // Leave the page first: once the group is gone from the list, its own page
   // would render as unavailable for the moment before the navigation lands.
@@ -173,7 +172,7 @@ function PortalGroupRoute() {
     successMessage: 'Group archived',
     onSuccess: async () => {
       await navigate({ to: '/properties/$propertyId/portals', params: { propertyId } })
-      await portalGroupCachePolicy.onGroupDeleted(queryClient, propertyId)
+      await invalidateGroupProjections(queryClient, propertyId)
     },
   })
 

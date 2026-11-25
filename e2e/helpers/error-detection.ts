@@ -509,7 +509,7 @@ export function attachErrorDetection(
 
 /**
  * BQC-6.1 hermeticity: tests must never depend on real network. The app and
- * guest font sets are self-hosted (src/shared/font-sets.ts), so no page asks a
+ * guest font sets are self-hosted (src/shared/fonts/font-sets.ts), so no page asks a
  * font CDN for anything; if one ever does, the Google hosts get an empty
  * stylesheet instead of a slow real fetch, and glyph rendering is irrelevant to
  * every assertion. Fontshare is not stubbed: the page fixture fails the test

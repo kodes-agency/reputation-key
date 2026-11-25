@@ -2,7 +2,7 @@
 // inbox-page-v2.tsx for line-count compliance.
 
 import { FullBleedFrame, PageShell } from '#/components/layout/page-shell'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import type { InboxDetailState } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 import { InboxDetailPanel } from '#/contexts/reputation/inbox/ui/inbox-detail-panel'
 import { PageHeader } from '#/components/layout/page-header'

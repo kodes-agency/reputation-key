@@ -196,7 +196,7 @@ const PURGE_EXPIRED_REVIEWS_JOB = 'purge-expired-reviews'
  * That takes two waits, because this job is only the first page. It reads 100
  * reviews, oldest first, across every tenant, and hands the rest to a
  * continuation job under another id (the purge handler in
- * src/contexts/review/infrastructure/worker-runtime.ts). The e2e seed inserts
+ * src/contexts/reputation/sync/review-worker-runtime.server.ts). The e2e seed inserts
  * 100 reviews before any spec runs, so the first page is the seed's and a
  * review a spec has just created is read by a continuation.
  * `waitForFixtureJobSettled('background', jobId, …)` says how the first page

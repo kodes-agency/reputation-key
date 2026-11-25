@@ -16,7 +16,7 @@ import {
   PRINT_PRINTERS,
 } from '#/shared/domain/portal-print'
 import { PRINT_MAX_QUANTITY } from '#/shared/domain/portal-print-offer'
-import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { guestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 
 const MAX_FIELD = `Keep each line to ${PRINT_CUSTOM_MAX_CHARACTERS} characters`
 
@@ -102,14 +102,11 @@ export const downloadPortalPrintInputSchema = z
     },
   )
 
-type ParsedInput = z.infer<typeof downloadPortalPrintInputSchema>
+type ParsedInput = z.output<typeof downloadPortalPrintInputSchema>
 
-/** The parsed input, with the languages read-only; a caller that has not parsed it may leave the spares, the crop marks and the back page out. */
+/** The parsed input, with the languages read-only. */
 export type DownloadPortalPrintInput = Readonly<
-  Omit<ParsedInput, 'languages' | 'fillSpares' | 'cropMarks' | 'backPage'> & {
+  Omit<ParsedInput, 'languages'> & {
     languages: readonly ParsedInput['languages'][number][]
-    fillSpares?: boolean
-    cropMarks?: boolean
-    backPage?: boolean
   }
 >

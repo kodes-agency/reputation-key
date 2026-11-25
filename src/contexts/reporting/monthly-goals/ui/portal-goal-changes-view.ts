@@ -1,5 +1,5 @@
 import type { PortalGoalChange } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatLocalDate } from '#/lib/format'
+import { formatLocalDate } from '#/shared/format/format'
 import { goalFigure } from './goal-so-far'
 import { dayWords, listOfNames, monthName, portalGoalUnit } from './portal-goal-words'
 

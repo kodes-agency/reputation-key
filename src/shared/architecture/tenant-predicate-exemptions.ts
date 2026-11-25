@@ -106,15 +106,8 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     file: 'src/contexts/guest/contact-requests/contact-request.repository.server.ts',
     symbol: 'purgeExpiredContactRequests',
     reason:
-      'The checkpointed retention sweep intentionally purges expired contact requests across tenants in a bounded, globally serialized transaction.',
+      'The retention sweep intentionally purges expired contact requests across tenants in bounded, row-locked batches.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/guest/page/portal-context-resolver.server.ts',
-    symbol: 'resolve',
-    reason:
-      'Unauthenticated guest resolution starts from an unguessable Portal UUID capability and must discover the owning tenant before any scoped operation.',
-    category: 'PUBLIC-TOKEN',
   },
   {
     file: 'src/contexts/identity/infrastructure/repositories/capability-refusal.repository.ts',
@@ -149,13 +142,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'listElapsedAdmittedPermitIds',
     reason:
       'The bounded global deadline sweep enumerates elapsed admitted permits across tenants so each permit can be fenced by its authority workflow.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/inbox/infrastructure/migrations/null-inbox-source-copies.ts',
-    symbol: 'nullInboxSourceCopies',
-    reason:
-      'The bounded corrective migration intentionally removes copied source content from every affected legacy inbox row across tenants.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
@@ -264,49 +250,42 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/reply.repository.ts',
+    file: 'src/contexts/reputation/replies/reply-repository.server.ts',
     symbol: 'findDuePublicationBatch',
     reason:
       'The bounded publication-reconciliation scheduler intentionally enumerates due replies across tenants and preserves organization identity on every result.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
+    file: 'src/contexts/reputation/sync/review-provider-snapshot-repository.server.ts',
     symbol: 'expireRawSourceBatch',
     reason:
       'The bounded compatibility lifecycle read intentionally translates a global review-expiry cursor before delegating to the canonical purge authority.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review.repository.ts',
-    symbol: 'countExpiredBeforeAcrossTenants',
-    reason:
-      'The restore and purge completion probe intentionally counts expired review content across all tenants to prove that no eligible rows remain.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/review/infrastructure/repositories/review.repository.ts',
+    file: 'src/contexts/reputation/reviews/review-repository.server.ts',
     symbol: 'clockBatchAcrossTenants',
     reason:
       'The bounded review-content lifecycle sweeps (refresh-expiring and purge-expired) intentionally page live review content across all tenants by one stable expiration cursor so every eligible row is reached, and preserve tenant identity on every result.',
     category: 'LEGITIMATE-GLOBAL',
   },
   ...(['repeatCtes', 'scanRepeats', 'pruneRepeats'] as const).map((symbol) => ({
-    file: 'src/contexts/review/infrastructure/repositories/observation-retention.repository.ts',
+    file: 'src/contexts/reputation/reviews/observation-retention-repository.server.ts',
     symbol,
     reason:
       "The operator's repeat prune (ADR 0055, note 2026-10-24 (b)) pages Reviews across tenants by id, or within the one Organization it is given, and reads each Review's observations by its id, whose tenant the foreign key fixes; it returns counts and a Review id only.",
     category: 'LEGITIMATE-GLOBAL' as const,
   })),
   {
-    file: 'src/contexts/review/infrastructure/repositories/observation-retention.repository.ts',
+    file: 'src/contexts/reputation/reviews/observation-retention-repository.server.ts',
     symbol: 'redactExpiredSupersededCopies',
     reason:
       'The daily retention sweep blanks superseded observation copies past their content clock across tenants, oldest clock first in bounded batches, joining each row to its Review on Organization; it returns a count only.',
     category: 'LEGITIMATE-GLOBAL',
   },
   ...(['supersededRuns', 'deleteSupersededBatch'] as const).map((symbol) => ({
-    file: 'src/contexts/review/infrastructure/repositories/snapshot-run-retention.repository.ts',
+    file: 'src/contexts/reputation/sync/snapshot-run-retention-repository.server.ts',
     symbol,
     reason:
       'The daily retention sweep ranks snapshot runs within each Property (partitioned by Organization and Property) across tenants, or within the one Organization it is given, and deletes the runs outside the keep rule by id with their members and the mappings that point at them; it returns counts only.',
@@ -390,20 +369,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/audit/operational-action-history-store.server.ts',
-    symbol: 'placeLegalHold',
-    reason:
-      'A legal hold is read by its id to settle a retry, and a row whose Organization differs from the hold being placed is refused as a conflict.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/feed/audit/operational-action-history-store.server.ts',
-    symbol: 'releaseLegalHold',
-    reason:
-      'A legal hold is locked by its id, and a hold of another Organization is reported as not found before it can be released.',
-    category: 'TENANT-CHECKED',
-  },
-  {
     file: 'src/contexts/feed/preferences/copy-category-defaults.server.ts',
     symbol: 'countCategoryDefaultsToCopy',
     reason:
@@ -474,42 +439,42 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reputation/inbox/response-targets/reminder-release.store.server.ts',
+    file: 'src/contexts/reputation/response-targets/reminder-release.store.server.ts',
     symbol: 'selectDueSlots',
     reason:
       'The bounded reminder release lists, and locks the targets of, due Response Target reminders across tenants (or the one slot named by its key); every row carries its own Organization and Property, which the release and the Google check then use.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reputation/inbox/response-targets/reminder-release.store.server.ts',
+    file: 'src/contexts/reputation/response-targets/reminder-release.store.server.ts',
     symbol: 'settleLockedSlot',
     reason:
       "Delivers or cancels one reminder slot whose target the cross-tenant release has just locked, addressed by the slot's own key (item, cycle, kind), and publishes its fact with the row's own Organization and Property.",
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/inbox/infrastructure/restated-revision-target-exclusion.store.ts',
+    file: 'src/contexts/reputation/response-targets/restated-revision-target-exclusion-store.server.ts',
     symbol: 'findProperty',
     reason:
       'Returns only the Organization and Property that own the Property id an operator typed on `pnpm ops inbox exclude-restated-revision-targets`, so the command can refuse an unknown id and scope every later statement to that Organization; it reads no other column.',
     category: 'OWNER-LOOKUP',
   },
   {
-    file: 'src/contexts/inbox/infrastructure/inbox-cycle-head-facts.store.ts',
+    file: 'src/contexts/reputation/inbox/inbox-cycle-head-facts-store.server.ts',
     symbol: 'parity',
     reason:
       'Counts, across every Organization, the Inbox rows whose Handling Cycle facts differ from their head so the operator can see whether the backfill is complete; it returns counts only.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/inbox/infrastructure/inbox-cycle-head-facts.store.ts',
+    file: 'src/contexts/reputation/inbox/inbox-cycle-head-facts-store.server.ts',
     symbol: 'scan',
     reason:
       'Walks the Inbox rows in id order across every Organization to count those whose Handling Cycle facts differ from their head; it returns a count and the last item id, no row content.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/inbox/infrastructure/inbox-cycle-head-facts.store.ts',
+    file: 'src/contexts/reputation/inbox/inbox-cycle-head-facts-store.server.ts',
     symbol: 'backfill',
     reason:
       "The operator backfill copies each Inbox row's Handling Cycle facts from its own head, matched by item id, in bounded batches across every Organization; it moves no other column.",
@@ -635,70 +600,70 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/publication-reconciliation-candidate.repository.ts',
+    file: 'src/contexts/reputation/publication/publication-reconciliation-candidate-repository.server.ts',
     symbol: 'findAmbiguousCandidates',
     reason:
       'The bounded publication-reconciliation scheduler intentionally lists ambiguous replies that are due across tenants and returns each with its Organization.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review-discovery.repository.ts',
+    file: 'src/contexts/reputation/sync/review-discovery-repository.server.ts',
     symbol: 'findDuePropertiesBatch',
     reason:
       'The bounded review-discovery scheduler intentionally lists Properties due for a Google poll across tenants and returns each with its Organization and connection.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review-discovery.repository.ts',
+    file: 'src/contexts/reputation/sync/review-discovery-repository.server.ts',
     symbol: 'pullLooksForward',
     reason:
       'The hourly content refresh sweep is tenant-cross by design: it hands over Property ids it read across tenants and moves only the due time of each Property sync state row, which is keyed by Property id and carries no Organization column.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review-observation.repository.ts',
+    file: 'src/contexts/reputation/reviews/review-observation-repository.server.ts',
     symbol: 'lockStableIdentity',
     reason:
       'The stable Review row is locked by its id, and a row of another Organization, Property or platform is refused as a scope collision before the observation is applied.',
     category: 'TENANT-CHECKED',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
+    file: 'src/contexts/reputation/sync/review-provider-snapshot-repository.server.ts',
     symbol: 'applyDeletionBatch',
     reason:
       'The snapshot worker addresses a run by its id; the run carries one Organization and Property, and every review it deletes is locked under that scope first.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
+    file: 'src/contexts/reputation/sync/review-provider-snapshot-repository.server.ts',
     symbol: 'confirmLinkedCandidateMissing',
     reason:
       "The snapshot worker addresses a deletion candidate by its run and review ids, and the statement ties the review's provider subject to the run's Organization and Property.",
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
+    file: 'src/contexts/reputation/sync/review-provider-snapshot-repository.server.ts',
     symbol: 'endRunOnEditedCandidate',
     reason:
       "Locks the run of a deletion candidate the snapshot worker addressed by its run id; the candidate's provider subject is then read under that run's Organization and Property.",
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
+    file: 'src/contexts/reputation/sync/review-provider-snapshot-repository.server.ts',
     symbol: 'readNextLinkedCandidate',
     reason:
       "The snapshot worker reads the next deletion candidate of a run by the run id, and the statement ties the review to the run's Organization and Property.",
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
+    file: 'src/contexts/reputation/sync/review-provider-snapshot-repository.server.ts',
     symbol: 'selectLockedDeletionReviews',
     reason:
       'Locks the review rows of one deletion batch by the ids its snapshot run selected; applyDeletionBatch has already locked each under the Organization and Property of the run.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/source-content-lifecycle-store.repository.ts',
+    file: 'src/contexts/reputation/content/source-content-lifecycle-store.server.ts',
     symbol: 'selectLockedLifecycleRows',
     reason:
       'Locks one page of review rows by the ids the content-lifecycle sweep selected across tenants, after the reply scope of each is locked under its own Organization, and returns each row with its Organization and Property.',

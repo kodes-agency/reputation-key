@@ -11,12 +11,12 @@ import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { useDialogBusy } from '#/components/ui/dialog-dismissal'
 import { Kbd } from '#/components/ui/kbd'
 import { useShortcutModifier } from '#/components/hooks/use-shortcut-modifier'
-import { betaFeedbackInputSchema } from '#/shared/beta-feedback-contract'
+import { betaFeedbackInputSchema } from '#/shared/beta-feedback/beta-feedback-contract'
 import type {
   BetaFeedbackImpact,
   BetaFeedbackType,
-} from '#/shared/beta-feedback-contract'
-import type { MaskedLayout } from '#/shared/beta-feedback-layout'
+} from '#/shared/beta-feedback/beta-feedback-contract'
+import type { MaskedLayout } from '#/shared/beta-feedback/beta-feedback-layout'
 import { latestRecordedError } from '#/shared/observability/recorded-browser-errors'
 import { captureCurrentMaskedLayout } from './beta-feedback-capture'
 import { BetaFeedbackChoiceGroup, type BetaFeedbackChoice } from './beta-feedback-choice'

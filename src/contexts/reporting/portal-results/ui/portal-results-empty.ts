@@ -8,7 +8,7 @@
 // are the news, and gains one sentence. Pure, so the wording is pinned by tests.
 
 import type { PortalAnalyticsData } from '#/contexts/reporting/portal-results/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { dayCount } from './portal-results-window'
 
 export type EmptyResults =

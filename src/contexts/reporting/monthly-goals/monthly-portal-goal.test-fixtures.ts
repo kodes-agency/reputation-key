@@ -377,7 +377,7 @@ export function fakeWorld(world: World = {}) {
   const facts = {
     listPortalReadiness: vi.fn(async () => {
       calls.push('portals')
-      return { portals: world.portals ?? [], truncated: false }
+      return { portals: world.portals ?? [] }
     }),
     readDailyCounts: vi.fn(async () => {
       calls.push('counts')
@@ -404,6 +404,26 @@ export function fakeWorld(world: World = {}) {
       }
     }),
   } satisfies PortalGoalPromptDeferralStore
+  const queryGoalMetric = vi.fn(
+    async (
+      query: Readonly<{
+        periodStart: Date
+        subject: Readonly<{ kind: string; portalId?: string }>
+      }>,
+    ) => {
+      calls.push('figure')
+      const ofPortal =
+        query.subject.portalId === undefined
+          ? undefined
+          : world.portalFigures?.[query.subject.portalId]
+      return (
+        ofPortal ??
+        world.figures?.[query.periodStart.toISOString()] ??
+        world.figure ??
+        governed(0)
+      )
+    },
+  )
   const deps = {
     policy: {
       authorize: vi.fn(async (_request: AuthorizeRequest) => {
@@ -426,26 +446,10 @@ export function fakeWorld(world: World = {}) {
       }),
     },
     metrics: {
-      queryGoalMetric: vi.fn(
-        async (
-          query: Readonly<{
-            periodStart: Date
-            subject: Readonly<{ kind: string; portalId?: string }>
-          }>,
-        ) => {
-          calls.push('figure')
-          const ofPortal =
-            query.subject.portalId === undefined
-              ? undefined
-              : world.portalFigures?.[query.subject.portalId]
-          return (
-            ofPortal ??
-            world.figures?.[query.periodStart.toISOString()] ??
-            world.figure ??
-            governed(0)
-          )
-        },
-      ),
+      queryGoalMetric,
+      queryGoalMetrics: async (
+        queries: readonly Parameters<typeof queryGoalMetric>[0][],
+      ) => Promise.all(queries.map(queryGoalMetric)),
     },
     recommendation: {
       subjects: {
@@ -471,7 +475,9 @@ export function fakeWorld(world: World = {}) {
     logger: { warn: vi.fn() },
     now: () => world.now ?? OCT_17,
   } satisfies PortalGoalSinglePageDeps
-  return { deps, calls }
+  const history = async (programId: string) =>
+    (world.programs ?? []).find(({ program }) => program.id === programId)!
+  return { deps: { ...deps, history }, calls }
 }
 
 /** The goal on a card that has one. */

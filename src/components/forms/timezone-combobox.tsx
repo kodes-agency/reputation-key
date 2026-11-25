@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { timezonesForCountry } from '#/shared/domain/country-timezones'
 import { isValidIanaTimezone, VALID_TIMEZONES } from '#/shared/domain/timezones'
-import { describeTimezone, timezoneSearchTerms } from '#/shared/timezone-display'
+import { describeTimezone, timezoneSearchTerms } from '#/shared/format/timezone-display'
 import {
   SearchableSelect,
   type SearchableSelectGroup,

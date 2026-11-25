@@ -3,7 +3,7 @@
 //
 // It composes the erase bodies Guest already owns instead of restating them:
 // the operator response erasure, the Property contributor, the Organization
-// purge workbench and the Organization export contributor. Every statement
+// purge plan and the Organization export contributor. Every statement
 // stays bound to the requested Organization (and Property, or response), so a
 // sibling Property, a sibling response and another Organization are untouched.
 //
@@ -33,9 +33,11 @@ import { createAtomicGuestResponseCommandStore } from '../responses/guest-respon
 import { createGuestResponseRepository } from '../responses/guest-response.repository.server'
 import { createGuestOrganizationExportContributor } from './guest-organization-export.adapter.server'
 import {
-  drizzleGuestLifecycleWorkbench,
+  countTenantRows,
+  countUndeliveredGuestFacts,
   GUEST_PURGE_PLAN,
   GUEST_PURGE_READINESS_BLOCKED,
+  scrubTenantRows,
 } from './guest-organization-erasure.server'
 import { createGuestPropertyEraseContributor } from './guest-property-erase.adapter.server'
 import {
@@ -81,7 +83,6 @@ function errorMessage(error: unknown): string {
 export function createGuestRightsExecutor(deps: GuestRightsExecutorDeps): RightsExecutor {
   const { db } = deps
   const { now, idGen } = deps
-  const workbench = drizzleGuestLifecycleWorkbench
   const propertyContributor = createGuestPropertyEraseContributor()
   const exportContributor = createGuestOrganizationExportContributor(db)
 
@@ -101,7 +102,7 @@ export function createGuestRightsExecutor(deps: GuestRightsExecutorDeps): Rights
   })
 
   const undeliveredFacts = (organization: string) =>
-    db.transaction((tx) => workbench.countUndeliveredGuestFacts(tx, organization))
+    db.transaction((tx) => countUndeliveredGuestFacts(tx, organization))
 
   const undeliveredLine = async (organization: string) =>
     `undelivered guest facts ${await undeliveredFacts(organization)}`
@@ -204,9 +205,7 @@ export function createGuestRightsExecutor(deps: GuestRightsExecutorDeps): Rights
           await undeliveredLine(plan.organizationId),
         ]
       }
-      const rows = await db.transaction((tx) =>
-        workbench.countTenantRows(tx, plan.organizationId),
-      )
+      const rows = await db.transaction((tx) => countTenantRows(tx, plan.organizationId))
       return [`tenant rows ${rows}`, await undeliveredLine(plan.organizationId)]
     },
     async exportFiles(plan) {
@@ -283,8 +282,8 @@ export function createGuestRightsExecutor(deps: GuestRightsExecutorDeps): Rights
     const deleted = await db.transaction(async (tx) => {
       const refusal = await organizationRefusal(plan.organizationId)
       if (refusal) throw new Error(refusal)
-      const owned = await workbench.countTenantRows(tx, plan.organizationId)
-      if (owned > 0) await workbench.scrubTenantRows(tx, plan.organizationId)
+      const owned = await countTenantRows(tx, plan.organizationId)
+      if (owned > 0) await scrubTenantRows(tx, plan.organizationId)
       return owned
     })
     return { ok: true as const, lines: [`deleted=${deleted}`] }

@@ -2,11 +2,11 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { lookup as dnsLookup } from 'node:dns'
 import { BlockList, isIP } from 'node:net'
 import { Agent, request as undiciRequest, type Dispatcher } from 'undici'
-import { REPLY_STREAM_RESPONSE_MAX_BYTES } from '#/shared/ai-openai-stream-profile'
+import { REPLY_STREAM_RESPONSE_MAX_BYTES } from '#/shared/ai-provider-profile/ai-openai-stream-profile'
 import { boundedProviderEventStream } from './bounded-event-stream'
 import { z } from 'zod/v4'
-import { parseAiInternalJsonBytes, parseAiProviderJsonBytes } from '#/shared/ai-json'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { parseAiInternalJsonBytes, parseAiProviderJsonBytes } from '#/shared/json/ai-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import {
   aiAdmissionDescriptorDigest,
   consumeAiExecutionAdmission,

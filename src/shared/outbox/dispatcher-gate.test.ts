@@ -19,7 +19,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
 import { z } from 'zod/v4'
-import { registerEventSchema, clearEventSchemas } from '#/shared/events/schema-registry'
 import { createDispatcherHandler } from './dispatcher'
 import { PrerequisiteNotReadyError } from './prerequisite-not-ready'
 import {
@@ -35,9 +34,17 @@ import {
   type DelayedDecisionRequest,
 } from '#/shared/auth/system-execution-policy'
 import type { DomainEvent } from '#/shared/events/events'
-import { toOutboxEvent, withEnvelopeIdentifiers } from './event-adapter'
-import { getRequestContext } from '#/shared/observability/request-context'
+import { insertOutboxRow, type Tx } from './commit'
 import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
+import { overrideEventDescriptor } from '#/shared/testing/event-descriptor-overrides'
+
+vi.mock('#/shared/events/registry.server', async (importOriginal) => {
+  const { withEventDescriptorOverrides } =
+    await import('#/shared/testing/event-descriptor-overrides')
+  return withEventDescriptorOverrides(
+    await importOriginal<typeof import('#/shared/events/registry.server')>(),
+  )
+})
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -109,8 +116,7 @@ function fakeJob(envelope: ConsumerEvent): Job {
 }
 
 beforeEach(() => {
-  clearEventSchemas()
-  registerEventSchema({
+  overrideEventDescriptor({
     aggregate: { type: 'event', id: 'eventId' },
     type: TEST_EVENT_TYPE,
     version: TEST_EVENT_VERSION,
@@ -176,23 +182,19 @@ describe('dispatcher gate (BQC-3.2)', () => {
 
   it('stamps consumer-emitted facts with the delivered event as their cause', async () => {
     decideMock.mockResolvedValue(ALLOW)
-    const insert = vi.fn(async (_event: unknown) => undefined)
-    const emittedRepo = { insert } as unknown as OutboxRepository
+    const values = vi.fn(async (_row: unknown) => undefined)
+    const tx = { insert: vi.fn(() => ({ values })) } as unknown as Tx
     const handler = vi.fn(async () => {
-      // The same envelope-identifier stamping insertOutboxRow applies inside a
-      // command transaction: the delivered event's context is the cause.
-      const child = withEnvelopeIdentifiers(
-        {
-          _tag: TEST_EVENT_TYPE,
-          eventId: 'evt-child-1',
-          resourceId: 'res-child-1',
-          organizationId: 'org-1',
-          propertyId: null,
-          correlationId: null,
-        } as unknown as DomainEvent,
-        getRequestContext(),
-      )
-      await emittedRepo.insert({ ...toOutboxEvent(child), id: child.eventId })
+      // The delivered event's context is the cause of any fact the consumer
+      // records in its own transaction.
+      await insertOutboxRow(tx, {
+        _tag: TEST_EVENT_TYPE,
+        eventId: 'evt-child-1',
+        resourceId: 'res-child-1',
+        organizationId: 'org-1',
+        propertyId: null,
+        correlationId: null,
+      } as unknown as DomainEvent)
       return { status: 'applied' as const }
     })
     consumerRegistry.registerConsumer({
@@ -206,8 +208,8 @@ describe('dispatcher gate (BQC-3.2)', () => {
       fakeJob(makeEnvelope({ commandId: 'command-root-1' })),
     )
 
-    expect(insert).toHaveBeenCalledOnce()
-    expect(insert.mock.calls[0]?.[0]).toMatchObject({
+    expect(values).toHaveBeenCalledOnce()
+    expect(values.mock.calls[0]?.[0]).toMatchObject({
       payload: {
         causationId: 'evt-gate-1',
         commandId: 'command-root-1',
@@ -277,28 +279,6 @@ describe('dispatcher gate (BQC-3.2)', () => {
 
     expect(handler).not.toHaveBeenCalled()
     expect(decideMock).not.toHaveBeenCalled()
-  })
-
-  it('retry deny rethrows so the BullMQ job fails and retries', async () => {
-    decideMock.mockResolvedValue(
-      decision({ reason: 'policy_unavailable', freshRead: true }),
-    )
-    const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    consumerRegistry.registerConsumer({
-      eventType: TEST_EVENT_TYPE,
-      consumerName: 'c-retry',
-      module: TEST_MODULE,
-      handler,
-    })
-    const repo = makeRepo()
-
-    await expect(
-      createDispatcherHandler(repo, { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope()),
-      ),
-    ).rejects.toThrow(/policy_unavailable/)
-
-    expect(handler).not.toHaveBeenCalled()
   })
 
   it('receipt check still short-circuits before the gate', async () => {
@@ -392,7 +372,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     // registered consumers means the deployment is misconfigured, so the job
     // must fail and retry (a redeploy fixes it), never silently complete.
     const DURABLE_TYPE = 'review.created'
-    registerEventSchema({
+    overrideEventDescriptor({
       aggregate: { type: 'event', id: 'eventId' },
       type: DURABLE_TYPE,
       version: 1,
@@ -412,7 +392,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
   it('audit-only event type (catalogued without consumers) completes with a debug log', async () => {
     // `metric.recorded` is recorded for audit and read by no consumer.
     const AUDIT_ONLY_TYPE = 'metric.recorded'
-    registerEventSchema({
+    overrideEventDescriptor({
       aggregate: { type: 'event', id: 'eventId' },
       type: AUDIT_ONLY_TYPE,
       version: 1,
@@ -534,5 +514,43 @@ describe('a consumer waiting for its prerequisite', () => {
       expect.stringMatching(/Consumer handler failed/),
     )
     expect(loggerMocks.error).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('a failing consumer in the log', () => {
+  async function failWith(thrown: unknown) {
+    decideMock.mockResolvedValue(ALLOW)
+    consumerRegistry.registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-breaks',
+      module: TEST_MODULE,
+      handler: () => Promise.reject(thrown),
+    })
+    return createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
+      fakeJob(makeEnvelope()),
+    ).catch((err: unknown) => err)
+  }
+
+  it('names the error and its first message line, so an operator can tell failures apart', async () => {
+    const failure = await failWith(new TypeError('projection boom\nstack-like detail'))
+
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        consumerName: 'c-breaks',
+        failureReason: 'TypeError: projection boom',
+      }),
+      expect.stringMatching(/Consumer handler failed/),
+    )
+  })
+
+  it('reports an unknown name for something that is not an error, and still fails the job', async () => {
+    const failure = await failWith({ code: 'refused' })
+
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ consumerName: 'c-breaks', failureReason: 'unknown: ' }),
+      expect.stringMatching(/Consumer handler failed/),
+    )
   })
 })

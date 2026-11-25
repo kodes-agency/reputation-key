@@ -5,7 +5,7 @@
 // Non-critical: a zero/undefined count renders nothing; a load failure falls
 // back to null.
 import { useQuery } from '@tanstack/react-query'
-import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
+import type { getLastVisitCountFn } from '#/contexts/reputation/server/inbox'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { Badge } from '#/components/ui/badge'
 

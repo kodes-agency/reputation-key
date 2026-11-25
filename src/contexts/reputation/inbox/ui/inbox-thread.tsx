@@ -10,7 +10,7 @@ import {
   TimelineIndicator,
   TimelineItem,
 } from '#/components/ui/timeline'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { GuestMessage } from './guest-message'
 import { inboxHistoryQueryOptions } from './inbox-history-query'
@@ -33,11 +33,11 @@ import type {
   InboxItem,
   InboxItemDetailResult,
   InboxNoteView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type {
   ReplyDraftCheckDto,
   ReplyPublicationCheckResult,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 // The thread is ONE rail. The review is node zero of a single `Timeline`, and
 // every system event, internal note and reply hangs off

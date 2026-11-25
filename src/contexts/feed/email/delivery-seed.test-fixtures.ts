@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
+  eventConsumerReceipts,
   notificationEmailQueue,
   notificationPreferences,
   notificationUserSettings,
@@ -36,6 +37,10 @@ export type NoticeSeed = Readonly<{
   payload?: NotificationPayload
   title?: string
   resolvedAt?: Date | null
+  /** The outbox event the notification was made from. */
+  eventId?: string
+  updatedAt?: Date
+  coalescedCount?: number
   /** `false` leaves the queue row without the notification it points at. */
   withNotification?: boolean
   email?: Readonly<{
@@ -47,7 +52,11 @@ export type NoticeSeed = Readonly<{
     notBefore?: Date | null
     nextAttemptAt?: Date | null
     attemptedAt?: Date | null
+    acceptedAt?: Date | null
+    lastErrorClass?: string | null
+    idempotencyKey?: string
     createdAt?: Date
+    updatedAt?: Date
     providerRequest?: Providers
     recipientAudience?: unknown
   }>
@@ -77,14 +86,15 @@ const notificationRow = (seed: NoticeSeed): NotificationInsert => ({
   priority: seed.priority ?? 'normal',
   resourceType: seed.resourceType ?? 'inbox_item',
   resourceId: seed.resourceId ?? `resource-${seed.name}`,
-  eventId: `event-${seed.name}`,
+  eventId: seed.eventId ?? `event-${seed.name}`,
   // A raw identifier on purpose: pre-template rows look like this, and the
   // renderer must never ship it.
   title: seed.title ?? 'Inbox item 61ed98fc-1c2b-4d6e-9f00-000000000001',
   payload: seed.payload ?? {},
   resolvedAt: seed.resolvedAt ?? null,
+  ...(seed.coalescedCount === undefined ? {} : { coalescedCount: seed.coalescedCount }),
   createdAt: seed.createdAt,
-  updatedAt: seed.createdAt,
+  updatedAt: seed.updatedAt ?? seed.createdAt,
 })
 
 const emailQueueRow = (seed: NoticeSeed): EmailQueueInsert => {
@@ -100,15 +110,17 @@ const emailQueueRow = (seed: NoticeSeed): EmailQueueInsert => {
     cadence: email.cadence ?? 'daily',
     status: email.status ?? 'pending',
     priority: email.priority ?? seed.priority ?? 'normal',
-    idempotencyKey: `${notificationId}:email`,
+    idempotencyKey: email.idempotencyKey ?? `${notificationId}:email`,
     retryCount: email.retryCount ?? 0,
     notBefore: email.notBefore ?? null,
     nextAttemptAt: email.nextAttemptAt ?? null,
     attemptedAt: email.attemptedAt ?? null,
+    acceptedAt: email.acceptedAt ?? null,
+    lastErrorClass: email.lastErrorClass ?? null,
     providerRequest: email.providerRequest ?? null,
     recipientAudience: email.recipientAudience ?? null,
     createdAt: email.createdAt ?? seed.createdAt,
-    updatedAt: email.createdAt ?? seed.createdAt,
+    updatedAt: email.updatedAt ?? email.createdAt ?? seed.createdAt,
   }
 }
 
@@ -119,6 +131,21 @@ export async function seedNotice(db: Database, seed: NoticeSeed): Promise<Seeded
   }
   await db.insert(notificationEmailQueue).values(emailQueueRow(seed))
   return { notificationId: notificationIdOf(seed.name), emailId: emailIdOf(seed.name) }
+}
+
+/** An applied receipt for one consumer of an outbox event. */
+export async function seedReceipts(
+  db: Database,
+  receipts: readonly Readonly<{ eventId: string; consumerName: string; at: Date }>[],
+): Promise<void> {
+  await db.insert(eventConsumerReceipts).values(
+    receipts.map(({ eventId, consumerName, at }) => ({
+      eventId,
+      consumerName,
+      status: 'applied',
+      createdAt: at,
+    })),
+  )
 }
 
 export async function seedUserSettings(

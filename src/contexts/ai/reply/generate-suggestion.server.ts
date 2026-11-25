@@ -1,5 +1,5 @@
 import { resolveSuggestionLanguage } from './language.server'
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { getAiRuntimeCapability } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import {
   manageReplyDraftingRequests,
   admitReplyDraft,
@@ -33,12 +33,12 @@ import {
   type ReplyDraftingV2Attempt,
 } from './workflow.server'
 import type { OrganizationId } from '#/shared/domain/ids'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import {
   parseCanonicalReplyLanguageTag,
   type ReplyTemplateLanguageGroup,
 } from '#/shared/ai-review-language-catalogue'
-import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
+import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source/ai-review-source-contract'
 import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type {
   AiExecutionStopFence,

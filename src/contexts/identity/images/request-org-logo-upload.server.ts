@@ -1,8 +1,8 @@
 // Identity context — request organization logo upload URL use case
 
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { assertUploadAllowed, MAX_UPLOAD_BYTES } from './upload-policy.server'
+import { assertUploadAllowed } from './upload-policy.server'
 
 export type RequestOrgLogoUploadInput = Readonly<{
   contentType: string
@@ -31,7 +31,6 @@ export const requestOrgLogoUpload =
     const { uploadUrl } = await deps.storage.createPresignedUploadUrl(
       key,
       input.contentType,
-      MAX_UPLOAD_BYTES,
     )
 
     return { uploadUrl, key }

@@ -1,5 +1,5 @@
 import { createPrivateKey, timingSafeEqual, type KeyObject } from 'node:crypto'
-import { decodeCanonicalBase64KeyMaterial } from '#/shared/ed25519-key-material'
+import { decodeCanonicalBase64KeyMaterial } from '#/shared/ai-gateway/ed25519-key-material'
 
 const SAFETY_KEY = /^([a-z][a-z0-9_-]{0,31}):([a-f0-9]{64})$/
 const ED25519_PKCS8_BYTES = 48

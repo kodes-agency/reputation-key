@@ -1,4 +1,4 @@
-import type { PropertyGooglePerformanceResultV1 } from '#/shared/google-performance-report-contract'
+import type { PropertyGooglePerformanceResultV1 } from '#/shared/google-contracts/google-performance-report-contract'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Card, CardContent, CardHeader } from '#/components/ui/card'
 import { Skeleton } from '#/components/ui/skeleton'

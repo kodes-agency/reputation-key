@@ -1,5 +1,5 @@
 import { guestVoicePeriod, buildGuestVoicePeriod } from './period.server'
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
@@ -10,7 +10,7 @@ import { resolveAiReadGate } from '../consent/ai-read-gate.server'
 import {
   getAiRuntimeCapability,
   isAiRuntimeNoticeInForce,
-} from '#/shared/ai-runtime-capability-contract'
+} from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type {
   AiGuestVoiceFactsPort,
@@ -140,7 +140,6 @@ export async function loadGuestVoiceReadContext(
   const endLocalDate = await deps.calendar.resolveLocalDate({
     reviewedAtEpochMillis: deps.nowEpochMillis(),
     timezone: gate.profile.timezone,
-    calendarProfileVersion: 'property-calendar-v1',
   })
   if (endLocalDate === null) return { status: 'preparing' }
   const scopes = guestVoiceScopes(input, gate, endLocalDate)

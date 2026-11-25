@@ -1,4 +1,4 @@
-import { getAuditEventRetentionRule } from '#/contexts/feed/application/public-api'
+import { getAuditEventRetentionRule } from '#/contexts/feed/public-api'
 import { RETENTION_RULES as SHARED_RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import type { RetentionRule } from '#/shared/db/retention/execute-retention-rule'
 

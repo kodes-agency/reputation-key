@@ -13,7 +13,7 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
 ## Boundaries
 
 - Cross-context and presentation-facing types/events are exported only through
-  `application/public-api.ts`.
+  `public-api.ts` at the area root.
 - `build.ts` is the composition-root boundary. Other contexts do not construct AI repositories, provider adapters, jobs, or control stores.
 - Server functions are authenticated delivery adapters; they call the built
   `publicApi` and are not domain authority. Every read `publicApi` serves for a
@@ -45,8 +45,7 @@ Reputation-owned and reads the named AI public contract. The prompt still treats
 guest accounts as unverified and never states a reported problem as fact.
 
 - `analysis/`: Review Analysis. It holds:
-  - `analyze-review-event.server.ts` with `review-analysis-contract.server.ts` and
-    `review-analysis-contract-v3.server.ts`
+  - `analyze-review-event.server.ts` with `review-analysis-steps.server.ts`
   - the claim-conflict rule and the operation reaper
   - the output, Property aggregate, review-event and mention-correction stores
   - issue groups and the Urgent alert
@@ -60,7 +59,6 @@ guest accounts as unverified and never states a reported problem as fact.
   in-process inference, and Organization spend.
 - `rights/`: AI's rights executor, Organization erasure and Organization export.
 - Only these stay in the layer folders:
-  - `application/public-api.ts`
   - `application/ai-workflow-support.ts`, `application/ports/ai-control.port.ts` and
     `infrastructure/adapters/ai-control.adapter.ts`, because operator scripts import them
   - `infrastructure/testing/handler-harness.test-fixtures.ts`, because a test counts a
@@ -282,7 +280,7 @@ a number, a name that is only praise or a generic noun, a spelled-out number
 before a unit, praise or glue word, a street-first number not followed by the end
 of a clause, and a Bulgarian name that is not in capitals are prose.
 `ai-redaction-ordinary-prose.test.ts` and `ai-redaction-recall.test.ts` pin both
-sides. What still reaches the provider, pinned there too: a lower-case name
+sides. What still reaches the provider, pinned in `ai-redaction-addresses.test.ts`: a lower-case name
 holding an everyday word with nothing that introduces the address (`7 wonderful
 place`, `1400 mile end drive` after `near`), which is `a 5 star place` and `a 10
 mile drive` in prose; a lower-case name that is a function word, a particle alone
@@ -310,7 +308,7 @@ address, a coordinate, a short handle, a passport number, a street whose type or
 name a break split. The blank before a dot reads a name as a domain's only when
 the name is lower case and long, holds a digit or a hyphen, or is in camel case
 (`Booking .com said` is prose). What a break through the middle of a word still
-leaves, pinned in `ai-redaction-recall.test.ts`: the first half of an email's
+leaves, pinned in `ai-redaction-recall-tokens.test.ts`: the first half of an email's
 local part (`joh` and `n.smith@gmail.com`; `wrote owner@example.com` cannot be
 told from it), a split passport label (`pa ssport`), an IPv6 address split
 inside a group, the tail of a URL path. The detectors read a word glued to a full
@@ -502,7 +500,7 @@ the token count of OpenAI's wrapper. It is now two things, defined once in
 `ai-operation-profile.ts`. Every profile and attested-artifact digest (profiles, deployment,
 routing policy, runtime capabilities, normalizer, reply lint, examples, leakage, markers,
 redactor, template catalogue, request shape) follows one rule, `digestOf` in
-`src/shared/ai-digest.ts`: SHA-256 over a domain and the RFC 8785 form of a value. Stored
+`src/shared/ai-operation/ai-digest.ts`: SHA-256 over a domain and the RFC 8785 form of a value. Stored
 operations and provenance carry these digests, so `ai-digest.test.ts` pins their values. The logical profile is the operation in no provider's terms: prompt, answer
 schema, the artifacts it reads (taxonomy, sentence rules, normalizer, attention formula, source
 rules) and limits, with a `logicalDigest` that moves for those and for nothing a provider does.
@@ -605,17 +603,15 @@ Nothing can run on Anthropic until it is selected, so nothing is exposed today.
 ### Analysing, storing and aggregating v3
 
 `analysis/analyze-review-event.server.ts` is one skeleton (authorize, read the source, claim, call the provider,
-store, settle). A `ReviewAnalysisContract` (`analysis/review-analysis-contract.server.ts`) names the points that
-depend on the analysis profile: the profile facts the binding and the authorization gate compare,
-whether the source read also returns the numbered sentences, what is prepared before the claim,
-what the provider request carries beyond the review, whether a Property's authorization was
-recorded under the contract this one serves, and how the answer is accepted and stored. The use
-case takes the contract as a dependency and knows none of it; `build.ts` always builds v3. The
+store, settle). The steps either side of the provider call are plain functions in
+`analysis/review-analysis-steps.server.ts` (`prepareReviewAnalysis`, `acceptReviewAnalysis`), and the
+profile facts the binding and the request deadline read are its `REVIEW_ANALYSIS_OPERATION_PROFILE`;
+the use case takes the vocabulary and provider-choice ports as dependencies. The
 runtime catalogue holds `review-analysis-v3` alone for `review_analysis` and its parser refuses
 anything else. The v2 analysis code is gone; rows and operations it left behind stay readable
 through the profile catalogue and the stored-provenance readers.
 
-What the v3 contract (`analysis/review-analysis-contract-v3.server.ts`) does:
+What those steps (`analysis/review-analysis-steps.server.ts`) do:
 
 - Before the claim it reads the Property's Google primary category through
   `PropertyVocabularyContextPort`, resolves the vocabulary hints, and asks `AiProviderChoicePort`
@@ -661,7 +657,7 @@ row: topics, polarity, strength, the optional cause and the names flag, never a 
 sentence. The Inbox reads it: `composition/inbox-ai-insights.ts` turns it into the Inbox's own
 `ready_v3` (the numbers of the cited sentences, the Property issue each mention belongs to now, a
 manager's correction beside it), which the pane draws as cause chips and underlines in the guest's
-own words (`src/contexts/inbox/CONTEXT.md`).
+own words (`src/contexts/reputation/CONTEXT.md`).
 
 The unused daily star-count projection remains declared only for schema contraction.
 Guest voice counts from the live review population (`readTrendPopulation`). Legacy
@@ -725,7 +721,7 @@ The reference is the gold as the production normalizer accepts it, so a label th
 cannot hold (an `issue` such as "30 minutes") does not count against a provider; the report names
 the labels that changed (none in gold v1.1, which words the three that changed in v1 so the contract
 holds them). The loader refuses a gold label whose `thing` is a generic word (annotation guide v3.3,
-rule 3: place, staff, team, welcome, price, location...; `src/shared/review-generic-things.ts`, the
+rule 3: place, staff, team, welcome, price, location...; `src/shared/analysis/review-generic-things.ts`, the
 list the prompt gives the model). The report also names the reviews the redactor
 changed (`cl-0041`, `cl-0138`, `cl-0184`: it reads "oil.For" and "working.Not", a missing space
 after a full stop, as web addresses) and any review the live path would not send. Causes are
@@ -1112,14 +1108,14 @@ provenance, rewrite uniqueness and reservation schema without rewriting historic
 
 Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current implementation anchors):
 
-| Map item                                   | Authority                                                                                                                                                                                                      |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply/schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                                                     |
-| 2 — numbered input/options/binding         | `src/shared/reply/request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                                    |
-| 3 — effort/output/reservation bounds       | `src/shared/reply/profile.ts:25`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                                           |
-| 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/execution/reply-rewrite-parent.server.ts:16`                                                    |
-| 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |
-| 6 — frame choice/usage/adoption            | `src/contexts/review/application/ai-reply-v2-frame.ts:21`, `src/contexts/review/infrastructure/repositories/ai-frame-reservation.ts:156`, `src/contexts/review/infrastructure/ai-suggested-draft-store.ts:481` |
+| Map item                                   | Authority                                                                                                                                                                                                        |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply/schema.ts:24`, `src/shared/reply/ai-reply-provenance.ts:151`                                                                                                 |
+| 2 — numbered input/options/binding         | `src/shared/reply/request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                                      |
+| 3 — effort/output/reservation bounds       | `src/shared/reply/profile.ts:25`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                                             |
+| 4 — lint/one independently charged rewrite | `src/shared/reply/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/execution/reply-rewrite-parent.server.ts:16`                                                |
+| 5 — Spanish/historical readers/schema      | `src/shared/reply/reply-drafting-v2-contract.ts:89`, `src/shared/reply/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`       |
+| 6 — frame choice/usage/adoption            | `src/contexts/reputation/library/ai-reply-v2-frame.server.ts:21`, `src/contexts/reputation/library/ai-frame-reservation.server.ts:156`, `src/contexts/reputation/replies/ai-suggested-draft-store.server.ts:481` |
 
 ## Reply drafting progress and background intent — dark (B2, 2026-10-31)
 
@@ -1189,9 +1185,9 @@ Re-verified map items 7–8 against origin/main `cf1e33c66` (B1 merged):
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 7 — authenticated POST / cancellation                   | `src/contexts/ai/server/reply-suggestion-stream.ts:32`, `src/contexts/ai/server/reply-progress-stream.server.ts:16`                                                                    |
 | 7 — safe incremental metadata / bounded provider stream | `src/shared/ai-provider-control/reply-progress-parser.ts:15`, `src/shared/ai-provider-control/bounded-event-stream.ts:2`, `src/shared/ai-provider-control/openai-stream-response.ts:7` |
-| 7 — v2-only request attestation / deployment            | `src/shared/ai-openai-stream-profile.ts:32`, `src/shared/reply/profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                                            |
+| 7 — v2-only request attestation / deployment            | `src/shared/ai-provider-profile/ai-openai-stream-profile.ts:32`, `src/shared/reply/profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                        |
 | 8 — lane / active actor ownership / identity            | `src/contexts/ai/reply/requests.server.ts:20`, `src/contexts/ai/execution/ai-operation-store.adapter.server.ts:854`                                                                    |
-| 8 — authoritative local/Google reply eligibility        | `src/contexts/review/infrastructure/repositories/unanswered-review.ts:11`                                                                                                              |
+| 8 — authoritative local/Google reply eligibility        | `src/contexts/reputation/reviews/unanswered-review.server.ts:11`                                                                                                                       |
 
 ## Invariants
 
@@ -1232,11 +1228,11 @@ Profile, binding, Review revisions and execution controls retain measurement met
 They grant no authorization and are never evidence of AI authorship.
 
 Map item 10 was re-verified on stacked base `2add7d844`: adoption is at
-`ai-suggested-draft-store.ts:378–513` (binary receipt 495–511); first save is at
-`reply.repository.ts:580–597`; provenance clearing remains
-`../reputation/replies/store.server.ts` and `reply-set-clause.ts:30–47`; submission is
-`reply-operations.ts:529–568`; confirmed observation is
-`google-reply-observation-store.ts:510–565`. The map itself starts item 10 at
+`ai-suggested-draft-store.server.ts:378–513` (binary receipt 495–511); first save is at
+`reply-repository.server.ts:580–597`; provenance clearing remains
+`../reputation/replies/store.server.ts` and `reply-set-clause.server.ts:30–47`; submission is
+`reply-operations.server.ts:529–568`; confirmed observation is
+`google-reply-observation-store.server.ts:510–565`. The map itself starts item 10 at
 line 383. Those are base references; this change adds measurement alongside them.
 
 Other map-10 base references: the adoption columns in `ai.schema.ts` are now

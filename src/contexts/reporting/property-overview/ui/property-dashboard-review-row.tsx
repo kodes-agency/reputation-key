@@ -1,9 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { Stars, ReplyStatusBadge } from './property-dashboard-helpers'
-import type { RecentReview } from '#/contexts/reporting/application/public-api'
-import { formatDate } from '#/lib/format'
+import type { RecentReview } from '#/contexts/reporting/public-api'
+import { formatDate } from '#/shared/format/format'
 import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /**
  * Format a review date, or render nothing when it is not a real instant.
@@ -15,7 +15,7 @@ import { cn } from '#/lib/utils'
  * value that is not an instant. That threw during render, so the whole
  * property page died rather than one row losing its date — which is what the
  * e2e error gate caught on /properties/$id. The read returns a Date now
- * (`review/infrastructure/serving-stats.ts`); this guard stays, because
+ * (`reputation/reviews/serving-stats.server.ts`); this guard stays, because
  * `formatDate` answers null for anything that is not a real instant.
  */
 export function formatReviewedAt(value: Date): string | null {

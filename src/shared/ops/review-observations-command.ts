@@ -8,7 +8,7 @@
 // the beta held 3,425,776 rows for 12,599 Reviews, 3,400,389 of them a repeat of
 // the row before. What a repeat is, and why deleting it changes no reader's
 // answer, lives in the Review repository
-// (src/contexts/review/infrastructure/repositories/observation-retention.repository.ts).
+// (src/contexts/reputation/reviews/observation-retention-repository.server.ts).
 // This module is the invocation: the spec, the walk over the Reviews in batches,
 // the evidence record and what it prints. It sits here, not in `scripts/ops/`,
 // because `scripts/**` is wiring only.
@@ -21,11 +21,12 @@
 // finds nothing more in the Reviews it already covered. Every line is counts,
 // ids and instants: no Review text.
 
-import type {
-  OperatorArgs,
-  OperatorCommandSpec,
-  OperatorContext,
-  OperatorIO,
+import {
+  planActionOnly,
+  type OperatorArgs,
+  type OperatorCommandSpec,
+  type OperatorContext,
+  type OperatorIO,
 } from './operator-command'
 
 const ACTION = 'prune'
@@ -50,10 +51,7 @@ export const reviewObservationsCommandSpec: OperatorCommandSpec = Object.freeze(
 type Plan = Readonly<{ ok: true }> | Readonly<{ ok: false; error: string }>
 
 export function planReviewObservations(args: OperatorArgs): Plan {
-  const [action, ...extra] = args.positionals
-  if (action !== ACTION) return { ok: false, error: `the only action is '${ACTION}'` }
-  if (extra.length > 0) return { ok: false, error: `'${ACTION}' takes no argument` }
-  return { ok: true }
+  return planActionOnly(args, ACTION)
 }
 
 /** One batch of Reviews, as the Review repository reports it. */

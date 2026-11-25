@@ -54,7 +54,6 @@ const redeemed = {
   ok: true as const,
   kind: 'exchange' as const,
   exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
-  visibility: 'private' as const,
   purpose: 'import_gbp_v2' as const,
   connectionMode: 'new' as const,
   targetConnectionId: null,
@@ -159,7 +158,7 @@ describe('GET /api/auth/google/callback', () => {
   it('uses only redeemed server facts and redirects to the frozen route', async () => {
     const response = await handleGoogleOAuthCallback(
       request(
-        'state=v2.v2.secret.handle&code=provider-secret&visibility=organization&returnRoute=https://evil.test',
+        'state=v2.v2.secret.handle&code=provider-secret&returnRoute=https://evil.test',
       ),
     )
 
@@ -167,7 +166,6 @@ describe('GET /api/auth/google/callback', () => {
       {
         code: 'provider-secret',
         exchangeAttemptId: redeemed.exchangeAttemptId,
-        visibility: 'private',
         purpose: 'import_gbp_v2',
         connectionMode: 'new',
         targetConnectionId: null,
@@ -207,7 +205,6 @@ describe('GET /api/auth/google/callback', () => {
   it('preserves the exact reauthorization target through the callback', async () => {
     mocks.redeemState.mockResolvedValue({
       ...redeemed,
-      visibility: 'organization',
       purpose: 'reviews',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
@@ -221,7 +218,6 @@ describe('GET /api/auth/google/callback', () => {
       {
         code: 'provider-secret',
         exchangeAttemptId: redeemed.exchangeAttemptId,
-        visibility: 'organization',
         purpose: 'reviews',
         connectionMode: 'reauth',
         targetConnectionId: 'connection-7',

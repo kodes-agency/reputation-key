@@ -1,9 +1,9 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   inboxHandlingCycleReopened,
   inboxItemCreated,
   inboxResponseTargetReminderDue,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import { goalRatingGoalTransitioned } from '#/contexts/reporting/domain/goal-events'
 import type { RatingGoalNotice } from '#/contexts/reporting/domain/rating-goal-notices'
 import {
@@ -17,7 +17,6 @@ import {
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
 import { notificationId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { BETA_NOTIFICATION_TRIGGER_MATRIX } from './beta-notification-trigger-matrix.server'
 import { createNotification } from '../domain/notification-constructors'
 import { resolveCategoryPreference } from '../domain/notification-preference-resolution'
@@ -44,12 +43,9 @@ import {
 } from '#/shared/testing/notification-route-producer-fixtures'
 import type { QueuedNotice } from '../infrastructure/notification-consumer-test-fixtures'
 
-beforeAll(registerAllEventSchemas)
 beforeEach(() => {
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-  initDelayedExecutionPolicy(
-    createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-  )
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 })
 afterEach(() => {
   resetDelayedExecutionPolicy()

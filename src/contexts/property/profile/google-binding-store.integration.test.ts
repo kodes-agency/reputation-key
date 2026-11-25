@@ -1,12 +1,10 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../domain/types'
 import {
   PROPERTY_OPERATION_RECEIPT_TTL_MS,
@@ -93,8 +91,6 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 4 })
   const client = await pool.connect()
   client.release()
-  clearEventSchemas()
-  registerAllEventSchemas()
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, $2, $3, NOW())
@@ -126,7 +122,6 @@ afterAll(async () => {
   await cleanup()
   await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG_ID])
   await deleteTestOrganizations(pool, [ORG_ID])
-  clearEventSchemas()
   await pool.end()
 })
 
@@ -355,15 +350,6 @@ describe.sequential('Property Google binding store', () => {
       }),
     ).rejects.toSatisfy(bindingError('property_not_found'))
     await expect(
-      store.scrubProviderIdentity({
-        organizationId: OTHER_ORG_ID,
-        propertyId: property.id,
-        expectedSourceEpoch: 1,
-        expectedProfileVersion: 1,
-        now: NOW,
-      }),
-    ).rejects.toSatisfy(bindingError('property_not_found'))
-    await expect(
       store.relink({
         organizationId: OTHER_ORG_ID,
         propertyId: property.id,
@@ -481,7 +467,7 @@ describe.sequential('Property Google binding store', () => {
     expect(created.rows).toHaveLength(0)
   })
 
-  it('disconnects then scrubs provider identity while preserving profile generations', async () => {
+  it('disconnects while preserving profile generations', async () => {
     const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
     const property = makeActiveProperty('5', 'location-5')
     await seedTestProperty(db, property)
@@ -514,29 +500,6 @@ describe.sequential('Property Google binding store', () => {
       }),
     ).toEqual(disconnected)
 
-    const scrubbed = await store.scrubProviderIdentity({
-      organizationId: ORG_ID,
-      propertyId: property.id,
-      expectedSourceEpoch: 2,
-      expectedProfileVersion: 1,
-      now: NOW,
-    })
-    expect(scrubbed).toMatchObject({
-      state: 'unbound',
-      sourceEpoch: 3,
-      profileVersion: 1,
-    })
-    expect(await store.readInternal(ORG_ID, property.id)).toMatchObject({
-      state: 'unbound',
-      connectionId: null,
-      accountId: null,
-      locationId: null,
-      profileVersion: 1,
-      googleReviewDestination: {
-        state: 'unavailable',
-        uri: null,
-      },
-    })
     const outbox = await pool.query(
       `SELECT payload->>'change' AS change
        FROM outbox_events
@@ -545,10 +508,7 @@ describe.sequential('Property Google binding store', () => {
          AND event_type = 'property.google_binding.changed'`,
       [ORG_ID, property.id],
     )
-    expect(outbox.rows.map((row) => row.change).sort()).toEqual([
-      'deletion_started',
-      'disconnected',
-    ])
+    expect(outbox.rows.map((row) => row.change).sort()).toEqual(['disconnected'])
   })
 
   it('replays retained deletion tombstones and sweeps only released expiries', async () => {
@@ -664,7 +624,6 @@ describe.sequential('Property Google binding store', () => {
       [ORG_ID],
     )
     expect(receiptRows.rows).toEqual([{ idempotency_key: retainedKey }])
-    expect(await store.cleanupOrganization(ORG_ID)).toBe(1)
   })
 
   describe('the Google primary category', () => {
@@ -833,27 +792,5 @@ describe.sequential('Property Google binding store', () => {
         }
       },
     )
-
-    it('goes with the provider identity when it is scrubbed', async () => {
-      const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
-      const property = {
-        ...makeActiveProperty('14', 'location-14'),
-        googlePrimaryCategory: 'Hotel',
-        googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
-      }
-      await seedTestProperty(db, property)
-      await store.scrubProviderIdentity({
-        organizationId: ORG_ID,
-        propertyId: property.id,
-        expectedSourceEpoch: 1,
-        expectedProfileVersion: 1,
-        now: NOW,
-      })
-
-      expect(await categoryRow(property.id)).toMatchObject({
-        category: null,
-        updated_at: null,
-      })
-    })
   })
 })

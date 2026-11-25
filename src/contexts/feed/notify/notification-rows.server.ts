@@ -15,7 +15,7 @@ import {
 } from '#/shared/domain/ids'
 import type { Notification, NotificationStatus } from '../domain/notification-types'
 import { notificationFromRow } from './notification-row-mapper.server'
-import { isCurrentInboxAssignee } from '#/contexts/reputation/application/public-api'
+import { isCurrentInboxAssignee } from '#/contexts/reputation/public-api'
 import { SENDABLE } from '../email/notification-email-queue-rows.server'
 import {
   awaitingSettlement,

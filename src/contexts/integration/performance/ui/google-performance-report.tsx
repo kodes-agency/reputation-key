@@ -1,11 +1,11 @@
 import { useServedNow } from '#/components/hooks/served-clock'
 import { useEffect, useState } from 'react'
-import type { PropertyGooglePerformanceReportV1 } from '#/shared/google-performance-report-contract'
+import type { PropertyGooglePerformanceReportV1 } from '#/shared/google-contracts/google-performance-report-contract'
 import {
   dashboardRangeComparisonLabel,
   toPerformancePreset,
   type DashboardRange,
-} from '#/shared/dashboard-range'
+} from '#/shared/dashboard/dashboard-range'
 import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import {
   Card,
@@ -19,8 +19,8 @@ import { DescriptionItem, DescriptionList } from '#/components/ui/description-li
 import { MetricStrip } from '#/components/ui/metric-strip'
 import { Popover, PopoverContent } from '#/components/ui/popover'
 import { GlossaryTerm } from '#/components/ui/glossary-term'
-import { formatDateTime } from '#/lib/format-date-time'
-import { formatLocalDate } from '#/lib/format'
+import { formatDateTime } from '#/shared/format/format-date-time'
+import { formatLocalDate } from '#/shared/format/format'
 import { GooglePerformanceChart } from './google-performance-chart'
 import {
   GooglePerformanceHeadlines,

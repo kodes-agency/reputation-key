@@ -1,7 +1,7 @@
 import type {
   ReplyLibraryDto,
   SaveReplyVoiceInput,
-} from '#/contexts/review/application/dto/reply-library.dto'
+} from '#/contexts/reputation/library/contracts'
 import type {
   ReplyVoiceField,
   ReplyVoiceSettings,

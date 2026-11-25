@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUp } from 'lucide-react'
-import { formatNumber } from '#/lib/format'
-import { cn } from '#/lib/utils'
+import { formatNumber } from '#/shared/format/format'
+import { cn } from '#/shared/class-names/utils'
 
 export type MetricDeltaDirection = 'up' | 'down' | 'flat'
 

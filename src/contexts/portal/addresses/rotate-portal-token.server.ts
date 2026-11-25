@@ -5,20 +5,10 @@ import type { PortalTokenRepository } from './portal-token-repository.port.serve
 import type { PortalTokenCodec } from './portal-token-codec.port.server'
 import type { PortalAddressCipher } from './portal-address-cipher.port.server'
 import type { PrintCodeReporter } from './print-code-reporter.port.server'
-import {
-  portalPublicUrls,
-  type PortalAddressFormat,
-  type PortalPublicUrls,
-} from './portal-address-urls.server'
-import {
-  derivePrintCodesForNewCode,
-  printCodeHashesOf,
-  printCodesOf,
-  reportingPrintCodeCollision,
-} from './print-code-lifecycle.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PortalAddressFormat, PortalPublicUrls } from './portal-address-urls.server'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
-import { publishNewCodeArtifacts } from './new-code-artifacts.server'
+import { mintNewCode, reportingPrintCodeCollision } from './mint-new-code.server'
 import { rotateToken } from '../domain/portal-token'
 import { portalError } from '../domain/errors'
 import { portalTokenRotated } from '../domain/events'
@@ -112,21 +102,14 @@ export const rotatePortalToken =
       graceSeconds * 1000,
       occurredAt,
     )
-    if (!('oldToken' in result)) {
-      throw portalError('token_unavailable', 'Portal token cannot be rotated')
-    }
-    const gracePeriodEnds = result.oldToken.gracePeriodEnds
-    if (!gracePeriodEnds) {
-      throw portalError('token_unavailable', 'Portal token rotation has no grace period')
-    }
-    const sealedAddress =
-      deps.addressCipher?.seal(material.rawToken, {
-        organizationId: result.newToken.organizationId,
-        propertyId: result.newToken.propertyId,
-        portalId: result.newToken.portalId,
-        tokenId: result.newToken.id,
-        version: result.newToken.version,
-      }) ?? null
+    const { gracePeriodEnds } = result.oldToken
+    const minted = mintNewCode(deps, {
+      portal,
+      token: result.newToken,
+      rawToken: material.rawToken,
+      occurredAt,
+      revision,
+    })
     const event = portalTokenRotated({
       portalId: portal.id,
       organizationId: portal.organizationId,
@@ -136,18 +119,6 @@ export const rotatePortalToken =
       gracePeriodEnds,
       sourceAggregateVersion: revision.toISOString(),
       occurredAt,
-    })
-    const { accessArtifacts, accessArtifactEvents, artifactIds } =
-      publishNewCodeArtifacts({
-        portal,
-        portalTokenId: result.newToken.id,
-        idGen: deps.idGen,
-        occurredAt,
-        revision,
-      })
-    const printCodes = derivePrintCodesForNewCode(deps.tokenCodec, {
-      rawToken: material.rawToken,
-      accessArtifactIds: artifactIds,
     })
     await reportingPrintCodeCollision(deps.reportPrintCodeProblem, () =>
       deps.commandStore.rotatePortalToken({
@@ -159,20 +130,16 @@ export const rotatePortalToken =
         newToken: result.newToken,
         // fallow-ignore-next-line code-duplication
         issuedBy: ctx.userId,
-        sealedAddress,
-        printCodeHashes: printCodeHashesOf(printCodes),
-        accessArtifacts,
+        sealedAddress: minted.sealedAddress,
+        printCodeHashes: minted.printCodeHashes,
+        accessArtifacts: minted.accessArtifacts,
         revision,
         occurredAt,
         event,
-        accessArtifactEvents,
+        accessArtifactEvents: minted.accessArtifactEvents,
       }),
     )
-    const publicUrls = portalPublicUrls(deps.address, {
-      rawToken: material.rawToken,
-      artifacts: artifactIds,
-      printCodes: printCodesOf(printCodes),
-    })
+    const publicUrls = minted.urls()
     return {
       rawToken: material.rawToken,
       publicUrl: publicUrls.qr,
@@ -180,7 +147,7 @@ export const rotatePortalToken =
       tokenIdentifier: result.newToken.tokenIdentifier,
       version: result.newToken.version,
       gracePeriodEnds,
-      addressRecoverable: sealedAddress !== null,
+      addressRecoverable: minted.addressRecoverable,
     }
   }
 

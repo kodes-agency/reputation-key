@@ -187,7 +187,6 @@ describe('portal token repository', () => {
       60_000,
       NOW,
     )
-    if (!('oldToken' in rotation)) throw new Error('rotation failed')
     await seedPortalToken(getDb(), rotation.oldToken)
     await seedPortalToken(getDb(), rotation.newToken)
 
@@ -219,7 +218,6 @@ describe('portal token repository', () => {
       60_000,
       NOW,
     )
-    if (!('oldToken' in rotation)) throw new Error('rotation failed')
     // Persist only the outgoing token: an already-printed code still honoured
     // for the rest of its grace window.
     await seedPortalToken(getDb(), rotation.oldToken)
@@ -253,7 +251,6 @@ describe('portal token repository', () => {
       60_000,
       NOW,
     )
-    if (!('oldToken' in rotation)) throw new Error('rotation failed')
     await seedPortalToken(getDb(), rotation.oldToken)
     await seedPortalToken(getDb(), rotation.newToken)
 

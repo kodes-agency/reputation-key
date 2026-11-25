@@ -5,9 +5,11 @@ import { keepPreviousData, useQuery, useSuspenseQuery } from '@tanstack/react-qu
 import { z } from 'zod/v4'
 import { PropertyGuestVoicePage } from '#/contexts/ai/guest-voice/ui/property-guest-voice-page'
 import { propertyQuery } from '#/routes/-queries/route-queries'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { guestVoiceRangeSearch, type GuestVoiceRange } from '#/shared/dashboard-range'
+import {
+  guestVoiceRangeSearch,
+  type GuestVoiceRange,
+} from '#/shared/dashboard/dashboard-range'
 import { guestVoiceRangeOfLocation, keptData } from './-dashboard-range-read'
 import {
   guestVoiceGoalOf,
@@ -39,7 +41,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/gue
   staticData: { page: { title: 'Guest voice', tier: 'dashboard', under: 'property' } },
   validateSearch: propertyGuestsSearchSchema,
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'dashboard.read')) throw roleUnavailable('Guest voice', 'properties')
   },
   staleTime: 60_000,

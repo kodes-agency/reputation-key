@@ -1,6 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it, vi } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createGoogleConnectionCeremonyFixture as setup } from '#/contexts/integration/connections/google-connection-ceremony.test-fixtures'
 import {
@@ -19,15 +17,11 @@ setupIntegrationDb({
   tables: ['google_connections', 'outbox_events'],
 })
 
-beforeAll(registerAllEventSchemas)
-afterAll(clearEventSchemas)
-
 const VERIFIER = 'test-code-verifier'
 const OIDC_NONCE = 'test-oidc-nonce'
-const input = (visibility: 'private' | 'organization' = 'private') => ({
+const input = () => ({
   exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
   code: 'valid-auth-code',
-  visibility,
   purpose: 'reviews' as const,
   connectionMode: 'new' as const,
   targetConnectionId: null,
@@ -152,7 +146,7 @@ describe('connectGoogleAccount', () => {
 
     const result = await useCase(
       {
-        ...input('organization'),
+        ...input(),
         connectionMode: 'reconnect',
         targetConnectionId: existing.id,
       },
@@ -164,7 +158,6 @@ describe('connectGoogleAccount', () => {
       googleSubject: 'google-subject-123',
       googleAccountEmail: 'owner@example.com',
       status: 'active',
-      visibility: 'organization',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
     })
     expect(await connectionRepo.all()).toHaveLength(1)
@@ -225,7 +218,7 @@ describe('connectGoogleAccount', () => {
     await expect(
       useCase(
         {
-          ...input('organization'),
+          ...input(),
           connectionMode: 'reauth',
           targetConnectionId: target.id,
         },
@@ -254,7 +247,7 @@ describe('connectGoogleAccount', () => {
     })
     await connectionRepo.seed([existing])
 
-    await expect(useCase(input('organization'), ctx)).rejects.toSatisfy(
+    await expect(useCase(input(), ctx)).rejects.toSatisfy(
       (error: unknown) =>
         isIntegrationError(error) &&
         (error as { code: string }).code === 'account_already_connected',
@@ -314,7 +307,7 @@ describe('connectGoogleAccount', () => {
     expect(await connectionRepo.all()).toHaveLength(1)
   })
 
-  it('derives token expiry and normalizes legacy visibility to Organization ownership', async () => {
+  it('derives token expiry and keeps the connection Organization-owned', async () => {
     const { useCase, connectionRepo, oauth } = await setup()
     oauth.setExchangeResult({
       identity: { kind: 'oidc', googleSubject: 'google-subject-123', email: null },
@@ -324,11 +317,10 @@ describe('connectGoogleAccount', () => {
       scopes: ['https://www.googleapis.com/auth/business.manage'],
     })
 
-    await useCase(input('private'), buildTestAuthContext({ role: 'AccountAdmin' }))
+    await useCase(input(), buildTestAuthContext({ role: 'AccountAdmin' }))
 
     expect((await connectionRepo.all())[0]).toMatchObject({
       tokenExpiresAt: new Date('2026-04-10T14:00:00Z'),
-      visibility: 'organization',
     })
   })
 

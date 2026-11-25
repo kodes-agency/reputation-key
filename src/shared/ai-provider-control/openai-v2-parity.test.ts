@@ -37,6 +37,7 @@
 // 4,096 because reasoning could use all of 2,048 and return no reply. Its output schema and
 // request shape are unchanged, and no consent or epoch moved (ADR 0074).
 
+import { openAiPreparationRegistry } from './provider-registry.test-fixtures'
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -44,12 +45,12 @@ import {
   AI_PROVIDER_DEPLOYMENT_PROFILE,
   AI_ROUTING_POLICY,
   OPENAI_REQUEST_SHAPE_V1_DIGEST,
-} from '#/shared/ai-operation-profiles'
-import { OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1 } from '#/shared/ai-openai-provider-profile'
+} from '#/shared/ai-operation/ai-operation-profiles'
+import { OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1 } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 import {
   parseAiGatewayRouteRequest,
   type AiGatewayRouteRequestV1,
-} from '#/shared/ai-gateway-transport-contract'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -176,6 +177,7 @@ function preparer() {
         reliable: true,
       }),
     },
+    providers: openAiPreparationRegistry(),
     provenanceKid: 'provenance-v1',
     provenancePrivateKey: generateKeyPairSync('ed25519').privateKey,
   })

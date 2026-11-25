@@ -1,16 +1,16 @@
 import { MerchantAiNoticeUpdateLine } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-line'
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, BrainCircuit } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { EmptyState } from '#/components/ui/empty-state'
 import { StatusBadge } from '#/components/ui/status-badge'
-import type { MerchantAiOverview } from '#/contexts/identity/application/public-api'
+import type { MerchantAiOverview } from '#/contexts/identity/public-api'
 import type {
   AiOrganizationMonthSpend,
   ReviewAnalysisProgress,
-} from '#/contexts/ai/application/public-api'
-import { cn } from '#/lib/utils'
+} from '#/contexts/ai/public-api'
+import { cn } from '#/shared/class-names/utils'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
 import {

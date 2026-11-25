@@ -6,11 +6,7 @@
 // and its durable outbox_events fact in one PostgreSQL transaction.
 
 import type { OrganizationId } from '#/shared/domain/ids'
-import type {
-  GoogleConnection,
-  GoogleConnectionId,
-  GoogleConnectionVisibility,
-} from '../domain/types'
+import type { GoogleConnection, GoogleConnectionId } from '../domain/types'
 import type {
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
@@ -30,7 +26,7 @@ export type ConnectGoogleAccountCommand = Readonly<{
 }>
 
 /**
- * Reconnect (same org): tokens + status→active + visibility update +
+ * Reconnect (same org): tokens + status→active +
  * google_account.connected fact in one transaction. Applies only to the exact
  * lifecycle, access and credential versions the OAuth ceremony was approved
  * against, so a disconnect, departure fence or other grant that committed
@@ -52,7 +48,6 @@ export type ReconnectGoogleAccountCommand = Readonly<{
   scopes: ReadonlyArray<string>
   encryptedRefreshToken: string
   tokenExpiresAt: Date
-  visibility: GoogleConnectionVisibility
   exchangeAttemptId?: string
   event: IntegrationGoogleAccountConnected
 }>

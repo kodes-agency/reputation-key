@@ -63,7 +63,10 @@ vi.mock('#/contexts/identity/server/auth-settings', () => ({
     server.account.current = { ...server.account.current, image: input.data.imageUrl }
   }),
 }))
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.query', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('#/contexts/identity/server/organizations.query')
+  >()),
   getActiveOrganization: vi.fn(async () => ({
     availability: 'available',
     organization: {
@@ -75,6 +78,8 @@ vi.mock('#/contexts/identity/server/organizations', () => ({
     role: 'AccountAdmin',
     authz: {},
   })),
+}))
+vi.mock('#/contexts/identity/server/organizations.upload', () => ({
   requestAvatarUpload: vi.fn(),
   finalizeAvatarUpload: vi.fn(),
 }))
@@ -86,7 +91,7 @@ vi.mock('#/contexts/feed/server/notifications', () => ({
   getNotificationUserSettingsFn: server.getNotificationUserSettings,
   updateNotificationUserSettingsFn: vi.fn(),
 }))
-vi.mock('#/contexts/inbox/server/inbox', () => ({ getLastVisitCountFn: vi.fn() }))
+vi.mock('#/contexts/reputation/server/inbox', () => ({ getLastVisitCountFn: vi.fn() }))
 vi.mock('#/routes/-notification-fns', () => ({ notificationFns: {} }))
 vi.mock('#/routes/-viewport-hint', () => ({ readViewportHint: () => undefined }))
 vi.mock('#/shared/auth/capability-set', async (importOriginal) => {

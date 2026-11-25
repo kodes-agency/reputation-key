@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GuestVoiceV2Read } from '#/contexts/ai/application/public-api'
+import type { GuestVoiceV2Read } from '#/contexts/ai/public-api'
 import type { RatingGoalCardView } from '#/contexts/reporting/rating-goals/contracts'
 import {
   guestVoiceGoalOf,

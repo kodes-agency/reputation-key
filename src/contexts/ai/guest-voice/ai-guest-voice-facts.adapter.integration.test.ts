@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The Guest voice 2.0 read through the real stores (PostgreSQL): reviews that carry a v3
 // analysis are written the way production writes them, then read back as the page's facts
 // and, through the use case, as the page itself. Review's own count of the Property's

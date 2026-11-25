@@ -1,0 +1,279 @@
+// Reply command store — atomic reply/review state mutation + outbox record.
+//
+// Callers must not know Drizzle transaction types or outbox tables.
+// The production implementation commits the state write and its outbox_events
+// rows in one PostgreSQL transaction.
+//
+// The publication state machine (reputation/domain/reply-publication-workflow.ts)
+// is persisted through this store. Every external-interaction transition is a
+// guarded write (status + publication_state), so a lost TOCTOU race
+// (cancellation, a racing claim, a purge) records no fact and returns null.
+//
+// Every write is a compare-and-set on what its command may start from
+// (reputation/domain/reply-command-preconditions.ts) and on the snapshot it is given: the
+// row must still have that status and publication state, in that cycle, and
+// for a publication write that exact attempt count. A command called with a
+// reply it may not start from, or with a snapshot the row has moved past,
+// returns null and records nothing. The store enforces this itself; it does
+// not rely on the use case having checked.
+//
+// The same holds for AI-assisted text (reputation/domain/reply-ai-text.ts). Submit and an
+// approval return null while the reply's AI draft binding is stale. So does
+// the claim (once the text has been claimed, a closed adoption window alone
+// no longer counts), and it withdraws the reply it refuses. A rejection and a
+// retry never read the binding and change no authorship; an edit records the
+// reply as human-authored. A write that puts the text forward (submit, and an
+// authorization: approval, retry, edit) also compares the reply's state
+// revision, so the text it submits or authorizes is the text of the reply it
+// was given, and not what the AI draft purge has left of it since.
+
+import type { PropertyId } from '#/shared/domain/ids'
+import type { Reply } from '../domain/review-types'
+import type { PublicationFailureClass } from '../domain/reply-publication-workflow'
+import type {
+  ReviewReplyApproved,
+  ReviewReplyPublicationCancelled,
+  ReviewReplyPublicationRequested,
+  ReviewReplyPublishFailed,
+  ReviewReplyRejected,
+  ReviewReplySubmitted,
+  ReviewReplyUpdated,
+} from '../domain/review-events'
+import type { ConditionalReplyUpdate } from './reply-repository.port.server'
+
+/** The edit-and-republish write: new text + re-authorization in one command. */
+export type EditPublishedReplyCommand = Readonly<{
+  text: string
+  lifecycleEvent: ReviewReplyUpdated
+  publicationIntent: ReviewReplyPublicationRequested
+  now?: Date
+}>
+
+/**
+ * One cancellation per reply — the guarded state write and the
+ * review.reply.publication_cancelled fact commit in the batch transaction.
+ * Rows whose publication state moved on meanwhile (published / failed /
+ * already cancelled / purged) are skipped without a fact.
+ */
+export type CancelPublicationCommand = Readonly<{
+  reply: Reply
+  event: ReviewReplyPublicationCancelled
+  now?: Date
+}>
+
+/**
+ * Durable facts committed with one approval/edit/retry authorization.
+ * `publicationIntent` drives worker recovery.
+ */
+export type PublicationAuthorizationFacts = Readonly<{
+  lifecycleEvent: ReviewReplyApproved | null
+  publicationIntent: ReviewReplyPublicationRequested
+}>
+
+/** Immutable Review/provider-truth tuple that a manager authorized. */
+export type PublicationAuthorizationFence = Readonly<{
+  propertyId: PropertyId
+  sourceEpoch: number
+  materialReviewRevision: number
+  /** Zero means no Google reply observation head existed at authorization. */
+  baseObservationRevision: number
+}>
+
+/** Provider write response; it is evidence of an accepted request, not proof
+ * that this exact reply is currently live on Google. */
+export type ProviderOutcomePendingObservation = Readonly<{
+  providerCorrelationId: string | null
+  providerRespondedAt: Date
+}>
+
+/** Immutable scope/content fences captured when one provider attempt starts. */
+export type PublicationAttemptStart = PublicationAuthorizationFence &
+  Readonly<{
+    providerOperationKey: string
+  }>
+
+export type ReplyCommandStore = Readonly<{
+  /**
+   * Guarded transition + review.reply.submitted fact, one transaction. Starts
+   * only from a draft with no open publication. Returns null when `reply` is
+   * anything else or the row moved since it was read (its state revision
+   * included: the text submitted is the text that was read) — the caller
+   * throws invalid_transition.
+   */
+  submitReply(
+    reply: Reply,
+    updates: ConditionalReplyUpdate,
+    event: ReviewReplySubmitted,
+    now?: Date,
+    measurement?: import('#/shared/domain/draft-measurement').DraftEditMetric,
+  ): Promise<Reply | null>
+  /**
+   * The approve/retry authorization write. Guarded status update +
+   * publication_state='authorized' with attempts/error reset, a fresh
+   * bounded recovery deadline, a NEW monotonic publication cycle, the optional
+   * review.reply.approved lifecycle fact, and the required durable
+   * review.reply.publication_requested intent — one transaction.
+   *
+   * The lifecycle fact decides which command this is. With it, an approval:
+   * `reply` must be `pending_approval` with no open publication, and the store
+   * records the intent's manager as approver. Without it, a retry: `reply`
+   * must be `publish_failed` with a settled (`terminal`, not ambiguous)
+   * publication, and only its status and publication fields change. A reply
+   * whose last attempt is of unknown outcome matches neither, so it can never
+   * be authorized again before settleNeverDispatchedAttempt has settled it.
+   */
+  markPublicationAuthorized(
+    reply: Reply,
+    updates: ConditionalReplyUpdate,
+    facts: PublicationAuthorizationFacts,
+    now?: Date,
+  ): Promise<Reply | null>
+  /**
+   * The single-use publish-job claim — status='approved' AND
+   * publication_state='authorized' → 'sending', attempts+1, plus a bounded
+   * recovery deadline. A `sending` row can never be claimed again. Google may
+   * accept a reply without echoing it in a later read, which is
+   * indistinguishable from a write it never received; absence is therefore not
+   * evidence for another write, and the code must refuse to guess. Returns null
+   * when the guard misses. A cycle whose named manager lost current authority,
+   * or whose Property is not active at the cycle's source epoch, is instead
+   * cancelled in the same transaction (publication_cancelled, cause 'policy')
+   * and null is returned: the provider authorizer would refuse its write. A
+   * cycle of AI-assisted text the last gate refuses (a stale binding, unless
+   * the text was claimed before and only its adoption window has passed) is
+   * withdrawn instead: the text is not sent, and the reply returns to draft
+   * with the AI text removed (publication_cancelled, cause
+   * 'ai_draft_withdrawn').
+   */
+  markPublicationSending(
+    reply: Reply,
+    attempt: PublicationAttemptStart,
+    now?: Date,
+  ): Promise<Reply | null>
+  /**
+   * Persist a successful provider write response as `pending_observation` with
+   * a bounded provider-read deadline while keeping the local Reply unpublished.
+   * Only an exact, current provider observation may make the later
+   * pending_observation → published transition.
+   */
+  markProviderOutcomePendingObservation(
+    reply: Reply,
+    outcome: ProviderOutcomePendingObservation,
+    now?: Date,
+  ): Promise<Reply | null>
+  /**
+   * Keep an acknowledged write in pending_observation and move only its read
+   * deadline. The caller must first prove the attempt is inside both propagation
+   * grace bounds. This command records no fact, creates no attempt, and grants
+   * no provider-write authority.
+   */
+  deferPendingPublicationObservation(reply: Reply, now?: Date): Promise<Reply | null>
+  /**
+   * Bounded terminal settlement — status → publish_failed +
+   * publication_state='terminal' + last_error_class + optional publish_failed
+   * fact, one transaction. Used for confirmed no-write failures, exhausted
+   * retryable work, and sweep expiry. A null event is allowed when the parent
+   * review is unavailable; liveness settlement must still complete.
+   *
+   * The row must still be in `reply`'s exact publication state and attempt
+   * count. The sweep ends a due `authorized` cycle as "not sent" from a batch
+   * it read earlier; if a worker has claimed the row since, this returns null
+   * and the claimed attempt stays with the worker and the uncertain-send path.
+   */
+  markPublicationTerminal(
+    reply: Reply,
+    errorClass: PublicationFailureClass,
+    event: ReviewReplyPublishFailed | null,
+    now?: Date,
+  ): Promise<Reply | null>
+  /**
+   * A non-confirming provider outcome from `sending` or
+   * `pending_observation` — status → publish_failed +
+   * publication_state='ambiguous' + last_error_class='ambiguous' +
+   * reconcile_due_at + the optional publish_failed fact, one transaction.
+   * D3: callers pass `dueAt` from nextAmbiguousReconcileDueAt (the ladder is
+   * measured from the attempt start, which the store does not read); without
+   * it the row is due at now + AMBIGUOUS_RECONCILE_DELAY_MS.
+   */
+  markPublicationAmbiguous(
+    reply: Reply,
+    event: ReviewReplyPublishFailed | null,
+    now?: Date,
+    dueAt?: Date,
+  ): Promise<Reply | null>
+  /**
+   * D3: keep an uncertain send `approved`/`sending` inside its propagation
+   * grace and move only reconcile_due_at to `dueAt`. Compare-and-set on
+   * status, publication_state, publication_cycle and publication_attempts; no
+   * fact, no attempt change, no provider-write authority (the claim still
+   * needs `authorized`). Null when the CAS lost.
+   */
+  deferUncertainSend(reply: Reply, dueAt: Date, now: Date): Promise<Reply | null>
+  /**
+   * D3: keep a `publish_failed`/`ambiguous` row on the read ladder by moving
+   * only reconcile_due_at to `dueAt`. Same compare-and-set as
+   * deferUncertainSend; no fact. Null when the CAS lost.
+   */
+  rescheduleAmbiguousReconciliation(
+    reply: Reply,
+    dueAt: Date,
+    now: Date,
+  ): Promise<Reply | null>
+  /**
+   * D4: the caller holds positive evidence that the current attempt never
+   * reached Google. From approved/sending, publish_failed/ambiguous, or
+   * publish_failed/terminal with last error class `ambiguous` →
+   * publish_failed / terminal / last error class `retryable` /
+   * reconcile_due_at NULL, current attempt outcome `retryable_failure`, and
+   * the publish_failed fact only when the row was not already publish_failed
+   * (a manager saw that failure once already). Same compare-and-set as
+   * deferUncertainSend. The caller's evidence is only a nomination: the
+   * implementation locks the attempt row (which permit admission share-locks)
+   * and re-reads the dispatch evidence before writing. Null when the CAS lost
+   * or that re-read finds a permit or a later restore; the row is then untouched.
+   * Approved/ambiguous (a restore-fenced row) is never settleable.
+   */
+  settleNeverDispatchedAttempt(
+    reply: Reply,
+    event: ReviewReplyPublishFailed | null,
+    now: Date,
+  ): Promise<Reply | null>
+  /**
+   * Classified safe-to-retry failure — publication_state 'sending' →
+   * 'authorized' with attempts/error preserved and a fresh bounded recovery
+   * deadline, so the next BullMQ attempt can claim the row. No fact. Returns
+   * null when the guard misses.
+   */
+  markPublicationRetryQueued(reply: Reply, now?: Date): Promise<Reply | null>
+  /**
+   * Edit-and-republish: guarded status='published' → 'approved' with the new
+   * text, a fresh publication cycle, and a bounded recovery deadline
+   * (publication_state='authorized', attempts/error reset) + the
+   * review.reply.updated fact, one transaction. Returns null when the reply is
+   * not, or is no longer, a settled published reply — no fact, no mutation.
+   */
+  editPublishedReply(
+    reply: Reply,
+    command: EditPublishedReplyCommand,
+  ): Promise<Reply | null>
+  /**
+   * Disconnect/policy cancellation — per command, the reply's open
+   * publication cycle → 'cancelled' + status → 'draft'
+   * (domain `cancelledPublication`: a cancellation, never a reply command)
+   * + the publication_cancelled fact, ALL in one transaction for the batch.
+   * Returns the number of cancelled rows; rows whose state moved on
+   * (published/failed/cancelled/purged) are skipped, and so is a row that left
+   * the exact state and attempt count of the snapshot: a cycle read as
+   * undispatched and claimed since is not cancelled.
+   */
+  cancelPublications(commands: ReadonlyArray<CancelPublicationCommand>): Promise<number>
+  /**
+   * Guarded transition → rejected + review.reply.rejected fact, one
+   * transaction. Starts only from `pending_approval`. */
+  rejectReply(
+    reply: Reply,
+    updates: ConditionalReplyUpdate,
+    event: ReviewReplyRejected,
+    now?: Date,
+  ): Promise<Reply | null>
+}>

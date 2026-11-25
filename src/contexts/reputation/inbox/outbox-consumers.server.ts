@@ -15,31 +15,31 @@
 
 import { PrerequisiteNotReadyError } from '#/shared/outbox'
 import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
-import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/ports/review-handling-cycle.store'
-import type { ReplyObservationAuthorityPort } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
-import type { SourceTransitionAuthorityPort } from '#/contexts/inbox/application/ports/source-transition-authority.port'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
-import {
-  borrowReviewTransaction,
-  lentTransactionArgs,
-} from '#/contexts/inbox/application/ports/review-open-transaction'
+import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
+import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
+import type { ReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
+import type { ReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
+import { borrowReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
 import type { InboxItemId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { createInboxItem as buildInboxItem } from '#/contexts/inbox/domain/constructors'
-import { inboxError } from '#/contexts/inbox/domain/errors'
-import { inboxItemCreated, inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
+import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
+import {
+  inboxItemCreated,
+  inboxItemStatusChanged,
+} from '#/contexts/reputation/domain/inbox-events'
 import { organizationId, propertyId, reviewId, unbrand } from '#/shared/domain/ids'
 
 export type InboxConsumerDeps = Readonly<{
   commandStore: InboxCommandStore
   handlingCycleStore: ReviewHandlingCycleStore
-  replyObservationAuthority: ReplyObservationAuthorityPort
-  responseTargetAuthority: ReviewResponseTargetAuthorityPort
-  sourceTransitionAuthority: SourceTransitionAuthorityPort
+  replyObservationAuthority: ReviewReplyObservationAuthority
+  responseTargetAuthority: ReviewResponseTargetAuthority
+  sourceTransitionAuthority: ReviewSourceTransitionAuthority
   reviewLookup: ReviewLookupPort
   reviewSourceLookup: ReviewSourceLookupPort
   inboxRepo: InboxRepository
@@ -178,7 +178,7 @@ async function handleInboxReviewProjection(
           projection,
           now: deps.clock(),
         },
-        ...lentTransactionArgs(reviewTx),
+        borrowReviewTransaction(reviewTx),
       )
     },
   )
@@ -243,8 +243,8 @@ export async function handleInboxReviewExpired(
 /**
  * Content-free handoff. Review owns the source lifecycle and records an
  * identifier-only transition. Inbox owns its stable projection, so it closes
- * unservable work and removes legacy provider-controlled copies itself. The
- * command store co-commits the scrub, optional status fact, and receipt.
+ * unservable work itself. The command store co-commits the close, optional
+ * status fact, and receipt.
  */
 export async function handleInboxReviewSourceTransitioned(
   deps: InboxConsumerDeps,
@@ -444,13 +444,12 @@ export async function handleInboxReplyObserved(
         )
       }
       if (
-        cycleHead.currentMaterialReviewRevision <
-          currentObservation.materialReviewRevision &&
+        cycleHead.currentSourceRevision < currentObservation.materialReviewRevision &&
         !(
           currentObservation.sourceEpochCarryFromMaterialReviewRevision ===
-            cycleHead.currentMaterialReviewRevision &&
+            cycleHead.currentSourceRevision &&
           currentObservation.materialReviewRevision ===
-            cycleHead.currentMaterialReviewRevision + 1
+            cycleHead.currentSourceRevision + 1
         )
       ) {
         throw inboxError(
@@ -458,10 +457,7 @@ export async function handleInboxReplyObserved(
           'Current reply observation is waiting for the Inbox material revision',
         )
       }
-      if (
-        cycleHead.currentMaterialReviewRevision >
-        currentObservation.materialReviewRevision
-      ) {
+      if (cycleHead.currentSourceRevision > currentObservation.materialReviewRevision) {
         await deps.commandStore.recordReceipt(
           event.eventId,
           ON_REPLY_OBSERVED,

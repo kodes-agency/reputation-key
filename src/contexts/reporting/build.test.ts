@@ -27,14 +27,15 @@ describe('buildReportingContext', () => {
     const context = build()
 
     expect(typeof context.publicApi.queryGoalMetric).toBe('function')
-    expect(typeof context.publicApi.programs.list).toBe('function')
-    expect(Object.keys(context.publicApi.programs.portalGoalAdd).sort()).toEqual([
-      'each',
-      'one',
-      'options',
-    ])
+    expect(typeof context.publicApi.programsFor({ authorize: vi.fn() }).list).toBe(
+      'function',
+    )
+    expect(
+      Object.keys(
+        context.publicApi.programsFor({ authorize: vi.fn() }).portalGoalAdd,
+      ).sort(),
+    ).toEqual(['each', 'one', 'options'])
     expect(typeof context.publicApi.findMonthlyResultNotificationFacts).toBe('function')
-    expect(typeof context.publicApi.getDashboardData).toBe('function')
     expect(typeof context.publicApi.readPropertyGoogleNumbers).toBe('function')
     expect(typeof context.publicApi.getFleetOverview).toBe('function')
     expect(typeof context.publicApi.getPortalResultsOverview).toBe('function')
@@ -117,7 +118,7 @@ describe('buildReportingContext', () => {
         return { rows: [] }
       }),
     }
-    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [], truncated: false }))
+    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [] }))
     const context = build({
       db: {
         transaction: async (read: (inner: typeof tx) => Promise<unknown>) => read(tx),
@@ -154,7 +155,7 @@ describe('buildReportingContext', () => {
   })
 
   it("composes the Monthly portal goal's card behind its own goal.create check", async () => {
-    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [], truncated: false }))
+    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [] }))
     const context = build({
       portalApi: {
         listGoalReadinessFacts,
@@ -165,11 +166,12 @@ describe('buildReportingContext', () => {
     })
 
     await expect(
-      context.publicApi.programs.monthlyPortalGoal.card(
-        { authorize },
-        { propertyId: 'property-1' },
-        { organizationId: 'org-1', userId: 'manager-1', role: 'PropertyManager' },
-      ),
+      context.publicApi
+        .programsFor({ authorize })
+        .monthlyPortalGoal.card(
+          { propertyId: 'property-1' },
+          { organizationId: 'org-1', userId: 'manager-1', role: 'PropertyManager' },
+        ),
     ).rejects.toThrow('refused')
     expect(authorize).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'goal.create', propertyId: 'property-1' }),
@@ -178,7 +180,7 @@ describe('buildReportingContext', () => {
   })
 
   it("composes the Monthly portal goal's set behind its own goal.create check", async () => {
-    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [], truncated: false }))
+    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [] }))
     const context = build({
       portalApi: {
         listGoalReadinessFacts,
@@ -189,8 +191,7 @@ describe('buildReportingContext', () => {
     })
 
     await expect(
-      context.publicApi.programs.monthlyPortalGoal.set(
-        { authorize },
+      context.publicApi.programsFor({ authorize }).monthlyPortalGoal.set(
         {
           propertyId: 'property-1',
           metric: 'portal_rating_count',

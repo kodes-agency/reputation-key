@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /**
  * The body of a dashboard topic page below its header, while the next range is

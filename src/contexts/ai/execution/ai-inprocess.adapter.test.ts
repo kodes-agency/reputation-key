@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
+import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import type { AiEgressGatewayService } from '#/shared/ai-provider-control/service'
-import type { AiGatewayRouteRequestV1 } from '#/shared/ai-gateway-transport-contract'
+import type { AiGatewayRouteRequestV1 } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   analysisRequest,
-  v2FormAnalysisRequest,
   analysisV3Request,
   replyRequest,
-} from '#/shared/ai-gateway-transport-contract.test-fixtures'
-import { AI_REVIEW_ROUTE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
+import { AI_REVIEW_ROUTE_MAX_BYTES } from '#/shared/ai-gateway/ai-internal-transport-contract'
 import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply/request'
-import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source-contract'
-import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
+import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source/ai-review-source-contract'
+import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/analysis/review-analysis-v3-request'
 import {
   aiGatewayRequestMaxBytes,
   createAiInProcessInference,
@@ -37,7 +36,6 @@ function recordingGateway() {
         retryAfterEpochMillis: null,
       }) as never
     },
-    readiness: async () => true,
   }
   return { seen, service }
 }
@@ -153,10 +151,6 @@ describe('in-process AI inference deadlines and construction', () => {
 
 describe('in-process AI inference request bound', () => {
   it('keeps each route its bound and gives a v3 evidence request its own', () => {
-    // The retired v2 form keeps the v2 bound; review analysis is served in the v3 form.
-    expect(aiGatewayRequestMaxBytes(v2FormAnalysisRequest())).toBe(
-      AI_REVIEW_ROUTE_MAX_BYTES,
-    )
     expect(aiGatewayRequestMaxBytes(analysisRequest())).toBe(AI_REVIEW_V3_ROUTE_MAX_BYTES)
     expect(aiGatewayRequestMaxBytes(replyRequest())).toBe(
       REPLY_DRAFTING_V2_ROUTE_MAX_BYTES,

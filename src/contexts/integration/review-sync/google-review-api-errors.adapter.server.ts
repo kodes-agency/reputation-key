@@ -1,15 +1,15 @@
 import type {
   GoogleReviewApiError,
   GoogleReviewApiErrorCode,
-} from '#/contexts/review/application/public-api'
-import type { GoogleReviewApiFailure } from '#/contexts/review/application/ports/google-review-api.port'
+  GoogleReviewApiFailure,
+} from '#/contexts/reputation/public-api'
 import {
   executorErrorToReviewApiError,
   isGoogleReviewApiError,
   isProviderCallFailure,
   REPLY_PRE_READ_REFUSAL_OPERATION,
   reviewApiError,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { createGoogleCallError } from '../domain/google-call-error'
 import type { GoogleReviewCursorFailureCode } from './google-review-cursor-store.server'
 

@@ -25,8 +25,8 @@ describe('buildGoogleConnection', () => {
     now,
   }
 
-  it('builds a connection with visibility "private"', () => {
-    const result = buildGoogleConnection({ ...base, visibility: 'private' })
+  it('builds an Organization-owned connection', () => {
+    const result = buildGoogleConnection(base)
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       expect(result.value.id).toBe(base.id)
@@ -38,23 +38,14 @@ describe('buildGoogleConnection', () => {
         'https://www.googleapis.com/auth/business.manage',
       ])
       expect(result.value.connectedBy).toBe(base.connectedBy)
-      expect(result.value.visibility).toBe('private')
       expect(result.value.status).toBe('active')
       expect(result.value.createdAt).toBe(now)
       expect(result.value.updatedAt).toBe(now)
     }
   })
 
-  it('builds a connection with visibility "organization"', () => {
-    const result = buildGoogleConnection({ ...base, visibility: 'organization' })
-    expect(result.isOk()).toBe(true)
-    if (result.isOk()) {
-      expect(result.value.visibility).toBe('organization')
-    }
-  })
-
   it('sets status to "active"', () => {
-    const result = buildGoogleConnection({ ...base, visibility: 'private' })
+    const result = buildGoogleConnection(base)
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       expect(result.value.status).toBe('active')
@@ -62,7 +53,7 @@ describe('buildGoogleConnection', () => {
   })
 
   it('sets createdAt and updatedAt to now', () => {
-    const result = buildGoogleConnection({ ...base, visibility: 'private' })
+    const result = buildGoogleConnection(base)
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       expect(result.value.createdAt).toBe(now)
@@ -73,7 +64,6 @@ describe('buildGoogleConnection', () => {
   it('rejects an empty signed subject with oauth_failed code', () => {
     const result = buildGoogleConnection({
       ...base,
-      visibility: 'private',
       identity: { kind: 'oidc', googleSubject: '', email: null },
     })
     expect(result.isErr()).toBe(true)
@@ -82,16 +72,8 @@ describe('buildGoogleConnection', () => {
     }
   })
 
-  it('rejects invalid visibility with invalid_visibility code', () => {
-    const result = buildGoogleConnection({ ...base, visibility: 'public' as 'private' })
-    expect(result.isErr()).toBe(true)
-    if (result.isErr()) {
-      expect(result.error.code).toBe('invalid_visibility')
-    }
-  })
-
   it('propagates tokenExpiresAt from input', () => {
-    const result = buildGoogleConnection({ ...base, visibility: 'private' })
+    const result = buildGoogleConnection(base)
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       expect(result.value.tokenExpiresAt).toBe(base.tokenExpiresAt)

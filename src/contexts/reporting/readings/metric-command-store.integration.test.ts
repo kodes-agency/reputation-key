@@ -6,8 +6,7 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { seedTenantPortal } from '#/shared/db/testing/tenant-seed'
 import {
   organizationId,
   portalId,
@@ -22,11 +21,12 @@ import {
   type MetricReading,
   type ReadingResult,
 } from '../domain/metric-reading'
+import { recordOne, retractOne } from './single-reading.test-fixtures'
 import { createAtomicMetricCommandStore } from './metric-command-store.server'
 import type {
   GuestReviewLinkClicked,
   GuestQualifiedScanRecorded,
-} from '#/contexts/guest/application/public-api'
+} from '#/contexts/guest/public-api'
 import { recordMetrics } from './record-metric.server'
 import { createPropertyLocalDateResolver } from './property-local-date.server'
 import {
@@ -101,80 +101,130 @@ async function truncateAll(p: Pool) {
   await p.query('DELETE FROM outbox_events WHERE organization_id = ANY($1)', [TENANT_IDS])
 }
 
-/** One tenant's Organization, Property and published Portal. */
-async function seedTenantPortal(
+async function clearTenantRows(p: Pool) {
+  await truncateAll(p)
+  await p.query('DELETE FROM portal_responsibilities WHERE organization_id = $1', [
+    ORG_ID,
+  ])
+  await p.query('DELETE FROM staff_participations WHERE organization_id = $1', [ORG_ID])
+  await p.query('DELETE FROM staff_participants WHERE organization_id = $1', [ORG_ID])
+  await p.query('DELETE FROM portals WHERE id = ANY($1)', [[PORTAL_ID, OTHER_PORTAL_ID]])
+  await p.query('DELETE FROM properties WHERE id = ANY($1)', [[PROP_ID, OTHER_PROP_ID]])
+}
+
+async function seedGuestSourceEvent(
   p: Pool,
-  tenant: Readonly<{
-    orgId: string
-    propId: string
-    portalId: string
-    label: string
-    slug: string
-  }>,
+  event: Readonly<{ id: string; type: string; payload: unknown; aggregateId: string }>,
 ) {
   await p.query(
-    `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (id) DO UPDATE SET
-       name = EXCLUDED.name,
-       slug = EXCLUDED.slug`,
-    [tenant.orgId, `${tenant.label} Org`, `${tenant.slug}-org`],
-  )
-  await p.query(
-    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-     ON CONFLICT (id) DO UPDATE SET
-       organization_id = EXCLUDED.organization_id,
-       name = EXCLUDED.name,
-       slug = EXCLUDED.slug,
-       timezone = EXCLUDED.timezone,
-       updated_at = EXCLUDED.updated_at`,
+    `INSERT INTO outbox_events (
+       id, event_type, event_version, payload, organization_id, property_id,
+       source_context, source_aggregate_id
+     ) VALUES ($1, $2, 1, $3::jsonb, $4, $5, 'guest', $6)`,
     [
-      tenant.propId,
-      tenant.orgId,
-      `${tenant.label} Property`,
-      `${tenant.slug}-prop`,
-      'UTC',
-    ],
-  )
-  await p.query(
-    `INSERT INTO portals (
-       id, organization_id, property_id, entity_type, entity_id, name, slug,
-       publication_state, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'property', $4, $5, $6, 'published', NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [
-      tenant.portalId,
-      tenant.orgId,
-      tenant.propId,
-      tenant.propId,
-      `${tenant.label} Portal`,
-      `${tenant.slug}-portal`,
+      event.id,
+      event.type,
+      JSON.stringify(event.payload),
+      ORG_ID,
+      PROP_ID,
+      event.aggregateId,
     ],
   )
 }
+
+const projectMetrics = () =>
+  recordMetrics({
+    commandStore: createAtomicMetricCommandStore(db, randomUUID),
+    registry: metricRegistry,
+    clock: () => QUALIFIED_AT,
+    idGen: () => metricReadingId(randomUUID()),
+    resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
+  })
+
+async function receiptsOf(eventId: string) {
+  const receipts = await pool.query(
+    `SELECT event_id, consumer_name, status
+     FROM event_consumer_receipts
+     WHERE event_id = $1 AND consumer_name = 'metric.guest-analytics'`,
+    [eventId],
+  )
+  return receipts.rows
+}
+
+async function readingAndReceiptCounts(sourceEventId: string) {
+  const counts = await pool.query(
+    `SELECT
+       (
+         SELECT count(*)::int FROM metric_readings WHERE source_event_id = $1
+       ) AS reading_count,
+       (
+         SELECT count(*)::int FROM event_consumer_receipts
+         WHERE event_id = $1::uuid AND consumer_name = 'metric.guest-analytics'
+       ) AS receipt_count`,
+    [sourceEventId],
+  )
+  return counts.rows
+}
+
+async function correctionAndReceiptCounts(eventId: string) {
+  const counts = await pool.query(
+    `SELECT
+       (
+         SELECT count(*)::int FROM metric_corrections
+         WHERE source_event_id LIKE $1
+       ) AS correction_count,
+       (
+         SELECT count(*)::int FROM event_consumer_receipts
+         WHERE event_id = $2::uuid AND consumer_name = 'metric.guest-analytics'
+       ) AS receipt_count`,
+    [`${eventId}:%`, eventId],
+  )
+  return counts.rows
+}
+
+const RATING_FANOUT_DEFINITIONS = [
+  {
+    id: '11111111-1111-4111-8111-111111111202',
+    key: 'portal.rating' as const,
+    value: 4,
+    sourcePolicy: 'first_party_guest_private' as const,
+  },
+  {
+    id: '11111111-1111-4111-8111-111111111302',
+    key: 'portal.rating_count' as const,
+    value: 1,
+    sourcePolicy: 'first_party_guest_gateway_metric' as const,
+  },
+  {
+    id: '11111111-1111-4111-8111-111111111303',
+    key: 'portal.rating_average' as const,
+    value: 4,
+    sourcePolicy: 'first_party_guest_gateway_metric' as const,
+  },
+]
+
+const ratingFanoutEntries = (eventId: string) =>
+  RATING_FANOUT_DEFINITIONS.map((definition) => ({
+    reading: makeReading({
+      id: metricReadingId(randomUUID()),
+      definitionVersionId: definition.id,
+      metricKey: definition.key,
+      portalId: PORTAL_ID,
+      portalGroupId: null,
+      value: definition.value,
+      sourceEventId: eventId,
+      sourcePolicy: definition.sourcePolicy,
+      retentionClass: 'guest_gateway_24_month',
+    }),
+    destinationKind: null,
+  }))
 
 beforeAll(async () => {
   const env = getEnv()
   pool = new Pool({ connectionString: env.DATABASE_URL, max: 2 })
   const client = await pool.connect()
   client.release()
-  clearEventSchemas()
-  registerAllEventSchemas()
-  await truncateAll(pool)
-  await pool.query('DELETE FROM portal_responsibilities WHERE organization_id = $1', [
-    ORG_ID,
-  ])
-  await pool.query('DELETE FROM staff_participations WHERE organization_id = $1', [
-    ORG_ID,
-  ])
-  await pool.query('DELETE FROM staff_participants WHERE organization_id = $1', [ORG_ID])
-  await pool.query('DELETE FROM portals WHERE id = ANY($1)', [
-    [PORTAL_ID, OTHER_PORTAL_ID],
-  ])
-  await pool.query('DELETE FROM properties WHERE id = ANY($1)', [
-    [PROP_ID, OTHER_PROP_ID],
-  ])
+  await clearTenantRows(pool)
   await seedTenantPortal(pool, {
     orgId: ORG_ID,
     propId: PROP_ID,
@@ -220,21 +270,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  clearEventSchemas()
-  await truncateAll(pool)
-  await pool.query('DELETE FROM portal_responsibilities WHERE organization_id = $1', [
-    ORG_ID,
-  ])
-  await pool.query('DELETE FROM staff_participations WHERE organization_id = $1', [
-    ORG_ID,
-  ])
-  await pool.query('DELETE FROM staff_participants WHERE organization_id = $1', [ORG_ID])
-  await pool.query('DELETE FROM portals WHERE id = ANY($1)', [
-    [PORTAL_ID, OTHER_PORTAL_ID],
-  ])
-  await pool.query('DELETE FROM properties WHERE id = ANY($1)', [
-    [PROP_ID, OTHER_PROP_ID],
-  ])
+  await clearTenantRows(pool)
   await deleteTestOrganizations(pool, TENANT_IDS)
   await pool.end()
 })
@@ -248,7 +284,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     const store = createAtomicMetricCommandStore(db, randomUUID)
     const reading = makeReading()
 
-    const inserted = await store.recordMetric({ reading })
+    const inserted = await recordOne(store, { reading })
 
     expect(inserted).toEqual({ status: 'recorded', reading })
     const rows = await pool.query(
@@ -291,26 +327,13 @@ describe.sequential('metricCommandStore (integration)', () => {
         destinationKind,
         occurredAt: QUALIFIED_AT,
       }
-      await pool.query(
-        `INSERT INTO outbox_events (
-      id, event_type, event_version, payload, organization_id, property_id, source_context, source_aggregate_id
-    ) VALUES ($1, $2, 1, $3::jsonb, $4, $5, 'guest', $6)`,
-        [
-          sourceEvent.eventId,
-          sourceEvent._tag,
-          JSON.stringify(sourceEvent),
-          ORG_ID,
-          PROP_ID,
-          PORTAL_ID,
-        ],
-      )
-      const project = recordMetrics({
-        commandStore: createAtomicMetricCommandStore(db, randomUUID),
-        registry: metricRegistry,
-        clock: () => QUALIFIED_AT,
-        idGen: () => metricReadingId(randomUUID()),
-        resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
+      await seedGuestSourceEvent(pool, {
+        id: sourceEvent.eventId,
+        type: sourceEvent._tag,
+        payload: sourceEvent,
+        aggregateId: PORTAL_ID,
       })
+      const project = projectMetrics()
       const handler = onReviewLinkClickedDurably({
         recordMetrics: project,
         findGroupForPortal: async () => null,
@@ -324,11 +347,13 @@ describe.sequential('metricCommandStore (integration)', () => {
       expect(readings.rows).toEqual([
         { portal_link_id: expectedLinkId, portal_destination_kind: destinationKind },
       ])
-      const receipts = await pool.query(
-        `SELECT status FROM event_consumer_receipts WHERE event_id = $1 AND consumer_name = 'metric.guest-analytics'`,
-        [sourceEvent.eventId],
-      )
-      expect(receipts.rows).toEqual([{ status: 'applied' }])
+      expect(await receiptsOf(sourceEvent.eventId)).toEqual([
+        {
+          event_id: sourceEvent.eventId,
+          consumer_name: 'metric.guest-analytics',
+          status: 'applied',
+        },
+      ])
       const destinationCounts = await createPortalAnalyticsRepository(
         db,
         () => QUALIFIED_AT,
@@ -365,13 +390,13 @@ describe.sequential('metricCommandStore (integration)', () => {
       value: 1,
       definitionVersionId: '11111111-1111-4111-8111-111111111204',
     })
-    await store.recordMetric({
+    await recordOne(store, {
       reading: original,
       destinationKind: 'secondary_link',
     })
     const otherLinkReading = { ...original, portalLinkId: randomUUID() }
     await expect(
-      store.recordMetric({
+      recordOne(store, {
         reading: otherLinkReading,
         destinationKind: 'secondary_link',
       }),
@@ -382,7 +407,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       sourceEventId: 'wrong-link-replacement',
     }
     await expect(
-      store.recordMetric({
+      recordOne(store, {
         reading: wrongReplacement,
         destinationKind: 'secondary_link',
         supersedesSourceEventId: original.sourceEventId,
@@ -393,7 +418,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       id: metricReadingId(randomUUID()),
       sourceEventId: 'replacement-link-tap',
     }
-    await store.recordMetric({
+    await recordOne(store, {
       reading: replacement,
       destinationKind: 'secondary_link',
       supersedesSourceEventId: original.sourceEventId,
@@ -409,7 +434,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     ])
     expect(
       (
-        await store.recordMetric({
+        await recordOne(store, {
           reading: original,
           destinationKind: 'secondary_link',
         })
@@ -436,38 +461,24 @@ describe.sequential('metricCommandStore (integration)', () => {
       staffAttribution: null,
       occurredAt: QUALIFIED_AT,
     }
-    await pool.query(
-      `INSERT INTO outbox_events (
-         id, event_type, event_version, payload, organization_id, property_id,
-         source_context, source_aggregate_id
-       ) VALUES ($1, $2, 1, $3::jsonb, $4, $5, 'guest', $6)`,
-      [
-        sourceEvent.eventId,
-        sourceEvent._tag,
-        JSON.stringify({
-          organizationId: sourceEvent.organizationId,
-          propertyId: sourceEvent.propertyId,
-          portalId: sourceEvent.portalId,
-          qualifiedScanId: sourceEvent.qualifiedScanId,
-          portalGroupId: sourceEvent.portalGroupId,
-          accessArtifactId: sourceEvent.accessArtifactId,
-          staffAttribution: sourceEvent.staffAttribution,
-          occurredAt: sourceEvent.occurredAt.toISOString(),
-        }),
-        ORG_ID,
-        PROP_ID,
-        QUALIFIED_SCAN_ID,
-      ],
-    )
+    await seedGuestSourceEvent(pool, {
+      id: sourceEvent.eventId,
+      type: sourceEvent._tag,
+      payload: {
+        organizationId: sourceEvent.organizationId,
+        propertyId: sourceEvent.propertyId,
+        portalId: sourceEvent.portalId,
+        qualifiedScanId: sourceEvent.qualifiedScanId,
+        portalGroupId: sourceEvent.portalGroupId,
+        accessArtifactId: sourceEvent.accessArtifactId,
+        staffAttribution: sourceEvent.staffAttribution,
+        occurredAt: sourceEvent.occurredAt.toISOString(),
+      },
+      aggregateId: QUALIFIED_SCAN_ID,
+    })
 
     const outcomes: ReadingResult[] = []
-    const project = recordMetrics({
-      commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: metricRegistry,
-      clock: () => QUALIFIED_AT,
-      idGen: () => metricReadingId(randomUUID()),
-      resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
-    })
+    const project = projectMetrics()
     const handler = onQualifiedScanRecordedDurably({
       recordMetrics: async (input) => {
         const outcome = await project(input)
@@ -499,13 +510,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     expect(readings.rows).toEqual([
       { id: first.reading.id as string, metric_key: 'portal.qualified_scan' },
     ])
-    const receipts = await pool.query(
-      `SELECT event_id, consumer_name, status
-       FROM event_consumer_receipts
-       WHERE event_id = $1 AND consumer_name = 'metric.guest-analytics'`,
-      [sourceEvent.eventId],
-    )
-    expect(receipts.rows).toEqual([
+    expect(await receiptsOf(sourceEvent.eventId)).toEqual([
       {
         event_id: sourceEvent.eventId,
         consumer_name: 'metric.guest-analytics',
@@ -519,83 +524,34 @@ describe.sequential('metricCommandStore (integration)', () => {
       qualifiedScanId: qualifiedScanId('4f000000-0000-4000-8000-000000000025'),
     }
     await expect(handler(missingSourceEvent)).rejects.toThrow(/Failed query/u)
-    const partial = await pool.query(
-      `SELECT
-         (
-           SELECT count(*)::int FROM metric_readings WHERE source_event_id = $1
-         ) AS reading_count,
-         (
-           SELECT count(*)::int FROM event_consumer_receipts
-           WHERE event_id = $1::uuid AND consumer_name = 'metric.guest-analytics'
-         ) AS receipt_count`,
-      [missingSourceEvent.eventId],
-    )
-    expect(partial.rows).toEqual([{ reading_count: 0, receipt_count: 0 }])
+    expect(await readingAndReceiptCounts(missingSourceEvent.eventId)).toEqual([
+      { reading_count: 0, receipt_count: 0 },
+    ])
   })
 
   it('commits a rating fanout with one receipt and heals a legacy partial batch', async () => {
     const sourceEventId = '4f000000-0000-4000-8000-000000000031'
     const missingSourceEventId = '4f000000-0000-4000-8000-000000000032'
-    await pool.query(
-      `INSERT INTO outbox_events (
-         id, event_type, event_version, payload, organization_id, property_id,
-         source_context, source_aggregate_id
-       ) VALUES ($1, 'guest.rating.submitted', 1, '{}'::jsonb, $2, $3, 'guest', $4)`,
-      [sourceEventId, ORG_ID, PROP_ID, PORTAL_ID],
-    )
+    await seedGuestSourceEvent(pool, {
+      id: sourceEventId,
+      type: 'guest.rating.submitted',
+      payload: {},
+      aggregateId: PORTAL_ID,
+    })
     const store = createAtomicMetricCommandStore(db, randomUUID)
-    const buildEntries = (eventId: string) => {
-      const definitions = [
-        {
-          id: '11111111-1111-4111-8111-111111111202',
-          key: 'portal.rating' as const,
-          value: 4,
-          sourcePolicy: 'first_party_guest_private' as const,
-        },
-        {
-          id: '11111111-1111-4111-8111-111111111302',
-          key: 'portal.rating_count' as const,
-          value: 1,
-          sourcePolicy: 'first_party_guest_gateway_metric' as const,
-        },
-        {
-          id: '11111111-1111-4111-8111-111111111303',
-          key: 'portal.rating_average' as const,
-          value: 4,
-          sourcePolicy: 'first_party_guest_gateway_metric' as const,
-        },
-      ]
-      return definitions.map((definition) => {
-        const reading = makeReading({
-          id: metricReadingId(randomUUID()),
-          definitionVersionId: definition.id,
-          metricKey: definition.key,
-          portalId: PORTAL_ID,
-          portalGroupId: null,
-          value: definition.value,
-          sourceEventId: eventId,
-          sourcePolicy: definition.sourcePolicy,
-          retentionClass: 'guest_gateway_24_month',
-        })
-        return {
-          reading,
-          destinationKind: null,
-        }
-      })
-    }
     const sourceReceipt = {
       eventId: sourceEventId,
       consumerName: 'metric.guest-analytics',
     }
 
-    const firstEntries = buildEntries(sourceEventId)
+    const firstEntries = ratingFanoutEntries(sourceEventId)
     await expect(
       store.recordMetrics({
         readings: firstEntries,
         sourceReceipt,
       }),
     ).resolves.toHaveLength(3)
-    const secondEntries = buildEntries(sourceEventId)
+    const secondEntries = ratingFanoutEntries(sourceEventId)
     await expect(
       store.recordMetrics({
         readings: secondEntries,
@@ -607,24 +563,15 @@ describe.sequential('metricCommandStore (integration)', () => {
         existingReadingId: entry.reading.id,
       })),
     )
-    const committed = await pool.query(
-      `SELECT
-         (
-           SELECT count(*)::int FROM metric_readings WHERE source_event_id = $1
-         ) AS reading_count,
-         (
-           SELECT count(*)::int FROM event_consumer_receipts
-           WHERE event_id = $1::uuid AND consumer_name = 'metric.guest-analytics'
-         ) AS receipt_count`,
-      [sourceEventId],
-    )
-    expect(committed.rows).toEqual([{ reading_count: 3, receipt_count: 1 }])
+    expect(await readingAndReceiptCounts(sourceEventId)).toEqual([
+      { reading_count: 3, receipt_count: 1 },
+    ])
 
     const missingReading = firstEntries[2]!
     await pool.query('DELETE FROM metric_readings WHERE id = $1', [
       missingReading.reading.id,
     ])
-    const healingEntries = buildEntries(sourceEventId)
+    const healingEntries = ratingFanoutEntries(sourceEventId)
     const healed = await store.recordMetrics({
       readings: healingEntries,
       sourceReceipt,
@@ -642,25 +589,16 @@ describe.sequential('metricCommandStore (integration)', () => {
 
     await expect(
       store.recordMetrics({
-        readings: buildEntries(missingSourceEventId),
+        readings: ratingFanoutEntries(missingSourceEventId),
         sourceReceipt: {
           eventId: missingSourceEventId,
           consumerName: 'metric.guest-analytics',
         },
       }),
     ).rejects.toThrow(/Failed query/u)
-    const rolledBack = await pool.query(
-      `SELECT
-         (
-           SELECT count(*)::int FROM metric_readings WHERE source_event_id = $1
-         ) AS reading_count,
-         (
-           SELECT count(*)::int FROM event_consumer_receipts
-           WHERE event_id = $1::uuid AND consumer_name = 'metric.guest-analytics'
-         ) AS receipt_count`,
-      [missingSourceEventId],
-    )
-    expect(rolledBack.rows).toEqual([{ reading_count: 0, receipt_count: 0 }])
+    expect(await readingAndReceiptCounts(missingSourceEventId)).toEqual([
+      { reading_count: 0, receipt_count: 0 },
+    ])
   })
 
   it('commits every rating retraction with one receipt or rolls all back', async () => {
@@ -668,52 +606,15 @@ describe.sequential('metricCommandStore (integration)', () => {
     const retractionEventId = '4f000000-0000-4000-8000-000000000042'
     const missingRetractionEventId = '4f000000-0000-4000-8000-000000000043'
     const store = createAtomicMetricCommandStore(db, randomUUID)
-    const definitions = [
-      {
-        id: '11111111-1111-4111-8111-111111111202',
-        key: 'portal.rating' as const,
-        value: 4,
-        sourcePolicy: 'first_party_guest_private' as const,
-      },
-      {
-        id: '11111111-1111-4111-8111-111111111302',
-        key: 'portal.rating_count' as const,
-        value: 1,
-        sourcePolicy: 'first_party_guest_gateway_metric' as const,
-      },
-      {
-        id: '11111111-1111-4111-8111-111111111303',
-        key: 'portal.rating_average' as const,
-        value: 4,
-        sourcePolicy: 'first_party_guest_gateway_metric' as const,
-      },
-    ]
-    const originalEntries = definitions.map((definition) => {
-      const reading = makeReading({
-        id: metricReadingId(randomUUID()),
-        definitionVersionId: definition.id,
-        metricKey: definition.key,
-        portalId: PORTAL_ID,
-        portalGroupId: null,
-        value: definition.value,
-        sourceEventId: originalSourceEventId,
-        sourcePolicy: definition.sourcePolicy,
-        retentionClass: 'guest_gateway_24_month',
-      })
-      return {
-        reading,
-        destinationKind: null,
-      }
-    })
+    const originalEntries = ratingFanoutEntries(originalSourceEventId)
     await store.recordMetrics({ readings: originalEntries })
-    await pool.query(
-      `INSERT INTO outbox_events (
-         id, event_type, event_version, payload, organization_id, property_id,
-         source_context, source_aggregate_id
-       ) VALUES ($1, 'guest.rating.retracted', 1, '{}'::jsonb, $2, $3, 'guest', $4)`,
-      [retractionEventId, ORG_ID, PROP_ID, PORTAL_ID],
-    )
-    const commands = definitions.map((definition) => ({
+    await seedGuestSourceEvent(pool, {
+      id: retractionEventId,
+      type: 'guest.rating.retracted',
+      payload: {},
+      aggregateId: PORTAL_ID,
+    })
+    const commands = RATING_FANOUT_DEFINITIONS.map((definition) => ({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
       portalId: PORTAL_ID,
@@ -740,19 +641,9 @@ describe.sequential('metricCommandStore (integration)', () => {
       'duplicate',
       'duplicate',
     ])
-    const committed = await pool.query(
-      `SELECT
-         (
-           SELECT count(*)::int FROM metric_corrections
-           WHERE source_event_id LIKE $1
-         ) AS correction_count,
-         (
-           SELECT count(*)::int FROM event_consumer_receipts
-           WHERE event_id = $2::uuid AND consumer_name = 'metric.guest-analytics'
-         ) AS receipt_count`,
-      [`${retractionEventId}:%`, retractionEventId],
-    )
-    expect(committed.rows).toEqual([{ correction_count: 3, receipt_count: 1 }])
+    expect(await correctionAndReceiptCounts(retractionEventId)).toEqual([
+      { correction_count: 3, receipt_count: 1 },
+    ])
 
     await expect(
       store.retractMetrics(
@@ -766,19 +657,9 @@ describe.sequential('metricCommandStore (integration)', () => {
         },
       ),
     ).rejects.toThrow(/Failed query/u)
-    const rolledBack = await pool.query(
-      `SELECT
-         (
-           SELECT count(*)::int FROM metric_corrections
-           WHERE source_event_id LIKE $1
-         ) AS correction_count,
-         (
-           SELECT count(*)::int FROM event_consumer_receipts
-           WHERE event_id = $2::uuid AND consumer_name = 'metric.guest-analytics'
-         ) AS receipt_count`,
-      [`${missingRetractionEventId}:%`, missingRetractionEventId],
-    )
-    expect(rolledBack.rows).toEqual([{ correction_count: 0, receipt_count: 0 }])
+    expect(await correctionAndReceiptCounts(missingRetractionEventId)).toEqual([
+      { correction_count: 0, receipt_count: 0 },
+    ])
   })
 
   it('retracts a specific Guest source fact without replacing it with zero', async () => {
@@ -793,7 +674,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       retentionClass: 'guest_gateway_24_month',
       staffAttribution: STAFF_ATTRIBUTION,
     })
-    await store.recordMetric({ reading })
+    await recordOne(store, { reading })
 
     const command = {
       organizationId: ORG_ID,
@@ -805,11 +686,11 @@ describe.sequential('metricCommandStore (integration)', () => {
       occurredAt: new Date('2026-06-01T12:30:00.000Z'),
       staffAttribution: reading.staffAttribution,
     }
-    await expect(store.retractMetric(command)).resolves.toEqual({
+    await expect(retractOne(store, command)).resolves.toEqual({
       status: 'retracted',
       correctedReadingId: READING_ID,
     })
-    await expect(store.retractMetric(command)).resolves.toEqual({
+    await expect(retractOne(store, command)).resolves.toEqual({
       status: 'duplicate',
       correctedReadingId: READING_ID,
     })
@@ -870,14 +751,14 @@ describe.sequential('metricCommandStore (integration)', () => {
       sourcePolicy: 'first_party_guest_gateway_metric',
       retentionClass: 'guest_gateway_24_month',
     })
-    await store.recordMetric({
+    await recordOne(store, {
       reading: otherReading,
     })
 
     // Property, Portal, definition and superseded source all name the other
     // tenant's reading; only the organization is the caller's own.
     await expect(
-      store.retractMetric({
+      retractOne(store, {
         organizationId: ORG_ID,
         propertyId: OTHER_PROP_ID,
         portalId: OTHER_PORTAL_ID,

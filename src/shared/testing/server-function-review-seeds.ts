@@ -8,9 +8,9 @@
 // a test names; AI-assisted replies need an AI operation and are out of reach.
 
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
-import type { InboxItem, InboxStatus } from '#/contexts/inbox/domain/types'
-import { storedAiReviewSourceProvenance } from '#/contexts/review/application/ai-review-source'
-import type { StarRating } from '#/contexts/review/domain/types'
+import type { InboxItem, InboxStatus } from '#/contexts/reputation/domain/inbox-types'
+import { storedAiReviewSourceProvenance } from '#/contexts/reputation/reviews/ai-review-source.server'
+import type { StarRating } from '#/contexts/reputation/domain/review-types'
 import { getDb } from '#/shared/db'
 import {
   feedbackId,
@@ -269,7 +269,13 @@ export function reviewSeeds(context: HarnessSeedContext): ReviewSeeds {
       context.clock,
     )
     const created = isReview
-      ? await store.createItem(item, null, { materialReviewRevision: 1 })
+      ? await store.createItem(item, null, {
+          sourceRevision: 1,
+          openedReason: 'review_observed',
+          actorType: 'provider',
+          triggerEventId: null,
+          openedAt: item.createdAt,
+        })
       : await store.createItem(item, null, {
           sourceRevision: 1,
           openedReason: 'feedback_submitted',

@@ -2,7 +2,7 @@ import { createElement, type ComponentProps } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
-import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionDto } from '#/contexts/integration/public-api'
 import { GoogleConnectionSettingsRow } from './google-connection-settings-row'
 
 // Render the confirmation's message without a browser portal. The dialog's
@@ -27,7 +27,6 @@ const connection: GoogleConnectionDto = {
   accountEmail: 'owner@harborline.test',
   scopes: [],
   connectedBy: 'user-1',
-  visibility: 'organization',
   status: 'active',
   createdAt: new Date('2026-08-27T00:00:00Z'),
   updatedAt: new Date('2026-08-27T00:00:00Z'),

@@ -4,7 +4,6 @@
 
 import type { OrganizationId, UserId, GoogleConnectionId } from '#/shared/domain/ids'
 
-export type GoogleConnectionVisibility = 'private' | 'organization'
 export type GoogleCredentialUseState = 'active' | 'cleanup_only' | 'none'
 
 export type GoogleConnectionStatus =
@@ -30,7 +29,6 @@ export type GoogleConnection = Readonly<{
   credentialAuthorizedBy: UserId
   /** Immutable first-connection provenance; never used as current authority. */
   connectedBy: UserId
-  visibility: GoogleConnectionVisibility
   status: GoogleConnectionStatus
   credentialUseState: GoogleCredentialUseState
   cleanupMaterialDeadlineAt: Date | null

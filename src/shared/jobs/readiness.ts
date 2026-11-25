@@ -8,7 +8,6 @@
 //
 //   (a) every job definition with registration 'enabled' has a handler
 //       quarantined rows may retain an explicit safety/report handler;
-//       denied_dark/blocked_capability rows MUST NOT retain a handler;
 //   (b) every registered handler name has a job definition — a stale or
 //       typo'd handler fails the boot. The 'domain-events' dispatcher is NOT
 //       a registered handler: it is a queue-level worker created with its own
@@ -40,25 +39,18 @@ export type ReadinessLogger = {
 
 function assertHandlersRegistered(registry: JobRegistry): void {
   const registered = new Set(registry.getAll().keys())
-  const defsByName = new Map(JOB_DEFINITIONS.map((def) => [def.name, def]))
+  const defined = new Set(JOB_DEFINITIONS.map((def) => def.name))
 
   const missing = JOB_DEFINITIONS.filter(
     (def) => def.registration === 'enabled' && !registered.has(def.name),
   ).map((def) => def.name)
-  const extra = [...registered].filter((name) => {
-    const def = defsByName.get(name)
-    return (
-      def === undefined ||
-      def.registration === 'blocked_capability' ||
-      def.registration === 'denied_dark'
-    )
-  })
+  const extra = [...registered].filter((name) => !defined.has(name))
 
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
       'job readiness failed (deployment/config mismatch): ' +
         `${missing.length} enabled catalogue job(s) without a handler [${missing.join(', ')}], ` +
-        `${extra.length} registered handler(s) absent or forbidden by the definitions [${extra.join(', ')}]`,
+        `${extra.length} registered handler(s) absent from the definitions [${extra.join(', ')}]`,
     )
   }
 }

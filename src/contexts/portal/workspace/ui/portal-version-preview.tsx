@@ -13,7 +13,7 @@ import {
   type GuestLocale,
 } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import type { PortalPreviewOutcome } from '#/contexts/portal/application/portal-management-contracts'
 import { PortalPreviewBody } from '#/components/features/portal/portal-preview/portal-preview-pane'
 import { usePreviewCopy } from '#/components/features/portal/portal-preview/use-preview-copy'

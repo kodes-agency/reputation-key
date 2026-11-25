@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DASHBOARD_RANGE_LABELS } from '#/shared/dashboard-range'
+import { DASHBOARD_RANGE_LABELS } from '#/shared/dashboard/dashboard-range'
 import {
   PORTAL_OVERVIEW_RANGES,
   PORTAL_RESULTS_RANGES,

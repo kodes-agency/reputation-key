@@ -43,6 +43,7 @@ import type {
   PortalRatingBucket,
 } from './portal-analytics.repository.port.server'
 import { type SeriesReadingRow } from '../domain/portal-results-series'
+import { metricPortalWhere } from '../property-overview/read-facade.server'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 
 function assertValidPeriod(startDate: Date, endDate: Date): void {
@@ -53,22 +54,6 @@ function assertValidPeriod(startDate: Date, endDate: Date): void {
   ) {
     throw new Error('Portal analytics period is invalid')
   }
-}
-
-function metricPortalWhere(
-  organizationId: OrganizationId,
-  propertyId: PropertyId,
-  portalId: PortalId,
-  startDate: Date,
-  endDate: Date,
-) {
-  return and(
-    eq(metricReadings.organizationId, organizationId),
-    eq(metricReadings.propertyId, propertyId),
-    eq(metricReadings.portalId, portalId),
-    gte(metricReadings.eventAt, startDate),
-    lt(metricReadings.eventAt, endDate),
-  )
 }
 
 async function countUnattributedClicks(

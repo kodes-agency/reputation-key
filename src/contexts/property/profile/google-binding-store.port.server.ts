@@ -164,22 +164,6 @@ export type PropertyGoogleBindingStore = Readonly<{
       now: Date
     }>,
   ) => Promise<PropertyGoogleBindingSummary>
-  scrubProviderIdentity: (
-    input: Readonly<{
-      organizationId: OrganizationId
-      propertyId: PropertyId
-      expectedSourceEpoch: number
-      expectedProfileVersion: number
-      now: Date
-    }>,
-  ) => Promise<PropertyGoogleBindingSummary>
-  releaseRetention: (
-    input: Readonly<{
-      organizationId: OrganizationId
-      idempotencyKeys: readonly string[]
-      releasedAt: Date
-    }>,
-  ) => Promise<number>
   releaseRetentionFromEvent: (
     input: Readonly<{
       eventId: string
@@ -200,5 +184,4 @@ export type PropertyGoogleBindingStore = Readonly<{
       limit: number
     }>,
   ) => Promise<number>
-  cleanupOrganization: (organizationId: OrganizationId) => Promise<number>
 }>

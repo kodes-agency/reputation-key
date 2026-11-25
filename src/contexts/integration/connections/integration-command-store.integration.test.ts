@@ -1,247 +1,64 @@
-// BQC-3.5 — integration command store integration tests (real Postgres).
+// Integration command store integration tests (real Postgres): connect,
+// reconnect and reauthorization commands.
 //
 // Crash-boundary proofs on the real google_connections table: forced outbox
 // failure rolls back state, happy paths co-commit state and facts, and global
 // identity uniqueness maps to the domain race error.
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import type { Pool } from 'pg'
-import { getDb } from '#/shared/db'
-import { getEnv } from '#/shared/config/env'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
-import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import type { GoogleConnection } from '../domain/types'
-import {
-  integrationGoogleAccountConnected,
-  integrationGoogleAccountDisconnected,
-  integrationGoogleAccountReauthorizationRequired,
-} from '../domain/events'
-import { isIntegrationError } from '../domain/errors'
+import { describe, it, expect } from 'vitest'
+import { googleConnectionId } from '#/shared/domain/ids'
+import { unregisteredFact } from '#/shared/testing/unregistered-fact'
+import { integrationGoogleAccountConnected } from '../domain/events'
 import { isUniqueViolationError } from './google-connection-repository.port.server'
-import { createAtomicIntegrationCommandStore } from './integration-command-store.server'
-import type { ReconnectGoogleAccountCommand } from './integration-command-store.port.server'
-import { createGoogleDisconnectRevokeRepository } from './google-disconnect-revoke-repository.server'
-import { createGoogleOAuthExchangeRecoveryRepository } from './google-oauth-exchange-recovery-repository.server'
+import {
+  CONN_ID,
+  EXCHANGE_ATTEMPT_ID,
+  INITIATOR_ID,
+  NOW,
+  ORG_ID,
+  connect,
+  connectedEvent,
+  connectionRow,
+  disconnectedEvent,
+  expectIntegrationError,
+  makeConnection,
+  newStore,
+  outboxFacts,
+  prepareExchangeAttempt,
+  reconnectCommand,
+  revokedEvent,
+  testPool,
+  useCommandStoreDatabase,
+} from './integration-command-store.test-fixtures'
 
-const ORG_ID = organizationId('org-intcmd-0000-0000-0000-000000000001')
-const OTHER_ORG_ID = organizationId('org-intcmd-0000-0000-0000-000000000002')
-const CONN_ID = googleConnectionId('6c000000-0000-0000-0000-000000000001')
-const OTHER_CONN_ID = googleConnectionId('6c000000-0000-0000-0000-000000000003')
-const INITIATOR_ID = userId('user-intcmd-00000000000000000001')
-const EXCHANGE_ATTEMPT_ID = '6e000000-0000-4000-8000-000000000001'
-const DISCONNECT_ATTEMPT_ID = '6e000000-0000-4000-8000-000000000002'
-const CLEANUP_PERMIT_ID = '6e000000-0000-4000-8000-000000000003'
-const NOW = new Date('2026-06-01T12:00:00.000Z')
+const CONNECTED = 'integration.google_account.connected'
+const REAUTH_REQUIRED = 'integration.google_account.reauthorization_required'
+const GHOST_REJECTION =
+  /Event type integration\.ghost:v1 is not registered for the outbox/
 
-let pool: Pool
-let lease: TestLease
-const db = getDb()
+useCommandStoreDatabase()
 
-function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnection {
-  return {
-    id: CONN_ID,
-    organizationId: ORG_ID,
-    googleSubject: 'subject-intcmd-1',
-    googleAccountEmail: null,
-    encryptedAccessToken: 'enc-a',
-    encryptedRefreshToken: 'enc-r',
-    tokenExpiresAt: new Date('2026-06-01T13:00:00.000Z'),
-    scopes: ['scope-a'],
-    connectedBy: INITIATOR_ID,
-    visibility: 'organization',
-    status: 'active',
-    credentialUseState: 'active',
-    cleanupMaterialDeadlineAt: null,
-    lifecycleVersion: 1,
-    accessVersion: 1,
-    credentialGeneration: 1,
-    encryptionKeyId: 'v1',
-    lastSuccessfulSyncAt: null,
-    statusReason: null,
-    statusChangedAt: NOW,
-    createdAt: NOW,
-    updatedAt: NOW,
-    ...overrides,
-    credentialAuthorizedBy: overrides.credentialAuthorizedBy ?? INITIATOR_ID,
-  }
-}
-
-const connectedEvent = () =>
-  integrationGoogleAccountConnected({
-    connectionId: CONN_ID,
-    organizationId: ORG_ID,
-    userId: INITIATOR_ID,
-    occurredAt: NOW,
-  })
-
-const disconnectedEvent = () =>
-  integrationGoogleAccountDisconnected({
-    connectionId: CONN_ID,
-    organizationId: ORG_ID,
-    occurredAt: NOW,
-    userId: INITIATOR_ID,
-  })
-
-const reconnectCommand = (
-  expected: ReconnectGoogleAccountCommand['expected'],
-): ReconnectGoogleAccountCommand => ({
-  organizationId: ORG_ID,
-  connectionId: CONN_ID,
-  expected,
-  googleSubject: 'google-subject-2',
-  googleAccountEmail: 'owner-2@example.com',
-  scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
-  encryptedAccessToken: 'enc-a2',
-  encryptedRefreshToken: 'enc-r2',
-  tokenExpiresAt: new Date('2026-06-01T14:00:00.000Z'),
-  visibility: 'organization',
-  event: connectedEvent(),
-})
-
-const disconnectedFacts = async () =>
-  (
-    await pool.query<{ id: string }>(
-      `SELECT id FROM outbox_events
-       WHERE organization_id = $1 AND event_type = 'integration.google_account.disconnected'`,
-      [ORG_ID],
-    )
-  ).rows
-
-/**
- * A governed revoke of CONN_ID that has taken the row into `disconnecting`:
- * the attempt was prepared against versions 1/1/1 and its dispatch bumped the
- * lifecycle version once (see google-disconnect-revoke-repository.server.ts).
- */
-async function seedDispatchingDisconnect(cleanupDeadlineAt: Date) {
-  const store = createAtomicIntegrationCommandStore(db, () => NOW)
-  await store.connectGoogleAccount({
-    connection: makeConnection({
-      status: 'disconnecting',
-      credentialUseState: 'cleanup_only',
-      cleanupMaterialDeadlineAt: cleanupDeadlineAt,
-      lifecycleVersion: 2,
-    }),
-    event: connectedEvent(),
-  })
-  await pool.query(
-    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
-     VALUES ('google_disconnect_revoke', $1, $2::jsonb, $3)`,
-    [
-      DISCONNECT_ATTEMPT_ID,
-      JSON.stringify({
-        id: DISCONNECT_ATTEMPT_ID,
-        organizationId: ORG_ID,
-        connectionId: CONN_ID,
-        initiatorUserId: INITIATOR_ID,
-        cleanupWorkPermitId: CLEANUP_PERMIT_ID,
-        state: 'dispatching',
-        expectedLifecycleVersion: 1,
-        expectedAccessVersion: 1,
-        expectedCredentialGeneration: 1,
-        credentialBinding: null,
-        cleanupDeadlineAt: cleanupDeadlineAt.toISOString(),
-        activatedAt: NOW.toISOString(),
-        dispatchingAt: NOW.toISOString(),
-        terminalAt: null,
-        outcomeCode: null,
-        createdAt: NOW.toISOString(),
-        updatedAt: NOW.toISOString(),
-      }),
-      NOW,
-    ],
+const exchangeAttempt = (columns: string) =>
+  testPool().query(
+    `SELECT ${columns}
+       FROM idempotency_receipts
+       WHERE scope = 'google_oauth_exchange' AND key = $1`,
+    [EXCHANGE_ATTEMPT_ID],
   )
-}
-
-async function truncateAll(p: Pool) {
-  const organizations = [ORG_ID, OTHER_ORG_ID]
-  await p.query(
-    `DELETE FROM idempotency_receipts
-     WHERE scope IN ('google_oauth_exchange', 'google_disconnect_revoke')
-       AND payload->>'organizationId' = ANY($1::text[])`,
-    [organizations],
-  )
-  await p.query(
-    'DELETE FROM google_connections WHERE organization_id = ANY($1::text[])',
-    [organizations],
-  )
-  await p.query('DELETE FROM outbox_events WHERE organization_id = ANY($1::text[])', [
-    organizations,
-  ])
-}
-
-async function prepareExchangeAttempt(id = EXCHANGE_ATTEMPT_ID) {
-  const recovery = createGoogleOAuthExchangeRecoveryRepository(db)
-  const facts = {
-    id,
-    organizationId: ORG_ID,
-    initiatorUserId: INITIATOR_ID,
-    connectionId: CONN_ID,
-    connectionMode: 'new' as const,
-    targetConnectionId: null,
-    expectedLifecycleVersion: 0,
-    expectedAccessVersion: 0,
-    expectedCredentialGeneration: 0,
-  }
-  await recovery.begin({ ...facts, now: NOW })
-  await recovery.markProviderStarted({
-    id,
-    organizationId: ORG_ID,
-    initiatorUserId: INITIATOR_ID,
-    now: NOW,
-  })
-  await recovery.preserveSuccessfulResult({
-    id,
-    organizationId: ORG_ID,
-    initiatorUserId: INITIATOR_ID,
-    encryptedResult: 'application-encrypted-provider-response',
-    now: NOW,
-  })
-  await recovery.claimPreservedResult({
-    id,
-    organizationId: ORG_ID,
-    initiatorUserId: INITIATOR_ID,
-    now: NOW,
-  })
-  return recovery
-}
-
-beforeAll(async () => {
-  const env = getEnv()
-  lease = await acquireTestLease(env.DATABASE_URL, 2)
-  pool = lease.pool
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
-afterAll(async () => {
-  clearEventSchemas()
-  await truncateAll(pool)
-  await lease.release()
-})
-
-beforeEach(async () => {
-  await truncateAll(pool)
-})
 
 describe.sequential('integrationCommandStore (integration)', () => {
   it('connectGoogleAccount commits the connection + connected fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
     const event = connectedEvent()
 
-    await store.connectGoogleAccount({
-      connection: makeConnection(),
-      event,
-    })
+    await connect(newStore(), {}, event)
 
-    const rows = await pool.query(
+    const rows = await testPool().query(
       'SELECT id, status FROM google_connections WHERE organization_id = $1',
       [ORG_ID],
     )
     expect(rows.rows).toHaveLength(1)
     expect(rows.rows[0].status).toBe('active')
-    const facts = await pool.query(
+    const facts = await testPool().query(
       `SELECT id, payload FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'integration.google_account.connected' AND id = $2`,
       [ORG_ID, event.eventId],
@@ -257,24 +74,19 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
   it('atomically commits a connection and erases its one-use exchange result', async () => {
     const recovery = await prepareExchangeAttempt()
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
 
-    await store.connectGoogleAccount({
+    await newStore().connectGoogleAccount({
       connection: makeConnection(),
       exchangeAttemptId: EXCHANGE_ATTEMPT_ID,
       event: connectedEvent(),
     })
 
-    const attempt = await pool.query(
-      `SELECT
-         payload->>'state' AS state,
+    const attempt = await exchangeAttempt(
+      `payload->>'state' AS state,
          payload->>'encryptedResult' AS encrypted_result,
          payload->>'responseExpiresAt' AS response_expires_at,
          payload->>'applyLeaseExpiresAt' AS apply_lease_expires_at,
-         payload->>'outcomeCode' AS outcome_code
-       FROM idempotency_receipts
-       WHERE scope = 'google_oauth_exchange' AND key = $1`,
-      [EXCHANGE_ATTEMPT_ID],
+         payload->>'outcomeCode' AS outcome_code`,
     )
     expect(attempt.rows[0]).toMatchObject({
       state: 'completed',
@@ -294,33 +106,21 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
   it('rolls back both connection and exchange completion when the fact cannot commit', async () => {
     await prepareExchangeAttempt()
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    const ghost = {
-      ...connectedEvent(),
-      _tag: 'integration.ghost',
-    } as unknown as Parameters<typeof store.connectGoogleAccount>[0]['event']
 
     await expect(
-      store.connectGoogleAccount({
+      newStore().connectGoogleAccount({
         connection: makeConnection(),
         exchangeAttemptId: EXCHANGE_ATTEMPT_ID,
-        event: ghost,
+        event: unregisteredFact(connectedEvent(), 'integration.ghost'),
       }),
-    ).rejects.toThrow(/Event type integration\.ghost:v1 is not registered for the outbox/)
+    ).rejects.toThrow(GHOST_REJECTION)
 
-    const connections = await pool.query(
-      'SELECT id FROM google_connections WHERE organization_id = $1',
-      [ORG_ID],
+    const connections = await connectionRow('id')
+    const attempt = await exchangeAttempt(
+      `payload->>'state' AS state,
+         payload->>'encryptedResult' AS encrypted_result`,
     )
-    const attempt = await pool.query(
-      `SELECT
-         payload->>'state' AS state,
-         payload->>'encryptedResult' AS encrypted_result
-       FROM idempotency_receipts
-       WHERE scope = 'google_oauth_exchange' AND key = $1`,
-      [EXCHANGE_ATTEMPT_ID],
-    )
-    expect(connections.rows).toHaveLength(0)
+    expect(connections).toHaveLength(0)
     expect(attempt.rows[0]).toMatchObject({
       state: 'applying',
       encrypted_result: 'application-encrypted-provider-response',
@@ -328,104 +128,58 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('connectGoogleAccount rolls back the insert when the fact insert fails (unregistered type)', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    const ghost = {
-      ...connectedEvent(),
-      _tag: 'integration.ghost',
-    } as unknown as Parameters<typeof store.connectGoogleAccount>[0]['event']
-
     await expect(
-      store.connectGoogleAccount({
-        connection: makeConnection(),
-        event: ghost,
-      }),
-    ).rejects.toThrow(/Event type integration\.ghost:v1 is not registered for the outbox/)
+      connect(newStore(), {}, unregisteredFact(connectedEvent(), 'integration.ghost')),
+    ).rejects.toThrow(GHOST_REJECTION)
 
-    const rows = await pool.query(
-      'SELECT id FROM google_connections WHERE organization_id = $1',
-      [ORG_ID],
-    )
-    expect(rows.rows).toHaveLength(0)
+    expect(await connectionRow('id')).toHaveLength(0)
   })
 
   it('connectGoogleAccount maps the global unique race to UniqueViolationError', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection(),
-      event: connectedEvent(),
-    })
+    const store = newStore()
+    await connect(store)
 
     await expect(
-      store.connectGoogleAccount({
-        connection: makeConnection({
-          id: googleConnectionId('6c000000-0000-0000-0000-000000000002'),
-        }),
-        event: connectedEvent(),
-      }),
+      connect(store, { id: googleConnectionId('6c000000-0000-0000-0000-000000000002') }),
     ).rejects.toSatisfy((e: unknown) => isUniqueViolationError(e))
   })
 
-  it('reconnectGoogleAccount commits token/visibility update + fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection(),
-      event: connectedEvent(),
-    })
+  it('reconnectGoogleAccount commits token update + fact in one transaction', async () => {
+    const store = newStore()
+    await connect(store)
 
-    const updated = await store.reconnectGoogleAccount(
-      reconnectCommand({
-        lifecycleVersion: 1,
-        accessVersion: 1,
-        credentialGeneration: 1,
-      }),
-    )
+    const updated = await store.reconnectGoogleAccount(reconnectCommand())
 
     expect(updated).toMatchObject({
       googleSubject: 'google-subject-2',
       googleAccountEmail: 'owner-2@example.com',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
-      visibility: 'organization',
     })
-    const rows = await pool.query(
-      'SELECT google_subject, google_account_email, encrypted_access_token, scopes, visibility, status FROM google_connections WHERE id = $1',
-      [CONN_ID],
+    const rows = await connectionRow(
+      'google_subject, google_account_email, encrypted_access_token, scopes, status',
     )
-    expect(rows.rows[0]).toMatchObject({
+    expect(rows[0]).toMatchObject({
       google_subject: 'google-subject-2',
       google_account_email: 'owner-2@example.com',
       encrypted_access_token: 'enc-a2',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
-      visibility: 'organization',
       status: 'active',
     })
-    const facts = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM outbox_events
-       WHERE organization_id = $1 AND event_type = 'integration.google_account.connected'`,
-      [ORG_ID],
-    )
-    expect(facts.rows[0].n).toBe(2)
+    expect(await outboxFacts(CONNECTED)).toHaveLength(2)
   })
 
   it('reconnectGoogleAccount after a revocation clears the reason and stamps the status change', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection({
-        lifecycleVersion: 4,
-        accessVersion: 9,
-        credentialGeneration: 6,
-      }),
-      event: connectedEvent(),
+    const store = newStore()
+    await connect(store, {
+      lifecycleVersion: 4,
+      accessVersion: 9,
+      credentialGeneration: 6,
     })
     await store.requireReauthorization({
       organizationId: ORG_ID,
       connectionId: CONN_ID,
       expected: { lifecycleVersion: 4, credentialGeneration: 6 },
-      event: integrationGoogleAccountReauthorizationRequired({
-        connectionId: CONN_ID,
-        organizationId: ORG_ID,
-        cause: 'provider_revoked',
-        occurredAt: NOW,
-      }),
+      event: revokedEvent(),
     })
     const reauthorizedAt = new Date('2026-06-02T09:30:00.000Z')
 
@@ -443,12 +197,11 @@ describe.sequential('integrationCommandStore (integration)', () => {
       }),
     })
 
-    const rows = await pool.query(
-      `SELECT status, status_reason, status_changed_at, credential_authorized_at
-         FROM google_connections WHERE id = $1`,
-      [CONN_ID],
-    )
-    expect(rows.rows).toEqual([
+    expect(
+      await connectionRow(
+        'status, status_reason, status_changed_at, credential_authorized_at',
+      ),
+    ).toEqual([
       {
         status: 'active',
         status_reason: null,
@@ -459,11 +212,8 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('reconnectGoogleAccount refuses versions a disconnect moved and leaves the row disconnected — no fact', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection(),
-      event: connectedEvent(),
-    })
+    const store = newStore()
+    await connect(store)
     await store.disconnectGoogleAccount({
       organizationId: ORG_ID,
       connectionId: CONN_ID,
@@ -472,24 +222,16 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
     // The ceremony was approved against the row as it stood before the
     // disconnect committed.
-    await expect(
-      store.reconnectGoogleAccount(
-        reconnectCommand({
-          lifecycleVersion: 1,
-          accessVersion: 1,
-          credentialGeneration: 1,
-        }),
-      ),
-    ).rejects.toSatisfy(
-      (e: unknown) => isIntegrationError(e) && e.code === 'oauth_failed',
+    await expectIntegrationError(
+      store.reconnectGoogleAccount(reconnectCommand()),
+      'oauth_failed',
     )
 
-    const rows = await pool.query(
-      `SELECT status, credential_use_state, encrypted_access_token, google_subject
-         FROM google_connections WHERE id = $1`,
-      [CONN_ID],
-    )
-    expect(rows.rows).toEqual([
+    expect(
+      await connectionRow(
+        'status, credential_use_state, encrypted_access_token, google_subject',
+      ),
+    ).toEqual([
       {
         status: 'disconnected',
         credential_use_state: 'none',
@@ -497,375 +239,28 @@ describe.sequential('integrationCommandStore (integration)', () => {
         google_subject: null,
       },
     ])
-    const facts = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM outbox_events
-       WHERE organization_id = $1 AND event_type = 'integration.google_account.connected'`,
-      [ORG_ID],
-    )
-    expect(facts.rows[0].n).toBe(1)
+    expect(await outboxFacts(CONNECTED)).toHaveLength(1)
   })
 
   it('reconnectGoogleAccount throws connection_not_found for a missing row — no fact', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-
-    await expect(
-      store.reconnectGoogleAccount(
-        reconnectCommand({
-          lifecycleVersion: 1,
-          accessVersion: 1,
-          credentialGeneration: 1,
-        }),
-      ),
-    ).rejects.toSatisfy(
-      (e: unknown) => isIntegrationError(e) && e.code === 'connection_not_found',
+    await expectIntegrationError(
+      newStore().reconnectGoogleAccount(reconnectCommand()),
+      'connection_not_found',
     )
 
-    const facts = await pool.query(
+    const facts = await testPool().query(
       'SELECT id FROM outbox_events WHERE organization_id = $1',
       [ORG_ID],
     )
     expect(facts.rows).toHaveLength(0)
   })
-
-  it('disconnectGoogleAccount commits status + redaction + fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection({ googleAccountEmail: 'owner@example.com' }),
-      event: connectedEvent(),
-    })
-    const event = integrationGoogleAccountDisconnected({
-      connectionId: CONN_ID,
-      organizationId: ORG_ID,
-      occurredAt: NOW,
-      userId: null,
-    })
-
-    const result = await store.disconnectGoogleAccount({
-      organizationId: ORG_ID,
-      connectionId: CONN_ID,
-      event,
-    })
-
-    expect(result.status).toBe('disconnected')
-    const rows = await pool.query(
-      'SELECT status, encrypted_access_token, google_subject, google_account_email, scopes FROM google_connections WHERE id = $1',
-      [CONN_ID],
-    )
-    expect(rows.rows[0]).toMatchObject({
-      status: 'disconnected',
-      encrypted_access_token: 'redacted',
-      google_subject: null,
-      google_account_email: null,
-      scopes: [],
-    })
-    const facts = await pool.query(
-      `SELECT id FROM outbox_events
-       WHERE organization_id = $1 AND event_type = 'integration.google_account.disconnected' AND id = $2`,
-      [ORG_ID, event.eventId],
-    )
-    expect(facts.rows).toHaveLength(1)
-  })
-
-  it('disconnectGoogleAccount rolls back status + redaction when the fact insert fails', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection(),
-      event: connectedEvent(),
-    })
-    const ghost = {
-      ...integrationGoogleAccountDisconnected({
-        connectionId: CONN_ID,
-        organizationId: ORG_ID,
-        occurredAt: NOW,
-        userId: null,
-      }),
-      _tag: 'integration.ghost',
-    } as unknown as Parameters<typeof store.disconnectGoogleAccount>[0]['event']
-
-    await expect(
-      store.disconnectGoogleAccount({
-        organizationId: ORG_ID,
-        connectionId: CONN_ID,
-        event: ghost,
-      }),
-    ).rejects.toThrow(/Event type integration\.ghost:v1 is not registered for the outbox/)
-
-    // The pre-BQC-3.5 crash window is closed: no status flip, no redaction.
-    const rows = await pool.query(
-      'SELECT status, encrypted_access_token FROM google_connections WHERE id = $1',
-      [CONN_ID],
-    )
-    expect(rows.rows[0]).toMatchObject({
-      status: 'active',
-      encrypted_access_token: 'enc-a',
-    })
-  })
-
-  it('disconnectGoogleAccount throws connection_not_found for a missing row — no fact', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-
-    await expect(
-      store.disconnectGoogleAccount({
-        organizationId: ORG_ID,
-        connectionId: CONN_ID,
-        event: integrationGoogleAccountDisconnected({
-          connectionId: CONN_ID,
-          organizationId: ORG_ID,
-          occurredAt: NOW,
-          userId: null,
-        }),
-      }),
-    ).rejects.toSatisfy(
-      (e: unknown) => isIntegrationError(e) && e.code === 'connection_not_found',
-    )
-
-    const facts = await pool.query(
-      'SELECT id FROM outbox_events WHERE organization_id = $1',
-      [ORG_ID],
-    )
-    expect(facts.rows).toHaveLength(0)
-  })
-
-  it("disconnectGoogleAccount never reaches another organization's connection", async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection({
-        id: OTHER_CONN_ID,
-        organizationId: OTHER_ORG_ID,
-        googleSubject: 'subject-intcmd-other',
-      }),
-      event: integrationGoogleAccountConnected({
-        connectionId: OTHER_CONN_ID,
-        organizationId: OTHER_ORG_ID,
-        userId: INITIATOR_ID,
-        occurredAt: NOW,
-      }),
-    })
-
-    await expect(
-      store.disconnectGoogleAccount({
-        organizationId: ORG_ID,
-        connectionId: OTHER_CONN_ID,
-        event: integrationGoogleAccountDisconnected({
-          connectionId: OTHER_CONN_ID,
-          organizationId: ORG_ID,
-          occurredAt: NOW,
-          userId: null,
-        }),
-      }),
-    ).rejects.toSatisfy(
-      (e: unknown) => isIntegrationError(e) && e.code === 'connection_not_found',
-    )
-
-    const rows = await pool.query(
-      `SELECT organization_id, status, encrypted_access_token
-         FROM google_connections WHERE id = $1`,
-      [OTHER_CONN_ID],
-    )
-    expect(rows.rows).toEqual([
-      {
-        organization_id: OTHER_ORG_ID,
-        status: 'active',
-        encrypted_access_token: 'enc-a',
-      },
-    ])
-    const facts = await pool.query(
-      `SELECT id FROM outbox_events
-       WHERE organization_id = ANY($1::text[])
-         AND event_type = 'integration.google_account.disconnected'`,
-      [[ORG_ID, OTHER_ORG_ID]],
-    )
-    expect(facts.rows).toEqual([])
-  })
-
-  it('disconnectGoogleAccount returns an already-disconnected row without a second fact', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection(),
-      event: connectedEvent(),
-    })
-    const first = disconnectedEvent()
-    await store.disconnectGoogleAccount({
-      organizationId: ORG_ID,
-      connectionId: CONN_ID,
-      event: first,
-    })
-    const versions = () =>
-      pool.query(
-        `SELECT lifecycle_version, access_version, credential_generation
-           FROM google_connections WHERE id = $1`,
-        [CONN_ID],
-      )
-    const before = await versions()
-
-    await expect(
-      store.disconnectGoogleAccount({
-        organizationId: ORG_ID,
-        connectionId: CONN_ID,
-        event: disconnectedEvent(),
-      }),
-    ).resolves.toMatchObject({
-      status: 'disconnected',
-      encryptedRefreshToken: 'redacted',
-    })
-
-    expect((await versions()).rows).toEqual(before.rows)
-    await expect(disconnectedFacts()).resolves.toEqual([{ id: first.eventId }])
-  })
-
-  it('disconnectGoogleAccount leaves a governed disconnect in flight to its attempt, whose settle still redacts', async () => {
-    await seedDispatchingDisconnect(new Date(NOW.getTime() + 30_000))
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-
-    await expect(
-      store.disconnectGoogleAccount({
-        organizationId: ORG_ID,
-        connectionId: CONN_ID,
-        event: disconnectedEvent(),
-      }),
-    ).rejects.toSatisfy(
-      (e: unknown) => isIntegrationError(e) && e.code === 'invalid_transition',
-    )
-    const rows = await pool.query(
-      `SELECT status, credential_use_state, encrypted_refresh_token, lifecycle_version
-         FROM google_connections WHERE id = $1`,
-      [CONN_ID],
-    )
-    expect(rows.rows).toEqual([
-      {
-        status: 'disconnecting',
-        credential_use_state: 'cleanup_only',
-        encrypted_refresh_token: 'enc-r',
-        lifecycle_version: 2,
-      },
-    ])
-    await expect(disconnectedFacts()).resolves.toEqual([])
-
-    // Before this fence the local write consumed the row and this settle could
-    // only fail, leaving the attempt dispatching for good.
-    const settledEvent = disconnectedEvent()
-    await expect(
-      createGoogleDisconnectRevokeRepository(db).settle({
-        attemptId: DISCONNECT_ATTEMPT_ID,
-        organizationId: ORG_ID,
-        connectionId: CONN_ID,
-        initiatorUserId: INITIATOR_ID,
-        outcome: 'confirmed_revoked',
-        outcomeCode: 'google_revoke_confirmed',
-        event: settledEvent,
-        now: NOW,
-      }),
-    ).resolves.toMatchObject({
-      ok: true,
-      value: { status: 'disconnected', credentialUseState: 'none', googleSubject: null },
-    })
-    await expect(disconnectedFacts()).resolves.toEqual([{ id: settledEvent.eventId }])
-  })
-
-  it('disconnectGoogleAccount finishes a disconnecting row locally once its cleanup window has closed', async () => {
-    await seedDispatchingDisconnect(new Date(NOW.getTime() - 1))
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    const event = disconnectedEvent()
-
-    await expect(
-      store.disconnectGoogleAccount({
-        organizationId: ORG_ID,
-        connectionId: CONN_ID,
-        event,
-      }),
-    ).resolves.toMatchObject({
-      status: 'disconnected',
-      credentialUseState: 'none',
-      cleanupMaterialDeadlineAt: null,
-    })
-    const rows = await pool.query(
-      `SELECT status, encrypted_refresh_token, google_subject
-         FROM google_connections WHERE id = $1`,
-      [CONN_ID],
-    )
-    expect(rows.rows).toEqual([
-      {
-        status: 'disconnected',
-        encrypted_refresh_token: 'redacted',
-        google_subject: null,
-      },
-    ])
-    await expect(disconnectedFacts()).resolves.toEqual([{ id: event.eventId }])
-  })
-
-  it('reconcileElapsed closes an attempt whose row a later disconnect finished, without another fact', async () => {
-    // The attempt's window closed without a settle, so a disconnect finished
-    // the row locally; the attempt has nothing left to redact.
-    await seedDispatchingDisconnect(new Date(NOW.getTime() - 1))
-    const local = disconnectedEvent()
-    await createAtomicIntegrationCommandStore(db, () => NOW).disconnectGoogleAccount({
-      organizationId: ORG_ID,
-      connectionId: CONN_ID,
-      event: local,
-    })
-    const connectionBefore = await pool.query(
-      'SELECT * FROM google_connections WHERE id = $1',
-      [CONN_ID],
-    )
-    const revoke = createGoogleDisconnectRevokeRepository(db)
-
-    // Counts stay counts of redactions; the closed attempt is only visited.
-    await expect(revoke.reconcileElapsed({ now: NOW, limit: 10 })).resolves.toEqual({
-      visited: 1,
-      confirmedNotSent: 0,
-      cleanupAmbiguous: 0,
-    })
-
-    const attempt = await pool.query(
-      `SELECT payload->>'state' AS state,
-              payload->>'outcomeCode' AS outcome_code,
-              payload->>'terminalAt' AS terminal_at,
-              payload->>'credentialBinding' AS credential_binding
-         FROM idempotency_receipts
-        WHERE scope = 'google_disconnect_revoke' AND key = $1`,
-      [DISCONNECT_ATTEMPT_ID],
-    )
-    // Its cleanup permit is not on record, so whether Google received the
-    // revoke is unknown: the attempt closes as ambiguous, never as not-sent.
-    expect(attempt.rows).toEqual([
-      {
-        state: 'cleanup_ambiguous',
-        outcome_code: 'reconciled_connection_changed',
-        terminal_at: NOW.toISOString(),
-        credential_binding: null,
-      },
-    ])
-    const connectionAfter = await pool.query(
-      'SELECT * FROM google_connections WHERE id = $1',
-      [CONN_ID],
-    )
-    expect(connectionAfter.rows).toEqual(connectionBefore.rows)
-    await expect(disconnectedFacts()).resolves.toEqual([{ id: local.eventId }])
-    // A closed attempt is not visited again.
-    await expect(revoke.reconcileElapsed({ now: NOW, limit: 10 })).resolves.toEqual({
-      visited: 0,
-      confirmedNotSent: 0,
-      cleanupAmbiguous: 0,
-    })
-  })
-
-  const revokedEvent = () =>
-    integrationGoogleAccountReauthorizationRequired({
-      connectionId: CONN_ID,
-      organizationId: ORG_ID,
-      cause: 'provider_revoked',
-      occurredAt: NOW,
-    })
 
   it('requireReauthorization commits reauth_required + the reauthorization fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection({
-        lifecycleVersion: 4,
-        accessVersion: 9,
-        credentialGeneration: 6,
-      }),
-      event: connectedEvent(),
+    const store = newStore()
+    await connect(store, {
+      lifecycleVersion: 4,
+      accessVersion: 9,
+      credentialGeneration: 6,
     })
     const event = revokedEvent()
 
@@ -878,14 +273,13 @@ describe.sequential('integrationCommandStore (integration)', () => {
       }),
     ).resolves.toBe(true)
 
-    const rows = await pool.query(
-      `SELECT status, status_reason, status_changed_at, credential_use_state,
+    expect(
+      await connectionRow(
+        `status, status_reason, status_changed_at, credential_use_state,
               lifecycle_version, access_version, credential_generation,
-              encrypted_refresh_token
-         FROM google_connections WHERE id = $1`,
-      [CONN_ID],
-    )
-    expect(rows.rows).toEqual([
+              encrypted_refresh_token`,
+      ),
+    ).toEqual([
       {
         status: 'reauth_required',
         status_reason: 'provider_revoked',
@@ -897,7 +291,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
         encrypted_refresh_token: 'enc-r',
       },
     ])
-    const facts = await pool.query(
+    const facts = await testPool().query(
       `SELECT event_version, payload, source_aggregate_id FROM outbox_events
        WHERE organization_id = $1
          AND event_type = 'integration.google_account.reauthorization_required'
@@ -920,11 +314,8 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('requireReauthorization leaves a newer grant alone and records nothing', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection({ lifecycleVersion: 5, credentialGeneration: 7 }),
-      event: connectedEvent(),
-    })
+    const store = newStore()
+    await connect(store, { lifecycleVersion: 5, credentialGeneration: 7 })
 
     // The refresh started from generation 6; a reconnect has committed 7.
     await expect(
@@ -936,44 +327,27 @@ describe.sequential('integrationCommandStore (integration)', () => {
       }),
     ).resolves.toBe(false)
 
-    const rows = await pool.query(
-      'SELECT status, lifecycle_version FROM google_connections WHERE id = $1',
-      [CONN_ID],
-    )
-    expect(rows.rows).toEqual([{ status: 'active', lifecycle_version: 5 }])
-    const facts = await pool.query(
-      `SELECT id FROM outbox_events
-       WHERE organization_id = $1
-         AND event_type = 'integration.google_account.reauthorization_required'`,
-      [ORG_ID],
-    )
-    expect(facts.rows).toEqual([])
+    expect(await connectionRow('status, lifecycle_version')).toEqual([
+      { status: 'active', lifecycle_version: 5 },
+    ])
+    expect(await outboxFacts(REAUTH_REQUIRED)).toEqual([])
   })
 
   it('requireReauthorization rolls the status back when the fact cannot commit', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection(),
-      event: connectedEvent(),
-    })
-    const ghost = {
-      ...revokedEvent(),
-      _tag: 'integration.ghost',
-    } as unknown as Parameters<typeof store.requireReauthorization>[0]['event']
+    const store = newStore()
+    await connect(store)
 
     await expect(
       store.requireReauthorization({
         organizationId: ORG_ID,
         connectionId: CONN_ID,
         expected: { lifecycleVersion: 1, credentialGeneration: 1 },
-        event: ghost,
+        event: unregisteredFact(revokedEvent(), 'integration.ghost'),
       }),
-    ).rejects.toThrow(/Event type integration\.ghost:v1 is not registered for the outbox/)
+    ).rejects.toThrow(GHOST_REJECTION)
 
-    const rows = await pool.query(
-      'SELECT status, lifecycle_version FROM google_connections WHERE id = $1',
-      [CONN_ID],
-    )
-    expect(rows.rows).toEqual([{ status: 'active', lifecycle_version: 1 }])
+    expect(await connectionRow('status, lifecycle_version')).toEqual([
+      { status: 'active', lifecycle_version: 1 },
+    ])
   })
 })

@@ -43,7 +43,7 @@ import { useEffect, useState } from 'react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { Toaster } from '#/components/ui/sonner'
-import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
+import type { ReplyPublicationCheckResult } from '#/contexts/reputation/public-api'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 import {

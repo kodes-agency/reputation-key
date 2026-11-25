@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   holdTransaction,
   type HeldTransaction,
@@ -12,7 +10,8 @@ import {
   scopeGoalProgramsForMember,
   withGoalProgramVisibility,
 } from './goal-program-visibility.server'
-import { createGoalProgramService, type GoalActor } from './goal-programs.server'
+import { createGoalProgramService } from './goal-programs.server'
+import { type GoalActor } from '../application/use-cases/goal-program-shared'
 import { goalTargetProvenance } from '../application/goal-target-provenance'
 import type {
   GoalMonthlyResult,
@@ -24,13 +23,10 @@ describe.sequential('Goal history pages (integration)', () => {
   let held: HeldTransaction | undefined
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     held = await holdTransaction()
   })
   afterAll(async () => {
     await held?.rollBack()
-    clearEventSchemas()
   })
 
   it('crosses same-month subject ties, preserving pinned history, latest revisions and Stop', async () => {
@@ -205,7 +201,7 @@ describe.sequential('Goal history pages (integration)', () => {
         at: new Date('2026-09-05T12:00:00Z'),
       }),
     ).toBe(true)
-    const summary = await repository.getSummary(org, property, first.programId)
+    const summary = await repository.get(org, property, first.programId)
     if (!summary) throw new Error('Current summary is unavailable')
     expect(summary.version.id).toBe(nextVersion.id)
     expect(goalTargetProvenance(summary, summary.version)).toEqual({
@@ -214,7 +210,7 @@ describe.sequential('Goal history pages (integration)', () => {
       countsFrom: new Date('2026-08-01T00:00:00Z'),
     })
     const [historicallyVisible] = scopeGoalProgramsForMember(
-      await repository.listSummaries(org, property),
+      await repository.list(org, property),
       [portals[2]!],
       [],
     )
@@ -264,6 +260,8 @@ describe.sequential('Goal history pages (integration)', () => {
       repository,
       policy: { authorize: async () => undefined },
       subjects: {
+        ratingSubjectsSkipPrivateRating: async () => false,
+        staffTargetProblem: async () => null,
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
       },
@@ -271,6 +269,7 @@ describe.sequential('Goal history pages (integration)', () => {
         queryGoalMetric: async () => {
           throw new Error('History must not evaluate metrics')
         },
+        getApprovedGoalVersion: async () => null,
       },
       id: randomUUID,
       now: () => september,

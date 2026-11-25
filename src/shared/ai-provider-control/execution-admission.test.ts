@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
+import type { AiAdmissionDescriptorV1 } from '#/shared/ai-gateway/ai-internal-transport-contract'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import {
   evaluateProviderDispatchGate,

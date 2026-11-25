@@ -338,8 +338,6 @@ const NON_METRIC_PATHS = new Set([
   'workers.domainEventsQueueName',
   'workers.heartbeat.at',
   'notifications.deliveryLag.oldestSourceRecordedAt',
-  'notifications.deliveryLag.oldestMaterializationSourceRecordedAt',
-  'notifications.deliveryLag.oldestMaterializationEnqueuedAt',
   'notifications.deliveryLag.immediateEmailAcceptance.oldestAwaitingSourceRecordedAt',
   'guestObservationLoss.ratingDisposition',
   'guestObservationLoss.windowMs',
@@ -398,7 +396,6 @@ async function assembleSnapshot() {
   const reader = createOperationsSnapshot({
     db: fakeDb([
       [{ cnt: 1, age_ms: 10 }], // outbox unpublished
-      [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
       [{ total: 1, refresh_due: 0, expired: 0, oldest_due_age_seconds: null }],
       [{ due: 2, failed: 0, oldest_due_age_ms: 900_000 }], // sync
       // reply publication aggregate (BQC-7.3)
@@ -418,7 +415,6 @@ async function assembleSnapshot() {
       [{ overdue: 1, oldest_overdue_age_ms: 120_000, attempted: 0 }],
     ]),
     outboxRepo: {
-      findExpiredLeases: vi.fn(async () => []),
       delivery: {
         readQuarantineMetrics: vi.fn(async () => ({ count: 0, oldestAgeMs: null })),
       },
@@ -455,7 +451,6 @@ async function assembleSnapshot() {
         ready: false,
         total: 1,
         active: 1,
-        dark: 0,
         quarantined: 0,
         failing: 1,
         missingObservations: 0,
@@ -463,7 +458,6 @@ async function assembleSnapshot() {
         handlerMissing: 0,
         schedulerMissing: 1,
         scheduleDenied: 0,
-        forbiddenDarkWork: 0,
         quarantinedSchedulers: 0,
         missedObjectives: 0,
         queueAgeMissed: 0,

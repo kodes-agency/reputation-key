@@ -661,21 +661,6 @@ export const createAtomicMetricCommandStore = (
   return {
     settleSourceReceipt,
     recordMetrics,
-    recordMetric: async (command: RecordMetricCommand): Promise<ReadingResult> => {
-      const { sourceReceipt, ...reading } = command
-      const [result] = await recordMetrics({
-        readings: [reading],
-        sourceReceipt,
-      })
-      if (!result) throw new Error('Metric command produced no result')
-      return result
-    },
     retractMetrics,
-    retractMetric: async (command: RetractMetricCommand) => {
-      const { sourceReceipt, ...entry } = command
-      const [result] = await retractMetrics([entry], sourceReceipt)
-      if (!result) throw new Error('Metric retraction produced no result')
-      return result
-    },
   }
 }

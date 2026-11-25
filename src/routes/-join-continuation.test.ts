@@ -29,7 +29,7 @@ vi.mock('@tanstack/react-start', () => ({ useServerFn: (fn: unknown) => fn }))
 vi.mock('#/shared/auth/auth.functions', () => ({
   ensureActiveOrg: state.ensureActiveOrg,
 }))
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.registration', () => ({
   registerMember: state.register,
 }))
 vi.mock('#/components/layout/auth-layout', () => ({

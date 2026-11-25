@@ -9,8 +9,7 @@ import { getContainer } from '#/composition'
 import { portalPrintKitInputSchema } from '../printing/portal-print-kit.contracts'
 import { isPortalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
-import { portalPrintScope } from './portal-print-file.server'
-import { requirePortalResourceScope } from './property-scope'
+import { requirePortalScope } from './portal-scope.server'
 
 export const getPortalPrintKit = createServerFn({ method: 'GET' })
   .validator(portalPrintKitInputSchema)
@@ -19,12 +18,7 @@ export const getPortalPrintKit = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const ctx = await resolveTenantContext(await headersFromContext())
         try {
-          await requirePortalResourceScope({
-            actor: ctx,
-            action: 'portal.read',
-            capability: 'portal.read',
-            ...portalPrintScope(data.portalId),
-          })
+          await requirePortalScope(ctx, data.portalId, 'portal.read')
           return await getContainer().portalPublicApi.management.getPortalPrintKit(
             data,
             ctx,

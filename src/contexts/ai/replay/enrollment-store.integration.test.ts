@@ -3,8 +3,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   aiExecutionControlHeads,
   aiOperations,
@@ -28,7 +26,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import {
   AI_EXECUTION_ABANDONED_AFTER_MILLIS,
@@ -66,8 +64,6 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clear()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -167,7 +163,6 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
 
   afterAll(async () => {
     await clear()
-    clearEventSchemas()
   })
 
   it('enrols an enabled property by snapshotting its eligible revisions with the built-in sha256', async () => {

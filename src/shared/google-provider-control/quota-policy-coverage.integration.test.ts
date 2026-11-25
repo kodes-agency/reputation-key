@@ -13,7 +13,7 @@ import {
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { type GoogleProviderRouteKey } from './contracts'
 import {
   createGoogleCoordinationLookup,

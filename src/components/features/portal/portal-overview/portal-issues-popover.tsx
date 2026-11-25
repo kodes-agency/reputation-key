@@ -8,7 +8,7 @@ import { Button } from '#/components/ui/button'
 import { EXPLAIN_UNDERLINE } from '#/components/ui/explain-trigger'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
 import { PHONE_LINK_TOUCH } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { issuesTone, type PortalIssue, type PortalIssueFix } from './portal-attention'
 import { PORTAL_LINE_LINK, PORTAL_LINE_TONE } from './portal-line-link'
 

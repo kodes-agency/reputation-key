@@ -17,7 +17,7 @@ import type {
   FeedbackHandlingState,
   InboxItem,
   ResponseTargetView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 // Only the fields the selector reads — the same partial-fixture shape
 // `use-inbox-keyboard-shortcuts.test.ts` uses. Overrides are spelled with plain
@@ -240,7 +240,7 @@ describe('buildInboxCaseToolbarProps — feedback item', () => {
   })
 
   it('keeps a null handling state null — the kind comes from the item', () => {
-    // `get-inbox-item-detail.ts` nulls the field for a caller without the
+    // `get-inbox-item-detail.server.ts` nulls the field for a caller without the
     // handle pair; the toolbar must still know this is feedback.
     const { input } = makeInput({
       item: makeItem({ sourceType: 'feedback' }),

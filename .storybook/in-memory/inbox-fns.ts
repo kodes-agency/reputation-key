@@ -26,7 +26,7 @@ import {
   stampLastInboxViewDto,
   markFeedbackHandledDto,
   correctFeedbackHandlingOutcomeDto,
-} from '#/contexts/inbox/application/dto/inbox.dto'
+} from '#/contexts/reputation/inbox/contracts'
 import { propertyId, inboxItemId, userId } from '#/shared/domain/ids'
 import type { z } from 'zod/v4'
 import type {
@@ -47,9 +47,9 @@ import type {
   bulkAssignInboxItemsFn,
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
-} from '#/contexts/inbox/server/inbox'
+} from '#/contexts/reputation/server/inbox'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
-import type { InboxQueue } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue } from '#/contexts/reputation/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 type InboxContainer = ReturnType<typeof createInboxContainer>

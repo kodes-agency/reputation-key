@@ -11,7 +11,7 @@ import { StaffPortalMeta } from '#/contexts/identity/staff/ui/accounts/staff-por
 import type { ReactNode } from 'react'
 import { DataTableRow } from '#/components/ui/data-table'
 import { TableCell, TableHead } from '#/components/ui/table'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { PortalAttentionLine } from './portal-attention-line'
 import {
   PortalManagersCell,

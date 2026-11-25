@@ -10,7 +10,7 @@ metric authority. Sub-maps: [monthly goals](monthly-goals/CONTEXT.md) and
 
 | Area                                                                                                                                                                                | Location                                                                                                                                                                                    |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cross-context interface                                                                                                                                                             | `application/public-api.ts` (the only one)                                                                                                                                                  |
+| Cross-context interface                                                                                                                                                             | `public-api.ts` at the area root (the only one)                                                                                                                                             |
 | Request boundary                                                                                                                                                                    | `server/*.ts`: the paths routes import, kept stable                                                                                                                                         |
 | Metric catalogue and reading commands, the governed goal-metric read (`query-goal-metric`, `goal-metric-*`), effective readings and the Current on Google snapshot and its consumer | `readings/` (`contracts.ts` is browser-safe)                                                                                                                                                |
 | Goal Programs and the Monthly portal goal: commands, reads, add sheet, recommendation, repositories, maintenance job, metric-correction consumer                                    | `monthly-goals/*.server.ts`, browser-safe `contracts.ts` and `*.contracts.ts`, screens in `monthly-goals/ui/`                                                                               |
@@ -363,12 +363,12 @@ quota, ranking, incentive or employment input.
 
 ### Dashboard authorization
 
-`getDashboardData`, `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
+`getDashboardData`, `getPropertyOverview`, `getPortalAnalytics` and
 `getPortalResultsOverview` take the caller's `AuthContext` and first ask
 `property-overview/dashboard-property-access.server.ts`: the reader belongs to the Organization, holds
 `dashboard.read` and reaches every Property named (Organization-wide holders all, managers
 only those granted). A refusal is a tagged `DashboardError` `forbidden` raised before
-anything is read. `getPropertyOverview` and `getAttentionSignals` also need
+anything is read. `getPropertyOverview` also needs
 `dashboard.fleet_read`, because the attention band is work state. `getDashboardData` hides
 reply state from a reader without `reply.manage` (`domain/reply-workflow-redaction.ts`).
 Server functions still ask the execution policy first; the use case's check is the one a

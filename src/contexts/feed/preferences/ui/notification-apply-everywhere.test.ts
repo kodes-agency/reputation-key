@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { NotificationChannel } from '#/contexts/feed/application/public-api'
+import type { NotificationChannel } from '#/contexts/feed/public-api'
 import {
   applyEverywhereNotice,
   applyEverywhereInOrder,
@@ -12,7 +12,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { NotificationPreference } from '#/contexts/feed/application/public-api'
+import type { NotificationPreference } from '#/contexts/feed/public-api'
 
 const saved = async () => undefined
 const refused = async () => {

@@ -7,12 +7,12 @@
 // attention for a review, read from the detail's analysis; it is shown, tagged
 // "Suggested", only while nobody has set a level. Manager copy never says "AI":
 // the product calls it review signals.
-import {
-  effectiveInboxPriority,
-  type InboxItem,
-  type InboxPriority,
-  type InboxReviewAnalysis,
-} from '#/contexts/inbox/application/public-api'
+import { effectiveInboxPriority } from '#/contexts/reputation/inbox/contracts'
+import type {
+  InboxItem,
+  InboxPriority,
+  InboxReviewAnalysis,
+} from '#/contexts/reputation/public-api'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { formatCompactAge } from './utils'
 

@@ -14,10 +14,10 @@ import {
   REVIEW_SENTIMENTS_V3,
   REVIEW_STRENGTHS_V3,
   REVIEW_URGENT_REASONS_V3,
-} from '#/shared/review-analysis-v3'
-import { isGenericThingWord } from '#/shared/review-generic-things'
-import { splitReviewSentences } from '#/shared/review-sentences'
-import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/review-analysis-v3'
+import { isGenericThingWord } from '#/shared/analysis/review-generic-things'
+import { splitReviewSentences } from '#/shared/ai-review-source/review-sentences'
+import { REVIEW_TOPICS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 
 const MAX_REPORTED_PROBLEMS = 20
 

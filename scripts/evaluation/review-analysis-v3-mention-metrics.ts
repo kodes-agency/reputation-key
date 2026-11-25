@@ -4,9 +4,9 @@
 // of the same topic that resembles it most, and the pairs are what get compared.
 // Whether the topic was found at all is the topic score's business, not theirs.
 
-import type { ReviewAnalysisV3StoredMention } from '#/shared/review-analysis-v3'
-import { REVIEW_STRENGTH_RANK_V3 } from '#/shared/review-analysis-v3'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import type { ReviewAnalysisV3StoredMention } from '#/shared/analysis/review-analysis-v3'
+import { REVIEW_STRENGTH_RANK_V3 } from '#/shared/analysis/review-analysis-v3'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import { meanOf, prf, ratio, type Prf, type Rate } from './review-analysis-v3-stats'
 
 /**

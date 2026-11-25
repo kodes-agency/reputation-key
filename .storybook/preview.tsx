@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import '../src/styles.css'
 import { TooltipProvider } from '../src/components/ui/tooltip'
-import { APP_FONT_STYLESHEETS } from '../src/shared/font-sets'
+import { APP_FONT_STYLESHEETS } from '../src/shared/fonts/font-sets'
 import '../src/shared/auth/permissions' // side-effect: initPermissionTable() for can()
 import { RouterDecorator } from './RouterDecorator'
 

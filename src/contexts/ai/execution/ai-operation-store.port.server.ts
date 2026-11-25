@@ -1,6 +1,6 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
-import type { AiProviderId } from '#/shared/ai-provider-ids'
-import type { VocabularyHintIdentity } from '#/shared/review-vocabulary-hints'
+import type { AiProviderId } from '#/shared/ai-provider-profile/ai-provider-ids'
+import type { VocabularyHintIdentity } from '#/shared/analysis/review-vocabulary-hints'
 import type { AiError } from '../domain/errors'
 import type {
   AiOperationBinding,

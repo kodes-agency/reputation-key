@@ -4,7 +4,7 @@
 // look page sets off its own.
 import { useId, type ReactNode } from 'react'
 import { SectionTitle } from '#/components/ui/section-title'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 type Props = Readonly<{
   title: string

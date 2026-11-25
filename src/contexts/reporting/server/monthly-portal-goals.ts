@@ -29,8 +29,8 @@ export const getMonthlyPortalGoalCard = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.monthlyPortalGoal.card(policy, data, actor),
+        withGoalPrograms((programs, actor) =>
+          programs.monthlyPortalGoal.card(data, actor),
         ),
       'GET',
       'goal.getMonthlyPortalGoalCard',
@@ -43,8 +43,8 @@ export const getMonthlyPortalGoalPage = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.monthlyPortalGoal.page(policy, data, actor),
+        withGoalPrograms((programs, actor) =>
+          programs.monthlyPortalGoal.page(data, actor),
         ),
       'GET',
       'goal.getMonthlyPortalGoalPage',
@@ -57,8 +57,8 @@ export const setMonthlyPortalGoal = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => {
-          const { program } = await programs.monthlyPortalGoal.set(policy, data, actor)
+        withGoalPrograms(async (programs, actor) => {
+          const { program } = await programs.monthlyPortalGoal.set(data, actor)
           return { programId: program.id }
         }),
       'POST',
@@ -72,8 +72,8 @@ export const getPortalGoalAddOptions = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.portalGoalAdd.options(policy, data, actor),
+        withGoalPrograms((programs, actor) =>
+          programs.portalGoalAdd.options(data, actor),
         ),
       'GET',
       'goal.getPortalGoalAddOptions',
@@ -86,8 +86,8 @@ export const addPortalGoal = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => {
-          const { program } = await programs.portalGoalAdd.one(policy, data, actor)
+        withGoalPrograms(async (programs, actor) => {
+          const { program } = await programs.portalGoalAdd.one(data, actor)
           return { programId: program.id }
         }),
       'POST',
@@ -101,9 +101,7 @@ export const addPortalGoals = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.portalGoalAdd.each(policy, data, actor),
-        ),
+        withGoalPrograms((programs, actor) => programs.portalGoalAdd.each(data, actor)),
       'POST',
       'goal.addPortalGoals',
     ),
@@ -115,12 +113,8 @@ export const changeMonthlyPortalGoalNow = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => {
-          const { month } = await programs.monthlyPortalGoal.changeNow(
-            policy,
-            data,
-            actor,
-          )
+        withGoalPrograms(async (programs, actor) => {
+          const { month } = await programs.monthlyPortalGoal.changeNow(data, actor)
           return { changed: month !== 'unchanged' }
         }),
       'POST',
@@ -134,8 +128,8 @@ export const reviseMonthlyPortalGoal = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => {
-          const { program } = await programs.monthlyPortalGoal.revise(policy, data, actor)
+        withGoalPrograms(async (programs, actor) => {
+          const { program } = await programs.monthlyPortalGoal.revise(data, actor)
           return { programId: program.id }
         }),
       'POST',
@@ -149,8 +143,8 @@ export const stopMonthlyPortalGoal = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => {
-          const program = await programs.monthlyPortalGoal.stop(policy, data, actor)
+        withGoalPrograms(async (programs, actor) => {
+          const program = await programs.monthlyPortalGoal.stop(data, actor)
           return { programId: program.id }
         }),
       'POST',
@@ -164,8 +158,8 @@ export const keepMonthlyPortalGoal = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.monthlyPortalGoal.keep(policy, data, actor),
+        withGoalPrograms((programs, actor) =>
+          programs.monthlyPortalGoal.keep(data, actor),
         ),
       'POST',
       'goal.keepMonthlyPortalGoal',
@@ -178,8 +172,8 @@ export const deferMonthlyPortalGoalPrompt = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.monthlyPortalGoal.defer(policy, data, actor),
+        withGoalPrograms((programs, actor) =>
+          programs.monthlyPortalGoal.defer(data, actor),
         ),
       'POST',
       'goal.deferMonthlyPortalGoalPrompt',
@@ -192,8 +186,8 @@ export const getMonthlyPortalGoalLine = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.monthlyPortalGoal.line(policy, data, actor),
+        withGoalPrograms((programs, actor) =>
+          programs.monthlyPortalGoal.line(data, actor),
         ),
       'GET',
       'goal.getMonthlyPortalGoalLine',
@@ -206,8 +200,8 @@ export const getPortalGoalSinglePage = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.portalGoalSingle.page(policy, data, actor),
+        withGoalPrograms((programs, actor) =>
+          programs.portalGoalSingle.page(data, actor),
         ),
       'GET',
       'goal.getPortalGoalSinglePage',

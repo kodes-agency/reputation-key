@@ -6,7 +6,6 @@ import {
   useSuspenseQuery,
   type QueryClient,
 } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import {
@@ -15,7 +14,7 @@ import {
 } from '#/contexts/reporting/server/goal-programs'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/public-api'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
@@ -89,7 +88,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
     page: { title: 'Goals', tier: 'dashboard', under: 'property', loading: 'cards' },
   },
   beforeLoad: ({ context }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     // Match both manager API gates before rendering: goal.read alone admits Staff,
     // whose loader would then fail after the page has committed.
     if (!can(role, 'goal.read') || !isBetaInteractiveRole(role)) {
@@ -104,11 +103,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
       context.queryClient.ensureQueryData(subjectNamesQuery(propertyId)),
       // Keep goal reads out of first paint and failures within their own section.
       import('./-goals-page-prefetch').then((prefetch) =>
-        prefetch.prefetchGoalsPage(
-          context.queryClient,
-          propertyId,
-          (context as AuthRouteContext).role,
-        ),
+        prefetch.prefetchGoalsPage(context.queryClient, propertyId, context.role),
       ),
     ])
     if (deps.result !== undefined) {

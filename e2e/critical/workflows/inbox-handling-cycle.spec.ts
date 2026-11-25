@@ -57,7 +57,7 @@ type HistoryResult = Readonly<{ entries: readonly HistoryEntry[]; truncated: boo
 
 const readHistory = (page: Parameters<typeof callServerFnGet>[0], inboxItemId: string) =>
   callServerFnGet<HistoryResult>(page, {
-    file: 'src/contexts/inbox/server/inbox-item-queries.ts',
+    file: 'src/contexts/reputation/server/inbox-item-queries.ts',
     exportName: 'getInboxItemHistoryFn',
     data: { inboxItemId },
   })
@@ -113,7 +113,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     // CLAIM — the signed-in manager takes the work.
     const unassigned = await getInboxItemById(inboxItemId)
     await callServerFn(page, {
-      file: 'src/contexts/inbox/server/inbox-item-actions.ts',
+      file: 'src/contexts/reputation/server/inbox-item-actions.ts',
       exportName: 'assignInboxItemFn',
       data: {
         inboxItemId,
@@ -132,7 +132,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     // ASSIGNED — handed to a colleague with access to the same Property.
     const claimed = await getInboxItemById(inboxItemId)
     await callServerFn(page, {
-      file: 'src/contexts/inbox/server/inbox-item-actions.ts',
+      file: 'src/contexts/reputation/server/inbox-item-actions.ts',
       exportName: 'assignInboxItemFn',
       data: {
         inboxItemId,
@@ -270,7 +270,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     })
     const unclaimed = await getInboxItemById(handled.inboxItemId)
     await callServerFn(page, {
-      file: 'src/contexts/inbox/server/inbox-item-actions.ts',
+      file: 'src/contexts/reputation/server/inbox-item-actions.ts',
       exportName: 'assignInboxItemFn',
       data: {
         inboxItemId: handled.inboxItemId,

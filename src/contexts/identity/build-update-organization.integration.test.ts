@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // `requests.updateOrganization` as the build wires it, against real PostgreSQL.
 //
 // The server function calls this instance and nothing else, so it must do what
@@ -35,7 +35,6 @@ const requests = buildIdentityContext({
     setActiveOrganization: async () => {},
     updateOrganization: saveOrganization,
     currentOrganizationName: async () => null,
-    verifyPassword: async () => false,
   },
   deleteAssetObject,
   listAssetObjects: async () => ({ objects: [], truncated: false }),

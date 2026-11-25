@@ -10,7 +10,7 @@ import {
   withPermissions,
 } from '../../../../../../.storybook/AuthedRouterDecorator'
 import { playInThemes } from '../../../../../../.storybook/play-in-themes'
-import type { PropertySetupStep } from '#/contexts/reporting/application/public-api'
+import type { PropertySetupStep } from '#/contexts/reporting/public-api'
 import {
   PropertyListPage,
   type PropertyComparison,

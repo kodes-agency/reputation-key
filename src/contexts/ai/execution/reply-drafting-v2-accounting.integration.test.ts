@@ -1,4 +1,4 @@
-import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import { replyRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
 import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -18,7 +18,7 @@ import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/id
 import type {
   AiAdmissionDescriptorV1,
   AiSettlementRequestV1,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import { createAiExecutionAdmissionAdapter } from './ai-execution-admission.adapter.server'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter.server'
 import { aiRequestFingerprint } from '../application/ai-workflow-support'

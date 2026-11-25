@@ -17,7 +17,7 @@ vi.mock('#/contexts/identity/server/staff-self', () => ({
   getMyCode: vi.fn(),
   acknowledgeStaffNotice: vi.fn(),
 }))
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.query', () => ({
   getActiveOrganization: mocks.organization,
 }))
 vi.mock('#/contexts/reporting/server/staff-self-results', () => ({
@@ -32,7 +32,7 @@ vi.mock('#/contexts/identity/server/staff-self-account', () => ({
 }))
 import { staffHomeEntry } from './-staff-home-entry'
 import { signInDestination } from './-sign-in-destination'
-import { validateStaffHomeSearch } from '#/shared/staff-home-search'
+import { validateStaffHomeSearch } from '#/shared/routing/staff-home-search'
 import { staffHomeFns } from './-staff-home-fns'
 import { Route as MyRoute } from './my'
 import { Route as MyCodeRoute } from './_authenticated/my-code'
@@ -118,7 +118,7 @@ describe('staff routes', () => {
 })
 
 it('remembers browser entry checks for thirty seconds under the signed-in person', async () => {
-  vi.stubGlobal('window', {})
+  vi.stubGlobal('document', {})
   try {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     await staffHomeEntry('/my', client)

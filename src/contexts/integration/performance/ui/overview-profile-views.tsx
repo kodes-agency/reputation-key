@@ -18,7 +18,7 @@ import { useGooglePerformance } from './use-google-performance'
 import type { GooglePerformanceServerFns } from './use-google-performance'
 import { isUnavailablePerformanceResult } from './google-performance-states'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 
 export type OverviewProfileViewsServerFns = GooglePerformanceServerFns

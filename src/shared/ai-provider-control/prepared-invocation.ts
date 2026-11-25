@@ -2,15 +2,15 @@ import { createHash } from 'node:crypto'
 import {
   aiAdmissionDescriptorSchema,
   type AiAdmissionDescriptorV1,
-} from '#/shared/ai-internal-transport-contract'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import {
   OPENAI_PROMPT_VERSIONS,
   type AiGatewayRoute,
   type ClosedOpenAiRequest,
-} from '#/shared/ai-openai-request-contract'
-import { assertClosedJsonAndFreeze } from '#/shared/closed-json-contract'
-export { buildClosedOpenAiRequest } from '#/shared/ai-openai-request-contract'
+} from '#/shared/ai-provider-profile/ai-openai-request-contract'
+import { assertClosedJsonAndFreeze } from '#/shared/json/closed-json-contract'
+export { buildClosedOpenAiRequest } from '#/shared/ai-provider-profile/ai-openai-request-contract'
 
 const PREPARED_AI_INVOCATION_BRAND_VALUE = true as const
 const preparedAiInvocationBrand: unique symbol = Symbol('PreparedAiInvocation')

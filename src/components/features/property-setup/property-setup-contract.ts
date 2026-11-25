@@ -4,7 +4,7 @@ import type {
   getMerchantAiAuthorizationFn,
   listMerchantAiOverviewFn,
 } from '#/contexts/identity/server/merchant-ai'
-import type { listMembers } from '#/contexts/identity/server/organizations'
+import type { listMembers } from '#/contexts/identity/server/organizations.query'
 import type {
   listProperties,
   updateProperty,
@@ -22,7 +22,7 @@ import type { getPropertySetupFn } from '#/contexts/reporting/server/property-se
 import type {
   getReplyLibraryFn,
   saveReplyVoiceFn,
-} from '#/contexts/review/server/reply-library'
+} from '#/contexts/reputation/server/reply-library'
 
 type ServerCall<T> = T extends (...args: infer Args) => infer Result
   ? (...args: Args) => Result

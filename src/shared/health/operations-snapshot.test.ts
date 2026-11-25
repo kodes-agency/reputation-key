@@ -56,7 +56,6 @@ function stallingDb(results: Array<unknown[] | typeof HANG>): Database {
 }
 
 const UNPUBLISHED_ROW = [{ cnt: 3, age_ms: 1500 }]
-const CLAIMED_ROW = [{ claimed: 1, oldest_claimed_age_ms: 500, stalled: 0 }]
 const REVIEW_ROW = [{ total: 2, refresh_due: 1, expired: 0, oldest_due_age_seconds: 60 }]
 const SYNC_ROW = [{ due: 1, failed: 0 }]
 /** BQC-7.3: reply publication aggregate (one row, all states + age). */
@@ -90,7 +89,6 @@ const JOB_RUNTIME = {
   ready: false,
   total: 2,
   active: 1,
-  dark: 1,
   quarantined: 0,
   failing: 1,
   missingObservations: 0,
@@ -98,7 +96,6 @@ const JOB_RUNTIME = {
   handlerMissing: 0,
   schedulerMissing: 1,
   scheduleDenied: 0,
-  forbiddenDarkWork: 0,
   quarantinedSchedulers: 0,
   missedObjectives: 0,
   queueAgeMissed: 0,
@@ -145,7 +142,6 @@ const JOB_RUNTIME = {
 
 function fakeOutboxRepo(): OutboxRepository {
   return {
-    findExpiredLeases: vi.fn(async () => []),
     delivery: {
       readQuarantineMetrics: vi.fn(async () => ({ count: 0, oldestAgeMs: null })),
     },
@@ -221,7 +217,7 @@ describe('createOperationsSnapshot', () => {
 
   it('assembles health + queues + heartbeat into one snapshot with no degraded sections', async () => {
     const reader = createOperationsSnapshot({
-      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      db: fakeDb([UNPUBLISHED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
       outboxRepo: fakeOutboxRepo(),
       queues: {
         default: fakeQueue(2),
@@ -247,12 +243,8 @@ describe('createOperationsSnapshot', () => {
       readNotificationDeliveryLag: async () => ({
         sourceReceiptPending: 1,
         sourceReceiptPendingByEventType: { 'inbox.inbox_item.created': 1 },
-        materializationPending: 2,
         oldestSourceRecordedAt: new Date('2026-01-15T11:58:00.000Z'),
-        oldestMaterializationSourceRecordedAt: new Date('2026-01-15T11:57:00.000Z'),
-        oldestMaterializationEnqueuedAt: new Date('2026-01-15T11:59:30.000Z'),
         sourceSaturated: false,
-        materializationSaturated: true,
         immediateEmailAcceptance: {
           awaitingProviderAcceptance: 1,
           attemptedAwaitingProviderAcceptance: 1,
@@ -300,12 +292,8 @@ describe('createOperationsSnapshot', () => {
     expect(snapshot.notifications.deliveryLag).toMatchObject({
       sourceReceiptPending: 1,
       sourceReceiptPendingByEventType: { 'inbox.inbox_item.created': 1 },
-      materializationPending: 2,
       oldestSourceRecordedAt: '2026-01-15T11:58:00.000Z',
-      oldestMaterializationSourceRecordedAt: '2026-01-15T11:57:00.000Z',
-      oldestMaterializationEnqueuedAt: '2026-01-15T11:59:30.000Z',
       sourceSaturated: false,
-      materializationSaturated: true,
       immediateEmailAcceptance: {
         awaitingProviderAcceptance: 1,
         attemptedAwaitingProviderAcceptance: 1,
@@ -392,7 +380,7 @@ describe('createOperationsSnapshot', () => {
 
   it('degrades only the failing health signal and keeps every signal read alongside it', async () => {
     const reader = createOperationsSnapshot({
-      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      db: fakeDb([UNPUBLISHED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
       outboxRepo: fakeOutboxRepo(),
       queues: {
         default: null,
@@ -438,7 +426,6 @@ describe('createOperationsSnapshot', () => {
     const reader = createOperationsSnapshot({
       db: fakeDb([
         UNPUBLISHED_ROW,
-        CLAIMED_ROW,
         REVIEW_ROW,
         SYNC_ROW,
         PUBLICATION_ROW,
@@ -575,7 +562,7 @@ describe('createOperationsSnapshot', () => {
         getJobs: vi.fn(async () => []),
       }
       const reader = createOperationsSnapshot({
-        db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+        db: fakeDb([UNPUBLISHED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
         outboxRepo: fakeOutboxRepo(),
         queues: {
           default: null,
@@ -619,7 +606,7 @@ describe('createOperationsSnapshot', () => {
     }
 
     const reader = createOperationsSnapshot({
-      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      db: fakeDb([UNPUBLISHED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
       outboxRepo: fakeOutboxRepo(),
       // Quarantine null so the health section's quarantine metrics skip the
       // throwing queue and only the depth read degrades.
@@ -644,7 +631,7 @@ describe('createOperationsSnapshot', () => {
 
   it('degrades the runtime section when a runtime read rejects', async () => {
     const reader = createOperationsSnapshot({
-      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      db: fakeDb([UNPUBLISHED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
       outboxRepo: fakeOutboxRepo(),
       queues: { default: null, background: null, domainEvents: null, quarantine: null },
       redis: null,
@@ -684,7 +671,7 @@ describe('createOperationsSnapshot', () => {
     vi.useFakeTimers()
     try {
       const reader = createOperationsSnapshot({
-        db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+        db: fakeDb([UNPUBLISHED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
         outboxRepo: fakeOutboxRepo(),
         queues: { default: null, background: null, domainEvents: null, quarantine: null },
         redis: null,
@@ -711,7 +698,7 @@ describe('createOperationsSnapshot', () => {
 
   it('falls back to the empty runtime section when an in-process runtime read throws', async () => {
     const reader = createOperationsSnapshot({
-      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      db: fakeDb([UNPUBLISHED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
       outboxRepo: fakeOutboxRepo(),
       queues: { default: null, background: null, domainEvents: null, quarantine: null },
       redis: null,
@@ -735,7 +722,7 @@ describe('createOperationsSnapshot', () => {
 
   it('degrades only the jobs section when the durable runtime report fails', async () => {
     const reader = createOperationsSnapshot({
-      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      db: fakeDb([UNPUBLISHED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
       outboxRepo: fakeOutboxRepo(),
       queues: { default: null, background: null, domainEvents: null, quarantine: null },
       redis: null,
@@ -757,7 +744,7 @@ describe('createOperationsSnapshot', () => {
 
   it('marks Guest observation-loss visibility degraded without inventing durable-rating loss', async () => {
     const reader = createOperationsSnapshot({
-      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      db: fakeDb([UNPUBLISHED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
       outboxRepo: fakeOutboxRepo(),
       queues: { default: null, background: null, domainEvents: null, quarantine: null },
       redis: null,

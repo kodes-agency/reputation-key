@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import { sql } from 'drizzle-orm'
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { eq, notInArray, sql } from 'drizzle-orm'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb, type Database } from '#/shared/db'
 import { createAdmittedExecutionPermit } from '#/shared/auth/authorization-execution-permit'
 import { createGoogleContentAuthorityRepository } from './google-content-authority-repository.server'
 import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/provider/google-content-authorization-check.server'
 import { closePool } from '#/shared/db/pool'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -15,9 +15,18 @@ import {
 } from '#/shared/auth/beta-capabilities'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
+import { capabilityExecutionControl } from '#/shared/db/schema/google-content-control.schema'
 
 const db = getDb()
 const now = new Date('2026-08-10T10:00:00.000Z')
+
+// Every test here denies or allows capabilities in the shared control table.
+// Later files in the same shard read it, so the file leaves it as it found it.
+let controlsBefore: Array<typeof capabilityExecutionControl.$inferSelect> = []
+
+beforeAll(async () => {
+  controlsBefore = await db.select().from(capabilityExecutionControl)
+})
 
 let dynamicAuthorizationFixture:
   | Readonly<{
@@ -93,8 +102,25 @@ afterEach(async () => {
 })
 
 afterAll(async () => {
-  resetCapabilityPolicyStore()
-  await closePool()
+  try {
+    await db.transaction(async (tx) => {
+      await tx.delete(capabilityExecutionControl).where(
+        notInArray(
+          capabilityExecutionControl.capability,
+          controlsBefore.map((row) => row.capability),
+        ),
+      )
+      for (const row of controlsBefore) {
+        await tx
+          .update(capabilityExecutionControl)
+          .set(row)
+          .where(eq(capabilityExecutionControl.capability, row.capability))
+      }
+    })
+  } finally {
+    resetCapabilityPolicyStore()
+    await closePool()
+  }
 })
 
 describe('Google Content authority repository', () => {

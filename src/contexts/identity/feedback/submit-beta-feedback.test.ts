@@ -1,7 +1,7 @@
 // Identity context — submit beta feedback use case tests.
 
 import { describe, expect, it, vi } from 'vitest'
-import type { BetaFeedbackInput } from '#/shared/beta-feedback-contract'
+import type { BetaFeedbackInput } from '#/shared/beta-feedback/beta-feedback-contract'
 import { betaFeedbackPseudonym } from '../application/beta-feedback-pseudonym'
 import type {
   BetaFeedbackDelivery,

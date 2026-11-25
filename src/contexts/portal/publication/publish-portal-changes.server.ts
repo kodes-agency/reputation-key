@@ -12,11 +12,11 @@ import {
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { PortalRepository } from './portal-repository.port.server'
 import type {
   PortalCommandStore,
@@ -71,29 +71,19 @@ export type PublishPortalsChangesResult = ReadonlyArray<
     )
 >
 
-/** What `publishPortalChanges` would write: nothing, or exactly this command. */
-type RepublishPlan =
-  | Readonly<{ outcome: 'unchanged'; version: number; pendingEdits: 0 }>
-  | Readonly<{
-      outcome: 'ready'
-      command: RepublishPortalCommand
-      /** The manager's open unpublished edits this publication would put live. */
-      pendingEdits: number
-    }>
-
 /**
- * Everything `publishPortalChanges` does except the write: authorise, load,
- * decide whether anything is pending, ask the readiness gates, and build the
- * snapshot and the command that would replace the live version. A refusal is a
- * Portal error, exactly as in the real publication, so a plan that returns is a
- * publication that the gates would let through.
+ * Authorise, load, decide whether anything is pending, ask the readiness gates,
+ * and build the command that replaces the live version. Returns the live
+ * version when nothing is pending.
  */
 const planPortalRepublish =
   (deps: PublishPortalChangesDeps) =>
   async (
     input: Readonly<{ portalId: string }>,
     ctx: AuthContext,
-  ): Promise<RepublishPlan> => {
+  ): Promise<
+    Readonly<{ unchangedVersion: number }> | Readonly<{ command: RepublishPortalCommand }>
+  > => {
     const pid = toPortalId(input.portalId)
     const portal = await loadPortalOrThrow(deps, ctx, pid, {
       permission: 'portal.update',
@@ -110,11 +100,11 @@ const planPortalRepublish =
       deps.publicationRepo.loadWorkingCopyWithLook(ctx.organizationId, pid),
       deps.publicationRepo.findActiveForPortal(ctx.organizationId, pid),
       deps.publicationRepo.getCursor(ctx.organizationId, pid),
-      deps.publicationRepo.listOpenPendingContentChanges?.(
+      deps.publicationRepo.listOpenPendingContentChanges(
         ctx.organizationId,
         portal.propertyId,
         pid,
-      ) ?? Promise.resolve([]),
+      ),
     ])
     const workingCopy = workingCopyWithLook?.source
     if (workingCopyWithLook)
@@ -153,7 +143,7 @@ const planPortalRepublish =
       !destinationMoved &&
       workingCopyMatchesSnapshot(workingCopy, live)
     ) {
-      return { outcome: 'unchanged', version: live.version, pendingEdits: 0 }
+      return { unchangedVersion: live.version }
     }
 
     await assertPropertyAllowsPublication(deps, ctx.organizationId, portal)
@@ -174,8 +164,6 @@ const planPortalRepublish =
     })
     const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     return {
-      outcome: 'ready',
-      pendingEdits: openChanges.length,
       command: {
         organizationId: ctx.organizationId,
         propertyId: portal.propertyId,
@@ -234,8 +222,8 @@ export const publishPortalChanges =
     ctx: AuthContext,
   ): Promise<PublishPortalChangesResult> => {
     const plan = await planPortalRepublish(deps)(input, ctx)
-    if (plan.outcome === 'unchanged') {
-      return { outcome: 'unchanged', version: plan.version }
+    if ('unchangedVersion' in plan) {
+      return { outcome: 'unchanged', version: plan.unchangedVersion }
     }
     const { command } = plan
     if (
@@ -257,40 +245,7 @@ export const publishPortalChanges =
     }
   }
 
-export type PreviewPortalChangesResult =
-  | Readonly<{
-      outcome: 'would_publish'
-      version: number
-      /** Open unpublished edits by the manager that the publication would put live. */
-      pendingEdits: number
-    }>
-  | Readonly<{ outcome: 'unchanged'; version: number; pendingEdits: 0 }>
-
-/**
- * What `publishPortalChanges` would do for this Portal, with nothing written:
- * the same authorisation, the same pending check and the same readiness gates,
- * so a Portal that is reported as `would_publish` is one the real publication
- * would let through (bar a change that lands in between). It is the dry run an
- * operator reads before applying a bulk republish.
- */
-export const previewPortalChanges =
-  (deps: PublishPortalChangesDeps) =>
-  async (
-    input: Readonly<{ portalId: string }>,
-    ctx: AuthContext,
-  ): Promise<PreviewPortalChangesResult> => {
-    const plan = await planPortalRepublish(deps)(input, ctx)
-    return plan.outcome === 'unchanged'
-      ? plan
-      : {
-          outcome: 'would_publish',
-          version: plan.command.snapshot.version,
-          pendingEdits: plan.pendingEdits,
-        }
-  }
-
 export type PublishPortalChanges = ReturnType<typeof publishPortalChanges>
-export type PreviewPortalChanges = ReturnType<typeof previewPortalChanges>
 
 /**
  * Publish several Portals' changes, one after another, and say what happened to

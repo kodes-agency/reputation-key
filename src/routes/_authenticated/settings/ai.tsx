@@ -7,7 +7,7 @@ import {
   actionFailureMessage,
 } from '#/components/hooks/use-action-mutation'
 import { createKeys } from '#/shared/queries/query-keys'
-import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice/merchant-ai-notice-announcements'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueries, useQuery, useSuspenseQuery } from '@tanstack/react-query'
@@ -16,7 +16,6 @@ import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { OrganizationAiOverviewPage } from '#/contexts/identity/consent/ui/organization-ai-overview-page'
 import { can } from '#/shared/domain/permissions'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
   merchantAiOverviewQuery,
   organizationAiSpendQuery,
@@ -31,7 +30,7 @@ export const Route = createFileRoute('/_authenticated/settings/ai')({
   staticData: { page: { title: 'AI overview', tier: 'narrow', under: 'settings' } },
   validateSearch: aiOverviewSearch,
   beforeLoad: ({ context, search }) => {
-    const { role } = context as AuthRouteContext
+    const { role } = context
     if (!can(role, 'ai.manage')) throw roleUnavailable('AI overview', 'profile')
     if (search.propertyId) {
       throw redirect({

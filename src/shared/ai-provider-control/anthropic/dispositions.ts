@@ -1,6 +1,6 @@
 import { z } from 'zod/v4'
-import { type AiSettlementRequestV1 } from '#/shared/ai-internal-transport-contract'
-import { parseAiProviderJsonBytes } from '#/shared/ai-json'
+import { type AiSettlementRequestV1 } from '#/shared/ai-gateway/ai-internal-transport-contract'
+import { parseAiProviderJsonBytes } from '#/shared/json/ai-json'
 import {
   classifyProviderRefusalBase,
   classifyProviderStatusBase,

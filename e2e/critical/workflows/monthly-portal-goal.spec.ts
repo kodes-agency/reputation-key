@@ -127,13 +127,13 @@ import { checkInOfferOf } from '../../../src/contexts/reporting/monthly-goals/mo
 import { checkInMonthAt } from '../../../src/contexts/reporting/domain/portal-goal-check-in'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../../src/contexts/reporting/domain/goal-start'
 import { goalMonthDays, goalPace } from '../../../src/contexts/reporting/domain/goal-pace'
-import { addLocalDays } from '../../../src/contexts/reporting/domain/local-days'
+import { addLocalDays } from '../../../src/shared/domain/local-days'
 import { calendarPeriodRange } from '../../../src/shared/domain/period-range'
 import {
   formatLocalDate,
   formatMonthName,
   formatMonthYear,
-} from '../../../src/lib/format'
+} from '../../../src/shared/format/format'
 
 /**
  * The pill the card wears for what `goalPace` says (U-1): none for a month the

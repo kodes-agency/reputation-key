@@ -9,7 +9,6 @@ import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createGuestRightsExecutor } from '#/contexts/guest/rights/guest-rights.adapter.server'
 import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
 import { runRightsExecutors } from '#/shared/ops/rights/rights-executor'
@@ -25,7 +24,6 @@ import {
   ratingId as toRatingId,
 } from '#/shared/domain/ids'
 import { recordMetrics } from '#/contexts/reporting/readings/record-metric.server'
-import { retractMetrics } from '#/contexts/reporting/readings/retract-metric.server'
 import { createAtomicMetricCommandStore } from '#/contexts/reporting/readings/metric-command-store.server'
 import {
   onRatingRetractedDurably,
@@ -211,7 +209,6 @@ async function state(tenant: Tenant) {
 
 describe('guest response erasure replay', () => {
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL, 3)
     db = drizzle(lease.pool) as Database
   })
@@ -344,7 +341,7 @@ describe('guest response erasure replay', () => {
     expect(await retractedReadings(erased)).toBe(0)
     const ratingFact = facts.find((fact) => fact.event_type === 'guest.rating.retracted')!
     await onRatingRetractedDurably({
-      retractMetrics: retractMetrics(metricDeps().commandStore),
+      retractMetrics: metricDeps().commandStore.retractMetrics,
     })({
       _tag: 'guest.rating.retracted',
       eventId: ratingFact.id,

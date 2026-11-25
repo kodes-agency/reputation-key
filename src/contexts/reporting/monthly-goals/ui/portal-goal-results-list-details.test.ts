@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GoalResultsMatrix } from '#/contexts/reporting/application/public-api'
+import type { GoalResultsMatrix } from '#/contexts/reporting/public-api'
 import { resultGoals } from './portal-goal-results-list-view'
 import {
   ALL_EVIDENCE_STATES,

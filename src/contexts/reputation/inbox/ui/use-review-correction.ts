@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import type { MentionCorrectionAction } from '#/contexts/ai/application/public-api'
+import type { MentionCorrectionAction } from '#/contexts/ai/public-api'
 import {
   actionFailureMessage,
   useActionMutation,

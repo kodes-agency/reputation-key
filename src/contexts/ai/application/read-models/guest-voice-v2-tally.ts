@@ -2,8 +2,8 @@
 // as praise, and how many name a topic. Reviews are counted, not mentions: a review that
 // names the same issue twice is one review, because a review is what a manager opens.
 // Pure functions of the reviews they are given.
-import type { ReviewPolarityV3 } from '#/shared/review-analysis-v3'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import type { ReviewPolarityV3 } from '#/shared/analysis/review-analysis-v3'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import { guestVoiceTopicStatus } from '../../domain/guest-voice-topic-status'
 import type { GuestVoiceTopicAssessment } from '../../guest-voice/contracts'
 import { ratingCountsOf, type RatingCounts } from '../aspect-review-evidence'

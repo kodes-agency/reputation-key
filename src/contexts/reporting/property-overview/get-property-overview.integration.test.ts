@@ -3,11 +3,10 @@ import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { AttentionSignalsPort } from './attention-signals.port.server'
-import { getDashboardData } from './get-dashboard-data.server'
 import { getPropertyOverview } from './get-property-overview.server'
-import type { GetReviewInboxItemIds } from '#/contexts/inbox/application/use-cases/get-review-inbox-item-ids'
+import type { GetReviewInboxItemIds } from '#/contexts/reputation/inbox/get-review-inbox-item-ids.server'
 import { getDb } from '#/shared/db'
-import { createServingStats } from '#/contexts/review/infrastructure/serving-stats'
+import { createServingStats } from '#/contexts/reputation/reviews/serving-stats.server'
 import {
   recordedDashboardRepo,
   seedDashboardProperty,
@@ -77,7 +76,7 @@ describe('getPropertyOverview', () => {
       }),
     }
     const getOverview = getPropertyOverview({
-      getDashboardData: getDashboardData({ repo, propertyAccess: async () => null }),
+      repo,
       propertyAccess: async () => null,
       attention,
       inboxTargets: {
@@ -129,7 +128,7 @@ describe('getPropertyOverview', () => {
     }
     const googleNumbers = vi.fn(async () => google)
     const getOverview = getPropertyOverview({
-      getDashboardData: getDashboardData({ repo, propertyAccess: async () => null }),
+      repo,
       propertyAccess: async () => null,
       attention: {
         getAttentionCounts: async () => ({
@@ -170,7 +169,7 @@ describe('getPropertyOverview', () => {
       propertyId('a0000000-0000-4000-8000-000000000002'),
     ]
     const getOverview = getPropertyOverview({
-      getDashboardData: getDashboardData({ repo, propertyAccess: grantsElsewhere }),
+      repo,
       propertyAccess: grantsElsewhere,
       attention: { getAttentionCounts },
       inboxTargets: { getGoogleReviewTargetCountsByProperty },
@@ -202,7 +201,7 @@ describe('getPropertyOverview', () => {
     const getGoogleReviewTargetCountsByProperty = vi.fn(async () => new Map())
     const grantsHere = async () => [PROPERTY]
     const getOverview = getPropertyOverview({
-      getDashboardData: getDashboardData({ repo, propertyAccess: grantsHere }),
+      repo,
       propertyAccess: grantsHere,
       attention: { getAttentionCounts },
       inboxTargets: { getGoogleReviewTargetCountsByProperty },
@@ -228,7 +227,7 @@ describe('getPropertyOverview', () => {
     )
     const grantsHere = async () => [PROPERTY]
     const getOverview = getPropertyOverview({
-      getDashboardData: getDashboardData({ repo, propertyAccess: grantsHere }),
+      repo,
       propertyAccess: grantsHere,
       attention: {
         getAttentionCounts: async () => ({
@@ -269,7 +268,7 @@ describe('getPropertyOverview recent reviews', () => {
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
     return getPropertyOverview({
-      getDashboardData: getDashboardData({ repo, propertyAccess: async () => null }),
+      repo,
       propertyAccess: async () => null,
       attention: {
         getAttentionCounts: async () => ({

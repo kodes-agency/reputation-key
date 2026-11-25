@@ -2,10 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxItemDetailResult } from '#/contexts/reputation/public-api'
 
 /** A glance is not a read: only a review left open this long is hurried. */
 export const ON_DEMAND_ANALYSIS_DWELL_MILLIS = 1_500

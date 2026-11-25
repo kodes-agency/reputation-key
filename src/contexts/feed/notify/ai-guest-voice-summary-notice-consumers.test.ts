@@ -1,8 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod/v4'
 import { userId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import {
@@ -128,15 +126,6 @@ const makeDeps = () => {
     },
   }
 }
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
-afterEach(() => {
-  clearEventSchemas()
-})
 
 describe('the Monday email route', () => {
   it('registers the one fact the AI context writes per Property per Monday', () => {

@@ -7,9 +7,9 @@ import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 
 import type { PropertyRepository } from './profile/property-repository.port.server'
 import type { Property } from './domain/types'
-import { createPropertyResponsibilityRuntime } from './responsibility/property-responsibility-runtime.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
+import type { PropertyResponsibilityRuntime } from './responsibility/property-responsibility-runtime.server'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/public-api'
 import type {
   GoogleConnectionId,
   OrganizationId,
@@ -30,11 +30,11 @@ import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,
 } from './responsibility/property-responsible-managers.server'
+import { policyDeps as managerEligibilityPolicy } from './responsibility/property-manager-eligibility.server'
 import {
-  isEligiblePropertyManager,
-  policyDeps as managerEligibilityPolicy,
-} from './responsibility/property-manager-eligibility.server'
-import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager-eligibility'
+  isEligibleResponsibleManager,
+  releaseRemovedMemberResponsibilities,
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 import {
   archiveProperty,
   disconnectPropertyGoogleBinding,
@@ -49,8 +49,6 @@ type PropertyContextDeps = Readonly<{
   /** Consumer receipts for the worker's outbox consumers. */
   outboxRepo: Pick<OutboxRepository, 'insertReceipt'>
   clock: () => Date
-  /** Unused since createProperty was deleted; drop it with the composition argument. */
-  idGen: () => string
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
   logger: Pick<LoggerPort, 'info' | 'warn'>
@@ -74,8 +72,8 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const assignments = await responsibleManagerRepo.listActive(organizationId, pid)
       const eligibility = await Promise.all(
         assignments.map((assignment) =>
-          isEligiblePropertyManager(
-            managerEligibility,
+          isEligibleResponsibleManager(
+            managerEligibilityPolicy(managerEligibility),
             organizationId,
             pid,
             assignment.userId,
@@ -233,8 +231,8 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const assignments = await responsibleManagerRepo.listActive(orgId, pid)
       const eligible = await Promise.all(
         assignments.map(async (assignment) =>
-          (await isEligiblePropertyManager(
-            managerEligibility,
+          (await isEligibleResponsibleManager(
+            managerEligibilityPolicy(managerEligibility),
             orgId,
             pid,
             assignment.userId,
@@ -253,7 +251,12 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       managerId: UserId,
     ) => {
       if (!(await deps.repo.findById(orgId, pid))) return false
-      return isEligiblePropertyManager(managerEligibility, orgId, pid, managerId)
+      return isEligibleResponsibleManager(
+        managerEligibilityPolicy(managerEligibility),
+        orgId,
+        pid,
+        managerId,
+      )
     },
   }
 
@@ -290,7 +293,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     }),
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Property responsible-manager repository reach-through. */
-    responsibility: createPropertyResponsibilityRuntime(responsibleManagerRepo),
+    responsibility: Object.freeze({
+      listActiveForUser: responsibleManagerRepo.listActiveForUser,
+      releaseForUser: responsibleManagerRepo.releaseForUser,
+    }) satisfies PropertyResponsibilityRuntime,
     internal: {
       repos: { responsibleManagerRepo } as const,
       useCases,

@@ -1,4 +1,4 @@
-import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/public-api'
 import { buildPortalAddressOperations } from './build-address-operations'
 import { assertPersonalGroupTargetAvailable } from './personal-portals/personal-portal-group-guard.server'
 import { renamePersonalPortalLabels } from './personal-portals/rename-personal-portal-labels.server'
@@ -14,9 +14,9 @@ import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
+} from '#/contexts/property/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/public-api'
 import type { Database } from '#/shared/db'
 import { createPortalRepository } from './publication/portal-repository.server'
 import { createPortalResponsibilityRuntime } from './responsibility/portal-responsibility-runtime.server'
@@ -37,7 +37,7 @@ import {
 import { registerPortalPropertyLifecycleConsumers } from './responsibility/property-lifecycle-outbox-consumers.server'
 import { registerPortalMemberOffboardingConsumers } from './responsibility/member-offboarding-outbox-consumers.server'
 import { policyDeps as managerEligibilityPolicy } from './responsibility/portal-manager-eligibility.server'
-import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager-eligibility'
+import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import { createPortalAccessArtifactRepository } from './addresses/portal-access-artifact-repository.server'
 import { createPortalApprovedDestinationRepository } from './destinations/portal-approved-destination-repository.server'
 import { createPortalExperienceRepository } from './editor/portal-experience-repository.server'
@@ -62,7 +62,6 @@ import { getPortalCreationOptions } from './publication/get-portal-creation-opti
 import {
   archivePortal,
   changePortalLanguages,
-  changePortalSlug,
   disablePortal,
   publishPortal,
   restorePortal,
@@ -94,7 +93,6 @@ import { createPortalGroup } from './groups/create-portal-group.server'
 import { updatePortalGroup } from './groups/update-portal-group.server'
 import { listPortalGroups } from './groups/list-portal-groups.server'
 import { softDeletePortalGroup } from './groups/soft-delete-portal-group.server'
-import { addPortalToGroup } from './groups/add-portal-to-group.server'
 import { removePortalFromGroup } from './groups/remove-portal-from-group.server'
 import { movePortalToGroup } from './groups/move-portal-to-group.server'
 import { listPortalGroupHistory } from './groups/list-portal-group-history.server'
@@ -109,7 +107,7 @@ import type {
   PortalContactRequestManagerAuthorityPublicApi,
   PortalAiReplyBrandProfilePublicApi,
   PortalPublicDisplayNameDefaultPublicApi,
-} from './application/public-api'
+} from './public-api'
 import { completeContentReview } from './publication/complete-content-review.server'
 import {
   listPortalResponsibleManagers,
@@ -318,6 +316,37 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     idGen: deps.idGen,
     clock: deps.clock,
   }
+  const findPublicPortalByToken = resolvePublicPortalToken({
+    tokenCodec: portalTokenCodec,
+    portalPublicationRepo,
+    portalHealthRepo,
+    listApprovedSecondaryDestinationUris: portalApprovedDestinationRepo.listApprovedUris,
+    isPropertyActive: deps.propertyApi.isPropertyActive,
+    getGoogleReviewDestination: deps.propertyApi.getGoogleReviewDestination,
+    decidePublic: decidePublicExecution,
+    reportGoogleDestinationFailure: () =>
+      deps.logger.warn(
+        { errorCode: 'portal_google_destination_unavailable' },
+        'Portal Google review destination unavailable — serving degraded gateway',
+      ),
+    reportApprovedDestinationFailure: (error) =>
+      deps.logger.warn(
+        { errorCode: 'portal_approved_destinations_unavailable', err: error },
+        'Portal approved destinations unreadable — serving no secondary links',
+      ),
+    reportApprovedDestinationsDropped: (counts) =>
+      deps.logger.warn(
+        { errorCode: 'portal_approved_destinations_dropped', ...counts },
+        'Portal published destinations are not approved — serving fewer links',
+      ),
+    resolvePortalMediaUrls: mediaUrls,
+    reportPortalMediaFailure: (error) =>
+      deps.logger.warn(
+        { errorCode: 'portal_media_unavailable', err: error },
+        'Portal media lookup failed — serving the page without images',
+      ),
+    clock: deps.clock,
+  })
   const useCases = {
     renamePersonalPortalLabels: renamePersonalPortalLabels({
       write: writePersonalPortalLabels,
@@ -375,7 +404,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       experienceRepo: portalExperienceRepo,
     }),
     updatePortalSettings: updatePortalSettings(publishChangesDeps),
-    changePortalSlug: changePortalSlug(publishChangesDeps),
     changePortalLanguages: changePortalLanguages(publishChangesDeps),
     publishPortal: publishPortal(publishChangesDeps),
     disablePortal: disablePortal(publishChangesDeps),
@@ -528,10 +556,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
     }),
-    addPortalToGroup: addPortalToGroup({
-      ...commandDeps,
-      portalGroupRepo,
-    }),
     removePortalFromGroup: removePortalFromGroup({
       portalGroupRepo,
       staffPublicApi: deps.staffPublicApi,
@@ -596,43 +620,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
             }
           : null,
       ),
-    findPublicPortalByToken: async (rawToken: string, preference) => {
-      const outcome = await resolvePublicPortalToken({
-        tokenCodec: portalTokenCodec,
-        portalPublicationRepo,
-        portalHealthRepo,
-        listApprovedSecondaryDestinationUris:
-          portalApprovedDestinationRepo.listApprovedUris,
-        isPropertyActive: deps.propertyApi.isPropertyActive,
-        getGoogleReviewDestination: deps.propertyApi.getGoogleReviewDestination,
-        decidePublic: decidePublicExecution,
-        reportGoogleDestinationFailure: () =>
-          deps.logger.warn(
-            { errorCode: 'portal_google_destination_unavailable' },
-            'Portal Google review destination unavailable — serving degraded gateway',
-          ),
-        reportApprovedDestinationFailure: (error) =>
-          deps.logger.warn(
-            { errorCode: 'portal_approved_destinations_unavailable', err: error },
-            'Portal approved destinations unreadable — serving no secondary links',
-          ),
-        reportApprovedDestinationsDropped: (counts) =>
-          deps.logger.warn(
-            { errorCode: 'portal_approved_destinations_dropped', ...counts },
-            'Portal published destinations are not approved — serving fewer links',
-          ),
-        resolvePortalMediaUrls: mediaUrls,
-        reportPortalMediaFailure: (error) =>
-          deps.logger.warn(
-            { errorCode: 'portal_media_unavailable', err: error },
-            'Portal media lookup failed — serving the page without images',
-          ),
-        clock: deps.clock,
-      })(rawToken, preference)
-      return outcome.status === 'found'
-        ? { status: 'found', result: outcome.data }
-        : { status: 'unavailable' }
-    },
+    findPublicPortalByToken,
     isPrintCode: portalTokenCodec.isPrintCode,
     resolvePublishedAccessArtifact: ({ rawToken, ...input }) => {
       const tokenDigest = portalTokenCodec.digest(rawToken)

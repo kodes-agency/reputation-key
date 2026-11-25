@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Slot } from 'radix-ui'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { PHONE_TOUCH_PAD } from './touch-pad'
 
 // Below `md` a control is at least a tap target tall: `--control-touch` is 44px, and

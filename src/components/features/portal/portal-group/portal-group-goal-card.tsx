@@ -5,7 +5,7 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import type { GoalProgress } from '#/contexts/reporting/application/public-api'
+import type { GoalProgress } from '#/contexts/reporting/public-api'
 import { goalCardView, type GoalCardContext } from './portal-group-goal-view'
 
 type Props = Readonly<{

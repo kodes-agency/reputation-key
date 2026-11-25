@@ -8,7 +8,7 @@ import {
 import { lockAggregateHead } from './ai-property-aggregate-head.server'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import type { AiPropertyProfileResult } from '../domain/types'
 import { resolveAiProcessingCell } from '../domain/rules'
 import type { PropertyProcessingProfilePort } from './property-processing-profile.port.server'
@@ -87,9 +87,7 @@ export const createPropertyProcessingProfileAdapter = (
     })
     if (cell.status === 'policy_unavailable') return cell
 
-    const drifted =
-      row.profileVersion === null ||
-      row.profileSourceEpoch !== row.propertySourceEpoch ||
+    const profileDiffers =
       row.profileOrganizationId !== row.propertyOrganizationId ||
       row.profileCountryCode !== row.propertyCountryCode ||
       row.profileTimezone !== row.propertyTimezone ||
@@ -98,6 +96,10 @@ export const createPropertyProcessingProfileAdapter = (
       row.profileProviderDeploymentProfileVersion !==
         AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
       row.profileLifecycleState !== 'active'
+    const drifted =
+      row.profileVersion === null ||
+      row.profileSourceEpoch !== row.propertySourceEpoch ||
+      profileDiffers
     if (drifted && !input.expected) {
       return refreshForAi({
         organizationId: input.organizationId,
@@ -108,26 +110,15 @@ export const createPropertyProcessingProfileAdapter = (
     if (row.profileSourceEpoch !== row.propertySourceEpoch) {
       return { status: 'source_epoch_changed' }
     }
-    if (
-      row.profileOrganizationId !== row.propertyOrganizationId ||
-      row.profileCountryCode !== row.propertyCountryCode ||
-      row.profileTimezone !== row.propertyTimezone ||
-      row.profileProcessingRegion !== cell.processingRegion ||
-      row.profileRoutingPolicyVersion !== cell.routingPolicyVersion ||
-      row.profileProviderDeploymentProfileVersion !==
-        AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
-      row.profileLifecycleState !== 'active'
-    ) {
-      return { status: 'property_profile_changed' }
-    }
+    if (profileDiffers) return { status: 'property_profile_changed' }
     return compareExpected(
       {
         status: 'available',
         profile: {
           organizationId: input.organizationId,
           propertyId: input.propertyId,
-          countryCode: row.profileCountryCode,
-          timezone: row.profileTimezone,
+          countryCode: row.propertyCountryCode,
+          timezone: row.propertyTimezone,
           processingRegion: cell.processingRegion,
           routingPolicyVersion: cell.routingPolicyVersion,
           sourceEpoch: row.profileSourceEpoch,

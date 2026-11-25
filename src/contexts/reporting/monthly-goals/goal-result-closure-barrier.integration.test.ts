@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { recordOne, retractOne } from '../readings/single-reading.test-fixtures'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getEnv } from '#/shared/config/env'
@@ -11,7 +12,6 @@ import {
   metricReadingId,
 } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
   checkScopedCapability,
@@ -19,7 +19,8 @@ import {
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
-import { createGoalProgramService, GoalProgramError } from './goal-programs.server'
+import { createGoalProgramService } from './goal-programs.server'
+import { GoalProgramError } from '../application/use-cases/goal-program-shared'
 import { queryGoalMetric } from '../readings/query-goal-metric.server'
 import type { GoalMetricReadPort } from '../application/use-cases/goal-program-shared'
 import {
@@ -39,7 +40,6 @@ const VERSION = METRIC_VERSION_IDS.portalRatingCountGoal
 describe.sequential('Goal result closure barriers (integration)', () => {
   let lease: TestLease
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL)
   })
   afterAll(async () => {
@@ -123,6 +123,8 @@ describe.sequential('Goal result closure barriers (integration)', () => {
         },
       },
       subjects: {
+        ratingSubjectsSkipPrivateRating: async () => false,
+        staffTargetProblem: async () => null,
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
       },
@@ -407,7 +409,7 @@ describe.sequential('Goal result closure barriers (integration)', () => {
                 }),
               )
             : change === 'projection'
-              ? store.recordMetric({
+              ? recordOne(store, {
                   reading: createReading({
                     id: metricReadingId(randomUUID()),
                     definitionVersionId: VERSION,
@@ -426,7 +428,7 @@ describe.sequential('Goal result closure barriers (integration)', () => {
                     now: NOW,
                   }),
                 })
-              : store.retractMetric({
+              : retractOne(store, {
                   organizationId: f.org,
                   propertyId: f.property,
                   portalId: portalId(f.portal),

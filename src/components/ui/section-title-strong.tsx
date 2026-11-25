@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { SectionTitle } from './section-title'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 /** Strong evidence-section hierarchy, a lazy variant of SectionTitle. */
 export function StrongSectionTitle({
   className,

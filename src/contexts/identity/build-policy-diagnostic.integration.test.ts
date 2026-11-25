@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The policy diagnostic as the build wires it, against real PostgreSQL.
 //
 // `explainPolicyDecisionFn` is served to any AccountAdmin (`policy.admin`), so
@@ -44,7 +44,6 @@ const policyAdmin = buildIdentityContext({
     setActiveOrganization: async () => {},
     updateOrganization: async () => {},
     currentOrganizationName: async () => null,
-    verifyPassword: async () => false,
   },
   deleteAssetObject: async () => {},
   listAssetObjects: async () => ({ objects: [], truncated: false }),

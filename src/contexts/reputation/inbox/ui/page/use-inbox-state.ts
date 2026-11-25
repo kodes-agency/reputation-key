@@ -6,14 +6,10 @@
 // never router.invalidate()). Navigation sub-hook lives in inbox-state-helpers.
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
-import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
+import type { getInboxItemsFn } from '#/contexts/reputation/server/inbox'
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
 import type { InboxFilterValues } from '#/contexts/reputation/inbox/ui/page/inbox-filters'
-import type {
-  InboxItem,
-  Cursor,
-  InboxQueue,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, Cursor, InboxQueue } from '#/contexts/reputation/public-api'
 import { INBOX_PAGE_SIZE } from '#/contexts/reputation/inbox/ui/page/inbox-search-schema'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import {
@@ -38,7 +34,7 @@ import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 type InboxPage = {
   items: ReadonlyArray<InboxItem>
   nextCursor: Cursor | null
-  totalCount: number
+  totalCount: number | null
   responseCutoff: Date
   viewedUpTo: Date | null
 }

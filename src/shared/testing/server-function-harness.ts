@@ -23,7 +23,6 @@ import { getDb } from '#/shared/db'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { declareRequestProcess } from '#/shared/db/tenant-scope.server'
 import type { Clock } from '#/shared/domain/clock'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { clearTestContainerEnv } from './clear-container-env'
 import { deleteTestOrganizations } from './integration-helpers'
 import { applyEnvOverlay, type EnvOverlay } from './server-function-env'
@@ -192,7 +191,6 @@ export function setupServerFunctionHarness(
     lease = await acquireTestLease(getEnv().DATABASE_URL, 5)
     redis = options.redis ? await acquireHarnessRedis() : undefined
     clearTestContainerEnv()
-    clearEventSchemas()
     fakes = createHarnessFakes(clock)
     // The production composition's one key version (connections-runtime.server.ts).
     googleTokenEncryption = options.googleTokenEncryption?.({
@@ -280,7 +278,6 @@ export function setupServerFunctionHarness(
         await container.shutdown.run()
       }
     } finally {
-      clearEventSchemas()
       redis?.release()
       await lease?.release()
       restoreEnv?.()

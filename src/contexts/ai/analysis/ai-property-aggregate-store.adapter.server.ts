@@ -7,34 +7,15 @@ import {
   aiReviewAnalyses,
   reviews,
 } from '#/shared/db/schema'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
-import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-openai-request-contract'
-import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-profile'
-import type {
-  AiPropertyAnalyzedReview,
-  AiPropertyAggregateStorePort,
-  AiPropertyUnavailableReview,
-} from './ai-property-aggregate-store.port.server'
+import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-operation/ai-property-calendar-profile'
+import type { AiPropertyAggregateStorePort } from './ai-property-aggregate-store.port.server'
 import { lockReviewAnalysisPropertyFence } from './review-analysis-property-fence.server'
-import { readLockedAggregateHead } from './ai-property-aggregate-coverage.server'
-import {
-  AI_INSIGHTS_READ_BUDGET_MS,
-  withStatementTimeout,
-} from './ai-read-timeout.server'
-import {
-  dailyCountsFromReviews,
-  mapAnalyzedReview,
-  mapUnavailableReview,
-} from './ai-property-aggregate-window-mappers.server'
 import { copyMentionsToContribution } from './ai-review-analysis-mentions.server'
 import { assignContributionIssueGroups } from './ai-issue-group-assignment.server'
 import {
   settleReviewSequence,
   settleWithoutContribution,
 } from './ai-property-aggregate-settlement.server'
-
-// Re-exported: the legacy evidence boundary is tested through this module.
-export { mapAnalyzedReview }
 import {
   commitAggregateHead,
   lockAggregateHead,
@@ -248,115 +229,9 @@ export const createAiPropertyAggregateStoreAdapter = (
 
         // The review's newest sequence has no analysis, so whatever an earlier
         // sequence put on a day is no longer true of it.
-        await withdrawReviewContribution({
-          tx,
-          command: input,
-          head,
-          aggregateRevision,
-          appliedAt,
-        })
+        await withdrawReviewContribution({ tx, command: input })
         await commitAggregateHead(tx, input, head, aggregateRevision, appliedAt)
         return { status: 'applied', aggregateRevision }
-      })
-    },
-
-    async readWindow(input) {
-      return withStatementTimeout(db, AI_INSIGHTS_READ_BUDGET_MS, async (tx) => {
-        const locked = await readLockedAggregateHead(tx, input)
-        if (locked === null) return null
-        const { head, coverage: analysisCoverage } = locked
-        const analyzed = await tx.execute<{
-          reviewId: string
-          sourceRevision: number | string
-          analysisSequence: number | string
-          localDate: string
-          rating: number
-          status: string
-          unavailableReason: string | null
-          sentiment: string | null
-          attention: string | null
-          aspects: unknown
-          issueLabel: string | null
-          analysisProfileVersion: string
-          providerDeploymentProfileVersion: string
-          modelSnapshot: string
-        }>(sql`
-          WITH latest AS (
-            SELECT DISTINCT ON (contribution.review_id) contribution.*
-            FROM ai_property_aggregate_contributions AS contribution
-            WHERE contribution.organization_id = ${input.organizationId}
-              AND contribution.property_id = ${input.propertyId}::uuid
-              AND contribution.source_epoch = ${input.sourceEpoch}
-              AND contribution.review_analysis_epoch = ${input.reviewAnalysisEpoch}
-              AND contribution.property_profile_version = ${input.propertyProfileVersion}
-            ORDER BY contribution.review_id, contribution.analysis_sequence DESC
-          )
-          SELECT
-            latest.review_id::text AS "reviewId",
-            latest.source_revision::float8 AS "sourceRevision",
-            latest.analysis_sequence::float8 AS "analysisSequence",
-            latest.local_date::text AS "localDate",
-            latest.rating AS rating,
-            analysis.status AS status,
-            analysis.unavailable_reason AS "unavailableReason",
-            latest.sentiment AS sentiment,
-            latest.attention AS attention,
-            analysis.issue_label AS "issueLabel",
-            '[]'::jsonb AS aspects,
-            analysis.analysis_profile_version AS "analysisProfileVersion",
-            ${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}::text AS "providerDeploymentProfileVersion",
-            ${OPENAI_MODEL_SNAPSHOT}::text AS "modelSnapshot"
-          FROM latest
-          INNER JOIN ai_review_analyses AS analysis
-            ON analysis.organization_id = latest.organization_id
-           AND analysis.property_id = latest.property_id
-           AND analysis.review_id = latest.review_id
-           AND analysis.source_epoch = latest.source_epoch
-           AND analysis.source_revision = latest.source_revision
-           AND analysis.analysis_sequence = latest.analysis_sequence
-          INNER JOIN ai_operations AS operation ON operation.id = analysis.operation_id
-          WHERE latest.status = analysis.status
-            AND latest.status IN ('ready', 'unavailable')
-            AND latest.local_date BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
-            AND operation.state IN ('succeeded_pending_delivery', 'succeeded')
-            AND analysis.analysis_profile_version <> 'review-analysis-v3'
-          ORDER BY latest.local_date, latest.review_id
-        `)
-        const analyzedReviews: AiPropertyAnalyzedReview[] = []
-        const unavailableReviews: AiPropertyUnavailableReview[] = []
-        for (const row of analyzed.rows) {
-          if (row.status === 'ready') {
-            analyzedReviews.push(mapAnalyzedReview(row))
-            continue
-          }
-          if (
-            row.status === 'unavailable' &&
-            Array.isArray(row.aspects) &&
-            row.aspects.length === 0 &&
-            row.sentiment === null &&
-            row.attention === null &&
-            row.issueLabel === null
-          ) {
-            unavailableReviews.push(mapUnavailableReview(row))
-            continue
-          }
-          throw new Error('Property Review analysis outcome is invalid')
-        }
-        return {
-          head: {
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-            sourceEpoch: head.sourceEpoch,
-            reviewAnalysisEpoch: head.reviewAnalysisEpoch,
-            propertyProfileVersion: head.propertyProfileVersion,
-            aggregateRevision: head.aggregateRevision,
-            terminalAnalysisSequence: head.terminalAnalysisSequence,
-          },
-          coverage: analysisCoverage,
-          days: dailyCountsFromReviews(analyzedReviews),
-          analyzedReviews: Object.freeze(analyzedReviews),
-          unavailableReviews: Object.freeze(unavailableReviews),
-        }
       })
     },
   }

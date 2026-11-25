@@ -4,7 +4,6 @@ import {
   isSessionValid,
   buildCookieAttributes,
   buildSetCookieHeader,
-  buildClearCookieHeader,
   SESSION_COOKIE_NAME,
 } from './guest-session'
 import { guestSessionId, organizationId, portalId, propertyId } from '#/shared/domain/ids'
@@ -18,7 +17,6 @@ describe('GuestSession', () => {
     portalId: portalId('portal-1'),
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
-    tokenVersion: 1,
     now: NOW,
   }
 
@@ -28,12 +26,6 @@ describe('GuestSession', () => {
       expect(s.sessionId).toBe('sess-1')
       expect(s.issuedAt).toEqual(NOW)
       expect(s.expiresAt.getTime()).toBeGreaterThan(s.issuedAt.getTime())
-      expect(s.campaignMediumHint).toBeNull()
-    })
-
-    it('accepts campaign medium hint', () => {
-      const s = createSession({ ...baseParams, campaignMediumHint: 'qr' })
-      expect(s.campaignMediumHint).toBe('qr')
     })
   })
 
@@ -44,9 +36,8 @@ describe('GuestSession', () => {
     })
 
     it('invalid after expiry', () => {
-      const s = createSession({ ...baseParams, durationMs: 0 })
-      // Session with 0 duration expires immediately
-      expect(isSessionValid(s, new Date(NOW.getTime() + 1000))).toBe(false)
+      const s = createSession(baseParams)
+      expect(isSessionValid(s, new Date(s.expiresAt.getTime() + 1000))).toBe(false)
     })
   })
 
@@ -83,15 +74,6 @@ describe('GuestSession', () => {
       const attrs = buildCookieAttributes(s, true)
       const header = buildSetCookieHeader(attrs)
       expect(header).toContain(`${SESSION_COOKIE_NAME}=`)
-    })
-  })
-
-  describe('buildClearCookieHeader', () => {
-    it('clears cookie with Max-Age=0', () => {
-      const header = buildClearCookieHeader(true)
-      expect(header).toContain('Max-Age=0')
-      expect(header).toContain('HttpOnly')
-      expect(header).toContain('Secure')
     })
   })
 })

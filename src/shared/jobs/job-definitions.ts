@@ -18,8 +18,6 @@ export type JobQueueName = 'default' | 'background'
 /** Registration posture of a job. */
 export type JobRegistration =
   | 'enabled' // real handler registered and schedulable
-  | 'denied_dark' // capability dark — no-op handler registered (BQR-0 containment)
-  | 'blocked_capability' // capability hard-blocked — no-op handler registered
   | 'quarantined' // safety no-op registered; scheduling/cutover explicitly denied
 
 export type JobDefinition = Readonly<{
@@ -130,7 +128,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'sync-property-reviews',
-    'src/contexts/review/infrastructure/jobs/sync-property-reviews.job.ts',
+    'src/contexts/reputation/sync/sync-property-reviews-job.server.ts',
     {
       queue: 'default',
       capability: 'property.connect_gbp',
@@ -186,7 +184,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'expire-review-provider-source',
-    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    'src/contexts/reputation/content/review-provider-lifecycle-sweeps-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -201,7 +199,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // Inbox response targets still read the completed snapshot runs it deletes.
   defineJob(
     'sweep-review-provider-tombstones',
-    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    'src/contexts/reputation/content/review-provider-lifecycle-sweeps-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -214,7 +212,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'publish-reply',
-    'src/contexts/review/infrastructure/jobs/publish-reply.job.ts',
+    'src/contexts/reputation/publication/publish-reply-job.server.ts',
     {
       queue: 'default',
       capability: 'property.publish_reply',
@@ -301,7 +299,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'refresh-expiring-reviews',
-    'src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job.ts',
+    'src/contexts/reputation/sync/refresh-expiring-reviews-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -316,7 +314,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   // it, so the action has an external effect and takes a fresh policy read.
   defineJob(
     'release-response-target-reminders',
-    'src/contexts/reputation/inbox/response-targets/release-reminders.job.server.ts',
+    'src/contexts/reputation/response-targets/release-reminders.job.server.ts',
     {
       queue: 'background',
       capability: 'inbox.use',
@@ -330,7 +328,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'discover-new-reviews',
-    'src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts',
+    'src/contexts/reputation/sync/discover-new-reviews-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -343,7 +341,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'purge-expired-reviews',
-    'src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.ts',
+    'src/contexts/reputation/content/purge-expired-reviews-job.server.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -356,7 +354,7 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
   ),
   defineJob(
     'reconcile-ambiguous-publications',
-    'src/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job.ts',
+    'src/contexts/reputation/publication/reconcile-ambiguous-publications-job.server.ts',
     {
       queue: 'background',
       capability: 'none',

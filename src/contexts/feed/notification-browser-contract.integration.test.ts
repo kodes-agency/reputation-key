@@ -56,7 +56,6 @@ function feedPublicApi() {
       logger,
       operationalHistoryIdGen: () =>
         operationalActionHistoryRecordId('86300000-0000-4000-8000-000000000998'),
-      operationalHistoryHoldIdGen: () => '86300000-0000-4000-8000-000000000997',
     },
     notification: {
       db: getDb(),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeIssueThing } from '#/shared/property-issue-normalization'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import { normalizeIssueThing } from '#/shared/analysis/property-issue-normalization'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import {
   planIssueGroupAssignments,
   type IssueAssignmentGroup,

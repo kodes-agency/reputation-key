@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   getAiRuntimeCapability,
   isExecutionCompatibleWithConsent,
-} from '#/shared/ai-runtime-capability-contract'
+} from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import type { MerchantAiConsentFence } from '#/shared/auth/execution-policy'
 import type {
   MerchantAiCapability,

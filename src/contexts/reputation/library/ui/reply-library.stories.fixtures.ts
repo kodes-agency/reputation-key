@@ -2,8 +2,8 @@ import type { Action } from '#/components/hooks/use-action'
 import type {
   ReplyLibraryDto,
   ReplyLibraryTemplateDto,
-} from '#/contexts/review/application/dto/reply-library.dto'
-import { resolveReplyLibraryTemplates } from '#/contexts/review/application/reply-library-resolver'
+} from '#/contexts/reputation/library/contracts'
+import { resolveReplyLibraryTemplates } from '#/contexts/reputation/library/reply-library-resolver.contracts'
 import { BUILTIN_REPLY_LIBRARY } from '#/shared/reply-library/builtin-library'
 import { BUILTIN_REPLY_VOICE, resolveVoice } from '#/shared/reply-library/reply-voice'
 

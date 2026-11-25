@@ -1,28 +1,28 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
-import { persistedHeadFromItemRow } from '#/contexts/inbox/infrastructure/inbox-cycle-head'
+import { persistedHeadFromItemRow } from '#/contexts/reputation/inbox/inbox-cycle-head.server'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import {
   inboxBulkReopenCompleted,
   type InboxBulkReopenedCycle,
-} from '#/contexts/inbox/domain/events'
-import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+} from '#/contexts/reputation/domain/inbox-events'
+import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import {
   matchesLockedBulkReopenState,
   sourceCommandPermission,
   webActorId,
-} from '#/contexts/inbox/infrastructure/inbox-command-guards'
-import { appendEscalationHistory } from '#/contexts/inbox/infrastructure/inbox-escalation-history'
+} from '#/contexts/reputation/inbox/inbox-command-guards.server'
+import { appendEscalationHistory } from '#/contexts/reputation/inbox/inbox-escalation-history.server'
 import {
   appendPriorityHistory,
   guardPriorityCommand,
   managerPriorityColumns,
-} from '#/contexts/inbox/infrastructure/inbox-priority-history'
-import { reopenLockedBulkItem } from '#/contexts/inbox/infrastructure/inbox-bulk-commands'
+} from '#/contexts/reputation/inbox/inbox-priority-history.server'
+import { reopenLockedBulkItem } from '#/contexts/reputation/inbox/inbox-bulk-commands.server'
 import type { CommandRuntime } from './command-runtime.server'
 
 export const createStatusCommands = (
@@ -258,8 +258,8 @@ export const createStatusCommands = (
         'Inbox item escalation update failed — no row returned',
         event,
         stamp,
-        (tx, row) =>
-          appendEscalationHistory(tx, item, row, {
+        (tx, row, handlingCycleNumber) =>
+          appendEscalationHistory(tx, item, row, handlingCycleNumber, {
             kind: 'escalated',
             actorUserId: updates.escalatedBy,
             occurredAt: stamp,
@@ -280,8 +280,8 @@ export const createStatusCommands = (
         'Inbox item priority update failed — no row returned',
         event,
         stamp,
-        (tx, row) =>
-          appendPriorityHistory(tx, item, row, {
+        (tx, row, handlingCycleNumber) =>
+          appendPriorityHistory(tx, item, row, handlingCycleNumber, {
             priority: updates.priority,
             actorUserId: updates.setBy,
             occurredAt: stamp,
@@ -304,8 +304,8 @@ export const createStatusCommands = (
         'Inbox item resolve-escalation failed — no row returned',
         event,
         stamp,
-        (tx, row) =>
-          appendEscalationHistory(tx, item, row, {
+        (tx, row, handlingCycleNumber) =>
+          appendEscalationHistory(tx, item, row, handlingCycleNumber, {
             kind: 'resolved',
             actorUserId: updates.resolvedBy,
             occurredAt: stamp,

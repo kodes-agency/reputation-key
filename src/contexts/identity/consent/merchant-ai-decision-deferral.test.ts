@@ -3,7 +3,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-contract'
+import { resolveAiRuntimeCapabilitySet } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import {
   createMerchantAiAuthorization,
   type MerchantAiAuthorizationStore,
@@ -105,7 +105,6 @@ function makeWorld() {
     authorizeManagement,
     isCurrentAccountAdmin: async () => true,
     authorize: async () => true,
-    verifyStepUp: async () => true,
     clock,
     idGen: () => 'c0000000-0000-4000-8000-0000000000d1',
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,

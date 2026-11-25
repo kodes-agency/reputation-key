@@ -1,4 +1,5 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The Inbox projection rebuild reads Google's reply truth, not only RepKey's
 // replies. A reply written directly on Google exists only as a Google reply
 // observation (its head says `live`): the legacy `google_sync` row in
@@ -23,7 +24,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //
 // Real PostgreSQL, real Review authority, fixed clock.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
@@ -37,16 +38,16 @@ import {
   type ReviewId,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { Review } from '#/contexts/review/domain/types'
-import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
-import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
+import type { Review } from '#/contexts/reputation/domain/review-types'
+import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
+import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import { createInboxRepository } from './inbox-repository.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
-import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
-import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { createReviewSourceLookupAdapter } from '#/contexts/reputation/inbox/review-source-lookup.adapter.server'
+import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
 
 const ORG = organizationId('org-inbox-rebuild-google-reply-0001')
 const PROP = propertyId('5e100000-0000-4000-8000-000000000001')
@@ -156,7 +157,6 @@ function makeReview(
     translatedText: null,
     languageCode: 'en',
     reviewedAt: new Date('2026-10-01T00:00:00.000Z'),
-    expiresAt: new Date('2027-01-01T00:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: new Date('2026-10-01T00:00:00.000Z'),
@@ -255,9 +255,11 @@ async function seedCanonicalState(): Promise<void> {
     materialReviewRevision: existingReplied,
   })
   const { commandStore } = makeRebuild()
-  await commandStore.createItem(existingItem(), null, {
-    materialReviewRevision: existingReplied,
-  })
+  await commandStore.createItem(
+    existingItem(),
+    null,
+    reviewOpeningAnchor(existingItem(), existingReplied),
+  )
 
   // The reply Google showed is gone: nothing to stamp, the item stays open.
   const missingDeleted = await observeReview(REVIEW.missingDeleted)

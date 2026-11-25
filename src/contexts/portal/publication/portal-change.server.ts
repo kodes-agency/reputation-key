@@ -15,11 +15,11 @@ import type { PortalTokenRepository } from '../addresses/portal-token-repository
 import type { Portal, PortalTheme } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { unbrand } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import {
   assertPersonalPortalPublicText,
   withoutInheritedBrand,
@@ -62,7 +62,6 @@ export type PortalIntentDeps = Readonly<{
 
 export type PortalPatch = Readonly<{
   name: string
-  slug: string
   description: string | null
   heroImageUrl: string | null
   theme: PortalTheme
@@ -77,7 +76,6 @@ export type PortalPatch = Readonly<{
 function patchOf(existing: Portal, changes: Partial<PortalPatch>): PortalPatch {
   return {
     name: existing.name,
-    slug: existing.slug,
     description: existing.description,
     heroImageUrl: existing.heroImageUrl,
     theme: existing.theme,
@@ -94,7 +92,6 @@ function patchOf(existing: Portal, changes: Partial<PortalPatch>): PortalPatch {
 function hasPortalChanges(existing: Portal, patch: PortalPatch): boolean {
   return (
     patch.name !== existing.name ||
-    patch.slug !== existing.slug ||
     patch.description !== existing.description ||
     patch.heroImageUrl !== existing.heroImageUrl ||
     JSON.stringify(patch.theme) !== JSON.stringify(existing.theme) ||
@@ -114,7 +111,7 @@ function applyPatchToPublicationSource(
 ): PortalPublicationSource {
   return {
     ...source,
-    portal: { ...source.portal, name: patch.name, slug: patch.slug },
+    portal: { ...source.portal, name: patch.name },
     privateFeedbackThreshold: patch.privateFeedbackThreshold,
     skipPrivateRating: patch.skipPrivateRating,
     contactRequests: patch.contactRequestsEnabled,

@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Archive then Restore, as the product runs them, and what a Portal of the
 // Property is then told: the destination's state, whether a Portal may be
 // published, whether a guest is offered the Google review action, and the
@@ -24,8 +24,6 @@ import {
   userId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
@@ -33,6 +31,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { buildPortalPublicationSnapshot } from '#/contexts/portal/publication/portal-publication-snapshot.server'
 import { loadVerifiedGoogleReviewDestination } from '#/contexts/portal/publication/portal-publication-readiness.server'
 import { resolvePublicPortalToken } from '#/contexts/portal/publication/resolve-public-portal-token.server'
+import { quietGuestReadDeps } from '#/contexts/portal/publication/resolve-public-portal-token.test-fixtures'
 import { publicationSource } from '#/contexts/portal/domain/__fixtures__/publication-source'
 import type { PortalHealthInterval } from '#/contexts/portal/domain/portal-health'
 import { handlePortalHealthDependencyChanged } from '#/contexts/portal/health/portal-health-outbox-consumers.server'
@@ -79,7 +78,6 @@ const property = buildPropertyContext({
   repo: createPropertyRepository(db),
   outboxRepo: createOutboxRepository(db),
   clock: () => now,
-  idGen: () => 'f8f00000-0000-4000-8000-000000000001',
   staffPublicApi: {
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
@@ -275,6 +273,7 @@ const guestVisit = () =>
     isPropertyActive: property.publicApi.isPropertyActive,
     getGoogleReviewDestination: property.publicApi.getGoogleReviewDestination,
     decidePublic: async () => ({ allowed: true }),
+    ...quietGuestReadDeps,
     clock: () => GUEST_VISIT_AT,
   })('raw-address-is-not-read-by-the-stub-codec')
 
@@ -347,8 +346,6 @@ async function cleanup(): Promise<void> {
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'Archive Restore Google', $1, NOW())
@@ -375,7 +372,6 @@ afterAll(async () => {
   await cleanup()
   await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
-  clearEventSchemas()
   await pool.end()
 })
 
@@ -420,7 +416,7 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
     await expect(publicationReadiness(LINKED)).resolves.toEqual(accepted)
     await expect(guestVisit()).resolves.toMatchObject({
       status: 'found',
-      data: {
+      result: {
         reviewGateway: { googleReview: { status: 'available', uri: REVIEW_URI } },
       },
     })
@@ -446,7 +442,7 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
     )
     await expect(guestVisit()).resolves.toMatchObject({
       status: 'found',
-      data: { reviewGateway: { googleReview: { status: 'unavailable' } } },
+      result: { reviewGateway: { googleReview: { status: 'unavailable' } } },
     })
 
     await archive(LINKED)
@@ -457,7 +453,7 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
     await expect(publicationReadiness(LINKED)).resolves.toEqual(accepted)
     await expect(guestVisit()).resolves.toMatchObject({
       status: 'found',
-      data: {
+      result: {
         reviewGateway: { googleReview: { status: 'available', uri: REVIEW_URI } },
       },
     })
@@ -491,7 +487,7 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
     // The Portal still serves the private rating; only the Google action closes.
     await expect(guestVisit()).resolves.toMatchObject({
       status: 'found',
-      data: { reviewGateway: { googleReview: { status: 'unavailable' } } },
+      result: { reviewGateway: { googleReview: { status: 'unavailable' } } },
     })
     // The one case in which a live Portal of an active Property reports the
     // Google link on hold: it waits for a relink, not for anything under way.

@@ -102,43 +102,23 @@ describe('Property Google rating goal input', () => {
   })
 })
 
-// Legacy: one release, dropped with pace_per_week (contract follow-up). A page
-// opened before the release still sends whole reviews a week as `pacePerWeek`.
-// The validator maps it before a use case sees the request.
-describe('Property Google rating goal input from a page opened before the release', () => {
+describe('Property Google rating goal pace in a change', () => {
   const identity = { propertyId: PROPERTY_ID, goalId: GOAL_ID, expectedVersion: 1 }
-  const { paceTenthsPerWeek: _tenths, ...legacyClimb } = climb
 
-  it('applies a change of target, quality and a whole weekly pace together', () => {
-    expect(
-      changeRatingGoalSchema.parse({
-        ...identity,
-        targetTenths: 46,
-        qualityTenths: 48,
-        pacePerWeek: 11,
-      }),
-    ).toEqual({
+  it('carries a change of target, quality and pace together', () => {
+    const change = {
       ...identity,
       targetTenths: 46,
       qualityTenths: 48,
       paceTenthsPerWeek: 110,
-    })
+    }
+
+    expect(changeRatingGoalSchema.parse(change)).toEqual(change)
   })
 
-  it('sets a goal from a whole weekly pace', () => {
-    expect(setRatingGoalSchema.parse({ ...legacyClimb, pacePerWeek: 3 })).toEqual({
-      ...legacyClimb,
-      paceTenthsPerWeek: 30,
-    })
-  })
-
-  it('switches to keep without a pace, either way it is named', () => {
+  it('switches to keep with a null pace or none named', () => {
     const toKeep = { ...identity, mode: 'keep', targetTenths: 49, qualityTenths: null }
 
-    expect(changeRatingGoalSchema.parse({ ...toKeep, pacePerWeek: null })).toEqual({
-      ...toKeep,
-      paceTenthsPerWeek: null,
-    })
     expect(changeRatingGoalSchema.parse({ ...toKeep, paceTenthsPerWeek: null })).toEqual({
       ...toKeep,
       paceTenthsPerWeek: null,
@@ -146,42 +126,9 @@ describe('Property Google rating goal input from a page opened before the releas
     expect(changeRatingGoalSchema.parse(toKeep)).toEqual(toKeep)
   })
 
-  it('refuses the pace sent both ways', () => {
-    expect(
-      changeRatingGoalSchema.safeParse({
-        ...identity,
-        pacePerWeek: 11,
-        paceTenthsPerWeek: 110,
-      }).success,
-    ).toBe(false)
-    expect(setRatingGoalSchema.safeParse({ ...climb, pacePerWeek: 11 }).success).toBe(
-      false,
-    )
-  })
+  it('sets a climb only with a pace named', () => {
+    const { paceTenthsPerWeek: _pace, ...withoutPace } = climb
 
-  it('takes a whole weekly pace from 1 to 200 only', () => {
-    for (const pacePerWeek of [0, 201, 2.5]) {
-      expect(setRatingGoalSchema.safeParse({ ...legacyClimb, pacePerWeek }).success).toBe(
-        false,
-      )
-      expect(changeRatingGoalSchema.safeParse({ ...identity, pacePerWeek }).success).toBe(
-        false,
-      )
-    }
-    expect(
-      setRatingGoalSchema.safeParse({ ...legacyClimb, pacePerWeek: 200 }).success,
-    ).toBe(true)
-  })
-
-  it('still needs a pace to climb and none to keep', () => {
-    expect(setRatingGoalSchema.safeParse(legacyClimb).success).toBe(false)
-    expect(
-      setRatingGoalSchema.safeParse({
-        ...legacyClimb,
-        mode: 'keep',
-        qualityTenths: null,
-        pacePerWeek: 3,
-      }).success,
-    ).toBe(false)
+    expect(setRatingGoalSchema.safeParse(withoutPace).success).toBe(false)
   })
 })

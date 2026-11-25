@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -67,19 +67,16 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
   afterAll(clear)
 
   it('uses the immutable calendar function for property-local dates', async () => {
-    await expect(calendar.assertComplete()).resolves.toBe(true)
     await expect(
       calendar.resolveLocalDate({
         reviewedAtEpochMillis: Date.parse('2025-11-02T05:30:00.000Z'),
         timezone: 'America/New_York',
-        calendarProfileVersion: 'property-calendar-v1',
       }),
     ).resolves.toBe('2025-11-02')
     await expect(
       calendar.resolveLocalDate({
         reviewedAtEpochMillis: Date.parse('2025-11-02T05:30:00.000Z'),
         timezone: 'Not/A-Timezone',
-        calendarProfileVersion: 'property-calendar-v1',
       }),
     ).resolves.toBeNull()
   })

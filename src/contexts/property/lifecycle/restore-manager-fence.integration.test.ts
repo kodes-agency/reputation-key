@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Restore and a release of the Property's last Responsible Manager, at the same
 // moment, against real PostgreSQL and through the built Property context.
 //
@@ -13,8 +13,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -42,7 +40,6 @@ const property = buildPropertyContext({
   repo: createPropertyRepository(db),
   outboxRepo: createOutboxRepository(db),
   clock: () => RESTORED_AT,
-  idGen: () => 'f5200000-0000-4000-8000-0000000000ff',
   staffPublicApi: {
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
@@ -116,8 +113,6 @@ async function clearRows() {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Property Restore Manager Fence', ${ORG}, ${ARCHIVED_AT})
@@ -162,7 +157,6 @@ afterAll(async () => {
   await clearRows()
   await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY}`)
   await deleteTestOrganizations(db, [ORG])
-  clearEventSchemas()
 })
 
 describe.sequential('Restore while the last Responsible Manager is released', () => {

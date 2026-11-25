@@ -19,8 +19,8 @@
 // and the only two readers of that choice are the assist actions — a template
 // is filtered by the target's `templateGroup`
 // (`reply-template-operations.ts:137`) and stamped with its tag (`:304`), an
-// AI draft is stamped the same way (`ai-suggested-draft-store.ts:360`), while a
-// hand-typed reply only RECORDS the tag (`reply-operations.ts:325`) and nothing
+// AI draft is stamped the same way (`ai-suggested-draft-store.server.ts:360`), while a
+// hand-typed reply only RECORDS the tag (`reply-operations.server.ts:325`) and nothing
 // reads it at publish. A parameter of two menus is not a separate row or
 // repeated foot control; it remains available inside each assist menu.
 
@@ -36,7 +36,7 @@ import {
 import { Button } from '#/components/ui/button'
 import { Kbd } from '#/components/ui/kbd'
 import { TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { ReplyAutosaveStatus } from '#/contexts/reputation/replies/ui/use-reply-autosave'
 import type { ReactNode } from 'react'
 

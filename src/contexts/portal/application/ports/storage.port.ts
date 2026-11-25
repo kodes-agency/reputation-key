@@ -18,16 +18,14 @@ export type StoragePort = Readonly<{
   createPresignedUploadUrl: (
     key: string,
     contentType: string,
-    maxSizeBytes: number,
   ) => Promise<{ uploadUrl: string; key: string }>
   /**
-   * Resolve when the object is in the store, reject when it is not. It hands
-   * back no address: the bucket is private, so no provider URL is ever stored
-   * or shown; an image is served through the app (see Identity's asset route).
+   * Read server-observed metadata before accepting a guest-owned upload. It
+   * hands back no address: the bucket is private, so no provider URL is ever
+   * stored or shown; an image is served through the app (see Identity's asset
+   * route). Rejects when the object is not in the store.
    */
-  confirmUpload: (key: string) => Promise<void>
-  /** Read server-observed metadata before accepting a guest-owned upload. */
-  inspectObject?: (
+  inspectObject: (
     key: string,
   ) => Promise<{ contentType: string | null; sizeBytes: number | null }>
   deleteObject: (key: string) => Promise<void>

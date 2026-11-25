@@ -1,4 +1,8 @@
-import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import { replyRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
+import {
+  openAiAdapterRegistry,
+  openAiPreparationRegistry,
+} from './provider-registry.test-fixtures'
 import OpenAI from 'openai'
 import { readOpenAiReplyStream } from './openai-stream-response'
 import { openAiRequestOf } from './review-evidence.test-fixtures'
@@ -11,14 +15,14 @@ import { createAiGatewayRoutePreparer } from './route-preparer'
 import { createSensitiveSourceLease } from './source-lease'
 import type { AiAdmissionClient } from './contracts'
 import { admitForTest } from './execution-admission.test-fixtures'
-import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
+import { settledCostMicros } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 import { boundedProviderEventStream } from './bounded-event-stream'
 import {
   OPENAI_REPLY_STREAM_ATTESTATION,
   OPENAI_REPLY_STREAM_SHAPE_DIGEST,
   REPLY_STREAM_DEPLOYMENT,
-} from '#/shared/ai-openai-stream-profile'
-import type { ReplyDraftingProgress } from '#/shared/reply-drafting-progress'
+} from '#/shared/ai-provider-profile/ai-openai-stream-profile'
+import type { ReplyDraftingProgress } from '#/shared/reply/reply-drafting-progress'
 
 const NOW = 1_780_000_000_000
 const KEYS = generateKeyPairSync('ed25519')
@@ -106,6 +110,7 @@ function harness(mode: Mode) {
       detect: () => ({ language: 'en', probability: 0.99, reliable: true }),
     },
     now: () => NOW,
+    providers: openAiPreparationRegistry(),
   })
   const prepared = preparer.prepare(request)
   const admission = admitForTest(prepared.invocation.descriptor, {
@@ -146,15 +151,16 @@ function harness(mode: Mode) {
     now: () => NOW,
     preparer: { prepare: () => prepared },
     admission: {
-      readiness: async () => true,
       authorize: async () => ({ status: 'authorized', admission }),
       settle,
     },
-    connector: createOpenAiConnector({
-      apiKey: 'test-key',
-      outboundFetch,
-      now: () => NOW,
-    }),
+    providers: openAiAdapterRegistry(
+      createOpenAiConnector({
+        apiKey: 'test-key',
+        outboundFetch,
+        now: () => NOW,
+      }),
+    ),
   })
   const lease = createSensitiveSourceLease<typeof request>()
   lease.attachSource(structuredClone(request), (value) => value.source)

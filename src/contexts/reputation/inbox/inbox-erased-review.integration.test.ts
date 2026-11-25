@@ -1,4 +1,5 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Inbox context — an Inbox item whose Review Google deleted.
 // Real PostgreSQL behind the real Review repository.
 //
@@ -16,8 +17,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   eraseKeepingContentClock,
   insertLiveReview,
@@ -30,22 +29,22 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
-import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
-import { createEligibleReads } from '#/contexts/review/application/eligible-reads'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
+import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'
+import { createEligibleReads } from '#/contexts/reputation/reviews/eligible-reads.server'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
 import { updateInboxStatus } from '#/contexts/reputation/inbox/update-inbox-status.server'
 import { bulkUpdateInboxStatus } from '#/contexts/reputation/inbox/bulk-update-inbox-status.server'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
-import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
+import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
-import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
+import { createReviewSourceLookupAdapter } from '#/contexts/reputation/inbox/review-source-lookup.adapter.server'
+import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createInboxRepository } from './inbox-repository.server'
 
@@ -102,7 +101,7 @@ const reviewSourceLookup = createReviewSourceLookupAdapter({
 })
 // A reopen that reaches Review's authority has already read the source, so
 // every case below must be answered before it. Reaching it is a failure.
-const unreachableAuthority: ReviewResponseTargetAuthorityPort = {
+const unreachableAuthority: ReviewResponseTargetAuthority = {
   withExactCurrent: async () => {
     throw new Error('the Response Target authority must not be reached')
   },
@@ -233,14 +232,11 @@ async function currentRevisionOf(id: InboxItem['id']): Promise<number> {
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clean()
 })
 
 afterAll(async () => {
   await clean()
-  clearEventSchemas()
   await pool.end()
 })
 
@@ -255,9 +251,11 @@ beforeEach(async () => {
     [LIVE_CLOSED_ITEM, LIVE_CLOSED_REVIEW],
     [ERASED_ITEM, ERASED_REVIEW],
   ] as const) {
-    await commandStore.createItem(reviewItem(item, sourceId), null, {
-      materialReviewRevision: 1,
-    })
+    await commandStore.createItem(
+      reviewItem(item, sourceId),
+      null,
+      reviewOpeningAnchor(reviewItem(item, sourceId)),
+    )
   }
   // Google deletes the review: the sync erases the Review row and keeps the
   // content clock it had, and Inbox closes the item.

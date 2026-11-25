@@ -5,7 +5,7 @@ import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDec
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { SetupPropertiesStep } from '#/components/features/property-setup'
 import {
   createSetupFnsFixture,

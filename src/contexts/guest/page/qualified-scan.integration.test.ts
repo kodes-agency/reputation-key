@@ -12,8 +12,6 @@ import {
   qualifiedScanId,
   scanEventId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
   guestQualifiedScanRecorded,
@@ -28,8 +26,8 @@ import {
   buildReportingContext,
   type ReportingContextBuildInput,
 } from '#/contexts/reporting/build'
-import { METRIC_VERSION_IDS } from '#/contexts/reporting/application/public-api'
-import { createMetricRepository } from '#/contexts/reporting/readings/metric-repository.server'
+import { METRIC_VERSION_IDS } from '#/contexts/reporting/public-api'
+import { queryGoalAggregate } from '#/contexts/reporting/readings/metric-repository.server'
 import {
   createConsumerRegistry,
   type ConsumerEvent,
@@ -236,8 +234,6 @@ async function cleanMetricState(): Promise<void> {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await cleanMetricState()
   await seedPublishedArtifact()
 })
@@ -609,7 +605,6 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
 
   it('projects one replay-safe Metric contribution and removes it by correction', async () => {
     const { registry } = buildReportingFixture()
-    const readings = createMetricRepository(getDb())
     const fact = guestQualifiedScanRecorded({
       qualifiedScanId: qualifiedScanId('73000000-0000-4000-8000-000000000023'),
       organizationId: ORG,
@@ -669,7 +664,7 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       periodStart: new Date('2026-08-01T00:00:00.000Z'),
       periodEnd: new Date('2026-09-01T00:00:00.000Z'),
     }
-    await expect(readings.queryGoalAggregate(aggregateQuery)).resolves.toMatchObject({
+    await expect(queryGoalAggregate(getDb(), aggregateQuery)).resolves.toMatchObject({
       sum: 1,
       readingCount: 1,
       sampleCount: 1,
@@ -726,7 +721,7 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
     await retractedHandler(retractedEnvelope)
     await retractedHandler(retractedEnvelope)
 
-    await expect(readings.queryGoalAggregate(aggregateQuery)).resolves.toMatchObject({
+    await expect(queryGoalAggregate(getDb(), aggregateQuery)).resolves.toMatchObject({
       sum: 0,
       readingCount: 0,
       sampleCount: 0,

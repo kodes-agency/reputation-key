@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   GoalMetric,
   GoalResultsMatrix as GoalResultsMatrixModel,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { goalMetricLabel } from './goal-metric-label'
 import { resultGoals } from './portal-goal-results-list-view'
 

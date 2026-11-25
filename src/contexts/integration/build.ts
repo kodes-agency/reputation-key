@@ -32,14 +32,14 @@ import type { GoogleImportReferenceStore } from './imports/durable-import-refere
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import {
   type GoogleConnectionStatusPort,
   type GoogleReviewApiPort,
   type TargetedGoogleReviewReferenceResolver,
   type ReviewQueuePort,
   type TargetedGoogleReviewQueuePort,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { connectGoogleAccount } from './connections/connect-google-account.server'
 import { disconnectGoogleAccount } from './connections/disconnect-google-account.server'
 import { listGoogleConnections } from './connections/list-google-connections.server'
@@ -83,12 +83,11 @@ import type { PerformanceContentAuthorizer } from './performance/google-performa
 import type { GoogleReviewSyncContentAuthorizer } from './review-sync/google-review-sync-authorizer.server'
 import type { GoogleReplyPublicationContentAuthorizer } from './review-sync/google-reply-publication-authorizer.server'
 import { createActiveMemberAuthResolver } from './provider/active-member-auth.adapter.server'
-import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
+import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/public-api'
 import {
   reconcileGoogleProviderRecovery,
   type ReconcileGoogleProviderRecovery,
 } from './connections/reconcile-google-provider-recovery.server'
-import { createProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
 
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
@@ -125,15 +124,14 @@ type IntegrationContextDeps = Readonly<{
   outboxRepo: OutboxRepository
   clock: () => Date
   idGen: () => string
-  invalidationOwnerGen: () => string
   jobQueue: Queue | undefined
   propertyApi: PropertyPublicApi
-  propertyBindingApi?: PropertyGoogleBindingPublicApi
-  enqueueReviewSync?: ReviewQueuePort['addSyncJob']
-  prepareImportSync: import('#/contexts/review/application/public-api').PrepareGoogleImportSync
-  enqueueTargetedReviewFetch?: TargetedGoogleReviewQueuePort['addTargetedFetchJob']
+  propertyBindingApi: PropertyGoogleBindingPublicApi
+  enqueueReviewSync: ReviewQueuePort['addSyncJob']
+  prepareImportSync: import('#/contexts/reputation/public-api').PrepareGoogleImportSync
+  enqueueTargetedReviewFetch: TargetedGoogleReviewQueuePort['addTargetedFetchJob']
   /** Starts an imported Property's public display name as its confirmed name. */
-  defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
+  defaultPublicDisplayName: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
   logger: LoggerPort
   /** Google provider endpoint configuration resolved once by composition. */
   providerEndpoints: GoogleProviderEndpoints
@@ -170,8 +168,6 @@ type IntegrationContextDeps = Readonly<{
   googleReviewCursorStore?: GoogleReviewCursorStore
   oauthStateHandles?: OAuthStateHandleService
   oauthCallbackAbuseGate?: OAuthCallbackAbuseGate
-  /** Static policy observation awaited before provider/effect authorization. */
-  refreshPolicyStoreRequired?: () => Promise<void>
   /** Redis-backed, renewable and generation-fenced refresh coordination. */
   googleRefreshCoordination?: GoogleRefreshCoordination
 }>
@@ -211,26 +207,9 @@ export type IntegrationContextApi = Readonly<{
   maintenance: Readonly<{
     subscribeNotifications: ReturnType<typeof createGbpSubscribeBackfill>
     imports: Readonly<{
-      inspectBacklog:
-        ReturnType<typeof createGoogleImportLifecycle>['inspectBacklog'] | null
-      inspectScope: ReturnType<typeof createGoogleImportLifecycle>['inspectScope'] | null
-      inspectRequest:
-        ReturnType<typeof createGoogleImportLifecycle>['inspectRequest'] | null
-      cancelRequest:
-        ReturnType<typeof createGoogleImportLifecycle>['cancelRequest'] | null
-      sweep: ReturnType<typeof createGoogleImportLifecycle>['sweep'] | null
+      inspectBacklog: ReturnType<typeof createGoogleImportLifecycle>['inspectBacklog']
+      sweep: ReturnType<typeof createGoogleImportLifecycle>['sweep']
     }>
-  }>
-  /** Cross-context account/import teardown authority. */
-  lifecycle: Readonly<{
-    cancelImportsForConnection:
-      ReturnType<typeof createGoogleImportLifecycle>['cancelConnection'] | null
-    cancelImportsForOrganization:
-      ReturnType<typeof createGoogleImportLifecycle>['cancelOrganization'] | null
-    preparePropertyDeletion:
-      ReturnType<typeof createGoogleImportLifecycle>['preparePropertyDeletion'] | null
-    finalizePropertyDeletion:
-      ReturnType<typeof createGoogleImportLifecycle>['finalizePropertyDeletion'] | null
   }>
   /** Authenticated GBP notification ingress. */
   webhook: Readonly<{ handleNotification: HandleGbpNotification }>
@@ -242,8 +221,8 @@ export type IntegrationContextApi = Readonly<{
       tx: import('#/shared/outbox/commit').Tx,
       now: Date,
     ) => Promise<{ items: number; parents: number }>
-    processImportItem: GoogleImportProcessor['process'] | null
-    sweepImportLifecycle: ReturnType<typeof createGoogleImportLifecycle>['sweep'] | null
+    processImportItem: GoogleImportProcessor['process']
+    sweepImportLifecycle: ReturnType<typeof createGoogleImportLifecycle>['sweep']
     /** One bounded pass of both provider recovery stores; counts only. */
     reconcileProviderRecovery: ReconcileGoogleProviderRecovery
     /** The daily GBP push reconciliation across every tenant; counts only. */
@@ -283,30 +262,17 @@ export type IntegrationContextApi = Readonly<{
       prepareGoogleConnectorDeparture: ReturnType<typeof prepareGoogleConnectorDeparture>
       googleImportDiscovery: ReturnType<typeof createGoogleImportDiscovery> | null
       googleImportTransaction: ReturnType<typeof createGoogleImportTransaction> | null
-      processGoogleImportItem: GoogleImportProcessor['process'] | null
+      processGoogleImportItem: GoogleImportProcessor['process']
       getPropertyGooglePerformance: GooglePerformanceRuntime['getPropertyGooglePerformance']
       renewGooglePerformanceLease: GooglePerformanceRuntime['renewGooglePerformanceLease']
       admitGoogleOAuthCallbackTenant: OAuthCallbackAbuseGate['admitResolvedTenant']
-      sweepGoogleImportLifecycle:
-        ReturnType<typeof createGoogleImportLifecycle>['sweep'] | null
-      inspectGoogleImportLifecycle:
-        ReturnType<typeof createGoogleImportLifecycle>['inspectBacklog'] | null
-      inspectGoogleImportLifecycleScope:
-        ReturnType<typeof createGoogleImportLifecycle>['inspectScope'] | null
-      cancelGoogleImportForConnection:
-        ReturnType<typeof createGoogleImportLifecycle>['cancelConnection'] | null
-      cancelGoogleImportForUser:
-        ReturnType<typeof createGoogleImportLifecycle>['cancelUser'] | null
-      cancelGoogleImportForOrganization:
-        ReturnType<typeof createGoogleImportLifecycle>['cancelOrganization'] | null
-      prepareGoogleImportPropertyDeletion:
-        ReturnType<typeof createGoogleImportLifecycle>['preparePropertyDeletion'] | null
-      finalizeGoogleImportPropertyDeletion:
-        ReturnType<typeof createGoogleImportLifecycle>['finalizePropertyDeletion'] | null
-      cancelGoogleImportRequest:
-        ReturnType<typeof createGoogleImportLifecycle>['cancelRequest'] | null
-      inspectGoogleImportRequest:
-        ReturnType<typeof createGoogleImportLifecycle>['inspectRequest'] | null
+      sweepGoogleImportLifecycle: ReturnType<typeof createGoogleImportLifecycle>['sweep']
+      inspectGoogleImportLifecycle: ReturnType<
+        typeof createGoogleImportLifecycle
+      >['inspectBacklog']
+      cancelGoogleImportForUser: ReturnType<
+        typeof createGoogleImportLifecycle
+      >['cancelUser']
     }>
   }>
 }>
@@ -352,16 +318,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     providerTokenAccess: googleProviderTokenAccess,
   } = connections
   const googleImportCompletion: GoogleImportCompletionDeps = {
-    readReceipt: (...args) => {
-      if (!deps.propertyBindingApi) throw new Error('Property receipt reader unavailable')
-      return deps.propertyBindingApi.readReceipt(...args)
-    },
+    readReceipt: deps.propertyBindingApi.readReceipt,
     prepareImportSync: deps.prepareImportSync,
-    ensureImportFollowUps: (...args) => {
-      if (!deps.propertyBindingApi)
-        throw new Error('Property follow-up recovery unavailable')
-      return deps.propertyBindingApi.ensureImportFollowUps(...args)
-    },
+    ensureImportFollowUps: deps.propertyBindingApi.ensureImportFollowUps,
   }
   const googleImportStore = createImportStore(deps.db, deps.clock, googleImportCompletion)
   const googleReviewPushReferences: GoogleReviewPushReferenceStore =
@@ -373,49 +332,14 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         })
       : createUnavailableGoogleReviewPushReferenceStore()
   const gbpReviewPushReceipts = createGbpReviewPushReceiptStore(deps.db)
-  const targetedGoogleReviewQueue: TargetedGoogleReviewQueuePort | null =
-    deps.enqueueTargetedReviewFetch
-      ? { addTargetedFetchJob: deps.enqueueTargetedReviewFetch }
-      : null
+  const targetedGoogleReviewQueue: TargetedGoogleReviewQueuePort = {
+    addTargetedFetchJob: deps.enqueueTargetedReviewFetch,
+  }
   // ── Queue Port ───────────────────────────────────────────────────
   if (!deps.jobQueue) throw new Error('jobQueue required')
   const jobQueue = deps.jobQueue
 
   const googleImportQueue = createGoogleImportQueue(jobQueue)
-
-  const invalidationReferences = deps.googleImportReferences
-  const providerAuthorizationInvalidation =
-    deps.providerEphemeralStore && invalidationReferences
-      ? createProviderAuthorizationInvalidationFanout({
-          store: deps.providerEphemeralStore,
-          receipts: deps.outboxRepo,
-          randomOwner: deps.invalidationOwnerGen,
-          handlers: [
-            {
-              id: 'google_import_references',
-              invalidate: async (event) => {
-                const results = await Promise.all([
-                  event.propertyId
-                    ? invalidationReferences.invalidateProperty({
-                        organizationId: event.organizationId,
-                        propertyId: event.propertyId,
-                      })
-                    : Promise.resolve(true),
-                  event.connectionId
-                    ? invalidationReferences.invalidateConnection({
-                        organizationId: event.organizationId,
-                        connectionId: event.connectionId,
-                      })
-                    : Promise.resolve(true),
-                ])
-                if (results.some((result) => !result)) {
-                  throw new Error('Google import reference invalidation failed')
-                }
-              },
-            },
-          ],
-        })
-      : null
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     registerGoogleBindingFollowUpConsumers(consumerRegistry, {
@@ -442,27 +366,19 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       queue: googleImportQueue,
       receipts: deps.outboxRepo,
     })
-    if (providerAuthorizationInvalidation) {
+    if (deps.googleImportReferences) {
       registerProviderAuthorizationInvalidationConsumer(consumerRegistry, {
-        fanout: providerAuthorizationInvalidation,
-        receipts: deps.outboxRepo,
-        nowMs: () => deps.clock().getTime(),
-      })
-    }
-    if (targetedGoogleReviewQueue) {
-      registerGoogleReviewPushDispatchConsumer(consumerRegistry, {
-        queue: targetedGoogleReviewQueue,
+        references: deps.googleImportReferences,
         receipts: deps.outboxRepo,
       })
     }
+    registerGoogleReviewPushDispatchConsumer(consumerRegistry, {
+      queue: targetedGoogleReviewQueue,
+      receipts: deps.outboxRepo,
+    })
     registerMemberDepartureConsumers(consumerRegistry, {
       prepareDeparture: useCases.prepareGoogleConnectorDeparture,
-      cancelImportsForUser: async (organizationIdValue, userIdValue) => {
-        if (!googleImportLifecycle) {
-          throw new Error('Google import lifecycle unavailable')
-        }
-        return googleImportLifecycle.cancelUser(organizationIdValue, userIdValue)
-      },
+      cancelImportsForUser: googleImportLifecycle.cancelUser,
       resolveActiveMember,
       receipts: deps.outboxRepo,
     })
@@ -515,7 +431,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     references: deps.googleImportReferences,
     replayKeys: deps.googleImportReplayKeys,
     authorizeContent: deps.authorizeGoogleImportContent,
-    refreshPolicyStoreRequired: deps.refreshPolicyStoreRequired,
   })
   const {
     lifecycle: googleImportLifecycle,
@@ -546,11 +461,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
 
   const connectionCommands = connections.commands({
     unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
-    cancelImportsForConnection: googleImportLifecycle
-      ? async (organizationIdValue, connectionId) => {
-          await googleImportLifecycle.cancelConnection(organizationIdValue, connectionId)
-        }
-      : undefined,
+    cancelImportsForConnection: async (organizationIdValue, connectionId) => {
+      await googleImportLifecycle.cancelConnection(organizationIdValue, connectionId)
+    },
   })
 
   const useCases = {
@@ -566,21 +479,12 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
 
     googleImportDiscovery,
     googleImportTransaction,
-    processGoogleImportItem: googleImportProcessor?.process ?? null,
+    processGoogleImportItem: googleImportProcessor.process,
     getPropertyGooglePerformance,
     renewGooglePerformanceLease,
-    sweepGoogleImportLifecycle: googleImportLifecycle?.sweep ?? null,
-    inspectGoogleImportLifecycle: googleImportLifecycle?.inspectBacklog ?? null,
-    inspectGoogleImportLifecycleScope: googleImportLifecycle?.inspectScope ?? null,
-    cancelGoogleImportForConnection: googleImportLifecycle?.cancelConnection ?? null,
-    cancelGoogleImportForUser: googleImportLifecycle?.cancelUser ?? null,
-    cancelGoogleImportForOrganization: googleImportLifecycle?.cancelOrganization ?? null,
-    prepareGoogleImportPropertyDeletion:
-      googleImportLifecycle?.preparePropertyDeletion ?? null,
-    finalizeGoogleImportPropertyDeletion:
-      googleImportLifecycle?.finalizePropertyDeletion ?? null,
-    cancelGoogleImportRequest: googleImportLifecycle?.cancelRequest ?? null,
-    inspectGoogleImportRequest: googleImportLifecycle?.inspectRequest ?? null,
+    sweepGoogleImportLifecycle: googleImportLifecycle.sweep,
+    inspectGoogleImportLifecycle: googleImportLifecycle.inspectBacklog,
+    cancelGoogleImportForUser: googleImportLifecycle.cancelUser,
 
     getGoogleAuthUrl: connections.oauth.authorizationUrl,
     redeemGoogleOAuthState: connections.oauth.redeemState,
@@ -655,17 +559,8 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       subscribeNotifications: useCases.gbpSubscribeBackfill,
       imports: Object.freeze({
         inspectBacklog: useCases.inspectGoogleImportLifecycle,
-        inspectScope: useCases.inspectGoogleImportLifecycleScope,
-        inspectRequest: useCases.inspectGoogleImportRequest,
-        cancelRequest: useCases.cancelGoogleImportRequest,
         sweep: useCases.sweepGoogleImportLifecycle,
       }),
-    }),
-    lifecycle: Object.freeze({
-      cancelImportsForConnection: useCases.cancelGoogleImportForConnection,
-      cancelImportsForOrganization: useCases.cancelGoogleImportForOrganization,
-      preparePropertyDeletion: useCases.prepareGoogleImportPropertyDeletion,
-      finalizePropertyDeletion: useCases.finalizeGoogleImportPropertyDeletion,
     }),
     webhook: Object.freeze({ handleNotification: gbpNotificationHandler }),
     worker: Object.freeze({
@@ -674,8 +569,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         store: googleImportStore,
         queue: googleImportQueue,
         processItem: async (input) => {
-          if (!useCases.processGoogleImportItem)
-            throw new Error('Google import processor unavailable')
           await useCases.processGoogleImportItem(input)
         },
         logger: deps.logger,

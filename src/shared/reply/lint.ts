@@ -7,7 +7,7 @@ export type {
   ReplyBodyFinding,
   ReplyBodyIssueCode,
 } from '#/shared/domain/reply-body-lint-policy'
-import { digestOf } from '#/shared/ai-digest'
+import { digestOf } from '#/shared/ai-operation/ai-digest'
 
 // Code checks for an AI reply body (Phase 0). `hard` problems trigger the one automatic retry;
 // `soft` ones are only counted. Matching ignores case and accents; short terms match whole words,

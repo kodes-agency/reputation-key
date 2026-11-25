@@ -52,7 +52,7 @@ Every event `_tag` follows `context.entity.verb`:
 and keep them: `goal.*` and `metric.*` (Reporting; context names before WP3.4) and
 `portal_group.*`, `portal_link.*` and `portal_link_category.*` (Portal; the
 standard form would be `portal.portal_link.*`). They are stored in
-`outbox.event_type` and keyed in `src/shared/events/schema-registrations.ts`, so
+`outbox.event_type` and keyed in `src/shared/events/registry.server.ts`, so
 renaming one is a data migration, not a find-and-replace. Do not model new events
 on them. Retired context names are not valid prefixes: `activity` and
 `notification` (now `feed`), `dashboard` (now `reporting`), `staff` (now
@@ -133,7 +133,7 @@ type ReviewEvent = ReviewCreated | ReviewUpdated | ReviewExpired
 
 ### 1.8 File organization
 
-One file per context: `domain/events.ts`. Monolithic. All event types, constructors, and the union in one file.
+One event module per event family in the area's `domain/`: `events.ts`, or `<family>-events.ts` where an area holds more than one (Reporting's `goal-events.ts` and `metric-events.ts`, Reputation's `review-events.ts` and `inbox-events.ts`). `src/shared/events` may import only these modules.
 
 ### 1.9 Field naming standards
 
@@ -228,16 +228,15 @@ type ContextApi<T> = Readonly<{
     controls, Guest's session and abuse controls;
   - a function on it that acts for a signed-in member is held to §2.2 and
     authorizes that member itself, so calling it without its server function
-    gains nothing. The named exceptions: Integration's
-    `oauth.getAuthorizationUrl` leaves authorization to its server function, and
-    Guest's internal integrity control takes its actor as data and has no
-    caller. A function with no member to authorize (a guest's request, an
-    invited registration) is admitted by its adapter instead, which
+    gains nothing. The named exception: Integration's
+    `oauth.getAuthorizationUrl` leaves authorization to its server function. A
+    function with no member to authorize (a guest's request, an invited
+    registration) is admitted by its adapter instead, which
     `src/shared/architecture/server-function-policy-exemptions.ts` lists with
     what admits it;
   - the request surface is not a cross-context API. Another context's
     application code is typed against a narrow `…PublicApi` type from
-    `application/public-api.ts`, or against a port the composition root fills,
+    the area's `public-api.ts`, or against a port the composition root fills,
     and neither names it. A server adapter reads the whole container, so only
     this rule keeps one from calling another context's surface. The named
     exceptions: Reporting's Portal results adapter calls two reads on Portal's
@@ -289,7 +288,7 @@ Re-affirming from `src/contexts/CONTEXT.md`:
 | `infrastructure/` | `domain/`, `application/`, `shared/`, external libs | Business rules, HTTP routing     |
 | `server/`         | `application/`, `shared/`, TanStack Start           | Business logic, direct DB access |
 
-Cross-context: import ONLY from `application/public-api.ts`. Never from `domain/`, `infrastructure/`, `server/`.
+Cross-context: import ONLY from the area's `public-api.ts` at its root. Never from `domain/`, `infrastructure/`, `server/`.
 
 ---
 
@@ -317,7 +316,7 @@ inception.
 | Domain                        | camelCase, single file per concept                | `constructors.ts`, `events.ts`, `types.ts`, `rules.ts`, `errors.ts` |
 | Application ports             | kebab + `.port.ts` suffix                         | `review.repository.ts`, `attention-signals.port.ts`                 |
 | Application use-cases         | kebab-case (mirrors use case name)                | `get-dashboard-data.ts`, `submit-reply.ts`                          |
-| Application public API        | always `public-api.ts`                            | `public-api.ts`                                                     |
+| Area public API               | always `public-api.ts`, at the area root          | `public-api.ts`                                                     |
 | Infrastructure repos          | kebab + `.repository.ts`                          | `review.repository.ts`                                              |
 | Infrastructure adapters       | kebab + `.adapter.ts`                             | `attention-signals.adapter.ts`, `db-user-lookup.adapter.ts`         |
 | Infrastructure mappers        | kebab + `.mapper.ts`                              | `goal.mapper.ts`                                                    |
@@ -342,6 +341,30 @@ PostgreSQL are named `<source>.integration.test.ts`, beside the source, and run
 in the serial `integration` project; `unit` excludes them. The folder a test sits
 in selects nothing, so a test keeps its project when it moves. A unit test for a `repositories/` source sits one level up
 (`infrastructure/<source>.test.ts`) so it stays in `unit`.
+
+### 8.3 Running only the affected tests (Guidance — not gated)
+
+`pnpm test:affected` runs the unit tests whose imports reach a file changed
+since the merge base with `origin/main`, committed or not, plus every test that
+reads the repository as text (`scripts/ci/text-reads.baseline.json`), which no
+import connects to what it reads. `--project=integration` does the same for the
+integration tests against the test database; `--since=<ref>` compares with
+another ref. It is a quicker loop before pushing, not a replacement: CI runs
+every test, and a change to `package.json`, the lockfile or a Vitest config
+selects every test.
+
+### 8.4 Monthly mutation sample (rule 31)
+
+Once a month, run `pnpm mutation:sample` (unit tests) and
+`pnpm mutation:sample --project=integration` (against the test database). It
+plants a few small faults in each module listed in
+`scripts/review/mutation-targets.json`, the modules that decide tenant policy,
+attempt fences and period clocks, and runs the tests that import that module
+against each fault. The seed is the month, so every month samples other sites.
+A fault no test catches is reported with the fault that module must not let
+through. Add the missing assertion, or note in the report why the change cannot
+be observed. When such a module moves or a new one takes over the decision,
+update the list; a unit test checks that every listed path exists.
 
 ## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)
 

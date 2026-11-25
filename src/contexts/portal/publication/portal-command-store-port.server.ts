@@ -126,7 +126,7 @@ export type UpdatePortalCommand = Readonly<{
   revision: Date
   /** Actual business time returned by the command clock. */
   occurredAt: Date
-  patch: Readonly<Omit<Partial<Portal>, 'updatedAt'>>
+  patch: Readonly<Omit<Partial<Portal>, 'updatedAt' | 'slug'>>
   publication?: PortalPublicationMutation
   health?: Readonly<{
     id: string
@@ -495,7 +495,6 @@ export type PortalCommandStore = Readonly<{
   republishPortal(command: RepublishPortalCommand): Promise<void>
   createPortalGroup(command: CreatePortalGroupCommand): Promise<void>
   updatePortalGroup(command: UpdatePortalGroupCommand): Promise<void>
-  addPortalToGroup(command: AddPortalToGroupCommand): Promise<void>
   removePortalFromGroup(command: RemovePortalFromGroupCommand): Promise<void>
   movePortalToGroup(command: MovePortalToGroupCommand): Promise<void>
   createPortalLink(command: CreatePortalLinkCommand): Promise<void>

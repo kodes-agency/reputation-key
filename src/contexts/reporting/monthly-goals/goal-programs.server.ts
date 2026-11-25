@@ -21,12 +21,10 @@ import { GOAL_VERSION_REASONS } from './goal-version-reasons.server'
 import { changeMonthTarget } from './goal-month-target.server'
 import { createGoal } from './goal-program-create.server'
 import {
-  GoalProgramMaintenanceError,
   loadCaughtUpProgram,
   maintain,
   reconcileClosedResult,
   reconcileResult,
-  type GoalProgramMaintenanceStats,
 } from './goal-program-maintenance.server'
 import {
   assertRatingSubjectsAllowed,
@@ -37,24 +35,12 @@ import {
   noteOf,
   resolveGoalDefinition,
   type GoalActor,
-  type GoalExecutionPolicy,
-  type GoalMetricReadPort,
   type GoalProgramDependencies,
-  type GoalProgramSubjectReader,
 } from '../application/use-cases/goal-program-shared'
+import { currentAssignments } from './subject-assignments.server'
 
 // The command families live in flat sibling modules and the shared pieces in a
-// leaf; this module composes them behind the one service and keeps re-exporting
-// every name its importers already use.
-export { GoalProgramError, GoalProgramMaintenanceError }
-export type {
-  GoalActor,
-  GoalExecutionPolicy,
-  GoalMetricReadPort,
-  GoalProgramDependencies,
-  GoalProgramMaintenanceStats,
-  GoalProgramSubjectReader,
-}
+// leaf; this module composes them behind the one service.
 
 type ReviseGoalInput = Readonly<{
   propertyId: string
@@ -260,7 +246,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         propertyId: input.propertyId,
         action: 'goal.read',
       })
-      const bundle = await (deps.repository.getHistory ?? deps.repository.get)(
+      const bundle = await deps.repository.getHistory(
         actor.organizationId,
         input.propertyId,
         input.programId,
@@ -285,8 +271,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         propertyId: input.propertyId,
         action: 'goal.read',
       })
-      if (!deps.repository.listHistory) throw new Error('Goal history reader is missing')
-      const program = await deps.repository.get(
+      const program = await deps.repository.getProgram(
         actor.organizationId,
         input.propertyId,
         input.programId,
@@ -346,9 +331,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         await assertRatingSubjectsAllowed(deps, actor.organizationId, {
           propertyId: input.propertyId,
           metric: current.version.metric,
-          subjects: current.assignments
-            .filter((assignment) => assignment.programVersionId === current.version.id)
-            .map((assignment) => assignment.subject),
+          subjects: currentAssignments(current).map((assignment) => assignment.subject),
         })
       }
       if (
@@ -384,15 +367,3 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
 }
 
 export type GoalProgramService = ReturnType<typeof createGoalProgramService>
-
-/** Request-facing Goal Program reads. Each invocation receives its scoped policy. */
-export type GoalProgramRequestApi = Readonly<{
-  history: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['history']>
-  ) => ReturnType<GoalProgramService['history']>
-  list: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['list']>
-  ) => ReturnType<GoalProgramService['list']>
-}>

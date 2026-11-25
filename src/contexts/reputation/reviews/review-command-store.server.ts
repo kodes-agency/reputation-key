@@ -1,0 +1,579 @@
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
+// Atomic review command store.
+//
+// One PostgreSQL transaction commits each Review mutation with its outbox
+// rows, so the durable fact and state change are atomic.
+
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
+import { insertOutboxRow } from '#/shared/outbox/commit'
+import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import {
+  requireReplyScopeEffects,
+  type ReplyScopeEffects,
+} from '#/shared/db/reply-scope-effects'
+import { releaseAnalysisSequence } from '#/shared/db/review-analysis-released-sequences'
+import {
+  replies,
+  replyPublicationAuthorizations,
+  reviews,
+} from '#/shared/db/schema/review.schema'
+import { trace } from '#/shared/observability/trace'
+import type { Review } from '../domain/review-types'
+import { reviewError } from '../domain/review-errors'
+import { isGuestEdit } from '../domain/material-review-revision'
+import { rowReplyAuthor } from '../domain/reply-author'
+import { takenBackByGuestEdit } from '../domain/reply-command-preconditions'
+import type { ReviewCommandStore } from './review-command-store.port.server'
+import {
+  reviewReplyPublicationCancelled,
+  reviewSourceTransitioned,
+  reviewUpdated,
+} from '../domain/review-events'
+import { replyFromRow } from '../replies/reply-mapper.server'
+import { eraseReviewSourceContent } from '../content/store.server'
+import { organizationId, propertyId, replyId, reviewId } from '#/shared/domain/ids'
+import {
+  persistReviewObservation,
+  type PersistedReviewObservation,
+} from './review-observation-repository.server'
+import { insertFirstSighting } from '../sync/review-first-sighting-repository.server'
+import { lockReplyTruthScope } from './reply-truth-serialization.server'
+import { lockReviewSourceMutationScope } from './review-source-mutation-serialization.server'
+import type { Tx } from '#/shared/outbox/commit'
+import type { ReviewProviderObservationOrigin } from './response-target-authority.port.server'
+import {
+  returnReplyAfterGuestEdit,
+  returnReplyToDraftForSourceChange,
+  supersedeCurrentPublicationAttempt,
+} from '../replies/row-commands.server'
+
+const SOURCE_ACTIVE_PUBLICATION_STATES = [
+  'requested',
+  'authorized',
+  'sending',
+  'pending_observation',
+  'ambiguous',
+] as const
+
+/** Settle publication work whose immutable authorization names an older
+ * Review source. The attempt remains append-only evidence but can no longer
+ * be confirmed or resent.
+ *
+ * A Reply this returns to draft may be AI-assisted: the worker had claimed it
+ * (`sending`, `pending_observation`, `ambiguous`), so the AI draft purge that
+ * ran with the observation left it alone. Its text answered the revision the
+ * guest replaced and its binding is stale for good, so as it stands it could
+ * never be submitted again. The purge therefore runs once more, now that the
+ * row is one it empties (`src/shared/db/ai/ai-draft-purge.ts`). It records no
+ * second fact: the `source_changed` one below already told the people waiting. */
+async function supersedeStaleReviewPublications(
+  tx: Tx,
+  review: Review,
+  occurredAt: Date,
+  replyEffects: ReplyScopeEffects | undefined,
+): Promise<void> {
+  const staleRows = await tx
+    .select({
+      id: replies.id,
+      reviewId: replies.reviewId,
+      organizationId: replies.organizationId,
+      stateRevision: replies.stateRevision,
+      publicationCycle: replies.publicationCycle,
+      publicationAttempts: replies.publicationAttempts,
+      createdBy: replies.createdBy,
+      submittedBy: replies.submittedBy,
+    })
+    .from(replies)
+    .leftJoin(
+      replyPublicationAuthorizations,
+      and(
+        eq(replyPublicationAuthorizations.organizationId, replies.organizationId),
+        eq(replyPublicationAuthorizations.reviewId, replies.reviewId),
+        eq(replyPublicationAuthorizations.replyId, replies.id),
+        eq(replyPublicationAuthorizations.publicationCycle, replies.publicationCycle),
+      ),
+    )
+    .where(
+      and(
+        eq(replies.organizationId, review.organizationId),
+        eq(replies.reviewId, review.id),
+        eq(replies.source, 'internal'),
+        inArray(replies.publicationState, [...SOURCE_ACTIVE_PUBLICATION_STATES]),
+        or(
+          isNull(replyPublicationAuthorizations.replyId),
+          ne(replyPublicationAuthorizations.propertyId, review.propertyId),
+          ne(replyPublicationAuthorizations.sourceEpoch, review.sourceEpoch),
+          ne(
+            replyPublicationAuthorizations.materialReviewRevision,
+            review.sourceRevision,
+          ),
+        ),
+      ),
+    )
+    .for('update', { of: replies })
+
+  let returnedToDraft = 0
+  for (const stale of staleRows) {
+    await supersedeCurrentPublicationAttempt(tx, stale, occurredAt)
+    const cancelled = await returnReplyToDraftForSourceChange(
+      tx,
+      stale,
+      SOURCE_ACTIVE_PUBLICATION_STATES,
+      occurredAt,
+    )
+    if (!cancelled) continue
+    returnedToDraft += 1
+    await insertOutboxRow(
+      tx,
+      reviewReplyPublicationCancelled({
+        replyId: replyId(stale.id),
+        reviewId: review.id,
+        propertyId: review.propertyId,
+        organizationId: review.organizationId,
+        authorId: rowReplyAuthor(stale),
+        cause: 'source_changed',
+        occurredAt,
+      }),
+    )
+  }
+  if (returnedToDraft > 0) {
+    await purgeAiDraftsForReview(
+      tx,
+      {
+        organizationId: review.organizationId,
+        reviewId: review.id,
+      },
+      replyEffects,
+    )
+  }
+}
+
+/**
+ * A guest edit also takes back the Reply a manager wrote and put forward for
+ * the review as it stood: one awaiting approval, or one whose publication
+ * failed and that Try publishing again would send under the approval it got
+ * for the earlier review (`takenBackByGuestEdit`). It returns to draft with
+ * its text. One `review.reply.publication_cancelled` fact (cause
+ * `source_changed`) tells its author and the people who can approve, and
+ * retires the approval request or the failure notice that was waiting on it.
+ * The authorization and attempts of a failed cycle say how it ended and are
+ * left as they are, with one exception: an attempt whose outcome was never
+ * learned is closed as superseded, as the stale-publication write closes one
+ * that is still being checked. No read of the edited review can confirm it.
+ *
+ * Runs after the stale-publication write above, so an open cycle is already
+ * cancelled. A Review holds one internal Reply; the state revision in the
+ * write is the row this transaction locked.
+ */
+async function takeBackReplyPutForwardBeforeGuestEdit(
+  tx: Tx,
+  review: Review,
+  occurredAt: Date,
+): Promise<void> {
+  const rows = await tx
+    .select()
+    .from(replies)
+    .where(
+      and(
+        eq(replies.organizationId, review.organizationId),
+        eq(replies.reviewId, review.id),
+        eq(replies.source, 'internal'),
+      ),
+    )
+    .for('update')
+  for (const row of rows) {
+    const takenBack = takenBackByGuestEdit(replyFromRow(row))
+    if (!takenBack) continue
+    const returned = await returnReplyAfterGuestEdit(
+      tx,
+      row,
+      { status: takenBack.status, publicationState: takenBack.publicationState },
+      occurredAt,
+    )
+    if (!returned) continue
+    if (takenBack.supersedesAttempt)
+      await supersedeCurrentPublicationAttempt(tx, row, occurredAt)
+    await insertOutboxRow(
+      tx,
+      reviewReplyPublicationCancelled({
+        replyId: replyId(row.id),
+        reviewId: review.id,
+        propertyId: review.propertyId,
+        organizationId: review.organizationId,
+        authorId: rowReplyAuthor(row),
+        cause: 'source_changed',
+        occurredAt,
+      }),
+    )
+  }
+}
+
+/**
+ * What an applied observation means for the Replies written before it. Any
+ * observation settles publication work authorized for an older source. A guest
+ * edit also takes back what a manager had put forward; a source-epoch carry
+ * of unchanged material does not, because the review it answers is the same.
+ */
+async function fenceRepliesWrittenForAnOlderSource(
+  tx: Tx,
+  observation: Pick<PersistedReviewObservation, 'review' | 'comparison'>,
+  occurredAt: Date,
+  replyEffects: ReplyScopeEffects | undefined,
+): Promise<void> {
+  await supersedeStaleReviewPublications(tx, observation.review, occurredAt, replyEffects)
+  if (isGuestEdit(observation.comparison)) {
+    await takeBackReplyPutForwardBeforeGuestEdit(tx, observation.review, occurredAt)
+  }
+}
+
+type ReviewSourceScope = Readonly<{
+  organizationId: Review['organizationId']
+  propertyId: Review['propertyId']
+  sourceEpoch: number
+}>
+
+/** Allocate the next AI-analysis sequence under the per-source head lock. The
+ * caller names the failure so a specific write path stays diagnosable. */
+async function allocateAnalysisSequence(
+  tx: Tx,
+  scope: ReviewSourceScope,
+  failureMessage: string,
+): Promise<number> {
+  const result = await tx.execute(sql`
+    SELECT lock_review_ai_analysis_head_v1(
+      ${scope.organizationId},
+      ${scope.propertyId}::uuid,
+      ${scope.sourceEpoch}
+    ) AS analysis_sequence
+  `)
+  const sequence = Number(result.rows[0]?.analysis_sequence)
+  if (!Number.isSafeInteger(sequence) || sequence <= 0) {
+    throw reviewError('repo_upsert_failed', failureMessage)
+  }
+  return sequence
+}
+
+/** Database-side transaction clock, so every fact in this transaction shares
+ * one instant that no application clock can skew. */
+async function readTransactionClock(tx: Tx): Promise<Date> {
+  const clockResult = await tx.execute(sql`
+    SELECT transaction_timestamp() AS occurred_at
+  `)
+  const occurredAtValue = clockResult.rows[0]?.occurred_at
+  const occurredAt =
+    occurredAtValue instanceof Date
+      ? occurredAtValue
+      : typeof occurredAtValue === 'string'
+        ? new Date(occurredAtValue)
+        : null
+  if (occurredAt === null || Number.isNaN(occurredAt.getTime())) {
+    throw reviewError('repo_upsert_failed', 'Review transaction clock is invalid')
+  }
+  return occurredAt
+}
+
+/** Take the current Property epoch fence and an expired Review row together.
+ * The row may be from an older epoch that this observation will carry forward. */
+async function lockExpiredReviewRow(
+  tx: Tx,
+  review: Omit<Review, 'createdAt' | 'updatedAt'>,
+) {
+  if (
+    !(await lockReviewSourceMutationScope(tx, {
+      organizationId: review.organizationId,
+      propertyId: review.propertyId,
+      reviewId: review.id,
+      sourceEpoch: review.sourceEpoch,
+    }))
+  ) {
+    throw reviewError(
+      'repo_upsert_failed',
+      'Review source epoch changed before re-observation',
+    )
+  }
+  const existingRows = await tx
+    .select()
+    .from(reviews)
+    .where(
+      sql`${reviews.id} = ${review.id}
+        AND ${reviews.organizationId} = ${review.organizationId}
+        AND ${reviews.propertyId} = ${review.propertyId}
+        AND ${reviews.sourceEpoch} <= ${review.sourceEpoch}
+        AND (
+          ${reviews.sourceContentState} IN ('source_expired', 'provider_deleted')
+          OR EXISTS (SELECT 1 FROM ${reviewSourceContents} AS expired_source
+            WHERE expired_source.review_id = ${reviews.id}
+              AND expired_source.organization_id = ${reviews.organizationId}
+              AND expired_source.property_id = ${reviews.propertyId}
+              AND expired_source.content_expires_at <= transaction_timestamp())
+        )`,
+    )
+    .for('update')
+  const existingRow = existingRows[0]
+  if (!existingRow) {
+    throw reviewError(
+      'repo_upsert_failed',
+      'Review is not expired at the database boundary',
+    )
+  }
+  return existingRow
+}
+
+type StableReviewIdentity = Readonly<{
+  id: ReturnType<typeof reviewId>
+  organizationId: ReturnType<typeof organizationId>
+  propertyId: ReturnType<typeof propertyId>
+  sourceEpoch: number
+  sourceRevision: number
+}>
+
+/**
+ * A row whose deadline has just elapsed is redacted first, in the same
+ * transaction, without removing its stable identity or history. The returned
+ * sequence lets the re-observation prove its own sequence is contiguous.
+ */
+async function redactJustExpiredSourceContent(
+  tx: Tx,
+  identity: StableReviewIdentity,
+  occurredAt: Date,
+  replyEffects: ReplyScopeEffects | undefined,
+): Promise<number> {
+  const expirySequence = await allocateAnalysisSequence(
+    tx,
+    identity,
+    'Expired Review sequence allocation failed',
+  )
+  const expiredEvent = reviewSourceTransitioned({
+    reviewId: identity.id,
+    organizationId: identity.organizationId,
+    propertyId: identity.propertyId,
+    sourceEpoch: identity.sourceEpoch,
+    sourceRevision: identity.sourceRevision,
+    analysisSequence: expirySequence,
+    change: 'source_expired',
+    occurredAt,
+  })
+  const erased = await eraseReviewSourceContent(
+    tx,
+    {
+      reviewId: identity.id,
+      organizationId: identity.organizationId,
+      propertyId: identity.propertyId,
+      sourceEpoch: identity.sourceEpoch,
+      expectedSourceRevision: identity.sourceRevision,
+      state: 'source_expired',
+    },
+    requireReplyScopeEffects(replyEffects),
+  )
+  if (!erased) {
+    throw reviewError('repo_upsert_failed', 'Expired Review redaction failed')
+  }
+  await insertOutboxRow(tx, expiredEvent)
+  return expirySequence
+}
+
+type PersistObservation = (
+  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
+  input: Readonly<{
+    review: Omit<Review, 'createdAt' | 'updatedAt'>
+    observedAt: Date
+    observationKey?: string
+    observationOrigin?: ReviewProviderObservationOrigin
+    providerUpdateTimeReported?: boolean
+    replyEffects?: ReplyScopeEffects
+  }>,
+) => Promise<PersistedReviewObservation>
+
+/** The Review Google restated without moving its updateTime. Ids only: this
+ * reaches the process log, which carries no review content. */
+export type ProviderRestatement = Readonly<{
+  organizationId: Review['organizationId']
+  propertyId: Review['propertyId']
+  reviewId: Review['id']
+}>
+
+function restatementOf(
+  observation: PersistedReviewObservation,
+): ProviderRestatement | null {
+  // The writer says so: a restatement is stored as `normalization_shadow_match`,
+  // the same value the envelope reread and a legacy baseline get, so the
+  // recorded comparison cannot tell them apart. A replay or an out-of-order
+  // read carries false.
+  if (!observation.providerRestatement) return null
+  const { organizationId, propertyId, id } = observation.review
+  return { organizationId, propertyId, reviewId: id }
+}
+
+/**
+ * `onProviderRestatement` runs once per applied observation that was Google
+ * rewording a review (the unmoved-updateTime rule), after its transaction
+ * commits. It is the one signal that Google changed its format again, as it
+ * has before, so the process reports it rather than absorbing it quietly.
+ */
+export const createAtomicReviewCommandStore = (
+  db: Database,
+  clock: () => Date,
+  persistObservation: PersistObservation = persistReviewObservation,
+  onProviderRestatement: (restatement: ProviderRestatement) => void = () => undefined,
+  replyEffects?: ReplyScopeEffects,
+): ReviewCommandStore => {
+  return {
+    upsertAndRecord: async (
+      review,
+      event,
+      now,
+      observationKey,
+      observationOrigin,
+      firstSighting,
+      providerUpdateTimeReported,
+    ) => {
+      return trace('review.commandStore.upsertAndRecord', async () => {
+        const written = await db.transaction(async (tx) => {
+          const analysisSequence = await allocateAnalysisSequence(
+            tx,
+            review,
+            'Review analysis sequence allocation failed',
+          )
+          const updatedAt = now ?? clock()
+          await lockReplyTruthScope(tx, review.organizationId, review.id)
+          const observation = await persistObservation(tx, {
+            review: { ...review, analysisSequence },
+            observedAt: updatedAt,
+            ...(observationKey == null ? {} : { observationKey }),
+            ...(observationOrigin == null ? {} : { observationOrigin }),
+            ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
+            ...(replyEffects == null ? {} : { replyEffects }),
+          })
+          const saved = observation.review
+          if (observation.duplicate || observation.outOfOrder) {
+            // No Review takes this number and no event announces it, yet the
+            // head already counts it. Give it back in the same transaction so
+            // coverage never waits for it (migration 0068).
+            await releaseAnalysisSequence(
+              tx,
+              review,
+              analysisSequence,
+              observation.duplicate ? 'replayed_observation' : 'out_of_order_observation',
+            )
+            return { saved, restatement: null }
+          }
+          const candidateEvent = typeof event === 'function' ? event(saved) : event
+          const recordedEvent =
+            candidateEvent._tag === 'review.created' ||
+            candidateEvent._tag === 'review.updated'
+              ? {
+                  ...candidateEvent,
+                  analysisSequence: saved.analysisSequence,
+                  sourceRevision: saved.sourceRevision,
+                }
+              : candidateEvent
+          await insertOutboxRow(tx, recordedEvent)
+          await fenceRepliesWrittenForAnOlderSource(
+            tx,
+            observation,
+            updatedAt,
+            replyEffects,
+          )
+          if (firstSighting != null && recordedEvent._tag === 'review.created') {
+            await insertFirstSighting(tx, saved, updatedAt, firstSighting)
+          }
+
+          return { saved, restatement: restatementOf(observation) }
+        })
+        if (written.restatement) onProviderRestatement(written.restatement)
+        return written.saved
+      })
+    },
+    reobserveExpiredAndRecord: async (
+      review,
+      _now,
+      observationKey,
+      observationOrigin,
+      providerUpdateTimeReported,
+    ) => {
+      return trace('review.commandStore.reobserveExpiredAndRecord', async () => {
+        const written = await db.transaction(async (tx) => {
+          const existingRow = await lockExpiredReviewRow(tx, review)
+          const occurredAt = await readTransactionClock(tx)
+
+          const stableIdentity: StableReviewIdentity = {
+            id: reviewId(existingRow.id),
+            organizationId: organizationId(existingRow.organizationId),
+            propertyId: propertyId(existingRow.propertyId),
+            sourceEpoch: existingRow.sourceEpoch,
+            sourceRevision: existingRow.sourceRevision,
+          }
+          let previousSequence: number | null = null
+
+          // An already-erased Review has recorded its lifecycle fact. A row from
+          // a superseded epoch cannot allocate another old-epoch sequence after
+          // the Property fence moves; this observation replaces it atomically.
+          if (
+            existingRow.sourceEpoch === review.sourceEpoch &&
+            existingRow.sourceContentState === 'active'
+          ) {
+            previousSequence = await redactJustExpiredSourceContent(
+              tx,
+              stableIdentity,
+              occurredAt,
+              replyEffects,
+            )
+          }
+
+          const reobserveSequence = await allocateAnalysisSequence(
+            tx,
+            review,
+            'Re-observed Review sequence is not contiguous',
+          )
+          if (
+            previousSequence != null &&
+            existingRow.sourceEpoch === review.sourceEpoch &&
+            reobserveSequence !== previousSequence + 1
+          ) {
+            throw reviewError(
+              'repo_upsert_failed',
+              'Re-observed Review sequence is not contiguous',
+            )
+          }
+
+          const observation = await persistObservation(tx, {
+            review: { ...review, analysisSequence: reobserveSequence },
+            observedAt: occurredAt,
+            ...(observationKey == null ? {} : { observationKey }),
+            ...(observationOrigin == null ? {} : { observationOrigin }),
+            ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
+            ...(replyEffects == null ? {} : { replyEffects }),
+          })
+          if (observation.duplicate || observation.outOfOrder) {
+            throw reviewError(
+              'repo_upsert_failed',
+              'Re-observed Review did not provide a current observation',
+            )
+          }
+          const updatedEvent = reviewUpdated({
+            reviewId: observation.review.id,
+            organizationId: observation.review.organizationId,
+            propertyId: observation.review.propertyId,
+            platform: observation.review.platform,
+            sourceEpoch: observation.review.sourceEpoch,
+            sourceRevision: observation.review.sourceRevision,
+            ...(observationOrigin == null ? {} : { observationOrigin }),
+            analysisSequence: observation.review.analysisSequence,
+            occurredAt,
+          })
+          await insertOutboxRow(tx, updatedEvent)
+          await fenceRepliesWrittenForAnOlderSource(
+            tx,
+            observation,
+            occurredAt,
+            replyEffects,
+          )
+          return { saved: observation.review, restatement: restatementOf(observation) }
+        })
+        if (written.restatement) onProviderRestatement(written.restatement)
+        return written.saved
+      })
+    },
+  }
+}

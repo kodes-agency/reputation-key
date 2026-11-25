@@ -6,7 +6,7 @@ import { draftReviewTextDigest } from '#/contexts/reputation/replies/ui/reply-dr
 import { ReplyDraftSessionProvider } from '#/contexts/reputation/replies/ui/reply-draft-session-context'
 import { ReviewProse } from '../../../inbox/ui/review-prose'
 import type { DraftStream } from '../../../../../components/inbox/reply-draft-stream'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { makeInboxItem } from '../../../../../../.storybook/in-memory/inbox-container'
 import { Button } from '#/components/ui/button'
 const fixtureItem = makeInboxItem({

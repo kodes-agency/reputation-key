@@ -9,7 +9,7 @@
 
 import { z } from 'zod/v4'
 import { GUEST_LOCALES } from '#/shared/domain/guest-locale'
-import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { guestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 
 const snapshotTextSchema = z
   .object({ value: z.string(), fallbackFrom: guestLocaleSchema.nullable() })

@@ -5,7 +5,7 @@ export const propertyReplyLibraryQuery = (propertyId: string) =>
   queryOptions({
     queryKey: reviewKeys.replyLibrary(propertyId),
     queryFn: async () =>
-      (await import('#/contexts/review/server/reply-library')).getReplyLibraryFn({
+      (await import('#/contexts/reputation/server/reply-library')).getReplyLibraryFn({
         data: { propertyId },
       }),
     staleTime: 30_000,

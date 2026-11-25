@@ -4,7 +4,7 @@
 //
 // A goal is built around one running month on a UTC calendar; the test names
 // October 2026.
-import type { GoalMetric } from '#/contexts/reporting/application/public-api'
+import type { GoalMetric } from '#/contexts/reporting/public-api'
 import type {
   GoalMonthlyResult,
   GoalMonthTargetChange,

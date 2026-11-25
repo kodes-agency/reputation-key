@@ -2,7 +2,7 @@
 // after the target is passed.
 
 import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { rulerModel, type GoalRulerModel } from '../../goals/ui/goal-ruler-view'
 import { dayWords, portalGoalUnit } from './portal-goal-words'
 

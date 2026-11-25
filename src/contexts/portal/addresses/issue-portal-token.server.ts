@@ -6,20 +6,10 @@ import type { PortalTokenCodec } from './portal-token-codec.port.server'
 import type { PortalAddressCipher } from './portal-address-cipher.port.server'
 import type { PortalAddressRepository } from './portal-address-repository.port.server'
 import type { PrintCodeReporter } from './print-code-reporter.port.server'
-import {
-  portalPublicUrls,
-  type PortalAddressFormat,
-  type PortalPublicUrls,
-} from './portal-address-urls.server'
-import {
-  derivePrintCodesForNewCode,
-  printCodeHashesOf,
-  printCodesOf,
-  reportingPrintCodeCollision,
-} from './print-code-lifecycle.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PortalAddressFormat, PortalPublicUrls } from './portal-address-urls.server'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
-import { publishNewCodeArtifacts } from './new-code-artifacts.server'
+import { mintNewCode, reportingPrintCodeCollision } from './mint-new-code.server'
 import { issueToken } from '../domain/portal-token'
 import { portalError } from '../domain/errors'
 import { portalTokenIssued } from '../domain/events'
@@ -83,14 +73,13 @@ export const issuePortalToken =
       version: (latest?.version ?? 0) + 1,
       now: occurredAt,
     })
-    const sealedAddress =
-      deps.addressCipher?.seal(material.rawToken, {
-        organizationId: token.organizationId,
-        propertyId: token.propertyId,
-        portalId: token.portalId,
-        tokenId: token.id,
-        version: token.version,
-      }) ?? null
+    const minted = mintNewCode(deps, {
+      portal,
+      token,
+      rawToken: material.rawToken,
+      occurredAt,
+      revision,
+    })
     const event = portalTokenIssued({
       portalId: portal.id,
       organizationId: portal.organizationId,
@@ -99,18 +88,6 @@ export const issuePortalToken =
       version: token.version,
       sourceAggregateVersion: revision.toISOString(),
       occurredAt: token.issuedAt,
-    })
-    const { accessArtifacts, accessArtifactEvents, artifactIds } =
-      publishNewCodeArtifacts({
-        portal,
-        portalTokenId: token.id,
-        idGen: deps.idGen,
-        occurredAt,
-        revision,
-      })
-    const printCodes = derivePrintCodesForNewCode(deps.tokenCodec, {
-      rawToken: material.rawToken,
-      accessArtifactIds: artifactIds,
     })
     await reportingPrintCodeCollision(deps.reportPrintCodeProblem, () =>
       deps.commandStore.issuePortalToken({
@@ -121,20 +98,16 @@ export const issuePortalToken =
         token,
         // fallow-ignore-next-line code-duplication
         issuedBy: ctx.userId,
-        sealedAddress,
-        printCodeHashes: printCodeHashesOf(printCodes),
-        accessArtifacts,
+        sealedAddress: minted.sealedAddress,
+        printCodeHashes: minted.printCodeHashes,
+        accessArtifacts: minted.accessArtifacts,
         revision,
         occurredAt,
         event,
-        accessArtifactEvents,
+        accessArtifactEvents: minted.accessArtifactEvents,
       }),
     )
-    const publicUrls = portalPublicUrls(deps.address, {
-      rawToken: material.rawToken,
-      artifacts: artifactIds,
-      printCodes: printCodesOf(printCodes),
-    })
+    const publicUrls = minted.urls()
     return {
       rawToken: material.rawToken,
       publicUrl: publicUrls.qr,
@@ -142,7 +115,7 @@ export const issuePortalToken =
       tokenIdentifier: token.tokenIdentifier,
       version: token.version,
       issuedAt: token.issuedAt,
-      addressRecoverable: sealedAddress !== null,
+      addressRecoverable: minted.addressRecoverable,
     }
   }
 

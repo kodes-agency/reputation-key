@@ -5,7 +5,7 @@
 import { ratingGoalNextIntents } from './rating-goal-offers'
 import { Button } from '#/components/ui/button'
 import { CardContent } from '#/components/ui/card'
-import { formatShortDate } from '#/lib/format'
+import { formatShortDate } from '#/shared/format/format'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   GoalCardActions,

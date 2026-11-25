@@ -142,9 +142,7 @@ describe('durable work through PostgreSQL', () => {
     'completes %s from IDs-only reconciliation through the real policy gate',
     async (kind) => {
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-      initDelayedExecutionPolicy(
-        createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-      )
+      initDelayedExecutionPolicy(createDelayedExecutionPolicy())
       const row = await store.schedule(request({ kind }))
       const registry = createJobRegistry()
       registry.register(kind, async (job) => {
@@ -378,6 +376,28 @@ describe('durable work through PostgreSQL', () => {
         .from(workItems)
         .where(and(eq(workItems.id, row.id), eq(workItems.state, 'succeeded'))),
     ).toHaveLength(1)
+  })
+
+  it('cancels waiting work as cancelled, not discarded, and never dispatches it again', async () => {
+    const row = await store.schedule(request())
+
+    const cancelled = await store.operate(
+      org,
+      row.id,
+      'cancel',
+      'operator',
+      'No longer needed',
+    )
+
+    expect(cancelled).toMatchObject({
+      state: 'cancelled',
+      operatorId: 'operator',
+      operatorReason: 'No longer needed',
+      completedAt: now,
+    })
+    expect((await store.inspect(org, row.id))?.state).toBe('cancelled')
+    now = new Date(now.getTime() + 60_000)
+    expect(await store.reserveDispatch()).toEqual([])
   })
 
   it('shows stuck work ahead of retained success receipts', async () => {

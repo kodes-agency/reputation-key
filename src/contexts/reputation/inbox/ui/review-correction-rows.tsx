@@ -8,8 +8,8 @@ import {
   topicOfRow,
   type CorrectionRow,
 } from './review-correction-view'
-import type { InboxMentionV3 } from '#/contexts/inbox/application/public-api'
-import type { MentionCorrectionAction } from '#/contexts/ai/application/public-api'
+import type { InboxMentionV3 } from '#/contexts/reputation/public-api'
+import type { MentionCorrectionAction } from '#/contexts/ai/public-api'
 import type { useReviewCorrection } from './use-review-correction'
 
 type Correction = ReturnType<typeof useReviewCorrection>

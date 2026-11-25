@@ -1,1 +1,0 @@
-export const RECENT_ACTIVITY_REPLAY_RETENTION_MS = 90 * 24 * 60 * 60 * 1_000

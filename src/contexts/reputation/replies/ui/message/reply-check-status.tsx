@@ -1,4 +1,4 @@
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { GoogleLinkedText } from '../../../inbox/ui/google-review-anchor'
 import type { GoogleReviewLink } from '../../../inbox/ui/google-review-link'
 import { MESSAGE_PROSE_CLASS } from '../../../inbox/ui/guest-message'

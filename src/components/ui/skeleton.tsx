@@ -1,4 +1,4 @@
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 // A loading block draws the border grey, not `bg-accent`: that is the purple tint
 // `--accent-muted`, 1.03:1 on a dark card, which made the loading state vanish.

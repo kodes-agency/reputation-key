@@ -8,8 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { ContactRequestNotice } from '#/shared/domain/contact-request-notice'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
@@ -69,8 +67,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   covering.notices = []
   const pool = getPool()
   await seedCreationProperty(pool, {

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import type { Database } from '#/shared/db'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
@@ -7,7 +8,6 @@ import { createDurableImportReferenceCandidates } from './durable-import-referen
 import { createDurableImportReferenceClaims } from './durable-import-reference-claims.server'
 import { durableImportAuthorizationSchema } from './durable-import-reference-codec.server'
 import { createDurableImportReferenceInvalidation } from './durable-import-reference-invalidation.server'
-import { createDurableImportReferenceKeys } from './durable-import-reference-keys.server'
 import {
   createDurableImportReferencePublisher,
   durableImportLeaseFailure,
@@ -15,9 +15,8 @@ import {
 import { createDurableImportReferenceReader } from './durable-import-reference-reader.server'
 
 /**
- * PostgreSQL-backed pre-confirmation discovery handoff. Unlike the legacy
- * Redis page index, record count grows linearly and has no fleet-size cap;
- * each page is an atomic checkpoint and an authorized browser may resume it
+ * PostgreSQL-backed pre-confirmation discovery handoff. Record count grows
+ * linearly and has no fleet-size cap; each page is an atomic checkpoint and an authorized browser may resume it
  * for up to 24 hours. Confirmation still claims at most 100 rows at a time.
  */
 export const createDurableGoogleImportReferenceStore = (
@@ -29,17 +28,13 @@ export const createDurableGoogleImportReferenceStore = (
     random?: (bytes: number) => Buffer
   }>,
 ): GoogleImportReferenceStore => {
-  const keys = createDurableImportReferenceKeys({
-    ...(deps.random ? { random: deps.random } : {}),
-  })
   const reader = createDurableImportReferenceReader({
     db: deps.db,
-    keys,
     clock: deps.clock,
   })
   const publisher = createDurableImportReferencePublisher({
     db: deps.db,
-    keys,
+    random: deps.random ?? randomBytes,
     leasePrincipalKeys: deps.leasePrincipalKeys,
     leases: deps.leases,
     clock: deps.clock,
@@ -52,12 +47,10 @@ export const createDurableGoogleImportReferenceStore = (
   })
   const claims = createDurableImportReferenceClaims({
     db: deps.db,
-    keys,
     clock: deps.clock,
   })
   const invalidation = createDurableImportReferenceInvalidation({
     db: deps.db,
-    keys,
     clock: deps.clock,
   })
 

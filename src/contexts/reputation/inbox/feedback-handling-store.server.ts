@@ -19,35 +19,39 @@ import type {
   FeedbackHandlingExpectation,
   FeedbackHandlingState,
   FeedbackHandlingStore,
-} from '#/contexts/inbox/application/ports/feedback-handling.store'
+} from '#/contexts/reputation/inbox/feedback-handling-store.port.server'
 import {
   correctFeedbackHandlingOutcomeFact,
   recordFeedbackHandlingOutcome,
   type FeedbackHandlingOutcomeFact,
-} from '#/contexts/inbox/domain/feedback-handling'
-import { closeHandlingCycle } from '#/contexts/inbox/domain/handling-cycles'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+} from '#/contexts/reputation/domain/feedback-handling'
+import { closeHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import {
   inboxHandlingCycleClosed,
   inboxItemStatusChanged,
-} from '#/contexts/inbox/domain/events'
-import type { HandlingCycleHead, InboxItem } from '#/contexts/inbox/domain/types'
+} from '#/contexts/reputation/domain/inbox-events'
+import type {
+  HandlingCycleHead,
+  InboxItem,
+} from '#/contexts/reputation/domain/inbox-types'
 import type { InboxCommandAuthority } from '#/contexts/reputation/inbox/command-store.server'
 import {
   selectCycleCloseReason,
   selectSourceUnavailableCloseReasons,
   type TransitionReader,
-} from '#/contexts/inbox/infrastructure/handling-cycle-transitions.read'
-import { assertManagerHandlingPermitted } from '#/contexts/inbox/domain/handling-outcome-authority'
-import { inboxItemFromRow } from '#/contexts/inbox/infrastructure/mappers/inbox.mapper'
+} from '#/contexts/reputation/inbox/handling-cycle-transitions-read.server'
+import { assertManagerHandlingPermitted } from '#/contexts/reputation/domain/handling-outcome-authority'
+import { inboxItemFromRow } from '#/contexts/reputation/inbox/inbox-mapper.server'
 import {
   cycleHeadItemColumns,
   mirrorCycleHead,
   persistedHeadFromItemRow,
   type PersistedHead,
-} from '#/contexts/inbox/infrastructure/inbox-cycle-head'
-import { transitionInsert } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { completePrivateFeedbackTarget } from '#/contexts/reputation/inbox/response-targets/store.server'
+} from '#/contexts/reputation/inbox/inbox-cycle-head.server'
+import { handlingCycleHeadFromRow } from '#/contexts/reputation/inbox/inbox-command-guards.server'
+import { transitionInsert } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
+import { completePrivateFeedbackTarget } from '#/contexts/reputation/response-targets/store.server'
 
 type OutcomeRow = typeof inboxFeedbackHandlingOutcomes.$inferSelect
 type HeadRow = PersistedHead
@@ -69,18 +73,6 @@ const outcomeFromRow = (row: OutcomeRow): FeedbackHandlingOutcomeFact => ({
   completionAt: row.completionAt,
   deadlineResult: row.deadlineResult as FeedbackHandlingOutcomeFact['deadlineResult'],
   supersedesOutcomeId: row.supersedesOutcomeId,
-})
-
-const headFromRow = (row: HeadRow): HandlingCycleHead => ({
-  inboxItemId: inboxItemId(row.inboxItemId),
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  sourceType: row.sourceType,
-  sourceId: feedbackId(row.sourceId),
-  currentCycleNumber: row.currentCycleNumber,
-  currentSourceRevision: row.currentSourceRevision,
-  stateRevision: row.stateRevision,
-  status: row.status,
 })
 
 const itemFromRow = (row: ItemRow, snapshot: InboxItem): InboxItem => ({
@@ -110,7 +102,7 @@ const toState = (
 
 /**
  * The transitions log has exactly one reader
- * (`handling-cycle-transitions.read.ts`), shared with the Handling History read
+ * (`handling-cycle-transitions-read.server.ts`), shared with the Handling History read
  * model, so both agree on `state_revision` as the ordering key.
  */
 async function closeReasonFor(
@@ -282,7 +274,7 @@ export const createFeedbackHandlingStore = (
           .limit(1)
         const row = itemRow ? persistedHeadFromItemRow(itemRow) : null
         if (!row) return null
-        const head = headFromRow(row)
+        const head = handlingCycleHeadFromRow(row)
         return toState(
           head,
           await historyFor(db, itemId, head.currentCycleNumber, orgId),
@@ -316,7 +308,7 @@ export const createFeedbackHandlingStore = (
             actorUserId: command.actorUserId,
             recordedAt: command.recordedAt,
           })
-          const current = headFromRow(locked.head)
+          const current = handlingCycleHeadFromRow(locked.head)
           await assertManagerHandlingStillHonest(tx, current)
           const deadlineResult = await completePrivateFeedbackTarget(
             tx,
@@ -458,10 +450,13 @@ export const createFeedbackHandlingStore = (
             actorUserId: command.actorUserId,
             recordedAt: command.recordedAt,
           })
-          await assertManagerHandlingStillHonest(tx, headFromRow(locked.head))
+          await assertManagerHandlingStillHonest(
+            tx,
+            handlingCycleHeadFromRow(locked.head),
+          )
           const corrected = correctFeedbackHandlingOutcomeFact({
             id: command.outcomeId,
-            current: headFromRow(locked.head),
+            current: handlingCycleHeadFromRow(locked.head),
             previous: outcomeFromRow(latestRow),
             outcome: command.outcome,
             internalNote: command.internalNote,
@@ -504,7 +499,7 @@ export const createFeedbackHandlingStore = (
           return {
             item: itemFromRow(savedItem, command.item),
             feedbackHandling: toState(
-              headFromRow(locked.head),
+              handlingCycleHeadFromRow(locked.head),
               history,
               'private_feedback_handled',
             ),

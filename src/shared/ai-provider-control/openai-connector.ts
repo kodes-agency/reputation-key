@@ -5,15 +5,15 @@ export type OpenAiTerminalResponse = OpenAI.Responses.Response
 import { zodTextFormat } from 'openai/helpers/zod'
 import type { Dispatcher } from 'undici'
 import { z } from 'zod/v4'
-import { explainJsonBytesRejection } from '#/shared/ai-json'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { explainJsonBytesRejection } from '#/shared/json/ai-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import {
   OPENAI_RESPONSES_URL,
   OPENAI_USER_AGENT,
   type OpenAiConnector,
-  type OpenAiConnectorOutcome,
   type PreparedAiInvocation,
 } from './contracts'
+import type { AiProviderOutcome } from './provider-contracts'
 import {
   classifyOpenAiRefusal,
   parseOpenAiJsonContentType,
@@ -24,7 +24,7 @@ import { deriveOpenAiClientRequestId } from './prepared-invocation'
 import { parseUsage, usageOfDecodedBody } from './openai-usage'
 import {
   PINNED_PROVIDER_DISPATCHER_LIMITS,
-  PROVIDER_ZERO_USAGE as ZERO_USAGE,
+  PROVIDER_ZERO_USAGE,
   closePinnedProviderOutbound,
   createOneShotProviderFetch,
   createPinnedProviderOutbound,
@@ -40,6 +40,7 @@ import {
   outcomeOfProviderThrow,
   refusalAtProviderDispatchGate,
 } from './connector-outcomes'
+import { writeGatewayEvent } from './connector-diagnostics'
 
 export class AmbiguousOpenAiTransportError extends Error {
   constructor() {
@@ -159,29 +160,21 @@ export function createOneShotOpenAiFetch(
       } catch {
         // The diagnostic stays content-free for an unparseable SDK URL.
       }
-      process.stderr.write(
-        `${JSON.stringify({
-          event: 'canary_second_call_rejected',
-          method:
-            init?.method ?? (requestInfo instanceof Request ? requestInfo.method : 'GET'),
-          path,
-        })}\n`,
-      )
+      writeGatewayEvent({
+        event: 'canary_second_call_rejected',
+        method:
+          init?.method ?? (requestInfo instanceof Request ? requestInfo.method : 'GET'),
+        path,
+      })
     },
     onInvalidJson: (bytes, response) => {
       if (input.route !== 'synthetic-canary') return
-      process.stderr.write(
-        `${JSON.stringify({
-          event: 'canary_response_json_rejected',
-          bytes: bytes.byteLength,
-          contentType: response.headers.get('content-type'),
-          explain: explainJsonBytesRejection(
-            bytes,
-            input.responseBytes,
-            'finite-numbers',
-          ),
-        })}\n`,
-      )
+      writeGatewayEvent({
+        event: 'canary_response_json_rejected',
+        bytes: bytes.byteLength,
+        contentType: response.headers.get('content-type'),
+        explain: explainJsonBytesRejection(bytes, input.responseBytes, 'finite-numbers'),
+      })
     },
   })
 }
@@ -260,7 +253,7 @@ function outcomeOfOpenAiResponse(
   response: OpenAiParsedResponseFacts,
   invocation: PreparedAiInvocation,
   outputSchema: z.ZodTypeAny,
-): OpenAiConnectorOutcome<unknown> {
+): AiProviderOutcome<unknown> {
   const reportedRefusal = hasOfficialOpenAiRefusal(response)
   const usage = parseUsage(response.usage, invocation)
   if (!usage) {
@@ -270,7 +263,7 @@ function outcomeOfOpenAiResponse(
       result: null,
       usageKnown: false,
       providerRetryable: false,
-      usage: ZERO_USAGE,
+      usage: PROVIDER_ZERO_USAGE,
       retryAfterSeconds: null,
       outboundFetchUsed: true,
     })
@@ -298,16 +291,14 @@ function outcomeOfOpenAiResponse(
   const truncated =
     response.status === 'incomplete' || Boolean(response.incomplete_details)
   if (truncated) {
-    process.stderr.write(
-      `${JSON.stringify({
-        event: 'openai_output_truncated',
-        route: invocation.descriptor.route,
-        reason: response.incomplete_details?.reason ?? 'unknown',
-        outputTokens: usage.outputTokens,
-        reasoningTokens: usage.reasoningTokens,
-        maxOutputTokens: invocation.sdkRequest.max_output_tokens,
-      })}\n`,
-    )
+    writeGatewayEvent({
+      event: 'openai_output_truncated',
+      route: invocation.descriptor.route,
+      reason: response.incomplete_details?.reason ?? 'unknown',
+      outputTokens: usage.outputTokens,
+      reasoningTokens: usage.reasoningTokens,
+      maxOutputTokens: invocation.sdkRequest.max_output_tokens,
+    })
   }
   // The parse decides whether the answer is usable; truncation decides how
   // an unusable one is NAMED. The two can never disagree in practice: the
@@ -350,18 +341,17 @@ function canaryThrowDiagnostics(
   if (route !== 'synthetic-canary') return {}
   return {
     onInvalidOutput: (error) => {
-      process.stderr.write(
-        `${JSON.stringify({
-          event: 'canary_output_invalid',
-          reason:
-            error instanceof InvalidOpenAiOutputError ? error.reason : 'unspecified',
-        })}\n`,
-      )
+      writeGatewayEvent({
+        event: 'canary_output_invalid',
+        reason: error instanceof InvalidOpenAiOutputError ? error.reason : 'unspecified',
+      })
     },
     onPost200Throw: (error) => {
-      process.stderr.write(
-        `${JSON.stringify({ event: 'canary_output_invalid', reason: 'post_200_throw', error: describeCanaryThrow(error) })}\n`,
-      )
+      writeGatewayEvent({
+        event: 'canary_output_invalid',
+        reason: 'post_200_throw',
+        error: describeCanaryThrow(error),
+      })
     },
   }
 }
@@ -384,7 +374,7 @@ export function createOpenAiConnector(
       outputSchema: z.ZodTypeAny,
       signal: AbortSignal,
       observer?: Readonly<{ onText(text: string): void; onDispatch(): void }>,
-    ): Promise<OpenAiConnectorOutcome<unknown>> => {
+    ): Promise<AiProviderOutcome<unknown>> => {
       const gateRefusal = refusalAtProviderDispatchGate({
         invocation,
         admission,

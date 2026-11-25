@@ -5,7 +5,7 @@ import {
   replyPublicationAuthorizations,
 } from '#/shared/db/schema/review.schema'
 import type { Tx } from '#/shared/outbox/commit'
-import type { PersistedPublicationState } from '#/contexts/review/application/public-api'
+import type { PersistedPublicationState } from '../domain/reply-publication-workflow'
 
 /**
  * Reply writes that need only the caller's transaction. Review's stores call

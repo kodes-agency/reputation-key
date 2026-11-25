@@ -51,12 +51,6 @@ function setup(overrides?: { unreleasedExpired?: number }) {
     scrubLifecycleItems: vi.fn<GoogleImportStore['scrubLifecycleItems']>(
       async (input) => input.itemIds.length,
     ),
-    countLifecycleScopeItems: vi.fn<GoogleImportStore['countLifecycleScopeItems']>(
-      async () => 0,
-    ),
-    getOperatorProgress: vi.fn<GoogleImportStore['getOperatorProgress']>(
-      async () => null,
-    ),
   }
   const propertyBindingApi = {
     readReceipt: vi.fn(async (_organizationId: unknown, itemId: string) =>
@@ -64,13 +58,10 @@ function setup(overrides?: { unreleasedExpired?: number }) {
     ),
     sweepReleasedExpired: vi.fn(async () => 4),
     countUnreleasedExpired: vi.fn(async () => overrides?.unreleasedExpired ?? 0),
-    cleanupOrganization: vi.fn(async () => 0),
   }
   const references = {
-    invalidateOrganization: vi.fn(async () => true),
     invalidateUser: vi.fn(async () => true),
     invalidateConnection: vi.fn(async () => true),
-    invalidateProperty: vi.fn(async () => true),
   }
   const lifecycle = createGoogleImportLifecycle({
     store,
@@ -164,7 +155,6 @@ describe('Google import v2 lifecycle', () => {
       itemsVisited: 2,
       receiptsReconciled: 1,
       itemsCancelled: 1,
-      itemIds: [RECEIPT_ITEM_ID, EXPIRED_ITEM_ID],
     })
     expect(fixture.references.invalidateConnection).toHaveBeenCalledWith({
       organizationId: ORG_ID,
@@ -187,43 +177,6 @@ describe('Google import v2 lifecycle', () => {
     expect(fixture.store.scrubLifecycleItems).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       itemIds: [RECEIPT_ITEM_ID, EXPIRED_ITEM_ID],
-      now: NOW,
-    })
-  })
-
-  it('reconciles deletion tombstones after Property deletion', async () => {
-    const fixture = setup()
-    fixture.store.listLifecycleScopeParents
-      .mockResolvedValueOnce([{ organizationId: ORG_ID, importJobId: IMPORT_JOB_ID }])
-      .mockResolvedValueOnce([])
-    fixture.store.listLifecycleScopeItems
-      .mockResolvedValueOnce([
-        {
-          organizationId: ORG_ID,
-          importJobId: IMPORT_JOB_ID,
-          itemId: RECEIPT_ITEM_ID,
-          retryRevision: 2,
-          active: true,
-        },
-      ])
-      .mockResolvedValueOnce([])
-
-    const prepared = await fixture.lifecycle.preparePropertyDeletion(
-      ORG_ID,
-      '10000000-0000-4000-8000-000000000005',
-    )
-    fixture.propertyBindingApi.readReceipt.mockResolvedValueOnce({
-      ...receipt(),
-      destinationPropertyId: null,
-      outcome: 'property_deleted',
-      tombstone: true,
-    })
-    await fixture.lifecycle.finalizePropertyDeletion(ORG_ID, prepared.itemIds)
-
-    expect(fixture.references.invalidateProperty).toHaveBeenCalled()
-    expect(fixture.store.reconcileFromReceipt).toHaveBeenLastCalledWith({
-      organizationId: ORG_ID,
-      itemId: RECEIPT_ITEM_ID,
       now: NOW,
     })
   })
@@ -274,30 +227,18 @@ describe('Google import v2 lifecycle', () => {
         itemsVisited: 0,
         receiptsReconciled: 0,
         itemsCancelled: 0,
-        itemIds: [],
       },
     )
   })
 
-  it('inspects bounded global and tenant lifecycle backlog without mutation', async () => {
+  it('inspects the bounded lifecycle backlog without mutation', async () => {
     const fixture = setup({ unreleasedExpired: 3 })
-    fixture.store.countLifecycleScopeItems.mockResolvedValueOnce(7)
 
     await expect(fixture.lifecycle.inspectBacklog()).resolves.toEqual({
       expiredItems: 2,
       purgeCandidates: 1,
       unreleasedExpiredReceipts: 3,
     })
-    await expect(
-      fixture.lifecycle.inspectScope({
-        kind: 'organization',
-        organizationId: ORG_ID,
-      }),
-    ).resolves.toEqual({ outstandingItems: 7 })
-    expect(fixture.store.countLifecycleScopeItems).toHaveBeenCalledWith(
-      { kind: 'organization', organizationId: ORG_ID },
-      100,
-    )
     expect(fixture.store.terminalizeItem).not.toHaveBeenCalled()
     expect(fixture.store.purgeParent).not.toHaveBeenCalled()
   })

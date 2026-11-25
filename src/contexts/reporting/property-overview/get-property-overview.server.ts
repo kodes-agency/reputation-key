@@ -1,8 +1,9 @@
 import type { AttentionSignalsPort } from './attention-signals.port.server'
 import type { AttentionSignals, DashboardData } from '../domain/dashboard-types'
-import type { GetDashboardData, GetDashboardDataInput } from './get-dashboard-data.server'
-import { attentionSignalsFrom } from './get-attention-signals.server'
-import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+import { readDashboard, type GetDashboardDataInput } from './get-dashboard-data.server'
+import type { DashboardRepository } from './dashboard-repository.port.server'
+import { attentionSignalsFrom } from './attention-signals.server'
+import type { InboxPublicApi } from '#/contexts/reputation/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   requirePropertyOverviewAccess,
@@ -35,7 +36,7 @@ export type GetPropertyOverview = (
 
 export const getPropertyOverview =
   (deps: {
-    getDashboardData: GetDashboardData
+    repo: DashboardRepository
     propertyAccess: DashboardPropertyAccess
     attention: AttentionSignalsPort
     inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
@@ -75,7 +76,7 @@ export const getPropertyOverview =
     }
     const now = deps.clock()
     const [dashboard, counts, targetCounts, google] = await Promise.all([
-      deps.getDashboardData(input, ctx).then((read) => linkRecentReviews(read)),
+      readDashboard(deps.repo, input, ctx).then((read) => linkRecentReviews(read)),
       deps.attention.getAttentionCounts(input.organizationId, input.propertyId),
       deps.inboxTargets.getGoogleReviewTargetCountsByProperty({
         organizationId: input.organizationId,

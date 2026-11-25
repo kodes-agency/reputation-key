@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { inboxAssignmentHistory, inboxItems } from '#/shared/db/schema/inbox.schema'
+import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import {
   inboxItemId,
@@ -10,44 +10,47 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import { inboxError } from '#/contexts/inbox/domain/errors'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
+import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
 import {
   inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
   inboxItemUnassigned,
   type InboxAssignmentRelease,
   type InboxAssignmentReleaseReason,
-} from '#/contexts/inbox/domain/events'
-import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
+} from '#/contexts/reputation/domain/inbox-events'
+import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
 import {
   cycleHeadItemColumns,
   mirrorCycleHead,
   persistedHeadFromItemRow,
-} from '#/contexts/inbox/infrastructure/inbox-cycle-head'
-import { createNextHandlingCycle } from '#/contexts/inbox/domain/handling-cycles'
-import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+} from '#/contexts/reputation/inbox/inbox-cycle-head.server'
+import { createNextHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import {
   assignmentAuthorityKey,
   handlingCycleHeadFromRow,
+  isAuthorityContractChange,
   itemFromRow,
   matchesLockedBulkAssignState,
   sourceCommandPermission,
   webActorId,
-} from '#/contexts/inbox/infrastructure/inbox-command-guards'
+} from '#/contexts/reputation/inbox/inbox-command-guards.server'
 import {
+  appendAssignmentHistory,
   currentAssignmentCycleNumber,
   insertAssignmentFact,
-} from '#/contexts/inbox/infrastructure/inbox-assignment-facts'
+} from '#/contexts/reputation/inbox/inbox-assignment-facts.server'
 import type {
   InboxCommandAuthorityPrincipal,
   InboxCommandAuthorityRequirement,
-} from '#/contexts/inbox/infrastructure/inbox-command-authority'
+} from '#/contexts/reputation/inbox/inbox-command-authority.server'
 import {
   assertManualReopenHonest,
   insertNextHandlingCycleDecision,
   updateItemRow,
-} from '#/contexts/inbox/infrastructure/inbox-source-projection'
-import { applyBulkAssignmentToItem } from '#/contexts/inbox/infrastructure/inbox-bulk-commands'
+} from '#/contexts/reputation/inbox/inbox-source-projection.server'
+import { applyBulkAssignmentToItem } from '#/contexts/reputation/inbox/inbox-bulk-commands.server'
 import type { CommandRuntime } from './command-runtime.server'
 
 const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -109,10 +112,7 @@ export const createAssignmentCommands = (
       requirements: [requirement],
     })
     if (eligibility.allowed) return false
-    if (
-      eligibility.reason.includes('authority_changed') ||
-      eligibility.reason.includes('contract_mismatch')
-    ) {
+    if (isAuthorityContractChange(eligibility.reason)) {
       throw inboxError(
         'revision_conflict',
         'Inbox assignment authority changed during reopen',
@@ -177,11 +177,8 @@ export const createAssignmentCommands = (
         .returning()
       if (!row) continue
 
-      await tx.insert(inboxAssignmentHistory).values({
-        inboxItemId: row.id,
+      await appendAssignmentHistory(tx, row, {
         resultingCommandRevision: row.commandRevision,
-        organizationId: row.organizationId,
-        propertyId: row.propertyId,
         handlingCycleNumber: current.currentCycleNumber,
         previousAssignee: input.userId,
         nextAssignee: null,
@@ -315,10 +312,7 @@ export const createAssignmentCommands = (
               requirements: [assigneeRequirement(requirement)],
             })
             if (decision.allowed) continue
-            if (
-              decision.reason.includes('authority_changed') ||
-              decision.reason.includes('contract_mismatch')
-            ) {
+            if (isAuthorityContractChange(decision.reason)) {
               throw inboxError(
                 'revision_conflict',
                 'Inbox assignment authority changed during reconciliation',
@@ -351,10 +345,7 @@ export const createAssignmentCommands = (
       return trace('inbox.commandStore.reopenReviewCycle', async () => {
         const { item, fact, expected, now } = command
         const actorId = webActorId(fact)
-        const expectedSourceRevision =
-          'sourceRevision' in expected
-            ? expected.sourceRevision
-            : expected.materialReviewRevision
+        const expectedSourceRevision = expected.sourceRevision
         if (
           actorId === null ||
           fact.inboxItemId !== item.id ||
@@ -497,11 +488,8 @@ export const createAssignmentCommands = (
             updatedAt: now,
           })
           if (unassignedFact) {
-            await tx.insert(inboxAssignmentHistory).values({
-              inboxItemId: item.id,
+            await appendAssignmentHistory(tx, item, {
               resultingCommandRevision: updatedItem.commandRevision,
-              organizationId: item.organizationId,
-              propertyId: item.propertyId,
               handlingCycleNumber: decision.value.head.currentCycleNumber,
               previousAssignee: itemRow.assignedTo,
               nextAssignee: null,
@@ -528,7 +516,7 @@ export const createAssignmentCommands = (
         const commandOrganizationId = items[0]?.organizationId
         if (
           items.length === 0 ||
-          items.length > 100 ||
+          items.length > INBOX_BULK_LIMIT ||
           new Set(itemIds).size !== items.length ||
           commandOrganizationId === undefined ||
           items.some((item) => item.organizationId !== commandOrganizationId) ||
@@ -707,11 +695,8 @@ export const createAssignmentCommands = (
                 : updates.assignedTo === null
                   ? 'release'
                   : 'reassign'
-            await tx.insert(inboxAssignmentHistory).values({
-              inboxItemId: item.id,
+            await appendAssignmentHistory(tx, item, {
               resultingCommandRevision: row.commandRevision,
-              organizationId: item.organizationId,
-              propertyId: item.propertyId,
               handlingCycleNumber,
               previousAssignee: item.assignedTo,
               nextAssignee: updates.assignedTo,

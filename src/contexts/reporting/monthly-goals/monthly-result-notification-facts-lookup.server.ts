@@ -68,6 +68,41 @@ const subjectPortalGroup = and(
   eq(portalGroups.id, goalSubjectAssignments.portalGroupId),
 )
 
+/** The columns both reads take from the result's program, goal and Subject. */
+const sharedFactColumns = {
+  programId: goalPrograms.id,
+  programName: goalPrograms.name,
+  assignmentId: goalSubjectAssignments.id,
+  monthlyResultId: goalMonthlyResults.id,
+  subjectKind: goalSubjectAssignments.subjectKind,
+  propertySubjectId: goalSubjectAssignments.propertySubjectId,
+  portalGroupId: goalSubjectAssignments.portalGroupId,
+  portalId: goalSubjectAssignments.portalId,
+  periodMonth:
+    sql<string>`to_char(${goalMonthlyResults.periodStart} AT TIME ZONE ${goalMonthlyResults.propertyTimezone}, 'YYYY-MM')`.as(
+      'period_month',
+    ),
+  setDuringMonth,
+  targetChangedInMonth,
+  metric: goalProgramVersions.metricKey,
+  target: judgedTarget,
+  subjectName,
+}
+
+interface SubjectColumns {
+  readonly subjectKind: string
+  readonly propertySubjectId: string | null
+  readonly portalGroupId: string | null
+  readonly portalId: string | null
+}
+
+const factsSubjectOf = (row: SubjectColumns, propertyId: string) =>
+  parseGoalSubject(
+    row.subjectKind,
+    row.propertySubjectId ?? row.portalGroupId ?? row.portalId ?? '',
+    propertyId,
+  )
+
 export const createMonthlyResultNotificationFactsLookup = (
   db: Database,
 ): MonthlyResultNotificationFactsLookup => {
@@ -75,28 +110,12 @@ export const createMonthlyResultNotificationFactsLookup = (
     async findMonthlyResultNotificationFacts(input) {
       const [row] = await db
         .select({
-          programId: goalPrograms.id,
-          programName: goalPrograms.name,
-          assignmentId: goalSubjectAssignments.id,
-          monthlyResultId: goalMonthlyResults.id,
-          subjectKind: goalSubjectAssignments.subjectKind,
-          propertySubjectId: goalSubjectAssignments.propertySubjectId,
-          portalGroupId: goalSubjectAssignments.portalGroupId,
-          portalId: goalSubjectAssignments.portalId,
-          periodMonth:
-            sql<string>`to_char(${goalMonthlyResults.periodStart} AT TIME ZONE ${goalMonthlyResults.propertyTimezone}, 'YYYY-MM')`.as(
-              'period_month',
-            ),
+          ...sharedFactColumns,
           closedAchieved: goalMonthlyResults.achieved,
           closedValue: goalMonthlyResults.value,
           headRevisionId: goalResultRevisions.id,
           headAchieved: goalResultRevisions.achieved,
           headValue: goalResultRevisions.value,
-          setDuringMonth,
-          targetChangedInMonth,
-          metric: goalProgramVersions.metricKey,
-          target: judgedTarget,
-          subjectName,
         })
         .from(goalMonthlyResults)
         .leftJoin(
@@ -157,8 +176,7 @@ export const createMonthlyResultNotificationFactsLookup = (
       // when there is one, the closed row otherwise.
       const achieved = row?.headRevisionId ? row.headAchieved : row?.closedAchieved
       if (!row || achieved !== true) return null
-      const subjectId = row.propertySubjectId ?? row.portalGroupId ?? row.portalId ?? ''
-      const subject = parseGoalSubject(row.subjectKind, subjectId, input.propertyId)
+      const subject = factsSubjectOf(row, input.propertyId)
       if (!subject) return null
       return {
         programId: row.programId,
@@ -180,29 +198,13 @@ export const createMonthlyResultNotificationFactsLookup = (
     async findMonthlyResultRevisionNotificationFacts(input) {
       const [row] = await db
         .select({
-          programId: goalPrograms.id,
+          ...sharedFactColumns,
           programVersionId: goalMonthlyResults.programVersionId,
-          programName: goalPrograms.name,
-          assignmentId: goalSubjectAssignments.id,
-          monthlyResultId: goalMonthlyResults.id,
-          subjectKind: goalSubjectAssignments.subjectKind,
-          propertySubjectId: goalSubjectAssignments.propertySubjectId,
-          portalGroupId: goalSubjectAssignments.portalGroupId,
-          portalId: goalSubjectAssignments.portalId,
           revisionId: goalResultRevisions.id,
           revision: goalResultRevisions.revision,
           evaluationState: goalResultRevisions.evaluationState,
           achieved: goalResultRevisions.achieved,
           value: goalResultRevisions.value,
-          setDuringMonth,
-          targetChangedInMonth,
-          metric: goalProgramVersions.metricKey,
-          target: judgedTarget,
-          subjectName,
-          periodMonth:
-            sql<string>`to_char(${goalMonthlyResults.periodStart} AT TIME ZONE ${goalMonthlyResults.propertyTimezone}, 'YYYY-MM')`.as(
-              'period_month',
-            ),
         })
         .from(goalMonthlyResults)
         .innerJoin(
@@ -272,8 +274,7 @@ export const createMonthlyResultNotificationFactsLookup = (
         .limit(1)
 
       if (!row) return null
-      const subjectId = row.propertySubjectId ?? row.portalGroupId ?? row.portalId ?? ''
-      const subject = parseGoalSubject(row.subjectKind, subjectId, input.propertyId)
+      const subject = factsSubjectOf(row, input.propertyId)
       if (!subject) return null
       const evaluationState = row.evaluationState as
         'eligible' | 'insufficient_data' | 'unavailable' | 'quarantined'

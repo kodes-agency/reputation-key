@@ -1,350 +1,63 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
-  feedbackId,
-  guestResponseId,
-  guestSessionId,
-  organizationId,
-  portalId,
-  propertyId,
-  ratingId,
-} from '#/shared/domain/ids'
-import {
-  guestFeedbackRetracted,
-  guestFeedbackSubmitted,
-  guestRatingRetracted,
-  guestRatingSubmitted,
-} from '../domain/events'
-import type { GuestResponse } from '../domain/guest-response'
-import {
-  changeGuestResponseIntegrity,
   initialGuestResponseIntegrityDecision,
   type GuestResponseInitialIntegrityAssessment,
 } from '../domain/guest-response-integrity'
+import type { GuestResponse } from '../domain/guest-response'
 import type { GuestSubmissionFact } from './guest-response-command-store.port.server'
-import { createAtomicGuestResponseCommandStore as createAtomicGuestResponseCommandStoreFactory } from './guest-response-command-store.server'
-import { createGuestResponseRepository as createGuestResponseRepositoryFactory } from './guest-response.repository.server'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
+import {
+  NOW,
+  ORG,
+  PORTAL,
+  PORTAL_RESPONSIBILITY,
+  PORTAL_RESPONSIBILITY_REPLACEMENT,
+  PROPERTY,
+  RESPONSE,
+  SESSION,
+  STAFF_ATTRIBUTION,
+  STAFF_EFFECTIVE_FROM,
+  STAFF_PARTICIPANT,
+  STAFF_PARTICIPATION,
+  STAFF_PARTICIPATION_REPLACEMENT,
+  commitSubmittedWithFeedback,
+  ratingOnlyResponse,
+  buildGuestResponse,
+  createAtomicGuestResponseCommandStore,
+  createGuestResponseRepository,
+  deleteGuestResponseTenants,
+  facts,
+  feedbackFact,
+  outboxTypes,
+  ratingFact,
+  resetGuestResponseState,
+  responseRow,
+  seedGuestResponseTenants,
+} from './guest-response.test-fixtures'
 
 const db = getDb()
-const ORG = organizationId('org-guest-response-command-store')
-const PROPERTY = propertyId('51000000-0000-4000-8000-000000000001')
-const PORTAL = portalId('51000000-0000-4000-8000-000000000002')
-const RESPONSE = guestResponseId('51000000-0000-4000-8000-000000000003')
-const SESSION = guestSessionId('51000000-0000-4000-8000-000000000004')
-const STAFF_PARTICIPANT = '51000000-0000-4000-8000-000000000005'
-const STAFF_PARTICIPANT_REPLACEMENT = '51000000-0000-4000-8000-000000000006'
-const STAFF_PARTICIPATION = '51000000-0000-4000-8000-000000000007'
-const STAFF_PARTICIPATION_REPLACEMENT = '51000000-0000-4000-8000-000000000008'
-const PORTAL_RESPONSIBILITY = '51000000-0000-4000-8000-000000000009'
-const PORTAL_RESPONSIBILITY_REPLACEMENT = '51000000-0000-4000-8000-000000000010'
-const NOW = new Date('2026-08-25T12:00:00.000Z')
-const STAFF_EFFECTIVE_FROM = new Date('2026-08-01T00:00:00.000Z')
-// A second tenant whose response the cross-tenant commands below aim at.
-const OTHER_ORG = organizationId('org-guest-response-command-store-other')
-const OTHER_PROPERTY = propertyId('51000000-0000-4000-8000-000000000021')
-const OTHER_PORTAL = portalId('51000000-0000-4000-8000-000000000022')
-const OTHER_RESPONSE = guestResponseId('51000000-0000-4000-8000-000000000023')
-const OTHER_SESSION = guestSessionId('51000000-0000-4000-8000-000000000024')
-
-const createAtomicGuestResponseCommandStore = (
-  database: Parameters<typeof createAtomicGuestResponseCommandStoreFactory>[0],
-) => createAtomicGuestResponseCommandStoreFactory(database, () => NOW)
-
-const createGuestResponseRepository = (
-  database: Parameters<typeof createGuestResponseRepositoryFactory>[0],
-  clock: () => Date = () => NOW,
-) => createGuestResponseRepositoryFactory(database, clock)
-
-const STAFF_ATTRIBUTION = {
-  staffParticipantId: STAFF_PARTICIPANT,
-  staffParticipationId: STAFF_PARTICIPATION,
-  portalResponsibilityId: PORTAL_RESPONSIBILITY,
-  effectiveFrom: STAFF_EFFECTIVE_FROM,
-  effectiveTo: null,
-} as const
-
-function response(): GuestResponse {
-  return {
-    id: RESPONSE,
-    organizationId: ORG,
-    propertyId: PROPERTY,
-    portalId: PORTAL,
-    staffAttribution: null,
-    sessionId: SESSION,
-    sessionExpiresAt: new Date('2026-08-26T12:00:00.000Z'),
-    status: 'submitted',
-    integrityOutcome: 'accepted',
-    integrityReasonCode: 'initial_submission',
-    integrityRevision: 1,
-    integrityAssessedAt: NOW,
-    rating: 2,
-    category: null,
-    text: 'Please contact the front desk.',
-    responseConsent: true,
-    textConsent: true,
-    mediaConsent: false,
-    privateFeedbackThreshold: 3,
-    experienceSnapshot: {
-      portalPublicationState: 'published',
-      portalPublicationSnapshotId: null,
-      portalPublicationVersion: null,
-      portalPublicationDigest: null,
-      portalConfigurationDigest: 'a'.repeat(64),
-      guestLocale: 'en',
-      languagePackVersion: 'guest-ui-en-v1',
-      privateFeedbackThreshold: 3,
-      capturedAt: NOW,
-    },
-    ratingSourceEventId: null,
-    feedbackSourceEventId: null,
-    correctionCount: 0,
-    submittedAt: NOW,
-    correctedAt: null,
-    feedbackSubmittedAt: NOW,
-    feedbackSubmissionRevision: 1,
-    feedbackWithdrawnAt: null,
-    moderatedAt: null,
-    deletedAt: null,
-    retentionDeadline: new Date('2028-08-25T12:00:00.000Z'),
-    schemaVersion: 1,
-  }
-}
-
-/** The same submission, owned by the second tenant. */
-function otherTenantResponse(): GuestResponse {
-  return {
-    ...response(),
-    id: OTHER_RESPONSE,
-    organizationId: OTHER_ORG,
-    propertyId: OTHER_PROPERTY,
-    portalId: OTHER_PORTAL,
-    sessionId: OTHER_SESSION,
-  }
-}
-
-function facts(
-  owner: GuestResponse = response(),
-): readonly [
-  ReturnType<typeof guestRatingSubmitted>,
-  ReturnType<typeof guestFeedbackSubmitted>,
-] {
-  const scope = {
-    organizationId: organizationId(owner.organizationId),
-    propertyId: propertyId(owner.propertyId),
-    portalId: portalId(owner.portalId),
-  }
-  return [
-    guestRatingSubmitted({
-      ratingId: ratingId(owner.id),
-      ...scope,
-      value: 2,
-      occurredAt: NOW,
-    }),
-    guestFeedbackSubmitted({
-      feedbackId: feedbackId(owner.id),
-      ratingId: ratingId(owner.id),
-      ...scope,
-      responseRevision: 1,
-      occurredAt: NOW,
-    }),
-  ]
-}
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-  await db.execute(sql`
-    INSERT INTO organization (id, name, slug, "createdAt")
-    VALUES (${ORG}, 'Guest Response Command Store', ${ORG}, now())
-    ON CONFLICT (id) DO NOTHING
-  `)
-  await db.execute(sql`
-    INSERT INTO properties (id, organization_id, name, slug, timezone)
-    VALUES (${PROPERTY}, ${ORG}, 'Guest Command Property', 'guest-command-property', 'UTC')
-    ON CONFLICT (id) DO NOTHING
-  `)
-  await db.execute(sql`
-    INSERT INTO portals (
-      id, organization_id, property_id, entity_type, entity_id, name, slug,
-      publication_state
-    ) VALUES (
-      ${PORTAL}, ${ORG}, ${PROPERTY}, 'property', ${PROPERTY},
-      'Guest Command Portal', 'guest-command-portal', 'published'
-    ) ON CONFLICT (id) DO NOTHING
-  `)
-  await db.execute(sql`
-    INSERT INTO organization (id, name, slug, "createdAt")
-    VALUES (${OTHER_ORG}, 'Guest Response Command Store Other', ${OTHER_ORG}, now())
-    ON CONFLICT (id) DO NOTHING
-  `)
-  await db.execute(sql`
-    INSERT INTO properties (id, organization_id, name, slug, timezone)
-    VALUES (
-      ${OTHER_PROPERTY}, ${OTHER_ORG}, 'Guest Command Other Property',
-      'guest-command-other-property', 'UTC'
-    )
-    ON CONFLICT (id) DO NOTHING
-  `)
-  await db.execute(sql`
-    INSERT INTO portals (
-      id, organization_id, property_id, entity_type, entity_id, name, slug,
-      publication_state
-    ) VALUES (
-      ${OTHER_PORTAL}, ${OTHER_ORG}, ${OTHER_PROPERTY}, 'property', ${OTHER_PROPERTY},
-      'Guest Command Other Portal', 'guest-command-other-portal', 'published'
-    ) ON CONFLICT (id) DO NOTHING
-  `)
-  await db.execute(sql`
-    INSERT INTO staff_participants (
-      id, organization_id, display_name, status, revision, created_by,
-      created_at, updated_at
-    ) VALUES
-      (${STAFF_PARTICIPANT}::uuid, ${ORG}, 'Original Primary', 'active', 1,
-       'test', ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM}),
-      (${STAFF_PARTICIPANT_REPLACEMENT}::uuid, ${ORG}, 'Replacement Primary',
-       'active', 1, 'test', ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM})
-  `)
-  await db.execute(sql`
-    INSERT INTO staff_participations (
-      id, organization_id, property_id, staff_participant_id, display_name,
-      status, started_at, revision, created_by, created_at, updated_at
-    ) VALUES
-      (${STAFF_PARTICIPATION}::uuid, ${ORG}, ${PROPERTY},
-       ${STAFF_PARTICIPANT}::uuid, 'Original Primary', 'active',
-       ${STAFF_EFFECTIVE_FROM}, 1, 'test', ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM}),
-      (${STAFF_PARTICIPATION_REPLACEMENT}::uuid, ${ORG}, ${PROPERTY},
-       ${STAFF_PARTICIPANT_REPLACEMENT}::uuid, 'Replacement Primary', 'active',
-       ${STAFF_EFFECTIVE_FROM}, 1, 'test', ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM})
-  `)
-  await db.execute(sql`
-    INSERT INTO portal_responsibilities (
-      id, organization_id, property_id, portal_id, staff_participation_id,
-      kind, effective_from, created_by
-    ) VALUES (
-      ${PORTAL_RESPONSIBILITY}::uuid, ${ORG}, ${PROPERTY}, ${PORTAL},
-      ${STAFF_PARTICIPATION}::uuid, 'primary', ${STAFF_EFFECTIVE_FROM}, 'test'
-    )
-  `)
+  await seedGuestResponseTenants(true)
 })
 
-beforeEach(async () => {
-  await db.execute(
-    sql`DELETE FROM guest_responses WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
-  )
-  await db.execute(
-    sql`DELETE FROM outbox_events WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
-  )
-  await db.execute(sql`
-    DELETE FROM portal_responsibilities
-    WHERE id = ${PORTAL_RESPONSIBILITY_REPLACEMENT}::uuid
-  `)
-  await db.execute(sql`
-    UPDATE portal_responsibilities
-    SET effective_to = NULL, end_reason = NULL
-    WHERE id = ${PORTAL_RESPONSIBILITY}::uuid
-  `)
-})
+beforeEach(resetGuestResponseState)
 
 afterAll(async () => {
-  await db.execute(
-    sql`DELETE FROM guest_responses WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
-  )
-  await db.execute(
-    sql`DELETE FROM outbox_events WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
-  )
-  await db.execute(
-    sql`DELETE FROM portal_responsibilities WHERE organization_id = ${ORG}`,
-  )
-  await db.execute(sql`DELETE FROM staff_participations WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM staff_participants WHERE organization_id = ${ORG}`)
-  await db.execute(
-    sql`DELETE FROM portals WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
-  )
-  await db.execute(
-    sql`DELETE FROM properties WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
-  )
-  await deleteTestOrganizations(db, [ORG, OTHER_ORG])
-  clearEventSchemas()
+  await deleteGuestResponseTenants()
 })
-
-/** Commit the second tenant's response through the store, as a real submission does. */
-async function commitOtherTenantResponse(
-  store: ReturnType<typeof createAtomicGuestResponseCommandStore>,
-) {
-  const submissionFacts = facts(otherTenantResponse())
-  await expect(
-    store.commitSubmitted(otherTenantResponse(), submissionFacts),
-  ).resolves.toBe('applied')
-  return submissionFacts
-}
-
-/** The second tenant's response, feedback and integrity as its submission left them. */
-async function expectOtherTenantResponseUntouched(
-  submissionFacts: ReturnType<typeof facts>,
-) {
-  const rows = await db.execute(sql`
-    SELECT r.status, r.rating, r.integrity_outcome, r.integrity_revision,
-           r.rating_source_event_id, r.feedback_source_event_id,
-           f.body AS response_text
-    FROM guest_responses r
-    LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
-    WHERE r.id = ${OTHER_RESPONSE}
-  `)
-  expect(rows.rows).toEqual([
-    {
-      status: 'submitted',
-      rating: 2,
-      integrity_outcome: 'accepted',
-      integrity_revision: 1,
-      rating_source_event_id: submissionFacts[0].eventId,
-      feedback_source_event_id: submissionFacts[1].eventId,
-      response_text: 'Please contact the front desk.',
-    },
-  ])
-  const decisions = await db.execute(sql`
-    SELECT revision FROM guest_response_integrity_decisions
-    WHERE response_id = ${OTHER_RESPONSE}
-  `)
-  expect(decisions.rows).toEqual([{ revision: 1 }])
-  const retractions = await db.execute(sql`
-    SELECT id FROM outbox_events
-    WHERE organization_id IN (${ORG}, ${OTHER_ORG})
-      AND event_type IN ('guest.rating.retracted', 'guest.feedback.retracted')
-  `)
-  expect(retractions.rows).toHaveLength(0)
-}
 
 describe.sequential('atomic Guest response submission', () => {
   it('keeps the original Primary Staff snapshot through reassignment and correction', async () => {
     const store = createAtomicGuestResponseCommandStore(db)
-    const attributed = { ...response(), staffAttribution: STAFF_ATTRIBUTION }
-    const originalRating = guestRatingSubmitted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      value: 2,
-      occurredAt: NOW,
-      staffAttribution: STAFF_ATTRIBUTION,
-    })
-    const originalFeedback = guestFeedbackSubmitted({
-      feedbackId: feedbackId(RESPONSE),
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      responseRevision: 1,
-      occurredAt: NOW,
-      staffAttribution: STAFF_ATTRIBUTION,
-    })
+    const attributed = buildGuestResponse({ staffAttribution: STAFF_ATTRIBUTION })
+    const originalRating = ratingFact({ staffAttribution: STAFF_ATTRIBUTION })
+    const originalFeedback = feedbackFact({ staffAttribution: STAFF_ATTRIBUTION })
     await expect(
-      store.commitSubmitted(attributed, [originalRating, originalFeedback]),
+      commitSubmittedWithFeedback(store, attributed, [originalRating, originalFeedback]),
     ).resolves.toBe('applied')
 
     const reassignedAt = new Date('2026-08-26T00:00:00.000Z')
@@ -364,11 +77,7 @@ describe.sequential('atomic Guest response submission', () => {
     `)
 
     const correctedAt = new Date('2026-08-26T11:00:00.000Z')
-    const correction = guestRatingSubmitted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
+    const correction = ratingFact({
       value: 4,
       supersedesSourceEventId: originalRating.eventId,
       occurredAt: correctedAt,
@@ -393,20 +102,18 @@ describe.sequential('atomic Guest response submission', () => {
       ),
     ).resolves.toBe('applied')
 
-    const state = await db.execute(sql`
-      SELECT attributed_staff_participant_id, attributed_staff_participation_id,
-             attribution_responsibility_id, staff_attribution_effective_from,
-             staff_attribution_effective_to
-      FROM guest_responses WHERE id = ${RESPONSE}
-    `)
-    expect(state.rows).toHaveLength(1)
-    expect(state.rows[0]).toMatchObject({
+    const state = await responseRow(`
+      attributed_staff_participant_id, attributed_staff_participation_id,
+      attribution_responsibility_id, staff_attribution_effective_from,
+      staff_attribution_effective_to`)
+    expect(state).toHaveLength(1)
+    expect(state[0]).toMatchObject({
       attributed_staff_participant_id: STAFF_PARTICIPANT,
       attributed_staff_participation_id: STAFF_PARTICIPATION,
       attribution_responsibility_id: PORTAL_RESPONSIBILITY,
       staff_attribution_effective_to: null,
     })
-    expect(new Date(String(state.rows[0]!.staff_attribution_effective_from))).toEqual(
+    expect(new Date(String(state[0]!.staff_attribution_effective_from))).toEqual(
       STAFF_EFFECTIVE_FROM,
     )
     const durableFacts = await db.execute(sql`
@@ -434,21 +141,13 @@ describe.sequential('atomic Guest response submission', () => {
     const store = createAtomicGuestResponseCommandStore(db)
     const submissionFacts = facts()
 
-    await expect(store.commitSubmitted(response(), submissionFacts)).resolves.toBe(
-      'applied',
-    )
+    await expect(
+      commitSubmittedWithFeedback(store, buildGuestResponse(), submissionFacts),
+    ).resolves.toBe('applied')
 
-    const rows = await db.execute(sql`
-      SELECT id, rating_source_event_id, feedback_source_event_id
-      FROM guest_responses WHERE organization_id = ${ORG}
-    `)
-    const outbox = await db.execute(sql`
-      SELECT event_type FROM outbox_events
-      WHERE organization_id = ${ORG}
-      ORDER BY event_type
-    `)
-    expect(rows.rows).toHaveLength(1)
-    expect(rows.rows[0]).toMatchObject({
+    const rows = await responseRow('id, rating_source_event_id, feedback_source_event_id')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
       rating_source_event_id: submissionFacts[0].eventId,
       feedback_source_event_id: submissionFacts[1].eventId,
     })
@@ -465,7 +164,7 @@ describe.sequential('atomic Guest response submission', () => {
       body: 'Please contact the front desk.',
     })
     expect(new Date(String(separated.rows[0]!.session_expires_at))).toEqual(
-      response().sessionExpiresAt,
+      buildGuestResponse().sessionExpiresAt,
     )
     expect(new Date(String(separated.rows[0]!.feedback_expires_at))).toEqual(
       new Date('2026-11-23T12:00:00.000Z'),
@@ -501,7 +200,7 @@ describe.sequential('atomic Guest response submission', () => {
       actor_id: 'guest.gateway',
     })
     expect(new Date(String(integrity.rows[0]!.decided_at))).toEqual(NOW)
-    expect(outbox.rows.map((row) => row.event_type)).toEqual([
+    expect(await outboxTypes()).toEqual([
       'guest.feedback.submitted',
       'guest.rating.submitted',
     ])
@@ -509,24 +208,18 @@ describe.sequential('atomic Guest response submission', () => {
 
   it('rolls back the response and earlier fact when any fact is invalid', async () => {
     const store = createAtomicGuestResponseCommandStore(db)
-    const [ratingFact, feedbackFact] = facts()
+    const [rating, feedback] = facts()
     const invalid = {
-      ...feedbackFact,
+      ...feedback,
       _tag: 'guest.feedback.unregistered',
     } as unknown as GuestSubmissionFact
 
     await expect(
-      store.commitSubmitted(response(), [ratingFact, invalid]),
+      store.commitSubmitted(buildGuestResponse(), [rating, invalid]),
     ).rejects.toThrow('is not registered for the outbox')
 
-    const rows = await db.execute(sql`
-      SELECT id FROM guest_responses WHERE organization_id = ${ORG}
-    `)
-    const outbox = await db.execute(sql`
-      SELECT id FROM outbox_events WHERE organization_id = ${ORG}
-    `)
-    expect(rows.rows).toHaveLength(0)
-    expect(outbox.rows).toHaveLength(0)
+    expect(await responseRow()).toHaveLength(0)
+    expect(await outboxTypes()).toHaveLength(0)
   })
 
   it('retains an automatic initial filter without recording a rating fact', async () => {
@@ -537,15 +230,14 @@ describe.sequential('atomic Guest response submission', () => {
       source: 'automatic',
       actorId: 'guest-integrity-honeypot-v1',
     }
-    const filtered: GuestResponse = {
-      ...response(),
+    const filtered: GuestResponse = buildGuestResponse({
       text: null,
       textConsent: false,
       feedbackSubmittedAt: null,
       feedbackSubmissionRevision: null,
       integrityOutcome: assessment.outcome,
       integrityReasonCode: assessment.reasonCode,
-    }
+    })
 
     await expect(
       store.commitSubmitted(
@@ -555,11 +247,9 @@ describe.sequential('atomic Guest response submission', () => {
       ),
     ).resolves.toBe('applied')
 
-    const rows = await db.execute(sql`
-      SELECT rating, integrity_outcome, rating_source_event_id
-      FROM guest_responses WHERE id = ${RESPONSE}
-    `)
-    expect(rows.rows).toEqual([
+    expect(
+      await responseRow('rating, integrity_outcome, rating_source_event_id'),
+    ).toEqual([
       {
         rating: 2,
         integrity_outcome: 'filtered_automatically',
@@ -579,162 +269,31 @@ describe.sequential('atomic Guest response submission', () => {
         actor_id: 'guest-integrity-honeypot-v1',
       },
     ])
-    const outbox = await db.execute(sql`
-      SELECT id FROM outbox_events WHERE organization_id = ${ORG}
-    `)
-    expect(outbox.rows).toHaveLength(0)
-
-    const reviewedAt = new Date('2026-08-27T09:00:00.000Z')
-    const restored = changeGuestResponseIntegrity(
-      filtered,
-      {
-        outcome: 'accepted',
-        reasonCode: 'reviewer_restored',
-        source: 'reviewer',
-        actorId: 'reviewer-1',
-      },
-      reviewedAt,
-    )
-    if ('code' in restored) throw new Error(restored.code)
-    const restoredRating = guestRatingSubmitted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      value: 2,
-      occurredAt: NOW,
-    })
-    await expect(
-      store.commitIntegrityChanged(filtered, restored.response, restored.decision, [
-        restoredRating,
-      ]),
-    ).resolves.toBe('applied')
-
-    const restoredRow = await db.execute(sql`
-      SELECT rating, integrity_outcome, integrity_assessed_at,
-             rating_source_event_id
-      FROM guest_responses WHERE id = ${RESPONSE}
-    `)
-    expect(restoredRow.rows[0]).toMatchObject({
-      rating: 2,
-      integrity_outcome: 'accepted',
-      rating_source_event_id: restoredRating.eventId,
-    })
-    expect(new Date(String(restoredRow.rows[0]!.integrity_assessed_at))).toEqual(
-      reviewedAt,
-    )
-    expect(restoredRating.occurredAt).toEqual(NOW)
+    expect(await outboxTypes()).toHaveLength(0)
   })
 
   it('fails closed when a new submission has no experience snapshot', async () => {
     const store = createAtomicGuestResponseCommandStore(db)
 
     await expect(
-      store.commitSubmitted({ ...response(), experienceSnapshot: null }, facts()),
+      store.commitSubmitted(ratingOnlyResponse({ experienceSnapshot: null }), [
+        facts()[0],
+      ]),
     ).rejects.toThrow('Guest response submission snapshot is required')
 
-    const rows = await db.execute(sql`
-      SELECT id FROM guest_responses WHERE organization_id = ${ORG}
-    `)
-    expect(rows.rows).toHaveLength(0)
+    expect(await responseRow()).toHaveLength(0)
   })
 
   it('returns duplicate without recording new facts for the session anchor', async () => {
     const store = createAtomicGuestResponseCommandStore(db)
-    await store.commitSubmitted(response(), facts())
+    const [rating] = facts()
+    await store.commitSubmitted(ratingOnlyResponse(), [rating])
 
-    await expect(store.commitSubmitted(response(), facts())).resolves.toBe('duplicate')
-
-    const outbox = await db.execute(sql`
-      SELECT id FROM outbox_events WHERE organization_id = ${ORG}
-    `)
-    expect(outbox.rows).toHaveLength(2)
-  })
-
-  it('atomically audits eligibility changes and their correction facts', async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [originalRating, originalFeedback] = facts()
-    await store.commitSubmitted(response(), [originalRating, originalFeedback])
-    const persisted = {
-      ...response(),
-      ratingSourceEventId: originalRating.eventId,
-      feedbackSourceEventId: originalFeedback.eventId,
-    }
-    const reviewedAt = new Date('2026-08-25T12:10:00.000Z')
-    const excluded = changeGuestResponseIntegrity(
-      persisted,
-      {
-        outcome: 'under_review',
-        reasonCode: 'traffic_velocity_anomaly',
-        source: 'automatic',
-        actorId: 'guest-integrity-v1',
-      },
-      reviewedAt,
+    await expect(store.commitSubmitted(ratingOnlyResponse(), [facts()[0]])).resolves.toBe(
+      'duplicate',
     )
-    if ('code' in excluded) throw new Error(excluded.code)
-    const retraction = guestRatingRetracted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      supersedesSourceEventId: originalRating.eventId,
-      occurredAt: reviewedAt,
-    })
 
-    await expect(
-      store.commitIntegrityChanged(persisted, excluded.response, excluded.decision, [
-        retraction,
-      ]),
-    ).resolves.toBe('applied')
-    await expect(
-      store.commitIntegrityChanged(persisted, excluded.response, excluded.decision, [
-        retraction,
-      ]),
-    ).resolves.toBe('conflict')
-
-    const excludedRow = await db.execute(sql`
-      SELECT rating, integrity_outcome, integrity_reason_code,
-             integrity_revision, rating_source_event_id
-      FROM guest_responses WHERE id = ${RESPONSE}
-    `)
-    expect(excludedRow.rows).toEqual([
-      {
-        rating: 2,
-        integrity_outcome: 'under_review',
-        integrity_reason_code: 'traffic_velocity_anomaly',
-        integrity_revision: 2,
-        rating_source_event_id: null,
-      },
-    ])
-    const decisions = await db.execute(sql`
-      SELECT revision, previous_outcome, outcome, reason_code, source, actor_id
-      FROM guest_response_integrity_decisions
-      WHERE response_id = ${RESPONSE}
-      ORDER BY revision
-    `)
-    expect(decisions.rows).toEqual([
-      {
-        revision: 1,
-        previous_outcome: null,
-        outcome: 'accepted',
-        reason_code: 'initial_submission',
-        source: 'system',
-        actor_id: 'guest.gateway',
-      },
-      {
-        revision: 2,
-        previous_outcome: 'accepted',
-        outcome: 'under_review',
-        reason_code: 'traffic_velocity_anomaly',
-        source: 'automatic',
-        actor_id: 'guest-integrity-v1',
-      },
-    ])
-    const outbox = await db.execute(sql`
-      SELECT event_type FROM outbox_events
-      WHERE organization_id = ${ORG} AND event_type = 'guest.rating.retracted'
-    `)
-    expect(outbox.rows).toHaveLength(1)
+    expect(await outboxTypes()).toHaveLength(1)
   })
 
   it('summarizes current outcomes by corrected rating time with half-open bounds', async () => {
@@ -791,13 +350,13 @@ describe.sequential('atomic Guest response submission', () => {
 
   it('denies stale reads and expires each storage class independently', async () => {
     const store = createAtomicGuestResponseCommandStore(db)
-    await store.commitSubmitted(response(), facts())
+    await commitSubmittedWithFeedback(store)
     const scope = {
       organizationId: ORG,
       propertyId: PROPERTY,
       portalId: PORTAL,
     }
-    const sessionExpiry = response().sessionExpiresAt!
+    const sessionExpiry = buildGuestResponse().sessionExpiresAt!
     const feedbackExpiry = new Date('2026-11-23T12:00:00.000Z')
 
     await expect(
@@ -806,7 +365,7 @@ describe.sequential('atomic Guest response submission', () => {
         SESSION,
         new Date(sessionExpiry.getTime() - 1),
       ),
-    ).resolves.toMatchObject({ sessionId: SESSION, text: response().text })
+    ).resolves.toMatchObject({ sessionId: SESSION, text: buildGuestResponse().text })
     await expect(
       createGuestResponseRepository(db).findForSession(scope, SESSION, sessionExpiry),
     ).resolves.toBeNull()
@@ -815,14 +374,13 @@ describe.sequential('atomic Guest response submission', () => {
       createGuestResponseRepository(
         db,
         () => new Date(feedbackExpiry.getTime() - 1),
-      ).findSnippetForOrg(ORG, RESPONSE),
-    ).resolves.toMatchObject({ comment: response().text, ratingValue: 2 })
+      ).findSnippetsForOrg(ORG, [RESPONSE]),
+    ).resolves.toMatchObject([{ comment: buildGuestResponse().text, ratingValue: 2 }])
     await expect(
-      createGuestResponseRepository(db, () => feedbackExpiry).findSnippetForOrg(
-        ORG,
+      createGuestResponseRepository(db, () => feedbackExpiry).findSnippetsForOrg(ORG, [
         RESPONSE,
-      ),
-    ).resolves.toMatchObject({ comment: null, ratingValue: 2 })
+      ]),
+    ).resolves.toMatchObject([{ comment: null, ratingValue: 2 }])
 
     const rule = (subject: string) => {
       const found = RETENTION_RULES.find((candidate) => candidate.subject === subject)
@@ -853,545 +411,8 @@ describe.sequential('atomic Guest response submission', () => {
     ).toEqual([{ count: 1 }])
     await expect(
       executeRetentionRule(db, rule('guest_responses.deidentified_fact'), {
-        cutoff: new Date(response().retentionDeadline.getTime() + 1),
+        cutoff: new Date(buildGuestResponse().retentionDeadline.getTime() + 1),
       }),
     ).resolves.toMatchObject({ rowsDeleted: 1 })
-  })
-
-  it('adds private feedback atomically without consuming the rating correction', async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [ratingFact] = facts()
-    const ratingOnly: GuestResponse = {
-      ...response(),
-      text: null,
-      textConsent: false,
-      feedbackSourceEventId: null,
-      feedbackSubmittedAt: null,
-      feedbackSubmissionRevision: null,
-      feedbackWithdrawnAt: null,
-    }
-    await store.commitSubmitted(ratingOnly, [ratingFact])
-
-    const feedbackFact = guestFeedbackSubmitted({
-      feedbackId: feedbackId(RESPONSE),
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      responseRevision: 1,
-      occurredAt: NOW,
-    })
-    const withFeedback: GuestResponse = {
-      ...ratingOnly,
-      ratingSourceEventId: ratingFact.eventId,
-      text: 'Please contact the front desk.',
-      textConsent: true,
-      feedbackSubmittedAt: NOW,
-      feedbackSubmissionRevision: 1,
-      feedbackWithdrawnAt: null,
-    }
-
-    await expect(store.commitFeedbackAdded(withFeedback, feedbackFact)).resolves.toBe(
-      'applied',
-    )
-    await expect(store.commitFeedbackAdded(withFeedback, feedbackFact)).resolves.toBe(
-      'conflict',
-    )
-
-    const rows = await db.execute(sql`
-      SELECT f.body AS response_text, r.feedback_source_event_id,
-             r.correction_count
-      FROM guest_responses r
-      LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
-      WHERE r.id = ${RESPONSE}
-    `)
-    expect(rows.rows).toEqual([
-      {
-        response_text: 'Please contact the front desk.',
-        feedback_source_event_id: feedbackFact.eventId,
-        correction_count: 0,
-      },
-    ])
-  })
-
-  it('renews the separated recovery binding from a late feedback submission', async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [ratingFact] = facts()
-    const ratingOnly: GuestResponse = {
-      ...response(),
-      text: null,
-      textConsent: false,
-      feedbackSourceEventId: null,
-      feedbackSubmittedAt: null,
-      feedbackSubmissionRevision: null,
-    }
-    await store.commitSubmitted(ratingOnly, [ratingFact])
-    const feedbackAt = new Date('2026-08-26T11:00:00.000Z')
-    const renewedUntil = new Date('2026-08-27T11:00:00.000Z')
-    const fact = guestFeedbackSubmitted({
-      feedbackId: feedbackId(RESPONSE),
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      responseRevision: 1,
-      occurredAt: feedbackAt,
-    })
-
-    await expect(
-      store.commitFeedbackAdded(
-        {
-          ...ratingOnly,
-          ratingSourceEventId: ratingFact.eventId,
-          text: 'Late private note.',
-          textConsent: true,
-          feedbackSubmittedAt: feedbackAt,
-          feedbackSubmissionRevision: 1,
-          sessionExpiresAt: renewedUntil,
-        },
-        fact,
-      ),
-    ).resolves.toBe('applied')
-
-    const rows = await db.execute(sql`
-      SELECT created_at, expires_at
-      FROM guest_response_session_bindings WHERE response_id = ${RESPONSE}
-    `)
-    expect(rows.rows).toHaveLength(1)
-    expect(new Date(String(rows.rows[0]!.created_at))).toEqual(feedbackAt)
-    expect(new Date(String(rows.rows[0]!.expires_at))).toEqual(renewedUntil)
-  })
-
-  it('purges private feedback and records its retraction without changing the rating', async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [ratingFact, feedbackFact] = facts()
-    await store.commitSubmitted(response(), [ratingFact, feedbackFact])
-    const previous: GuestResponse = {
-      ...response(),
-      ratingSourceEventId: ratingFact.eventId,
-      feedbackSourceEventId: feedbackFact.eventId,
-    }
-    const withdrawnAt = new Date('2026-08-25T12:30:00.000Z')
-    const retraction = guestFeedbackRetracted({
-      feedbackId: feedbackId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      supersedesSourceEventId: feedbackFact.eventId,
-      responseRevision: 1,
-      occurredAt: withdrawnAt,
-    })
-    const withdrawn: GuestResponse = {
-      ...previous,
-      text: null,
-      textConsent: false,
-      feedbackWithdrawnAt: withdrawnAt,
-    }
-
-    await expect(
-      store.commitFeedbackWithdrawn(previous, withdrawn, retraction),
-    ).resolves.toBe('applied')
-    await expect(
-      store.commitFeedbackWithdrawn(previous, withdrawn, retraction),
-    ).resolves.toBe('conflict')
-
-    const rows = await db.execute(sql`
-      SELECT r.status, r.rating, f.body AS response_text, r.text_consent,
-             r.rating_source_event_id, r.feedback_source_event_id,
-             r.feedback_submitted_at, r.feedback_withdrawn_at
-      FROM guest_responses r
-      LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
-      WHERE r.id = ${RESPONSE}
-    `)
-    expect(rows.rows).toHaveLength(1)
-    expect(rows.rows[0]).toMatchObject({
-      status: 'submitted',
-      rating: 2,
-      response_text: null,
-      text_consent: false,
-      rating_source_event_id: ratingFact.eventId,
-      feedback_source_event_id: null,
-    })
-    expect(new Date(String(rows.rows[0]!.feedback_submitted_at))).toEqual(NOW)
-    expect(new Date(String(rows.rows[0]!.feedback_withdrawn_at))).toEqual(withdrawnAt)
-    const outbox = await db.execute(sql`
-      SELECT event_type FROM outbox_events
-      WHERE organization_id = ${ORG}
-        AND event_type = 'guest.feedback.retracted'
-    `)
-    expect(outbox.rows).toEqual([{ event_type: 'guest.feedback.retracted' }])
-  })
-
-  it('does not let a stale rating correction erase concurrently added feedback', async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [ratingFact] = facts()
-    const ratingOnly: GuestResponse = {
-      ...response(),
-      text: null,
-      textConsent: false,
-      feedbackSourceEventId: null,
-      feedbackSubmittedAt: null,
-      feedbackSubmissionRevision: null,
-      feedbackWithdrawnAt: null,
-    }
-    await store.commitSubmitted(ratingOnly, [ratingFact])
-    const previouslyRead: GuestResponse = {
-      ...ratingOnly,
-      ratingSourceEventId: ratingFact.eventId,
-    }
-
-    const feedbackFact = guestFeedbackSubmitted({
-      feedbackId: feedbackId(RESPONSE),
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      responseRevision: 1,
-      occurredAt: NOW,
-    })
-    await store.commitFeedbackAdded(
-      {
-        ...previouslyRead,
-        text: 'A concurrently committed private note.',
-        textConsent: true,
-        feedbackSubmittedAt: NOW,
-        feedbackSubmissionRevision: 1,
-        feedbackWithdrawnAt: null,
-      },
-      feedbackFact,
-    )
-
-    const correctedAt = new Date('2026-08-25T12:30:00.000Z')
-    const correctionFact = guestRatingSubmitted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      value: 4,
-      supersedesSourceEventId: ratingFact.eventId,
-      occurredAt: correctedAt,
-    })
-    await expect(
-      store.commitCorrected(
-        previouslyRead,
-        {
-          ...previouslyRead,
-          status: 'corrected',
-          rating: 4,
-          correctionCount: 1,
-          correctedAt,
-        },
-        [correctionFact],
-      ),
-    ).resolves.toBe('conflict')
-
-    const rows = await db.execute(sql`
-      SELECT r.rating, f.body AS response_text, r.correction_count,
-             r.feedback_source_event_id
-      FROM guest_responses r
-      LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
-      WHERE r.id = ${RESPONSE}
-    `)
-    expect(rows.rows).toEqual([
-      {
-        rating: 2,
-        response_text: 'A concurrently committed private note.',
-        correction_count: 0,
-        feedback_source_event_id: feedbackFact.eventId,
-      },
-    ])
-  })
-
-  it('commits the corrected response and superseding rating fact atomically', async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [originalRating, originalFeedback] = facts()
-    await store.commitSubmitted(response(), [originalRating, originalFeedback])
-
-    const correctedAt = new Date('2026-08-25T12:30:00.000Z')
-    const correction = guestRatingSubmitted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      value: 4,
-      supersedesSourceEventId: originalRating.eventId,
-      occurredAt: correctedAt,
-    })
-    const corrected: GuestResponse = {
-      ...response(),
-      status: 'corrected',
-      rating: 4,
-      correctionCount: 1,
-      correctedAt,
-      ratingSourceEventId: originalRating.eventId,
-      feedbackSourceEventId: originalFeedback.eventId,
-    }
-
-    await expect(
-      store.commitCorrected(
-        {
-          ...response(),
-          ratingSourceEventId: originalRating.eventId,
-          feedbackSourceEventId: originalFeedback.eventId,
-        },
-        corrected,
-        [correction],
-      ),
-    ).resolves.toBe('applied')
-    const rows = await db.execute(sql`
-      SELECT rating, correction_count, rating_source_event_id,
-             feedback_source_event_id
-      FROM guest_responses WHERE id = ${RESPONSE}
-    `)
-    expect(rows.rows).toEqual([
-      {
-        rating: 4,
-        correction_count: 1,
-        rating_source_event_id: correction.eventId,
-        feedback_source_event_id: originalFeedback.eventId,
-      },
-    ])
-    const snapshot = await db.execute(sql`
-      SELECT configuration_digest, private_feedback_threshold, captured_at
-      FROM guest_response_experience_snapshots
-      WHERE response_id = ${RESPONSE}
-    `)
-    expect(snapshot.rows).toHaveLength(1)
-    expect(snapshot.rows[0]).toMatchObject({
-      configuration_digest: 'a'.repeat(64),
-      private_feedback_threshold: 3,
-    })
-    expect(new Date(String(snapshot.rows[0]!.captured_at))).toEqual(NOW)
-    const outbox = await db.execute(sql`
-      SELECT id FROM outbox_events
-      WHERE organization_id = ${ORG} AND event_type = 'guest.rating.submitted'
-      ORDER BY created_at
-    `)
-    expect(outbox.rows).toHaveLength(2)
-  })
-
-  it('rejects a stale withdrawal that raced a committed correction', async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [originalRating, originalFeedback] = facts()
-    await store.commitSubmitted(response(), [originalRating, originalFeedback])
-
-    const correctedAt = new Date('2026-08-25T12:30:00.000Z')
-    const correction = guestRatingSubmitted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      value: 4,
-      supersedesSourceEventId: originalRating.eventId,
-      occurredAt: correctedAt,
-    })
-    await store.commitCorrected(
-      {
-        ...response(),
-        ratingSourceEventId: originalRating.eventId,
-        feedbackSourceEventId: originalFeedback.eventId,
-      },
-      {
-        ...response(),
-        status: 'corrected',
-        rating: 4,
-        correctionCount: 1,
-        correctedAt,
-        ratingSourceEventId: originalRating.eventId,
-        feedbackSourceEventId: originalFeedback.eventId,
-      },
-      [correction],
-    )
-
-    const deletedAt = new Date('2026-08-25T12:45:00.000Z')
-    const staleWithdrawal: GuestResponse = {
-      ...response(),
-      status: 'deleted',
-      rating: null,
-      text: null,
-      responseConsent: false,
-      textConsent: false,
-      deletedAt,
-      ratingSourceEventId: originalRating.eventId,
-      feedbackSourceEventId: originalFeedback.eventId,
-    }
-    const staleRetraction = guestRatingRetracted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      supersedesSourceEventId: originalRating.eventId,
-      occurredAt: deletedAt,
-    })
-
-    await expect(store.commitWithdrawn(staleWithdrawal, [staleRetraction])).resolves.toBe(
-      'conflict',
-    )
-    const rows = await db.execute(sql`
-      SELECT status, rating, correction_count, rating_source_event_id
-      FROM guest_responses WHERE id = ${RESPONSE}
-    `)
-    expect(rows.rows).toEqual([
-      {
-        status: 'corrected',
-        rating: 4,
-        correction_count: 1,
-        rating_source_event_id: correction.eventId,
-      },
-    ])
-    const retractions = await db.execute(sql`
-      SELECT id FROM outbox_events
-      WHERE organization_id = ${ORG} AND event_type = 'guest.rating.retracted'
-    `)
-    expect(retractions.rows).toHaveLength(0)
-  })
-
-  it('withdraws content and records rating/feedback retractions atomically', async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [originalRating, originalFeedback] = facts()
-    await store.commitSubmitted(response(), [originalRating, originalFeedback])
-    const deletedAt = new Date('2026-08-25T12:45:00.000Z')
-    const ratingRetraction = guestRatingRetracted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      supersedesSourceEventId: originalRating.eventId,
-      occurredAt: deletedAt,
-    })
-    const feedbackRetraction = guestFeedbackRetracted({
-      feedbackId: feedbackId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      supersedesSourceEventId: originalFeedback.eventId,
-      responseRevision: 1,
-      occurredAt: deletedAt,
-    })
-    const withdrawn: GuestResponse = {
-      ...response(),
-      status: 'deleted',
-      rating: null,
-      text: null,
-      responseConsent: false,
-      textConsent: false,
-      deletedAt,
-      ratingSourceEventId: originalRating.eventId,
-      feedbackSourceEventId: originalFeedback.eventId,
-    }
-
-    await expect(
-      store.commitWithdrawn(withdrawn, [ratingRetraction, feedbackRetraction]),
-    ).resolves.toBe('applied')
-    const rows = await db.execute(sql`
-      SELECT r.status, r.rating, f.body AS response_text,
-             r.rating_source_event_id, r.feedback_source_event_id
-      FROM guest_responses r
-      LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
-      WHERE r.id = ${RESPONSE}
-    `)
-    expect(rows.rows).toEqual([
-      {
-        status: 'deleted',
-        rating: null,
-        response_text: null,
-        rating_source_event_id: null,
-        feedback_source_event_id: null,
-      },
-    ])
-    const outbox = await db.execute(sql`
-      SELECT event_type FROM outbox_events
-      WHERE organization_id = ${ORG}
-        AND event_type IN ('guest.rating.retracted', 'guest.feedback.retracted')
-      ORDER BY event_type
-    `)
-    expect(outbox.rows.map((row) => row.event_type)).toEqual([
-      'guest.feedback.retracted',
-      'guest.rating.retracted',
-    ])
-  })
-
-  it("never changes the integrity of another organization's response", async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [otherRating, otherFeedback] = await commitOtherTenantResponse(store)
-    // Response, Property, Portal and lineage all name the other tenant's
-    // response; only the organization is the caller's own.
-    const crossTenant: GuestResponse = {
-      ...otherTenantResponse(),
-      organizationId: ORG,
-      ratingSourceEventId: otherRating.eventId,
-      feedbackSourceEventId: otherFeedback.eventId,
-    }
-    const reviewedAt = new Date('2026-08-25T12:10:00.000Z')
-    const excluded = changeGuestResponseIntegrity(
-      crossTenant,
-      {
-        outcome: 'under_review',
-        reasonCode: 'traffic_velocity_anomaly',
-        source: 'automatic',
-        actorId: 'guest-integrity-v1',
-      },
-      reviewedAt,
-    )
-    if ('code' in excluded) throw new Error(excluded.code)
-    const retraction = guestRatingRetracted({
-      ratingId: ratingId(OTHER_RESPONSE),
-      organizationId: ORG,
-      propertyId: OTHER_PROPERTY,
-      portalId: OTHER_PORTAL,
-      supersedesSourceEventId: otherRating.eventId,
-      occurredAt: reviewedAt,
-    })
-
-    await expect(
-      store.commitIntegrityChanged(crossTenant, excluded.response, excluded.decision, [
-        retraction,
-      ]),
-    ).resolves.toBe('conflict')
-
-    await expectOtherTenantResponseUntouched([otherRating, otherFeedback])
-  })
-
-  it("never withdraws another organization's response", async () => {
-    const store = createAtomicGuestResponseCommandStore(db)
-    const [otherRating, otherFeedback] = await commitOtherTenantResponse(store)
-    const deletedAt = new Date('2026-08-25T12:45:00.000Z')
-    const crossTenantWithdrawal: GuestResponse = {
-      ...otherTenantResponse(),
-      organizationId: ORG,
-      status: 'deleted',
-      rating: null,
-      text: null,
-      responseConsent: false,
-      textConsent: false,
-      deletedAt,
-      ratingSourceEventId: otherRating.eventId,
-      feedbackSourceEventId: otherFeedback.eventId,
-    }
-    const retractions = [
-      guestRatingRetracted({
-        ratingId: ratingId(OTHER_RESPONSE),
-        organizationId: ORG,
-        propertyId: OTHER_PROPERTY,
-        portalId: OTHER_PORTAL,
-        supersedesSourceEventId: otherRating.eventId,
-        occurredAt: deletedAt,
-      }),
-      guestFeedbackRetracted({
-        feedbackId: feedbackId(OTHER_RESPONSE),
-        organizationId: ORG,
-        propertyId: OTHER_PROPERTY,
-        portalId: OTHER_PORTAL,
-        supersedesSourceEventId: otherFeedback.eventId,
-        responseRevision: 1,
-        occurredAt: deletedAt,
-      }),
-    ]
-
-    await expect(store.commitWithdrawn(crossTenantWithdrawal, retractions)).resolves.toBe(
-      'conflict',
-    )
-
-    await expectOtherTenantResponseUntouched([otherRating, otherFeedback])
   })
 })

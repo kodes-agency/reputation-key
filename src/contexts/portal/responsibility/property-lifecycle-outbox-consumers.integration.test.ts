@@ -7,16 +7,14 @@
 // `portal.responsibility_became_needed` again (PostgreSQL).
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import { propertyRestored } from '#/contexts/property/domain/events'
@@ -107,7 +105,7 @@ async function recordRestore(): Promise<ConsumerEvent> {
     occurredAt: RESTORED_AT,
   })
   const row = toOutboxEvent(fact)
-  await createOutboxRepository(db).insert({ ...row, id: fact.eventId })
+  await recordOutboxFact(db, fact)
   return {
     eventId: fact.eventId,
     eventType: fact._tag,
@@ -158,15 +156,12 @@ async function clean(): Promise<void> {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
 })
 
 afterAll(async () => {
   await clean()
   await pool.end()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

@@ -17,7 +17,7 @@ import {
   TimelineIndicator,
   TimelineItem,
 } from '#/components/ui/timeline'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { MESSAGE_PROSE_CLASS } from './guest-message'
 import { historyEventLine } from './history-event-line'
 import { InboxPriorityGlyph } from '#/contexts/reputation/inbox/ui/page/inbox-priority-glyph'

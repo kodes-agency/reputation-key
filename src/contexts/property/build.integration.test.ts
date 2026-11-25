@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Property context — build.ts tests
 // Tests the PublicApi behavior and build wiring.
 
@@ -15,10 +15,8 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { buildTestProperty } from '#/shared/testing/fixtures'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { PropertyGoogleBindingStore } from './profile/google-binding-store.port.server'
 import { createPropertyGoogleBindingStore } from './profile/google-binding-store.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
@@ -70,17 +68,13 @@ const GOOGLE_BINDING_MEMBERS = Object.keys({
   createBoundProperty: true,
   relink: true,
   disconnect: true,
-  scrubProviderIdentity: true,
-  releaseRetention: true,
   releaseRetentionFromEvent: true,
   sweepReleasedExpired: true,
   countUnreleasedExpired: true,
-  cleanupOrganization: true,
 } satisfies Record<keyof PropertyGoogleBindingStore, true>) as Array<
   keyof PropertyGoogleBindingStore
 >
 const runtimeDeps = {
-  idGen: () => '81000000-0000-4000-8000-000000000099',
   outboxRepo: { insertReceipt: async () => undefined },
   logger: {
     info: () => {},
@@ -223,28 +217,22 @@ describe('PropertyPublicApi', () => {
     const [consumer] = registry.listFor('integration.property_import.retention_released')
     const org = '00000000-0000-4000-8000-000000000001'
 
-    clearEventSchemas()
-    registerAllEventSchemas()
-    try {
-      await expect(
-        consumer!.handler({
-          eventId: '30000000-0000-4000-8000-000000000001',
-          eventType: 'integration.property_import.retention_released',
-          eventVersion: 1,
-          payload: {
-            organizationId: org,
-            idempotencyKeys: ['40000000-0000-4000-8000-000000000001'],
-          },
+    await expect(
+      consumer!.handler({
+        eventId: '30000000-0000-4000-8000-000000000001',
+        eventType: 'integration.property_import.retention_released',
+        eventVersion: 1,
+        payload: {
           organizationId: org,
-          propertyId: null,
-          sourceContext: 'integration',
-          sourceAggregateId: 'import-parent-1',
-          recordedAt: '2026-08-10T12:00:00.000Z',
-        }),
-      ).resolves.toEqual({ status: 'applied' })
-    } finally {
-      clearEventSchemas()
-    }
+          idempotencyKeys: ['40000000-0000-4000-8000-000000000001'],
+        },
+        organizationId: org,
+        propertyId: null,
+        sourceContext: 'integration',
+        sourceAggregateId: 'import-parent-1',
+        recordedAt: '2026-08-10T12:00:00.000Z',
+      }),
+    ).resolves.toEqual({ status: 'applied' })
     expect(releaseRetentionFromEvent).toHaveBeenCalledOnce()
   })
 
@@ -326,7 +314,8 @@ describe('PropertyPublicApi', () => {
       propertyId('81000000-0000-4000-8000-000000000099'),
     ])
 
-    expect(zones).toEqual([
+    // The answer promises no order; its callers key it by id.
+    expect([...zones].sort((a, b) => a.id.localeCompare(b.id))).toEqual([
       { id: sofia.id, timezone: 'Europe/Sofia' },
       { id: newYork.id, timezone: 'America/New_York' },
     ])

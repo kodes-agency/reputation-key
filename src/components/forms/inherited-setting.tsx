@@ -13,7 +13,7 @@
 //   carry the rest, so the row has no pending state.
 import type { ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 type Props = Readonly<{
   /** Who owns the value that is followed: "the Organization target", "your quiet hours". Pass a link to put the owner one click away. */

@@ -9,10 +9,9 @@
 // and the dispatched webhook payloads are captured by a fake fetch.
 //
 // Injections (one describe each):
-//   (a) STALLED OUTBOX LEASE — a real unpublished row with an unexpired
-//       lease whose leased_at is older than 2× the relay lease: the real
-//       health-metrics read computes stalledLeaseCount=1 (delta over the
-//       pre-seed baseline) and queue.stalled + queue.oldest-age dispatch.
+//   (a) OLD UNPUBLISHED OUTBOX EVENT — a real unpublished row created two
+//       hours ago: the real health-metrics read reports its age and
+//       queue.oldest-age dispatches.
 //   (b) RETENTION FAILURE — a real retention_runs row with outcome='failed'
 //       as the subject's latest run: the aux DISTINCT-ON read reports it and
 //       retention.failure dispatches naming the subject.
@@ -185,41 +184,26 @@ afterEach(async () => {
 })
 
 describe('BQC-7.4 alert injection — real reads', () => {
-  it('(a) a real stalled outbox lease dispatches queue.stalled + queue.oldest-age', async () => {
-    const { handler, fetchFn, warn, snapshotReader } = realEvaluationHarness()
+  it('(a) a real old unpublished outbox event dispatches queue.oldest-age', async () => {
+    const { handler, fetchFn, warn } = realEvaluationHarness()
 
-    // Baseline: the shared scratch DB may carry other suites' leftovers.
-    const baseline = (await snapshotReader.read()).outbox.stalledLeaseCount
-
-    // Seed: unpublished for ~2h, lease unexpired (+1h) but leased 2h ago —
-    // stalled by the real 2× DEFAULT_LEASE_DURATION_MS (30s) predicate.
+    // Seed: unpublished for ~2h.
     const now = Date.now()
     await db.execute(sql`
       INSERT INTO outbox_events
         (event_type, event_version, payload, organization_id, source_context,
-         source_aggregate_id, created_at, lease_owner, leased_at, lease_expires_at)
+         source_aggregate_id, created_at)
       VALUES
         ('test.bqc74.alert', 1, '{}'::jsonb, ${MARKER_ORG}, 'bqc74', 'agg-1',
-         ${new Date(now - 2 * 60 * 60 * 1000)}, 'bqc74-relay',
-         ${new Date(now - 2 * 60 * 60 * 1000)}, ${new Date(now + 60 * 60 * 1000)})
+         ${new Date(now - 2 * 60 * 60 * 1000)})
     `)
 
     const result = await handler({ id: 'bqc74-a', data: {} } as never)
 
-    expect(result.alerts?.firing).toContain('queue.stalled')
-    expect(result.alerts?.dispatched).toContain('queue.stalled')
+    expect(result.alerts?.firing).toContain('queue.oldest-age')
     expect(result.alerts?.dispatched).toContain('queue.oldest-age')
 
     const payloads = dispatchedPayloads(fetchFn)
-    const stalled = payloads.find((p) => p.alert === 'queue.stalled')
-    expect(stalled).toMatchObject({
-      severity: 'P2',
-      owner: 'Bozhidar Denev',
-      runbook: 'runbooks.md §7',
-      threshold: 0,
-      // The seeded lease over the pre-seed baseline — causal attribution.
-      value: baseline + 1,
-    })
     const oldestAge = payloads.find((p) => p.alert === 'queue.oldest-age')
     expect(Number(oldestAge?.value)).toBeGreaterThanOrEqual(
       2 * 60 * 60 * 1000 - 60 * 1000,

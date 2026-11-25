@@ -57,8 +57,8 @@ const ACCOUNT_NAME = `accounts/${ACCOUNT}`
 // collide with the surviving row on properties_org_gbp_location_id_unique.
 const locationId = (name: string) => `${name}-loc-${e2eRunId}`
 
-const REPLY_FILE = 'src/contexts/review/server/reply-draft.ts'
-const REPLY_FILE_OPS = 'src/contexts/review/server/reply.ts'
+const REPLY_FILE = 'src/contexts/reputation/server/reply-draft.ts'
+const REPLY_FILE_OPS = 'src/contexts/reputation/server/reply.ts'
 const PROPERTY_FILE = 'src/contexts/property/server/properties.ts'
 
 type Scenario = Readonly<{
@@ -782,7 +782,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     // after the attempt exists, as a real send's does. A sync that met the
     // reply before any attempt could only record it as Google-authored, and
     // the inbox shows such a reply in place of RepKey's uncertain one
-    // (reply-lookup.adapter.ts) — with no "Check Google again" to press.
+    // (reply-lookup.adapter.server.ts) — with no "Check Google again" to press.
     await putScenarioScope('ambig', {
       reviews: [
         {

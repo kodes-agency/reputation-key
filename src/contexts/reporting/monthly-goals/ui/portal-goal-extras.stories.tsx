@@ -16,7 +16,7 @@ import type {
   GoalListProgress,
   GoalMetric,
   GoalSubject,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { PortalGoalExtras } from './portal-goal-extras'
 

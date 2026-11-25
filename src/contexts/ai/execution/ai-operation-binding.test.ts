@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
 import { parseCanonicalReplyLanguageTag } from '#/shared/ai-review-language-catalogue'
 import {
   analysisExecutionBinding,

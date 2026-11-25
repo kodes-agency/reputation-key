@@ -4,10 +4,8 @@
 // items at once used to tell them nothing: the per-item facts are history
 // only, and the grouped completion fact told the new assignee alone.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createNotificationConsumerDeps,
   noticeWriterOver,
@@ -85,12 +83,6 @@ const unassignedNotices = (deps: ReturnType<typeof makeDeps>) =>
     .map((job) => ({ data: job.data, opts: job.opts }))
 
 describe('a bulk reassignment and the people who held the items', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-  afterEach(() => clearEventSchemas())
-
   it('tells the previous holder once per Property, with how many moved', async () => {
     const deps = makeDeps()
 

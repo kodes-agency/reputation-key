@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type {
   PerformanceMetricValue,
   PropertyGooglePerformanceReportV1,
-} from '#/shared/google-performance-report-contract'
+} from '#/shared/google-contracts/google-performance-report-contract'
 import { StatusBadge } from '#/components/ui/status-badge'
 import {
   Card,
@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { GlossaryTerm } from '#/components/ui/glossary-term'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 

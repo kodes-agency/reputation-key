@@ -3,7 +3,7 @@ import type {
   ReplyPublicationFailureClass,
   ReplyPublicationState,
   ReplyStatus,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { isUncertainReplyStillChecked } from '#/shared/domain/reply-queue-stage'
 import { POLLED_PUBLICATION_STATES } from '../../../inbox/ui/page/inbox-cache-policy'
 
@@ -123,7 +123,7 @@ export const REPLY_STATE_COPY: Readonly<Record<ReplyCopyKey, ReplyStateCopy>> = 
   // waits out a 15-minute grace and then an automatic read ladder that ENDS
   // after 72 hours (`AMBIGUOUS_RECONCILE_LADDER_MS`,
   // `reply-publication-workflow.ts`). Nor may `sending` say "sent": the row is
-  // claimed BEFORE the provider call (publish-reply.job.ts header), and D4
+  // claimed BEFORE the provider call (publish-reply-job.server.ts header), and D4
   // settles an attempt with no `reviews.reply` permit as never dispatched — so
   // a `sending` row can be one that never left RepKey.
   sending: {

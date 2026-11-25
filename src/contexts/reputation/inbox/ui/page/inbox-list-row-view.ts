@@ -1,7 +1,5 @@
-import {
-  effectiveInboxPriority,
-  type InboxItem,
-} from '#/contexts/inbox/application/public-api'
+import { effectiveInboxPriority } from '#/contexts/reputation/inbox/contracts'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import type { InboxCurrentUser } from '../inbox-case-toolbar-props'
 import { resolveInboxOwner, type InboxAssignmentOption } from './inbox-owner-view'
 import { replyStateRowLabel } from '../../../replies/ui/message/reply-state-copy'

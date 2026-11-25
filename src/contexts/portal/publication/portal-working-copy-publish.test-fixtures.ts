@@ -1,4 +1,4 @@
-import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/public-api'
 // Test-only: publish a Portal from a working-copy source through the real
 // command store. Used by the suites that prove what the working-copy reader, the
 // in-transaction verification and the history comparison agree on (the History

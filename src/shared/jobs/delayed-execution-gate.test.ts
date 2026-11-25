@@ -6,8 +6,7 @@
 //   1. request building from the entry-point catalogue + job/event envelope
 //      (org from payload, TENANT_CROSS_ORG sentinel for tenant_cross/none
 //      rows, resolver-provided property scope, content-free policy context);
-//   2. outcome mapping (allow / deny_terminal / deny_retry — only
-//      policy_unavailable retries; every other deny is terminal);
+//   2. outcome mapping (allow / deny_terminal — every deny is terminal);
 //   3. the REAL BQC-2.5 policy driven by the shared DELAYED_CONTRACT_FIXTURES
 //      envs (execution ownership: BQC-2 IMPLEMENTS the contract, BQC-3
 //      INTEGRATES it — the same fixtures prove both sides).
@@ -37,20 +36,6 @@ import {
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 
 const PROP = 'd4000000-0000-4000-8000-000000000051'
-const CONSENT_FENCE = {
-  authorizationLineageId: 'a4000000-0000-4000-8000-000000000001',
-  capabilityEpoch: 9,
-  authorizedSourceEpoch: 3,
-  stateVersion: 5,
-  noticeDigest: 'a'.repeat(64),
-  recordedRuntimeProfileVersion: 'reply-drafting-runtime-v1',
-  servedExecution: {
-    runtimeProfileVersion: 'reply-drafting-runtime-v1',
-    operationProfileVersion: 'reply-suggestion-v1',
-    providerDeploymentProfileVersion: 'private-beta-global-v2',
-  },
-} as const
-
 const decideMock = vi.fn<(r: DelayedDecisionRequest) => Promise<DelayedDecision>>()
 
 function installStub(): void {
@@ -81,9 +66,7 @@ function lastRequest(): DelayedDecisionRequest {
 function installRealPolicy(env: CapabilityPolicyEnv) {
   resetCapabilityPolicyStore()
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
-  const refreshPolicy = vi.fn(async () => {})
-  initDelayedExecutionPolicy(createDelayedExecutionPolicy({ refreshPolicy }))
-  return refreshPolicy
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 }
 
 function fixtureEnv(namePart: string): CapabilityPolicyEnv {
@@ -227,7 +210,7 @@ describe('gateJob — request building (stubbed policy)', () => {
     expect(lastRequest().propertyId).toBeUndefined()
   })
 
-  it('requires Merchant AI consent to bind a positive epoch to the exact property', () => {
+  it('stamps the envelope with the current policy version and refuses an empty scope', () => {
     const base = {
       organizationId: 'org-1',
       propertyId: PROP,
@@ -235,70 +218,14 @@ describe('gateJob — request building (stubbed policy)', () => {
       initiator: { kind: 'user' as const, id: 'user-9' },
     }
 
-    expect(
-      createJobExecutionEnvelope({
-        ...base,
-        consent: {
-          subjectType: 'property',
-          subjectId: PROP,
-          purpose: 'ai.generate_reply',
-          expectedFence: CONSENT_FENCE,
-        },
-      }),
-    ).toMatchObject({
-      consent: {
-        subjectType: 'property',
-        subjectId: PROP,
-        purpose: 'ai.generate_reply',
-        expectedFence: CONSENT_FENCE,
-      },
+    expect(createJobExecutionEnvelope({ ...base, correlationId: 'corr-1' })).toEqual({
+      ...base,
+      correlationId: 'corr-1',
+      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     })
-
-    for (const consent of [
-      {
-        subjectType: 'property' as const,
-        subjectId: PROP,
-        purpose: 'ai.generate_reply',
-      },
-      {
-        subjectType: 'organization' as const,
-        subjectId: 'org-1',
-        purpose: 'ai.generate_reply',
-        expectedFence: CONSENT_FENCE,
-      },
-      {
-        subjectType: 'property' as const,
-        subjectId: 'd4000000-0000-4000-8000-000000000099',
-        purpose: 'ai.generate_reply',
-        expectedFence: CONSENT_FENCE,
-      },
-    ]) {
-      expect(() => createJobExecutionEnvelope({ ...base, consent })).toThrow(
-        'consent selector does not match scope',
-      )
-    }
-  })
-
-  it('binds a consent fence at the domain default source epoch of 0', () => {
-    // Source epoch is 0-based; only the capability epoch and state version are
-    // 1-based. Rejecting 0 here dropped the fence from the envelope for every
-    // freshly imported property (see drizzle/0060).
-    const fence = { ...CONSENT_FENCE, authorizedSourceEpoch: 0 }
-
-    expect(
-      createJobExecutionEnvelope({
-        organizationId: 'org-1',
-        propertyId: PROP,
-        capability: 'ai.generate_reply' as const,
-        initiator: { kind: 'user' as const, id: 'user-9' },
-        consent: {
-          subjectType: 'property',
-          subjectId: PROP,
-          purpose: 'ai.generate_reply',
-          expectedFence: fence,
-        },
-      }),
-    ).toMatchObject({ consent: { expectedFence: fence } })
+    expect(() => createJobExecutionEnvelope({ ...base, organizationId: '' })).toThrow(
+      'requires organizationId',
+    )
   })
 
   it('forwards the flat content-free execution envelope', async () => {
@@ -313,12 +240,6 @@ describe('gateJob — request building (stubbed policy)', () => {
         propertyId: PROP,
         capability: 'gbp.reply.publish',
         initiator: { kind: 'user', id: 'user-9' },
-        consent: {
-          subjectType: 'property',
-          subjectId: PROP,
-          purpose: 'ai.generate_reply',
-          expectedFence: CONSENT_FENCE,
-        },
         correlationId: 'corr-1',
         policyVersionAtEnqueue: 'bqc-0.3',
       },
@@ -329,12 +250,6 @@ describe('gateJob — request building (stubbed policy)', () => {
     expect(lastRequest()).toMatchObject({
       capabilityAtEnqueue: 'gbp.reply.publish',
       initiator: { kind: 'user', id: 'user-9' },
-      consent: {
-        subjectType: 'property',
-        subjectId: PROP,
-        purpose: 'ai.generate_reply',
-        expectedFence: CONSENT_FENCE,
-      },
       correlationId: 'corr-1',
       policyVersionAtEnqueue: 'bqc-0.3',
     })
@@ -349,24 +264,14 @@ describe('gateJob — outcome mapping (stubbed policy)', () => {
     expect(outcome).toEqual({ kind: 'allow', decision: ALLOW })
   })
 
-  it('maps policy_unavailable to deny_retry (transient — the caller throws for BullMQ retry)', async () => {
-    installStub()
-    decideMock.mockResolvedValue(
-      decision({ reason: 'policy_unavailable', freshRead: true }),
-    )
-    const outcome = await gateJob('health-check', {}, 'worker:default', 'worker')
-    expect(outcome.kind).toBe('deny_retry')
-    expect(outcome.decision.reason).toBe('policy_unavailable')
-  })
-
-  it('maps every other deny reason to deny_terminal', async () => {
+  it('maps every deny reason to deny_terminal', async () => {
     installStub()
     for (const reason of [
       'capability_blocked',
       'capability_disabled',
       'org_suspended',
       'missing_scope',
-      'consent_required',
+      'capability_mismatch',
       'unknown_action',
     ] as const) {
       decideMock.mockResolvedValue(decision({ reason }))
@@ -438,7 +343,7 @@ describe('gateDispatcherConsumer (stubbed policy)', () => {
 
 describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', () => {
   it('current allow — GBP sync with capability and fresh read', async () => {
-    const refreshPolicy = installRealPolicy(fixtureEnv('current allow'))
+    installRealPolicy(fixtureEnv('current allow'))
 
     const outcome = await gateJob(
       'sync-property-reviews',
@@ -456,7 +361,6 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
     expect(outcome.kind).toBe('allow')
     expect(outcome.decision.outcome).toBe('allow')
     expect(outcome.decision.freshRead).toBe(true)
-    expect(refreshPolicy).toHaveBeenCalledTimes(1)
   })
 
   it('org-suspended deny — suspension after enqueue denies at dispatch (terminal)', async () => {

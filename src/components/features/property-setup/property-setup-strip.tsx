@@ -1,10 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Loader2 } from 'lucide-react'
-import type {
-  PropertySetup,
-  PropertySetupStep,
-} from '#/contexts/reporting/application/public-api'
-import { cn } from '#/lib/utils'
+import type { PropertySetup, PropertySetupStep } from '#/contexts/reporting/public-api'
+import { cn } from '#/shared/class-names/utils'
 import {
   PropertySetupNotNowStep,
   type RatingGoalNotNow,

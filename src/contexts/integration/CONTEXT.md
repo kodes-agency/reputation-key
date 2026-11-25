@@ -65,6 +65,12 @@ whole import cascade in one transaction. Its 30-day clock starts when the whole
 import first becomes terminal and retries never renew it. Query indexes cover
 parent reads, recovery appointments, expiry, retention and lifecycle scopes.
 
+The import lifecycle cancels by connection, user or one request, and its
+maintenance surface is `inspectBacklog` and `sweep`. Organization-wide and
+Property-deletion cancels, per-scope and per-request inspection and the
+operator request cancel were removed as unused; `property_deleted` stays a
+stored outcome.
+
 The earlier import tables (`gbp_import_requests`, `gbp_import_request_items`
 and `gbp_import_sagas`) are gone; history in them was not copied.
 The public-command acceptance and recovery suites in
@@ -207,7 +213,6 @@ Server code is `*.server.ts`, and what the browser imports is a feature's
 `contracts.ts` or `<name>.contracts.ts`. Server functions stay under `server/`. Only these stay in
 `application/`:
 
-- `public-api.ts`.
 - `google-import-contract.ts` and `dto/google-import.dto.ts`: browser screens
   reach them, and bootstrap or a shared test helper imports them.
 - `google-authorize-request.ts` and `use-cases/gbp-subscribe-backfill.ts`: operator
@@ -334,7 +339,7 @@ container with the production authorizers, discovery store, Property receipts,
 worker recovery and lifecycle sweep. It covers stale authority, request replay, bounded crash
 recovery, claim races, scoped discovery, partial success, cancellation and retention.
 
-Review's `infrastructure/disconnected-content-expiry.integration.test.ts` covers
+Reputation's `content/disconnected-content-expiry.integration.test.ts` covers
 disconnect and provider revocation without renewing content clocks, retention
 before the deadline, and expiry erasure with stable identity and manager text
 preserved. The critical disconnect workflow also checks retained content after

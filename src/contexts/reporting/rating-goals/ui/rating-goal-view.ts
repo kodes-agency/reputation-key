@@ -10,7 +10,7 @@ import type {
   RatingGoalStatus,
 } from '#/contexts/reporting/rating-goals/contracts'
 import type { StatusMap, StatusPresentation } from '#/components/ui/status-badge'
-import { formatNumber, formatShortDate } from '#/lib/format'
+import { formatNumber, formatShortDate } from '#/shared/format/format'
 import { GOAL_PACE_STATUS } from '#/contexts/reporting/goals/ui/goal-pace-status'
 import { paceChangeText, paceText } from './rating-goal-pace-words'
 

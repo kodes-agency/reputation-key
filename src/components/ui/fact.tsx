@@ -2,7 +2,7 @@
 // `ButtonGroup` that has nothing to press. It is `ButtonGroupText` with the box
 // taken off, because beside an outlined control the boxed look measured a fill
 // contrast of about 1.05:1 and a fact and a control read as the same square.
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { ButtonGroupText } from '#/components/ui/button-group'
 import type { ComponentProps } from 'react'
 

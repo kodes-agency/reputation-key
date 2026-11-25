@@ -9,7 +9,7 @@ import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { getDb } from '#/shared/db'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { DownloadPortalPrintInput } from './portal-print.contracts'
 import type { PortalPrintRenderer } from './pdfkit-print-renderer.port.server'
 import { createPortalPrint } from './create-portal-print.server'
@@ -153,6 +153,9 @@ const request = (
   look: 'paper',
   printer: 'my_printer',
   quantity: 10,
+  fillSpares: false,
+  cropMarks: false,
+  backPage: false,
   languages: ['en', 'bg'],
   callToAction: 'how_did_we_do',
   ...over,

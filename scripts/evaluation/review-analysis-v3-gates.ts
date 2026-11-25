@@ -37,7 +37,7 @@
 // gold reviews reads the floor as not measurable too. A provider passes only when no
 // measured gate fails and every gate over the whole set could be measured.
 
-import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 import type { SliceMetrics, TopicMetrics } from './review-analysis-v3-metrics'
 import type { Rate } from './review-analysis-v3-stats'
 

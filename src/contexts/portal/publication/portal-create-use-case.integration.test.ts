@@ -1,143 +1,49 @@
-// The create-Portal use cases over the real repositories and the atomic command
-// store on PostgreSQL, for two Organizations: what the New portal dialog chooses
-// (address, group, languages, managers, what to start from), what a refusal
-// leaves behind (nothing) and what a success records (rows and outbox facts).
+// The create-Portal use case over the real repositories and the atomic command
+// store on PostgreSQL, for two Organizations: what a refusal leaves behind
+// (nothing), what a success records (rows and outbox facts), the web address
+// and the group the New portal dialog chooses.
 
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { organizationId, propertyId, userId, type PropertyId } from '#/shared/domain/ids'
-import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
+import type { PropertyId } from '#/shared/domain/ids'
 import { isPortalError } from '../domain/errors'
-import { createPortal } from './create-portal.server'
-import { getPortalCreationOptions } from './get-portal-creation-options.server'
 import {
-  createPortalCreationDeps,
   PORTAL_CREATION_TABLES,
-  seedCreationCategory,
-  seedCreationDestination,
   seedCreationGroup,
-  seedCreationLink,
   seedCreationPortal,
-  seedCreationProperty,
-  seedCreationResponsibleManager,
-  seedCreationToken,
-  type CreationManager,
 } from '../infrastructure/testing/portal-creation-world'
-import { seedPortalLookOverride } from './portal-working-copy-seed.test-fixtures'
-
-const ORG_A = organizationId('org-createuse-0000-0000-000000000001')
-const ORG_B = organizationId('org-createuse-0000-0000-000000000002')
-const PROPERTY = propertyId('c1a10000-0000-4000-8000-000000000001')
-const OTHER_PROPERTY = propertyId('c1a10000-0000-4000-8000-000000000002')
-const PROPERTY_B = propertyId('c1a10000-0000-4000-8000-00000000000b')
-const GROUP = 'c1a20000-0000-4000-8000-000000000001'
-const GROUP_B = 'c1a20000-0000-4000-8000-00000000000b'
-const SOURCE = 'c1a30000-0000-4000-8000-0000000000a1'
-const SOURCE_B = 'c1a30000-0000-4000-8000-0000000000b1'
-const CATEGORY = 'c1a40000-0000-4000-8000-00000000000a'
-const MENU_LINK = 'c1a50000-0000-4000-8000-000000000001'
-const MENU_DESTINATION = 'c1a60000-0000-4000-8000-000000000001'
-const ID_PREFIX = 'c1d10000'
-const CLOCK = new Date('2026-10-01T12:00:00.000Z')
-const CREATOR = userId('user-createuse-0000-0000-000000000001')
-const OTHER_MANAGER = 'user-createuse-0000-0000-000000000002'
-const MISSING = 'c1a90000-0000-4000-8000-0000000000ff'
-
-const ctx = buildTestAuthContext({
-  organizationId: ORG_A,
-  userId: CREATOR,
-  role: 'PropertyManager',
-})
-const base = { propertyId: String(PROPERTY) }
+import { codeOf } from './portal-creation-queries.test-fixtures'
+import {
+  base,
+  CLOCK,
+  createCreateUseCaseHarness,
+  ctx,
+  CREATOR,
+  GROUP,
+  GROUP_B,
+  ID_PREFIX,
+  MISSING,
+  ORG_A,
+  ORG_B,
+  OTHER_PROPERTY,
+  PROPERTY,
+  PROPERTY_B,
+  seedCreateUseCaseProperties,
+  TEST_ORGANIZATIONS,
+  type WorldOptions,
+} from './portal-create-use-case.test-fixtures'
 
 const { getPool } = setupIntegrationDb({
-  orgA: ORG_A,
-  orgB: ORG_B,
+  ...TEST_ORGANIZATIONS,
   tables: PORTAL_CREATION_TABLES,
 })
+const { world, rows, countOf, portalRows, factsOf } = createCreateUseCaseHarness(getPool)
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-  for (const [org, property] of [
-    [ORG_A, PROPERTY],
-    [ORG_A, OTHER_PROPERTY],
-    [ORG_B, PROPERTY_B],
-  ] as const) {
-    await seedCreationProperty(getPool(), { organizationId: org, propertyId: property })
-  }
+  await seedCreateUseCaseProperties(getPool())
 })
-
-type WorldOptions = Readonly<{
-  accessible?: ReadonlyArray<PropertyId> | null
-  managers?: readonly CreationManager[]
-}>
-
-function world(options: WorldOptions = {}) {
-  const { deps } = createPortalCreationDeps({
-    pool: getPool(),
-    idPrefix: ID_PREFIX,
-    clock: CLOCK,
-    accessible: options.accessible === undefined ? [PROPERTY] : options.accessible,
-    managers: options.managers ?? [{ userId: CREATOR, role: 'PropertyManager' }],
-    ratingGoalGuard: createPortalRatingGoalGuard(),
-  })
-  return { deps, create: createPortal(deps) }
-}
-
-const withBrand = (
-  defaultGuestLocales: readonly string[],
-  lookVersion = 1,
-  property: PropertyId = PROPERTY,
-) =>
-  getPool()
-    .query(`DELETE FROM properties WHERE id = $1`, [property])
-    .then(() =>
-      seedCreationProperty(getPool(), {
-        organizationId: ORG_A,
-        propertyId: property,
-        brand: { displayName: 'Harbor', defaultGuestLocales, lookVersion },
-      }),
-    )
-
-const rows = async (sql: string, ...values: unknown[]) =>
-  (await getPool().query(sql, values)).rows
-
-const portalRows = (org = ORG_A) =>
-  rows(
-    `SELECT id, slug, name, publication_state FROM portals WHERE organization_id = $1 ORDER BY slug`,
-    org,
-  )
-
-const countOf = async (table: string, org = ORG_A) =>
-  Number(
-    (
-      await rows(
-        `SELECT count(*)::int AS n FROM ${table} WHERE organization_id = $1`,
-        org,
-      )
-    )[0].n,
-  )
-
-const factsOf = (tag: string, org = ORG_A) =>
-  rows(
-    `SELECT payload FROM outbox_events WHERE organization_id = $1 AND event_type = $2`,
-    org,
-    tag,
-  ).then((found) => found.map((row) => row.payload))
-
-const codeOf = async (run: Promise<unknown>): Promise<string | undefined> => {
-  try {
-    await run
-  } catch (error) {
-    return isPortalError(error) ? error.code : 'not-a-portal-error'
-  }
-  return undefined
-}
 
 describe.sequential('createPortal', () => {
   it('creates a portal with defaults when optional fields are omitted', async () => {
@@ -197,24 +103,47 @@ describe.sequential('createPortal', () => {
     })
   })
 
-  it('rejects users who cannot create portals', async () => {
-    const { create } = world()
-    expect(
-      await codeOf(
-        create(
-          { ...base, name: 'Test' },
-          buildTestAuthContext({ organizationId: ORG_A, role: 'Member' }),
-        ),
-      ),
-    ).toBe('forbidden')
-    expect(await portalRows()).toEqual([])
-  })
-
-  it('rejects when the property does not exist', async () => {
-    const { create } = world()
-    expect(await codeOf(create({ propertyId: MISSING, name: 'Test' }, ctx))).toBe(
+  const member = buildTestAuthContext({ organizationId: ORG_A, role: 'Member' })
+  it.each([
+    [
+      'rejects users who cannot create portals',
+      {},
+      { name: 'Test' },
+      member,
+      'forbidden',
+    ],
+    [
+      'rejects when the property does not exist',
+      {},
+      { propertyId: MISSING, name: 'Test' },
+      ctx,
       'property_not_found',
-    )
+    ],
+    ['rejects invalid name', {}, { name: '' }, ctx, 'invalid_name'],
+    [
+      'rejects invalid theme color',
+      {},
+      { name: 'Test', theme: { primaryColor: 'not-a-color' } },
+      ctx,
+      'invalid_theme',
+    ],
+    [
+      'rejects PropertyManager without assignment to the property',
+      { accessible: [] },
+      { name: 'Test' },
+      ctx,
+      'forbidden',
+    ],
+    [
+      'rejects PropertyManager assigned only to another property of the organization',
+      { accessible: [OTHER_PROPERTY] },
+      { name: 'Test' },
+      ctx,
+      'forbidden',
+    ],
+  ] as const)('%s', async (_title, options, input, caller, code) => {
+    const { create } = world({ ...options } as WorldOptions)
+    expect(await codeOf(create({ ...base, ...input }, caller))).toBe(code)
     expect(await portalRows()).toEqual([])
   })
 
@@ -274,33 +203,6 @@ describe.sequential('createPortal', () => {
     expect(emitted[0]).not.toHaveProperty('name')
     expect(emitted[0]).not.toHaveProperty('slug')
     expect(await factsOf('portal.created', ORG_B)).toEqual([])
-  })
-
-  it('rejects invalid name', async () => {
-    const { create } = world()
-    expect(await codeOf(create({ ...base, name: '' }, ctx))).toBe('invalid_name')
-    expect(await portalRows()).toEqual([])
-  })
-
-  it('rejects invalid theme color', async () => {
-    const { create } = world()
-    expect(
-      await codeOf(
-        create({ ...base, name: 'Test', theme: { primaryColor: 'not-a-color' } }, ctx),
-      ),
-    ).toBe('invalid_theme')
-    expect(await portalRows()).toEqual([])
-  })
-
-  it('rejects PropertyManager without assignment to the property', async () => {
-    const { create } = world({ accessible: [] })
-    expect(await codeOf(create({ ...base, name: 'Test' }, ctx))).toBe('forbidden')
-    expect(await portalRows()).toEqual([])
-  })
-
-  it('rejects PropertyManager assigned only to another property of the organization', async () => {
-    const { create } = world({ accessible: [OTHER_PROPERTY] })
-    expect(await codeOf(create({ ...base, name: 'Test' }, ctx))).toBe('forbidden')
   })
 
   it('allows PropertyManager assigned to the property', async () => {
@@ -622,512 +524,5 @@ describe.sequential('createPortal group', () => {
     expect(
       await rows(`SELECT updated_at FROM portal_groups WHERE id = $1`, GROUP_B),
     ).toEqual([{ updated_at: groupAt }])
-  })
-})
-
-describe.sequential('createPortal languages', () => {
-  const languagesOf = (portal: {
-    primaryGuestLocale: string
-    additionalGuestLocales: readonly string[]
-  }) => [portal.primaryGuestLocale, portal.additionalGuestLocales]
-
-  it('starts from the Property defaults, the first being the primary', async () => {
-    await withBrand(['bg', 'en'])
-    const { create } = world()
-    const portal = await create({ ...base, name: 'Pool' }, ctx)
-    expect(languagesOf(portal)).toEqual(['bg', ['en']])
-    expect(
-      await rows(
-        `SELECT primary_guest_locale, additional_guest_locales FROM portals WHERE id = $1`,
-        portal.id,
-      ),
-    ).toEqual([{ primary_guest_locale: 'bg', additional_guest_locales: ['en'] }])
-  })
-
-  it('starts in English when the Property has no defaults', async () => {
-    const { create } = world()
-    expect(languagesOf(await create({ ...base, name: 'Pool' }, ctx))).toEqual(['en', []])
-  })
-
-  it('uses the languages the manager chose over the defaults', async () => {
-    await withBrand(['bg', 'en'])
-    const { create } = world()
-    const portal = await create({ ...base, name: 'Pool', guestLocales: ['en'] }, ctx)
-    expect(languagesOf(portal)).toEqual(['en', []])
-  })
-
-  it('creates a Portal in German with French beside it', async () => {
-    const { create } = world()
-    const portal = await create(
-      { ...base, name: 'Pool', guestLocales: ['de', 'fr'] },
-      ctx,
-    )
-    expect(languagesOf(portal)).toEqual(['de', ['fr']])
-  })
-
-  it('refuses a language that is not a guest language', async () => {
-    const { create } = world()
-    expect(
-      await codeOf(
-        create({ ...base, name: 'Pool', guestLocales: ['en', 'pt'] as never }, ctx),
-      ),
-    ).toBe('locale_not_offered')
-    expect(await portalRows()).toEqual([])
-  })
-})
-
-describe.sequential('createPortal responsible managers', () => {
-  const managers: readonly CreationManager[] = [
-    { userId: CREATOR, role: 'PropertyManager' },
-    { userId: OTHER_MANAGER, role: 'AccountAdmin' },
-  ]
-  const managersOf = async (portalId: string) =>
-    (
-      await rows(
-        `SELECT user_id, created_by FROM portal_responsible_managers
-         WHERE organization_id = $1 AND portal_id = $2 ORDER BY user_id`,
-        ORG_A,
-        portalId,
-      )
-    ).map((row) => row.user_id)
-
-  it('takes the managers named, when they are eligible', async () => {
-    const { create } = world({ managers })
-    const portal = await create(
-      { ...base, name: 'Pool', responsibleManagerUserIds: [OTHER_MANAGER] },
-      ctx,
-    )
-    expect(await managersOf(portal.id)).toEqual([OTHER_MANAGER])
-    expect(portal.responsibilityNeededSince).toBeNull()
-  })
-
-  it('records every manager named, not only the first', async () => {
-    const { create } = world({ managers })
-    const portal = await create(
-      { ...base, name: 'Pool', responsibleManagerUserIds: [CREATOR, OTHER_MANAGER] },
-      ctx,
-    )
-    expect(await managersOf(portal.id)).toEqual([CREATOR, OTHER_MANAGER].sort())
-    expect(
-      await rows(
-        `SELECT DISTINCT created_by FROM portal_responsible_managers WHERE portal_id = $1`,
-        portal.id,
-      ),
-    ).toEqual([{ created_by: CREATOR }])
-  })
-
-  it('refuses a manager who is not eligible for the Property', async () => {
-    const { create } = world({ managers })
-    expect(
-      await codeOf(
-        create(
-          { ...base, name: 'Pool', responsibleManagerUserIds: ['user-stranger'] },
-          ctx,
-        ),
-      ),
-    ).toBe('responsible_manager_ineligible')
-    expect(await portalRows()).toEqual([])
-  })
-
-  it('refuses the same manager twice', async () => {
-    const { create } = world({ managers })
-    expect(
-      await codeOf(
-        create(
-          {
-            ...base,
-            name: 'Pool',
-            responsibleManagerUserIds: [OTHER_MANAGER, OTHER_MANAGER],
-          },
-          ctx,
-        ),
-      ),
-    ).toBe('responsible_manager_ineligible')
-    expect(await portalRows()).toEqual([])
-  })
-
-  it('starts with nobody responsible, and says so, when the list is empty', async () => {
-    const { create } = world({ managers })
-    const portal = await create(
-      { ...base, name: 'Pool', responsibleManagerUserIds: [] },
-      ctx,
-    )
-    expect(portal.responsibilityNeededSince).toEqual(CLOCK)
-    expect(await managersOf(portal.id)).toEqual([])
-    expect(await factsOf('portal.responsibility_became_needed')).toHaveLength(1)
-  })
-
-  it('makes the creator responsible by default', async () => {
-    const { create } = world({ managers })
-    const portal = await create({ ...base, name: 'Pool' }, ctx)
-    expect(await managersOf(portal.id)).toEqual([CREATOR])
-  })
-})
-
-describe.sequential('createPortal start from', () => {
-  type SourceOptions = Readonly<{
-    organizationId?: typeof ORG_A | typeof ORG_B
-    property?: PropertyId
-    portalId?: string
-    publicationState?: 'published' | 'archived'
-  }>
-
-  async function seedSource(options: SourceOptions = {}) {
-    const organization = options.organizationId ?? ORG_A
-    const property = options.property ?? PROPERTY
-    const portalId = options.portalId ?? SOURCE
-    await seedCreationPortal(getPool(), {
-      organizationId: organization,
-      propertyId: property,
-      portalId,
-      slug: 'source',
-      name: 'Source',
-      description: 'Welcome to the pool',
-      primaryGuestLocale: 'en',
-      additionalGuestLocales: ['bg'],
-      publicationState: options.publicationState ?? 'published',
-    })
-    await seedCreationCategory(getPool(), {
-      organizationId: organization,
-      portalId,
-      categoryId: CATEGORY,
-    })
-    await seedCreationDestination(getPool(), {
-      organizationId: organization,
-      propertyId: property,
-      destinationId: MENU_DESTINATION,
-      approvalState: 'approved',
-    })
-    await seedCreationLink(getPool(), {
-      organizationId: organization,
-      propertyId: property,
-      portalId,
-      categoryId: CATEGORY,
-      linkId: MENU_LINK,
-      destinationId: MENU_DESTINATION,
-      label: 'Menu',
-      sortKey: 'a0',
-      texts: [
-        { locale: 'en', label: 'Menu' },
-        { locale: 'bg', label: 'Меню' },
-      ],
-    })
-    await getPool().query(
-      `INSERT INTO portal_localized_overrides
-         (id, organization_id, property_id, portal_id, locale, title, linktree_title,
-          version, updated_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, 'en', 'Pool', 'Good to know', 1, 'seed-manager', $5, $5)`,
-      [randomUUID(), organization, property, portalId, CLOCK],
-    )
-  }
-
-  const copyOf = (portalId = SOURCE) => ({
-    startFrom: { kind: 'portal' as const, portalId },
-  })
-
-  const newPortalRows = (table: string, portalId: string, order: string) =>
-    rows(
-      `SELECT * FROM ${table} WHERE organization_id = $1 AND portal_id = $2 ORDER BY ${order}`,
-      ORG_A,
-      portalId,
-    )
-
-  it('copies wording, links, link texts and languages of another portal', async () => {
-    await withBrand(['en'])
-    const { create } = world()
-    await seedSource()
-
-    const portal = await create({ ...base, name: 'Copy', ...copyOf() }, ctx)
-
-    expect(portal.id).not.toBe(SOURCE)
-    expect(portal.description).toBe('Welcome to the pool')
-    expect([portal.primaryGuestLocale, portal.additionalGuestLocales]).toEqual([
-      'en',
-      ['bg'],
-    ])
-    const links = await newPortalRows('portal_links', portal.id, 'sort_key')
-    expect(links).toHaveLength(1)
-    expect(links[0].id).not.toBe(MENU_LINK)
-    expect(links[0].destination_id).toBe(MENU_DESTINATION)
-    const texts = await newPortalRows('portal_link_texts', portal.id, 'locale')
-    expect(texts.map((text) => [text.locale, text.label])).toEqual([
-      ['bg', 'Меню'],
-      ['en', 'Menu'],
-    ])
-    expect(
-      (await newPortalRows('portal_localized_overrides', portal.id, 'locale')).map(
-        (row) => [row.locale, row.title, row.linktree_title],
-      ),
-    ).toEqual([['en', 'Pool', 'Good to know']])
-    // The source itself is untouched.
-    expect(await newPortalRows('portal_links', SOURCE, 'sort_key')).toHaveLength(1)
-    expect(await newPortalRows('portal_link_texts', SOURCE, 'locale')).toHaveLength(2)
-  })
-
-  it('takes only the languages chosen, even when copying', async () => {
-    const { create } = world()
-    await seedSource()
-    const portal = await create(
-      { ...base, name: 'Copy', guestLocales: ['en'], ...copyOf() },
-      ctx,
-    )
-    expect(portal.additionalGuestLocales).toEqual([])
-    const texts = await newPortalRows('portal_link_texts', portal.id, 'locale')
-    expect(texts.map((text) => text.locale)).toEqual(['en'])
-  })
-
-  it('copies no code, publication or responsible manager', async () => {
-    const { create } = world()
-    await seedSource()
-    await seedCreationResponsibleManager(getPool(), {
-      organizationId: ORG_A,
-      propertyId: PROPERTY,
-      portalId: SOURCE,
-      userId: 'user-source-manager',
-    })
-    await seedCreationToken({
-      organizationId: ORG_A,
-      propertyId: PROPERTY,
-      portalId: SOURCE,
-      tokenId: 'c1a70000-0000-4000-8000-000000000001',
-      identifier: 'createuse-source-code',
-    })
-
-    const portal = await create({ ...base, name: 'Copy', ...copyOf() }, ctx)
-
-    expect(
-      (await newPortalRows('portal_responsible_managers', portal.id, 'user_id')).map(
-        (row) => row.user_id,
-      ),
-    ).toEqual([CREATOR])
-    expect(portal.publicationState).toBe('draft')
-    expect(await newPortalRows('portal_tokens', portal.id, 'id')).toEqual([])
-    expect(await newPortalRows('portal_publication_snapshots', portal.id, 'id')).toEqual(
-      [],
-    )
-    expect(
-      await newPortalRows('portal_publication_activations', portal.id, 'id'),
-    ).toEqual([])
-  })
-
-  it('carries the source’s own look, also when a property manager creates the portal', async () => {
-    await withBrand(['en'], 6)
-    const { create } = world()
-    await seedSource()
-    await seedPortalLookOverride(
-      getPool(),
-      { organizationId: ORG_A, propertyId: PROPERTY, portalId: SOURCE },
-      {
-        photo: { mode: 'none' },
-        colours: {
-          accent: '#2F855A',
-          backgroundMode: 'auto',
-          backgroundColour: '#0B1F14',
-        },
-        lookVersion: 9,
-      },
-    )
-
-    const portal = await create({ ...base, name: 'Copy', ...copyOf() }, ctx)
-
-    const [look] = await newPortalRows('portal_look_overrides', portal.id, 'portal_id')
-    expect(look).toMatchObject({
-      photo_mode: 'none',
-      colours_mode: 'own',
-      primary_color: '#2F855A',
-      identity_mode: 'inherit',
-      look_version: 7,
-    })
-  })
-
-  it('gives the new portal no look of its own when the source follows the property look', async () => {
-    await withBrand(['en'], 6)
-    const { create } = world()
-    await seedSource()
-    const portal = await create({ ...base, name: 'Copy', ...copyOf() }, ctx)
-    expect(await newPortalRows('portal_look_overrides', portal.id, 'portal_id')).toEqual(
-      [],
-    )
-  })
-
-  it('carries nothing when it starts from the Property wording', async () => {
-    const { create } = world()
-    await seedSource()
-    const portal = await create(
-      { ...base, name: 'Fresh', startFrom: { kind: 'property' } },
-      ctx,
-    )
-    expect(portal.description).toBeNull()
-    expect(await newPortalRows('portal_links', portal.id, 'id')).toEqual([])
-    expect(await newPortalRows('portal_localized_overrides', portal.id, 'id')).toEqual([])
-    expect(await newPortalRows('portal_link_texts', portal.id, 'id')).toEqual([])
-  })
-
-  it('copies only links whose destination is approved, so a disabled one does not take a slot', async () => {
-    const { create } = world()
-    await seedSource()
-    const destinationId = (n: number) => `c1a60000-0000-4000-8000-00000000010${n}`
-    const states = [
-      'disabled',
-      'quarantined',
-      'pending',
-      'approved',
-      'approved',
-      'approved',
-      'approved',
-    ] as const
-    for (const [index, state] of states.entries()) {
-      await seedCreationDestination(getPool(), {
-        organizationId: ORG_A,
-        propertyId: PROPERTY,
-        destinationId: destinationId(index + 1),
-        approvalState: state,
-      })
-      // The seeded 'Menu' link sorts first; these follow, retired ones first.
-      await seedCreationLink(getPool(), {
-        organizationId: ORG_A,
-        propertyId: PROPERTY,
-        portalId: SOURCE,
-        categoryId: CATEGORY,
-        linkId: `c1a50000-0000-4000-8000-00000000010${index}`,
-        destinationId: destinationId(index + 1),
-        label: `Extra ${index}`,
-        sortKey: `b${index}`,
-        texts: [
-          { locale: 'en', label: `Extra ${index}` },
-          { locale: 'bg', label: `Допълнение ${index}` },
-        ],
-      })
-    }
-
-    const portal = await create({ ...base, name: 'Copy', ...copyOf() }, ctx)
-
-    const links = await newPortalRows('portal_links', portal.id, 'sort_key')
-    expect(links.map((link) => link.destination_id).sort()).toEqual(
-      [MENU_DESTINATION, destinationId(4), destinationId(5), destinationId(6)].sort(),
-    )
-  })
-
-  it('refuses an archived portal as a starting point', async () => {
-    const { create } = world()
-    await seedSource({ publicationState: 'archived' })
-    expect(await codeOf(create({ ...base, name: 'Copy', ...copyOf() }, ctx))).toBe(
-      'portal_inactive',
-    )
-    expect(await portalRows()).toHaveLength(1)
-  })
-
-  it('refuses a portal of another Property', async () => {
-    const { create } = world({ accessible: [PROPERTY, OTHER_PROPERTY] })
-    await seedSource({ property: OTHER_PROPERTY })
-    expect(await codeOf(create({ ...base, name: 'Copy', ...copyOf() }, ctx))).toBe(
-      'portal_not_found',
-    )
-  })
-
-  it('refuses a portal that does not exist', async () => {
-    const { create } = world()
-    expect(await codeOf(create({ ...base, name: 'Copy', ...copyOf(MISSING) }, ctx))).toBe(
-      'portal_not_found',
-    )
-    expect(await portalRows()).toEqual([])
-  })
-
-  it('refuses when the caller has no access to the Property of the portal being copied', async () => {
-    const { create } = world({ accessible: [PROPERTY] })
-    await seedSource({ property: OTHER_PROPERTY })
-    expect(await codeOf(create({ ...base, name: 'Copy', ...copyOf() }, ctx))).toBe(
-      'forbidden',
-    )
-  })
-
-  it('refuses a portal of another organization and leaves it untouched', async () => {
-    const { create } = world({ accessible: [PROPERTY, PROPERTY_B] })
-    await seedSource({ organizationId: ORG_B, property: PROPERTY_B, portalId: SOURCE_B })
-    expect(
-      await codeOf(create({ ...base, name: 'Copy', ...copyOf(SOURCE_B) }, ctx)),
-    ).toBe('portal_not_found')
-    expect(await portalRows(ORG_A)).toEqual([])
-    expect(await portalRows(ORG_B)).toHaveLength(1)
-    expect(await countOf('outbox_events', ORG_B)).toBe(0)
-  })
-})
-
-describe.sequential('getPortalCreationOptions', () => {
-  const optionsFor = (options: WorldOptions = {}) => {
-    const { deps } = world(options)
-    return getPortalCreationOptions({
-      propertyApi: deps.propertyApi,
-      staffPublicApi: deps.staffPublicApi,
-      identityPublicApi: deps.identityPublicApi,
-      experienceRepo: deps.experienceRepo,
-    })
-  }
-
-  it('offers the Property default languages, first as primary', async () => {
-    await withBrand(['bg', 'en'])
-    const result = await optionsFor()(base, ctx)
-    expect(result.defaultGuestLocales).toEqual(['bg', 'en'])
-  })
-
-  it('falls back to English when the Property has no default', async () => {
-    expect((await optionsFor()(base, ctx)).defaultGuestLocales).toEqual(['en'])
-  })
-
-  it('offers every Property default that is a guest language, German included', async () => {
-    await withBrand(['de', 'bg'])
-    expect((await optionsFor()(base, ctx)).defaultGuestLocales).toEqual(['de', 'bg'])
-  })
-
-  it('lists the managers eligible for the Property and says whether the caller is one', async () => {
-    const result = await optionsFor({
-      managers: [
-        { userId: CREATOR, role: 'PropertyManager' },
-        { userId: 'user-admin', role: 'AccountAdmin' },
-      ],
-    })(base, ctx)
-    expect(result.eligibleManagerUserIds).toEqual([CREATOR, 'user-admin'])
-    expect(result.creatorIsEligible).toBe(true)
-  })
-
-  it('says so when the caller is not an eligible manager', async () => {
-    const result = await optionsFor({
-      managers: [{ userId: 'user-admin', role: 'AccountAdmin' }],
-    })(base, ctx)
-    expect(result.creatorIsEligible).toBe(false)
-  })
-
-  it('refuses a role that cannot create portals', async () => {
-    expect(
-      await codeOf(
-        optionsFor()(
-          base,
-          buildTestAuthContext({ organizationId: ORG_A, role: 'Member' }),
-        ),
-      ),
-    ).toBe('forbidden')
-  })
-
-  it('refuses a Property the caller is not assigned to', async () => {
-    expect(await codeOf(optionsFor({ accessible: [OTHER_PROPERTY] })(base, ctx))).toBe(
-      'forbidden',
-    )
-  })
-
-  it('refuses a Property that does not exist', async () => {
-    expect(await codeOf(optionsFor()({ propertyId: MISSING }, ctx))).toBe(
-      'property_not_found',
-    )
-  })
-
-  it('refuses a Property of another organization', async () => {
-    expect(
-      await codeOf(
-        optionsFor({ accessible: [PROPERTY, PROPERTY_B] })(
-          { propertyId: String(PROPERTY_B) },
-          ctx,
-        ),
-      ),
-    ).toBe('property_not_found')
   })
 })

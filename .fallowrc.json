@@ -77,10 +77,6 @@
   ],
   "ignoreExports": [
     {
-      "file": "src/contexts/inbox/infrastructure/inbox-escalation-history.ts",
-      "exports": ["INBOX_ESCALATION_HISTORY_KINDS"]
-    },
-    {
       "file": "src/contexts/integration/provider/contracts.ts",
       "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION"]
     },
@@ -89,7 +85,7 @@
       "exports": ["GOOGLE_REVIEW_DESTINATION_STATES"]
     },
     {
-      "file": "src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.ts",
+      "file": "src/contexts/reputation/content/purge-expired-reviews-job.server.ts",
       "exports": ["DEFAULT_BATCH_SIZE", "DEFAULT_MAX_BATCHES"]
     },
     {
@@ -113,18 +109,11 @@
       "exports": ["exportOperationalActionHistoryFn", "listOperationalActionHistoryFn"]
     },
     {
-      "file": "src/contexts/reporting/application/public-api.ts",
-      "exports": [
-        "findMetricVersionById",
-        "GOOGLE_PERFORMANCE_ERROR_CODES",
-        "PROPERTY_PERFORMANCE_PRESETS",
-        "goalMonthlyResultClosed",
-        "isGooglePerformanceErrorCode",
-        "isPropertyPerformancePreset"
-      ]
+      "file": "src/contexts/reporting/public-api.ts",
+      "exports": ["findMetricVersionById", "goalMonthlyResultClosed"]
     },
     {
-      "file": "src/contexts/guest/application/public-api.ts",
+      "file": "src/contexts/guest/public-api.ts",
       "exports": [
         "guestFeedbackRetracted",
         "guestFeedbackSubmitted",
@@ -137,27 +126,27 @@
       "exports": ["setActiveOrganization"]
     },
     {
-      "file": "src/contexts/inbox/domain/handling-history.ts",
+      "file": "src/contexts/reputation/domain/handling-history.ts",
       "exports": ["INBOX_HISTORY_KINDS"]
     },
     {
-      "file": "src/contexts/inbox/server/inbox.ts",
+      "file": "src/contexts/reputation/server/inbox.ts",
       "exports": ["assignInboxItemFn"]
     },
     {
-      "file": "src/contexts/integration/application/public-api.ts",
+      "file": "src/contexts/integration/public-api.ts",
       "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION"]
     },
     {
       "file": "src/contexts/portal/server/portals.ts",
-      "exports": ["rollbackPortalPublication", "savePropertyPortalBrandProfile"]
+      "exports": ["rollbackPortalPublication"]
     },
     {
       "file": "src/contexts/property/server/properties.ts",
       "exports": ["deleteProperty"]
     },
     {
-      "file": "src/contexts/review/application/public-api.ts",
+      "file": "src/contexts/reputation/public-api.ts",
       "exports": [
         "reviewExpired",
         "reviewReplyPublicationRequested",
@@ -168,10 +157,6 @@
     {
       "file": "src/routes/api/auth/$.ts",
       "exports": ["handleAuthRequest"]
-    },
-    {
-      "file": "src/contexts/*/infrastructure/jobs/*.job.ts",
-      "exports": ["JOB_NAME"]
     },
     {
       "file": "src/shared/jobs/*.job.ts",
@@ -188,7 +173,7 @@
       ]
     },
     {
-      "file": "src/contexts/inbox/domain/constructors.ts",
+      "file": "src/contexts/reputation/domain/inbox-constructors.ts",
       "exports": ["createInboxItem", "CreateInboxItemInput"]
     },
     {
@@ -200,11 +185,11 @@
       "exports": ["member", "organization", "session", "account", "verification"]
     },
     {
-      "file": "src/contexts/inbox/server/inbox-queries.ts",
+      "file": "src/contexts/reputation/server/inbox-queries.ts",
       "exports": ["stampLastInboxViewFn"]
     },
     {
-      "file": "src/contexts/inbox/server/inbox-item-actions.ts",
+      "file": "src/contexts/reputation/server/inbox-item-actions.ts",
       "exports": ["assignInboxItemFn"]
     },
     {
@@ -217,7 +202,6 @@
         "createPortalGroup",
         "updatePortalGroup",
         "softDeletePortalGroup",
-        "addPortalToGroup",
         "removePortalFromGroup"
       ]
     },
@@ -292,7 +276,9 @@
         "reason": "This is an exhaustive `switch (descriptor.routeKey)` over a closed 13-member union \u2014 the flat-not-nested shape the brief names as the legitimate waiver case. Only cyclomatic (26) exceeds; cognitive is 16, comfortably under the 20 ceiling, because there is no nesting: each arm is a sibling `case` tha"
       },
       {
-        "files": ["src/contexts/review/infrastructure/reply-observation-authority.ts"],
+        "files": [
+          "src/contexts/reputation/reviews/reply-observation-authority.server.ts"
+        ],
         "functions": ["isExactCurrentObservation"],
         "maxCyclomatic": 28,
         "reason": "The function is a single flat conjunction of ~20 independent equality checks \u2014 head identity, Review source position, head/observation denormalization agreement, the five decision fields, three enum-membership checks and the measured/startAt pairing \u2014 all compared against one expectation object. The"

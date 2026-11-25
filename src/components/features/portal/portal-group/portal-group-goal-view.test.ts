@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GoalProgress } from '#/contexts/reporting/application/public-api'
+import type { GoalProgress } from '#/contexts/reporting/public-api'
 import { goalCardView } from './portal-group-goal-view'
 
 const ZONE = 'Europe/Sofia'

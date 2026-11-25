@@ -8,7 +8,7 @@ import type {
   GoogleAuthUrlInput,
   GoogleConnectionDto,
   GoogleConnectionStatus,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { googleConnectionLabel } from './google-connection-label'
 import {
   accountEmailConsentForConnection,

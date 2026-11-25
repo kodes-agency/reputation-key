@@ -1,10 +1,10 @@
-import type { AiReviewInsightsPort } from '#/contexts/inbox/application/ports/ai-review-insights.port'
-import type { ReviewContextApi } from '#/contexts/review/build'
+import type { AiReviewInsightsPort } from '#/contexts/reputation/inbox/ai-review-insights.port.server'
+import type { ReviewContextApi } from '#/contexts/reputation/build-review'
 import type { buildAiContext } from '#/contexts/ai/build'
 import type {
   InboxMentionV3,
   InboxReviewAnalysis,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 type ReadyV3Read = Readonly<{
   analysisSequence: number

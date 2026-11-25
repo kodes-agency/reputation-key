@@ -4,8 +4,6 @@ import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { registerAssignmentReleaseNotificationConsumer } from './inbox-notice-routes.server'
 import {
@@ -80,13 +78,10 @@ const jobs = (deps: ReturnType<typeof makeDeps>) =>
 describe('an offboarding release tells whoever now owns the gap', () => {
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
-    registerAllEventSchemas()
   })
 
   afterEach(() => {
     consumerRegistry = createConsumerRegistry()
-    clearEventSchemas()
   })
 
   it('registers under a stable identity', () => {

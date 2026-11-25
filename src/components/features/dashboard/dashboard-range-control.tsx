@@ -16,7 +16,7 @@ import {
   DASHBOARD_RANGE_OPTIONS,
   DASHBOARD_RANGES,
   type DashboardRange,
-} from '#/shared/dashboard-range'
+} from '#/shared/dashboard/dashboard-range'
 
 export function DashboardRangeControl({
   range,

@@ -25,7 +25,6 @@ const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const CONN_A = 'e0000000-0000-0000-0000-00000000000a'
 const CONN_B = 'e0000000-0000-0000-0000-00000000000b'
 const CONN_C = 'e0000000-0000-0000-0000-00000000000c'
-const CONN_D = 'e0000000-0000-0000-0000-00000000000d'
 
 const connection = (id: string, status: GoogleConnectionStatus) =>
   buildTestGoogleConnection({ id, organizationId: ORG, status })
@@ -165,7 +164,7 @@ describe('ops:gbp-subscribe action', () => {
     const { io, lines } = captureIO()
 
     const exit = await createGbpSubscribeOperatorAction(backfill)(
-      { organizationId: ORG, dryRun: true },
+      { organizationId: ORG },
       {},
       io,
     )
@@ -180,54 +179,12 @@ describe('ops:gbp-subscribe action', () => {
     // end with "re-run with --reason <text> --apply", which is refused.
     expect(lines).toHaveLength(1)
   })
-
-  it('exits 0 when every candidate is subscribed, already was, or has no account yet', async () => {
-    const { backfill, subscribe } = setup(
-      [
-        connection(CONN_A, 'active'),
-        connection(CONN_B, 'disconnected'),
-        connection(CONN_C, 'active'),
-        connection(CONN_D, 'active'),
-      ],
-      ['subscribed', 'already_subscribed', 'account_unresolved'],
-    )
-    const { io, lines } = captureIO()
-
-    const exit = await createGbpSubscribeOperatorAction(backfill)(
-      { organizationId: ORG, dryRun: false },
-      {},
-      io,
-    )
-
-    expect(exit).toBe(0)
-    expect(subscribe).toHaveBeenCalledTimes(3)
-    expect(JSON.parse(lines[0]!)).toMatchObject({ action: 'subscribe' })
-    expect(lines).toHaveLength(1)
-  })
-
-  // An empty GBP_PUBSUB_TOPIC in the operator's environment is the likeliest
-  // reason a backfill achieves nothing — it must not exit 0.
-  it('exits 1 when a candidate did not reach subscribed', async () => {
-    const { backfill } = setup([connection(CONN_A, 'active')], ['topic_unset'])
-    const { io, lines } = captureIO()
-
-    const exit = await createGbpSubscribeOperatorAction(backfill)(
-      { organizationId: ORG, dryRun: false },
-      {},
-      io,
-    )
-
-    expect(exit).toBe(1)
-    expect(lines[1]).toContain(
-      "1 connection(s) did not reach 'subscribed' or 'already_subscribed'",
-    )
-  })
 })
 
 // Through the REAL harness, with the spec the script passes. The command needs
 // a call to Google and operator commands run without the Google provider
-// runtime, so the harness lets it report and refuses --apply; the action's
-// apply branch above is reachable only from a provider-enabled path.
+// runtime, so the harness lets it report and refuses --apply; the action only
+// reports the plan.
 describe('ops:gbp-subscribe through the operator harness', () => {
   const SPEC = {
     name: 'ops:gbp-subscribe',

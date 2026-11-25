@@ -3,14 +3,12 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/
 // commit (R19). The rows and the working copy publication reads, on real PostgreSQL.
 
 import { randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { portalId as toPortalId, userId, type PortalId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { loadCopySource } from '../publication/create-portal-resolvers.server'
 import { planPortalContentCopy } from '../publication/portal-content-copy.server'
 import { portalUpdated } from '../domain/events'
@@ -63,11 +61,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const rows = async (sql: string, ...values: unknown[]) =>

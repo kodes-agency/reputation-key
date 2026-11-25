@@ -1,6 +1,6 @@
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
-import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
-import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
+import type { ReviewQueuePort } from '#/contexts/reputation/public-api'
+import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/public-api'
 import { PrerequisiteNotReadyError } from '#/shared/outbox'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
@@ -12,9 +12,9 @@ export const IMPORT_SUBSCRIPTION_CONSUMER = 'integration.import-subscription'
 export const IMPORT_REVIEW_SYNC_CONSUMER = 'integration.import-review-sync'
 
 type FollowUpDeps = Readonly<{
-  propertyBindingApi?: PropertyGoogleBindingPublicApi
-  enqueueReviewSync?: ReviewQueuePort['addSyncJob']
-  defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
+  propertyBindingApi: PropertyGoogleBindingPublicApi
+  enqueueReviewSync: ReviewQueuePort['addSyncJob']
+  defaultPublicDisplayName: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
   subscribe: ManageNotificationsApi['subscribe']
   receipts: Pick<OutboxRepository, 'hasReceipt' | 'insertReceipt'>
   newDeliveryId: () => string
@@ -31,14 +31,16 @@ type BindingPayload = Readonly<{
 
 type InternalBinding = Awaited<ReturnType<PropertyGoogleBindingPublicApi['readInternal']>>
 
-function isCurrentBinding(
-  binding: InternalBinding,
-  payload: BindingPayload,
-): binding is NonNullable<InternalBinding> & {
+type CurrentBinding = NonNullable<InternalBinding> & {
   accountId: string
   locationId: string
   connectionId: NonNullable<NonNullable<InternalBinding>['connectionId']>
-} {
+}
+
+function isCurrentBinding(
+  binding: InternalBinding,
+  payload: BindingPayload,
+): binding is CurrentBinding {
   return !(
     !binding ||
     binding.state !== 'active' ||
@@ -55,7 +57,47 @@ function isCurrentBinding(
  * repeats a conditional default, a desired-state subscription, or a sync whose
  * durable snapshot run serializes duplicate admissions. */
 export function createGoogleBindingFollowUpHandlers(deps: FollowUpDeps) {
-  const handle = async (event: ConsumerEvent, consumer: string) => {
+  type Effect = (
+    event: ConsumerEvent,
+    payload: BindingPayload,
+    binding: CurrentBinding,
+  ) => Promise<void>
+
+  const setDisplayName: Effect = async (_event, payload, binding) => {
+    await deps.defaultPublicDisplayName({
+      organizationId: organizationId(payload.organizationId),
+      propertyId: propertyId(payload.propertyId),
+      displayName: binding.name,
+    })
+  }
+  const subscribeAccount: Effect = async (_event, payload, binding) => {
+    const result = await deps.subscribe(
+      organizationId(payload.organizationId),
+      binding.connectionId,
+      { gbpAccountId: binding.accountId, reuseVerified: true },
+    )
+    // An account with no topic configured has no subscription obligation.
+    // Partial/provider/coordination failures remain owed for redelivery.
+    if (!['subscribed', 'already_subscribed', 'topic_unset'].includes(result.outcome))
+      throw new Error('Google import subscription incomplete')
+  }
+  const admitReviewSync: Effect = async (event, payload, binding) => {
+    await deps.enqueueReviewSync(
+      {
+        organizationId: payload.organizationId,
+        propertyId: payload.propertyId,
+        connectionId: binding.connectionId,
+        locationName: `accounts/${binding.accountId}/locations/${binding.locationId}`,
+        sourceEpoch: payload.sourceEpoch,
+        importBindingEventId: event.eventId,
+        initiator: { kind: 'system', id: 'google-property-import' },
+        correlationId: `google-import:${event.eventId}`,
+      },
+      { jobId: `review-sync-${event.eventId}-${deps.newDeliveryId()}` },
+    )
+  }
+
+  const handle = async (event: ConsumerEvent, consumer: string, effect: Effect) => {
     if (await deps.receipts.hasReceipt(event.eventId, consumer))
       return { status: 'duplicate' as const }
     const payload = validateEventPayload(
@@ -81,45 +123,13 @@ export function createGoogleBindingFollowUpHandlers(deps: FollowUpDeps) {
       (payload.change !== 'created' && payload.change !== 'relinked')
     )
       return receipt('obsolete')
-    if (!deps.propertyBindingApi) throw new Error('Property binding reader unavailable')
     const binding = await deps.propertyBindingApi.readInternal(
       organizationId(payload.organizationId),
       propertyId(payload.propertyId),
     )
     if (!isCurrentBinding(binding, payload)) return receipt('obsolete')
-    if (consumer === IMPORT_DISPLAY_NAME_CONSUMER) {
-      if (!deps.defaultPublicDisplayName)
-        throw new Error('Public display name default unavailable')
-      await deps.defaultPublicDisplayName({
-        organizationId: organizationId(payload.organizationId),
-        propertyId: propertyId(payload.propertyId),
-        displayName: binding.name,
-      })
-    } else if (consumer === IMPORT_SUBSCRIPTION_CONSUMER) {
-      const result = await deps.subscribe(
-        organizationId(payload.organizationId),
-        binding.connectionId,
-        { gbpAccountId: binding.accountId, reuseVerified: true },
-      )
-      // An account with no topic configured has no subscription obligation.
-      // Partial/provider/coordination failures remain owed for redelivery.
-      if (!['subscribed', 'already_subscribed', 'topic_unset'].includes(result.outcome))
-        throw new Error('Google import subscription incomplete')
-    } else {
-      if (!deps.enqueueReviewSync) throw new Error('Review sync admission unavailable')
-      await deps.enqueueReviewSync(
-        {
-          organizationId: payload.organizationId,
-          propertyId: payload.propertyId,
-          connectionId: binding.connectionId,
-          locationName: `accounts/${binding.accountId}/locations/${binding.locationId}`,
-          sourceEpoch: payload.sourceEpoch,
-          importBindingEventId: event.eventId,
-          initiator: { kind: 'system', id: 'google-property-import' },
-          correlationId: `google-import:${event.eventId}`,
-        },
-        { jobId: `review-sync-${event.eventId}-${deps.newDeliveryId()}` },
-      )
+    await effect(event, payload, binding)
+    if (consumer === IMPORT_REVIEW_SYNC_CONSUMER) {
       // Redis acceptance is not durable acceptance. Until a Review worker has
       // committed progress, outbox recovery must still see this obligation.
       if (!(await deps.receipts.hasReceipt(event.eventId, consumer)))
@@ -130,29 +140,46 @@ export function createGoogleBindingFollowUpHandlers(deps: FollowUpDeps) {
     }
     return receipt('applied')
   }
-  const deliver = async (event: ConsumerEvent, consumer: string) => {
-    let waiting: PrerequisiteNotReadyError | undefined
+  // An ordering wait passes through; any other failure is reduced to a code.
+  // Dispatcher errors are code-only; storage/provider errors may carry
+  // customer content or SQL parameters in their messages.
+  const deliver = async (
+    event: ConsumerEvent,
+    consumer: string,
+    effect: Effect,
+    reason: string,
+  ) => {
+    let failure: unknown
     try {
-      return await handle(event, consumer)
+      return await handle(event, consumer, effect)
     } catch (err) {
-      if (err instanceof PrerequisiteNotReadyError) waiting = err
+      failure = err
     }
-    // An ordering wait passes through; any other failure is reduced to a code.
-    if (waiting) throw waiting
-    // Dispatcher errors are code-only; storage/provider errors may carry
-    // customer content or SQL parameters in their messages.
-    const reason =
-      consumer === IMPORT_DISPLAY_NAME_CONSUMER
-        ? 'Google import display name unavailable'
-        : consumer === IMPORT_SUBSCRIPTION_CONSUMER
-          ? 'Google import subscription incomplete'
-          : 'Google import sync awaiting durable acceptance'
+    if (failure instanceof PrerequisiteNotReadyError) throw failure
     throw new Error(reason)
   }
   return {
-    displayName: (event: ConsumerEvent) => deliver(event, IMPORT_DISPLAY_NAME_CONSUMER),
-    subscription: (event: ConsumerEvent) => deliver(event, IMPORT_SUBSCRIPTION_CONSUMER),
-    reviewSync: (event: ConsumerEvent) => deliver(event, IMPORT_REVIEW_SYNC_CONSUMER),
+    displayName: (event: ConsumerEvent) =>
+      deliver(
+        event,
+        IMPORT_DISPLAY_NAME_CONSUMER,
+        setDisplayName,
+        'Google import display name unavailable',
+      ),
+    subscription: (event: ConsumerEvent) =>
+      deliver(
+        event,
+        IMPORT_SUBSCRIPTION_CONSUMER,
+        subscribeAccount,
+        'Google import subscription incomplete',
+      ),
+    reviewSync: (event: ConsumerEvent) =>
+      deliver(
+        event,
+        IMPORT_REVIEW_SYNC_CONSUMER,
+        admitReviewSync,
+        'Google import sync awaiting durable acceptance',
+      ),
   }
 }
 

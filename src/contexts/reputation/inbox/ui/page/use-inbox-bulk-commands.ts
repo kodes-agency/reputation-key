@@ -9,7 +9,7 @@ import {
 import type {
   bulkAssignInboxItemsFn,
   bulkUpdateInboxStatusFn,
-} from '#/contexts/inbox/server/inbox'
+} from '#/contexts/reputation/server/inbox'
 import { bulkReopenNotice } from './inbox-bulk-policy'
 import { inboxCachePolicy } from './inbox-cache-policy'
 

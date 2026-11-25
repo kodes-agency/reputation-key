@@ -1,10 +1,7 @@
 import { staffTargetProblem } from '../domain/staff-target-eligibility'
 import { ratingSubjectSkipsPrivateRating } from './goal-rating-eligibility.server'
-import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
-import type {
-  PortalGroupPublicApi,
-  PortalPublicApi,
-} from '#/contexts/portal/application/public-api'
+import type { PropertyFactsPublicApi } from '#/contexts/property/public-api'
+import type { PortalGroupPublicApi, PortalPublicApi } from '#/contexts/portal/public-api'
 import {
   organizationId as toOrganizationId,
   portalGroupId as toPortalGroupId,
@@ -12,7 +9,7 @@ import {
   propertyId as toPropertyId,
 } from '#/shared/domain/ids'
 import type { GoalSubjectNameReader } from './goal-bulk-create.server'
-import type { GoalProgramSubjectReader } from './goal-programs.server'
+import type { GoalProgramSubjectReader } from '../application/use-cases/goal-program-shared'
 
 /** Cross-context, tenant-bound subject validation for canonical Goal Programs. */
 export const createGoalProgramSubjectReader = (
@@ -40,26 +37,6 @@ export const createGoalProgramSubjectReader = (
       : null
   }
 
-  const staffProblem: NonNullable<
-    GoalProgramSubjectReader['staffTargetProblem']
-  > = async (organizationId, propertyId, subject, metric) => {
-    if (subject.kind === 'property') return null
-    const ids =
-      subject.kind === 'portal'
-        ? [subject.portalId]
-        : await portalGroupApi.getGroupPortalIds(
-            toOrganizationId(organizationId),
-            toPortalGroupId(subject.portalGroupId),
-          )
-    const portals = await Promise.all(
-      ids.map((id) => currentPortal(organizationId, propertyId, id)),
-    )
-    return staffTargetProblem(
-      portals.flatMap((portal) => (portal ? [portal] : [])),
-      metric,
-      staffScanTargetsEnabled,
-    )
-  }
   return {
     ratingSubjectsSkipPrivateRating: async (organizationId, propertyId, subjects) => {
       const results = await Promise.all(
@@ -75,8 +52,24 @@ export const createGoalProgramSubjectReader = (
       )
       return results.some(Boolean)
     },
-    staffTargetProblem: staffProblem,
-    staffTargetAllowed: async (...args) => (await staffProblem(...args)) === null,
+    staffTargetProblem: async (organizationId, propertyId, subject, metric) => {
+      if (subject.kind === 'property') return null
+      const ids =
+        subject.kind === 'portal'
+          ? [subject.portalId]
+          : await portalGroupApi.getGroupPortalIds(
+              toOrganizationId(organizationId),
+              toPortalGroupId(subject.portalGroupId),
+            )
+      const portals = await Promise.all(
+        ids.map((id) => currentPortal(organizationId, propertyId, id)),
+      )
+      return staffTargetProblem(
+        portals.flatMap((portal) => (portal ? [portal] : [])),
+        metric,
+        staffScanTargetsEnabled,
+      )
+    },
     getTimezone: (organizationId, propertyId) =>
       propertyApi.getPropertyTimezone(
         toOrganizationId(organizationId),

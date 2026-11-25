@@ -1,5 +1,5 @@
 import { Button, type ButtonProps } from './button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 type LayoutProps = Omit<ButtonProps, 'size' | 'touch'>
 /** Multiline evidence row, a lazy variant of the canonical Button. */
 export function RowButton({ className, ...props }: LayoutProps) {

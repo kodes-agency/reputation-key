@@ -3,7 +3,7 @@ import { getExecutionPolicy } from '#/shared/auth/execution-policy'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { GooglePerformanceDependencyDescriptor } from '#/shared/architecture/google-performance-live-boundary'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import {
   createActiveConnectionTokenProvider,
   type ActiveConnectionTokenProviderDeps,
@@ -78,7 +78,7 @@ export type GooglePerformanceRuntimeDeps = Readonly<{
   encryption: ActiveConnectionTokenProviderDeps['encryption']
   refreshGoogleToken: ActiveConnectionTokenProviderDeps['refreshGoogleToken']
   resolveActiveMember: ActiveMemberAuthResolver
-  propertyBindingApi: PropertyGoogleBindingPublicApi | undefined
+  propertyBindingApi: PropertyGoogleBindingPublicApi
   executor: GoogleAuthorizedProviderExecutor | undefined
   withSingle401Refresh: GoogleRefreshingProviderExecutorFactory
   authorizeContent: PerformanceContentAuthorizer | undefined
@@ -113,13 +113,7 @@ export const createGooglePerformanceRuntime = (
     leases,
     resolveActiveMember,
   } = deps
-  if (
-    !propertyBindingApi ||
-    !executor ||
-    !authorizeContent ||
-    !principalKeys ||
-    !leases
-  ) {
+  if (!executor || !authorizeContent || !principalKeys || !leases) {
     return UNAVAILABLE
   }
   const tokenProvider = createActiveConnectionTokenProvider({

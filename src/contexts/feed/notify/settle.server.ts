@@ -24,8 +24,8 @@ import {
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import type { GoogleConnectionStatus } from '#/contexts/integration/application/public-api'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type { GoogleConnectionStatus } from '#/contexts/integration/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import type { NotificationCategory, NotificationType } from '../domain/notification-types'
 import type { EscalationResolutionLookupPort } from './escalation-resolution-lookup.port.server'
 import type {

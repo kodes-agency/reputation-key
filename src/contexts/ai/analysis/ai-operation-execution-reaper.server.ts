@@ -212,13 +212,13 @@ export function createAiOperationExecutionReaper(
       : { outcome: 'raced' }
   }
 
-  /** Settle the fenced operation's per-review analysis event. */
-  async function settleAnalysis(
-    candidate: StandardRecoveryCandidate,
+  /** Settle an analysis event without a result, then record its receipt. */
+  async function settleAndReceipt(
+    analysisWithEnvelope: StandardRecoveryCandidate['analysis'],
     dispositionCode: DispositionCode,
   ): Promise<boolean> {
-    if (candidate.analysis === null) return false
-    const { eventEnvelopeId, ...analysis } = candidate.analysis
+    if (analysisWithEnvelope === null) return false
+    const { eventEnvelopeId, ...analysis } = analysisWithEnvelope
     const settled = await settleReviewAnalysisWithoutResult(
       { aggregates: deps.aggregates },
       { ...analysis, dispositionCode },
@@ -250,26 +250,6 @@ export function createAiOperationExecutionReaper(
     })
   }
 
-  async function settleDeliveryWithoutResult(
-    candidate: DeliveryRecoveryCandidate,
-    dispositionCode: DeliveryDispositionCode,
-  ): Promise<boolean> {
-    const {
-      eventEnvelopeId,
-      resultStatus: _resultStatus,
-      ...analysis
-    } = candidate.analysis
-    const settled = await settleReviewAnalysisWithoutResult(
-      { aggregates: deps.aggregates },
-      { ...analysis, dispositionCode },
-    )
-    await deps.recordAnalysisReceipt(
-      eventEnvelopeId,
-      settled.status === 'generation_changed' ? 'obsolete' : 'applied',
-    )
-    return true
-  }
-
   async function deliverReadyAnalysis(
     candidate: DeliveryRecoveryCandidate,
     nowEpochMillis: number,
@@ -290,10 +270,7 @@ export function createAiOperationExecutionReaper(
         nowEpochMillis,
       )
       if (!fenced) return { outcome: 'raced' }
-      const recovered = await settleDeliveryWithoutResult(
-        candidate,
-        'operation_ambiguous',
-      )
+      const recovered = await settleAndReceipt(candidate.analysis, 'operation_ambiguous')
       return { outcome: 'fenced', settled: recovered }
     }
 
@@ -320,7 +297,7 @@ export function createAiOperationExecutionReaper(
       nowEpochMillis,
     )
     if (!fenced) return { outcome: 'raced' }
-    const settled = await settleDeliveryWithoutResult(candidate, dispositionCode)
+    const settled = await settleAndReceipt(candidate.analysis, dispositionCode)
     return { outcome: 'fenced', settled }
   }
 
@@ -351,13 +328,13 @@ export function createAiOperationExecutionReaper(
       candidate.state === 'failed' &&
       candidate.failureCode === 'completed_without_delivery'
     ) {
-      const settled = await settleAnalysis(candidate, 'operation_ambiguous')
+      const settled = await settleAndReceipt(candidate.analysis, 'operation_ambiguous')
       return settled ? { outcome: 'settled' } : { outcome: 'skipped' }
     }
 
     const result = await fence(candidate, nowEpochMillis, horizonDeadline)
     if (result.outcome === 'skipped' || result.outcome === 'raced') return result
-    const settled = await settleAnalysis(candidate, result.dispositionCode)
+    const settled = await settleAndReceipt(candidate.analysis, result.dispositionCode)
     if (result.outcome === 'fenced') return { outcome: 'fenced', settled }
     return settled ? { outcome: 'settled' } : { outcome: 'skipped' }
   }

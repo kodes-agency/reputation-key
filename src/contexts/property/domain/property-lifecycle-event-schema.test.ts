@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
-import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { validateEventPayload } from '#/shared/events/schema-registry'
 
 const lifecyclePayload = {
   propertyId: 'f5000000-0000-4000-8000-000000000001',
@@ -13,11 +12,6 @@ const lifecyclePayload = {
 } as const
 
 describe('registered Property lifecycle fact schemas', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   it('keeps archive facts identifier-only and drops accidental content', () => {
     expect(
       validateEventPayload('property.archived', 1, {

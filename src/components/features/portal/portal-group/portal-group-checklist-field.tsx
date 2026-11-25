@@ -5,7 +5,7 @@
 import { Globe } from 'lucide-react'
 import { Checkbox } from '#/components/ui/checkbox'
 import { EmptyState } from '#/components/ui/empty-state'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   toggleSelection,
   type ChecklistPortal,

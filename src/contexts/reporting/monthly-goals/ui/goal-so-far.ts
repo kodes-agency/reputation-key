@@ -2,11 +2,8 @@
 // was saved. These are live figures, not results: unreadable is never zero, and a thin
 // average says why it is withheld.
 
-import type {
-  GoalMetric,
-  GoalProgressReading,
-} from '#/contexts/reporting/application/public-api'
-import { formatNumber } from '#/lib/format'
+import type { GoalMetric, GoalProgressReading } from '#/contexts/reporting/public-api'
+import { formatNumber } from '#/shared/format/format'
 
 /** A count as a whole number, an average to one decimal. */
 export function goalFigure(metric: GoalMetric, value: number): string {

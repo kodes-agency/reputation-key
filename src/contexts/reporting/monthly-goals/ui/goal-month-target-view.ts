@@ -1,11 +1,11 @@
 // A running month may have its own target. Read it through monthTargetPlan so a
 // revision for next month is never presented as this month's target.
 
-import type { GoalMetric } from '#/contexts/reporting/application/public-api'
+import type { GoalMetric } from '#/contexts/reporting/public-api'
 import type { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { monthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
 import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
-import { formatShortDate } from '#/lib/format'
+import { formatShortDate } from '#/shared/format/format'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalFigure } from './goal-so-far'
 import { goalTargetMarkerNote, type GoalMarkerFrame } from './goal-target-marker'

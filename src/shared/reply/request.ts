@@ -1,8 +1,8 @@
 import { REPLY_DRAFTING_V2_APOLOGY_STARTS as APOLOGIES } from '#/shared/domain/reply-drafting-v2'
-import { digestOf } from '#/shared/ai-digest'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
-import EXAMPLES from '#/shared/reply-drafting-v2-examples.json'
-import BULGARIAN from '#/shared/reply-drafting-v2-examples-bg.json'
+import { digestOf } from '#/shared/ai-operation/ai-digest'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
+import EXAMPLES from '#/shared/reply/reply-drafting-v2-examples.json'
+import BULGARIAN from '#/shared/reply/reply-drafting-v2-examples-bg.json'
 import { REPLY_DRAFTING_V2_PROMPT } from '#/shared/reply/prompt'
 import {
   replyDraftingV2OptionsSchema,

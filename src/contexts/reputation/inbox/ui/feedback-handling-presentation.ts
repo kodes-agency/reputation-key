@@ -2,7 +2,7 @@ import type {
   FeedbackHandlingState,
   InboxItem,
   PrivateFeedbackHandlingOutcome,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 const OUTCOME_LABELS = {
   follow_up_completed: 'Follow-up completed',
@@ -53,7 +53,7 @@ export const feedbackHandlingOutcomeLabel = (
  *
  * Branch order is load-bearing. `open`
  * first: a reopened cycle carries no outcome of its own (history is scoped to
- * `head.currentCycleNumber`, feedback-handling.store.ts:294), so `mark` is the
+ * `head.currentCycleNumber`, feedback-handling-store.port.server.ts:294), so `mark` is the
  * only honest offer there. Then a recorded outcome, because a correction can
  * only supersede one — `submitFeedbackHandlingDecision` resolves silently with
  * no `currentOutcome` to pin. Everything left is a close that carries no
@@ -74,7 +74,7 @@ type HandlingCloseReason = NonNullable<FeedbackHandlingState['closeReason']>
  * `domain/handling-outcome-authority.ts` refuses both a manager outcome and a
  * manual reopen for them forever (`SOURCE_UNAVAILABLE_CLOSE_REASONS`), on the
  * ground that recording one would fabricate evidence of human judgement that
- * never happened. Components may not import `inbox/domain`, so the two words
+ * never happened. Components may not import `reputation/domain`, so the two words
  * are re-spelled here, as `feedback-handling-body.tsx` already re-spells them
  * for its own sentences. `satisfies` is what keeps the copies honest: a rename
  * in the close-reason union fails the build here instead of silently matching
@@ -125,7 +125,7 @@ const isPermanentlyUnhandleableClose = (
  * own honest word:
  *
  *  * the caller may READ private feedback but not HANDLE it, so the server
- *    withholds `feedbackHandling` entirely (`get-inbox-item-detail.ts:133-155`)
+ *    withholds `feedbackHandling` entirely (`get-inbox-item-detail.server.ts:133-155`)
  *    and the open/handled word comes from `item.status` instead. This is why
  *    the fallback here is `itemStatus` and not a second `sourceType` test.
  *    There is no `closeReason` on that path to branch on, so it reads the bare
@@ -171,8 +171,8 @@ export function feedbackHandlingStatusLabel(
 }
 
 /**
- * `FeedbackHandlingDeadlineResult` lives in `inbox/domain`, which components
- * may not import, and `application/public-api.ts` does not re-export it.
+ * `FeedbackHandlingDeadlineResult` lives in `reputation/domain`, which components
+ * may not import, and `reputation/public-api.ts` does not re-export it.
  * Indexing the state's own history is the one legal spelling (precedent:
  * `feedback-handling-body.tsx:5`, which indexes the same state type for the
  * close-reason union).

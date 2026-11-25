@@ -1,4 +1,4 @@
-import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { errorFactTags } from '#/shared/observability/error-facts'
@@ -144,7 +144,6 @@ function setup(
         renewAfterMs: 10_000 as const,
       },
     })),
-    invalidateOrganization: vi.fn(async () => true),
     invalidateUser: vi.fn(async () => true),
     invalidateConnection: vi.fn(async () => true),
     invalidateProperty: vi.fn(async () => true),

@@ -3,7 +3,7 @@ import { propertyId } from '#/shared/domain/ids'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { GoogleConnection } from '../domain/types'
 import { integrationError } from '../domain/errors'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery.server'

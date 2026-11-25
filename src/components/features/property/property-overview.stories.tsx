@@ -9,10 +9,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../.storybook/AuthedRouterDecorator'
-import type {
-  DashboardData,
-  GoogleNumbersView,
-} from '#/contexts/reporting/application/public-api'
+import type { DashboardData, GoogleNumbersView } from '#/contexts/reporting/public-api'
 import type { getPropertyGooglePerformance } from '#/contexts/integration/server/google-performance'
 import type { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
 import { reviewId } from '#/shared/domain/ids'

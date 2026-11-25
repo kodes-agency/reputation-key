@@ -5,13 +5,11 @@
 // and the two Identity-side ports (assignments, display names) are supplied.
 
 import { randomBytes, randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { describe, expect, it, vi } from 'vitest'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
 import { organizationId, type PropertyId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import type { PortalAddressFormat } from '../addresses/portal-address-urls.server'
@@ -49,11 +47,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const seedPortal = (org: string) =>

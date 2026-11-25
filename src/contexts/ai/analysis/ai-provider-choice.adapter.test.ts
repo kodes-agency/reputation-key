@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
 import { OPERATOR_PROVIDER_SELECTION } from '#/shared/ai-provider-control/operator-provider-selection'
 import { createOperatorProviderChoice } from './ai-provider-choice.adapter.server'
 

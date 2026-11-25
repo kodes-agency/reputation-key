@@ -8,7 +8,7 @@ import {
 import type {
   GoogleConnectionDto,
   ImportProgressDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { GoogleImportManager } from './google-import-manager'
 import { openImportDetailsForProperty } from './google-import.stories.play'
 import type { GoogleImportFns } from './google-import-manager-contract'
@@ -23,7 +23,6 @@ const connection: GoogleConnectionDto = {
   accountEmail: 'reviews@meridian-hotels.example',
   scopes: ['https://www.googleapis.com/auth/business.manage'],
   connectedBy: 'user-story',
-  visibility: 'organization',
   status: 'active',
   createdAt: new Date('2026-08-12T10:00:00.000Z'),
   updatedAt: new Date('2026-08-12T10:00:00.000Z'),

@@ -4,9 +4,9 @@
 import type {
   CorrectReviewMentionResult,
   MentionCorrectionAction,
-} from '#/contexts/ai/application/public-api'
-import type { InboxMentionV3 } from '#/contexts/inbox/application/public-api'
-import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
+} from '#/contexts/ai/public-api'
+import type { InboxMentionV3 } from '#/contexts/reputation/public-api'
+import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 import { isRemoved, senseOfMention, type MentionSense } from './review-cause-view'
 
 /** One line of the dialog: a reading the manager may correct, or a topic they set aside. */

@@ -16,7 +16,7 @@ import type {
   ImportAccountPageDto,
   ImportCandidatePageDto,
   ImportProgressDto,
-} from '../../../src/contexts/integration/application/public-api'
+} from '../../../src/contexts/integration/public-api'
 import { callServerFn, callServerFnGet } from '../../helpers/server-fn'
 import { cleanupE2eData } from '../../helpers/fixture-cleanup'
 import { drainFixtureQueue, enqueueReviewSync } from '../../helpers/fixture-queues'
@@ -44,8 +44,8 @@ const REPLY_TEXT = 'Thank you for staying with us, we hope to welcome you back.'
 
 const IMPORT_FILE = 'src/contexts/integration/server/gbp-import.ts'
 const PROPERTY_FILE = 'src/contexts/property/server/properties.ts'
-const REPLY_FILE = 'src/contexts/review/server/reply-draft.ts'
-const REPLY_FILE_OPS = 'src/contexts/review/server/reply.ts'
+const REPLY_FILE = 'src/contexts/reputation/server/reply-draft.ts'
+const REPLY_FILE_OPS = 'src/contexts/reputation/server/reply.ts'
 
 const stubReview: StubReview = {
   name: REVIEW_NAME,

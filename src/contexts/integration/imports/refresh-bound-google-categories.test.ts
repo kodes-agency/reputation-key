@@ -4,7 +4,7 @@ import {
   buildTestGoogleConnection,
 } from '#/shared/testing/fixtures'
 import { propertyId } from '#/shared/domain/ids'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import { createRefreshBoundGoogleCategories } from './refresh-bound-google-categories.server'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery.server'
 import type { GoogleBusinessInformationPort } from '../provider/contracts'

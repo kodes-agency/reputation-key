@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod/v4'
-import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
+import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type {

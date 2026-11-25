@@ -15,8 +15,8 @@ own source review, inbox, property, portal, identity, or goal state.
 
 ## Boundaries
 
-- Cross-context consumers import only `application/public-api.ts` or a Feed
-  server function.
+- Cross-context consumers import only `public-api.ts` or a Feed server
+  function.
 - `buildFeedContext` is the sole composition module. Its `activity` and
   `notification` dependency records preserve the former independent build
   boundaries, while its `publicApi` merges both surfaces. The activity half is
@@ -57,7 +57,7 @@ The area is split into feature folders:
   and the browser contracts (`contracts.ts` for Mark all read and Clear all, plus
   `notification-list-filter`, `notification-page` and `notification-view`
   `.contracts.ts`).
-- `application/` keeps `public-api.ts` and its two halves. `infrastructure/` keeps
+- `public-api.ts` sits at the area root. `infrastructure/` keeps
   the email templates and the two fixtures the shared route harness imports.
 
 ## Preferences
@@ -76,7 +76,7 @@ idempotent writer and bounded operator read. Feed owns the central
 a conflicting replay fails. Unknown fields are refused, not stripped.
 `pnpm ops audit-events --operator <id> --org <id>` reads at most 100 rows within
 the last 365 days. The operator read and daily retention rule are exposed through
-`application/public-api.ts`. Composition passes the rule to the daily sweep,
+`public-api.ts`. Composition passes the rule to the daily sweep,
 which uses occurrence time and records its result through the existing retention
 evidence and failure alert.
 
@@ -93,19 +93,20 @@ facts through `fact.server.ts`.
 
 ## Model
 
-Recent Activity records are retained for Organization export, privacy redaction
-and lifecycle fulfilment. Its repository, privacy store, actor-label redaction
-and erasure (`activity-rights.adapter.server.ts`,
-`activity-organization-erasure.server.ts`) live in `rights/`. No projection
+Recent Activity rows only age out (90-day expiry); their erasure
+(`activity-rights.adapter.server.ts`, `activity-organization-erasure.server.ts`)
+lives in `rights/`. No projection
 writer, recovery command or manager read API remains. Existing rows retain their 90-day expiry. Inbox item timeline and
 Portal history use their own stores. Operational Action History is append-oriented,
-organization-scoped evidence with restricted list/export access and legal-hold
-handling. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
+organization-scoped evidence with restricted list/export access. The
+legal-hold table and the erasure check that refuses while a hold is active stay;
+the operations that placed or released holds, redacted subjects, assessed
+retention or reported readiness were removed as unused. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
 are that restricted AccountAdmin API and have no UI on purpose
 (`docs/operations/operational-action-history.md`, "Access and export"). A
-restricted read and a retention assessment take the tenant's sequence-head lock
-first and read after it, at the default isolation level: an append in flight
-makes them wait, where a snapshot taken before the lock ended them with
+restricted read takes the tenant's sequence-head lock first and reads after it,
+at the default isolation level: an append in flight makes it wait, where a
+snapshot taken before the lock ended it with
 SQLSTATE 40001 and a false "authority unavailable" access record. A Google
 disconnect is recorded as the AccountAdmin's action when its fact names one, and
 as a system action when it does not.

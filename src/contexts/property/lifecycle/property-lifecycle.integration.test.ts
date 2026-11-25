@@ -4,13 +4,11 @@
 
 import { describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { getDb } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { createPropertyLifecycleCommandStore } from './transition-store.server'
@@ -105,8 +103,6 @@ const seedUnrelatedOutboxEvent = () =>
 const setup = async () => {
   await seedConnection()
   await seedUnrelatedOutboxEvent()
-  clearEventSchemas()
-  registerAllEventSchemas()
   return {
     lifecycleStore: createPropertyLifecycleCommandStore(db, replyScopeEffects),
     bindingStore: createPropertyGoogleBindingStore(db, replyScopeEffects),

@@ -25,7 +25,7 @@ vi.mock('#/shared/auth/auth.functions', () => ({
   getSession: vi.fn(),
   ensureActiveOrg: state.ensureActiveOrg,
 }))
-vi.mock('#/contexts/identity/server/organizations', () => ({
+vi.mock('#/contexts/identity/server/organizations.registration', () => ({
   signInUser: state.signIn,
   resendVerificationEmail: vi.fn(),
 }))

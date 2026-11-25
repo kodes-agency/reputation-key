@@ -18,7 +18,7 @@ import {
 import type {
   EffectiveNotificationSettings,
   NotificationTimezoneSource,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import {
   changedNotificationFormatting,
   NOTIFICATION_LOCALES,

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
+import { type GoalProgramService } from './goal-programs.server'
 import {
   GoalProgramMaintenanceError,
   type GoalProgramMaintenanceStats,
-  type GoalProgramService,
-} from './goal-programs.server'
+} from './goal-program-maintenance.server'
 import {
   createGoalProgramMaintenanceHandler,
   GOAL_PROGRAM_MAINTENANCE_JOB_NAME,

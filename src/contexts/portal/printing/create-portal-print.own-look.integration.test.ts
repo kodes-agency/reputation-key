@@ -18,7 +18,7 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { getDb } from '#/shared/db'
 import { portalId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { DownloadPortalPrintInput } from './portal-print.contracts'
 import type { PortalPrintRenderer } from './pdfkit-print-renderer.port.server'
 import { createPortalPrint } from './create-portal-print.server'
@@ -256,6 +256,9 @@ const request = (portal: string): DownloadPortalPrintInput => ({
   look: 'immersive',
   printer: 'my_printer',
   quantity: 3,
+  fillSpares: false,
+  cropMarks: false,
+  backPage: false,
   languages: ['en'],
   callToAction: 'how_did_we_do',
   paper: 'letter',

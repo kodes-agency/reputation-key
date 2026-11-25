@@ -2,8 +2,8 @@
 import type {
   ReviewUrgentReasonV3,
   ReviewUrgentReasonV3 as UrgentReasonV3,
-} from '#/shared/review-analysis-v3'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/review-analysis-v3'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import type { GuestVoiceTopicStatus } from '../domain/guest-voice-topic-status'
 import type { GUEST_VOICE_STATISTICS_VERSION } from '../domain/guest-voice-statistics'
 export type { GuestVoiceTopicStatus } from '../domain/guest-voice-topic-status'
@@ -339,5 +339,5 @@ export type GuestVoiceV2NotEnough = Readonly<{
 
 export type GuestVoiceV2Read = GuestVoiceV2Ready | GuestVoiceV2NotEnough
 
-export type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+export type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 export type { Window as GuestVoiceWindow }

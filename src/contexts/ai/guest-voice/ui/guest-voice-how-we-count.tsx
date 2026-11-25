@@ -4,7 +4,7 @@ import { ExplainTrigger } from '#/components/ui/explain-trigger'
 import { Popover, PopoverContent } from '#/components/ui/popover'
 import { SectionTitle } from '#/components/ui/section-title'
 import type { GuestVoiceV2Read } from '../contracts'
-import type { GuestVoiceRange } from '#/shared/dashboard-range'
+import type { GuestVoiceRange } from '#/shared/dashboard/dashboard-range'
 import { GuestVoiceBasis } from './guest-voice-basis'
 
 export function GuestVoiceHowWeCount({

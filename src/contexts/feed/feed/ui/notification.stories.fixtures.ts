@@ -25,9 +25,9 @@ import {
   type NotificationStatus,
   type NotificationType,
   type NotificationView,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { NotificationUserSettings } from '#/contexts/feed/application/public-api'
+import type { NotificationUserSettings } from '#/contexts/feed/public-api'
 import type { NotificationServerFns } from './types'
 import { matchesNotificationFilter } from './notification-filters'
 

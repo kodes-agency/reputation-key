@@ -3,7 +3,7 @@ import type {
   ReviewAspect,
   ReviewAspectPolarity,
   SourceType,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { InboxPriorityFilterValue } from './inbox-priority-filter'
 
 export type InboxFilterValues = Readonly<{

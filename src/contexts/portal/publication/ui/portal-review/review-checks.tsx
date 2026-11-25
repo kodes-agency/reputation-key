@@ -8,7 +8,7 @@ import { Link } from '@tanstack/react-router'
 import { CircleCheck } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { TONE_ICON, TONE_INK, TONE_SURFACE } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type {
   PortalReview,
   ReviewLanguageRow,

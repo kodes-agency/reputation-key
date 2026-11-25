@@ -13,8 +13,8 @@ import type {
   PortalLink,
 } from '#/contexts/portal/domain/types'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
-import type { ScanEvent, Rating, Feedback } from '#/contexts/guest/domain/types'
-import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
+import type { ScanEvent } from '#/contexts/guest/domain/types'
+import { scanEventId } from '#/shared/domain/ids'
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import { googleConnectionId } from '#/shared/domain/ids'
 
@@ -184,37 +184,6 @@ export function buildTestScanEvent(overrides: Partial<ScanEvent> = {}): ScanEven
   }
 }
 
-export function buildTestRating(overrides: Partial<Rating> = {}): Rating {
-  return {
-    id: ratingId('f0000000-0000-0000-0000-000000000001'),
-    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
-    portalId: portalId('d0000000-0000-0000-0000-000000000001'),
-    propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
-    sessionId: 'session-test-001',
-    value: 4,
-    source: 'qr',
-    ipHash: 'hash-test',
-    createdAt: new Date('2026-05-01T12:00:00Z'),
-    ...overrides,
-  }
-}
-
-export function buildTestFeedback(overrides: Partial<Feedback> = {}): Feedback {
-  return {
-    id: feedbackId('g0000000-0000-0000-0000-000000000001'),
-    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
-    portalId: portalId('d0000000-0000-0000-0000-000000000001'),
-    propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
-    sessionId: 'session-test-001',
-    ratingId: ratingId('f0000000-0000-0000-0000-000000000001'),
-    comment: 'Test feedback',
-    source: 'qr',
-    ipHash: 'hash-test',
-    createdAt: new Date('2026-05-01T12:00:00Z'),
-    ...overrides,
-  }
-}
-
 type TestGoogleConnectionOverrides = Partial<Omit<GoogleConnection, 'id'>> & {
   id?: string
 }
@@ -238,7 +207,6 @@ export function buildTestGoogleConnection(
     scopes: ['https://www.googleapis.com/auth/business.manage'],
     credentialAuthorizedBy: userId('user-00000000-0000-0000-0000-000000000001'),
     connectedBy: userId('user-00000000-0000-0000-0000-000000000001'),
-    visibility: 'organization',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,

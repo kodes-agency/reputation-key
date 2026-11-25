@@ -34,7 +34,7 @@ export const AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER = 'ai.enroll-review-analysis
 
 // Not `.strict()`: every emitted payload also carries envelope fields
 // (`correlationId`, `occurredAt`, and `platform` for review events — see the
-// canonical registry in shared/events/schema-registrations.ts). BQR-2.5
+// canonical registry in shared/events/registry.server.ts). BQR-2.5
 // allowlist-validates at insert, so only registered fields are ever persisted;
 // a consumer re-asserting "no other keys" adds no safety and turns any envelope
 // addition into a total outage. It did: every `review.created` for a freshly
@@ -92,7 +92,7 @@ export type RegisterAiConsumersInput = Readonly<{
    * That store commits the enrollment intent (or exact obsolete/no-op
    * decision) and this consumer's receipt atomically.
    */
-  applyAiAuthorizationLifecycle?: (
+  applyAiAuthorizationLifecycle: (
     input: AiAuthorizationLifecycleTrigger,
   ) => Promise<AiAuthorizationLifecycleApplyResult>
   /**
@@ -308,9 +308,6 @@ export async function handleAiAuthorizationLifecycleChanged(
   if (!Number.isFinite(occurredAt.getTime())) {
     throw new Error('AI authorization lifecycle trigger timestamp is invalid')
   }
-  if (!dependencies.applyAiAuthorizationLifecycle) {
-    throw new Error('AI authorization lifecycle command store is unavailable')
-  }
   const result = await dependencies.applyAiAuthorizationLifecycle({
     eventEnvelopeId: event.eventId,
     organizationId: organizationId(payload.organizationId),
@@ -349,14 +346,12 @@ export function registerAiConsumers(
   dependencies: RegisterAiConsumersInput,
 ): void {
   const { registerConsumer } = registry
-  if (dependencies.applyAiAuthorizationLifecycle) {
-    registerConsumer({
-      eventType: 'identity.merchant_ai.changed',
-      consumerName: 'ai.enroll-review-analysis',
-      module: 'ai.review-analysis-enrollment',
-      handler: (event) => handleAiAuthorizationLifecycleChanged(dependencies, event),
-    })
-  }
+  registerConsumer({
+    eventType: 'identity.merchant_ai.changed',
+    consumerName: 'ai.enroll-review-analysis',
+    module: 'ai.review-analysis-enrollment',
+    handler: (event) => handleAiAuthorizationLifecycleChanged(dependencies, event),
+  })
   registerConsumer({
     eventType: 'review.created',
     consumerName: 'ai.analyze-review-event',

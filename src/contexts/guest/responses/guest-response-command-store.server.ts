@@ -2,7 +2,6 @@ import type { Database } from '#/shared/db'
 import { createHash } from 'node:crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
-  guestContactRequests,
   guestResponseExperienceSnapshots,
   guestResponseIntegrityDecisions,
   guestResponsePrivateFeedback,
@@ -12,20 +11,15 @@ import {
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { GuestResponseCommandStore } from './guest-response-command-store.port.server'
 import type { GuestMutationFact } from './guest-response-command-store.port.server'
+import {
+  deleteResponseSatellites,
+  erasedResponseColumns,
+} from './guest-response-erasure.server'
 import { guestResponseToInsertRow } from './guest-response-mapper.server'
 import { trace } from '#/shared/observability/trace'
-import {
-  DEFAULT_RESPONSE_SESSION_WINDOW_MS,
-  PRIVATE_FEEDBACK_RETENTION_MS,
-} from '../domain/guest-response'
-import {
-  initialGuestResponseIntegrityDecision,
-  isRatingMetricEligible,
-  ratingMetricOccurredAt,
-} from '../domain/guest-response-integrity'
-import { primaryStaffAttributionEquals } from '#/shared/domain/primary-staff-attribution'
+import { PRIVATE_FEEDBACK_RETENTION_MS } from '../domain/guest-response'
+import { initialGuestResponseIntegrityDecision } from '../domain/guest-response-integrity'
 import type { Clock } from '#/shared/domain/clock'
-import { ratingId } from '#/shared/domain/ids'
 import { journalBeforeErasure } from '#/shared/db/lifecycle/erasure-journal.server'
 import type { GuestWithdrawalJournal } from './guest-withdrawal-journal.server'
 
@@ -65,73 +59,11 @@ function privateFeedbackExpiry(submittedAt: Date): Date {
   return new Date(submittedAt.getTime() + PRIVATE_FEEDBACK_RETENTION_MS)
 }
 
-function integrityFactsMatch(
-  previous: Parameters<GuestResponseCommandStore['commitIntegrityChanged']>[0],
-  response: Parameters<GuestResponseCommandStore['commitIntegrityChanged']>[1],
-  facts: Parameters<GuestResponseCommandStore['commitIntegrityChanged']>[3],
-): boolean {
-  if (
-    facts.some(
-      (fact) =>
-        fact._tag !== 'guest.rating.submitted' && fact._tag !== 'guest.rating.retracted',
-    )
-  ) {
-    return false
-  }
-  const wasEligible = isRatingMetricEligible(previous)
-  const isEligible = isRatingMetricEligible(response)
-  if (wasEligible === isEligible) return facts.length === 0
-  if (facts.length !== 1) return false
-  const fact = facts[0]!
-  if (fact._tag !== 'guest.rating.submitted' && fact._tag !== 'guest.rating.retracted') {
-    return false
-  }
-  const commonMatches =
-    fact.ratingId === ratingId(response.id) &&
-    fact.organizationId === response.organizationId &&
-    fact.propertyId === response.propertyId &&
-    fact.portalId === response.portalId
-  if (!commonMatches) return false
-  if (wasEligible) {
-    return (
-      fact._tag === 'guest.rating.retracted' &&
-      previous.ratingSourceEventId !== null &&
-      fact.supersedesSourceEventId === previous.ratingSourceEventId &&
-      fact.occurredAt.getTime() === response.integrityAssessedAt.getTime()
-    )
-  }
-  return (
-    fact._tag === 'guest.rating.submitted' &&
-    fact.value === response.rating &&
-    (fact.supersedesSourceEventId ?? null) === previous.ratingSourceEventId &&
-    fact.occurredAt.getTime() === ratingMetricOccurredAt(response).getTime()
-  )
-}
-
-function initialIntegrityFactsMatch(
-  response: Parameters<GuestResponseCommandStore['commitSubmitted']>[0],
-  facts: Parameters<GuestResponseCommandStore['commitSubmitted']>[1],
-): boolean {
-  const ratingFacts = facts.filter((fact) => fact._tag === 'guest.rating.submitted')
-  if (!isRatingMetricEligible(response)) return ratingFacts.length === 0
-  if (ratingFacts.length !== 1) return false
-  const fact = ratingFacts[0]!
-  return (
-    fact.ratingId === ratingId(response.id) &&
-    fact.organizationId === response.organizationId &&
-    fact.propertyId === response.propertyId &&
-    fact.portalId === response.portalId &&
-    fact.value === response.rating &&
-    !fact.supersedesSourceEventId &&
-    fact.occurredAt.getTime() === response.integrityAssessedAt.getTime()
-  )
-}
-
 /** Atomic canonical response + rating/feedback fact writer. */
 export const createAtomicGuestResponseCommandStore = (
   db: Database,
   clock: Clock,
-  journal?: GuestWithdrawalJournal,
+  journal: GuestWithdrawalJournal,
 ): GuestResponseCommandStore => {
   const journalWithdrawal = async <T>(
     response: Parameters<GuestResponseCommandStore['commitWithdrawn']>[0],
@@ -140,7 +72,6 @@ export const createAtomicGuestResponseCommandStore = (
     predicate: ReturnType<typeof and>,
     erase: () => Promise<T>,
   ): Promise<T | 'conflict'> => {
-    if (!journal) return erase()
     // Replay honors accepted intents even if the deletion transaction fails.
     // A rejected session/state must therefore never produce an intent.
     const [authorized] = await db
@@ -171,22 +102,11 @@ export const createAtomicGuestResponseCommandStore = (
     )
   }
 
-  const factsMatchStaffAttribution = (
-    response: Parameters<GuestResponseCommandStore['commitSubmitted']>[0],
-    facts: ReadonlyArray<GuestMutationFact>,
-  ) =>
-    facts.every((fact) =>
-      primaryStaffAttributionEquals(response.staffAttribution, fact.staffAttribution),
-    )
-
   const withdrawResponseRows = async (
     response: Parameters<GuestResponseCommandStore['commitWithdrawn']>[0],
     facts: ReadonlyArray<GuestMutationFact>,
     requireSession: boolean,
   ) => {
-    if (!factsMatchStaffAttribution(response, facts)) {
-      throw new Error('Guest response withdrawal changed Staff attribution')
-    }
     const deletedAt = response.deletedAt ?? clock()
     const predicate = and(
       eq(guestResponses.organizationId, response.organizationId),
@@ -209,38 +129,11 @@ export const createAtomicGuestResponseCommandStore = (
       db.transaction(async (tx) => {
         const deleted = await tx
           .update(guestResponses)
-          .set({
-            status: 'deleted',
-            rating: null,
-            categoryId: null,
-            responseConsent: false,
-            textConsent: false,
-            mediaConsent: false,
-            ratingSourceEventId: null,
-            feedbackSourceEventId: null,
-            deletedAt: response.deletedAt,
-            updatedAt: deletedAt,
-          })
+          .set(erasedResponseColumns(response.deletedAt, deletedAt))
           .where(predicate)
           .returning({ id: guestResponses.id })
         if (!deleted[0]) return 'conflict' as const
-        await tx
-          .delete(guestResponsePrivateFeedback)
-          .where(
-            and(
-              eq(guestResponsePrivateFeedback.responseId, response.id),
-              eq(guestResponsePrivateFeedback.organizationId, response.organizationId),
-            ),
-          )
-        // The reveal audits of the contact go with it through their foreign key.
-        await tx
-          .delete(guestContactRequests)
-          .where(
-            and(
-              eq(guestContactRequests.responseId, response.id),
-              eq(guestContactRequests.organizationId, response.organizationId),
-            ),
-          )
+        await deleteResponseSatellites(tx, response.organizationId, [response.id])
         for (const fact of facts) await insertOutboxRow(tx, fact)
         return 'applied' as const
       }),
@@ -284,44 +177,11 @@ export const createAtomicGuestResponseCommandStore = (
     ) =>
       trace('guest.commandStore.commitSubmitted', async () => {
         const binding = requireSessionBinding(response)
-        if (
-          !binding ||
-          !response.submittedAt ||
-          !response.experienceSnapshot ||
-          !factsMatchStaffAttribution(response, facts) ||
-          facts.some(
-            (fact) =>
-              fact._tag === 'guest.feedback.submitted' &&
-              fact.responseRevision !== response.feedbackSubmissionRevision,
-          )
-        ) {
+        if (!binding || !response.submittedAt || !response.experienceSnapshot) {
           throw new Error('Guest response submission snapshot is required')
-        }
-        if (
-          initialIntegrity.responseId !== response.id ||
-          initialIntegrity.organizationId !== response.organizationId ||
-          initialIntegrity.propertyId !== response.propertyId ||
-          initialIntegrity.portalId !== response.portalId ||
-          initialIntegrity.revision !== 1 ||
-          initialIntegrity.previousOutcome !== null ||
-          initialIntegrity.outcome !== response.integrityOutcome ||
-          initialIntegrity.reasonCode !== response.integrityReasonCode ||
-          initialIntegrity.decidedAt.getTime() !== response.submittedAt.getTime() ||
-          initialIntegrity.decidedAt.getTime() !==
-            response.integrityAssessedAt.getTime() ||
-          !initialIntegrityFactsMatch(response, facts)
-        ) {
-          throw new Error('Guest response initial integrity decision is invalid')
         }
         const submittedAt = response.submittedAt
         const experienceSnapshot = response.experienceSnapshot
-        if (
-          binding.expiresAt.getTime() - submittedAt.getTime() !==
-          DEFAULT_RESPONSE_SESSION_WINDOW_MS
-        ) {
-          return 'duplicate' as const
-        }
-        const submittedText = response.text
         const outcome = await db
           .transaction(async (tx) => {
             const sourceLineage = lineage(response, facts)
@@ -377,19 +237,6 @@ export const createAtomicGuestResponseCommandStore = (
               .onConflictDoNothing()
               .returning({ responseId: guestResponseSessionBindings.responseId })
             if (bound.length === 0) throw new GuestCommandConflict()
-            if (submittedText) {
-              const feedbackAt = response.feedbackSubmittedAt ?? submittedAt
-              await tx.insert(guestResponsePrivateFeedback).values({
-                responseId: response.id,
-                organizationId: response.organizationId,
-                propertyId: response.propertyId,
-                portalId: response.portalId,
-                body: submittedText,
-                submittedAt: feedbackAt,
-                expiresAt: privateFeedbackExpiry(feedbackAt),
-                createdAt: feedbackAt,
-              })
-            }
             for (const fact of facts) await insertOutboxRow(tx, fact)
             return 'applied' as const
           })
@@ -402,21 +249,6 @@ export const createAtomicGuestResponseCommandStore = (
 
     commitCorrected: (previous, response, facts) =>
       trace('guest.commandStore.commitCorrected', async () => {
-        if (
-          !primaryStaffAttributionEquals(
-            previous.staffAttribution,
-            response.staffAttribution,
-          ) ||
-          !factsMatchStaffAttribution(response, facts) ||
-          facts.some(
-            (fact) =>
-              (fact._tag === 'guest.feedback.submitted' ||
-                fact._tag === 'guest.feedback.retracted') &&
-              fact.responseRevision !== response.feedbackSubmissionRevision,
-          )
-        ) {
-          throw new Error('Guest response correction changed Staff attribution')
-        }
         const correctedAt = response.correctedAt ?? clock()
         const sourceLineage = lineage(response, facts)
         const outcome = await db.transaction(async (tx) => {
@@ -464,100 +296,13 @@ export const createAtomicGuestResponseCommandStore = (
         return outcome
       }),
 
-    commitIntegrityChanged: (previous, response, decision, facts) =>
-      trace('guest.commandStore.commitIntegrityChanged', async () => {
-        if (
-          decision.responseId !== response.id ||
-          decision.organizationId !== response.organizationId ||
-          decision.propertyId !== response.propertyId ||
-          decision.portalId !== response.portalId ||
-          decision.revision !== response.integrityRevision ||
-          decision.outcome !== response.integrityOutcome ||
-          decision.reasonCode !== response.integrityReasonCode ||
-          decision.decidedAt.getTime() !== response.integrityAssessedAt.getTime() ||
-          decision.previousOutcome !== previous.integrityOutcome ||
-          response.integrityRevision !== previous.integrityRevision + 1 ||
-          response.organizationId !== previous.organizationId ||
-          response.propertyId !== previous.propertyId ||
-          response.portalId !== previous.portalId ||
-          response.id !== previous.id ||
-          !primaryStaffAttributionEquals(
-            previous.staffAttribution,
-            response.staffAttribution,
-          ) ||
-          !factsMatchStaffAttribution(response, facts) ||
-          !integrityFactsMatch(previous, response, facts)
-        ) {
-          throw new Error('Guest response integrity decision does not match aggregate')
-        }
-        const sourceLineage = lineage(response, facts)
-        const outcome = await db.transaction(async (tx) => {
-          const updated = await tx
-            .update(guestResponses)
-            .set({
-              integrityOutcome: response.integrityOutcome,
-              integrityReasonCode: response.integrityReasonCode,
-              integrityRevision: response.integrityRevision,
-              integrityAssessedAt: response.integrityAssessedAt,
-              ratingSourceEventId: sourceLineage.ratingSourceEventId,
-              updatedAt: response.integrityAssessedAt,
-            })
-            .where(
-              and(
-                eq(guestResponses.organizationId, previous.organizationId),
-                eq(guestResponses.propertyId, previous.propertyId),
-                eq(guestResponses.portalId, previous.portalId),
-                eq(guestResponses.id, previous.id),
-                eq(guestResponses.integrityOutcome, previous.integrityOutcome),
-                eq(guestResponses.integrityRevision, previous.integrityRevision),
-                previous.ratingSourceEventId
-                  ? eq(guestResponses.ratingSourceEventId, previous.ratingSourceEventId)
-                  : isNull(guestResponses.ratingSourceEventId),
-                isNull(guestResponses.deletedAt),
-              ),
-            )
-            .returning({ id: guestResponses.id })
-          if (!updated[0]) return 'conflict' as const
-          await tx.insert(guestResponseIntegrityDecisions).values({
-            responseId: decision.responseId,
-            organizationId: decision.organizationId,
-            propertyId: decision.propertyId,
-            portalId: decision.portalId,
-            revision: decision.revision,
-            previousOutcome: decision.previousOutcome,
-            outcome: decision.outcome,
-            reasonCode: decision.reasonCode,
-            source: decision.source,
-            actorId: decision.actorId,
-            decidedAt: decision.decidedAt,
-            createdAt: decision.decidedAt,
-          })
-          for (const fact of facts) await insertOutboxRow(tx, fact)
-          return 'applied' as const
-        })
-        return outcome
-      }),
-
     commitFeedbackAdded: (response, fact) =>
       trace('guest.commandStore.commitFeedbackAdded', async () => {
-        if (
-          !response.text ||
-          !response.feedbackSubmittedAt ||
-          response.feedbackSubmissionRevision !== fact.responseRevision ||
-          !primaryStaffAttributionEquals(response.staffAttribution, fact.staffAttribution)
-        ) {
-          return 'conflict' as const
-        }
+        if (!response.text || !response.feedbackSubmittedAt) return 'conflict' as const
         const binding = requireSessionBinding(response)
         if (!binding) return 'conflict' as const
         const feedbackText = response.text
         const feedbackSubmittedAt = response.feedbackSubmittedAt
-        if (
-          binding.expiresAt.getTime() - feedbackSubmittedAt.getTime() !==
-          DEFAULT_RESPONSE_SESSION_WINDOW_MS
-        ) {
-          return 'conflict' as const
-        }
         const outcome = await db
           .transaction(async (tx) => {
             const content = await tx
@@ -641,18 +386,7 @@ export const createAtomicGuestResponseCommandStore = (
 
     commitFeedbackWithdrawn: (previous, response, fact) =>
       trace('guest.commandStore.commitFeedbackWithdrawn', async () => {
-        if (
-          !response.feedbackWithdrawnAt ||
-          !previous.text ||
-          previous.feedbackSubmissionRevision !== fact.responseRevision ||
-          !primaryStaffAttributionEquals(
-            previous.staffAttribution,
-            response.staffAttribution,
-          ) ||
-          !primaryStaffAttributionEquals(response.staffAttribution, fact.staffAttribution)
-        ) {
-          return 'conflict' as const
-        }
+        if (!response.feedbackWithdrawnAt || !previous.text) return 'conflict' as const
         const feedbackWithdrawnAt = response.feedbackWithdrawnAt ?? clock()
         const predicate = and(
           eq(guestResponses.organizationId, previous.organizationId),
@@ -722,7 +456,6 @@ export const createAtomicGuestResponseCommandStore = (
 
     commitErased: (response, facts) =>
       trace('guest.commandStore.commitErased', async () => {
-        if (!journal) throw new Error('Operator erasure requires the erasure journal')
         return withdrawResponseRows(response, facts, false)
       }),
   }

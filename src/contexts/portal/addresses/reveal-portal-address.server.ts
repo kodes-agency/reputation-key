@@ -15,7 +15,7 @@ import type { Portal } from '../domain/types'
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
 import type { PortalAddressCipher } from './portal-address-cipher.port.server'
 import type { PortalTokenCodec } from './portal-token-codec.port.server'

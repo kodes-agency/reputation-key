@@ -7,7 +7,7 @@ import {
   TimelineIndicator,
   TimelineItem,
 } from '#/components/ui/timeline'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { presentGuestReviewBody } from './guest-message-view'
 import { personInitials } from '#/components/ui/person-initials'
 import { languageDisplayName } from '#/contexts/reputation/replies/ui/composer/reply-language-options'
@@ -24,10 +24,7 @@ import {
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { GuestReviewBodyView, GuestReviewDisclosure } from './guest-message-view'
 import type { ReactNode } from 'react'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem, InboxItemDetailResult } from '#/contexts/reputation/public-api'
 
 /**
  * Finding 9: review and reply text ran the full ≈670 px pane at ≈110 characters
@@ -394,7 +391,7 @@ export function GuestMessage({
   const reviewerName = resolveReviewerName(detail)
   /**
    * The review's language as a CANONICAL tag (`tr-TR` → `tr-Latn-TR`), which
-   * `get-inbox-item-detail.ts:184-188` derived from `item.reviewLanguageCode`.
+   * `get-inbox-item-detail.server.ts:184-188` derived from `item.reviewLanguageCode`.
    * `InboxThread` passes the payload's own value down as a prop today; reading
    * the payload when a caller omits it keeps the two spellings from drifting,
    * and costs one `??`. It matters twice below — the header names the language
@@ -405,7 +402,7 @@ export function GuestMessage({
   /**
    * The body rule, decided outside React so it can be tested without one
    * (`guest-message-view.ts`). The property's default reply language is already
-   * on the payload this component holds (`get-inbox-item-detail.ts:178-182`),
+   * on the payload this component holds (`get-inbox-item-detail.server.ts:178-182`),
    * so it is READ rather than threaded through `inbox-thread.tsx` as a prop.
    */
   const body = presentGuestReviewBody({
@@ -451,7 +448,7 @@ export function GuestMessage({
            which BQC-1.2 forbids. So it is not read.
 
            `?? null` only collapses the key's absence: the type keeps it
-           optional for fixtures that omit it (`domain/types.ts`), and
+           optional for fixtures that omit it (`domain/inbox-types.ts`), and
            `getInboxItemDetail` already sends `null` rather than omit it. */
           rating={detail.reviewRating ?? null}
           sourceDate={item.sourceDate}

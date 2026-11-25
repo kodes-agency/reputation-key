@@ -102,7 +102,6 @@ export type PortalGoalRecommendation = Readonly<{
   /** Published and disabled Portals, in Portal's name order. */
   portals: readonly PortalFacts[]
   drafts: readonly Readonly<{ portalId: string; name: string }>[]
-  truncated: boolean
 }>
 
 /** A Portal as Portal states it (`listGoalReadinessFacts`). */
@@ -163,7 +162,6 @@ export type RecommendPortalGoalInput = Readonly<{
   versionFrom: Date
   /** In Portal's name order. */
   portals: readonly RecommendationPortal[]
-  truncated: boolean
   days: readonly RecommendationDayCount[]
   /** Where a reading the governed read would quarantine was found. */
   unreadable: readonly RecommendationUnreadableDay[]

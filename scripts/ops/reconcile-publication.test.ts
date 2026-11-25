@@ -4,7 +4,7 @@ import { organizationId, replyId } from '../../src/shared/domain/ids'
 import type {
   AmbiguousPublicationReconciliationCandidate,
   ReconcileReplyPublicationInput,
-} from '../../src/contexts/review/application/public-api'
+} from '../../src/contexts/reputation/public-api'
 import {
   decodePublicationSweepResume,
   extractPublicationSweepResume,

@@ -90,6 +90,7 @@ export function makeResources(
       },
       priorActivations: [],
       hasPendingChanges: true,
+      pendingChanges: [],
       nextCursor: null,
     },
     googleReviewDestination: {

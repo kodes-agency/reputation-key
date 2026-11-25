@@ -18,7 +18,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 import { REPLY_LANGUAGE_TAG_SQL_PATTERN } from '../../reply-language-catalogue'
-import { REVIEW_TOPICS_V3 } from '../../review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '../../analysis/review-topic-taxonomy'
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import { properties } from './property.schema'
 

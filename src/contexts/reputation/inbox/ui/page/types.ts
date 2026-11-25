@@ -28,13 +28,13 @@ import type {
   correctFeedbackHandlingOutcomeFn,
   checkReviewOnGoogleFn,
   setInboxItemPriorityFn,
-} from '#/contexts/inbox/server/inbox'
+} from '#/contexts/reputation/server/inbox'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
 import type {
   CorrectReviewMentionResult,
   MentionCorrectionAction,
-} from '#/contexts/ai/application/public-api'
+} from '#/contexts/ai/public-api'
 
 type ServerCall<T> = T extends (...args: infer Args) => infer Result
   ? (...args: Args) => Result

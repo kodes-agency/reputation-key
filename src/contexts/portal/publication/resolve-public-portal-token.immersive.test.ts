@@ -16,6 +16,7 @@ import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
 } from './resolve-public-portal-token.server'
+import { quietGuestReadDeps } from './resolve-public-portal-token.test-fixtures'
 
 const MENU_URL = 'https://harbor.example.com/menu'
 const SPA_URL = 'https://harbor.example.com/spa'
@@ -80,6 +81,7 @@ function setup({ snapshot = immersiveSnapshot(), ...deps }: Overrides = {}) {
       profileVersion: 5,
     }),
     decidePublic: async () => ({ allowed: true }),
+    ...quietGuestReadDeps,
     clock: () => IMMERSIVE_FIXTURE_AT,
     ...deps,
   })
@@ -92,7 +94,7 @@ async function found(
 ) {
   const outcome = await resolve('pt_key_secret', preference)
   if (outcome.status !== 'found') throw new Error('expected a found portal')
-  return outcome.data
+  return outcome.result
 }
 
 const servesAllMedia = async () => MEDIA
@@ -101,7 +103,6 @@ describe('resolvePublicPortalToken for a schema version 3 publication', () => {
   it('serves the Immersive Hub surface with the selected locale and generation 2 pack', async () => {
     const data = await found(setup({ resolvePortalMediaUrls: servesAllMedia }).resolve)
 
-    expect(data.guestSurface).toBe('immersive')
     expect(data.localization).toEqual({
       selectedLocale: 'en',
       primaryLocale: 'en',
@@ -113,7 +114,6 @@ describe('resolvePublicPortalToken for a schema version 3 publication', () => {
       languagePackVersion: 'guest-ui-en-v2',
       privateFeedbackThreshold: 3,
     })
-    expect(data.categories).toEqual([])
     expect(data.portal).toMatchObject({
       id: IMMERSIVE_FIXTURE_SCOPE.portalId,
       name: 'Tell us about your visit',
@@ -174,7 +174,7 @@ describe('resolvePublicPortalToken for a schema version 3 publication', () => {
     })
   })
 
-  it('keeps the legacy link shape for click tracking, in the published order', async () => {
+  it('keeps the link shape click tracking reads, in the published order', async () => {
     const data = await found(setup({ resolvePortalMediaUrls: servesAllMedia }).resolve)
 
     expect(data.links).toEqual([
@@ -182,15 +182,11 @@ describe('resolvePublicPortalToken for a schema version 3 publication', () => {
         id: '30000000-0000-4000-8000-000000000001',
         label: 'Menu',
         url: MENU_URL,
-        categoryId: null,
-        sortKey: '0000',
       },
       {
         id: '30000000-0000-4000-8000-000000000002',
         label: 'Spa',
         url: SPA_URL,
-        categoryId: null,
-        sortKey: '0001',
       },
     ])
   })

@@ -3,7 +3,7 @@ import {
   portalResponseIntegrityCopy,
   type PortalResponseIntegritySummaryView,
 } from './portal-response-integrity-copy'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 export function PortalResponseIntegritySummary({
   summary,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ReplyLibraryTemplateDto } from '#/contexts/review/application/dto/reply-library.dto'
+import type { ReplyLibraryTemplateDto } from '#/contexts/reputation/library/contracts'
 import { storyAction, replyLibraryFixture } from './reply-library.stories.fixtures'
 import {
   defaultWordings,

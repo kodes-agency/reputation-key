@@ -18,8 +18,10 @@ const UNKNOWN_DEPENDENCY_RULES = [
   'boundaries/no-unknown-dependencies',
   'boundaries/no-unknown',
 ]
+const QUEUE_CLIENT_RULE = '@typescript-eslint/no-restricted-imports'
 const BOUNDARY_RULES = [
   'no-restricted-imports',
+  QUEUE_CLIENT_RULE,
   'boundaries/dependencies',
   'boundaries/no-unknown-files',
   ...UNKNOWN_DEPENDENCY_RULES,
@@ -41,7 +43,77 @@ const controls = [
     name: "a feature contract cannot take a value from another area's public API",
     file: 'src/contexts/guest/page/boundary-negative-control.contracts.ts',
     source:
-      "import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-api'\nexport const control = StoredObjectTooLargeError\n",
+      "import { StoredObjectTooLargeError } from '#/contexts/portal/public-api'\nexport const control = StoredObjectTooLargeError\n",
+  },
+  // An area's public API is src/contexts/<area>/public-api.ts. It keeps the bans
+  // application/ had, and a feature file named like a public API is not one.
+  {
+    name: "an area's root public API cannot import UI",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import '#/components/ui/button'\n",
+  },
+  {
+    name: "an area's root public API cannot import another area's feature server",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import '#/contexts/reporting/portal-results/get-portal-analytics.server'\n",
+  },
+  {
+    name: "an area's root public API cannot resolve the composition root",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import '#/composition'\n",
+  },
+  {
+    name: "an area's root public API cannot import the outbox relay",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import '#/shared/outbox/relay'\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: "an area's root public API cannot construct queue transport",
+    file: 'src/contexts/feed/public-api.ts',
+    source: "import { Queue } from 'bullmq'\nexport const control = Queue\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: "a feature contract cannot take types from another area's application/ outside its public API",
+    file: 'src/contexts/guest/page/boundary-negative-control.contracts.ts',
+    source:
+      "import type { aiRequestFingerprint } from '#/contexts/ai/application/ai-workflow-support'\nexport type Control = typeof aiRequestFingerprint\n",
+  },
+  {
+    name: "a feature server cannot import another area's application/ outside its public API",
+    file: 'src/contexts/guest/rights/boundary-negative-control.server.ts',
+    source: "import '#/contexts/identity/application/beta-feedback-pseudonym'\n",
+  },
+  {
+    name: "a domain cannot import another area's public API",
+    file: 'src/contexts/guest/domain/boundary-negative-control.ts',
+    source:
+      "import type { PortalPublicApi } from '#/contexts/portal/public-api'\nexport type Control = PortalPublicApi\n",
+  },
+  {
+    name: "shared code cannot import an area's public API",
+    file: 'src/shared/boundary-negative-control.ts',
+    source:
+      "import type { PortalPublicApi } from '#/contexts/portal/public-api'\nexport type Control = PortalPublicApi\n",
+  },
+  {
+    name: "a feature contract cannot take types from another area's feature file named like a public API",
+    file: 'src/contexts/guest/page/boundary-negative-control.contracts.ts',
+    source:
+      "import type { createPortalGroupPublicApi } from '#/contexts/portal/groups/portal-group-public-api.server'\nexport type Control = typeof createPortalGroupPublicApi\n",
+  },
+  // The public API is the one file at an area's root another area may import;
+  // the build seam beside it stays closed to feature code.
+  {
+    name: "a feature server cannot import another area's build seam at the area root",
+    file: 'src/contexts/guest/rights/boundary-negative-control.server.ts',
+    source: "import '#/contexts/portal/build'\n",
+  },
+  {
+    name: "a feature screen cannot import another area's build seam at the area root",
+    file: 'src/contexts/guest/page/ui/boundary-negative-control.tsx',
+    source: "import '#/contexts/portal/build'\n",
   },
   {
     name: 'ordinary test helpers cannot import Feed infrastructure',
@@ -52,7 +124,8 @@ const controls = [
   {
     name: 'notification route harness cannot import another context infrastructure',
     file: 'src/shared/testing/notification-route-test-harness.ts',
-    source: "import '#/contexts/review/infrastructure/review-command-store'\n",
+    source:
+      "import '#/contexts/identity/infrastructure/beta-feedback-triage.repository'\n",
   },
   {
     name: 'Feed infrastructure cannot import the test route harness',
@@ -61,12 +134,12 @@ const controls = [
   },
   {
     name: 'domain cannot import database runtime',
-    file: 'src/contexts/review/domain/boundary-negative-control.ts',
+    file: 'src/contexts/reputation/domain/boundary-negative-control.ts',
     source: "import '#/shared/db'\n",
   },
   {
     name: 'context build cannot import UI',
-    file: 'src/contexts/review/build-boundary-negative-control.ts',
+    file: 'src/contexts/reputation/build-boundary-negative-control.ts',
     source: "import '#/components/ui/button'\n",
   },
   {
@@ -136,7 +209,7 @@ const controls = [
   },
   {
     name: 'another context cannot import a feature server implementation',
-    file: 'src/contexts/review/application/boundary-negative-control.ts',
+    file: 'src/contexts/ai/application/boundary-negative-control.ts',
     source: "import '#/contexts/reporting/portal-results/get-portal-analytics.server'\n",
   },
   {
@@ -184,7 +257,7 @@ const controls = [
     source: "import React from 'react'\n",
     expect: ['no-restricted-imports'],
   },
-  ...['domain', 'application', 'infrastructure', 'server', 'ports'].map((layer) => ({
+  ...['domain', 'application', 'infrastructure', 'server'].map((layer) => ({
     name: `nested UI in ${layer} keeps its layer boundary`,
     file: `src/contexts/reporting/${layer}/boundary-control/ui/read.tsx`,
     source: "import '#/components/ui/button'\n",
@@ -196,7 +269,7 @@ const controls = [
   },
   {
     name: 'infrastructure cannot reach outward to composition',
-    file: 'src/contexts/review/infrastructure/boundary-negative-control.ts',
+    file: 'src/contexts/identity/infrastructure/boundary-negative-control.ts',
     source: "import '#/composition'\n",
   },
   {
@@ -206,8 +279,8 @@ const controls = [
   },
   {
     name: 'UI support cannot import a context server adapter',
-    file: 'src/lib/boundary-negative-control.ts',
-    source: "import '#/contexts/review/server/reply'\n",
+    file: 'src/shared/format/boundary-negative-control.ts',
+    source: "import '#/contexts/reputation/server/reply'\n",
   },
   // ARC-03-T1: scripts/ is a mandated control category. Operator commands
   // are admin entry points, not browsers — a context's server layer is an
@@ -215,12 +288,12 @@ const controls = [
   {
     name: 'operator script cannot import a context server adapter',
     file: 'scripts/ops/boundary-negative-control.ts',
-    source: "import '../../src/contexts/review/server/reply'\n",
+    source: "import '../../src/contexts/reputation/server/reply'\n",
   },
   {
     name: 'CI script cannot import a context server adapter',
     file: 'scripts/ci/boundary-negative-control.ts',
-    source: "import '../../src/contexts/review/server/reply'\n",
+    source: "import '../../src/contexts/reputation/server/reply'\n",
   },
   // A repository verifier is static analysis. If it can construct a
   // repository or resolve the container it is no longer a check, it is a
@@ -228,7 +301,8 @@ const controls = [
   {
     name: 'CI script cannot import context infrastructure',
     file: 'scripts/ci/boundary-negative-control.ts',
-    source: "import '../../src/contexts/review/infrastructure/review-command-store'\n",
+    source:
+      "import '../../src/contexts/identity/infrastructure/beta-feedback-triage.repository'\n",
   },
   {
     name: 'CI script cannot resolve the composition root',
@@ -280,9 +354,56 @@ const controls = [
     source: "import '../../vitest.config'\n",
     expect: UNKNOWN_DEPENDENCY_RULES,
   },
+  // Queue and Redis clients are built in shared/jobs and the composition root;
+  // area code names their types only.
+  {
+    name: 'a feature job cannot build a queue',
+    file: 'src/contexts/reputation/sync/boundary-negative-control-job.server.ts',
+    source: "import { Queue } from 'bullmq'\nexport const control = Queue\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
+  {
+    name: 'a feature adapter cannot open its own Redis connection',
+    file: 'src/contexts/ai/execution/boundary-negative-control.adapter.server.ts',
+    source: "import Redis from 'ioredis'\nexport const control = Redis\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
+  {
+    name: 'a feature rule file cannot import a queue package',
+    file: 'src/contexts/reporting/rating-goals/boundary-negative-control.ts',
+    source: "import { Worker } from 'bullmq'\nexport const control = Worker\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
+  {
+    name: "an area's build cannot build a queue",
+    file: 'src/contexts/feed/build.ts',
+    source: "import { Queue } from 'bullmq'\nexport const control = Queue\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
+  {
+    name: 'an infrastructure adapter cannot open its own Redis connection',
+    file: 'src/contexts/ai/infrastructure/boundary-negative-control.ts',
+    source: "import { Redis } from 'ioredis'\nexport const control = Redis\n",
+    expect: [QUEUE_CLIENT_RULE],
+  },
 ]
 
 const allowedControls = [
+  {
+    name: 'a feature job may name the queue Job type',
+    file: 'src/contexts/reputation/sync/boundary-positive-control-job.server.ts',
+    source: "import type { Job } from 'bullmq'\nexport type Control = Job\n",
+  },
+  {
+    name: 'a feature adapter may name the Redis type',
+    file: 'src/contexts/ai/execution/boundary-positive-control.adapter.server.ts',
+    source: "import type { Redis } from 'ioredis'\nexport type Control = Redis\n",
+  },
+  {
+    name: 'a feature integration test may build a real queue',
+    file: 'src/contexts/ai/replay/boundary-positive-control.integration.test.ts',
+    source: "import { Queue } from 'bullmq'\nexport const control = Queue\n",
+  },
   {
     name: 'a feature adapter may import the port another area owns that it implements',
     file: 'src/contexts/guest/rights/boundary-positive-control.adapter.server.ts',
@@ -293,7 +414,54 @@ const allowedControls = [
     name: "a feature contract may take types from another area's public API",
     file: 'src/contexts/guest/page/boundary-positive-control.contracts.ts',
     source:
-      "import type { PublicPortalResult } from '#/contexts/portal/application/public-api'\nexport type Control = PublicPortalResult\n",
+      "import type { PublicPortalResult } from '#/contexts/portal/public-api'\nexport type Control = PublicPortalResult\n",
+  },
+  {
+    name: "an area's root public API may name its own domain types",
+    file: 'src/contexts/feed/public-api.ts',
+    source:
+      "import type { NotificationType } from './domain/notification-types'\nexport type { NotificationType }\n",
+  },
+  {
+    name: "an area's root public API may wrap its own feature server code",
+    file: 'src/contexts/feed/public-api.ts',
+    source:
+      "import { queryAuditEvents } from './audit/read.server'\nexport const control = queryAuditEvents\n",
+  },
+  {
+    name: "an area's root public API may take another area's public API",
+    file: 'src/contexts/feed/public-api.ts',
+    source:
+      "import type { PropertyPublicApi } from '#/contexts/property/public-api'\nexport type Control = PropertyPublicApi\n",
+  },
+  // An area's public API is the root file; these seams must be open for it.
+  {
+    name: "a feature screen may import another area's public API",
+    file: 'src/contexts/guest/page/ui/boundary-positive-control.tsx',
+    source: "import '#/contexts/portal/public-api'\n",
+  },
+  {
+    name: "a feature server may import another area's public API",
+    file: 'src/contexts/guest/rights/boundary-positive-control.server.ts',
+    source: "import '#/contexts/portal/public-api'\n",
+  },
+  {
+    name: "a route may import an area's public API",
+    file: 'src/routes/boundary-positive-control.ts',
+    source: "import '#/contexts/property/public-api'\n",
+  },
+  {
+    name: "an operator script may import an area's public API",
+    file: 'scripts/ops/boundary-positive-control.ts',
+    source: "import '../../src/contexts/feed/public-api'\n",
+  },
+  // A contract may not import a server port of its own area, so it takes the
+  // port's types through its area's public API.
+  {
+    name: "a feature contract may take types from its own area's public API",
+    file: 'src/contexts/reputation/inbox/boundary-positive-control.contracts.ts',
+    source:
+      "import type { InboxFilters } from '#/contexts/reputation/public-api'\nexport type Control = InboxFilters\n",
   },
   {
     name: 'route may import a feature browser contract',
@@ -313,13 +481,13 @@ const allowedControls = [
   },
   {
     name: 'domain may import shared domain',
-    file: 'src/contexts/review/domain/boundary-positive-control.ts',
+    file: 'src/contexts/reputation/domain/boundary-positive-control.ts',
     source: "import '#/shared/domain/ids'\n",
   },
   {
     name: 'composition may import a context build seam',
     file: 'src/composition.ts',
-    source: "import '#/contexts/review/build'\n",
+    source: "import '#/contexts/reputation/build-review'\n",
   },
   {
     name: 'router may import a UI primitive',
@@ -328,7 +496,7 @@ const allowedControls = [
   },
   {
     name: 'context server adapter may resolve the application container',
-    file: 'src/contexts/review/server/boundary-positive-control.ts',
+    file: 'src/contexts/reputation/server/boundary-positive-control.ts',
     source: "import '#/composition'\n",
   },
   {
@@ -339,7 +507,7 @@ const allowedControls = [
   {
     name: 'component may import shared UI support',
     file: 'src/components/boundary-positive-control.ts',
-    source: "import '#/lib/utils'\n",
+    source: "import '#/shared/class-names/utils'\n",
   },
   {
     name: 'Portal results UI may import its browser contract and UI primitives',
@@ -421,6 +589,14 @@ const allowedControls = [
   },
 ]
 
+// Moving the public APIs retired ports/, queries/ and ui/ at an area's root: no element
+// claims them, so a file there is unclassified and fails the lint.
+const retiredFolderControls = ['ports', 'queries', 'ui'].map((folder) => ({
+  name: `${folder}/ at an area's root is retired`,
+  file: `src/contexts/reporting/${folder}/boundary-negative-control.ts`,
+  source: 'export {}\n',
+}))
+
 async function boundaryMessages(control) {
   const [result] = await eslint.lintText(control.source, {
     filePath: resolve(cwd, control.file),
@@ -444,6 +620,13 @@ for (const control of controls) {
   }
 }
 
+for (const control of retiredFolderControls) {
+  const messages = await boundaryMessages(control)
+  if (!messages.some(({ ruleId }) => ruleId === 'boundaries/no-unknown-files')) {
+    failures.push(`${control.name}: a file there was classified`)
+  }
+}
+
 for (const control of allowedControls) {
   const messages = await boundaryMessages(control)
   if (messages.length > 0) {
@@ -462,5 +645,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `[architecture-boundaries] OK — ${controls.length} invalid imports rejected; ${allowedControls.length} valid seams accepted.`,
+  `[architecture-boundaries] OK — ${controls.length} invalid imports rejected; ${allowedControls.length} valid seams accepted; ${retiredFolderControls.length} retired folders refused.`,
 )

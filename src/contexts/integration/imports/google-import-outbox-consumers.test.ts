@@ -1,6 +1,5 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   handlePropertyBindingAuthorizationInvalidation,
   PROVIDER_AUTHORIZATION_INVALIDATION_CONSUMER,
@@ -27,65 +26,75 @@ const EVENT: ConsumerEvent = {
   },
 }
 
-beforeAll(() => {
-  registerAllEventSchemas()
-})
+const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
+const CONNECTION_ID = '00000000-0000-4000-8000-000000000002'
+
+function references(result = true) {
+  return {
+    invalidateProperty: vi.fn(async () => result),
+    invalidateConnection: vi.fn(async () => result),
+  }
+}
 
 describe('property binding provider-authorization invalidation consumer', () => {
-  it('delivers the identifier-only event before recording its durable receipt', async () => {
-    const dispatch = vi.fn(async () => ({ ok: true, status: 'delivered' }) as const)
+  it('invalidates the property and connection references before recording its durable receipt', async () => {
+    const refs = references()
     const insertReceipt = vi.fn(async () => undefined)
 
     await expect(
       handlePropertyBindingAuthorizationInvalidation(
-        {
-          fanout: { dispatch },
-          receipts: { insertReceipt },
-          nowMs: () => 1_800_000_000_000,
-        },
-        EVENT,
+        { references: refs, receipts: { insertReceipt } },
+        { ...EVENT, payload: { ...(EVENT.payload as object), change: 'disconnected' } },
       ),
     ).resolves.toEqual({ status: 'applied' })
 
-    expect(dispatch).toHaveBeenCalledWith(
-      {
-        eventId: EVENT.eventId,
-        kind: 'property_binding_changed',
-        organizationId: 'org-1',
-        propertyId: '00000000-0000-4000-8000-000000000001',
-        connectionId: null,
-        sourceEpoch: 3,
-      },
-      1_800_000_000_000,
-    )
+    expect(refs.invalidateProperty).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      propertyId: PROPERTY_ID,
+    })
+    expect(refs.invalidateConnection).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      connectionId: CONNECTION_ID,
+    })
     expect(insertReceipt).toHaveBeenCalledWith(
       EVENT.eventId,
       PROVIDER_AUTHORIZATION_INVALIDATION_CONSUMER,
       'applied',
     )
-    expect(dispatch.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(refs.invalidateConnection.mock.invocationCallOrder[0]).toBeLessThan(
       insertReceipt.mock.invocationCallOrder[0]!,
     )
   })
 
-  it('records a newly created binding as obsolete without invalidating live import references', async () => {
-    const dispatch = vi.fn()
+  it('invalidates only the property references when the binding was relinked', async () => {
+    const refs = references()
     const insertReceipt = vi.fn(async () => undefined)
 
     await expect(
       handlePropertyBindingAuthorizationInvalidation(
-        {
-          fanout: { dispatch },
-          receipts: { insertReceipt },
-          nowMs: () => 1_800_000_000_000,
-        },
+        { references: refs, receipts: { insertReceipt } },
+        EVENT,
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(refs.invalidateProperty).toHaveBeenCalledTimes(1)
+    expect(refs.invalidateConnection).not.toHaveBeenCalled()
+  })
+
+  it('records a newly created binding as obsolete without invalidating live import references', async () => {
+    const refs = references()
+    const insertReceipt = vi.fn(async () => undefined)
+
+    await expect(
+      handlePropertyBindingAuthorizationInvalidation(
+        { references: refs, receipts: { insertReceipt } },
         {
           ...EVENT,
           payload: { ...(EVENT.payload as Record<string, unknown>), change: 'created' },
         },
       ),
     ).resolves.toEqual({ status: 'obsolete' })
-    expect(dispatch).not.toHaveBeenCalled()
+    expect(refs.invalidateProperty).not.toHaveBeenCalled()
+    expect(refs.invalidateConnection).not.toHaveBeenCalled()
     expect(insertReceipt).toHaveBeenCalledWith(
       EVENT.eventId,
       PROVIDER_AUTHORIZATION_INVALIDATION_CONSUMER,
@@ -93,17 +102,11 @@ describe('property binding provider-authorization invalidation consumer', () => 
     )
   })
 
-  it('fails closed without a receipt when durable fanout is unavailable', async () => {
+  it('fails closed without a receipt when a reference invalidation fails', async () => {
     const insertReceipt = vi.fn(async () => undefined)
     await expect(
       handlePropertyBindingAuthorizationInvalidation(
-        {
-          fanout: {
-            dispatch: async () => ({ ok: false, code: 'runtime_unavailable' }),
-          },
-          receipts: { insertReceipt },
-          nowMs: () => 1_800_000_000_000,
-        },
+        { references: references(false), receipts: { insertReceipt } },
         EVENT,
       ),
     ).rejects.toThrow('Provider authorization invalidation failed')
@@ -111,18 +114,14 @@ describe('property binding provider-authorization invalidation consumer', () => 
   })
 
   it('rejects cross-organization envelope attribution', async () => {
-    const dispatch = vi.fn()
+    const refs = references()
     await expect(
       handlePropertyBindingAuthorizationInvalidation(
-        {
-          fanout: { dispatch },
-          receipts: { insertReceipt: vi.fn() },
-          nowMs: () => 1_800_000_000_000,
-        },
+        { references: refs, receipts: { insertReceipt: vi.fn() } },
         { ...EVENT, organizationId: 'org-other' },
       ),
     ).rejects.toThrow('attribution mismatch')
-    expect(dispatch).not.toHaveBeenCalled()
+    expect(refs.invalidateProperty).not.toHaveBeenCalled()
   })
 })
 

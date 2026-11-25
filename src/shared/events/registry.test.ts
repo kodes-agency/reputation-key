@@ -1,33 +1,25 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { z } from 'zod/v4'
+import { describe, expect, it } from 'vitest'
 import {
   emittedEventVersion,
   eventDescriptors,
-  registerAllEventSchemas,
+  getEventDescriptor,
 } from './registry.server'
-import { clearEventSchemas, getEventSchema, registerEventSchema } from './schema-registry'
 
-describe('event registry startup', () => {
-  beforeEach(clearEventSchemas)
-
-  it('registers every issued format and permits a second container to use it', () => {
-    registerAllEventSchemas()
-    expect(() => registerAllEventSchemas()).not.toThrow()
+describe('event registry', () => {
+  it('serves every issued format', () => {
     for (const descriptor of eventDescriptors) {
-      expect(getEventSchema(descriptor.type, descriptor.version)).toBe(descriptor)
+      expect(getEventDescriptor(descriptor.type, descriptor.version)).toBe(descriptor)
     }
   })
 
-  it('refuses a conflicting descriptor instead of skipping later registrations', () => {
-    registerEventSchema({
-      type: 'review.created',
-      version: 1,
-      schema: z.object({}),
-      aggregate: { id: 'eventId', type: 'event' },
-    })
-    expect(() => registerAllEventSchemas()).toThrow(
-      'Duplicate event schema: review.created:v1',
-    )
+  it('defines each event type and version once', () => {
+    const keys = eventDescriptors.map(({ type, version }) => `${type}:v${version}`)
+    expect(keys.filter((key, index) => keys.indexOf(key) !== index)).toEqual([])
+  })
+
+  it('serves no format that is not defined', () => {
+    expect(getEventDescriptor('review.created', 999)).toBeUndefined()
+    expect(getEventDescriptor('unknown.event', 1)).toBeUndefined()
   })
 })
 

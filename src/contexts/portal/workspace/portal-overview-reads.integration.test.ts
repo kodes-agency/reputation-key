@@ -331,7 +331,7 @@ describe('portal publication repository — countOpenPendingContentChanges', () 
       [BARE, 1],
     ])
     for (const pid of [FULL, BARE, FORMER]) {
-      const single = await repo.listOpenPendingContentChanges?.(ORG, PROPERTY, pid)
+      const single = await repo.listOpenPendingContentChanges(ORG, PROPERTY, pid)
       expect(rows.find((row) => row.portalId === pid)?.count ?? 0).toBe(single?.length)
     }
   })
@@ -420,7 +420,6 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
       2_592_000_000,
       START,
     )
-    if (!('oldToken' in rotation)) throw new Error('rotation failed')
     await seedPortalToken(getDb(), rotation.oldToken)
     await seedPortalToken(getDb(), rotation.newToken)
     const revoked = token(
@@ -484,7 +483,6 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
         grace,
         START,
       )
-      if (!('oldToken' in rotation)) throw new Error('rotation failed')
       await seedPortalToken(getDb(), rotation.oldToken)
       await seedPortalToken(getDb(), rotation.newToken)
     }
@@ -582,7 +580,6 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
       60_000,
       START,
     )
-    if (!('oldToken' in rotation)) throw new Error('rotation failed')
     await seedPortalToken(getDb(), rotation.oldToken)
 
     await expect(

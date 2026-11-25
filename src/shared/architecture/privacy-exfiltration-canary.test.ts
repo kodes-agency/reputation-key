@@ -8,12 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod/v4'
 import type { DomainEvent } from '#/shared/events/events'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   betaFeedbackInputSchema,
   formatBetaFeedbackMessage,
-} from '#/shared/beta-feedback-contract'
+} from '#/shared/beta-feedback/beta-feedback-contract'
 import {
   METRIC_DEFINITIONS,
   labelValueAllowed,
@@ -46,8 +44,6 @@ function expectNoMarkers(value: unknown): void {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 describe('OBS-01 synthetic privacy exfiltration canary', () => {

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { TONE_ICON, TONE_INK, TONE_SURFACE } from './tone'
 
 // A notice in the flow of a page or a dialog. `default` is a plain card for a

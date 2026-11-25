@@ -10,8 +10,8 @@ import { GlossaryTerm } from '#/components/ui/glossary-term'
 import { buttonVariants } from '#/components/ui/button'
 import { RegionError } from '#/components/ui/region-error'
 import { RangeControl } from '#/components/ui/range-control'
-import { cn } from '#/lib/utils'
-import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
+import { cn } from '#/shared/class-names/utils'
+import type { PortalResultsTimeRange } from '#/contexts/reporting/public-api'
 import {
   PortalResultsLoadingStrip,
   PortalResultsStrip,

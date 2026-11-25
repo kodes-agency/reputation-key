@@ -105,11 +105,8 @@ describe('fleet overview bulk projection', () => {
   it('keeps the production use case constant-query and bounded at 5,000 properties', async () => {
     let activeCount = 10
     const fake = fakeDatabase(() => activeCount)
-    const observed: unknown[] = []
     const getFleet = getFleetOverview({
-      projection: createFleetOverviewProjectionAdapter(fake.db, {
-        onRead: (value) => observed.push(value),
-      }),
+      projection: createFleetOverviewProjectionAdapter(fake.db),
       resolveAccessiblePropertyIds,
       clock: () => NOW,
       inboxTargets,
@@ -128,18 +125,6 @@ describe('fleet overview bulk projection', () => {
     expect(tenCalls).toBe(3)
     expect(fleetCalls).toBe(tenCalls)
     expect(fleetCalls).toBeLessThanOrEqual(3)
-    expect(observed).toEqual([
-      {
-        propertyCount: 10,
-        returnedRows: 10,
-        durationMs: expect.any(Number),
-      },
-      {
-        propertyCount: 5_000,
-        returnedRows: 50,
-        durationMs: expect.any(Number),
-      },
-    ])
   })
 
   it('reads the list without scanning historical metric readings or corrections', async () => {

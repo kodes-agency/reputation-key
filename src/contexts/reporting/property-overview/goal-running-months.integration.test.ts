@@ -20,7 +20,7 @@ import {
 } from '../monthly-goals/goal-running-month-seed.test-fixtures'
 import type { GoalMetricSubject } from '../readings/metric-repository.port.server'
 import { findMetricVersionById, METRIC_VERSION_IDS } from '../readings/contracts'
-import { createMetricRepository } from '../readings/metric-repository.server'
+import { queryGoalAggregate } from '../readings/metric-repository.server'
 import { readRunningCountMonths } from './goal-running-months.server'
 
 // Day 9 of August 2026 on a UTC calendar.
@@ -508,7 +508,7 @@ describe('the running months of count goals', () => {
     async function pageAggregate(property: string, subject: GoalMetricSubject) {
       const governed = findMetricVersionById(METRIC_VERSION_IDS.qualifiedScanGoal)
       if (!governed) throw new Error('The qualified scan goal is not in the registry.')
-      return createMetricRepository(db).queryGoalAggregate({
+      return queryGoalAggregate(db, {
         organizationId: organizationId(ORG),
         propertyId: toPropertyId(property),
         definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,

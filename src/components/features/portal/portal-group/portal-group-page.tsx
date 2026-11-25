@@ -19,7 +19,7 @@ import type {
   PortalGroupHistoryEntry,
   PortalOverviewRow,
 } from '#/contexts/portal/application/portal-management-contracts'
-import type { GoalProgress } from '#/contexts/reporting/application/public-api'
+import type { GoalProgress } from '#/contexts/reporting/public-api'
 import type { PortalArchiveMutations } from '../portal-overview/portal-archive-dialog'
 import { uncountedScanPortals } from '../portal-overview/portal-attention'
 import { PortalChangesOffNote } from '../portal-overview/portal-changes-off-note'

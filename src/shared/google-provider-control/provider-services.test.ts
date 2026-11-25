@@ -1,10 +1,8 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import type { GoogleInFlightCoordinator, GoogleQuotaCoordinator } from './contracts'
-import {
-  createInMemoryGoogleQuotaCoordinator,
-  googleQuotaCredentialFingerprint,
-} from './quota-coordinator'
+import { googleQuotaCredentialFingerprint } from './quota-coordinator'
+import { createInMemoryGoogleQuotaCoordinator } from './quota-coordinator.test-fixtures'
 import {
   compileGoogleProviderRequest,
   type GoogleProviderAdmissionMetadata,

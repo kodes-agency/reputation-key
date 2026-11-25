@@ -14,8 +14,8 @@ import {
  * two assist actions read it — templates are per-language
  * (`reply-template-operations.ts:137` filters the library by the target's
  * `templateGroup`, `:304` stamps `replyLanguageTag` on the loaded draft), an AI
- * draft is stamped the same way (`ai-suggested-draft-store.ts:360`), and a
- * hand-typed draft only RECORDS the tag (`reply-operations.ts:325`), which no
+ * draft is stamped the same way (`ai-suggested-draft-store.server.ts:360`), and a
+ * hand-typed draft only RECORDS the tag (`reply-operations.server.ts:325`), which no
  * publication path reads.
  *
  * This module is the words both menus print, kept pure so the two cannot

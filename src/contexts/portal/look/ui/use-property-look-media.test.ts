@@ -1,11 +1,11 @@
 // A logo answer touches only the logo: a focal point moved while it was on its
 // way stays where it was moved.
 
-import { createElement } from 'react'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { act, createElement } from 'react'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { PropertyLookMedia } from '#/contexts/portal/application/portal-management-contracts'
 import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
-import { act, startHookHarness, type HookHarness } from './hook-harness'
+import { setupHookRoot } from '#/shared/testing/hook-root'
 import type { usePropertyLookMedia as UsePropertyLookMedia } from './use-property-look-media'
 
 const hero = (focalX: number, focalY: number) => ({
@@ -20,18 +20,16 @@ const logo = { assetId: 'logo-1', url: '/logo', width: 200, height: 80 }
 
 const INITIAL: PropertyLookMedia = { hero: hero(0.5, 0.5), logo: null }
 
+const root = setupHookRoot()
+
 describe('usePropertyLookMedia', () => {
-  let harness: HookHarness
   let useMedia: typeof UsePropertyLookMedia
   let latest: ReturnType<typeof UsePropertyLookMedia> | undefined
 
   beforeAll(async () => {
-    harness = await startHookHarness()
     ;({ usePropertyLookMedia: useMedia } = await import('./use-property-look-media'))
   })
-  afterAll(() => harness.stop())
   afterEach(async () => {
-    await harness.unmount()
     latest = undefined
   })
 
@@ -50,7 +48,7 @@ describe('usePropertyLookMedia', () => {
       latest = useMedia('property-1', INITIAL, saves as never)
       return null
     }
-    await harness.render(
+    await root.render(
       createElement(PortalDraftAutosaveProvider, {
         delayMs: 60_000,
         children: createElement(Probe),

@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react'
 import { SectionTitle } from '#/components/ui/section-title'
 import { TONE_FILL, TONE_INK, type Tone } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /** Answer first in the DOM; evidence stacks below it in a narrow page container. */
 export function CheckInSection({

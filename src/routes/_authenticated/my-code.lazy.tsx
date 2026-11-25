@@ -1,4 +1,4 @@
-import { staffHomeSearch } from '#/shared/staff-home-search'
+import { staffHomeSearch } from '#/shared/routing/staff-home-search'
 import { createLazyFileRoute } from '@tanstack/react-router'
 import { StaffHome } from '#/contexts/identity/staff/ui/home/staff-home'
 import { staffHomeFns } from '../-staff-home-fns'

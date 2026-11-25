@@ -6,8 +6,11 @@
 //
 // This module lives outside src/components, so the boundary gate doesn't scan
 // it; it imports use-cases + in-memory doubles that are verified browser-safe.
-import { projectInboxRequestApi, wireUseCases } from '#/contexts/inbox/build-use-cases'
-import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+import {
+  projectInboxRequestApi,
+  wireUseCases,
+} from '#/contexts/reputation/build-inbox-use-cases'
+import type { InboxPublicApi } from '#/contexts/reputation/public-api'
 import {
   createStoryOnlyInboxCommandStore,
   createStoryOnlyInboxRepo,
@@ -20,20 +23,20 @@ import {
   reviewId,
   feedbackId,
 } from '#/shared/domain/ids'
-import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
-import type { InboxViewRepository } from '#/contexts/inbox/application/ports/inbox-view.repository'
-import type { ReplyLookupPort } from '#/contexts/inbox/application/ports/reply-lookup.port'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
-import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/ports/review-handling-cycle.store'
-import type { FeedbackHandlingStore } from '#/contexts/inbox/application/ports/feedback-handling.store'
-import type { ResponseTargetStore } from '#/contexts/inbox/application/ports/response-target.store'
-import type { ResponseTargetPolicyStore } from '#/contexts/inbox/application/ports/response-target-policy.store'
-import type { InboxHistoryRepository } from '#/contexts/inbox/application/ports/inbox-history.repository'
-import type { InboxActorDirectory } from '#/contexts/inbox/application/ports/inbox-actor-directory.port'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { InboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.port.server'
+import type { InboxViewRepository } from '#/contexts/reputation/inbox/inbox-view-repository.port.server'
+import type { ReplyLookupPort } from '#/contexts/reputation/inbox/reply-lookup.port.server'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
+import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
+import type { FeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.port.server'
+import type { ResponseTargetStore } from '#/contexts/reputation/response-targets/store.port.server'
+import type { ResponseTargetPolicyStore } from '#/contexts/reputation/response-targets/policy.store.port.server'
+import type { InboxHistoryRepository } from '#/contexts/reputation/inbox/inbox-history-repository.port.server'
+import type { InboxActorDirectory } from '#/contexts/reputation/inbox/inbox-actor-directory.port.server'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { InboxItem, InboxNote } from '#/contexts/inbox/domain/types'
+import type { InboxItem, InboxNote } from '#/contexts/reputation/domain/inbox-types'
 
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const USER = userId('user-00000000-0000-0000-0000-000000000001')
@@ -82,13 +85,16 @@ export function makeInboxItem(opts: {
   }
 }
 
-function createInMemoryNoteRepo(): InboxNoteRepository & { notes: InboxNote[] } {
+function createInMemoryNoteRepo(): InboxNoteRepository & {
+  notes: InboxNote[]
+  add: (note: InboxNote) => InboxNote
+} {
   const notes: InboxNote[] = []
   return {
     notes,
     findByInboxItemId: async (id, orgId) =>
       notes.filter((n) => n.inboxItemId === id && n.organizationId === orgId),
-    create: async (note) => {
+    add: (note) => {
       notes.push(note)
       return note
     },
@@ -138,7 +144,7 @@ const noopReviewSourceLookup: ReviewSourceLookupPort = {
   listReviewSources: async () => [],
 }
 
-const noopResponseTargetAuthority: ReviewResponseTargetAuthorityPort = {
+const noopResponseTargetAuthority: ReviewResponseTargetAuthority = {
   withExactCurrent: async () => ({ status: 'obsolete' }),
   withExactCurrentBatch: async () => ({ status: 'obsolete' }),
   withInboxProjection: async () => ({ status: 'obsolete' }),
@@ -266,9 +272,7 @@ export function createInboxContainer() {
     // Storybook projects no Google reply observations, so no permit is current.
     replyObservationAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
     // Storybook has no Google provider; its reminder release never runs.
-    googleReviewCheck: {
-      check: async () => ({ status: 'not_checkable', reason: 'no_provider' }),
-    },
+    googleReviewCheck: async () => ({ status: 'not_checkable', reason: 'no_provider' }),
     // Storybook never reaches Google (`googleReviewCheck` above); stories stub
     // the check function itself.
     googleCheckRateLimit: { consume: async () => 'allowed' },

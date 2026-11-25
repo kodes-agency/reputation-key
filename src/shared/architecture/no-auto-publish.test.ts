@@ -6,9 +6,10 @@
 // only redeliver that exact committed request/cycle. Approval IS the human
 // review: an aiGenerated reply is publishable only after a human passes it
 // through pending_approval → approved. The domain half of the proof lives in
-// src/contexts/review/domain/rules.test.ts (transitionReply — the single
-// authority for every reply write — refuses draft → approved for ANY reply,
-// aiGenerated included, so no code path can skip the human review).
+// src/contexts/reputation/domain/review-rules.test.ts (canTransitionReply — the
+// table every reply write is checked against — and the approve command's start
+// refuse draft → approved for ANY reply, aiGenerated included, so no code path
+// can skip the human review).
 //
 // This test pins the static half:
 //   (a) command-side request construction and enqueue share one chokepoint;
@@ -25,9 +26,10 @@ import { join, relative } from 'node:path'
 const ROOT = process.cwd()
 const SRC = join(ROOT, 'src')
 
-const OPS_FILE = 'src/contexts/review/application/use-cases/reply-operations.ts'
-const RECOVERY_FILE = 'src/contexts/review/infrastructure/outbox-consumers.ts'
-const JOB_FILE = 'src/contexts/review/infrastructure/jobs/publish-reply.job.ts'
+const OPS_FILE = 'src/contexts/reputation/replies/reply-operations.server.ts'
+const RECOVERY_FILE =
+  'src/contexts/reputation/publication/publication-outbox-consumers.server.ts'
+const JOB_FILE = 'src/contexts/reputation/publication/publish-reply-job.server.ts'
 
 const CALL_RE = /\.addPublishJob\s*\(/
 const REQUEST_RE = /\breviewReplyPublicationRequested\s*\(/
@@ -42,6 +44,7 @@ function walkTsFiles(dir: string): string[] {
       else if (
         ent.name.endsWith('.ts') &&
         !ent.name.endsWith('.test.ts') &&
+        !ent.name.endsWith('.test-fixtures.ts') &&
         !ent.name.endsWith('.d.ts')
       ) {
         out.push(relative(ROOT, p))

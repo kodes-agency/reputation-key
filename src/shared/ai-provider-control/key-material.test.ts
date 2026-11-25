@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { loadNamedEd25519PublicKeyring } from '#/shared/ed25519-key-material'
+import { loadNamedEd25519PublicKeyring } from '#/shared/ai-gateway/ed25519-key-material'
 import { loadEd25519PrivateKey, loadSafetyIdentifierKey } from './key-material'
 
 // The one AI public keyring a process still loads: provenance, one active key.

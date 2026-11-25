@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GoogleConnectionStatus } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionStatus } from '#/contexts/integration/public-api'
 import {
   accountEmailConsentForConnection,
   reauthorizationForConnection,
@@ -13,7 +13,6 @@ describe('Google connection settings authorization actions', () => {
         status: 'reauth_required',
       }),
     ).toEqual({
-      visibility: 'organization',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
     })
@@ -38,7 +37,6 @@ describe('Google connection settings authorization actions', () => {
         accountEmail: null,
       }),
     ).toEqual({
-      visibility: 'organization',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
     })

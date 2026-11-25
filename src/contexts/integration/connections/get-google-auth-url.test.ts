@@ -31,7 +31,6 @@ const setup = () => {
 }
 
 const request = {
-  visibility: 'organization' as const,
   userId: 'user-1',
   organizationId: 'org-1',
   sessionId: 'session-1',
@@ -82,7 +81,6 @@ describe('getGoogleAuthUrl', () => {
     })
     expect(redeemed).toMatchObject({
       ok: true,
-      visibility: 'organization',
       purpose: 'import_gbp_v2',
       connectionMode: 'new',
       targetConnectionId: null,
@@ -103,7 +101,6 @@ describe('getGoogleAuthUrl', () => {
     const { useCase, stateHandles } = setup()
     const { url } = await useCase({
       ...request,
-      visibility: 'private',
       purpose: 'reviews',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
@@ -120,7 +117,6 @@ describe('getGoogleAuthUrl', () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
-      visibility: 'organization',
       purpose: 'reviews',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
@@ -129,25 +125,9 @@ describe('getGoogleAuthUrl', () => {
 
   it('fails before issuing a URL when required tenant or session binding is absent', async () => {
     const { useCase } = setup()
-    await expect(useCase({ visibility: 'private', userId: 'user-1' })).rejects.toThrow(
+    await expect(useCase({ userId: 'user-1' })).rejects.toThrow(
       'Opaque OAuth state dependencies are unavailable',
     )
-  })
-
-  it('normalizes a legacy private request to Organization ownership in opaque state', async () => {
-    const { useCase, stateHandles } = setup()
-    const { url } = await useCase({ ...request, visibility: 'private' })
-    const state = new URL(url).searchParams.get('state')!
-
-    await expect(
-      stateHandles.redeem({
-        handle: state,
-        organizationId: request.organizationId,
-        userId: request.userId,
-        sessionId: request.sessionId,
-        nowMs: FIXED_TIME.getTime(),
-      }),
-    ).resolves.toMatchObject({ ok: true, visibility: 'organization' })
   })
 
   it('fails closed when the provider-ephemeral store is unavailable', async () => {

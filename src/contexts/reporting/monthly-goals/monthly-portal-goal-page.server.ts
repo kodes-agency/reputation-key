@@ -5,7 +5,7 @@
 import { currentAssignments } from './subject-assignments.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
-import { addLocalDays, localDateOf } from '../domain/local-days'
+import { addLocalDays, localDateOf } from '#/shared/domain/local-days'
 import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalPageExtras,
@@ -17,20 +17,17 @@ import type {
 import type { PortalGoalOfCard, PortalGoalRunningMonth } from './contracts'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import type { GoalSubjectNameReader } from './goal-bulk-create.server'
-import { inParallel, listProgressOf } from './goal-list-progress.server'
-import type { GoalActor, GoalExecutionPolicy } from './goal-programs.server'
+import {
+  inParallel,
+  listProgressOf,
+  type GoalListProgressMetrics,
+} from './goal-list-progress.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import {
   gatherMonthlyPortalGoal,
   monthlyPortalGoalCardOf,
   type MonthlyPortalGoalCardDeps,
-  type MonthlyPortalGoalCardRequestApi,
 } from './monthly-portal-goal-card.server'
-import type {
-  MonthlyPortalGoalChangeRequestApi,
-  MonthlyPortalGoalPromptRequestApi,
-  MonthlyPortalGoalSetRequestApi,
-} from './monthly-portal-goal.server'
-import type { MonthlyPortalGoalLineRequestApi } from './monthly-portal-goal-line.server'
 import {
   goalChangesOf,
   goalMonthsOf,
@@ -41,11 +38,7 @@ import { monthCountsOf } from './monthly-portal-goal-running.server'
 
 export type MonthlyPortalGoalPageDeps = MonthlyPortalGoalCardDeps &
   Readonly<{
-    history?: (
-      programId: string,
-      propertyId: string,
-      actor: GoalActor,
-    ) => Promise<GoalProgramBundle>
+    metrics: GoalListProgressMetrics
     /** The names of the other Portal goals' Portal Groups, and of Portals not listed. */
     subjectNames: Pick<GoalSubjectNameReader, 'getSubjectName'>
     /** A side read that failed: the page still draws, without it. */
@@ -77,7 +70,7 @@ function rowsOf(
   month: PortalGoalRunningMonth | null,
 ): PortalGoalPageRows | null {
   const counts = month === null ? null : monthCountsOf(recommendation, month)
-  return counts === null ? null : { ...counts, truncated: recommendation.truncated }
+  return counts
 }
 
 /** The established published Portals that have gone quiet, by Portal. */
@@ -226,7 +219,15 @@ async function extrasOf(
 }
 
 export async function readMonthlyPortalGoalPage(
-  deps: MonthlyPortalGoalPageDeps,
+  deps: MonthlyPortalGoalPageDeps &
+    Readonly<{
+      /** A Program with its complete definition history. */
+      history: (
+        programId: string,
+        propertyId: string,
+        actor: GoalActor,
+      ) => Promise<GoalProgramBundle>
+    }>,
   input: Readonly<{ propertyId: string }>,
   actor: GoalActor,
 ): Promise<PortalGoalPageView> {
@@ -243,14 +244,12 @@ export async function readMonthlyPortalGoalPage(
   // After the card: its governed figures are the months it shows, so only a
   // month it does not show is read again.
   const currentSuccession = successionOf(programs, goal)
-  const succession = deps.history
-    ? await Promise.all(
-        currentSuccession.map(async (candidate) => ({
-          ...candidate,
-          ...(await deps.history!(candidate.program.id, input.propertyId, actor)),
-        })),
-      )
-    : currentSuccession
+  const succession = await Promise.all(
+    currentSuccession.map(async (candidate) => ({
+      ...candidate,
+      ...(await deps.history(candidate.program.id, input.propertyId, actor)),
+    })),
+  )
   const shown: ShownMonths =
     card.state === 'goal'
       ? { month: card.goal.month, lastMonth: card.goal.lastMonth }
@@ -279,19 +278,3 @@ export async function readMonthlyPortalGoalPage(
     rows: rowsOf(recommendation, card.goal.month),
   }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program reads. */
-export type MonthlyPortalGoalRequestApi = Readonly<{
-  monthlyPortalGoal: MonthlyPortalGoalCardRequestApi &
-    Readonly<{
-      page: (
-        policy: GoalExecutionPolicy,
-        input: Readonly<{ propertyId: string }>,
-        actor: GoalActor,
-      ) => Promise<PortalGoalPageView>
-    }> &
-    MonthlyPortalGoalSetRequestApi &
-    MonthlyPortalGoalChangeRequestApi &
-    MonthlyPortalGoalPromptRequestApi &
-    MonthlyPortalGoalLineRequestApi
-}>

@@ -125,7 +125,7 @@ function reportsTerminalFailure(job: Job, error: unknown): boolean {
  * Create a BullMQ worker for the given queue name.
  * Uses a dedicated Redis connection with maxRetriesPerRequest=null
  * (required by BullMQ for blocking BRPOPLPUSH operations).
- * Returns undefined if queue Redis is not configured. Production requires
+ * Throws if queue Redis is not configured. Production requires
  * QUEUE_REDIS_URL; development/test may fall back to REDIS_URL.
  *
  * @param concurrency  Max jobs processed in parallel (BullMQ default: 1).
@@ -143,10 +143,10 @@ export function createJobWorker<T>(
   quarantineQueue?: Queue,
   runtimeObservations?: JobRuntimeObservationSink,
   clock: () => Date = () => new Date(),
-): Worker<T> | undefined {
+): Worker<T> {
   const env = getEnv()
   const redisUrl = getJobRedisUrl(env)
-  if (!redisUrl) return undefined
+  if (!redisUrl) throw new Error(`[WORKER] ${name} worker requires a job Redis URL`)
 
   const logger = getLogger()
   const rateLimit = jobQueueRateLimit(name)

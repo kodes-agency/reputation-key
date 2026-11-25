@@ -11,7 +11,7 @@ import {
 } from './monthly-portal-goal-identity.server'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import { progressOf } from './goal-progress.server'
-import type { GoalActor, GoalExecutionPolicy } from './goal-programs.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
 import {
   gatherMonthlyPortalGoal,
   type MonthlyPortalGoalCardDeps,
@@ -21,6 +21,7 @@ import {
   monthCountsOf,
   type MonthlyPortalGoalOnCardContext,
 } from './monthly-portal-goal-running.server'
+import { currentAssignments } from './subject-assignments.server'
 
 export type MonthlyPortalGoalLineDeps = Pick<
   MonthlyPortalGoalCardDeps,
@@ -29,9 +30,7 @@ export type MonthlyPortalGoalLineDeps = Pick<
 
 /** The Program's subjects as it names them now. */
 const currentSubjects = (bundle: GoalProgramBundle) =>
-  bundle.assignments
-    .filter(({ programVersionId }) => programVersionId === bundle.version.id)
-    .map(({ subject }) => subject)
+  currentAssignments(bundle).map(({ subject }) => subject)
 
 /** The earliest-set count goal that runs for this Portal alone, if one does. */
 function ownGoalOf(
@@ -131,12 +130,3 @@ export async function readMonthlyPortalGoalLine(
   if (monthlyGoal === null && ownGoal === null) return null
   return { month: recommendation.months.current.key, monthlyGoal, ownGoal }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program reads. */
-export type MonthlyPortalGoalLineRequestApi = Readonly<{
-  line: (
-    policy: GoalExecutionPolicy,
-    input: MonthlyPortalGoalLineRequest,
-    actor: GoalActor,
-  ) => Promise<PortalGoalLineView | null>
-}>

@@ -3,7 +3,7 @@
 // A new epoch with Review Analysis still enabled keeps stable issue identities.
 // Every row is invented; no guest's words exist here.
 import { randomUUID } from 'node:crypto'
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
@@ -26,13 +26,11 @@ import { createGoogleConnectionCeremonyFixture } from '#/contexts/integration/co
 import { requestGooglePrimaryCategoryRefresh } from '#/shared/db/google-primary-category-refresh'
 import { createRefreshBoundGoogleCategories } from '#/contexts/integration/imports/refresh-bound-google-categories.server'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { createReviewAnalysisEnrollmentAdapter } from './enrollment-store.server'
 import {
   createV3Seed,
@@ -311,8 +309,6 @@ async function reconnectRefresh() {
 describe('turning review analysis off (real PostgreSQL)', () => {
   beforeEach(async () => {
     await clearUp()
-    clearEventSchemas()
-    registerAllEventSchemas()
     await seed.setUp()
     await db
       .update(properties)
@@ -357,7 +353,6 @@ describe('turning review analysis off (real PostgreSQL)', () => {
 
   afterAll(async () => {
     await clearUp()
-    clearEventSchemas()
   })
 
   it('starts with every kind of row the notice lists, so the deletions below are not vacuous', async () => {
@@ -540,7 +535,6 @@ describe('turning review analysis off (real PostgreSQL)', () => {
       {
         exchangeAttemptId: attemptId,
         code: 'valid-auth-code',
-        visibility: 'organization',
         purpose: 'reviews',
         connectionMode: 'reconnect',
         targetConnectionId: CONNECTION,

@@ -3,7 +3,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderReauthorize,
@@ -28,7 +28,7 @@ export type GoogleNotificationsRuntimeDeps = Readonly<{
   logger: LoggerPort
   connectionRepo: ActiveConnectionTokenProviderDeps['connectionRepo']
   propertyApi: PropertyPublicApi
-  propertyBindingApi: PropertyGoogleBindingPublicApi | undefined
+  propertyBindingApi: PropertyGoogleBindingPublicApi
   executor: GoogleAuthorizedProviderExecutor | undefined
   providerTokenAccess: GoogleProviderTokenAccess
   withSingle401Refresh: GoogleRefreshingProviderExecutorFactory

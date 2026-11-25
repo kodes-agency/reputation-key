@@ -17,8 +17,8 @@ export const listGoalPrograms = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => ({
-          programs: await programs.list(policy, data.propertyId, actor),
+        withGoalPrograms(async (programs, actor) => ({
+          programs: await programs.list(data.propertyId, actor),
         })),
       'GET',
       'goal.listGoalPrograms',
@@ -30,8 +30,8 @@ export const getGoalProgress = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => ({
-          goals: await programs.progress(policy, data, actor),
+        withGoalPrograms(async (programs, actor) => ({
+          goals: await programs.progress(data, actor),
         })),
       'GET',
       'goal.getGoalProgress',
@@ -47,8 +47,8 @@ export const getGoalListProgress = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => ({
-          goals: await programs.listProgress(policy, data, actor),
+        withGoalPrograms(async (programs, actor) => ({
+          goals: await programs.listProgress(data, actor),
         })),
       'GET',
       'goal.getGoalListProgress',
@@ -60,9 +60,7 @@ export const getGoalProgramHistory = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.history(policy, data, actor),
-        ),
+        withGoalPrograms((programs, actor) => programs.history(data, actor)),
       'GET',
       'goal.getGoalProgramHistory',
     ),

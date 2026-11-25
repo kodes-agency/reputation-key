@@ -12,7 +12,6 @@ import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 
 const initExecutionPolicySpy = vi.fn()
 const initDelayedExecutionPolicySpy = vi.fn()
@@ -98,7 +97,6 @@ function bundle(label: string): ProcessPolicyBundle {
 }
 
 function buildContainer() {
-  clearEventSchemas()
   return createContainer({
     clock,
     queue: createInMemoryQueue({ clock }),
@@ -242,8 +240,6 @@ describe('buildCapabilityPolicyHandle returns instead of installing', () => {
       'currentVersion',
       'delayedExecutionPolicy',
       'executionPolicy',
-      'refresh',
-      'refreshRequired',
     ])
     expect(initExecutionPolicySpy).toHaveBeenCalledTimes(0)
     expect(initDelayedExecutionPolicySpy).toHaveBeenCalledTimes(0)

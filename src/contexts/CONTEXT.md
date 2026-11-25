@@ -4,19 +4,20 @@
 
 ## Responsibility
 
-Eleven areas own product meaning and state. Review, Inbox and Reputation are one
-bounded context: Reputation holds its feature folders and screens, while Review
-and Inbox still hold the layer code and server functions that have not moved.
+Nine areas own product meaning and state. Review, Inbox and Reputation are one
+bounded context, and Reputation holds all of it: its features (content, inbox,
+library, publication, replies, response-targets, reviews, sync), its screens,
+server functions, builds, public API and the shared `domain/`.
 
 - **Identity** — users, Organizations, membership, access, and People facts.
 - **Property** — Property identity, lifecycle, Google binding, and responsibility.
 - **Portal** — public review gateways, publication, groups, links, and access artifacts.
 - **Guest** — private responses, feedback, qualified actions, and integrity.
 - **Integration** — Google connection, import, provider access, and Performance I/O.
-- **Review** — stable external Reviews, source lifecycle, and manager Replies.
 - **AI** — governed Review Analysis, Reply Drafting, and Property Trends.
-- **Inbox** — triage Items, Handling Cycles, notes, and Response Targets.
-- **Reputation** — the Inbox, Reply, Review and Response Target features and screens.
+- **Reputation** — Review and Inbox: stable external Reviews, Review sync, source
+  and provider content lifecycle, manager Replies and their publication, triage
+  Items, Handling Cycles, notes and Response Targets.
 - **Reporting** — Metric, Goal, and Dashboard read/reporting models.
 - **Feed** — Operational Action History, retained Recent Activity records, and notifications.
 
@@ -31,7 +32,10 @@ An area holds its features, and three things every feature shares:
   `publication`, `monthly-goals`):
   - `contracts.ts` holds the types and schemas the browser may import.
   - `*.server.ts` files hold commands, reads, stores, adapters, jobs and
-    consumers. In a feature, only these may import Drizzle.
+    consumers. In a feature, only these may import Drizzle. No area file
+    builds a queue or Redis client: `shared/jobs` and the composition root
+    build them and pass them in, so area code imports `bullmq` and `ioredis`
+    types only (tests may build real clients).
   - `ui/` holds screens, components, hooks and their stories. It has no index
     file and no `*.server.ts`.
   - Tests sit beside what they test; `*.test-fixtures.ts` holds shared test data.
@@ -40,6 +44,7 @@ An area holds its features, and three things every feature shares:
 - `server/` adapts authenticated TanStack Start calls to the built application
   API. Server-function paths are stable RPC entry points.
 - `build.ts` and `build-*.ts` are the composition seam.
+- `public-api.ts` is the one file another area may import.
 
 `application/`, `infrastructure/` and `ports/` are the earlier layer folders.
 They only shrink: add no production file to them (a test beside old code is
@@ -57,7 +62,7 @@ fine), and move a file out in a change that does nothing else.
    server files; another area is reached only through its public API. A feature
    that outgrows one folder becomes two features, not a folder with sub-folders.
 4. Expose a call to the browser as a server function in the area's `server/`.
-   Expose a read or command to another area through `application/public-api.ts`.
+   Expose a read or command to another area through the area's `public-api.ts`.
 5. Wire new dependencies in `build.ts`.
 6. Run `pnpm check:layout` and `pnpm lint`.
 
@@ -67,7 +72,7 @@ are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-cont
 
 ## Dependency rules
 
-- Cross-context code imports only `application/public-api.ts` or implements a
+- Cross-context code imports only an area's `public-api.ts` or implements a
   consumer-owned application port. Never import a foreign `domain/`,
   `infrastructure/`, `server/`, or non-public application module. The port's
   implementation lives in `infrastructure/adapters/` or in a feature as
@@ -84,8 +89,9 @@ Cross-context public-interface rules are enforced by `eslint-rules/cross-context
 
 ## Composition
 
-The root composes Identity → Property → Portal → Guest → Integration → Review →
-AI → Inbox, then Reporting and Feed. Later dependencies arrive through public
+The root composes Identity → Property → Portal → Guest → Integration →
+Reputation's Review build (`build-review.ts`) → AI → Reputation's Inbox build
+(`build-inbox.ts`), then Reporting and Feed. Later dependencies arrive through public
 interfaces or narrow late-bound closures; contexts never reorder construction by
 reaching into another package's internals.
 
@@ -114,7 +120,9 @@ resolution, where the application asks the policy below the adapter.
 does neither, and on a server function declared in a shape it cannot read.
 
 Business failures are real `Error` objects with enumerable `_tag` and `code`.
-Factories live in the owning `domain/errors.ts`; server adapters narrow them with
+Factories live in the owning area's `domain/errors.ts`, or `domain/<family>-errors.ts`
+where one domain holds two families (Feed's activity and notification, Reputation's
+review and inbox); server adapters narrow them with
 `isXxxError`, map once to safe HTTP errors, and sanitize untagged failures. Ordinary
 alternatives use outcome unions rather than failure-shaped objects.
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -9,11 +9,10 @@ import {
   initDelayedExecutionPolicy,
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   inboxHandlingCycleReopened,
   inboxItemAssigned,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import {
   currentRouteDeps,
   deliveredEnvelope,
@@ -37,12 +36,9 @@ import { renderNotification } from '../domain/notification-templates'
 import { handleWorkflowNotificationEvent } from './inbox-workflow.server'
 import type { QueuedNotice } from '../infrastructure/notification-consumer-test-fixtures'
 
-beforeAll(registerAllEventSchemas)
 beforeEach(() => {
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-  initDelayedExecutionPolicy(
-    createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-  )
+  initDelayedExecutionPolicy(createDelayedExecutionPolicy())
 })
 afterEach(() => {
   resetDelayedExecutionPolicy()

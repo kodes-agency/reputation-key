@@ -181,7 +181,12 @@ describe('canReviewAndPublish — who is offered the publish step', () => {
 })
 
 describe('describePendingChanges — the "not live" note in the header', () => {
-  const base = { current: null, priorActivations: [], nextCursor: null } as const
+  const base = {
+    current: null,
+    priorActivations: [],
+    pendingChanges: [],
+    nextCursor: null,
+  } as const
 
   it('says nothing when the draft matches what guests see', () => {
     expect(describePendingChanges({ ...base, hasPendingChanges: false })).toBeNull()
@@ -210,7 +215,7 @@ describe('describePendingChanges — the "not live" note in the header', () => {
     ).toBe('1 change not live')
   })
 
-  it('still says something is not live when the read gives no list', () => {
+  it('still says something is not live when the read lists none', () => {
     expect(describePendingChanges({ ...base, hasPendingChanges: true })).toBe(
       'Changes not live',
     )
@@ -218,7 +223,12 @@ describe('describePendingChanges — the "not live" note in the header', () => {
 })
 
 describe('countPendingChanges — the draft line of the History rail', () => {
-  const base = { current: null, priorActivations: [], nextCursor: null } as const
+  const base = {
+    current: null,
+    priorActivations: [],
+    pendingChanges: [],
+    nextCursor: null,
+  } as const
   const changed = (key: string) => ({
     kind: 'portal_links' as const,
     key,
@@ -240,7 +250,7 @@ describe('countPendingChanges — the draft line of the History rail', () => {
     ).toBe(2)
   })
 
-  it('is at least one for a draft that differs but cannot list how', () => {
+  it('is at least one for a draft that differs but lists no change', () => {
     expect(countPendingChanges({ ...base, hasPendingChanges: true })).toBe(1)
     expect(
       countPendingChanges({ ...base, hasPendingChanges: true, pendingChanges: [] }),

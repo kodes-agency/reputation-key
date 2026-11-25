@@ -12,14 +12,14 @@
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
-import type { InboxFilters } from '#/contexts/inbox/application/ports/inbox.repository'
-import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
+import type { InboxFilters } from '#/contexts/reputation/inbox/inbox-repository.port.server'
+import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import type {
   AiReviewInsightsPort,
   ReviewAttention,
-} from '#/contexts/inbox/application/ports/ai-review-insights.port'
+} from '#/contexts/reputation/inbox/ai-review-insights.port.server'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { propertyId, reviewId } from '#/shared/domain/ids'
 

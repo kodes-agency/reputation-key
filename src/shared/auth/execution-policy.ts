@@ -33,7 +33,7 @@
 // Deps are injected at composition (identity infrastructure owns the grant
 // and consent repositories); this module stays drizzle-free (boundary rule).
 
-import type { AiConsentExecution } from '#/shared/ai-runtime-capability-contract'
+import type { AiConsentExecution } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
@@ -295,15 +295,17 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
 
   async function consentDecision(
     request: DecisionRequest,
-    ctx: AuthContext,
+    scope: Readonly<{ organizationId: string | undefined; userId?: string }>,
   ): Promise<ExecutionDecision | null> {
     if (!request.consent) return null
-    const organizationId = (request.organizationId ?? ctx.organizationId) as string
-    const subjectMatchesRequest = isConsentSelectorBoundToScope(request.consent, {
-      organizationId,
-      propertyId: request.propertyId,
-      userId: ctx.userId as string,
-    })
+    const { organizationId } = scope
+    const subjectMatchesRequest =
+      organizationId !== undefined &&
+      isConsentSelectorBoundToScope(request.consent, {
+        organizationId,
+        propertyId: request.propertyId,
+        userId: scope.userId,
+      })
     const consented =
       subjectMatchesRequest && deps.hasActiveConsent
         ? await deps.hasActiveConsent({
@@ -330,7 +332,10 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
       capabilityDecision(request, ctx, capability) ??
       permissionDecision(request, ctx) ??
       (await propertyScopeDecision(request, ctx)) ??
-      (await consentDecision(request, ctx))
+      (await consentDecision(request, {
+        organizationId: (request.organizationId ?? ctx.organizationId) as string,
+        userId: ctx.userId as string,
+      }))
     return deny ?? finish(request, true, 'allowed')
   }
 
@@ -370,28 +375,6 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     return capDecision.allowed ? null : finish(request, false, capDecision.reason)
   }
 
-  async function operatorConsentDecision(
-    request: DecisionRequest,
-  ): Promise<ExecutionDecision | null> {
-    if (!request.consent) return null
-    const organizationId = request.organizationId
-    const subjectMatchesRequest =
-      organizationId !== undefined &&
-      isConsentSelectorBoundToScope(request.consent, {
-        organizationId,
-        propertyId: request.propertyId,
-      })
-    const consented =
-      subjectMatchesRequest && deps.hasActiveConsent
-        ? await deps.hasActiveConsent({
-            organizationId,
-            ...request.consent,
-            at: request.now,
-          })
-        : false
-    return consented ? null : finish(request, false, 'consent_required')
-  }
-
   async function decideOperator(
     request: DecisionRequest,
     operatorId: string,
@@ -404,7 +387,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     }
     const deny =
       operatorCapabilityDecision(request, operatorId) ??
-      (await operatorConsentDecision(request))
+      (await consentDecision(request, { organizationId: request.organizationId }))
     return deny ?? finish(request, true, 'allowed')
   }
 

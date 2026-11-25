@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The v3 seed in `adopt` mode, read the way an end-to-end stack reads it (PostgreSQL): Review
 // counts the Property's reviews for Guest voice 2.0 from its own source cache, and serves a
 // review's words only from a row that holds a location and a retention date. So the seed
@@ -8,14 +8,14 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // open them (the page falls back to today's). Every value is invented.
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { getDb, type Database } from '#/shared/db'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createReadGuestVoiceV2 } from '../guest-voice/get-guest-voice.server'
-import { createEligibleReads } from '#/contexts/review/application/eligible-reads'
-import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
+import { createEligibleReads } from '#/contexts/reputation/reviews/eligible-reads.server'
+import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
 import { createAiAuthorizationAdapter } from '../consent/ai-authorization.adapter.server'
 import { createAiGuestVoiceFactsAdapter } from '../guest-voice/ai-guest-voice-facts.adapter.server'
 import { createAiPropertyCalendarAdapter } from '../guest-voice/ai-property-calendar.adapter.server'

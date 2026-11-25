@@ -16,7 +16,6 @@
 import { randomUUID } from 'node:crypto'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createConsumerRegistry } from '#/shared/outbox'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   bindProcessPolicies,
   registerProcessPolicyColdBoot,
@@ -82,7 +81,6 @@ function buildContainer(
   // registers into this instance; the worker's readiness gate and the
   // dispatcher read the same one.
   const consumerRegistry = createConsumerRegistry()
-  registerAllEventSchemas()
   const input = { ...runtime, outboxRepo }
 
   // ── Context builds (dependency order) ──────────────────────────────
@@ -114,7 +112,6 @@ function buildContainer(
   const guest = wireGuest(input, identity, portal)
   const integration = wireIntegration(
     input,
-    identity,
     property,
     portal,
     googleProviderAuthority,

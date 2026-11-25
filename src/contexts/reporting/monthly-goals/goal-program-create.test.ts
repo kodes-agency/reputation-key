@@ -42,6 +42,8 @@ function setup(timezone = 'UTC') {
     },
     policy: { authorize: vi.fn(async () => undefined) },
     subjects: {
+      ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
+      staffTargetProblem: vi.fn(async () => null),
       getTimezone: vi.fn(async () => timezone),
       subjectBelongsToProperty: vi.fn(async () => true),
     },
@@ -93,7 +95,8 @@ describe('createGoalCore', () => {
         createdAt: MID_MARCH,
       }),
     ])
-    expect(fakes.now).not.toHaveBeenCalled()
+    // Only the private-rating check reads the clock; the written instant is the caller's.
+    expect(fakes.now).toHaveBeenCalledTimes(1)
     // Authorising is the caller's: one check covers every goal of one save.
     expect(fakes.policy.authorize).not.toHaveBeenCalled()
     expect(fakes.repository.create).toHaveBeenCalledWith({

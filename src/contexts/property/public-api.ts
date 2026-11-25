@@ -1,0 +1,171 @@
+// Property context — public API surface for cross-context consumers.
+// Other contexts (portal, integration) consume this typed interface
+// to query property data. Per ADR-0001.
+
+import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
+import type { PropertyGoogleBindingStore } from './profile/google-binding-store.port.server'
+import type { PropertyLifecycleState } from './domain/property-lifecycle'
+import type { GoogleBindingState } from './domain/google-binding-contract'
+export type { PropertyLifecycleState } from './domain/property-lifecycle'
+export { buildGoogleImportedProperty } from './profile/build-google-imported-property.server'
+export type {
+  PropertyArchived,
+  PropertyCreated,
+  PropertyDeleted,
+  PropertyRestored,
+  PropertyUpdated,
+  PropertyResponsibilityNeeded,
+} from './domain/events'
+
+/** Minimal property info returned for cross-context lookups (e.g., webhook resolution). */
+type PropertyLookupResult = Readonly<{
+  id: string
+  organizationId: string
+  googleConnectionId: string | null
+  gbpAccountId: string | null
+  gbpLocationId: string | null
+  googleBindingState:
+    'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
+  sourceEpoch: number
+}>
+
+/** Content-free property facts for governed cross-context workflows. */
+export type PropertyFactsPublicApi = Readonly<{
+  getPropertyTimezone: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
+}>
+
+/** Current binding generation read from one Property snapshot. */
+export type PropertySourceEpochPublicApi = Readonly<{
+  getSourceEpoch: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<Readonly<{ sourceEpoch: number }> | null>
+}>
+
+/** Server-only binding lifecycle API. Provider identifiers never enter browser DTOs. */
+export type PropertyGoogleBindingPublicApi = PropertyGoogleBindingStore
+
+export type PropertyGoogleReviewDestinationPublicApi = Readonly<{
+  /** Safe Property-owned snapshot. A non-verified URI must never be rendered. */
+  getGoogleReviewDestination: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<
+    import('./domain/google-review-destination').PropertyGoogleReviewDestination | null
+  >
+}>
+
+/**
+ * Lifecycle state and source epoch from one Property snapshot. Reply
+ * publication refuses a Property that is not active, in words matching its
+ * state, and a Review not observed at the current epoch. Null when the
+ * Property does not exist in the Organization.
+ */
+export type PropertyPublicationScopePublicApi = Readonly<{
+  getPublicationScope: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<Readonly<{
+    lifecycleState: PropertyLifecycleState
+    sourceEpoch: number
+  }> | null>
+}>
+
+/**
+ * What a read of one review from Google needs from the Property's CURRENT
+ * binding: its lifecycle, whether the binding is active, the Google
+ * connection it holds and its source epoch, from one snapshot. The
+ * connection and epoch a Review row carries can lag a reconnect or relink, so
+ * a read that must authorize uses these instead. Null when the Property does
+ * not exist in the Organization.
+ */
+export type PropertyGoogleReadScopePublicApi = Readonly<{
+  getGoogleReadScope: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<Readonly<{
+    lifecycleState: PropertyLifecycleState
+    googleBindingState: GoogleBindingState
+    googleConnectionId: GoogleConnectionId | null
+    sourceEpoch: number
+  }> | null>
+}>
+
+/** Fail-closed current lifecycle authority for public and external-effect gates. */
+export type PropertyLifecyclePublicApi = Readonly<{
+  isPropertyActive: (orgId: OrganizationId, propertyId: PropertyId) => Promise<boolean>
+}>
+
+export type PropertyPublicApi = Readonly<{
+  /**
+   * Check whether a property exists within an organization.
+   */
+  propertyExists: (orgId: OrganizationId, propertyId: PropertyId) => Promise<boolean>
+
+  /**
+   * Get a property's display name by ID. Returns null if not found or deleted.
+   * Used by cross-context lookup ports (e.g., inbox enrichment).
+   */
+  getPropertyName: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
+
+  /**
+   * Get display names for multiple properties by IDs. Returns array of { id, name }.
+   * Used by cross-context batch lookup ports (e.g., inbox enrichment N+1 fix).
+   */
+  getPropertyNames: (
+    orgId: OrganizationId,
+    propertyIds: ReadonlyArray<PropertyId>,
+  ) => Promise<ReadonlyArray<{ id: string; name: string | null }>>
+
+  /**
+   * The IANA time zone of each of several properties, in one read. A property that
+   * does not exist (or is deleted) is absent from the answer. Used by the
+   * Organization-wide Portals results, which read each Property in its own days.
+   */
+  getPropertyTimezones: (
+    orgId: OrganizationId,
+    propertyIds: ReadonlyArray<PropertyId>,
+  ) => Promise<ReadonlyArray<{ id: string; timezone: string }>>
+
+  /**
+   * Every non-deleted Property that holds a Google Business Profile location,
+   * in every Organization, ordered by Organization then id. Used by the
+   * integration context for GBP webhook handling (push-based, no
+   * organizationId available at call time). A location is unique only within
+   * an Organization, so the answer can name more than one.
+   */
+  listByGbpLocationId: (
+    gbpLocationId: string,
+  ) => Promise<ReadonlyArray<PropertyLookupResult>>
+
+  /**
+   * Find all non-deleted property IDs linked to a Google connection within an org.
+   * Used by Integration connection lifecycle handling.
+   */
+  findIdsByGoogleConnection: (
+    connectionId: GoogleConnectionId,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<string>>
+
+  /**
+   * Stable Property scope used only to persist/deliver an Organization-level
+   * Google connection notice. Only an active Property qualifies, because
+   * urgent email resolves no delivery scope for any other state: a linked
+   * Property with an active Google binding first, then any linked Property,
+   * then the first active Property in the Organization. Null when the
+   * Organization has no active Property.
+   */
+  findGoogleNotificationAnchor: (
+    connectionId: GoogleConnectionId,
+    orgId: OrganizationId,
+  ) => Promise<string | null>
+}> &
+  PropertySourceEpochPublicApi
+
+export type { GoogleBindingState } from './domain/google-binding-contract'

@@ -4,7 +4,7 @@
 
 import { goalMonthDays } from '../domain/goal-pace'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
-import { localDateOf } from '../domain/local-days'
+import { localDateOf } from '#/shared/domain/local-days'
 import type { PortalGoalRecommendation } from './contracts'
 import type { PortalGoalPageView } from './contracts'
 import type {
@@ -22,12 +22,11 @@ import {
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import { listProgressOf } from './goal-list-progress.server'
 import { dueResultsForProgram } from '../application/use-cases/goal-program-shared'
+import { type GoalProgramService } from './goal-programs.server'
 import {
   GoalProgramError,
   type GoalActor,
-  type GoalExecutionPolicy,
-  type GoalProgramService,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import { progressOf } from './goal-progress.server'
 import {
   gatherPortalGoalFacts,
@@ -359,14 +358,3 @@ export async function readPortalGoalSinglePage(
       return subjectViewOf(deps, bundle, page.subject, context)
   }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program reads. */
-export type PortalGoalSinglePageRequestApi = Readonly<{
-  portalGoalSingle: Readonly<{
-    page: (
-      policy: GoalExecutionPolicy,
-      input: PortalGoalSinglePageInput,
-      actor: GoalActor,
-    ) => Promise<PortalGoalSinglePageView>
-  }>
-}>

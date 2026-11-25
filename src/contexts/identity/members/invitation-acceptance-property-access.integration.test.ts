@@ -14,8 +14,6 @@ import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { invitationId, userId, type InvitationId } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
 import {
@@ -225,14 +223,11 @@ async function insertGrant(
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   db = drizzle(lease.pool) as Database
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterEach(cleanFixtures)
 
 afterAll(async () => {
-  clearEventSchemas()
   await cleanFixtures()
   await lease.release()
 })

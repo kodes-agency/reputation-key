@@ -34,10 +34,9 @@ import {
   reviewAiAnalysisHeads,
   reviewSourceContents,
 } from '#/shared/db/schema'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -47,7 +46,7 @@ import type {
   ReviewAttentionLevelV2,
   ReviewSentimentV3,
   ReviewUrgentReasonV3,
-} from '#/shared/review-analysis-v3'
+} from '#/shared/analysis/review-analysis-v3'
 import type { AiOperationId, ReviewAnalysisMentionV3 } from '../domain/types'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter.server'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter.server'
@@ -144,7 +143,9 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
   if (adopt && adoptedLocation === undefined) {
     throw new Error('An adopting v3 seed needs the externalLocationId its reviews carry')
   }
-  const outputs = createAiOutputStoreAdapter(db)
+  const outputs = createAiOutputStoreAdapter(db, {
+    isCurrentAiReplyBrandProfile: async () => true,
+  })
   const aggregates = createAiPropertyAggregateStoreAdapter(db)
   let initialControls: ReadonlyArray<{
     scopeKey: string
@@ -449,7 +450,6 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
       analysisSequence: sequence,
       reviewAnalysisEpoch: REVIEW_ANALYSIS_EPOCH,
       propertyProfileVersion: PROPERTY_PROFILE_VERSION,
-      calendarProfileVersion: 'property-calendar-v1',
     })
     if (applied.status !== 'applied') {
       throw new Error(`The seed could not file review ${review.index}: ${applied.status}`)
@@ -484,7 +484,6 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
     async setUp(): Promise<void> {
       // An Urgent analysis writes an identifier-only fact to the outbox, which admits only
       // registered facts; the app registers them at boot. Idempotent.
-      registerAllEventSchemas()
       await clear()
       lastIndex = 0
       initialControls = (

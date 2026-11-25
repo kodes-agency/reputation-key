@@ -53,7 +53,7 @@ import { portalLookOverrides } from '#/shared/db/schema/portal-look.schema'
 import { portalMediaAssets } from '#/shared/db/schema/portal-assets.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { parseGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
-import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { guestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 import {
   resolveLinkTexts,
   type PortalLinkTextProvenance,

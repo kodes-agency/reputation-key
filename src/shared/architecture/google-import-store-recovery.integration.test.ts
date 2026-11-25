@@ -14,7 +14,6 @@ import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 import { createDatabase, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { resetExecutionPolicy } from '#/shared/auth/execution-policy'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -34,7 +33,7 @@ import * as bindingModule from '#/contexts/property/profile/google-binding-store
 import * as importStoreModule from '#/contexts/integration/imports/import-store.server'
 import { createTokenEncryptionAdapter } from '#/contexts/integration/connections/token-encryption.adapter.server'
 import {
-  createDurableImportReferenceKeys,
+  invalidationDigest,
   invalidationScopeFor,
 } from '#/contexts/integration/imports/durable-import-reference-keys.server'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
@@ -63,7 +62,6 @@ describe('public Google imports against the import store (PostgreSQL, fake trans
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 8)
     db = createDatabase(lease.pool)
-    registerAllEventSchemas()
     controls = await db.select().from(capabilityExecutionControl)
     const authority = createGoogleContentAuthorityRepository(db)
     await authority.transaction((tx) =>
@@ -144,9 +142,9 @@ describe('public Google imports against the import store (PostgreSQL, fake trans
     const otherUserId = randomUUID()
     const connectionId = randomUUID()
     const now = IMPORT_TEST_NOW
-    const invalidationKeys = createDurableImportReferenceKeys({})
-      .invalidationKeys(invalidationScopeFor('connection', [orgId, connectionId]))
-      .map((fence) => fence.key)
+    const invalidationKeys = [
+      invalidationDigest(invalidationScopeFor('connection', [orgId, connectionId])),
+    ]
     const encryptionKey = IMPORT_TEST_ENCRYPTION_KEY
     const encryption = createTokenEncryptionAdapter({
       activeVersion: 'v1',

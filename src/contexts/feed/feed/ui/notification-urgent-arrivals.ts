@@ -12,10 +12,7 @@
 
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
-import {
-  isStillWaiting,
-  type NotificationView,
-} from '#/contexts/feed/application/public-api'
+import { isStillWaiting, type NotificationView } from '#/contexts/feed/public-api'
 import { isOnAClock } from './notification-filters'
 
 /** The creation time of the newest row the reader was shown; null before any. */

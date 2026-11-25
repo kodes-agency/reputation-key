@@ -10,11 +10,9 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/
 // brand and its colours, the photo the page and og:image draw, the photo's
 // description and the response digests).
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, type PortalId } from '#/shared/domain/ids'
 import { resolvePortalMediaUrls } from '../media/resolve-portal-media-urls.server'
 import { loadPortalPrintKitContext } from '../printing/load-portal-print-kit-context.server'
@@ -23,6 +21,7 @@ import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
 } from '../publication/resolve-public-portal-token.server'
+import { quietGuestReadDeps } from '../publication/resolve-public-portal-token.test-fixtures'
 import { createPortalMediaAssetRepository } from '../media/portal-media-asset-repository.server'
 import { createPortalPublicationRepository } from '../publication/portal-publication-repository.server'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
@@ -70,11 +69,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const NOW = new Date('2026-10-01T12:00:00.000Z')
@@ -146,6 +140,7 @@ async function serve(id: PortalId) {
       profileVersion: snapshot.destinationProfileVersion,
     }),
     decidePublic: async () => ({ allowed: true }),
+    ...quietGuestReadDeps,
     resolvePortalMediaUrls: resolvePortalMediaUrls({
       mediaRepo: createPortalMediaAssetRepository(getDb()),
     }),
@@ -153,7 +148,7 @@ async function serve(id: PortalId) {
   }
   const outcome = await resolvePublicPortalToken(deps)('pt_look_secret')
   if (outcome.status !== 'found') throw new Error('expected a served Portal')
-  return outcome.data
+  return outcome.result
 }
 
 /** Reception follows the Property; Spa, a second Portal of it, has a look of its own. */

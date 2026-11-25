@@ -14,6 +14,7 @@ import type {
 import { deliveryWorkJobOptions } from './dispatch-job-options'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import { startSingleFlight } from '#/shared/jobs/single-flight'
 
 export type OutboxRelay = Readonly<{
   poll: () => Promise<void>
@@ -85,59 +86,37 @@ export function createOutboxRelay(
       await claimAndPublish()
     },
     start: (intervalMs: number) => {
-      let polling: Promise<void> | undefined
-      let stopped = false
-      const timer = setInterval(() => {
-        // One drain at a time: a tick that lands mid-drain leaves it to finish.
-        if (polling) return
-        polling = (async () => {
-          // A full batch means more rows are waiting. Keep publishing until a
-          // poll comes back short, instead of one batch per interval: an
-          // import writes about four events per review, so one batch a second
-          // would cap its burst at 50 events a second.
+      const stop = startSingleFlight({
+        // A full batch means more rows are waiting. Keep publishing until a
+        // poll comes back short, instead of one batch per interval: an
+        // import writes about four events per review, so one batch a second
+        // would cap its burst at 50 events a second.
+        tick: async (isStopped) => {
           let claimed = cfg.batchSize
-          while (!stopped && claimed === cfg.batchSize) claimed = await claimAndPublish()
-        })()
-          .catch((err: unknown) => {
-            logger.error({ err }, 'Outbox relay poll failed')
-          })
-          .finally(() => {
-            polling = undefined
-          })
-      }, intervalMs)
-
+          while (!isStopped() && claimed === cfg.batchSize)
+            claimed = await claimAndPublish()
+        },
+        intervalMs,
+        immediate: false,
+        onError: (err) => logger.error({ err }, 'Outbox relay poll failed'),
+      })
       logger.info({ intervalMs }, 'Outbox relay started')
-
       return () => {
-        stopped = true
-        clearInterval(timer)
+        const stopped = stop()
         logger.info('Outbox relay stopped')
-        return polling ?? Promise.resolve()
+        return stopped
       }
     },
     sweep: () => sweep(),
     startSweep: (intervalMs: number) => {
-      let sweeping: Promise<void> | undefined
-      let stopped = false
-      const run = () => {
-        if (sweeping) return
-        sweeping = sweep(() => stopped)
-          .then(() => undefined)
-          .catch((err: unknown) => {
-            logger.error({ err }, 'Outbox receipt sweep failed')
-          })
-          .finally(() => {
-            sweeping = undefined
-          })
-      }
-      run()
-      const timer = setInterval(run, intervalMs)
+      const stop = startSingleFlight({
+        tick: (isStopped) => sweep(isStopped),
+        intervalMs,
+        immediate: true,
+        onError: (err) => logger.error({ err }, 'Outbox receipt sweep failed'),
+      })
       logger.info({ intervalMs }, 'Outbox receipt sweep started')
-      return () => {
-        stopped = true
-        clearInterval(timer)
-        return sweeping ?? Promise.resolve()
-      }
+      return stop
     },
   }
 }

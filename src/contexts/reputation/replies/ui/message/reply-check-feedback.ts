@@ -4,7 +4,7 @@
 // confirm the reply threw `invalid_transition`, and the button swallowed the
 // rejection (`onCheck().catch(() => undefined)`), so a click that found
 // nothing looked exactly like a click that did nothing. The check now returns a
-// result (`check-reply-publication.ts`), and every outcome is said once, in one
+// result (`check-reply-publication.server.ts`), and every outcome is said once, in one
 // of two places: a toast when the view changes by itself (the reply went live,
 // or it never left and can be published again), or the status line under the
 // actions when the reply stays where it was and only the manager's knowledge
@@ -18,7 +18,7 @@ import {
 import type {
   ReplyPublicationCheckOutcome,
   ReplyPublicationCheckResult,
-} from '#/contexts/review/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import type { InboxReplyCacheChange } from '../../../inbox/ui/page/inbox-cache-policy'
 
@@ -90,7 +90,7 @@ const STATUS_LINE: Readonly<
       REPLY_CHECK_COPY.notShowing,
       ...(result.nextAutomaticCheckAt ? [REPLY_CHECK_COPY.checksAgain] : []),
     ].join(' '),
-  // `unreadable` reschedules nothing (reconcile-reply-publication.ts), so for
+  // `unreadable` reschedules nothing (reconcile-reply-publication.server.ts), so for
   // terminal ambiguity there is no next check to promise: the description
   // above already says RepKey stopped checking, and this line must not
   // contradict it.
@@ -110,7 +110,7 @@ const STATUS_LINE: Readonly<
  *
  * A status sentence becomes a toast when the returned reply is a `draft`: a
  * superseded or cancelled publication returns the reply to draft
- * (`reply-command-store.ts` cancel → `status: 'draft'`), `resolveReplyView`
+ * (`reply-command-store.server.ts` cancel → `status: 'draft'`), `resolveReplyView`
  * sends a draft to the composer, and `ReplyMessage` renders nothing for it —
  * so there is no action row left for the line to sit under.
  */
@@ -133,9 +133,9 @@ export function replyCheckFeedback(
 /**
  * The check's error toast. `actionErrorMessage` shows only 4xx wording, but the
  * one failure a manager can act on here is a 500: `reviewErrorStatus` maps
- * `sync_failed` to 500 (review/server/reply-read.ts), and the check use case
+ * `sync_failed` to 500 (reputation/server/reply-read.ts), and the check use case
  * rewrites every `sync_failed` it can raise into its own sentence
- * (`check-reply-publication.ts`, GOOGLE_UNREACHABLE) before it reaches the
+ * (`check-reply-publication.server.ts`, GOOGLE_UNREACHABLE) before it reaches the
  * server fn — so that code's message is product copy, not internal state.
  */
 export function replyCheckErrorMessage(error: unknown): string {

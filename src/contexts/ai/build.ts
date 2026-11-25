@@ -5,8 +5,8 @@ import type { OrganizationId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Database } from '#/shared/db'
 import type { Redis } from 'ioredis'
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
-import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
+import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
 import {
   createCld3ReplyLanguageDetector,
   resolveConcreteReplyLanguage,
@@ -15,12 +15,10 @@ import type { AiInferencePort } from './execution/ai-inprocess.port.server'
 import type { AiAdmissionPort } from './execution/ai-lane-admission.port.server'
 import type { AiSubjectHmacPort } from './analysis/ai-subject-hmac.port.server'
 import type { AiProviderChoicePort } from './analysis/ai-provider-choice.port.server'
-import { createReviewAnalysisContractV3 } from './analysis/review-analysis-contract-v3.server'
+import { REVIEW_ANALYSIS_OPERATION_PROFILE } from './analysis/review-analysis-steps.server'
 import { createAnalyzeReviewEvent } from './analysis/analyze-review-event.server'
 import { createAiOperationExecutionReaper } from './analysis/ai-operation-execution-reaper.server'
 import { createAdvanceReviewAnalysisEnrollments } from './replay/advance-enrollments.server'
-import { createApplyAiAuthorizationLifecycle } from './replay/apply-ai-authorization-lifecycle.server'
-import { createApproveReviewAnalysisEnrollment } from './replay/approve-enrollment.server'
 import type { AiOutputStorePort } from './analysis/ai-output-store.port.server'
 import {
   createGenerateReplySuggestion,
@@ -53,7 +51,7 @@ import { createReviewAnalysisEnrollmentAdapter } from './replay/enrollment-store
 import { createAiReviewAnalysisReopenAdapter } from './replay/reopen-store.server'
 import { createRedisAiLaneAdmissionAdapter } from './execution/ai-lane-admission.adapter.server'
 import { createAiReviewAnalysisBacklogAdapter } from './replay/backlog-store.server'
-import { createAiOrganizationSpendAdapter } from './execution/ai-organization-spend.adapter.server'
+import { readOrganizationAiSpend } from './execution/ai-organization-spend.server'
 import {
   createDrainReviewAnalysisBacklog,
   type AuthorizeReviewAnalysisScope,
@@ -148,7 +146,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const calendar = createAiPropertyCalendarAdapter(input.db)
   const reviewEvents = createAiReviewEventStoreAdapter(input.db)
   const backlog = createAiReviewAnalysisBacklogAdapter(input.db)
-  const organizationSpend = createAiOrganizationSpendAdapter(input.db)
   const enrollments = createReviewAnalysisEnrollmentAdapter(input.db, input.idGen)
   const processingProfiles = createPropertyProcessingProfileAdapter(
     input.db,
@@ -161,13 +158,9 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     (input.redis
       ? createRedisAiLaneAdmissionAdapter(input.redis, input.idGen)
       : unavailableAdmission)
-  const reviewAnalysisContract = createReviewAnalysisContractV3({
-    outputs,
+  const analyzeReviewEvent = createAnalyzeReviewEvent({
     vocabularyContext: createPropertyVocabularyContextAdapter(input.db),
     providerChoice: input.providerChoice ?? createOperatorProviderChoice(),
-  })
-  const analyzeReviewEvent = createAnalyzeReviewEvent({
-    contract: reviewAnalysisContract,
     authorization,
     control,
     inference,
@@ -196,12 +189,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     rebuildProfiles: createAiProfileRebuild(input.db, input.logger).sweep,
     nowEpochMillis,
     logger: input.logger,
-  })
-  const applyAiAuthorizationLifecycle = createApplyAiAuthorizationLifecycle({
-    enrollments,
-  })
-  const approveReviewAnalysisEnrollment = createApproveReviewAnalysisEnrollment({
-    enrollments,
   })
   const readReviewAnalysisEnrollmentReadiness =
     createReadReviewAnalysisEnrollmentReadiness({
@@ -254,7 +241,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     outputs,
     processingProfiles,
     nowEpochMillis,
-    reviewAnalysisProfileVersion: reviewAnalysisContract.operationProfile.profileVersion,
+    reviewAnalysisProfileVersion: REVIEW_ANALYSIS_OPERATION_PROFILE.profileVersion,
   }
   let replyLanguageDetector:
     Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>> | undefined
@@ -273,7 +260,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     registerAiConsumers(consumerRegistry, {
       analyzeReviewEvent,
-      applyAiAuthorizationLifecycle,
+      applyAiAuthorizationLifecycle: enrollments.applyAuthorizationLifecycle,
       advanceEnrollment: advanceReviewAnalysisEnrollments.advanceProperty,
       receipts: input.outboxRepo,
       backlog,
@@ -316,7 +303,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       readReviewAnalysisProgress,
       requestReviewAnalysisNow,
       readOrganizationAiSpend: (request: Readonly<{ organizationId: OrganizationId }>) =>
-        organizationSpend.readCurrentMonth({
+        readOrganizationAiSpend(input.db, {
           organizationId: request.organizationId,
           nowEpochMillis: nowEpochMillis(),
         }),
@@ -367,15 +354,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       drainReviewAnalysisBacklog,
       runGuestVoiceSummarySweep,
       reapAiOperations,
-    }),
-    internal: Object.freeze({
-      repos: Object.freeze({}),
-      useCases: Object.freeze({
-        analyzeReviewEvent,
-        advanceReviewAnalysisEnrollments,
-        approveReviewAnalysisEnrollment,
-        readReviewAnalysisEnrollmentReadiness,
-      }),
     }),
   })
 }

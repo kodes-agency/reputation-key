@@ -27,24 +27,24 @@ import {
   INBOX_HISTORY_SOURCE_LIMIT,
   type InboxHistoryPage,
   type InboxHistoryRepository,
-} from '#/contexts/inbox/application/ports/inbox-history.repository'
+} from '#/contexts/reputation/inbox/inbox-history-repository.port.server'
 import {
   orderInboxHistory,
   redactLegacyActor,
   type InboxAssignmentReason,
   type InboxHistoryEntry,
-} from '#/contexts/inbox/domain/handling-history'
+} from '#/contexts/reputation/domain/handling-history'
 import type {
   FeedbackHandlingDeadlineResult,
   PrivateFeedbackHandlingOutcome,
-} from '#/contexts/inbox/domain/feedback-handling'
+} from '#/contexts/reputation/domain/feedback-handling'
 import type {
   HandlingCycleActorType,
   HandlingCycleOpenReason,
   HandlingCycleTransitionKind,
   ManualReopenReason,
-} from '#/contexts/inbox/domain/types'
-import { selectHandlingCycleTransitions } from '#/contexts/inbox/infrastructure/handling-cycle-transitions.read'
+} from '#/contexts/reputation/domain/inbox-types'
+import { selectHandlingCycleTransitions } from '#/contexts/reputation/inbox/handling-cycle-transitions-read.server'
 
 const optionalUserId = (value: string | null): UserId | null =>
   value === null ? null : toUserId(value)

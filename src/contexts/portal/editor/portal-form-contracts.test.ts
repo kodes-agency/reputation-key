@@ -5,7 +5,6 @@ import {
   portalApprovedDestinationRequestInputSchema,
   portalLocalizedOverrideInputSchema,
   propertyPortalBrandContentInputSchema,
-  propertyPortalBrandProfileInputSchema,
   propertyPublicDisplayNameFormInputSchema,
 } from './portal-experience.contracts'
 import {
@@ -42,23 +41,7 @@ describe('Portal form DTO contracts', () => {
     ).toMatchObject({ label: 'Website', url: 'https://example.com' })
   })
 
-  it('enforces accessible brand contrast and normalized localized content', () => {
-    const baseProfile = {
-      propertyId: 'property-1',
-      displayName: 'Hotel',
-      primaryColor: '#2563EB',
-      backgroundColor: '#FFFFFF',
-      textColor: '#111827',
-    }
-    expect(propertyPortalBrandProfileInputSchema.safeParse(baseProfile).success).toBe(
-      true,
-    )
-    expect(
-      propertyPortalBrandProfileInputSchema.safeParse({
-        ...baseProfile,
-        textColor: '#FFFFFF',
-      }).success,
-    ).toBe(false)
+  it('normalizes localized content', () => {
     expect(
       propertyPortalBrandContentInputSchema.parse({
         propertyId: 'property-1',

@@ -4,7 +4,7 @@ import { PanelLeftIcon } from 'lucide-react'
 import { Slot } from 'radix-ui'
 
 import { useIsMobile } from '#/components/hooks/use-mobile'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { IconButton, type IconButtonProps } from '#/components/ui/icon-button'
 import {
   Sheet,

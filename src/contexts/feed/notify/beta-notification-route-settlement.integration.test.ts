@@ -18,7 +18,6 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   ITEM,
   ORG,
@@ -54,7 +53,6 @@ describe.sequential('settling routes retire their notices and cancel their mail'
   let held: HeldTransaction
 
   beforeAll(async () => {
-    registerAllEventSchemas()
     held = await holdTransaction()
     await seedProperty(held.db, { id: PROPERTY, organizationId: ORG })
     await seedProperty(held.db, { id: OTHER_PROPERTY, organizationId: ORG })
@@ -63,9 +61,7 @@ describe.sequential('settling routes retire their notices and cancel their mail'
 
   beforeEach(() => {
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-    )
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
   })
 
   afterEach(() => {

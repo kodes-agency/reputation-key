@@ -14,7 +14,7 @@ import { guestVoicePeriod, buildGuestVoicePeriod } from './period.server'
 // The plan reads no word of a review and calls no model. Its output is the three lines of
 // "In short" as topics, counts and links (`summaryLines`), and nothing that could carry a
 // guest's words out of the app (ADR 0046 r.8; ADR 0031).
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { GuestVoiceSummaryFactLine } from '../domain/events'
 import { resolveAiReadGate } from '../consent/ai-read-gate.server'
@@ -113,7 +113,6 @@ export function createPlanGuestVoiceSummary(
     const endLocalDate = await dependencies.calendar.resolveLocalDate({
       reviewedAtEpochMillis: dependencies.nowEpochMillis(),
       timezone: gate.profile.timezone,
-      calendarProfileVersion: 'property-calendar-v1',
     })
     if (endLocalDate === null) return { status: 'skipped', why: 'preparing' }
     // The sweep asks at the Property's Monday morning; this is the rule it asks under.

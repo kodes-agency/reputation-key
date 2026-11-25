@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   portalApprovedDestinationId,
@@ -45,8 +43,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   for (const [orgIdValue, propertyIdValue, portalIdValue, suffix] of [
     [ORG_A, PROPERTY_A, PORTAL_A, 'a'],
     [ORG_B, PROPERTY_B, PORTAL_B, 'b'],
@@ -295,33 +291,19 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
 
   it('versions Property branding and removes an empty Portal-local override', async () => {
     const repo = createPortalExperienceRepository(getDb())
-    const firstProfile = await repo.savePropertyProfile({
+    const firstProfile = await repo.savePropertyDisplayName({
       id: 'fa400000-0000-4000-8000-000000000001',
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
-      profile: {
-        displayName: 'Example Hotel',
-        logoUrl: null,
-        defaultHeroImageUrl: null,
-        primaryColor: '#1D4ED8',
-        backgroundColor: '#FFFFFF',
-        textColor: '#111827',
-      },
+      displayName: 'Example Hotel',
       updatedBy: ADMIN,
       at: NOW,
     })
-    const secondProfile = await repo.savePropertyProfile({
+    const secondProfile = await repo.savePropertyDisplayName({
       id: 'fa400000-0000-4000-8000-000000000002',
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
-      profile: {
-        displayName: 'Example Hotel Sofia',
-        logoUrl: null,
-        defaultHeroImageUrl: null,
-        primaryColor: '#1D4ED8',
-        backgroundColor: '#FFFFFF',
-        textColor: '#111827',
-      },
+      displayName: 'Example Hotel Sofia',
       updatedBy: ADMIN,
       at: new Date(NOW.getTime() + 1_000),
     })
@@ -365,7 +347,6 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
       override: {
         title: 'Лоби',
         shortDescription: null,
-        heroImageUrl: null,
       },
       updatedBy: MANAGER,
       at: new Date(NOW.getTime() + 3_000),
@@ -378,7 +359,7 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
         propertyId: PROPERTY_A,
         portalId: PORTAL_A,
         locale: 'bg',
-        override: { title: null, shortDescription: null, heroImageUrl: null },
+        override: { title: null, shortDescription: null },
         updatedBy: MANAGER,
         at: new Date(NOW.getTime() + 4_000),
       }),
@@ -437,7 +418,7 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       locale: 'en',
-      override: { title: null, shortDescription: null, heroImageUrl: null },
+      override: { title: null, shortDescription: null },
       updatedBy: MANAGER,
       at: new Date(NOW.getTime() + 1_000),
     })
@@ -469,7 +450,7 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       locale: 'en',
-      override: { title: 'Front desk', shortDescription: null, heroImageUrl: null },
+      override: { title: 'Front desk', shortDescription: null },
       updatedBy: MANAGER,
       at: new Date(NOW.getTime() + 1_000),
     })

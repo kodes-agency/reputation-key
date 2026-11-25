@@ -11,7 +11,7 @@ import {
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { ReactNode } from 'react'
 import type { Permission } from '#/shared/domain/permissions'
-import type { SourceType } from '#/contexts/inbox/application/public-api'
+import type { SourceType } from '#/contexts/reputation/public-api'
 import {
   resolveInboxOwner,
   type InboxAssignmentOption,
@@ -23,7 +23,7 @@ import type { InboxCurrentUser } from '../inbox-case-toolbar-props'
 
 /**
  * Mirror of `SOURCE_HANDLE_PERMISSION` in
- * `contexts/inbox/application/inbox-access.ts`: every command that acts on an
+ * `contexts/reputation/inbox/inbox-access.server.ts`: every command that acts on an
  * item — assigning, reopening, escalating it — is `inbox.write` **and** the owning
  * context's handle permission, so `inbox.write` alone is not a licence to
  * touch private feedback. Shared with the case toolbar so the two gates cannot
@@ -70,13 +70,13 @@ type Props = Readonly<{
  * accessible name of `Assignment: `.
  */
 /**
- * `assign-inbox-item.ts` lets `inbox.write` claim an item that is unassigned or
+ * `assign-inbox-item.server.ts` lets `inbox.write` claim an item that is unassigned or
  * already theirs and release one they hold, and nothing else; every wider move
  * — including stealing an item held by someone else to assign it to yourself —
  * needs `inbox.manage`.
  *
  * The caller reaches this function only once the source conjunct has passed —
- * `assign-inbox-item.ts:52` runs `canHandleInboxSource` after its write check,
+ * `assign-inbox-item.server.ts:52` runs `canHandleInboxSource` after its write check,
  * so a custom role holding `inbox.write` and only `feedback.read` may read a
  * private-feedback item but not assign it. Within that envelope the menu
  * offers exactly what the caller may do, so the server never has to refuse a

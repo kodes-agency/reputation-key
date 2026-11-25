@@ -7,7 +7,7 @@
 
 import { Check, X } from 'lucide-react'
 import { TONE_ICON, TONE_INK } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { ImageCheck } from './image-checks'
 
 const WarningIcon = TONE_ICON.warn

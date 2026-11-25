@@ -18,12 +18,11 @@ import {
   properties,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { seedEnabledReviewAnalysis } from '#/shared/db/testing/enabled-review-analysis-fixture'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { seedReviewContent } from './review-content.test-fixtures'
+import { readAggregateWindow } from './property-aggregate.test-fixtures'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter.server'
 
 const ORG = 'ai-rolled-profile-test'
@@ -194,8 +193,6 @@ describe.sequential('trend coverage of a rolled profile generation (PostgreSQL)'
   const dueZone = zoneWhereLocalHourIs(NOON, new Date())
 
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearFixture()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -206,11 +203,10 @@ describe.sequential('trend coverage of a rolled profile generation (PostgreSQL)'
 
   afterAll(async () => {
     await clearFixture()
-    clearEventSchemas()
   })
 
   it('reads the rolled generation as awaiting what only the ledger settled', async () => {
-    const window = await aggregates.readWindow({
+    const window = await readAggregateWindow(db, {
       organizationId: organizationId(ORG),
       propertyId: propertyId(propertyOf(ROLLED)),
       sourceEpoch: 0,

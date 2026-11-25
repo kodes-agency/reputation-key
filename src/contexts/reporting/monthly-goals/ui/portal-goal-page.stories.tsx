@@ -300,7 +300,6 @@ const PAGE_FIRST_DAYS: typeof PAGE_RUNNING = {
     ],
     elsewhere: 0,
     total: 1,
-    truncated: false,
   },
   months: PAGE_RUNNING.months.map((month) => ({ ...month, value: 1 })),
   changes: PAGE_RUNNING.changes.slice(0, 1),
@@ -343,7 +342,6 @@ const PAGE_PASSED: typeof PAGE_RUNNING = {
     ],
     elsewhere: 0,
     total: 41,
-    truncated: false,
   },
   months: PAGE_RUNNING.months.map((month) => ({ ...month, value: 41 })),
 }

@@ -1,13 +1,13 @@
-import type { AiGatewayRouteRequestV1 } from '#/shared/ai-gateway-transport-contract'
+import type { AiGatewayRouteRequestV1 } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   AI_REDACTION_PROFILE_DIGEST,
   AI_REDACTION_PROFILE_VERSION,
   redactAiReviewSentences,
-} from '#/shared/ai-deterministic-redactor'
+} from '#/shared/ai-redaction/ai-deterministic-redactor'
 import {
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
   AI_STRUCTURED_MARKER_DETECTORS_VERSION,
-} from '#/shared/ai-structured-marker-detectors'
+} from '#/shared/ai-redaction/ai-structured-marker-detectors'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
@@ -22,8 +22,8 @@ import {
   reviewSentencesMatchText,
   REVIEW_ANALYSIS_V3_OPERATION_PROFILE,
   type ReviewAnalysisV3GatewayResult,
-} from '#/shared/review-analysis-v3-request'
-import type { ReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+} from '#/shared/analysis/review-analysis-v3-request'
+import type { ReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import { GatewayPreparationError } from './contracts'
 
 // The evidence request path of review-analysis v3 (contract section 6): what the
@@ -66,9 +66,7 @@ export function prepareReviewEvidence(
   const { sentences } = request.source
   const context = request.propertyContext
   const text = request.source.text
-  if (sentences === undefined || context === undefined || text === null) {
-    throw new GatewayPreparationError('invalid_request')
-  }
+  if (text === null) throw new GatewayPreparationError('invalid_request')
   if (sentences.length === 0) throw new GatewayPreparationError('text_unavailable')
   if (
     !reviewSentencesAreNumberedFromOne(sentences) ||

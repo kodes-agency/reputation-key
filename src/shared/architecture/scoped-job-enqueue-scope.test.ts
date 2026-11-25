@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Scoped job families — what a family is enqueued with must give the
 // delayed-execution gate a scope.
 //
@@ -30,8 +30,6 @@ import {
   resetDelayedExecutionPolicy,
   type DelayedDecisionRequest,
 } from '#/shared/auth/system-execution-policy'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   ENTRY_POINT_CATALOGUE,
   type EntryPointRow,
@@ -41,7 +39,7 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/replay/ai-job-enqueue.server'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails-job.server'
 import { createGoogleImportQueue } from '#/contexts/integration/imports/google-import-queue.server'
-import { buildReviewContext } from '#/contexts/review/build'
+import { buildReviewContext } from '#/contexts/reputation/build-review'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => createMockLogger(),
@@ -211,13 +209,11 @@ describe('scoped job families are enqueued with the scope the gate decides on', 
   const requests: DelayedDecisionRequest[] = []
 
   beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     requests.length = 0
     resetCapabilityPolicyStore()
     // Every controlled capability open: a denial here can only be about scope.
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const policy = createDelayedExecutionPolicy()
     initDelayedExecutionPolicy({
       decide: (request) => {
         requests.push(request)
@@ -229,7 +225,6 @@ describe('scoped job families are enqueued with the scope the gate decides on', 
   afterEach(() => {
     resetDelayedExecutionPolicy()
     resetCapabilityPolicyStore()
-    clearEventSchemas()
   })
 
   it('names how every organization- and property-scoped job family is enqueued', () => {

@@ -7,8 +7,8 @@ import { and, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import type {
+  GoalMetricAggregate,
   GoalMetricAggregateQuery,
-  MetricRepository,
 } from './metric-repository.port.server'
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
@@ -27,44 +27,27 @@ function dateOrNull(value: unknown): Date | null {
   return parsed
 }
 
-export const createMetricRepository = (
+export const queryGoalAggregate = async (
   db: Pick<Database, 'select'>,
-): MetricRepository => ({
-  queryGoalAggregate: async (query) =>
-    trace('metric.queryGoalAggregate', async () => {
-      const [row] = await goalMetricAggregateQuery(db, query)
+  query: GoalMetricAggregateQuery,
+): Promise<GoalMetricAggregate> =>
+  trace('metric.queryGoalAggregate', async () => {
+    const [row] = await goalMetricAggregateQuery(db, query)
 
-      return {
-        sum: numberOrZero(row?.sum),
-        weightedSum: numberOrZero(row?.weightedSum),
-        sampleCount: numberOrZero(row?.sampleCount),
-        readingCount: numberOrZero(row?.readingCount),
-        approximateCount: numberOrZero(row?.approximateCount),
-        updatingCount: numberOrZero(row?.updatingCount),
-        invalidQualityCount: numberOrZero(row?.invalidQualityCount),
-        invalidSampleCount: numberOrZero(row?.invalidSampleCount),
-        invalidSourceCount: numberOrZero(row?.invalidSourceCount),
-        invalidDefinitionCount: numberOrZero(row?.invalidDefinitionCount),
-        correctionHead: dateOrNull(row?.correctionHead),
-      }
-    }),
-
-  hasReading: async (query) =>
-    trace('metric.hasReading', async () => {
-      const rows = await db
-        .select({ id: metricReadings.id })
-        .from(metricReadings)
-        .where(
-          and(
-            eq(metricReadings.definitionVersionId, query.definitionVersionId),
-            eq(metricReadings.sourceEventId, query.sourceEventId),
-            eq(metricReadings.organizationId, unbrand(query.organizationId)),
-          ),
-        )
-        .limit(1)
-      return rows.length > 0
-    }),
-})
+    return {
+      sum: numberOrZero(row?.sum),
+      weightedSum: numberOrZero(row?.weightedSum),
+      sampleCount: numberOrZero(row?.sampleCount),
+      readingCount: numberOrZero(row?.readingCount),
+      approximateCount: numberOrZero(row?.approximateCount),
+      updatingCount: numberOrZero(row?.updatingCount),
+      invalidQualityCount: numberOrZero(row?.invalidQualityCount),
+      invalidSampleCount: numberOrZero(row?.invalidSampleCount),
+      invalidSourceCount: numberOrZero(row?.invalidSourceCount),
+      invalidDefinitionCount: numberOrZero(row?.invalidDefinitionCount),
+      correctionHead: dateOrNull(row?.correctionHead),
+    }
+  })
 
 /** Shared by single and set-based governed snapshots. */
 export function goalMetricAggregateQuery(

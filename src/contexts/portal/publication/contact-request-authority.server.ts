@@ -1,5 +1,5 @@
-import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { OrganizationId, PortalId } from '#/shared/domain/ids'
 import { userId } from '#/shared/domain/ids'
 import { listEligiblePortalManagers } from '../responsibility/portal-manager-eligibility.server'

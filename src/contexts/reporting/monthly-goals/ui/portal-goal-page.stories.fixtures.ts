@@ -105,7 +105,6 @@ export const PAGE_RUNNING: PortalGoalPageView = {
     ],
     elsewhere: 0,
     total: 23,
-    truncated: false,
   },
   facts: {},
   months: [NOVEMBER_RUNNING],
@@ -192,7 +191,6 @@ export const PAGE_LATER: PortalGoalPageView = {
     ],
     elsewhere: 0,
     total: 12,
-    truncated: false,
   },
   months: [
     {
@@ -263,7 +261,6 @@ export const PAGE_ONE_PORTAL: PortalGoalPageView = {
     portals: [{ portalId: 'portal-reception', name: 'Reception', count: 23 }],
     elsewhere: 0,
     total: 23,
-    truncated: false,
   },
 }
 

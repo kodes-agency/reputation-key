@@ -4,7 +4,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { REPLY_TONES } from '#/shared/ai-reply-template-catalogue'
+import { REPLY_TONES } from '#/shared/reply/ai-reply-template-catalogue'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,

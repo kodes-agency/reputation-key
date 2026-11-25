@@ -34,7 +34,7 @@ import { lazyPopoverBody } from './notification-popover-loader'
 import { NotificationSheetHeader } from './notification-sheet-header'
 import { useUrgentArrivalToasts } from './notification-urgent-arrivals'
 import type { NotificationServerFns, NotificationRowActions } from './types'
-import type { NotificationView } from '#/contexts/feed/application/public-api'
+import type { NotificationView } from '#/contexts/feed/public-api'
 
 const loadPopoverContent = () => import('./notification-popover-content')
 // A failed load renders "Couldn't load notifications" in the popover, not the

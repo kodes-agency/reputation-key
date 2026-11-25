@@ -10,8 +10,8 @@ import type { Database } from '#/shared/db'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
-import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from '#/contexts/review/application/public-api'
+} from '#/contexts/property/public-api'
+import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from '#/contexts/reputation/public-api'
 import type { GoogleProviderEndpoints } from './build'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
@@ -72,7 +72,6 @@ function buildDeps(overrides: {
   googlePerformancePrincipalKeys?: ReturnType<typeof createVersionedHmacKeyring>
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   oauthStateHandles?: OAuthStateHandleService
-  refreshPolicyStoreRequired?: () => Promise<void>
 }) {
   return {
     db: dbStub,
@@ -80,9 +79,12 @@ function buildDeps(overrides: {
     outboxRepo: {} as unknown as OutboxRepository,
     clock: () => new Date('2026-01-15T12:00:00.000Z'),
     idGen: () => '00000000-0000-4000-8000-000000000101',
-    invalidationOwnerGen: () => 'deterministic-invalidation-owner',
     jobQueue: createInMemoryQueue(),
     propertyApi: {} as unknown as PropertyPublicApi,
+    propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
+    enqueueReviewSync: vi.fn(),
+    enqueueTargetedReviewFetch: vi.fn(),
+    defaultPublicDisplayName: vi.fn(),
     logger: createMockLogger(),
     providerEndpoints: ENDPOINTS,
     config: CONFIG,
@@ -92,12 +94,11 @@ function buildDeps(overrides: {
 }
 
 describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
-  it('exposes frozen capabilities for requests, maintenance, lifecycle, webhook, and workers', () => {
+  it('exposes frozen capabilities for requests, maintenance, webhook, and workers', () => {
     const ctx = buildIntegrationContext(buildDeps({}))
 
     expect(Object.keys(ctx).sort()).toEqual([
       'internal',
-      'lifecycle',
       'maintenance',
       'publicApi',
       // ARC-03-T12: the named provider capabilities the Review build consumes.
@@ -147,7 +148,6 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(Object.isFrozen(ctx.publicApi.performance)).toBe(true)
     expect(Object.isFrozen(ctx.maintenance)).toBe(true)
     expect(Object.isFrozen(ctx.maintenance.imports)).toBe(true)
-    expect(Object.isFrozen(ctx.lifecycle)).toBe(true)
     expect(Object.isFrozen(ctx.webhook)).toBe(true)
     expect(Object.isFrozen(ctx.worker)).toBe(true)
   })
@@ -285,7 +285,7 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
   }
   const connectionId = googleConnectionId('11111111-1111-4111-8111-111111111111')
 
-  function discoveryWithRefresh(refreshPolicyStoreRequired: () => Promise<void>) {
+  function discoveryContext() {
     const decide = vi.fn(async (): Promise<ExecutionDecision> => ({
       allowed: true,
       reason: 'allowed',
@@ -304,7 +304,6 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
         }),
         propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
         googleImportReplayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
-        refreshPolicyStoreRequired,
       }),
     )
     const discovery = ctx.internal.useCases.googleImportDiscovery
@@ -312,8 +311,8 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
     return { discovery: discovery!, decide }
   }
 
-  it('reaches the execution policy after observing the static policy', async () => {
-    const { discovery, decide } = discoveryWithRefresh(async () => {})
+  it('reaches the execution policy', async () => {
+    const { discovery, decide } = discoveryContext()
 
     // The content authority is unavailable here, which is a dependency fault the
     // administrator can retry, not a change of their access.

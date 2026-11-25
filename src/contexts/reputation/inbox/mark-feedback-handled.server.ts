@@ -1,0 +1,73 @@
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { InboxItemId } from '#/shared/domain/ids'
+import { canForContext } from '#/shared/domain/permissions'
+import type { PrivateFeedbackHandlingOutcome } from '../domain/feedback-handling'
+import { inboxError } from '../domain/inbox-errors'
+import {
+  assertExpectedCommandRevision,
+  assertInboxSourcePropertyAccessible,
+  canHandleInboxSource,
+  loadInboxItemOrThrow,
+} from './inbox-access.server'
+import type {
+  FeedbackHandlingExpectation,
+  FeedbackHandlingStore,
+} from './feedback-handling-store.port.server'
+import type { InboxRepository } from './inbox-repository.port.server'
+
+export type MarkFeedbackHandledInput = Readonly<{
+  inboxItemId: InboxItemId
+  expected: FeedbackHandlingExpectation
+  outcome: PrivateFeedbackHandlingOutcome
+  internalNote: string | null
+}>
+
+export type MarkFeedbackHandledDeps = Readonly<{
+  repo: InboxRepository
+  store: FeedbackHandlingStore
+  staffPublicApi: StaffPublicApi
+  clock: () => Date
+  idGen: () => string
+}>
+
+export const markFeedbackHandled =
+  (deps: MarkFeedbackHandledDeps) =>
+  async (input: MarkFeedbackHandledInput, ctx: AuthContext) => {
+    if (!canForContext(ctx, 'inbox.write') || !canHandleInboxSource(ctx, 'feedback')) {
+      throw inboxError('forbidden', 'No permission to handle private feedback')
+    }
+    const item = await loadInboxItemOrThrow(
+      deps.repo,
+      input.inboxItemId,
+      ctx.organizationId,
+    )
+    // Scope before the revision fence: a conflict names the item's current
+    // revision and status, which a caller with no access to its Property must
+    // not be told.
+    await assertInboxSourcePropertyAccessible(
+      deps.staffPublicApi,
+      ctx,
+      'handle',
+      'feedback',
+      item.propertyId,
+    )
+    assertExpectedCommandRevision(item, input.expected.commandRevision)
+    if (item.sourceType !== 'feedback') {
+      throw inboxError(
+        'invalid_input',
+        'Mark as handled is available only for private feedback',
+      )
+    }
+    return deps.store.markHandled({
+      item,
+      expected: input.expected,
+      outcomeId: deps.idGen(),
+      outcome: input.outcome,
+      internalNote: input.internalNote,
+      actorUserId: ctx.userId,
+      recordedAt: deps.clock(),
+    })
+  }
+
+export type MarkFeedbackHandled = ReturnType<typeof markFeedbackHandled>

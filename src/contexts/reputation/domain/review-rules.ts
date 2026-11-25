@@ -1,0 +1,139 @@
+// Review context — domain rules
+
+import { sha256Hex } from '#/shared/domain/sha256'
+import type { ReplyStatus } from './review-types'
+import { reviewError } from './review-errors'
+
+/**
+ * Stable SHA-256 of normalized, policy-controlled source fields.
+ * Used to detect content-changing fetches vs mere refreshes.
+ */
+export function computeReviewContentHash(
+  fields: Readonly<{
+    rating: number
+    text: string | null
+    reviewerName: string | null
+    languageCode: string | null
+  }>,
+): string {
+  // Null-safe, order-stable canonical form (no JSON key reordering risk).
+  const canonical = [
+    String(fields.rating),
+    fields.text ?? '',
+    fields.reviewerName ?? '',
+    fields.languageCode ?? '',
+  ].join('\0')
+  // Browser-safe vendored sha256 (identical digests to node:crypto) — domain
+  // modules are shared by server AND client graphs; node:crypto crashes
+  // hydration in the dev server (STD-P2-01 class).
+  return sha256Hex(canonical)
+}
+
+/** Valid reply status transitions. Keys are current status, values are allowed next statuses.
+ *  The table says which status may follow which. Which COMMAND may make a move,
+ *  and from which publication state, is `reply-command-preconditions.ts`: every
+ *  reply command checks its own start there before this table is consulted.
+ *  `draft → draft` is an explicit self-transition covering in-place edits of an existing draft
+ *  (text changes without a status change).
+ *  `publish_failed → published` exists ONLY for the reconciliation path
+ *  (reconcileReplyPublication): the provider confirms the reply already exists,
+ *  healing an ambiguous publish outcome. It never skips approval.
+ *  `approved → draft` is deliberately absent. No reply command makes that
+ *  move: a publication cancellation does (disconnect/policy, through
+ *  `cancelledPublication`), and so does a cycle superseded by provider truth
+ *  or a changed Review. While the edge sat in this table a draft save could
+ *  take it and rewrite a reply that was being published.
+ *  `pending_approval → draft` is absent for the same reason: a guest edit makes
+ *  it (`takenBackByGuestEdit`). `publish_failed → draft` has one command: Delete
+ *  reply, on a failure that settled as not published, which clears the reply in
+ *  its row. A guest edit and a different reply on Google make it too. */
+const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>>> = {
+  draft: ['draft', 'pending_approval'],
+  pending_approval: ['approved', 'rejected'],
+  approved: ['published', 'publish_failed'],
+  // published → approved exists ONLY for the edit-and-republish path
+  // (editPublishedReply): editing a published reply's text re-enters the
+  // durable publication machine; the GBP reply update is an upsert, so
+  // republishing can never duplicate the provider-visible reply.
+  published: ['approved'],
+  rejected: ['draft'],
+  publish_failed: ['approved', 'published', 'draft'],
+}
+
+export const canTransitionReply = (current: ReplyStatus, next: ReplyStatus): boolean =>
+  REPLY_TRANSITIONS[current]?.includes(next) ?? false
+
+/**
+ * Mirrors `ReplyCommentProblem` (`shared/google-provider-control/reply-comment.ts`).
+ * The domain layer may import only `shared/domain` (eslint.config.js, the
+ * `domain` boundary policy), so the application layer asks the shared rule and
+ * the domain words the answer. A problem the shared rule adds and this union
+ * lacks fails typecheck at the call site in `reply-operations.server.ts`.
+ */
+export type ReplyTextProblem =
+  'empty' | 'too_long' | 'invalid_character' | 'malformed_unicode'
+
+const REPLY_TEXT_UNACCEPTED_CHARACTER =
+  "This reply contains a character Google doesn't accept. Remove any unusual control characters and try again."
+
+/**
+ * The manager-facing sentence for text Google cannot be sent. "Bytes", because
+ * the composer's counter counts bytes: a Cyrillic letter is two of them.
+ */
+export function replyTextProblemMessage(problem: ReplyTextProblem): string {
+  switch (problem) {
+    case 'empty':
+      return 'Reply text cannot be empty'
+    case 'too_long':
+      return 'This reply is too long for Google. Shorten it to 4,096 bytes or fewer.'
+    case 'invalid_character':
+    case 'malformed_unicode':
+      // A lone surrogate is invisible in the textarea; to the manager it is one
+      // more character Google won't take, not a Unicode lesson.
+      return REPLY_TEXT_UNACCEPTED_CHARACTER
+  }
+}
+
+export const REPLY_TEMPLATE_SLOT_TOKENS = Object.freeze([
+  '{guest_name}',
+  '{staff_name}',
+  '{dish}',
+  '{event_type}',
+  '{escalation_contact}',
+] as const)
+
+export type ReplyTemplateSlotToken = (typeof REPLY_TEMPLATE_SLOT_TOKENS)[number]
+
+const REPLY_SLOT_PATTERN = /\{[^{}\r\n]*\}/g
+const ALLOWED_REPLY_TEMPLATE_SLOTS: Readonly<Record<ReplyTemplateSlotToken, true>> =
+  Object.freeze(
+    Object.fromEntries(REPLY_TEMPLATE_SLOT_TOKENS.map((slot) => [slot, true])) as Record<
+      ReplyTemplateSlotToken,
+      true
+    >,
+  )
+
+/** Unique brace-delimited placeholders, in first-occurrence order. */
+export function unfilledReplySlots(text: string): readonly string[] {
+  return [...new Set(text.match(REPLY_SLOT_PATTERN) ?? [])]
+}
+
+/** Placeholders that property-authored template content is not allowed to use. */
+export function unknownReplyTemplateSlots(text: string): readonly string[] {
+  return unfilledReplySlots(text).filter(
+    (slot) => !Object.hasOwn(ALLOWED_REPLY_TEMPLATE_SLOTS, slot),
+  )
+}
+
+/** Shared client/server explanation for the publish-side placeholder fence. */
+export function unfilledReplySlotsMessage(text: string): string | null {
+  const slots = unfilledReplySlots(text)
+  return slots.length === 0
+    ? null
+    : `Fill every template placeholder before publishing: ${slots.join(', ')}.`
+}
+
+export function assertReplySlotsFilled(text: string): void {
+  const message = unfilledReplySlotsMessage(text)
+  if (message !== null) throw reviewError('invalid_reply', message)
+}

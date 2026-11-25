@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { nextMerchantAiCapabilityEpochs } from '../domain/merchant-ai-capability-epochs'
-import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice-change'
+import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice/merchant-ai-notice-change'
 import type {
   CapabilityRuntimeProfileVersions,
   MerchantAiCapability,
 } from '#/shared/domain/merchant-ai-capability'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'

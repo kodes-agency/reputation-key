@@ -3,8 +3,8 @@
 // private feedback, so the row and the open item have to say which one they are:
 // a glyph and a word, so colour never carries the kind alone.
 import { Badge } from '#/components/ui/badge'
-import { cn } from '#/lib/utils'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import { cn } from '#/shared/class-names/utils'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { KIND_GLYPH } from './inbox-queues'
 
 type KindedItem = Pick<InboxItem, 'sourceType' | 'platform'>

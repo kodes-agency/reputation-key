@@ -9,7 +9,6 @@ import type { Database } from '#/shared/db/index'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { deleteTestOrganizations, seedOrgs } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { betaFeedbackPseudonym } from '../application/beta-feedback-pseudonym'
 import { BetaFeedbackTriageRepository } from '../infrastructure/beta-feedback-triage.repository'
 import {
@@ -124,7 +123,6 @@ async function outcomeFacts(reference: string) {
 
 beforeAll(async () => {
   // The app registers these at boot; the outbox refuses an unregistered fact.
-  registerAllEventSchemas()
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   db = drizzle(lease.pool) as Database
   repository = BetaFeedbackTriageRepository.create(db)

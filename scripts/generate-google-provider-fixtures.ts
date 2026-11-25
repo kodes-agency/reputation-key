@@ -9,8 +9,7 @@ const CATALOGUE_PATH = 'test-fixtures/google-provider-identifiers-v1.json'
 const CATALOGUE_VERSION = 'google-provider-identifiers-v1'
 const UNIT_TARGET = 'test-fixtures/generated/google-provider-identifiers-v1.ts'
 const E2E_TARGET = 'e2e/fixtures/generated/google-provider-identifiers-v1.ts'
-const UNIT_REEXPORT_TARGET =
-  'src/test-fixtures/generated/google-provider-identifiers-v1.ts'
+const UNIT_REEXPORT_TARGET = 'src/shared/testing/google-provider-identifiers-v1.ts'
 const SUBJECT_TARGET = 'test-fixtures/generated/review-provider-subject-v1.fixture.json'
 // The AI-governance specification was archived with the 42-package program
 // (docs/archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/), so it is no longer a generated target: this

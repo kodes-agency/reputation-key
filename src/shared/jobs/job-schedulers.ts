@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto'
 import type { JobSchedulerJson, JobsOptions, Queue, RepeatOptions } from 'bullmq'
 import type pino from 'pino'
+import { startSingleFlight } from './single-flight'
 
 export type JobSchedulerRegistration = Readonly<{
   schedulerId: string
@@ -310,10 +311,9 @@ export function startJobSchedulerWatchdog(
     onRestored: (restore: JobSchedulerRestore) => Promise<void>
   }>,
 ): () => Promise<void> {
-  let inFlight: Promise<void> | undefined
   let superseded = false
-  const tick = async () => {
-    try {
+  return startSingleFlight({
+    tick: async () => {
       const restore = await restoreMissingJobSchedulers(input)
       if (restore.superseded && !superseded) {
         input.logger.warn(
@@ -328,18 +328,9 @@ export function startJobSchedulerWatchdog(
         'Job schedulers missing from Queue Redis were restored',
       )
       await input.onRestored(restore)
-    } catch (err) {
-      input.logger.warn({ err }, 'Job scheduler watchdog check failed')
-    }
-  }
-  const timer = setInterval(() => {
-    if (!inFlight)
-      inFlight = tick().finally(() => {
-        inFlight = undefined
-      })
-  }, input.intervalMs)
-  return () => {
-    clearInterval(timer)
-    return inFlight ?? Promise.resolve()
-  }
+    },
+    intervalMs: input.intervalMs,
+    immediate: false,
+    onError: (err) => input.logger.warn({ err }, 'Job scheduler watchdog check failed'),
+  })
 }

@@ -4,7 +4,7 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Input } from '#/components/ui/input'
 import { TONE_ICON, TONE_INK } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 type Props = Readonly<{
   /** The value in use, as the field shows it. */

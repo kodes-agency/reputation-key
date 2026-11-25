@@ -25,7 +25,7 @@ import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '../application/public-api'
+import { METRIC_VERSION_IDS } from '../public-api'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository.server'
 
 const ORG = organizationId('org-portal-results-measures')

@@ -1,6 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { unbrand } from '#/shared/domain/ids'
 import { handleWorkflowNotificationEvent } from './inbox-workflow.server'
@@ -64,11 +62,6 @@ const publishFailed = (): ConsumerEvent => ({
 // A retry cannot publish until Google is reconnected, and that is just as
 // true when the notice reaches a responsible manager instead of the author.
 describe('publish failure fallback to the responsible managers', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   it('keeps the reconnect cause, so managers are not told to retry', async () => {
     const deps = makeDeps()
 

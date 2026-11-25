@@ -18,7 +18,7 @@ const BULGARIAN_TRANSLATION = 'The hotel was clean and cosy.'
 /**
  * A Turkish review read in a property that replies in Bulgarian, with BOTH
  * languages known — the only input on which the translation is
- * promoted. `reviewLanguageTag` is what `get-inbox-item-detail.ts:183-188`
+ * promoted. `reviewLanguageTag` is what `get-inbox-item-detail.server.ts:183-188`
  * canonicalizes `tr-TR` into; `reviewLanguageCode` is the raw code beside it.
  */
 const BASE: GuestReviewBodyInput = {

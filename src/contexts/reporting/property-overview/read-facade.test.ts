@@ -18,7 +18,6 @@ import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 import {
   metricPeriodWhere,
   metricPortalWhere,
-  metricPortalsWhere,
   readMetricAggregates,
 } from './read-facade.server'
 
@@ -32,7 +31,6 @@ const render = (fragment: SQL | undefined): string => {
 const ORG = organizationId('org-read-facade')
 const PROP = propertyId('a0000000-0000-0000-0000-000000000001')
 const PORTAL_A = portalId('b0000000-0000-0000-0000-000000000001')
-const PORTAL_B = portalId('b0000000-0000-0000-0000-000000000002')
 const START = new Date('2026-06-01T00:00:00Z')
 const END = new Date('2026-07-01T00:00:00Z')
 
@@ -58,16 +56,6 @@ describe('metric_readings scope predicates', () => {
 
     expect(compiled).toContain('"event_at" >=')
     expect(compiled).toContain('"portal_id" =')
-    expect(compiled).not.toContain('recorded_at')
-  })
-
-  it('scopes a portal set on event time', () => {
-    const compiled = render(
-      metricPortalsWhere(ORG, PROP, [PORTAL_A, PORTAL_B], START, END),
-    )
-
-    expect(compiled).toContain('"event_at" >=')
-    expect(compiled).toContain('"portal_id" in')
     expect(compiled).not.toContain('recorded_at')
   })
 })

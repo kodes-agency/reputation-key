@@ -1,8 +1,13 @@
-import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
-import * as leakage from '#/shared/ai-reply-output-leakage'
+import { replyRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
+import {
+  openAiAdapterRegistry,
+  openAiPreparationRegistry,
+} from './provider-registry.test-fixtures'
+import * as leakage from '#/shared/reply/ai-reply-output-leakage'
+import { getLogger } from '#/shared/observability/logger'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
-import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
+import { settledCostMicros } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 import type { AiAdmissionClient } from './contracts'
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
@@ -10,12 +15,12 @@ import { admitForTest } from './execution-admission.test-fixtures'
 import { aiAdmissionDescriptorDigest, settlementPermitOf } from './execution-admission'
 import { createAiGatewayRoutePreparer } from './route-preparer'
 import { openAiRequestOf } from './review-evidence.test-fixtures'
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   verifyAiReplyProvenance,
   digestRenderedReply,
-} from '#/shared/ai-reply-provenance'
-import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
+} from '#/shared/reply/ai-reply-provenance'
+import { maximumCostMicros } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply/profile'
 import { REPLY_DRAFTING_V2_DYNAMIC_PROMPT_BYTES } from '#/shared/reply/request'
 import { aiGatewayRequestMaxBytes } from '#/contexts/ai/execution/ai-inprocess.adapter.server'
@@ -44,6 +49,7 @@ function preparer(
       detect: () => ({ language, probability: 0.99, reliable: true }),
     },
     now: () => NOW,
+    providers: openAiPreparationRegistry(),
   })
 }
 
@@ -286,7 +292,6 @@ describe('reply v2 provider preparation and acceptance', () => {
       now: () => NOW,
       preparer: { prepare: () => prepared },
       admission: {
-        readiness: async () => true,
         settle: charge,
         authorize: async () => ({
           status: 'authorized',
@@ -297,7 +302,7 @@ describe('reply v2 provider preparation and acceptance', () => {
           }),
         }),
       },
-      connector: {
+      providers: openAiAdapterRegistry({
         invoke: async () => ({
           disposition: 'success',
           reportedDisposition: 'success',
@@ -314,11 +319,13 @@ describe('reply v2 provider preparation and acceptance', () => {
           retryAfterSeconds: null,
           outboundFetchUsed: true,
         }),
-      },
+      } as never),
     })
     const lease = createSensitiveSourceLease<typeof request>()
     lease.attachSource(structuredClone(request), (value) => value.source)
-    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    const logged = ['warn', 'error'].map((level) =>
+      vi.spyOn(getLogger(), level as 'warn').mockImplementation(() => {}),
+    )
     try {
       const result = await service.execute(lease, new AbortController().signal)
       expect(result).toMatchObject({
@@ -334,10 +341,12 @@ describe('reply v2 provider preparation and acceptance', () => {
         outputTokens: 20,
       })
       expect(JSON.stringify(result)).not.toContain(rejected)
-      expect(JSON.stringify(stderr.mock.calls)).not.toContain('cockroaches')
+      expect(JSON.stringify(logged.map((spy) => spy.mock.calls))).not.toContain(
+        'cockroaches',
+      )
       expect(JSON.stringify(charge.mock.calls)).not.toContain('avoidTerms')
     } finally {
-      stderr.mockRestore()
+      for (const spy of logged) spy.mockRestore()
     }
   })
 })

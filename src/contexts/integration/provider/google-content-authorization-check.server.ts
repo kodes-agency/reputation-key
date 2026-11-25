@@ -448,7 +448,7 @@ type PublicationRow = Readonly<{
  * inserts the permit in that same transaction).
  *
  * Why the lock: Review settles an attempt as never sent after reading that no
- * `reviews.reply` permit exists (reply-command-store.ts
+ * `reviews.reply` permit exists (reply-command-store.server.ts
  * settleNeverDispatchedAttempt). `start_google_execution_permit` locks only the
  * permit row, so without this a permit admitted between that read and the
  * settle commit could still start and reach Google, and the reply would then be

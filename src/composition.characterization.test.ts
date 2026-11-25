@@ -19,7 +19,6 @@ import type { Clock } from '#/shared/domain/clock'
 import { createInMemoryQueue, type InMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 
 const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
@@ -75,7 +74,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'inboxMaintenanceRuntime',
   'inboxPublicApi',
   'inboxRuntime',
-  'integrationLifecycleRuntime',
   'integrationMaintenanceRuntime',
   'integrationPublicApi',
   'integrationWebhookRuntime',
@@ -101,7 +99,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'providerEphemeralRedis',
   'rateLimiter',
   'redis',
-  'refreshPolicyStore',
   'refreshReviewProviderSubjectKeys',
   'registerOutboxConsumers',
   'registerReviewWorkerJobs',
@@ -216,12 +213,9 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'createBoundProperty',
       'relink',
       'disconnect',
-      'scrubProviderIdentity',
-      'releaseRetention',
       'releaseRetentionFromEvent',
       'sweepReleasedExpired',
       'countUnreleasedExpired',
-      'cleanupOrganization',
     ]) {
       expect(container.propertyPublicApi).not.toHaveProperty(member)
     }
@@ -254,12 +248,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'imports',
       'subscribeNotifications',
     ])
-    expect(Object.keys(container.integrationLifecycleRuntime).sort()).toEqual([
-      'cancelImportsForConnection',
-      'cancelImportsForOrganization',
-      'finalizePropertyDeletion',
-      'preparePropertyDeletion',
-    ])
     expect(Object.keys(container.integrationWebhookRuntime)).toEqual([
       'handleNotification',
     ])
@@ -280,7 +268,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(Object.isFrozen(container.integrationPublicApi.performance)).toBe(true)
     expect(Object.isFrozen(container.integrationMaintenanceRuntime)).toBe(true)
     expect(Object.isFrozen(container.integrationMaintenanceRuntime.imports)).toBe(true)
-    expect(Object.isFrozen(container.integrationLifecycleRuntime)).toBe(true)
     expect(Object.isFrozen(container.integrationWebhookRuntime)).toBe(true)
     expect(Object.isFrozen(container.integrationWorkerRuntime)).toBe(true)
   })
@@ -305,7 +292,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
   })
 
   it('exposes readiness/runtime contributions as functions', () => {
-    expect(typeof container.refreshPolicyStore).toBe('function')
     expect(typeof container.refreshReviewProviderSubjectKeys).toBe('function')
     expect(typeof container.registerOutboxConsumers).toBe('function')
     expect(typeof container.registerReviewWorkerJobs).toBe('function')
@@ -336,7 +322,6 @@ describe('provider DI slots (BQC-6.1)', () => {
     // createContainer registers all event schemas at construction; the
     // registry is process-global and single-shot, so each additional
     // construction in this describe starts from a clean registry.
-    clearEventSchemas()
     return createContainer({
       clock,
       queue: createInMemoryQueue({ clock }),
@@ -354,7 +339,7 @@ describe('provider DI slots (BQC-6.1)', () => {
 
   const fakeStorage: StoragePort = {
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
-    confirmUpload: async () => {},
+    inspectObject: async () => ({ contentType: 'image/png', sizeBytes: 1024 }),
     deleteObject: async () => {},
     listObjects: async () => ({ objects: [], truncated: false }),
     getObject: async () => null,

@@ -10,11 +10,11 @@ import {
   merchantAiEnablement,
   reviews,
 } from '#/shared/db/schema'
-import { ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
+import { ASPECT_TAXONOMY_V1 } from '#/shared/analysis/aspect-taxonomy'
 import {
   isExecutionCompatibleWithConsent,
   getAiRuntimeCapability,
-} from '#/shared/ai-runtime-capability-contract'
+} from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter.server'
 
 describe('ai output list-filter adapter', () => {
@@ -30,7 +30,10 @@ describe('ai output list-filter adapter', () => {
     chain.innerJoin = vi.fn(() => chain)
     chain.where = where
     const selectDistinct = vi.fn(() => chain)
-    const adapter = createAiOutputStoreAdapter({ selectDistinct } as unknown as Database)
+    const adapter = createAiOutputStoreAdapter(
+      { selectDistinct } as unknown as Database,
+      { isCurrentAiReplyBrandProfile: async () => true },
+    )
 
     await expect(
       adapter.findCurrentReviewIdsByAttention({
@@ -49,7 +52,10 @@ describe('ai output list-filter adapter', () => {
 
   it('fails closed without querying when the page-bounded set is empty', async () => {
     const selectDistinct = vi.fn()
-    const adapter = createAiOutputStoreAdapter({ selectDistinct } as unknown as Database)
+    const adapter = createAiOutputStoreAdapter(
+      { selectDistinct } as unknown as Database,
+      { isCurrentAiReplyBrandProfile: async () => true },
+    )
 
     await expect(
       adapter.findCurrentReviewIdsByAttention({
@@ -151,13 +157,17 @@ describe('stored analysis delivery after a notice lapses', () => {
       }
       return chain
     }
-    const adapter = createAiOutputStoreAdapter({
-      transaction: async (read: (tx: { select: typeof select }) => Promise<unknown>) =>
-        read({ select }),
-    } as unknown as Database)
-    await expect(
-      adapter.readAnalysisForDelivery(input, async (result) => result),
-    ).resolves.toMatchObject({ status: 'ready', sentiment: 'positive' })
+    const adapter = createAiOutputStoreAdapter(
+      {
+        transaction: async (read: (tx: { select: typeof select }) => Promise<unknown>) =>
+          read({ select }),
+      } as unknown as Database,
+      { isCurrentAiReplyBrandProfile: async () => true },
+    )
+    await expect(adapter.readAnalysisForDelivery(input)).resolves.toMatchObject({
+      status: 'ready',
+      sentiment: 'positive',
+    })
     expect(
       isExecutionCompatibleWithConsent({
         capability: 'review_analysis',

@@ -10,12 +10,17 @@ export type BoundedBody =
   | Readonly<{ kind: 'too_large' }>
   | Readonly<{ kind: 'failed' }>
 
-export async function readBoundedBody(
-  request: Request,
+/**
+ * The same bounded read for any byte stream; a missing stream is an empty body.
+ * `zeroChunks` wipes the raw chunks once the read ends, for bodies that carry secrets.
+ */
+export async function readBoundedStream(
+  stream: ReadableStream<Uint8Array> | null,
   maxBytes: number,
+  options: Readonly<{ zeroChunks?: boolean }> = {},
 ): Promise<BoundedBody> {
-  if (!request.body) return { kind: 'ok', bytes: new Uint8Array() }
-  const reader = request.body.getReader()
+  if (!stream) return { kind: 'ok', bytes: new Uint8Array() }
+  const reader = stream.getReader()
   const chunks: Uint8Array[] = []
   let bytes = 0
   try {
@@ -40,5 +45,13 @@ export async function readBoundedBody(
     return { kind: 'failed' }
   } finally {
     reader.releaseLock()
+    if (options.zeroChunks) for (const chunk of chunks) chunk.fill(0)
   }
+}
+
+export function readBoundedBody(
+  request: Request,
+  maxBytes: number,
+): Promise<BoundedBody> {
+  return readBoundedStream(request.body, maxBytes)
 }

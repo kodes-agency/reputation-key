@@ -9,7 +9,7 @@ const handlerDatabase = useAiHandlerDatabase()
 // fake provider. The skeleton shared by every contract is covered in
 // analyze-review-event.integration.test.ts.
 
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   AI_REVIEW_LANGUAGE_ICU_VERSION,
   AI_REVIEW_LANGUAGE_UNICODE_VERSION,
@@ -20,11 +20,10 @@ import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/analysis/normalizer'
-import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiOperationId } from '../domain/types'
 import type { AiProviderChoicePort } from './ai-provider-choice.port.server'
-import { createReviewAnalysisContractV3 } from './review-analysis-contract-v3.server'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
   createAnalyzeReviewEvent,
@@ -228,17 +227,14 @@ async function harness(
     options.category === undefined ? 'Hotel' : options.category,
   )
   const dependencies = {
-    contract: createReviewAnalysisContractV3({
-      outputs: { storeAnalysisV3 } as never,
-      vocabularyContext: { readGooglePrimaryCategory },
-      providerChoice: { chooseForReviewAnalysis },
-    }),
+    vocabularyContext: { readGooglePrimaryCategory },
+    providerChoice: { chooseForReviewAnalysis },
     authorization: persistence.authorization,
     control: persistence.control,
     inference: { analyzeReview, generateReply: vi.fn() },
     operations: persistence.operations,
     outputs: { storeAnalysisV3 },
-    aggregates: { applyReviewAnalysis, advanceWithoutAnalysis, readWindow: vi.fn() },
+    aggregates: { applyReviewAnalysis, advanceWithoutAnalysis },
     admission: {
       acquire: vi.fn(async () => ({
         ok: true as const,
@@ -343,7 +339,6 @@ describe('the review analysis use case under the v3 contract', () => {
     })
     expect(mocks.storeAnalysisV3).toHaveBeenCalledTimes(1)
     expect(mocks.storeAnalysisV3.mock.calls[0]?.[0]).toMatchObject({
-      analysisProfileVersion: 'review-analysis-v3',
       providerCompletion: { modelSnapshot: PROVIDER_LINEAGE.model, inputTokens: 300 },
       derivative: {
         sentiment: 'mixed',

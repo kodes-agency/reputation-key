@@ -5,8 +5,6 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createPolicyAdminOps } from './policy-admin.server'
 import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
 import { hasActiveGrant } from '../members/property-access-grant-repository.server'
@@ -97,8 +95,6 @@ async function clearOrgFixtures() {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await clearOrgFixtures()
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Policy Admin Org', ${ORG}, now())`,
@@ -127,7 +123,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await clearOrgFixtures()
-  clearEventSchemas()
 })
 
 describe('PropertyAccessGrant administration', () => {

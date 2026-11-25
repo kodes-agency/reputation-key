@@ -5,7 +5,7 @@
 // origin, not from a fallback.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, waitFor } from 'storybook/test'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 
 const displayStyle = {
   fontFamily: 'var(--font-guest-display)',

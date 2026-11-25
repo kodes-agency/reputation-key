@@ -741,8 +741,6 @@ export type PortalGoalPageRows = Readonly<{
   elsewhere: number
   /** The governed figure: "All portals 23". */
   total: number
-  /** Only the first 100 Portals by name are listed. */
-  truncated: boolean
 }>
 
 /** An established Portal that has gone quiet: no scans since a day. */

@@ -19,7 +19,7 @@ import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderExecutionResult,
 } from '../provider/google-client.port.server'
-import { translatedGoogleReviewApi } from '#/contexts/review/application/public-api'
+import { translatedGoogleReviewApi } from '#/contexts/reputation/public-api'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter.server'
 
 const NOW = new Date('2026-08-12T12:00:00Z')
@@ -63,7 +63,6 @@ async function createAdapter(execute: GoogleAuthorizedProviderExecutor['execute'
       scopes: ['https://www.googleapis.com/auth/business.manage'],
       credentialAuthorizedBy: userId('synthetic-user'),
       connectedBy: userId('synthetic-user'),
-      visibility: 'organization',
       status: 'active',
       credentialUseState: 'active',
       cleanupMaterialDeadlineAt: null,

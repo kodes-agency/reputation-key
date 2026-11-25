@@ -1,6 +1,6 @@
 import { match } from 'ts-pattern'
-import type { MetricAvailabilityState } from '#/contexts/reporting/application/public-api'
-import { formatDateTime } from '#/lib/format-date-time'
+import type { MetricAvailabilityState } from '#/contexts/reporting/public-api'
+import { formatDateTime } from '#/shared/format/format-date-time'
 
 export type MetricEvidenceSubject =
   | 'reviews'

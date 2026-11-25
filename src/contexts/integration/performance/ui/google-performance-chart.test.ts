@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PerformanceSeries } from '#/shared/google-performance-report-contract'
+import type { PerformanceSeries } from '#/shared/google-contracts/google-performance-report-contract'
 import { buildGooglePerformanceChartModel } from './google-performance-chart'
 
 const series: readonly PerformanceSeries[] = [

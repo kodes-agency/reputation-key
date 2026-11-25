@@ -14,7 +14,7 @@ import type {
   UnusableInvitationLink,
 } from '#/contexts/identity/members/ui/registration/invitation-link'
 import { getSession } from '#/shared/auth/auth.functions'
-import { getInvitationPreview } from '#/contexts/identity/server/organizations'
+import { getInvitationPreview } from '#/contexts/identity/server/invitation-preview'
 import { pendingInvitationsQuery } from './-pending-invitations-query'
 
 type InvitationEntry = Readonly<{

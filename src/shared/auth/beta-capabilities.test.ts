@@ -7,8 +7,6 @@ import {
   FEATURE_SWITCHES,
   checkBetaCapability,
   checkScopedCapability,
-  assertBetaCapability,
-  BetaCapabilityError,
   capabilitiesOffProblem,
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
@@ -302,24 +300,6 @@ describe('BetaCapabilities', () => {
       expect(isBlockedCapability('identity.register')).toBe(true)
       expect(isBlockedCapability('organization.create')).toBe(true)
       expect(isBlockedCapability('notification.send_email')).toBe(false)
-    })
-  })
-
-  describe('assertBetaCapability', () => {
-    beforeEach(() => {
-      install({ BETA_CAPABILITIES_OFF: 'guest_pages' })
-    })
-
-    it('throws BetaCapabilityError when denied', () => {
-      const ctx = buildTestAuthContext()
-      expect(() => assertBetaCapability(ctx, 'portal.public_read')).toThrow(
-        BetaCapabilityError,
-      )
-    })
-
-    it('does not throw when allowed', () => {
-      const ctx = buildTestAuthContext()
-      expect(() => assertBetaCapability(ctx, 'portal.write')).not.toThrow()
     })
   })
 

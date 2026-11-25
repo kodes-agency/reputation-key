@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import {
   inboxCachePolicy,
   observeReplyPublication,

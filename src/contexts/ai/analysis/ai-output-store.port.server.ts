@@ -1,11 +1,11 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
-import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
+import type { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import type { ReviewAnalysisNormalizationFlag } from '#/shared/analysis/normalizer'
 import type {
   ReviewAttentionLevelV2,
   ReviewSentimentV3,
   ReviewUrgentReasonV3,
-} from '#/shared/review-analysis-v3'
+} from '#/shared/analysis/review-analysis-v3'
 import type {
   AiOperationId,
   ReviewAnalysisMentionV3,
@@ -50,7 +50,6 @@ type AiAnalysisWrite = Readonly<{
   authorizationLineageId: string
   reviewAnalysisEpoch: number
   propertyProfileVersion: number
-  analysisProfileVersion: string
   generatedAtEpochMillis: number
   expiresAtEpochMillis: number
 }>
@@ -84,12 +83,10 @@ export type AiOutputStorePort = Readonly<{
       authorizationLineageId: string
       replyDraftingEpoch: number
       propertyProfileVersion: number
-      /** Missing only for pre-grounding operations retained during rollout. */
-      replyBrandProfileVersion?: number
-      /** Missing only for pre-grounding operations retained during rollout. */
-      replyBrandDisplayNameDigest?: string
-      operationProfileVersion: 'reply-suggestion-v1' | 'reply-suggestion-v2'
-      replyProfileVersion: typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION | 'reply-draft-v4'
+      replyBrandProfileVersion: number
+      replyBrandDisplayNameDigest: string
+      operationProfileVersion: typeof REPLY_DRAFTING_V2_VERSIONS.operation
+      replyProfileVersion: typeof REPLY_DRAFTING_V2_VERSIONS.profile
     }>,
   ): Promise<boolean>
   findCurrentReviewIdsByAttention(
@@ -102,7 +99,7 @@ export type AiOutputStorePort = Readonly<{
     }>,
   ): Promise<readonly ReviewId[]>
 
-  readAnalysisForDelivery<T>(
+  readAnalysisForDelivery(
     input: Readonly<{
       organizationId: OrganizationId
       actorUserId: UserId
@@ -117,6 +114,5 @@ export type AiOutputStorePort = Readonly<{
       analysisProfileVersion: string
       nowEpochMillis: number
     }>,
-    deliver: (result: ReviewAnalysisReadV1) => Promise<T>,
-  ): Promise<T>
+  ): Promise<ReviewAnalysisReadV1>
 }>

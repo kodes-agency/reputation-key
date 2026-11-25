@@ -9,7 +9,7 @@
 import type {
   GoalResultsMatrix,
   GoalResultsMatrixRow,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 
 /** Aug 5, 2026: the day the list is opened, so July's days print without a year. */
 export const LIST_NOW = new Date('2026-08-05T12:00:00.000Z')

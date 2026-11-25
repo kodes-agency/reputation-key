@@ -8,8 +8,8 @@
 
 import type { PortalRepository } from './portal-repository.port.server'
 import type { PortalGroupRepository } from '../groups/portal-group-repository.port.server'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { Portal, PortalGroup } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalGroupId, PortalId, PropertyId } from '#/shared/domain/ids'

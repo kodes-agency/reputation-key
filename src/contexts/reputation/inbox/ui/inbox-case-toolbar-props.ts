@@ -29,7 +29,7 @@ import type {
   InboxItemDetailResult,
   InboxPriority,
   ResponseTargetView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { InboxAssignmentOption } from '#/contexts/reputation/inbox/ui/page/inbox-owner-view'
 import { isHeaderCommandPending } from '#/contexts/reputation/inbox/ui/page/inbox-header-command-pending'
 import { prioritySuggestion } from '#/contexts/reputation/inbox/ui/page/inbox-priority-view'
@@ -127,7 +127,7 @@ export type InboxCaseToolbarProps = Readonly<{
   /**
    * `detail.feedbackHandling`, passed through un-gated. The server already
    * null-gates it on the handle pair and the property's handle scope
-   * (`get-inbox-item-detail.ts:142-160`), and the
+   * (`get-inbox-item-detail.server.ts:142-160`), and the
    * item KIND must still come from `item.sourceType`, never from whether this
    * is null — see the `StatusMember` comment in `inbox-case-toolbar.tsx`.
    */
@@ -139,7 +139,7 @@ export type InboxCaseToolbarProps = Readonly<{
   /**
    * A raised escalation not yet resolved. `isEscalated` alone is not enough:
    * the flag is orthogonal to status and stays set once acknowledged
-   * (`domain/types.ts:164-169`, ADR 0055), so a resolved item must offer
+   * (`domain/inbox-types.ts:164-169`, ADR 0055), so a resolved item must offer
    * Escalate again rather than Resolve.
    */
   isEscalationActive: boolean

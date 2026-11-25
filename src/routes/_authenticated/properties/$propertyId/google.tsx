@@ -7,7 +7,10 @@ import {
 } from '#/contexts/integration/server/google-performance'
 import { PropertyGooglePage } from '#/contexts/integration/performance/ui/property-google-page'
 import { propertyQuery } from '#/routes/-queries/route-queries'
-import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-range'
+import {
+  dashboardRangeSearch,
+  type DashboardRange,
+} from '#/shared/dashboard/dashboard-range'
 
 // The Google report is leased and fetched by its own hook inside the section,
 // not by this loader: it carries retry-after and lease-renewal semantics that a

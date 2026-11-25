@@ -10,8 +10,8 @@
 //     replaced with { redacted: true };
 //   - failedReason is the error name + first message line, capped at 200
 //     chars — never a stack, never protected content;
-//   - policyReason carries the gate's deny reason when the failure came from
-//     the delayed execution gate (GateDenyRetryError).
+//   - policyReason is read only: a dead letter written by an earlier release
+//     can carry the gate's deny reason, and the operator listing prints it.
 //
 // Redrive is an explicit operator action: the quarantined job is re-added to
 // its ORIGINAL queue with a fresh attempt budget (catalogue policy for known
@@ -34,7 +34,6 @@
 
 import type { Job, JobProgress, JobsOptions } from 'bullmq'
 import { z } from 'zod/v4'
-import { GateDenyRetryError } from './errors'
 import {
   isCatalogueKnownWork,
   isDomainRedriveOnlyJob,
@@ -63,7 +62,7 @@ export type QuarantineEnvelope = Readonly<{
   /** Error name + first message line, ≤ 200 chars. No stack. */
   failedReason: string
   attemptsMade: number
-  /** Gate deny reason when the failure came from the delayed execution gate. */
+  /** Gate deny reason on a dead letter an earlier release wrote; never set now. */
   policyReason?: string
   /** ISO timestamp of quarantine. */
   quarantinedAt: string
@@ -272,7 +271,6 @@ function buildQuarantineEnvelope(
   job: Job,
   fields: Readonly<{
     failedReason: string
-    policyReason?: string
     attemptsMade?: number
     publicationState?: QuarantineEnvelope['publicationState']
   }>,
@@ -284,7 +282,6 @@ function buildQuarantineEnvelope(
     data,
     failedReason: fields.failedReason.slice(0, 200),
     attemptsMade: fields.attemptsMade ?? job.attemptsMade,
-    policyReason: fields.policyReason,
     quarantinedAt: new Date().toISOString(),
     publicationState: fields.publicationState,
   }
@@ -323,7 +320,6 @@ export async function quarantineExhaustedJob(
 
   const envelope = buildQuarantineEnvelope(job, {
     failedReason: sanitizeFailedReason(err),
-    policyReason: err instanceof GateDenyRetryError ? err.reason : undefined,
     publicationState: 'confirmed_failed',
   })
 
@@ -348,7 +344,6 @@ export async function quarantineFinalAttemptJob(
 
   const envelope = buildQuarantineEnvelope(job, {
     failedReason: sanitizeFailedReason(err),
-    policyReason: err instanceof GateDenyRetryError ? err.reason : undefined,
     attemptsMade: job.attemptsMade + 1,
     publicationState: 'pending_failure',
   })

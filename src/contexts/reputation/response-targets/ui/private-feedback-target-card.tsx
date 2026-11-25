@@ -17,11 +17,11 @@ import type { Action } from '#/components/hooks/use-action'
 import {
   privateFeedbackPropertyTargetFormDto,
   type SetResponseTargetPolicyDtoInput,
-} from '#/contexts/inbox/application/dto/inbox.dto'
+} from '#/contexts/reputation/inbox/contracts'
 import type {
   ResponseTargetPolicySettings,
   ResponseTargetPolicyWriteResult,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 type UpdatePolicyAction = Action<
   Readonly<{ data: SetResponseTargetPolicyDtoInput }>,

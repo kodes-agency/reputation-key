@@ -1,31 +1,15 @@
-import { S3Client } from '@aws-sdk/client-s3'
-import type { Env } from '#/shared/config/env'
-import { ErasureJournalBucket } from '#/shared/db/lifecycle/erasure-journal-bucket.server'
+import {
+  erasureJournalBucketFromEnv,
+  type ErasureJournalBucketEnv,
+} from '#/shared/db/lifecycle/erasure-journal-bucket.server'
 import type { journalBeforeErasure } from '#/shared/db/lifecycle/erasure-journal.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 
-/** Self-service withdrawals journal before deleting; a failed write refuses the withdrawal. */
-export const GUEST_WITHDRAWAL_JOURNAL_ACTIVE: boolean = true
-
 export type GuestWithdrawalJournal = Parameters<typeof journalBeforeErasure>[1] &
   Readonly<{ idGen: () => string }>
 
-export type GuestWithdrawalJournalConfig = Readonly<
-  Partial<
-    Pick<
-      Env,
-      | 'RESTORE_MODE'
-      | 'AWS_S3_REGION'
-      | 'AWS_S3_ACCESS_KEY'
-      | 'AWS_S3_SECRET_ACCESS_KEY'
-      | 'AWS_S3_BUCKET_NAME'
-      | 'S3_INTERNAL_ENDPOINT'
-      | 'S3_PRESIGN_ENDPOINT'
-      | 'S3_FORCE_PATH_STYLE'
-    >
-  >
->
+export type GuestWithdrawalJournalConfig = Readonly<ErasureJournalBucketEnv>
 
 // Class only: never the key, the bytes or the message, which can carry either.
 function describeFailure(error: unknown): { errorName: string; s3Code?: string } {
@@ -42,10 +26,8 @@ export function createGuestWithdrawalJournal(
     idGen: () => string
     config?: GuestWithdrawalJournalConfig
   }>,
-  active = GUEST_WITHDRAWAL_JOURNAL_ACTIVE,
-): GuestWithdrawalJournal | undefined {
-  if (!active) return undefined
-  let bucket: ErasureJournalBucket | undefined
+): GuestWithdrawalJournal {
+  const bucketFor = erasureJournalBucketFromEnv(deps.config ?? {})
   let failureClass: Readonly<{ errorName: string; s3Code?: string }> | undefined
   return {
     idGen: deps.idGen,
@@ -63,30 +45,7 @@ export function createGuestWithdrawalJournal(
       })
     },
     put: async (key, bytes) => {
-      const env = deps.config ?? {}
-      if (env.RESTORE_MODE) throw new Error('Bucket access is refused during restore')
-      if (!bucket) {
-        if (
-          !env.AWS_S3_REGION ||
-          !env.AWS_S3_ACCESS_KEY ||
-          !env.AWS_S3_SECRET_ACCESS_KEY ||
-          !env.AWS_S3_BUCKET_NAME
-        ) {
-          throw new Error('Required bucket credentials are missing')
-        }
-        bucket = new ErasureJournalBucket(
-          new S3Client({
-            region: env.AWS_S3_REGION,
-            credentials: {
-              accessKeyId: env.AWS_S3_ACCESS_KEY,
-              secretAccessKey: env.AWS_S3_SECRET_ACCESS_KEY,
-            },
-            endpoint: env.S3_INTERNAL_ENDPOINT || env.S3_PRESIGN_ENDPOINT || undefined,
-            forcePathStyle: env.S3_FORCE_PATH_STYLE,
-          }),
-          env.AWS_S3_BUCKET_NAME,
-        )
-      }
+      const bucket = bucketFor()
       try {
         await bucket.put(key, bytes)
       } catch (error) {

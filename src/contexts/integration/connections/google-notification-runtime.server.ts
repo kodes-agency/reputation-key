@@ -3,7 +3,7 @@ import type { Clock } from '#/shared/domain/clock'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
-} from '#/contexts/property/application/public-api'
+} from '#/contexts/property/public-api'
 import type { GoogleConnectionRepository } from './google-connection-repository.port.server'
 import { createGoogleNotificationAccountCandidates } from './google-notification-account-candidates.server'
 import { createGoogleNotificationAccountUsageReader } from './google-notification-account-usage.server'
@@ -22,7 +22,7 @@ export function createGoogleNotificationRuntime(
     clock: Clock
     connectionRepo: GoogleConnectionRepository
     propertyApi: Pick<PropertyPublicApi, 'findIdsByGoogleConnection'>
-    propertyBindingApi?: Pick<PropertyGoogleBindingPublicApi, 'readInternal'>
+    propertyBindingApi: Pick<PropertyGoogleBindingPublicApi, 'readInternal'>
   }> &
     Pick<
       ManageNotificationsDeps,
@@ -37,13 +37,9 @@ export function createGoogleNotificationRuntime(
   const reads: Parameters<typeof createGoogleNotificationAccountCandidates>[0] = {
     listOrganizations: deps.connectionRepo.listOrganizationIdsWithActiveConnections,
     listConnections: (organization) =>
-      deps.connectionRepo.listByOrganization(organization, { showAll: true }),
+      deps.connectionRepo.listByOrganization(organization),
     findLinkedPropertyIds: deps.propertyApi.findIdsByGoogleConnection,
-    readBinding:
-      deps.propertyBindingApi?.readInternal ??
-      (async () => {
-        throw new Error('Property binding reader unavailable')
-      }),
+    readBinding: deps.propertyBindingApi.readInternal,
     accounts,
   }
   const management = manageNotifications({

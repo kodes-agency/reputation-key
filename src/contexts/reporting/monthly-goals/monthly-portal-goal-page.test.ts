@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import { GoalProgramError } from '../application/use-cases/goal-program-shared'
-import {
-  readMonthlyPortalGoalPage,
-  type MonthlyPortalGoalPageDeps,
-} from './monthly-portal-goal-page.server'
+import { readMonthlyPortalGoalPage } from './monthly-portal-goal-page.server'
 import {
   AT_NOON,
   DEC_1,
@@ -24,7 +21,7 @@ import {
   withNextVersion,
 } from './monthly-portal-goal.test-fixtures'
 
-const read = (deps: MonthlyPortalGoalPageDeps) =>
+const read = (deps: ReturnType<typeof fakeWorld>['deps']) =>
   readMonthlyPortalGoalPage(deps, { propertyId: PROPERTY_ID }, actor)
 
 /** Sofia's month starts (UTC+3 until Oct 25, then UTC+2). */
@@ -532,7 +529,6 @@ describe('readMonthlyPortalGoalPage', () => {
       ],
       elsewhere: 2,
       total: 23,
-      truncated: false,
     })
   })
 

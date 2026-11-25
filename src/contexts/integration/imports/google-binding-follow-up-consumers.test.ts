@@ -1,12 +1,11 @@
 import type { ManageNotificationsApi } from '../connections/manage-notifications.server'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   PrerequisiteNotReadyError,
   createConsumerRegistry,
   type ConsumerEvent,
 } from '#/shared/outbox'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import {
   createGoogleBindingFollowUpHandlers,
   registerGoogleBindingFollowUpConsumers,
@@ -70,7 +69,6 @@ function setup() {
     binding,
   }
 }
-beforeAll(registerAllEventSchemas)
 describe('durable Google binding follow-ups', () => {
   it('registers three independent handlers so an outage cannot block the other effects', async () => {
     const { deps } = setup()

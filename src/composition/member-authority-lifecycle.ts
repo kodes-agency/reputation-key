@@ -15,14 +15,14 @@
 
 import type { PropertyResponsibilityRuntime } from '#/contexts/property/responsibility/property-responsibility-runtime.server'
 import type { PortalResponsibilityRuntime } from '#/contexts/portal/responsibility/portal-responsibility-runtime.server'
-import type { InboxAssignmentRuntime } from '#/contexts/inbox/application/inbox-assignment-runtime'
+import type { InboxAssignmentRuntime } from '#/contexts/reputation/inbox/inbox-assignment-runtime.server'
 import type { Clock } from '#/shared/domain/clock'
 import { organizationId, userId } from '#/shared/domain/ids'
 import {
   listPropertyIdsNoLongerEligible,
   MANAGER_BECAME_INELIGIBLE_END_REASON,
   type ResponsibleManagerEligibilityDeps,
-} from '#/shared/responsible-manager-eligibility'
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 
 type MemberAuthorityLifecycle = Readonly<{
   reconcileResponsibleManagerEligibility: (

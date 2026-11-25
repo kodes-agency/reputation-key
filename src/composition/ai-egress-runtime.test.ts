@@ -2,7 +2,7 @@ import { generateKeyPairSync } from 'node:crypto'
 import type { Pool } from 'pg'
 import { describe, expect, it, vi } from 'vitest'
 import type { Env } from '#/shared/config/env'
-import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
+import type { AiAdmissionDescriptorV1 } from '#/shared/ai-gateway/ai-internal-transport-contract'
 import type { AiExecutionAdmissionAuthority } from '#/shared/ai-provider-control/execution-admission'
 import {
   admitForTest,
@@ -83,7 +83,6 @@ describe('the in-process admission client', () => {
         status: 'denied' as const,
         code: 'permit_mismatch' as const,
       })),
-      readiness: async () => true,
       ...overrides,
     }
   }

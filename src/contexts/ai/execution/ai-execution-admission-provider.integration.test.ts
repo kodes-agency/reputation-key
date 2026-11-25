@@ -11,19 +11,19 @@ import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
 import { replyDynamicDeveloperBytes } from '#/shared/reply/request'
 import {
   maximumCostMicros,
   OPENAI_PRICE_CATALOGUE_V2,
   settledCostMicros,
-} from '#/shared/ai-openai-provider-profile'
-import { settledCostMicrosWith } from '#/shared/ai-provider-pricing'
-import { priceCatalogueOfProvider } from '#/shared/ai-provider-pricing-registry'
+} from '#/shared/ai-provider-profile/ai-openai-provider-profile'
+import { settledCostMicrosWith } from '#/shared/ai-provider-profile/ai-provider-pricing'
+import { priceCatalogueOfProvider } from '#/shared/ai-provider-profile/ai-provider-pricing-registry'
 import type {
   AiAdmissionDescriptorV1,
   AiSettlementRequestV1,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import {
   AI_REPLY_OPERATION_PROFILE,
   AI_REPLY_V2_DEFAULT_BINDING,

@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createGoogleImportDispatchHandler,
   googlePropertyImportItemJobId,
@@ -10,8 +9,6 @@ import type {
   GoogleImportStore,
 } from './import-store.port.server'
 import type { GoogleImportQueuePort } from './google-import-queue.port.server'
-
-registerAllEventSchemas()
 
 const EVENT: ConsumerEvent = {
   eventId: '10000000-0000-4000-8000-000000000001',

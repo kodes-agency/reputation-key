@@ -19,13 +19,13 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover'
 import { useServedNow } from '#/components/hooks/served-clock'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
   FeedbackHandlingState,
   InboxItem,
   ResponseTargetView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import { feedbackHandlingStatusLabel } from './feedback-handling-presentation'
 import { CASE_GROUP_CLASS } from './inbox-case-member'
 import type { InboxCaseToolbarProps } from './inbox-case-toolbar-props'
@@ -148,7 +148,7 @@ type StatusMemberProps = Readonly<{
  *
  * `update-inbox-status.ts:67` gates on `inbox.write`, then `:76` on
  * `canHandleInboxSource` — which is itself `inbox.write` **and**
- * `SOURCE_HANDLE_PERMISSION[sourceType]` (`inbox-access.ts:36`). Both server
+ * `SOURCE_HANDLE_PERMISSION[sourceType]` (`inbox-access.server.ts:36`). Both server
  * conjuncts are reproduced below, for either source type, so nothing refused is
  * ever offered: `inbox.manage` does not imply `inbox.write` anywhere — the
  * client `can` is a flat membership test over `effectivePermissions`
@@ -160,7 +160,7 @@ type StatusMemberProps = Readonly<{
  * the server's: widening who may reopen is a product decision.
  *
  * The item kind comes from `item.sourceType`, never from `feedbackHandling`:
- * `get-inbox-item-detail.ts:132` populates that field only for a caller holding
+ * `get-inbox-item-detail.server.ts:132` populates that field only for a caller holding
  * `feedback.handle` in the property's scope, so using it as the discriminator
  * would label a private-feedback item `Open`/`Closed` for everyone else.
  */

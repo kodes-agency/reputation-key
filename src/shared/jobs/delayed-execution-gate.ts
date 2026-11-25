@@ -15,15 +15,13 @@
 //
 // Outcome mapping (phase BQC-3 §3.2 typed runtime outcomes):
 //   allow                        → allow — invoke the work
-//   deny 'policy_unavailable'    → deny_retry — the call site THROWS so BullMQ
-//                                  retries: protected work must never run
-//                                  without a decision, and an unavailable
-//                                  policy is transient, not a revocation
-//   every other deny             → deny_terminal — typed terminal state, no
+//   every deny                   → deny_terminal — typed terminal state, no
 //                                  side effect, no retry. The worker dispatch
 //                                  resolves a GateDeniedResult so the runtime
 //                                  observations record a denial, never a
 //                                  success (gate-denial.ts)
+// The policy decides from process-local state, so it never answers "cannot
+// read the policy": there is no retryable deny.
 
 import type { Job } from 'bullmq'
 import type { EntryPointRow, SystemAction } from '#/shared/domain/entry-point-types'
@@ -34,15 +32,10 @@ import {
   type DelayedDecision,
 } from '#/shared/auth/system-execution-policy'
 import type { Capability } from '#/shared/auth/beta-capabilities'
-import {
-  EXECUTION_POLICY_VERSION,
-  isConsentSelectorBoundToScope,
-  type ConsentSelector,
-  type MerchantAiConsentFence,
-} from '#/shared/auth/execution-policy'
+import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
-import { GateDenyRetryError, UnknownJobError } from './errors'
+import { UnknownJobError } from './errors'
 import type { GateDeniedExecutionKind, GateDeniedResult } from './gate-denial'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
@@ -71,12 +64,11 @@ export type JobExecutionEnvelope = Readonly<{
   capability: Capability | 'none'
   policyVersionAtEnqueue: string
   initiator: Readonly<{ kind: 'user' | 'system'; id: string }>
-  consent?: ConsentSelector
   correlationId?: string
 }>
 
 export type JobEnqueueAttribution = Readonly<
-  Partial<Pick<JobExecutionEnvelope, 'initiator' | 'correlationId' | 'consent'>>
+  Partial<Pick<JobExecutionEnvelope, 'initiator' | 'correlationId'>>
 >
 
 export function createJobExecutionEnvelope(
@@ -91,19 +83,6 @@ export function createJobExecutionEnvelope(
   if (input.initiator.id.length === 0) {
     throw new Error('job execution envelope requires a named initiator')
   }
-  if (input.consent !== undefined) {
-    const consent = envelopeConsent({ consent: input.consent })
-    const scopeMatches =
-      consent !== undefined &&
-      isConsentSelectorBoundToScope(consent, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        userId: input.initiator.kind === 'user' ? input.initiator.id : undefined,
-      })
-    if (!scopeMatches) {
-      throw new Error('job execution envelope consent selector does not match scope')
-    }
-  }
   return {
     organizationId: input.organizationId,
     capability: input.capability,
@@ -111,14 +90,12 @@ export function createJobExecutionEnvelope(
     policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     ...(input.propertyId === undefined ? {} : { propertyId: input.propertyId }),
     ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
-    ...(input.consent === undefined ? {} : { consent: input.consent }),
   }
 }
 
 export type GateOutcome =
   | Readonly<{ kind: 'allow'; decision: DelayedDecision }>
   | Readonly<{ kind: 'deny_terminal'; decision: DelayedDecision }>
-  | Readonly<{ kind: 'deny_retry'; decision: DelayedDecision }>
 
 /**
  * Resolves property scope (e.g. reply → property). Ledger dispatches supply
@@ -179,82 +156,6 @@ function envelopeInitiator(
   }
   return { kind: initiator.kind, id: initiator.id }
 }
-function envelopeFence(value: unknown): MerchantAiConsentFence | null | undefined {
-  if (value === undefined) return undefined
-  if (
-    !isRecord(value) ||
-    Object.keys(value).length !== 7 ||
-    typeof value.authorizationLineageId !== 'string' ||
-    typeof value.capabilityEpoch !== 'number' ||
-    !Number.isSafeInteger(value.capabilityEpoch) ||
-    value.capabilityEpoch < 1 ||
-    typeof value.authorizedSourceEpoch !== 'number' ||
-    !Number.isSafeInteger(value.authorizedSourceEpoch) ||
-    // 0-based source epoch (drizzle/0060), unlike capabilityEpoch/stateVersion.
-    value.authorizedSourceEpoch < 0 ||
-    typeof value.stateVersion !== 'number' ||
-    !Number.isSafeInteger(value.stateVersion) ||
-    value.stateVersion < 1 ||
-    typeof value.noticeDigest !== 'string' ||
-    typeof value.recordedRuntimeProfileVersion !== 'string' ||
-    !isRecord(value.servedExecution) ||
-    Object.keys(value.servedExecution).length !== 3 ||
-    typeof value.servedExecution.runtimeProfileVersion !== 'string' ||
-    typeof value.servedExecution.operationProfileVersion !== 'string' ||
-    typeof value.servedExecution.providerDeploymentProfileVersion !== 'string'
-  ) {
-    return null
-  }
-  return {
-    authorizationLineageId: value.authorizationLineageId,
-    capabilityEpoch: value.capabilityEpoch,
-    authorizedSourceEpoch: value.authorizedSourceEpoch,
-    stateVersion: value.stateVersion,
-    noticeDigest: value.noticeDigest,
-    recordedRuntimeProfileVersion: value.recordedRuntimeProfileVersion,
-    servedExecution: {
-      runtimeProfileVersion: value.servedExecution.runtimeProfileVersion,
-      operationProfileVersion: value.servedExecution.operationProfileVersion,
-      providerDeploymentProfileVersion:
-        value.servedExecution.providerDeploymentProfileVersion,
-    },
-  }
-}
-
-function envelopeConsent(data: Record<string, unknown>): ConsentSelector | undefined {
-  if (!Object.hasOwn(data, 'consent')) return undefined
-  const consent = data.consent
-  if (!isRecord(consent)) {
-    return { subjectType: 'property', subjectId: '', purpose: '' }
-  }
-  const expectedFence = envelopeFence(consent.expectedFence)
-  if (
-    Object.keys(consent).some(
-      (key) =>
-        key !== 'subjectType' &&
-        key !== 'subjectId' &&
-        key !== 'purpose' &&
-        key !== 'expectedFence',
-    ) ||
-    (consent.subjectType !== 'organization' &&
-      consent.subjectType !== 'property' &&
-      consent.subjectType !== 'user') ||
-    typeof consent.subjectId !== 'string' ||
-    consent.subjectId.length === 0 ||
-    typeof consent.purpose !== 'string' ||
-    consent.purpose.length === 0 ||
-    expectedFence === null
-  ) {
-    return { subjectType: 'property', subjectId: '', purpose: '' }
-  }
-  return {
-    subjectType: consent.subjectType,
-    subjectId: consent.subjectId,
-    purpose: consent.purpose,
-    ...(expectedFence === undefined ? {} : { expectedFence }),
-  }
-}
-
 function resolveOrganizationId(
   payload: Record<string, unknown>,
   row: EntryPointRow | undefined,
@@ -282,7 +183,6 @@ async function resolvePropertyId(
 
 function toOutcome(decision: DelayedDecision): GateOutcome {
   if (decision.allowed) return { kind: 'allow', decision }
-  if (decision.reason === 'policy_unavailable') return { kind: 'deny_retry', decision }
   return { kind: 'deny_terminal', decision }
 }
 
@@ -316,7 +216,6 @@ export async function gateJob(
     capabilityAtEnqueue: envelopeCapability(payload),
     executionKind,
     initiator: envelopeInitiator(payload),
-    consent: envelopeConsent(payload),
     policyVersionAtEnqueue:
       typeof payload.policyVersionAtEnqueue === 'string'
         ? payload.policyVersionAtEnqueue
@@ -335,8 +234,8 @@ export type ScheduledScopeAuthorizer = (
 
 /**
  * Authorizes one concrete target discovered by a tenant-cross schedule.
- * Policy unavailability is retryable; stable scope/capability denials skip
- * only that target so one ineligible tenant cannot block the eligible cohort.
+ * A scope or capability denial skips only that target, so one ineligible
+ * tenant cannot block the eligible cohort.
  */
 export function createScheduledScopeAuthorizer(
   action: SystemAction,
@@ -350,9 +249,6 @@ export function createScheduledScopeAuthorizer(
       executionKind: 'schedule',
       now: new Date(),
     })
-    if (!decision.allowed && decision.reason === 'policy_unavailable') {
-      throw new GateDenyRetryError(action, decision.reason)
-    }
     return decision.allowed
   }
 }
@@ -498,25 +394,20 @@ export function createGatedJobHandler(
       executionKind,
       resolveScope,
     )
-    if (outcome.kind === 'allow') {
-      const payload = isRecord(policyData) ? policyData : {}
-      const row = rowForJob(job.name, executionKind)
-      return withDispatchScope(
-        'job',
-        job.name,
-        row,
-        resolveOrganizationId(payload, row),
-        () =>
-          runJobWithDeadline(job.name, timeoutForJob(job.name), (signal) =>
-            handler(job, signal),
-          ),
-      )
-    }
     if (outcome.kind === 'deny_terminal') {
       return terminalDenial(logger, job.name, outcome.decision, executionKind)
     }
-    // deny_retry: an unavailable policy is transient — throw so BullMQ
-    // retries with backoff instead of running protected work undecided.
-    throw new GateDenyRetryError(job.name, outcome.decision.reason)
+    const payload = isRecord(policyData) ? policyData : {}
+    const row = rowForJob(job.name, executionKind)
+    return withDispatchScope(
+      'job',
+      job.name,
+      row,
+      resolveOrganizationId(payload, row),
+      () =>
+        runJobWithDeadline(job.name, timeoutForJob(job.name), (signal) =>
+          handler(job, signal),
+        ),
+    )
   }
 }

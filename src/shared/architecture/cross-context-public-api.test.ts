@@ -1,7 +1,7 @@
 // BQC-5.1: Cross-context public-api architecture test.
 //
 // src/contexts/CONTEXT.md "Dependency rules":
-//   "Cross-context: import from application/public-api.ts only. Never from
+//   "Cross-context: import from the area's public-api.ts only. Never from
 //    domain/, infrastructure/, server/, or non-public-api application/."
 //   "Exception: Cross-context adapter implementations ... may import the port
 //    they implement. The port IS the public interface for adapter contracts."
@@ -32,7 +32,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags application → foreign domain', async () => {
     const messages = await lintSnippet(
       `import { assertRegionResolved } from '#/contexts/property/domain/processing-routing'\nexport const gate = assertRegionResolved\n`,
-      'src/contexts/review/application/use-cases/sample.ts',
+      'src/contexts/ai/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
@@ -40,23 +40,54 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags application → foreign non-public-api application', async () => {
     // @proof ARCHITECTURE_BOUNDARY_IMPORTS#2
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
 
-  it('allows application → foreign application/public-api', async () => {
+  it('allows application → foreign public-api', async () => {
     const messages = await lintSnippet(
-      `import type { StaffPublicApi } from '#/contexts/identity/application/public-api'\nexport type { StaffPublicApi }\n`,
+      `import type { StaffPublicApi } from '#/contexts/identity/public-api'\nexport type { StaffPublicApi }\n`,
       'src/contexts/portal/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
 
+  // The public API sits at the area's root. Path math only: the target need
+  // not exist.
+  it('flags the retired application/public-api of an area that moved', async () => {
+    const messages = await lintSnippet(
+      `import type { PropertyPublicApi } from '#/contexts/property/application/public-api'\nexport type { PropertyPublicApi }\n`,
+      'src/contexts/portal/editor/sample.server.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+  })
+
+  it('allows a relative import of a foreign root public-api', async () => {
+    const messages = await lintSnippet(
+      `import type { PropertyPublicApi } from '../../property/public-api'\nexport type { PropertyPublicApi }\n`,
+      'src/contexts/portal/editor/sample.server.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
+  })
+
+  it.each([
+    '#/contexts/property/lifecycle/public-api',
+    '#/contexts/property/domain/public-api',
+    '#/contexts/identity/staff/people-public-api.server',
+    '#/contexts/portal/groups/portal-group-public-api.server',
+  ])('flags %s, which is not the area public API', async (source) => {
+    const messages = await lintSnippet(
+      `import '${source}'\n`,
+      'src/contexts/integration/imports/sample.server.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+  })
+
   it('allows infrastructure/adapters → foreign application/ports (adapter exception)', async () => {
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/infrastructure/adapters/sample.adapter.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -64,7 +95,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags infrastructure outside adapters/ → foreign application/ports', async () => {
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/infrastructure/repositories/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -72,7 +103,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows a feature adapter → foreign application/ports (adapter exception)', async () => {
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/imports/sample.adapter.server.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -80,7 +111,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags a feature server file that is not an adapter → foreign application/ports', async () => {
     const messages = await lintSnippet(
-      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      `import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'\nexport type { OrganizationExportContributor }\n`,
       'src/contexts/integration/imports/sample.server.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -88,7 +119,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags a feature adapter → foreign infrastructure', async () => {
     const messages = await lintSnippet(
-      `import '#/contexts/review/infrastructure/sample'\n`,
+      `import '#/contexts/identity/infrastructure/sample'\n`,
       'src/contexts/integration/imports/sample.adapter.server.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -96,7 +127,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('flags infrastructure → foreign infrastructure', async () => {
     const messages = await lintSnippet(
-      `import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'\nexport const factory = createSourceContentPurge\n`,
+      `import { BetaFeedbackTriageRepository } from '#/contexts/identity/infrastructure/beta-feedback-triage.repository'\nexport const factory = BetaFeedbackTriageRepository\n`,
       'src/contexts/property/infrastructure/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -104,7 +135,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows context build.ts → foreign public-api', async () => {
     const messages = await lintSnippet(
-      `import type { PropertyPublicApi } from '#/contexts/property/application/public-api'\nexport type { PropertyPublicApi }\n`,
+      `import type { PropertyPublicApi } from '#/contexts/property/public-api'\nexport type { PropertyPublicApi }\n`,
       'src/contexts/integration/build.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -113,7 +144,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags context build.ts → foreign infrastructure', async () => {
     // @proof ARCHITECTURE_BOUNDARY_IMPORTS#1
     const messages = await lintSnippet(
-      `import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'\nexport const factory = createSourceContentPurge\n`,
+      `import { BetaFeedbackTriageRepository } from '#/contexts/identity/infrastructure/beta-feedback-triage.repository'\nexport const factory = BetaFeedbackTriageRepository\n`,
       'src/contexts/integration/build.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -122,15 +153,15 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags relative imports crossing into a foreign context domain', async () => {
     const messages = await lintSnippet(
       `import { assertRegionResolved } from '../../property/domain/processing-routing'\nexport const gate = assertRegionResolved\n`,
-      'src/contexts/review/application/sample.ts',
+      'src/contexts/ai/application/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
 
   it('allows same-context imports', async () => {
     const messages = await lintSnippet(
-      `import { reviewError } from '../../domain/errors'\nimport type { ReviewRepository } from '../ports/review.repository'\nexport const make = (_repo: ReviewRepository) => reviewError\n`,
-      'src/contexts/review/application/use-cases/sample.ts',
+      `import { aiError } from '../../domain/errors'\nimport type { AiControl } from '../ports/ai-control.port'\nexport const make = (_control: AiControl) => aiError\n`,
+      'src/contexts/ai/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
@@ -146,7 +177,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags dynamic imports of foreign context infrastructure', async () => {
     // @proof ARCHITECTURE_BOUNDARY_IMPORTS#3
     const messages = await lintSnippet(
-      `export async function load() {\n  return import('#/contexts/review/infrastructure/source-content-purge')\n}\n`,
+      `export async function load() {\n  return import('#/contexts/identity/infrastructure/beta-feedback-triage.repository')\n}\n`,
       'src/contexts/property/application/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -155,7 +186,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags inline import types of a foreign context domain', async () => {
     const messages = await lintSnippet(
       `export type Gate = import('#/contexts/property/domain/processing-routing').ProcessingRouting\n`,
-      'src/contexts/review/application/use-cases/sample.ts',
+      'src/contexts/ai/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
@@ -163,14 +194,14 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   it('flags relative inline import types crossing into a foreign context', async () => {
     const messages = await lintSnippet(
       `export type Gate = import('../../property/domain/processing-routing').ProcessingRouting\n`,
-      'src/contexts/review/application/sample.ts',
+      'src/contexts/ai/application/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
 
   it('flags typeof inline imports of foreign context infrastructure', async () => {
     const messages = await lintSnippet(
-      `export type Purge = typeof import('#/contexts/review/infrastructure/source-content-purge')\n`,
+      `export type Purge = typeof import('#/contexts/identity/infrastructure/beta-feedback-triage.repository')\n`,
       'src/contexts/property/application/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
@@ -178,7 +209,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows inline import types of a foreign public-api', async () => {
     const messages = await lintSnippet(
-      `export type IsActive = import('#/contexts/property/application/public-api').PropertyLifecyclePublicApi['isPropertyActive']\n`,
+      `export type IsActive = import('#/contexts/property/public-api').PropertyLifecyclePublicApi['isPropertyActive']\n`,
       'src/contexts/portal/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)

@@ -1,5 +1,5 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
@@ -16,8 +16,6 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { Tx } from '#/shared/outbox/commit'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
@@ -176,10 +174,6 @@ async function waitForOverlap(pid: number, finished: () => boolean) {
   )
 }
 
-beforeAll(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
 beforeEach(async () => {
   await cleanup()
   await seedGoogleConnection(drizzleSeedRunner(db), {
@@ -195,7 +189,6 @@ beforeEach(async () => {
 })
 afterAll(async () => {
   await cleanup()
-  clearEventSchemas()
 })
 
 describe('Google category publication and public disconnect commands (PostgreSQL)', () => {

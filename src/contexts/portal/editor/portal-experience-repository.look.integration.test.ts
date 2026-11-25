@@ -7,8 +7,6 @@ import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { createPortalAiReplyBrandProfileAuthority } from '../look/ai-reply-brand-profile-authority.server'
 import { createPortalExperienceRepository } from './portal-experience-repository.server'
@@ -67,8 +65,6 @@ async function seedPortal(id: string, slug: string, published: boolean) {
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
      VALUES ($1, $2, 'Harbour House', 'harbour-house', 'UTC', $3, $3),
@@ -89,30 +85,30 @@ beforeEach(async () => {
 
 const repository = () => createPortalExperienceRepository(getDb())
 
-type ProfileInput = Parameters<
-  ReturnType<typeof createPortalExperienceRepository>['savePropertyProfile']
->[0]['profile']
+type LookInput = Parameters<
+  ReturnType<typeof createPortalExperienceRepository>['savePropertyLook']
+>[0]['look']
 
-const baseProfile: ProfileInput = {
-  displayName: 'Harbour House',
-  logoUrl: null,
-  defaultHeroImageUrl: null,
+const baseLook: LookInput = {
   primaryColor: '#2563EB',
-  backgroundColor: '#FFFFFF',
-  textColor: '#111827',
+  backgroundMode: 'auto',
 }
 
-const saveProfile = (
-  profile: Partial<ProfileInput> &
-    Readonly<{ wordmark?: string | null; backgroundMode?: 'auto' | 'manual' }>,
-  by = ADMIN,
-  at = LATER,
-) =>
-  repository().savePropertyProfile({
+const saveLook = (look: Partial<LookInput>, by = ADMIN, at = LATER) =>
+  repository().savePropertyLook({
+    organizationId: ORG_A,
+    propertyId: PROPERTY,
+    look: { ...baseLook, ...look },
+    actorUserId: by,
+    at,
+  })
+
+const saveName = (displayName: string, by = ADMIN, at = LATER) =>
+  repository().savePropertyDisplayName({
     id: randomUUID(),
     organizationId: ORG_A,
     propertyId: PROPERTY,
-    profile: { ...baseProfile, ...profile },
+    displayName,
     updatedBy: by,
     at,
   })
@@ -169,10 +165,9 @@ async function brandEventCount(): Promise<number> {
 
 describe.sequential('Property look writes (real PostgreSQL)', () => {
   it('moves the look version, not the name version, when the look changes', async () => {
-    const saved = await saveProfile({
+    const saved = await saveLook({
       primaryColor: '#C8A45A',
       backgroundColor: '#14110F',
-      textColor: '#F5F1E8',
       wordmark: 'HARBOUR',
       backgroundMode: 'manual',
     })
@@ -207,18 +202,18 @@ describe.sequential('Property look writes (real PostgreSQL)', () => {
         }),
       )
 
-    await saveProfile({ primaryColor: '#C8A45A', wordmark: 'HARBOUR' })
+    await saveLook({ primaryColor: '#C8A45A', wordmark: 'HARBOUR' })
     await expect(isCurrent()).resolves.toBe(true)
     await expect(
       authority.readCurrentAiReplyBrandProfile(ORG_A, PROPERTY),
     ).resolves.toEqual(before)
 
-    await saveProfile({ displayName: 'Harbour House Hotel' })
+    await saveName('Harbour House Hotel')
     await expect(isCurrent()).resolves.toBe(false)
   })
 
   it('records one look row per facet for each Portal that has been published, and none for a draft', async () => {
-    await saveProfile({ primaryColor: '#C8A45A', wordmark: 'HARBOUR' })
+    await saveLook({ primaryColor: '#C8A45A', wordmark: 'HARBOUR' })
 
     const rows = await pendingRows()
     const first = PUBLISHED_PORTALS[0]
@@ -254,7 +249,7 @@ describe.sequential('Property look writes (real PostgreSQL)', () => {
   })
 
   it('writes one Property-wide ledger row per facet changed, naming who and never a Portal', async () => {
-    await saveProfile({ primaryColor: '#C8A45A', wordmark: 'HARBOUR' }, SECOND_ADMIN)
+    await saveLook({ primaryColor: '#C8A45A', wordmark: 'HARBOUR' }, SECOND_ADMIN)
 
     expect(await pageEditRows()).toEqual([
       {
@@ -273,10 +268,10 @@ describe.sequential('Property look writes (real PostgreSQL)', () => {
   })
 
   it('writes the name edit as the general profile row, and nothing for a save that changes nothing', async () => {
-    await saveProfile({}, SECOND_ADMIN)
+    await saveLook({}, SECOND_ADMIN)
     expect(await pageEditRows()).toEqual([])
 
-    await saveProfile({ displayName: 'Harbour House Hotel' })
+    await saveName('Harbour House Hotel')
     expect(await pageEditRows()).toEqual([
       {
         portal_id: null,
@@ -321,13 +316,13 @@ describe.sequential('Property look writes (real PostgreSQL)', () => {
   })
 
   it('names the field facet for a background mode or colour change', async () => {
-    await saveProfile({ backgroundMode: 'manual', backgroundColor: '#000000' })
+    await saveLook({ backgroundMode: 'manual', backgroundColor: '#000000' })
     const keys = (await pendingRows()).map((row) => row.change_key)
     expect(new Set(keys)).toEqual(new Set(['look:field']))
   })
 
   it('records the name fence, and no look row, when only the name changes', async () => {
-    const saved = await saveProfile({ displayName: 'Harbour House Hotel' })
+    const saved = await saveName('Harbour House Hotel')
 
     expect(saved).toMatchObject({ version: 6, lookVersion: 3 })
     const rows = await pendingRows()
@@ -338,18 +333,19 @@ describe.sequential('Property look writes (real PostgreSQL)', () => {
     await expect(brandEventCount()).resolves.toBe(1)
   })
 
-  it('records both fences when the name and the look change together', async () => {
-    const saved = await saveProfile({ displayName: 'Harbour', textColor: '#000000' })
+  it('records both fences when the name and the look change one after the other', async () => {
+    await saveName('Harbour')
+    const saved = await saveLook({ primaryColor: '#C8A45A' })
 
     expect(saved).toMatchObject({ version: 6, lookVersion: 4 })
     const keys = (await pendingRows()).map((row) => [row.change_key, row.source_version])
     expect(keys).toContainEqual(['all', 'v6'])
-    expect(keys).toContainEqual(['look:text', 'v4'])
+    expect(keys).toContainEqual(['look:accent', 'v4'])
     expect(keys).toHaveLength(4)
   })
 
   it('announces a look edit with the unchanged profile version', async () => {
-    await saveProfile({ primaryColor: '#C8A45A' })
+    await saveLook({ primaryColor: '#C8A45A' })
     const { rows } = await query(
       `SELECT payload FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'portal.property_brand_profile.updated'`,
@@ -359,8 +355,8 @@ describe.sequential('Property look writes (real PostgreSQL)', () => {
     expect(rows[0].payload).toMatchObject({ profileVersion: 5 })
   })
 
-  it('treats a save that changes nothing as a confirmation: who, no versions, no fences, no event', async () => {
-    const saved = await saveProfile({}, SECOND_ADMIN)
+  it('treats a name saved as it was as a confirmation: who, no versions, no fences, no event', async () => {
+    const saved = await saveName('Harbour House', SECOND_ADMIN)
 
     expect(saved).toMatchObject({ version: 5, lookVersion: 3, updatedBy: SECOND_ADMIN })
     await expect(profileRow()).resolves.toMatchObject({
@@ -372,37 +368,38 @@ describe.sequential('Property look writes (real PostgreSQL)', () => {
     await expect(brandEventCount()).resolves.toBe(0)
   })
 
-  it('keeps the wordmark and background mode a caller does not mention, and clears a wordmark given as null', async () => {
-    await saveProfile({ wordmark: 'HARBOUR', backgroundMode: 'manual' })
-    await saveProfile({ primaryColor: '#C8A45A' }, ADMIN, LATEST)
+  it('keeps the wordmark a caller does not mention, and clears one given as null', async () => {
+    await saveLook({ wordmark: 'HARBOUR', backgroundMode: 'manual' })
+    await saveLook({ primaryColor: '#C8A45A', backgroundMode: 'manual' }, ADMIN, LATEST)
     await expect(profileRow()).resolves.toMatchObject({
       wordmark: 'HARBOUR',
       background_mode: 'manual',
       look_version: 5,
     })
 
-    await saveProfile({ wordmark: null }, ADMIN, LATEST)
+    await saveLook({ wordmark: null, backgroundMode: 'manual' }, ADMIN, LATEST)
     await expect(profileRow()).resolves.toMatchObject({ wordmark: null, look_version: 6 })
   })
 
-  it('never touches the default languages when a profile is saved', async () => {
+  it('never touches the default languages when the look or the name is saved', async () => {
     await query(
       `UPDATE property_portal_brand_profiles SET default_guest_locales = '["bg","en"]'::jsonb
        WHERE organization_id = $1`,
       [ORG_A],
     )
-    await saveProfile({ primaryColor: '#C8A45A', displayName: 'Harbour' })
+    await saveLook({ primaryColor: '#C8A45A' })
+    await saveName('Harbour')
     await expect(profileRow()).resolves.toMatchObject({
       default_guest_locales: ['bg', 'en'],
     })
   })
 
   it('creates a first profile at version 1 and look version 1, automatic background, English', async () => {
-    const created = await repository().savePropertyProfile({
+    const created = await repository().savePropertyDisplayName({
       id: randomUUID(),
       organizationId: ORG_A,
       propertyId: OTHER_PROPERTY,
-      profile: { ...baseProfile, displayName: 'Quay House', wordmark: 'QUAY' },
+      displayName: 'Quay House',
       updatedBy: ADMIN,
       at: NOW,
     })
@@ -410,7 +407,6 @@ describe.sequential('Property look writes (real PostgreSQL)', () => {
     expect(created).toMatchObject({
       version: 1,
       lookVersion: 1,
-      wordmark: 'QUAY',
       backgroundMode: 'auto',
       defaultGuestLocales: ['en'],
     })

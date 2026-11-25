@@ -18,7 +18,8 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { findMetricVersionById } from '../readings/contracts'
 import { monthKeyOf } from '../domain/goal-start'
 import type { GoalProgramRepository } from '../application/ports/goal-program.repository'
-import { createGoalProgramService, type GoalActor } from './goal-programs.server'
+import { createGoalProgramService } from './goal-programs.server'
+import { type GoalActor } from '../application/use-cases/goal-program-shared'
 import {
   changeMonthlyPortalGoalNow,
   keepMonthlyPortalGoal,
@@ -81,6 +82,8 @@ describe.sequential('Monthly portal goal check-in (integration)', () => {
       repository,
       policy: allow,
       subjects: {
+        ratingSubjectsSkipPrivateRating: async () => false,
+        staffTargetProblem: async () => null,
         getTimezone: async () => TIMEZONE,
         subjectBelongsToProperty: async () => true,
       },
@@ -105,7 +108,7 @@ describe.sequential('Monthly portal goal check-in (integration)', () => {
   const recommendation = {
     subjects: { getTimezone: async () => TIMEZONE },
     facts: {
-      listPortalReadiness: async () => ({ portals: [], truncated: false }),
+      listPortalReadiness: async () => ({ portals: [] }),
       readDailyCounts: async () => ({
         days: [],
         unreadable: [],

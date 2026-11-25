@@ -21,9 +21,9 @@ import type { OutboxRepository } from '#/shared/outbox'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
 import type { buildGuestContext } from '#/contexts/guest/build'
-import type { buildReviewContext } from '#/contexts/review/build'
+import type { buildReviewContext } from '#/contexts/reputation/build-review'
 import type { buildIdentityContext } from '#/contexts/identity/build'
-import type { InboxContextApi } from '#/contexts/inbox/build'
+import type { InboxContextApi } from '#/contexts/reputation/build-inbox'
 import type { IntegrationContextApi } from '#/contexts/integration/build'
 
 export type ReadAndNotifyContextsInput = Readonly<{
@@ -154,7 +154,6 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
       logger: input.logger,
       operationalHistoryIdGen: () =>
         operationalActionHistoryRecordId(crypto.randomUUID()),
-      operationalHistoryHoldIdGen: () => crypto.randomUUID(),
       operationalHistoryAccessAuthority: input.identity.publicApi.accountAdminAuthority,
     },
     notification: {

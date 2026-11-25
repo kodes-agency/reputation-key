@@ -8,8 +8,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortal } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   portalApprovedDestinationId,
@@ -134,8 +132,6 @@ async function linkOpens(
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   for (const [id, slug] of [
     [PROPERTY_A, 'harbour-house'],
     [PROPERTY_B, 'hilltop-lodge'],

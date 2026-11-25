@@ -8,7 +8,7 @@ import type {
 } from '#/contexts/reporting/monthly-goals/contracts'
 import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
 import type { Tone } from '#/components/ui/tone'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import type { GoalColumn } from '../../../../components/goals/goal-columns-view'
 import { PORTAL_ASK_EVERY_GUEST_LINE, PORTAL_NO_SCAN_HINT } from './portal-goal-copy'
 import { stripChips, type fromPortalsWords } from './portal-goal-page-view'

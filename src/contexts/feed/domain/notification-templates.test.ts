@@ -12,1001 +12,10 @@
 
 import { describe, it, expect } from 'vitest'
 import type { NotificationPayload } from './notification-payload'
-import { parseNotificationPayload } from './notification-payload'
-import {
-  notificationLink,
-  notificationReplyTo,
-  renderNotification,
-  waitingAge,
-} from './notification-templates'
-import {
-  NOTIFICATION_RESOURCE_TYPES,
-  NOTIFICATION_TYPES,
-  type NotificationType,
-} from './notification-types'
+import { notificationLink, renderNotification } from './notification-templates'
+import { copy, type ExactCopyCase, SEAVIEW } from './notification-templates.test-fixtures'
 
-const UUID = '61ed98fc-9cf8-44e9-b49d-cd25e744fd6c'
-
-const FULL: NotificationPayload = {
-  propertyName: 'Riverside Hotel',
-  guestRating: 2,
-  platform: 'portal',
-  waitingHours: 27,
-  actorRole: 'property_manager',
-  moderationReason: 'Tone is too defensive.',
-  goalName: 'Q3 response time',
-}
-
-describe('renderNotification — invariants across every type', () => {
-  it.each(NOTIFICATION_TYPES)('%s renders completely with an empty payload', (type) => {
-    const r = renderNotification(type, {})
-
-    expect(r.title.trim()).not.toBe('')
-    // The per-field sweep below is a per-template invariant check: it.each runs
-    // it for every NotificationType, and it is written out again for the full
-    // payload because the two shapes do not share the same invariants — only an
-    // empty-payload render can be asserted to carry no dangling punctuation from
-    // a dropped optional clause. A shared helper would need a flag selecting
-    // which invariants apply and would report failures at the helper's line
-    // instead of the template shape under test. Revisit if the sets converge.
-    // fallow-ignore-next-line code-duplication
-    expect(r.actionLabel.trim()).not.toBe('')
-    // A missing-metadata render must not leak the template's seams.
-    for (const field of [r.title, r.body, r.actionLabel, r.summary]) {
-      expect(field).not.toMatch(/undefined|null|NaN/)
-      expect(field).not.toMatch(/\s{2,}/)
-      // Dangling punctuation is the tell-tale of a dropped optional clause.
-      // `·` is excluded: the summary line legitimately joins facts with " · ".
-      expect(field).not.toMatch(/\s+\./)
-    }
-  })
-
-  it.each(NOTIFICATION_TYPES)('%s renders completely with a full payload', (type) => {
-    const r = renderNotification(type, FULL)
-
-    const visibleCopy = [r.title, r.body, r.summary].join(' ')
-    // Every Property-scoped notice names its Property: a reader with several
-    // cannot otherwise tell rows or urgent emails apart. Account notices, a
-    // beta report outcome (ADR 0059) and a Google disconnect (ADR 0046,
-    // amended 2026-09-24) are Organization-scoped, and the Google connection
-    // belongs to the Organization: the Property `reauthorization_required` is
-    // filed under is only a delivery anchor, so naming it would mislead.
-    if (
-      type.startsWith('account.') ||
-      type.startsWith('integration.') ||
-      type === 'beta_feedback.outcome'
-    ) {
-      expect(visibleCopy).not.toContain('Riverside Hotel')
-    } else {
-      expect(visibleCopy).toContain('Riverside Hotel')
-    }
-    for (const field of [r.title, r.body, r.actionLabel, r.summary]) {
-      expect(field).not.toMatch(/undefined|null|NaN/)
-      expect(field).not.toMatch(/\s{2,}/)
-    }
-  })
-
-  // The user's actual complaint. Payload has no id-shaped field, so the only
-  // way a UUID could appear is if someone reintroduces string interpolation.
-  it.each(NOTIFICATION_TYPES)('%s never emits an identifier', (type) => {
-    const withIds = { ...FULL, propertyName: UUID } as NotificationPayload
-    const r = renderNotification(type, withIds)
-    const all = [r.title, r.body, r.summary].join(' ')
-
-    // The only UUID present is the one we deliberately fed in as a name.
-    expect(all.replace(new RegExp(UUID, 'g'), '')).not.toMatch(
-      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
-    )
-  })
-
-  it.each(NOTIFICATION_TYPES)('%s action label is short and imperative', (type) => {
-    const label = renderNotification(type, FULL).actionLabel
-    expect(label.split(' ').length).toBeLessThanOrEqual(3)
-    expect(label[0]).toBe(label[0].toUpperCase())
-  })
-})
-
-// A fact is said once per surface. The in-app strip shows the Property (in
-// the title), the rating (as stars) and the wait beside the copy, and email
-// shows them in its facts line, so the sentences never restate the rating.
-describe('renderNotification — facts beside the copy, not inside it', () => {
-  it.each(NOTIFICATION_TYPES)(
-    '%s never states the rating in its title or body',
-    (type) => {
-      const r = renderNotification(type, FULL)
-
-      expect([r.title, r.body].join(' ')).not.toMatch(/\d-star|out of 5|rated/i)
-    },
-  )
-
-  it('keeps the rating in the facts line email shows', () => {
-    const r = renderNotification('feedback.created', FULL)
-
-    expect(r.body).toBe('Open it to read the feedback.')
-    expect(r.summary).toBe('Riverside Hotel · 2-star feedback')
-  })
-
-  // The item lookup can fail and leave no platform; guest feedback is still
-  // feedback, never a review.
-  it('calls guest feedback feedback when its source is unknown', () => {
-    const r = renderNotification('feedback.created', { propertyName: 'Riverside Hotel' })
-
-    expect(r.summary).toBe('Riverside Hotel · feedback')
-  })
-})
-
-describe('renderNotification — the import summary that replaced a flood', () => {
-  it('says what was imported and how much of it is still waiting', () => {
-    const r = renderNotification('property.review_import_finished', {
-      propertyName: 'Riverside Hotel',
-      importOutcome: 'completed',
-      importedCount: 260,
-      unansweredCount: 254,
-    })
-
-    expect(r.body).toContain('260')
-    expect(r.body).toContain('254')
-    expect(r.title).toContain('Riverside Hotel')
-  })
-
-  it('does not ask for a reply when nothing is waiting', () => {
-    const r = renderNotification('property.review_import_finished', {
-      propertyName: 'Riverside Hotel',
-      importOutcome: 'completed',
-      importedCount: 12,
-      unansweredCount: 0,
-    })
-
-    expect(r.body).toContain('12')
-    expect(r.body).not.toMatch(/still need/u)
-  })
-
-  // The unanswered count is left out of the payload exactly when it is
-  // unknown: the Inbox never settled within the summary's wait, or a read
-  // failed. ADR 0046: that costs the sentence its second number, never the
-  // notice — and "unknown" must not read as "none", which after a large import
-  // is when the most reviews are waiting.
-  const importedBody = (unansweredCount?: number): string =>
-    renderNotification('property.review_import_finished', {
-      importOutcome: 'completed',
-      importedCount: 260,
-      ...(unansweredCount === undefined ? {} : { unansweredCount }),
-    }).body
-
-  it('says nothing is waiting only when it counted none', () => {
-    expect(importedBody(0)).toBe(
-      'We imported 260 reviews. Nothing is waiting for a reply.',
-    )
-  })
-
-  it('drops the second number, and claims nothing, when the count is unknown', () => {
-    expect(importedBody()).toBe('We imported 260 reviews.')
-  })
-
-  it('names how many still need a reply when it counted them', () => {
-    expect(importedBody(14)).toBe('We imported 260 reviews; 14 still need a reply.')
-  })
-
-  it('keeps a sentence a reader can act on when the counts never arrived', () => {
-    const r = renderNotification('property.review_import_finished', {
-      propertyName: 'Riverside Hotel',
-      importOutcome: 'completed',
-    })
-
-    expect(r.body.trim()).not.toBe('')
-    expect(r.body).not.toMatch(/undefined|NaN/u)
-  })
-
-  it('tells a stopped import what to do next, per closed reason', () => {
-    const reconnect = renderNotification('property.review_import_finished', {
-      propertyName: 'Riverside Hotel',
-      importOutcome: 'failed',
-      importFailureReason: 'google_authorization',
-    })
-    const relink = renderNotification('property.review_import_finished', {
-      propertyName: 'Riverside Hotel',
-      importOutcome: 'failed',
-      importFailureReason: 'property_source_changed',
-    })
-    const tooLarge = renderNotification('property.review_import_finished', {
-      propertyName: 'Riverside Hotel',
-      importOutcome: 'failed',
-      importFailureReason: 'location_too_large',
-    })
-
-    expect(reconnect.body).toMatch(/Reconnect Google/u)
-    expect(relink.body).toMatch(/link/iu)
-    expect(tooLarge.body).toMatch(/support/iu)
-    for (const r of [reconnect, relink, tooLarge]) {
-      expect(r.title).not.toMatch(/imported/iu)
-    }
-  })
-
-  it('opens the Inbox at the Property whose history was imported', () => {
-    expect(
-      notificationLink('property', UUID, UUID, 'property.review_import_finished'),
-    ).toEqual({ path: '/inbox', search: { queue: 'open', propertyId: UUID } })
-  })
-})
-
-describe('renderNotification — the copy that was broken', () => {
-  it('inbox.escalated names the property instead of the item id', () => {
-    const r = renderNotification('inbox.escalated', {
-      propertyName: 'Riverside Hotel',
-      guestRating: 2,
-      platform: 'portal',
-    })
-
-    expect(r.title).toBe('Escalated: feedback at Riverside Hotel')
-    expect(r.title).not.toContain('Inbox item')
-  })
-
-  // Escalation is a manual flag with no reason field, and it can be set on an
-  // item that already has a reply or is closed. The copy may say who asked for
-  // attention; it may not say why, or that anything is unanswered or overdue.
-  it.each([
-    { platform: 'google', guestRating: undefined },
-    { platform: 'portal', guestRating: 2 },
-  ] as const)(
-    'inbox.escalated says who escalated a $platform item and invents no cause',
-    ({ platform, guestRating }) => {
-      const r = renderNotification('inbox.escalated', {
-        propertyName: 'Riverside Hotel',
-        platform,
-        guestRating,
-        waitingHours: 75,
-        actorRole: 'property_manager',
-      })
-
-      expect(r.body).toBe(
-        'A property manager escalated this for your attention. Open it to see where it stands.',
-      )
-      expect(r.actionLabel).toBe('Open item')
-      expect([r.title, r.body, r.summary].join(' ')).not.toMatch(
-        /unanswered|because|needs a reply|\bnow\b/i,
-      )
-    },
-  )
-
-  // The Inbox thread says "Escalation resolved"; the notice for the same event
-  // says the same, not "Follow-up updated", which the Inbox uses for a
-  // feedback outcome.
-  it('describes an escalation resolution in the Inbox words, without alarm or blame', () => {
-    expect(
-      renderNotification('inbox.escalation_resolved', {
-        propertyName: 'Riverside Hotel',
-      }),
-    ).toEqual({
-      title: 'Escalation resolved at Riverside Hotel',
-      body: 'This item is no longer escalated. Open it to see where it stands.',
-      detail: '',
-      actionLabel: 'View item',
-      summary: 'Riverside Hotel · escalation resolved',
-    })
-  })
-
-  it('describes a material Review revision as a calm follow-up', () => {
-    expect(
-      renderNotification('review.updated', { propertyName: 'Riverside Hotel' }),
-    ).toEqual({
-      title: 'Review updated at Riverside Hotel',
-      body: 'The guest changed their review. Open it to check the latest details.',
-      detail: '',
-      actionLabel: 'Review update',
-      summary: 'Riverside Hotel · updated review',
-    })
-  })
-
-  it('describes reopened private feedback without blame or alarm language', () => {
-    expect(
-      renderNotification('inbox.reopened', {
-        propertyName: 'Riverside Hotel',
-        platform: 'portal',
-        guestRating: 2,
-      }),
-    ).toEqual({
-      title: 'Reopened: feedback at Riverside Hotel',
-      body: 'This feedback needs another look. Open it to see where it stands.',
-      detail: '',
-      actionLabel: 'View item',
-      summary: 'Riverside Hotel · 2-star feedback · reopened',
-    })
-  })
-
-  it.each([
-    [
-      'provider_reply_deleted',
-      'The published reply was removed from Google. Open it to see where it stands.',
-    ],
-    [
-      'guest_follow_up_still_needed',
-      'The guest still needs a follow-up. Open it to see where it stands.',
-    ],
-    [
-      'correcting_handling_status',
-      'Its handling status was wrong. Open it to see where it stands.',
-    ],
-  ] as const)('says why an item was reopened (%s)', (reopenReason, body) => {
-    expect(
-      renderNotification('inbox.reopened', {
-        propertyName: 'Riverside Hotel',
-        reopenReason,
-      }).body,
-    ).toBe(body)
-  })
-
-  it.each([
-    [
-      'publication_snapshot_unavailable',
-      'unavailable',
-      'Guest portal is offline at Riverside Hotel',
-      'Its published version is missing, so guests cannot load it.',
-    ],
-    [
-      'public_address_unavailable',
-      'unavailable',
-      'Guest portal is offline at Riverside Hotel',
-      'Its web address no longer resolves, so guests cannot reach it.',
-    ],
-    [
-      'google_destination_unavailable',
-      'degraded',
-      'Guest portal needs attention at Riverside Hotel',
-      'Its Google review destination is gone, so the Google step is broken.',
-    ],
-  ] as const)(
-    'says what is actually wrong with a portal (%s)',
-    (portalHealthReason, portalHealthStatus, title, opening) => {
-      const rendered = renderNotification('portal.health_attention', {
-        propertyName: 'Riverside Hotel',
-        portalHealthStatus,
-        portalHealthReason,
-      })
-
-      expect(rendered.title).toBe(title)
-      expect(rendered.body.startsWith(opening)).toBe(true)
-      expect(rendered.body).not.toContain('may need attention')
-    },
-  )
-
-  it('states the target time of a reminder in the reader\u2019s own timezone', () => {
-    const payload = {
-      propertyName: 'Riverside Hotel',
-      targetDueAt: '2026-09-29T12:00:00.000Z',
-    }
-
-    const inNewYork = renderNotification('inbox.response_target_halfway', payload, {
-      timeZone: 'America/New_York',
-    })
-    const inSofia = renderNotification('inbox.response_target_halfway', payload, {
-      timeZone: 'Europe/Sofia',
-    })
-
-    expect(inNewYork.body).toContain('Target time Tue, Sep 29, 08:00')
-    expect(inSofia.body).toContain('Target time Tue, Sep 29, 15:00')
-    // The product term is "target time"; "due" is not a word this product uses.
-    expect(`${inNewYork.title} ${inNewYork.body}`).not.toMatch(/\bdue\b/i)
-  })
-
-  it('says a passed target time in the past tense', () => {
-    expect(
-      renderNotification(
-        'inbox.response_target_passed',
-        { targetDueAt: '2026-09-29T12:00:00.000Z' },
-        { timeZone: 'UTC' },
-      ).body,
-    ).toContain('The target time was Tue, Sep 29, 12:00.')
-  })
-
-  it('omits the target time when the reader\u2019s timezone is unknown', () => {
-    const rendered = renderNotification('inbox.response_target_halfway', {
-      targetDueAt: '2026-09-29T12:00:00.000Z',
-    })
-
-    expect(rendered.body).toBe('This item is still open.')
-  })
-
-  it('falls back to the vague portal notice only when the health fact is missing', () => {
-    expect(renderNotification('portal.health_attention', {}).title).toBe(
-      'A guest portal may need attention',
-    )
-  })
-
-  it('still reads correctly when the reopen fact named no usable reason', () => {
-    expect(
-      renderNotification('inbox.reopened', {
-        propertyName: 'Riverside Hotel',
-        reopenReason: 'other',
-      }).body,
-    ).toBe('This review needs another look. Open it to see where it stands.')
-  })
-
-  it.each([
-    ['google', 'New internal note on a review at Riverside Hotel'],
-    ['portal', 'New internal note on feedback at Riverside Hotel'],
-  ] as const)('names a %s Internal Note the way the Inbox does', (platform, title) => {
-    expect(
-      renderNotification('inbox_note.added', {
-        propertyName: 'Riverside Hotel',
-        platform,
-      }).title,
-    ).toBe(title)
-  })
-
-  // Reply exists only for Reviews (glossary); private feedback is handled.
-  it.each(NOTIFICATION_TYPES)('%s never offers a reply on private feedback', (type) => {
-    const r = renderNotification(type, { platform: 'portal', guestRating: 2 })
-
-    if (!type.startsWith('reply.') && !type.startsWith('review.')) {
-      expect([r.title, r.body, r.actionLabel].join(' ')).not.toMatch(/\breply\b/i)
-    }
-  })
-
-  it.each(NOTIFICATION_TYPES)('%s never calls its event a follow-up', (type) => {
-    const r = renderNotification(type, FULL)
-
-    expect([r.title, r.body, r.summary].join(' ')).not.toMatch(/follow-up/i)
-  })
-
-  it('names the target reminders plainly', () => {
-    expect(renderNotification('inbox.response_target_halfway', {}).title).toBe(
-      'Halfway to the response target',
-    )
-    expect(renderNotification('inbox.response_target_passed', {}).title).toBe(
-      'Response target passed',
-    )
-  })
-
-  it('opens a published reply without implying it leaves for Google', () => {
-    expect(renderNotification('reply.published', {}).actionLabel).toBe('View reply')
-  })
-
-  it('reply.pending_approval leads with the decision and says who drafted it', () => {
-    const r = renderNotification('reply.pending_approval', {
-      propertyName: 'Riverside Hotel',
-      actorRole: 'staff',
-    })
-
-    expect(r.title).toBe('Approve a reply at Riverside Hotel')
-    expect(r.body).toBe(
-      'A team member drafted a reply to a review. It stays unpublished until you approve it.',
-    )
-    expect(r.actionLabel).toBe('Review reply')
-  })
-
-  it('review.created remains useful after provider ratings are rejected', () => {
-    const payload = parseNotificationPayload({
-      propertyName: 'Riverside',
-      rating: 1,
-      platform: 'google',
-    })
-    const rendered = renderNotification('review.created', payload)
-
-    expect(rendered.title).toBe('New review at Riverside')
-    expect(rendered.body).toBe('Open it to read the review and reply.')
-    expect(JSON.stringify(payload)).not.toContain('rating')
-  })
-
-  it('reply.rejected still quotes a reason stored on a historical row', () => {
-    const withReason = renderNotification('reply.rejected', {
-      moderationReason: 'Tone is too defensive.',
-    })
-
-    expect(withReason.body).toContain('Reason: Tone is too defensive.')
-    // The old copy prefixed the title verbatim: "Rejected: <reason>".
-    expect(withReason.title).not.toContain('Rejected:')
-  })
-
-  it('reply.rejected says whether the approver left a reason, never what it says', () => {
-    const withReason = renderNotification('reply.rejected', { hasModerationReason: true })
-    const withoutReason = renderNotification('reply.rejected', {
-      hasModerationReason: false,
-    })
-    // A row recorded before the fact said either way must not guess.
-    const unknown = renderNotification('reply.rejected', {})
-
-    expect(withReason.body).toBe(
-      'The approver left a reason. Open the reply to read it, then edit and resubmit.',
-    )
-    expect(withoutReason.body).toBe(
-      'It was sent back without a reason. Edit it and resubmit.',
-    )
-    expect(unknown.body).toBe(
-      'Open it to see any note from the approver, then edit and resubmit.',
-    )
-  })
-
-  it('reply.rejected follows the latest rejection once rows coalesce', () => {
-    const rendered = renderNotification('reply.rejected', {
-      moderationReason: 'Tone is too defensive.',
-      hasModerationReason: false,
-    })
-
-    expect(rendered.body).toBe('It was sent back without a reason. Edit it and resubmit.')
-  })
-
-  // One fact covers every way a publication can end without a confirmed live
-  // reply, most of which Google never saw. Each outcome gets the sentence that
-  // is true for it. The notice can reach a responsible manager instead of the
-  // author, so none of it says "your".
-  it.each([
-    [
-      'not_sent',
-      'Reply not published at Riverside Hotel',
-      'Nothing was posted to Google, so it is safe to try again.',
-      'Retry publish',
-    ],
-    [
-      'refused',
-      'Reply not published at Riverside Hotel',
-      'Nothing was posted to Google. Check the Google connection, then try again.',
-      'Retry publish',
-    ],
-    [
-      'unconfirmed',
-      'Reply not confirmed on Google at Riverside Hotel',
-      "RepKey won't send it twice. Open it to check.",
-      'View reply',
-    ],
-  ] as const)(
-    'reply.publish_failed words a %s outcome as what happened',
-    (publishOutcome, title, body, actionLabel) => {
-      const r = renderNotification('reply.publish_failed', {
-        propertyName: 'Riverside Hotel',
-        publishOutcome,
-      })
-
-      expect(r).toMatchObject({ title, body, actionLabel })
-      expect([r.title, r.body].join(' ')).not.toMatch(/rejected|your/i)
-    },
-  )
-
-  // `not_sent` covers an answered 429 as well as requests that never left
-  // RepKey, so, like the Inbox's "Not published" copy, it says only that
-  // nothing was posted, never that nothing reached Google.
-  it('reply.publish_failed never says a retryable failure missed Google', () => {
-    const r = renderNotification('reply.publish_failed', { publishOutcome: 'not_sent' })
-
-    expect(r.body).not.toMatch(/reached/i)
-  })
-
-  it('reply.publish_failed claims no cause and offers no retry when the outcome is unknown', () => {
-    // Rows recorded before the fact carried an outcome, including replies
-    // that may be live on Google.
-    expect(renderNotification('reply.publish_failed', {})).toEqual({
-      title: 'Reply not published',
-      body: 'Open the reply to see where it stands.',
-      detail: '',
-      actionLabel: 'View reply',
-      summary: 'review · not published',
-    })
-  })
-
-  it('renders a provider review without any source rating clause', () => {
-    const r = renderNotification('review.created', { propertyName: 'Riverside' })
-    expect(r.title).toBe('New review at Riverside')
-  })
-
-  it('renders a grouped assignment from a content-free count', () => {
-    const rendered = renderNotification('inbox.bulk_assigned', {
-      propertyName: 'Riverside Hotel',
-      actorRole: 'account_admin',
-      itemCount: 7,
-    })
-
-    expect(rendered.title).toBe('7 items assigned to you at Riverside Hotel')
-    expect(rendered.body).toBe(
-      'An account admin assigned 7 items to you. Open the Inbox to see your work.',
-    )
-    expect(rendered.actionLabel).toBe('Open Inbox')
-  })
-
-  it('renders a grouped bulk reopen from a content-free count', () => {
-    const rendered = renderNotification('inbox.bulk_reopened', {
-      propertyName: 'Riverside Hotel',
-      actorRole: 'account_admin',
-      itemCount: 60,
-    })
-    const single = renderNotification('inbox.bulk_reopened', { itemCount: 1 })
-
-    expect(rendered.title).toBe('60 items reopened at Riverside Hotel')
-    expect(rendered.body).toBe(
-      'An account admin reopened 60 items. Open the Inbox to take a look.',
-    )
-    expect(rendered.actionLabel).toBe('Open Inbox')
-    expect(single.title).toBe('1 item reopened')
-    expect(single.body).toBe('Someone reopened an item. Open the Inbox to take a look.')
-  })
-
-  it('omits the property clause entirely when no name is known', () => {
-    const r = renderNotification('review.created', {})
-    expect(r.title).toBe('New review')
-  })
-})
-
-// One row that absorbed repeat events says how many, once, with the verb for
-// what repeated. The count covers every event, the first one included.
-describe('renderNotification — coalescing (ADR 0046 r.2)', () => {
-  it.each([
-    ['inbox_note.added', '3 notes added.'],
-    ['inbox.escalated', 'Escalated 3 times.'],
-    ['review.updated', 'Updated 3 times.'],
-    ['reply.pending_approval', 'This happened 3 times.'],
-    ['reply.publish_failed', 'This happened 3 times.'],
-    // Notices of one type for one Organization merge into one unread row.
-    ['account.invitation_accepted', 'This happened 3 times.'],
-    ['account.organization_property_access_changed', 'This happened 3 times.'],
-  ] as const)('ends a repeated %s with "%s"', (type, marker) => {
-    const r = renderNotification(type, { occurrences: 3 })
-
-    expect(r.body.endsWith(` ${marker}`)).toBe(true)
-    // Said once: the facts line beside the copy does not repeat it.
-    expect(r.summary).not.toMatch(/3/)
-  })
-
-  it('marks nothing on a row that fired once', () => {
-    const r = renderNotification('inbox_note.added', { occurrences: 1 })
-
-    expect(r.body).not.toMatch(/added\.$|times/)
-  })
-})
-
-// A notice shows how long its item had waited when the notice was raised: the
-// read projects that from when the wait began to the row's latest event. The
-// copy only formats it, so no surface measures against its own clock.
-describe('waiting age', () => {
-  it.each([
-    [0, ''],
-    [1, '1h'],
-    [23, '23h'],
-    [24, '1d'],
-    [49, '2d'],
-  ])('%i whole hours read "%s"', (waitedHours, expected) => {
-    expect(waitingAge({ waitedHours })).toBe(expected)
-  })
-
-  it('reads nothing when nothing was waiting, however old a frozen age is', () => {
-    expect(waitingAge({ waitingHours: 48 })).toBe('')
-  })
-
-  it('reads nothing from a start instant the read has not measured', () => {
-    expect(waitingAge({ waitingSince: '2026-09-20T09:00:00.000Z' })).toBe('')
-  })
-
-  it('puts the wait in the email facts, never in the sentence', () => {
-    const r = renderNotification('reply.pending_approval', {
-      propertyName: 'Riverside Hotel',
-      waitedHours: 49,
-    })
-
-    expect(r.summary).toBe('Riverside Hotel · review · waited 2d')
-    expect([r.title, r.body].join(' ')).not.toMatch(/wait/i)
-  })
-
-  it.each(NOTIFICATION_TYPES)('%s never renders the frozen age of an old row', (type) => {
-    const r = renderNotification(type, { waitingHours: 48 })
-
-    // A notice may still say what it is about ("waiting for approval"): that is
-    // no age, so only that phrase is let through the guard.
-    const copy = [r.title, r.body, r.summary]
-      .join(' ')
-      .replace(/waiting for approval/gi, '')
-    expect(copy).not.toMatch(/waiting|waited|2d/i)
-  })
-})
-
-describe('notificationLink', () => {
-  it('uses a neutral account page for Organization-scoped notices', () => {
-    expect(notificationLink('organization', 'org-1', null)).toEqual({
-      path: '/settings/profile',
-      search: {},
-    })
-    expect(
-      notificationLink(
-        'organization',
-        'org-1',
-        null,
-        'account.organization_access_removed',
-      ),
-    ).toEqual({ path: '/settings/profile', search: {} })
-  })
-
-  it('sends the member to Properties when their property access changed', () => {
-    expect(
-      notificationLink(
-        'organization',
-        'org-1',
-        null,
-        'account.organization_property_access_changed',
-      ),
-    ).toEqual({ path: '/properties', search: {} })
-  })
-
-  it('sends the inviter to Members when their invitation was accepted', () => {
-    expect(
-      notificationLink('organization', 'org-1', null, 'account.invitation_accepted'),
-    ).toEqual({ path: '/settings/members', search: {} })
-  })
-
-  it('renders calm, actionable account-access copy', () => {
-    expect(renderNotification('account.organization_access_granted', {})).toEqual({
-      title: 'Organization access added',
-      body: 'Your account can now access this organization.',
-      detail: '',
-      actionLabel: 'Review account',
-      summary: 'organization access added',
-      whyReceived:
-        'You received this because your account was given access to an organization on Reputation Key.',
-    })
-    expect(renderNotification('account.organization_role_changed', {})).toEqual({
-      title: 'Organization role updated',
-      body: 'Your account permissions for this organization were updated.',
-      detail: '',
-      actionLabel: 'Review account',
-      summary: 'organization role updated',
-      whyReceived:
-        'You received this because what your account may do in an organization on Reputation Key changed.',
-    })
-    expect(renderNotification('account.organization_access_removed', {})).toEqual({
-      title: 'Organization access removed',
-      body: 'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
-      detail:
-        'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
-      actionLabel: 'Review account',
-      summary: 'organization access removed',
-      whyReceived:
-        'You received this because your access to an organization on Reputation Key ended.',
-    })
-  })
-
-  describe('account notices that name the organization and the role (ADR 0046 r.8)', () => {
-    const ORG = 'Riverside Group'
-
-    it('says which organization the member joined', () => {
-      expect(
-        renderNotification('account.organization_access_granted', {
-          organizationName: ORG,
-        }),
-      ).toEqual({
-        title: 'You joined Riverside Group',
-        body: 'Your account can now access this organization.',
-        detail: '',
-        actionLabel: 'Review account',
-        summary: 'Riverside Group · access added',
-        whyReceived:
-          'You received this because your account was given access to an organization on Reputation Key.',
-      })
-    })
-
-    it.each([
-      ['property_manager', 'You are now a Property Manager.'],
-      ['account_admin', 'You are now an Account Admin.'],
-    ] as const)('names the %s role a member now holds', (memberRole, body) => {
-      const rendered = renderNotification('account.organization_role_changed', {
-        organizationName: ORG,
-        memberRole,
-      })
-
-      expect(rendered).toMatchObject({
-        title: 'Your role at Riverside Group changed',
-        body,
-        // The role is news the title does not carry, so the row shows it.
-        detail: body,
-        summary: 'Riverside Group · role changed',
-        whyReceived:
-          'You received this because what your account may do in an organization on Reputation Key changed.',
-      })
-    })
-
-    it('falls back to the plain role-change sentence when the role is unknown', () => {
-      expect(
-        renderNotification('account.organization_role_changed', {
-          organizationName: ORG,
-        }),
-      ).toMatchObject({
-        title: 'Your role at Riverside Group changed',
-        body: 'Your account permissions for this organization were updated.',
-        detail: '',
-      })
-      expect(
-        renderNotification('account.organization_role_changed', {
-          memberRole: 'account_admin',
-        }),
-      ).toMatchObject({
-        title: 'Organization role updated',
-        body: 'You are now an Account Admin.',
-      })
-    })
-
-    it('names the organization a member left or was removed from', () => {
-      expect(
-        renderNotification('account.organization_access_removed', {
-          organizationName: ORG,
-          leftOrganization: true,
-        }),
-      ).toMatchObject({
-        title: 'You left Riverside Group',
-        summary: 'Riverside Group · left',
-      })
-      expect(
-        renderNotification('account.organization_access_removed', {
-          organizationName: ORG,
-        }),
-      ).toMatchObject({
-        title: 'Your access to Riverside Group was removed',
-        summary: 'Riverside Group · access removed',
-      })
-    })
-
-    it('tells a member their property access changed, naming the organization', () => {
-      expect(
-        renderNotification('account.organization_property_access_changed', {
-          organizationName: ORG,
-        }),
-      ).toEqual({
-        title: 'Your property access changed',
-        body: 'Your property access at Riverside Group changed. Open Properties to see what you can work.',
-        detail: '',
-        actionLabel: 'Open Properties',
-        summary: 'Riverside Group · property access changed',
-        whyReceived:
-          'You received this because an Account Admin changed which properties you can work.',
-      })
-      expect(
-        renderNotification('account.organization_property_access_changed', {}),
-      ).toMatchObject({
-        title: 'Your property access changed',
-        body: 'Open Properties to see what you can work.',
-        summary: 'property access changed',
-      })
-    })
-
-    it('tells an inviter their invitation was accepted without naming who accepted it', () => {
-      expect(
-        renderNotification('account.invitation_accepted', { organizationName: ORG }),
-      ).toEqual({
-        title: 'An invitation you sent was accepted',
-        body: 'Someone you invited joined Riverside Group. Review their properties in Members.',
-        detail: '',
-        actionLabel: 'Open Members',
-        summary: 'Riverside Group · invitation accepted',
-        whyReceived:
-          'You received this because an invitation you sent on Reputation Key was accepted.',
-      })
-      expect(renderNotification('account.invitation_accepted', {})).toMatchObject({
-        title: 'An invitation you sent was accepted',
-        body: 'Someone you invited joined. Review their properties in Members.',
-        summary: 'invitation accepted',
-      })
-    })
-
-    it('never renders an identifier or a repeat count into an account notice', () => {
-      const types = [
-        'account.organization_access_granted',
-        'account.organization_role_changed',
-        'account.organization_access_removed',
-        'account.organization_property_access_changed',
-        'account.invitation_accepted',
-      ] as const
-      for (const type of types) {
-        const rendered = renderNotification(type, {
-          organizationName: ORG,
-          memberRole: 'property_manager',
-          occurrences: 1,
-        })
-        expect(
-          [rendered.title, rendered.body, rendered.detail, rendered.summary].join(' '),
-        ).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}|undefined/)
-      }
-    })
-  })
-
-  it('names the organization in the final deletion notice and says what, when and who can stop it', () => {
-    expect(
-      renderNotification('account.organization_purge_pending', {
-        organizationName: 'Riverside Group',
-      }),
-    ).toEqual({
-      title: 'Final notice: permanent deletion of Riverside Group',
-      body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to denev@kodes.agency now.',
-      detail:
-        'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to denev@kodes.agency now.',
-      actionLabel: 'Open profile',
-      summary: 'Riverside Group · permanent deletion pending',
-      whyReceived:
-        'You received this because you administer an organization that is scheduled for permanent deletion. It cannot be turned off.',
-    })
-    expect(renderNotification('account.organization_purge_pending', {}).title).toBe(
-      'Final notice: permanent deletion of this organization',
-    )
-  })
-
-  it('gives the final deletion notice a reachable reply-to and leaves every other type without one', () => {
-    expect(notificationReplyTo('account.organization_purge_pending')).toBe(
-      'denev@kodes.agency',
-    )
-    expect(notificationReplyTo('account.organization_access_removed')).toBeNull()
-    expect(notificationReplyTo('reply.pending_approval')).toBeNull()
-  })
-
-  it('gives every mandatory type its own footer wording and leaves optional types without one', () => {
-    const mandatory: ReadonlyArray<NotificationType> = [
-      'account.organization_access_granted',
-      'account.organization_role_changed',
-      'account.organization_access_removed',
-      'account.organization_property_access_changed',
-      'account.invitation_accepted',
-      'account.organization_purge_pending',
-    ]
-    const reasons = mandatory.map((type) => renderNotification(type, {}).whyReceived)
-
-    expect(reasons.filter((reason) => reason !== undefined)).toHaveLength(
-      mandatory.length,
-    )
-    expect(new Set(reasons).size).toBe(mandatory.length)
-    expect(renderNotification('reply.pending_approval', {}).whyReceived).toBeUndefined()
-  })
-
-  it('deep-links an inbox item through typed search params', () => {
-    expect(notificationLink('inbox_item', UUID, 'prop-1')).toEqual({
-      path: '/inbox',
-      search: { itemId: UUID },
-    })
-  })
-
-  // Regression: the previous builder used the goal's resourceId as a
-  // propertyId, producing a dead /properties/<goalId> route. A goal notice's
-  // resource is the monthly result it reports; the Property's Goals page
-  // opens the goal that result belongs to.
-  it('links a goal notice to the goal of the monthly result it reports', () => {
-    expect(notificationLink('goal', 'result-9', 'prop-1')).toEqual({
-      path: '/properties/prop-1/goals',
-      search: { result: 'result-9' },
-    })
-  })
-
-  it.each(['goal', 'portal', 'property'] as const)(
-    'never builds a %s link into a Property it does not have',
-    (resourceType) => {
-      expect(notificationLink(resourceType, 'r', null).path).toBe('/properties')
-    },
-  )
-
-  // A grouped assignment is many items: it opens the recipient's own queue at
-  // that Property, not whichever item happened to sort first.
-  it("opens a grouped assignment on the recipient's queue at that Property", () => {
-    expect(notificationLink('inbox_item', UUID, 'prop-1', 'inbox.bulk_assigned')).toEqual(
-      { path: '/inbox', search: { queue: 'mine', propertyId: 'prop-1' } },
-    )
-    expect(notificationLink('inbox_item', UUID, 'prop-1', 'inbox.assigned')).toEqual({
-      path: '/inbox',
-      search: { itemId: UUID },
-    })
-  })
-
-  // A bulk reopen is many items too, reopened for whoever is responsible, not
-  // assigned to the reader: it opens that Property's Open queue.
-  it("opens a grouped reopen on that Property's open items", () => {
-    expect(notificationLink('inbox_item', UUID, 'prop-1', 'inbox.bulk_reopened')).toEqual(
-      { path: '/inbox', search: { queue: 'open', propertyId: 'prop-1' } },
-    )
-    expect(notificationLink('inbox_item', UUID, null, 'inbox.bulk_reopened')).toEqual({
-      path: '/inbox',
-      search: { queue: 'open' },
-    })
-    expect(notificationLink('inbox_item', UUID, 'prop-1', 'inbox.reopened')).toEqual({
-      path: '/inbox',
-      search: { itemId: UUID },
-    })
-  })
-
-  it('lands legacy reply rows on the inbox list rather than a stale reply', () => {
-    expect(notificationLink('reply', 'reply-1', 'prop-1')).toEqual({
-      path: '/inbox',
-      search: {},
-    })
-  })
-
+describe('renderNotification — portal, property and integration notices', () => {
   it('renders a gentle portal responsibility recovery prompt that says where', () => {
     expect(
       renderNotification('portal.responsibility_needed', {
@@ -1029,8 +38,6 @@ describe('notificationLink', () => {
     })
   })
 
-  // A site a Linktree link opens is waiting for an account admin (ADR 0046,
-  // amended 2026-10-26). It names the site by its host, never its address.
   describe('a site waiting for approval', () => {
     const SITE_PORTAL = '61ed98fc-9cf8-44e9-b49d-cd25e744fd6c'
     const waiting = {
@@ -1081,31 +88,6 @@ describe('notificationLink', () => {
       expect(body).toContain('an account admin')
       expect(body).not.toMatch(/Account Admin|AccountAdmin/)
     })
-
-    it('opens the Linktree of the Portal it names', () => {
-      expect(
-        notificationLink(
-          'portal_destination',
-          'site-1',
-          'prop-1',
-          'portal.link_approval',
-          waiting,
-        ),
-      ).toEqual({
-        path: `/properties/prop-1/portals/${SITE_PORTAL}`,
-        search: { tab: 'page', section: 'linktree' },
-      })
-    })
-
-    it('opens the Property’s Portals when the row names none', () => {
-      expect(
-        notificationLink('portal_destination', 'site-1', 'prop-1', undefined, {}),
-      ).toEqual({ path: '/properties/prop-1/portals', search: {} })
-      expect(notificationLink('portal_destination', 'site-1', null)).toEqual({
-        path: '/properties',
-        search: {},
-      })
-    })
   })
 
   it('renders a gentle Property responsibility recovery prompt that names it', () => {
@@ -1131,25 +113,6 @@ describe('notificationLink', () => {
     })
   })
 
-  // Google refused the grant for good: sync and replies have already stopped,
-  // so the notice leads with the one action that restores them. The
-  // connection is the Organization's, so its delivery Property is not named.
-  it('asks admins to reconnect a Google grant that stopped working, and says why', () => {
-    expect(
-      renderNotification('integration.reauthorization_required', {
-        propertyName: 'Riverside Hotel',
-        reauthorizationCause: 'provider_revoked',
-      }),
-    ).toEqual({
-      title: 'Reconnect Google',
-      body: 'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
-      detail:
-        'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
-      actionLabel: 'Reconnect Google',
-      summary: 'Google access ended',
-    })
-  })
-
   it('keeps the general wording when a connector left rather than Google refusing', () => {
     expect(
       renderNotification('integration.reauthorization_required', {
@@ -1158,89 +121,10 @@ describe('notificationLink', () => {
     ).toBe('Google connection needs attention')
   })
 
-  // Retrying cannot publish the reply until Google is reconnected, and the
-  // author may not be the one who can reconnect it.
-  it('tells a reply author Google must be reconnected before a retry can publish', () => {
-    expect(
-      renderNotification('reply.publish_failed', {
-        propertyName: 'Riverside Hotel',
-        publishFailureCause: 'google_reauthorization_required',
-      }),
-    ).toEqual({
-      title: 'Reply not published at Riverside Hotel',
-      body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
-      detail:
-        'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
-      actionLabel: 'Open reply',
-      summary: 'Riverside Hotel · review · reconnect Google',
-    })
-  })
-
   it('follows the outcome for a publish failure with no named cause', () => {
     expect(
       renderNotification('reply.publish_failed', { publishOutcome: 'refused' }).body,
     ).toBe('Nothing was posted to Google. Check the Google connection, then try again.')
-  })
-
-  // The outcome says what happened; the cause names the only remedy that works.
-  it('names the reconnect remedy over the outcome when Google must be reconnected', () => {
-    expect(
-      renderNotification('reply.publish_failed', {
-        propertyName: 'Riverside Hotel',
-        publishOutcome: 'refused',
-        publishFailureCause: 'google_reauthorization_required',
-      }),
-    ).toEqual({
-      title: 'Reply not published at Riverside Hotel',
-      body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
-      detail:
-        'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
-      actionLabel: 'Open reply',
-      summary: 'Riverside Hotel · review · reconnect Google',
-    })
-  })
-
-  it.each([
-    ['a month key that never went through the allowlist', { goalMonth: 'last month' }],
-    ['a target time that is not an instant', { targetDueAt: 'tomorrow' }],
-    [
-      "a goal's figures that never went through the allowlist",
-      {
-        goalMonth: '2026-11',
-        goalSubjectKind: 'portal',
-        goalSubjectName: 'Reception',
-        goalMeasure: 'portal_rating_count',
-        goalCount: 'forty',
-        goalTargetCount: -1,
-      },
-    ],
-    [
-      'goal facts outside their enums',
-      {
-        goalSubjectKind: 'team',
-        goalOutcome: 'maybe',
-        goalMarker: 'soon',
-        goalMeasure: 'stars',
-      },
-    ],
-  ] as const)('renders rather than throwing on %s', (_case, payload) => {
-    // Both facts are formatted, and both render in the bell's own paint: a
-    // payload that reached a template unparsed must shorten the copy, never
-    // take the feed down with a RangeError.
-    for (const type of NOTIFICATION_TYPES) {
-      const rendered = renderNotification(type, payload as NotificationPayload, {
-        timeZone: 'UTC',
-      })
-      expect(rendered.title).not.toBe('')
-      expect(rendered.title).not.toMatch(/undefined|NaN|Invalid/)
-      expect(rendered.body).not.toMatch(/undefined|NaN|Invalid/)
-    }
-  })
-
-  it('covers every resource type', () => {
-    for (const t of NOTIFICATION_RESOURCE_TYPES) {
-      expect(notificationLink(t, 'r', 'p').path).toMatch(/^\//)
-    }
   })
 })
 
@@ -1248,15 +132,6 @@ describe('notificationLink', () => {
 // 0046, amended 2026-10-17): whose goal, which month, and for a count the
 // month's figure against its target. The Seaview fixtures are the deck's.
 describe('renderNotification — portal goal notices', () => {
-  const SEAVIEW: NotificationPayload = {
-    propertyName: 'Seaview Hotel',
-    goalName: 'Monthly portal goal',
-    goalMonth: '2026-11',
-    goalSubjectKind: 'property',
-    goalMeasure: 'portal_rating_count',
-    goalCount: 41,
-    goalTargetCount: 40,
-  }
   const RECEPTION: NotificationPayload = {
     ...SEAVIEW,
     goalSubjectKind: 'portal',
@@ -1264,16 +139,6 @@ describe('renderNotification — portal goal notices', () => {
     goalCount: 22,
     goalTargetCount: 20,
   }
-
-  it('a met property goal names the property and its count', () => {
-    expect(renderNotification('goal.completed', SEAVIEW)).toEqual({
-      title: 'Seaview Hotel met its November portal goal',
-      body: 'Your portals brought in 41 private ratings. The goal was 40.',
-      detail: 'Your portals brought in 41 private ratings. The goal was 40.',
-      actionLabel: 'See the goal',
-      summary: 'Seaview Hotel',
-    })
-  })
 
   it.each([
     ['portal', 'Reception'],
@@ -1472,16 +337,6 @@ describe('renderNotification — portal goal notices', () => {
     ).toBe(revised)
   })
 
-  it('a correction that does not say which way it went is an update', () => {
-    expect(renderNotification('goal.result_revised', SEAVIEW)).toEqual({
-      title: 'Portal goal result updated',
-      body: 'Open the goal to see the numbers.',
-      detail: '',
-      actionLabel: 'See the goal',
-      summary: 'Seaview Hotel',
-    })
-  })
-
   // The in-app row names the Property in its facts line and shows the title
   // without it. A Property goal's title then still says which month.
   it("the row's title without the Property keeps the month", () => {
@@ -1509,141 +364,88 @@ describe('renderNotification — portal goal notices', () => {
   })
 })
 
-// Guards the RENDERERS map: a new NotificationType with no renderer would
-// throw at runtime rather than fail a build, so pin it here.
-describe('renderer coverage', () => {
-  it('has a renderer for every declared type', () => {
-    for (const type of NOTIFICATION_TYPES as ReadonlyArray<NotificationType>) {
-      expect(() => renderNotification(type, {})).not.toThrow()
-    }
-  })
+const RECONNECT_BODY =
+  'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry — the draft is saved.'
+const RECONNECT_COPY = copy({
+  title: 'Reply not published at Riverside Hotel',
+  body: RECONNECT_BODY,
+  detailMirrorsBody: true,
+  actionLabel: 'Open reply',
+  summary: 'Riverside Hotel · review · reconnect Google',
 })
+const GOOGLE_ENDED_BODY =
+  'Google no longer accepts RepKey’s access, so review updates and replies are paused.'
 
-describe('renderNotification — the in-app detail line', () => {
-  it.each([
-    'review.created',
-    'feedback.created',
-    'inbox.escalated',
-    'reply.pending_approval',
-    'inbox.assigned',
-    'inbox_note.added',
-    'goal.completed',
-  ] as const)(
-    'adds nothing under a %s title that the title does not already say',
-    (type) => {
-      const rendered = renderNotification(type, {
-        propertyName: 'Riverside Hotel',
-        actorRole: 'property_manager',
-      })
-      expect(rendered.body).not.toBe('')
-      expect(rendered.detail).toBe('')
-    },
-  )
-
-  it('keeps the reason a notice was reopened and leaves the repeat count to the row', () => {
-    const rendered = renderNotification('inbox.reopened', {
-      reopenReason: 'new_information',
-      occurrences: 3,
-    })
-    expect(rendered.detail).toBe('New information came in.')
-    expect(rendered.body).toContain('This happened 3 times.')
-  })
-
-  it("shows a passed Response Target as its target time, on the reader's clock", () => {
-    const rendered = renderNotification(
-      'inbox.response_target_passed',
-      { targetDueAt: '2026-09-29T11:00:00.000Z' },
-      { timeZone: 'Europe/Sofia' },
-    )
-    expect(rendered.detail).toBe('The target time was Tue, Sep 29, 14:00.')
-  })
-
-  it('says why a reply was sent back only when the notice knows whether a reason exists', () => {
-    expect(
-      renderNotification('reply.rejected', { hasModerationReason: true }).detail,
-    ).toBe(
-      'The approver left a reason. Open the reply to read it, then edit and resubmit.',
-    )
-    expect(renderNotification('reply.rejected', {}).detail).toBe('')
-  })
-
-  it('shows the imported counts, and nothing when the count is unknown', () => {
-    expect(
-      renderNotification('property.review_import_finished', {
-        importOutcome: 'completed',
-        importedCount: 240,
-        unansweredCount: 12,
-      }).detail,
-    ).toBe('We imported 240 reviews; 12 still need a reply.')
-    expect(
-      renderNotification('property.review_import_finished', {
-        importOutcome: 'completed',
-      }).detail,
-    ).toBe('')
-  })
-
-  it('never says anything in the detail that the email body does not', () => {
-    const payload = {
+const EXACT_COPY: ReadonlyArray<ExactCopyCase> = [
+  // Google refused the grant for good: sync and replies have already stopped,
+  // so the notice leads with the one action that restores them. The
+  // connection is the Organization's, so its delivery Property is not named.
+  [
+    'asks admins to reconnect a Google grant that stopped working, and says why',
+    'integration.reauthorization_required',
+    { propertyName: 'Riverside Hotel', reauthorizationCause: 'provider_revoked' },
+    undefined,
+    copy({
+      title: 'Reconnect Google',
+      body: GOOGLE_ENDED_BODY,
+      detailMirrorsBody: true,
+      actionLabel: 'Reconnect Google',
+      summary: 'Google access ended',
+    }),
+  ],
+  // Retrying cannot publish the reply until Google is reconnected, and the
+  // author may not be the one who can reconnect it.
+  [
+    'tells a reply author Google must be reconnected before a retry can publish',
+    'reply.publish_failed',
+    {
       propertyName: 'Riverside Hotel',
-      platform: 'portal',
-      guestRating: 2,
-      actorRole: 'staff',
-      reopenReason: 'guest_follow_up_still_needed',
+      publishFailureCause: 'google_reauthorization_required',
+    },
+    undefined,
+    RECONNECT_COPY,
+  ],
+  // The outcome says what happened; the cause names the only remedy that works.
+  [
+    'names the reconnect remedy over the outcome when Google must be reconnected',
+    'reply.publish_failed',
+    {
+      propertyName: 'Riverside Hotel',
       publishOutcome: 'refused',
-      publicationCancellationCause: 'policy',
-      portalHealthStatus: 'unavailable',
-      portalHealthReason: 'public_address_unavailable',
-      reauthorizationCause: 'member_removed',
-      importOutcome: 'failed',
-      importFailureReason: 'location_too_large',
-      hasModerationReason: false,
-      targetDueAt: '2026-09-29T11:00:00.000Z',
-      occurrences: 2,
-    } as const
-    for (const type of NOTIFICATION_TYPES) {
-      const rendered = renderNotification(type, payload, { timeZone: 'UTC' })
-      if (rendered.detail !== '') expect(rendered.body).toContain(rendered.detail)
-    }
-  })
-})
+      publishFailureCause: 'google_reauthorization_required',
+    },
+    undefined,
+    RECONNECT_COPY,
+  ],
+  [
+    'a met property goal names the property and its count',
+    'goal.completed',
+    SEAVIEW,
+    undefined,
+    copy({
+      title: 'Seaview Hotel met its November portal goal',
+      body: 'Your portals brought in 41 private ratings. The goal was 40.',
+      detailMirrorsBody: true,
+      actionLabel: 'See the goal',
+      summary: 'Seaview Hotel',
+    }),
+  ],
+  [
+    'a correction that does not say which way it went is an update',
+    'goal.result_revised',
+    SEAVIEW,
+    undefined,
+    copy({
+      title: 'Portal goal result updated',
+      body: 'Open the goal to see the numbers.',
+      actionLabel: 'See the goal',
+      summary: 'Seaview Hotel',
+    }),
+  ],
+]
 
-// ADR 0046, amended 2026-09-30 (with ADR 0031): a Low ratings notice says so,
-// and why, but never how many stars a Google review has.
-describe('a Low ratings notice', () => {
-  const low = {
-    propertyName: 'Harbour View Suites',
-    platform: 'google' as const,
-    lowRating: true as const,
-  }
-
-  it('names a new review low-rated, without its stars', () => {
-    const copy = renderNotification('review.created', low)
-
-    expect(copy.title).toBe('Low-rated review at Harbour View Suites')
-    expect(copy.body).toContain('at or below the rating you asked to hear about')
-    expect(`${copy.title} ${copy.body}`).not.toMatch(/\d\s*(★|star)/i)
-  })
-
-  it('names an edit that brought a review down', () => {
-    expect(renderNotification('review.updated', low).title).toBe(
-      'Review edited to a low rating at Harbour View Suites',
-    )
-  })
-
-  it("names private feedback low-rated; its Portal rating is RepKey's own", () => {
-    expect(
-      renderNotification('feedback.created', {
-        propertyName: 'Harbour View Suites',
-        platform: 'portal',
-        guestRating: 2,
-        lowRating: true,
-      }).title,
-    ).toBe('Low-rated guest feedback at Harbour View Suites')
-  })
-
-  it('keeps the plain copy without the flag', () => {
-    expect(
-      renderNotification('review.created', { propertyName: 'Harbour View Suites' }).title,
-    ).toBe('New review at Harbour View Suites')
+describe('renderNotification — exact copy of portal, property and integration notices', () => {
+  it.each(EXACT_COPY)('%s', (_name, type, payload, options, expected) => {
+    expect(renderNotification(type, payload, options)).toEqual(expected)
   })
 })

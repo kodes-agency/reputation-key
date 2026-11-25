@@ -4,7 +4,7 @@ import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-key
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { createGoogleReviewPushReferenceStore } from './google-review-push-reference-store.server'
 
 const NOW_MS = Date.parse('2026-08-27T08:00:00.000Z')

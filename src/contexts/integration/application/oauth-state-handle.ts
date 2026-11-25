@@ -16,7 +16,6 @@ const oauthStateRecordSchema = z
     organizationId: z.string().min(1).max(255),
     userId: z.string().min(1).max(255),
     audience: z.literal('google-connect'),
-    visibility: z.enum(['private', 'organization']),
     purpose: z.enum(['reviews', 'import_gbp_v2', 'performance_reauth']),
     connectionMode: z.enum(['new', 'reauth', 'reconnect']),
     targetConnectionId: z.string().min(1).max(255).nullable(),
@@ -57,7 +56,6 @@ export type OAuthStateHandleService = Readonly<{
       organizationId: string
       userId: string
       sessionId: string
-      visibility: 'private' | 'organization'
       purpose: 'reviews' | 'import_gbp_v2' | 'performance_reauth'
       connectionMode: 'new' | 'reauth' | 'reconnect'
       targetConnectionId: string | null
@@ -79,7 +77,6 @@ export type OAuthStateHandleService = Readonly<{
         ok: true
         kind: 'exchange'
         exchangeAttemptId: string
-        visibility: 'private' | 'organization'
         purpose: 'reviews' | 'import_gbp_v2' | 'performance_reauth'
         connectionMode: 'new' | 'reauth' | 'reconnect'
         targetConnectionId: string | null
@@ -194,7 +191,6 @@ export function createOAuthStateHandleService(
         organizationId: input.organizationId,
         userId: input.userId,
         audience: 'google-connect',
-        visibility: input.visibility,
         purpose: input.purpose,
         connectionMode: input.connectionMode,
         targetConnectionId: input.targetConnectionId,
@@ -288,7 +284,6 @@ export function createOAuthStateHandleService(
         ok: true,
         kind: 'exchange',
         exchangeAttemptId: record.exchangeAttemptId,
-        visibility: record.visibility,
         purpose: record.purpose,
         connectionMode: record.connectionMode,
         targetConnectionId: record.targetConnectionId,

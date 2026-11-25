@@ -1,6 +1,6 @@
 import type { MerchantAiCapability } from './domain/merchant-ai-capability'
 import { z } from 'zod/v4'
-export { canonicalizeRfc8785 } from './canonical-json'
+export { canonicalizeRfc8785 } from './json/canonical-json'
 
 // Changelog — every entry is a new version; the newest is first.
 // 2026-11-06.v2: retire Property Trends; analysis and drafting data use is unchanged.

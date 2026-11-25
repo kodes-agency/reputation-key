@@ -209,11 +209,8 @@ describe('signed guest session', () => {
 })
 
 describe('guestRateLimitKey', () => {
-  it('uses the verified session and otherwise the network hash', () => {
-    expect(guestRateLimitKey('response', 'session-1', 'ip-hash')).toBe(
-      'response:session-1',
-    )
-    expect(guestRateLimitKey('response', null, 'ip-hash')).toBe('response:ip:ip-hash')
+  it('keys on the verified session', () => {
+    expect(guestRateLimitKey('response', 'session-1')).toBe('response:session-1')
   })
 
   it('always includes a network-and-Portal layer alongside a session layer', () => {

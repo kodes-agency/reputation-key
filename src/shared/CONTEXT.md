@@ -55,14 +55,14 @@ Shared-area dependency and production/test fences are enforced by `eslint.config
 
 ## Root contracts
 
-The shared root is not a general placement target. Its retained files are narrow multi-owner contracts: AI/provider schemas and pinned vectors, canonical JSON, closed JSON validation, merchant-AI notices, Reply language, responsible-manager eligibility, Google Review/Performance wire normalization, and provider-subject bindings. New workflow orchestration belongs in an owning context.
+The shared root is not a general placement target. Its loose files are the attested AI language wrappers, their pinned manifests and vectors, the merchant-AI notice contract and the Reply language catalogue, each kept at the root because a digest, manifest or script names its path. Everything else sits in a topic folder: `ai-gateway/`, `ai-operation/`, `ai-provider-profile/`, `ai-redaction/` and `ai-review-source/` (AI contracts, profiles and the deterministic redactor), `analysis/`, `reply/` and `reply-library/` (the Review analysis and Reply contracts and the built-in library), `beta-feedback/`, `merchant-ai-notice/`, `google-contracts/` (Google Review/Performance wire normalization and provider-subject bindings), `json/` (canonical, closed and strict AI JSON), `responsible-manager/`, `routing/`, `whats-new/`, `dashboard/` and `domain-schemas/`, and the browser-side helpers `format/` (number, date and time wording), `class-names/` (`cn`), `clipboard/` and `fonts/`. Each folder is declared in `LAYOUT.sharedFolders` (`scripts/ci/check-layout.ts`), and `pnpm check:layout` counts the loose files that remain. New workflow orchestration belongs in an owning context.
 
 Responsible-manager eligibility has two owners, Property and Portal, and its
 contract includes the one rule both follow when a member is removed: release,
 from `identity.member.removed`, what the member still holds and may no
 longer hold (`releaseRemovedMemberResponsibilities`), through the one handler
 that reads the fact and records the receipt after the release
-(`removed-member-consumer.ts`). The root holds only that rule and that handler.
+(`responsible-manager/removed-member-consumer.ts`). `responsible-manager/` holds only that rule and that handler.
 Each owner registers the consumer under its own name and catalogue row and binds
 the rule to its own store, and the check an assignment makes after it commits
 stays in the owner's use case.
@@ -74,7 +74,7 @@ not belong in shared contract records.
 
 Browser/server reachability is enforced by `src/shared/architecture/browser-reachability.test.ts` and `eslint.config.js`.
 
-Strict AI JSON parsing lives in `ai-json.ts`, independently of admission and
+Strict AI JSON parsing lives in `json/ai-json.ts`, independently of admission and
 gateway schemas. It accepts a typed `parse` function and preserves byte, UTF-8,
 duplicate-key, Unicode, depth, node and number-policy checks for provider bodies
 and key material. Parsing and diagnostics share their parsed-value checks; the
@@ -209,10 +209,11 @@ classification, and mutation authority.
 
 `events/*-event-descriptors.ts` and the focused event-schema files declare each
 issued fact's type, version, allowlist schema and aggregate identifier. The
-registry in `events/registry.server.ts` derives startup registrations, emitted
+registry in `events/registry.server.ts` serves the descriptor lookups, emitted
 versions and relay metadata from those definitions. Historical decoders stay
 available; aggregate identity never depends on unrelated identifiers in a payload.
-The existing `events/schema-registrations.ts` startup entry point remains stable.
+Nothing registers schemas at startup: every lookup reads the same fixed list, and a
+duplicate type and version fails the module load.
 
 Server error logs retain validated names, codes and HTTP status, with no client
 message or domain context. The logger redacts flattened error text recursively;
@@ -280,7 +281,7 @@ roles, calendars, timezones, encodings, and small eligibility rules. A type with
 owner belongs with that owner. No I/O or framework code enters this area.
 
 Cross-context product behavior remains behind each context's
-`application/public-api.ts` or a consumer-owned port. Shared events aggregate the
+`public-api.ts` at its root or a consumer-owned port. Shared events aggregate the
 master event union but do not gain permission to construct another context's fact.
 
 Cross-context public-interface boundaries are enforced by `eslint-rules/cross-context-public-api.mjs` and `src/shared/architecture/cross-context-public-api.test.ts`.

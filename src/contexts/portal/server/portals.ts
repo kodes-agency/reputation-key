@@ -14,7 +14,6 @@ import { getContainer } from '#/composition'
 import { createPortalInputSchema } from '../publication/create-portal.contracts'
 import {
   changePortalLanguagesInputSchema,
-  changePortalSlugInputSchema,
   portalIdInputSchema,
   publishPortalInputSchema,
   updatePortalSettingsInputSchema,
@@ -27,7 +26,6 @@ import {
   portalApprovedDestinationRequestInputSchema,
   portalLocalizedOverrideInputSchema,
   propertyPortalBrandContentInputSchema,
-  propertyPortalBrandProfileInputSchema,
   propertyPortalExperienceInputSchema,
   propertyPublicDisplayNameInputSchema,
 } from '../editor/portal-experience.contracts'
@@ -37,13 +35,11 @@ import {
   revokePortalTokensInputSchema,
   rotatePortalTokenInputSchema,
 } from '../addresses/portal-token-lifecycle.contracts'
-import { isPortalError, portalError } from '../domain/errors'
+import { isPortalError } from '../domain/errors'
 import { PORTAL_HISTORY_CATEGORIES } from '../domain/portal-history'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { Permission } from '#/shared/domain/permissions'
-import { portalId as toPortalId } from '#/shared/domain/ids'
-import { requirePortalResourceScope } from './property-scope'
+import { requirePortalScope } from './portal-scope.server'
 import { checkPortalAddressRateLimit } from './portal-address-rate-limit.server'
 import { listAuthorizedPortalPropertyIds } from './authorized-portal-properties.server'
 import { portalCommandErrors, portalErrorStatus } from './portal-command-errors'
@@ -101,32 +97,6 @@ export const getPropertyPortalExperience = createServerFn({ method: 'GET' })
           propertyId: data.propertyId,
         })
         return getContainer().portalPublicApi.management.getPropertyPortalExperience(
-          data,
-          ctx,
-        )
-      },
-    ),
-  )
-
-// The e2e seed path: no screen saves a brand profile; the e2e fixtures do.
-export const savePropertyPortalBrandProfile = createServerFn({ method: 'POST' })
-  .validator(propertyPortalBrandProfileInputSchema)
-  .handler(
-    commandHandler(
-      {
-        method: 'POST',
-        name: 'portal.savePropertyPortalBrandProfile',
-        errors: portalCommandErrors,
-      },
-      async ({ data, headers }) => {
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-          propertyId: data.propertyId,
-        })
-        return getContainer().portalPublicApi.management.savePropertyPortalBrandProfile(
           data,
           ctx,
         )
@@ -195,7 +165,7 @@ export const savePortalLocalizedOverride = createServerFn({ method: 'POST' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
         return getContainer().portalPublicApi.management.savePortalLocalizedOverride(
           data,
           ctx,
@@ -215,7 +185,7 @@ export const listPortalApprovedDestinations = createServerFn({ method: 'GET' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
+        await requirePortalScope(ctx, data.portalId, 'portal.read')
         return getContainer().portalPublicApi.management.listPortalApprovedDestinations(
           data,
           ctx,
@@ -235,7 +205,7 @@ export const requestPortalApprovedDestination = createServerFn({ method: 'POST' 
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
         return getContainer().portalPublicApi.management.requestPortalApprovedDestination(
           data,
           ctx,
@@ -255,7 +225,7 @@ export const approvePortalApprovedDestination = createServerFn({ method: 'POST' 
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
         return getContainer().portalPublicApi.management.approvePortalApprovedDestination(
           data,
           ctx,
@@ -275,7 +245,7 @@ export const disablePortalApprovedDestination = createServerFn({ method: 'POST' 
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
         return getContainer().portalPublicApi.management.disablePortalApprovedDestination(
           data,
           ctx,
@@ -283,30 +253,6 @@ export const disablePortalApprovedDestination = createServerFn({ method: 'POST' 
       },
     ),
   )
-async function authorizePortalResource(
-  ctx: AuthContext,
-  rawPortalId: string,
-  action: Permission,
-  capability: Capability,
-): Promise<void> {
-  try {
-    await requirePortalResourceScope({
-      actor: ctx,
-      action,
-      capability,
-      notFound: portalError('portal_not_found', 'portal not found'),
-      lookup: () =>
-        getContainer().portalPublicApi.management.resolvePortalManagementScope(
-          toPortalId(rawPortalId),
-        ),
-    })
-  } catch (error) {
-    if (isPortalError(error))
-      throwContextError('PortalError', error, portalErrorStatus(error.code))
-    throw error
-  }
-}
-
 // ── createPortal ───────────────────────────────────────────────────
 
 export const createPortal = createServerFn({ method: 'POST' })
@@ -376,28 +322,10 @@ export const updatePortalSettings = createServerFn({ method: 'POST' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
 
         const portal =
           await getContainer().portalPublicApi.management.updatePortalSettings(data, ctx)
-        return { portal }
-      },
-    ),
-  )
-
-export const changePortalSlug = createServerFn({ method: 'POST' })
-  .validator(changePortalSlugInputSchema)
-  .handler(
-    commandHandler(
-      { method: 'POST', name: 'portal.changePortalSlug', errors: portalCommandErrors },
-      async ({ data, headers }) => {
-        const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
-
-        const portal = await getContainer().portalPublicApi.management.changePortalSlug(
-          data,
-          ctx,
-        )
         return { portal }
       },
     ),
@@ -414,7 +342,7 @@ export const changePortalLanguages = createServerFn({ method: 'POST' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
 
         const portal =
           await getContainer().portalPublicApi.management.changePortalLanguages(data, ctx)
@@ -430,7 +358,7 @@ export const publishPortal = createServerFn({ method: 'POST' })
       { method: 'POST', name: 'portal.publishPortal', errors: portalCommandErrors },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
 
         const portal = await getContainer().portalPublicApi.management.publishPortal(
           data,
@@ -448,7 +376,7 @@ export const disablePortal = createServerFn({ method: 'POST' })
       { method: 'POST', name: 'portal.disablePortal', errors: portalCommandErrors },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
 
         const portal = await getContainer().portalPublicApi.management.disablePortal(
           data,
@@ -466,7 +394,7 @@ export const archivePortal = createServerFn({ method: 'POST' })
       { method: 'POST', name: 'portal.archivePortal', errors: portalCommandErrors },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.delete', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.delete')
 
         const portal = await getContainer().portalPublicApi.management.archivePortal(
           data,
@@ -484,7 +412,7 @@ export const restorePortal = createServerFn({ method: 'POST' })
       { method: 'POST', name: 'portal.restorePortal', errors: portalCommandErrors },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
 
         const portal = await getContainer().portalPublicApi.management.restorePortal(
           data,
@@ -506,7 +434,7 @@ export const rollbackPortalPublication = createServerFn({ method: 'POST' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
 
         return await getContainer().portalPublicApi.management.rollbackPortalPublication(
           data,
@@ -590,7 +518,7 @@ export const getPortal = createServerFn({ method: 'GET' })
       { method: 'GET', name: 'portal.getPortal', errors: portalCommandErrors },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
+        await requirePortalScope(ctx, data.portalId, 'portal.read')
 
         const { management: useCases } = getContainer().portalPublicApi
         const { portal, tokenStatus } = await useCases.getPortal(data, ctx)
@@ -610,7 +538,7 @@ export const getPortalPublicationHistory = createServerFn({ method: 'GET' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
+        await requirePortalScope(ctx, data.portalId, 'portal.read')
 
         return await getContainer().portalPublicApi.management.getPortalPublicationHistory(
           data,
@@ -628,12 +556,30 @@ export const getPortalHistory = createServerFn({ method: 'GET' })
       { method: 'GET', name: 'portal.getPortalHistory', errors: portalCommandErrors },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
+        await requirePortalScope(ctx, data.portalId, 'portal.read')
 
         return await getContainer().portalPublicApi.management.getPortalHistory(data, ctx)
       },
     ),
   )
+
+/**
+ * `requirePortalScope` for the traced address handlers, which sit outside
+ * `commandHandler`: a Portal error leaves as the context error the client reads.
+ */
+async function requirePortalScopeOrContextError(
+  ctx: AuthContext,
+  rawPortalId: string,
+  action: Permission,
+): Promise<void> {
+  try {
+    await requirePortalScope(ctx, rawPortalId, action)
+  } catch (error) {
+    if (isPortalError(error))
+      throwContextError('PortalError', error, portalErrorStatus(error.code))
+    throw error
+  }
+}
 
 /**
  * The address is a secret: nothing in the path may keep a copy of this response.
@@ -654,7 +600,7 @@ export const issuePortalToken = createServerFn({ method: 'POST' })
         disableAddressCaching()
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScopeOrContextError(ctx, data.portalId, 'portal.update')
         try {
           return await getContainer().portalPublicApi.management.issuePortalToken(
             data,
@@ -680,7 +626,7 @@ export const rotatePortalToken = createServerFn({ method: 'POST' })
         disableAddressCaching()
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScopeOrContextError(ctx, data.portalId, 'portal.update')
         try {
           return await getContainer().portalPublicApi.management.rotatePortalToken(
             data,
@@ -709,7 +655,7 @@ export const revealPortalAddress = createServerFn({ method: 'POST' })
       async ({ data }) => {
         disableAddressCaching()
         const ctx = await resolveTenantContext(await headersFromContext())
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScopeOrContextError(ctx, data.portalId, 'portal.update')
         try {
           const container = getContainer()
           const limited = await checkPortalAddressRateLimit({
@@ -738,7 +684,7 @@ export const revokePortalTokens = createServerFn({ method: 'POST' })
       { method: 'POST', name: 'portal.revokePortalTokens', errors: portalCommandErrors },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
         return await getContainer().portalPublicApi.management.revokePortalTokens(
           data,
           ctx,
@@ -758,7 +704,7 @@ export const completeContentReview = createServerFn({ method: 'POST' })
       },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        await requirePortalScope(ctx, data.portalId, 'portal.update')
         return await getContainer().portalPublicApi.management.completeContentReview(
           data,
           ctx,

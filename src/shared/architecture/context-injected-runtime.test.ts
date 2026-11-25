@@ -37,7 +37,7 @@ const REVIEW_BANS = [WALL_CLOCK, EPOCH_NOW, RANDOM_ID, MATH_RANDOM] as const
 const MODULE_BANS: ReadonlyArray<readonly [string, readonly RegExp[]]> = [
   ['src/contexts/reputation/inbox/outbox-consumers.server.ts', [LOGGER]],
   ['src/contexts/reputation/inbox/inbox-repository.server.ts', [LOGGER]],
-  ['src/contexts/inbox/server/inbox-queries.ts', [LOGGER]],
+  ['src/contexts/reputation/server/inbox-queries.ts', [LOGGER]],
   ...[
     'src/contexts/reputation/inbox/command-store.server.ts',
     'src/contexts/reputation/inbox/command-runtime.server.ts',
@@ -45,8 +45,8 @@ const MODULE_BANS: ReadonlyArray<readonly [string, readonly RegExp[]]> = [
     'src/contexts/reputation/inbox/status-commands.server.ts',
     'src/contexts/reputation/inbox/note-commands.server.ts',
     'src/contexts/reputation/inbox/source-commands.server.ts',
-    'src/contexts/inbox/infrastructure/inbox-command-guards.ts',
-    'src/contexts/inbox/infrastructure/inbox-escalation-history.ts',
+    'src/contexts/reputation/inbox/inbox-command-guards.server.ts',
+    'src/contexts/reputation/inbox/inbox-escalation-history.server.ts',
     'src/contexts/reputation/inbox/inbox-view-repository.server.ts',
     'src/contexts/reputation/inbox/inbox-repository.server.ts',
     'src/contexts/integration/imports/import-store.server.ts',
@@ -127,8 +127,10 @@ describe('injected runtime in Inbox, Integration, Portal, Reporting and Review',
   })
 
   it('keeps Review production code on injected time and identifiers', () => {
-    const files = productionFiles('src/contexts/review').filter((file) =>
-      file.endsWith('.ts'),
+    // Review's code lives in Reputation. Test fixtures seed rows with fresh
+    // ids and clocks and were never part of this guard.
+    const files = productionFiles('src/contexts/reputation', ['ui']).filter(
+      (file) => file.endsWith('.ts') && !file.endsWith('.test-fixtures.ts'),
     )
     expect(offences(files, REVIEW_BANS)).toEqual([])
   })

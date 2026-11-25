@@ -3,7 +3,7 @@
 // QueryClient. Only the HTTP edge and the AI assist are faked, and the timers.
 
 import { describe, expect, it, vi } from 'vitest'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { installInboxCacheHarness } from '#/contexts/reputation/inbox/ui/page/inbox-cache-test-harness'
 import {
   createReplyComposerController,
@@ -34,8 +34,8 @@ const replyServer = vi.hoisted(() => ({
   listReplyTemplatesFn: vi.fn(),
   loadReplyTemplateFn: vi.fn(),
 }))
-vi.mock('#/contexts/review/server/reply', () => replyServer)
-vi.mock('#/contexts/review/server/reply-templates', () => replyServer)
+vi.mock('#/contexts/reputation/server/reply', () => replyServer)
+vi.mock('#/contexts/reputation/server/reply-templates', () => replyServer)
 
 const REVIEW_ID = 'review-1'
 const SAVED_TEXT = 'Thank you for staying.'

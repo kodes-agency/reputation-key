@@ -11,13 +11,12 @@ assignment, and governed access artifacts.
 
 ## Entry points
 
-- `application/public-api.ts` exposes the named cross-context server capabilities
+- `public-api.ts` exposes the named cross-context server capabilities
   and facts. `application/portal-management-contracts.ts` contains the browser-safe
   management types and pure rules used by screens.
 - RPC calls stay in `server/`. None of the screens imports the context build at runtime.
 - Each port sits beside its implementation as `<impl>.port.server.ts`. What stays in
   the layer folders, and why:
-  - `application/public-api.ts`: lint names every area's public API by this path.
   - `portal-management-contracts.ts` and two DTOs: they import server modules, so they
     cannot become contracts files yet.
   - The storage port and the S3 adapter: operator scripts import the adapter.
@@ -76,9 +75,8 @@ until a successful write, including when the person returns to the initial value
   read their stores.
 - Reporting's Monthly portal goal reads `listGoalReadinessFacts(org, property, asOf)`
   on `PortalPublicApi` (`publication/goal-readiness-facts.server.ts`): every non-archived,
-  non-deleted Portal of the Property in name order, including the complete roster
-  (`truncated` is always false), each with its publication state, `liveSince`, the live
-  intervals that overlap the last 60 days, when its current code was made, whether
+  non-deleted Portal of the Property in name order, including the complete roster, each
+  with its publication state, `liveSince`, the live intervals that overlap the last 60 days, when its current code was made, whether
   that code's QR or NFC marker is published (`codeReady`, the scan-goal rule) and
   its group. Names, states, identifiers and instants only. It checks no permission:
   Reporting's use case authorizes `goal.create` under `goal.use` before it calls it.
@@ -129,7 +127,7 @@ for `portal.delete` too, so the rule holds whichever caller carries it. Disable 
 are updates (`portal.update`): a PropertyManager can take a live page down and bring an
 archived Portal back to Disabled. A Portal's state changes only through the intents in
 `publication/portal-intents.server.ts` (publish, disable, archive, restore, settings,
-address, languages), each of which commits through `commitPortalChange`; none accepts
+languages), each of which commits through `commitPortalChange`; none accepts
 another intent's fields.
 
 The first go-live server function requires the digest from Review & publish and
@@ -199,7 +197,7 @@ A tile opens a website, a phone number or an email address (ADR 0044, amendment
 `mailto:front@hotel.com` and named in `hostname` by the number or address without
 its scheme (`validatePortalLinkDestination`, `src/shared/domain/portal-contact-address.ts`).
 It is approved as a manager enters it, is never checked over the network (the
-re-check query leaves it out, `recordNetworkValidation` never quarantines one, and
+re-check query leaves it out, so the validator never records one, and
 `listApprovedUris` serves it whatever its `last_validated_at`), is not one of the
 "Sites allowed for links" (`listPortalApprovedDestinations` leaves it out) and
 cannot be turned off (`disablePortalApprovedDestination` refuses). `request` holds
@@ -372,7 +370,7 @@ with their texts, icons and destination approvals. `LinktreeSection` renders
 `useLinktreeMutations` calls `server/portal-links.ts`'s `reorderLinks`, which
 authorizes both the Portal and category before the command saves that category's
 order. The browser contract retains `categoryId` through the
-`application/public-api.ts` type exports.
+`public-api.ts` type exports.
 
 Creating a link without a category joins the Portal's last category or starts
 one with a neutral title. `links/create-link.server.ts` builds it only after the label, icon,
@@ -1016,7 +1014,7 @@ Portal kind is `place` or `personal`, set only at creation. A personal Portal ke
 
 `updatePersonalGuestPage` (R19) lets a person's page take over a published Portal's wording, links, look and opening print wording, keeping its code, results, Group, responsible managers and rating settings. `replacePersonalPortalContent` does that in one commit under the Property's publication fence and the same source fence as a copy at creation; going live is then the ordinary `publishPortalChanges`. Publishing's gates are asked before the replace; if publishing still refuses, the result is `not_live` and the new content waits as the draft. A link that keeps its destination keeps its id, so open pages and tap history survive. The replace is recorded through `recordPortalContentChange`. Rows the two paths share are written by `publication/portal-copied-content.server.ts`.
 
-Only Staff Remove archives a personal Portal, under `staff.remove`. The ordinary update refuses its rename, slug change, Archive and Restore; Disable remains available. The own-code read checks the session's personal assignment, uses the same sealed-address reader and ledger, and returns QR wording only. It records one `show` per user and token version and spends no Organization address budget. `Portal` and `PortalOverviewRow` carry kind; this foundation changes no list presentation.
+Only Staff Remove archives a personal Portal, under `staff.remove`. The ordinary update refuses its rename, Archive and Restore; Disable remains available. The own-code read checks the session's personal assignment, uses the same sealed-address reader and ledger, and returns QR wording only. It records one `show` per user and token version and spends no Organization address budget. `Portal` and `PortalOverviewRow` carry kind; this foundation changes no list presentation.
 
 ## Manager staff presentation and scan-target fences
 

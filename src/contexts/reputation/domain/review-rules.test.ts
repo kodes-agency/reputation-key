@@ -1,0 +1,234 @@
+// Review context — domain rules tests
+
+import { describe, it, expect } from 'vitest'
+import {
+  computeReviewContentHash,
+  canTransitionReply,
+  REPLY_TEMPLATE_SLOT_TOKENS,
+  replyTextProblemMessage,
+  unfilledReplySlots,
+  unknownReplyTemplateSlots,
+  unfilledReplySlotsMessage,
+} from './review-rules'
+import { replyCommandMayStart } from './reply-command-preconditions'
+import type { ReplyStatus } from './review-types'
+
+describe('computeReviewContentHash', () => {
+  const base = {
+    rating: 5,
+    text: 'Great place!',
+    reviewerName: 'Jane Doe',
+    languageCode: 'en',
+  }
+
+  it('is stable for identical fields', () => {
+    expect(computeReviewContentHash(base)).toBe(computeReviewContentHash({ ...base }))
+  })
+
+  it('changes when rating changes', () => {
+    expect(computeReviewContentHash(base)).not.toBe(
+      computeReviewContentHash({ ...base, rating: 4 }),
+    )
+  })
+
+  it('changes when text changes', () => {
+    expect(computeReviewContentHash(base)).not.toBe(
+      computeReviewContentHash({ ...base, text: 'Changed' }),
+    )
+  })
+
+  it('treats null text the same as empty string', () => {
+    expect(computeReviewContentHash({ ...base, text: null })).toBe(
+      computeReviewContentHash({ ...base, text: '' }),
+    )
+  })
+
+  it('normalizes every nullable source field without changing its canonical hash', () => {
+    expect(
+      computeReviewContentHash({
+        ...base,
+        text: null,
+        reviewerName: null,
+        languageCode: null,
+      }),
+    ).toBe(
+      computeReviewContentHash({
+        ...base,
+        text: '',
+        reviewerName: '',
+        languageCode: '',
+      }),
+    )
+  })
+})
+
+describe('reply template slots', () => {
+  it('recognizes the exact allowed slot vocabulary without losing first-use order', () => {
+    expect(REPLY_TEMPLATE_SLOT_TOKENS).toEqual([
+      '{guest_name}',
+      '{staff_name}',
+      '{dish}',
+      '{event_type}',
+      '{escalation_contact}',
+    ])
+    expect(
+      unfilledReplySlots(
+        'Dear {guest_name}, ask {staff_name} about {dish}; thank you, {guest_name}.',
+      ),
+    ).toEqual(['{guest_name}', '{staff_name}', '{dish}'])
+  })
+
+  it('rejects every brace token outside that vocabulary', () => {
+    expect(
+      unknownReplyTemplateSlots(
+        '{guest_name} {property_name} {Guest_Name} {not-a-slot} {}',
+      ),
+    ).toEqual(['{property_name}', '{Guest_Name}', '{not-a-slot}', '{}'])
+  })
+
+  it('returns the publish guard reason while any slot remains', () => {
+    expect(unfilledReplySlotsMessage('Thank you, {guest_name}.')).toBe(
+      'Fill every template placeholder before publishing: {guest_name}.',
+    )
+    expect(unfilledReplySlotsMessage('Thank you, Maria.')).toBeNull()
+  })
+})
+
+describe('canTransitionReply', () => {
+  it('allows draft → pending_approval', () => {
+    expect(canTransitionReply('draft', 'pending_approval')).toBe(true)
+  })
+
+  it('allows draft → draft (in-place edit of an existing draft)', () => {
+    expect(canTransitionReply('draft', 'draft')).toBe(true)
+  })
+
+  it('allows pending_approval → approved', () => {
+    expect(canTransitionReply('pending_approval', 'approved')).toBe(true)
+  })
+
+  it('allows pending_approval → rejected', () => {
+    expect(canTransitionReply('pending_approval', 'rejected')).toBe(true)
+  })
+
+  it('allows approved → published', () => {
+    expect(canTransitionReply('approved', 'published')).toBe(true)
+  })
+
+  it('allows approved → publish_failed', () => {
+    expect(canTransitionReply('approved', 'publish_failed')).toBe(true)
+  })
+
+  it('allows rejected → draft', () => {
+    expect(canTransitionReply('rejected', 'draft')).toBe(true)
+  })
+
+  it('allows publish_failed → approved', () => {
+    expect(canTransitionReply('publish_failed', 'approved')).toBe(true)
+  })
+
+  it('allows publish_failed → published (BQC-3.3 reconciliation heal)', () => {
+    expect(canTransitionReply('publish_failed', 'published')).toBe(true)
+  })
+
+  it('allows published → approved (edit-and-republish)', () => {
+    expect(canTransitionReply('published', 'approved')).toBe(true)
+  })
+
+  it('blocks published → draft and published → publish_failed', () => {
+    expect(canTransitionReply('published', 'draft')).toBe(false)
+    expect(canTransitionReply('published', 'publish_failed')).toBe(false)
+  })
+
+  it('blocks draft → approved (must go through pending_approval)', () => {
+    expect(canTransitionReply('draft', 'approved')).toBe(false)
+  })
+
+  it('published → approved ONLY (edit-and-republish); all other published exits blocked', () => {
+    expect(canTransitionReply('published', 'approved')).toBe(true)
+    expect(canTransitionReply('published', 'draft')).toBe(false)
+    expect(canTransitionReply('published', 'publish_failed')).toBe(false)
+    expect(canTransitionReply('published', 'pending_approval')).toBe(false)
+    expect(canTransitionReply('published', 'rejected')).toBe(false)
+  })
+
+  it('blocks rejected → pending_approval (must re-draft first)', () => {
+    expect(canTransitionReply('rejected', 'pending_approval')).toBe(false)
+  })
+
+  it('blocks approved → draft: only a cancellation makes that move, through cancelledPublication', () => {
+    expect(canTransitionReply('approved', 'draft')).toBe(false)
+  })
+
+  it('blocks every status move that would publish or approve without its step', () => {
+    expect(canTransitionReply('draft', 'published')).toBe(false)
+    expect(canTransitionReply('pending_approval', 'published')).toBe(false)
+    expect(canTransitionReply('pending_approval', 'draft')).toBe(false)
+    expect(canTransitionReply('rejected', 'approved')).toBe(false)
+    expect(canTransitionReply('rejected', 'published')).toBe(false)
+    expect(canTransitionReply('approved', 'approved')).toBe(false)
+  })
+
+  it('lets a failed reply start over as a draft (Delete reply)', () => {
+    expect(canTransitionReply('publish_failed', 'draft')).toBe(true)
+  })
+
+  it('rejects a transition from an unknown status (defensive `?? false` fallback)', () => {
+    // Untypable at compile time; reachable via an unvalidated DB row cast.
+    expect(canTransitionReply('archived' as ReplyStatus, 'draft')).toBe(false)
+  })
+})
+
+describe('canTransitionReply — BQC-3.8 AI-draft publication proof', () => {
+  // Approval IS the human review: an AI-generated reply is publishable only
+  // after it. canTransitionReply is the table every reply write is checked
+  // against, so a draft cannot reach 'approved' — and therefore cannot be
+  // published — without passing through pending_approval first, and the
+  // approve command starts only from pending_approval.
+  const noOpenPublication = {
+    publicationState: null,
+    publicationCycle: 0,
+    publicationLastErrorClass: null,
+  } as const
+
+  it('draft → approved is refused (no auto-publish path exists)', () => {
+    expect(canTransitionReply('draft', 'approved')).toBe(false)
+    expect(
+      replyCommandMayStart('approve', { status: 'draft', ...noOpenPublication }),
+    ).toBe(false)
+  })
+
+  it('a reply reaches approved only via pending_approval (the human review)', () => {
+    expect(canTransitionReply('draft', 'pending_approval')).toBe(true)
+    expect(canTransitionReply('pending_approval', 'approved')).toBe(true)
+    expect(
+      replyCommandMayStart('approve', {
+        status: 'pending_approval',
+        ...noOpenPublication,
+      }),
+    ).toBe(true)
+  })
+
+  it('an approved reply may be published', () => {
+    expect(canTransitionReply('approved', 'published')).toBe(true)
+  })
+})
+
+describe('replyTextProblemMessage', () => {
+  it('names bytes, not characters, when a reply is too long for Google', () => {
+    expect(replyTextProblemMessage('too_long')).toBe(
+      'This reply is too long for Google. Shorten it to 4,096 bytes or fewer.',
+    )
+  })
+
+  it('gives one sentence for a control character and for broken Unicode', () => {
+    const sentence =
+      "This reply contains a character Google doesn't accept. Remove any unusual control characters and try again."
+    expect(replyTextProblemMessage('invalid_character')).toBe(sentence)
+    expect(replyTextProblemMessage('malformed_unicode')).toBe(sentence)
+  })
+
+  it('keeps the existing empty-reply message', () => {
+    expect(replyTextProblemMessage('empty')).toBe('Reply text cannot be empty')
+  })
+})

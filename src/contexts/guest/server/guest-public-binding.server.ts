@@ -155,7 +155,7 @@ export async function rateLimit(
   }
 
   const sessionResult = await rateLimiter.check(
-    `${guestRateLimitKey(keyKind, sessionId, pseudonym)}:${action}${destinationKey ? `:${destinationKey}` : ''}`,
+    `${guestRateLimitKey(keyKind, sessionId)}:${action}${destinationKey ? `:${destinationKey}` : ''}`,
     limits.session,
   )
   if (!sessionResult.allowed) return denyLimiterResult(sessionResult)

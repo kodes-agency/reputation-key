@@ -26,7 +26,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { hasPropertyWording } from '#/contexts/portal/application/portal-management-contracts'
 import { adminLanguageCode, type OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { languageDisplayName } from '../portal-languages/portal-languages-rules'

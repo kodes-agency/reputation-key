@@ -1,0 +1,1516 @@
+import {
+  lockSnapshotRun,
+  requireSnapshotRun,
+  snapshotSubjectScope,
+} from './review-provider-snapshot-scope.server'
+import { and, asc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
+import { requireReplyScopeEffects } from '#/shared/db/reply-scope-effects'
+import type { Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
+import {
+  reviewProviderDeletionCandidates,
+  reviewProviderHistoryCutoffs,
+  reviewProviderSnapshotMembers,
+  reviewProviderSnapshotRuns,
+  reviewProviderSubjects,
+  reviews,
+} from '#/shared/db/schema/review.schema'
+import { reviewGoogleReputationSnapshotFacts } from '#/shared/db/schema/review-reputation.schema'
+import type { GoogleProviderFailure } from '#/shared/domain/google-provider-failure'
+import {
+  recordHistoryImportFinished,
+  recordProviderFailure,
+} from './review-provider-snapshot-history.server'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import type {
+  ReviewProviderHistoryCutoff,
+  ReviewProviderPersistedObservation,
+  ReviewProviderSnapshotFailureCode,
+  ReviewProviderSnapshotRepository,
+  ReviewProviderSnapshotRun,
+} from './review-provider-snapshot-repository.port.server'
+import {
+  reviewGoogleReputationSnapshotVerified,
+  reviewSourceTransitioned,
+} from '../domain/review-events'
+import { domainError } from '#/shared/domain/errors'
+import { historyListedSince } from './review-provider-history-listed.server'
+import { eraseReviewSourceContent } from '../content/store.server'
+import { lockReviewSourceMutationScope } from '../reviews/review-source-mutation-serialization.server'
+import { createReviewSourceContentLifecycleStore } from '../content/source-content-lifecycle-store.server'
+import {
+  candidateEditedSinceListing,
+  countRunAgainstHolds,
+  foundUnlistedBefore,
+  followCompletedListing,
+  holdFoundUnlisted,
+  listingAgreement,
+  mappingObservedAfterRunStart,
+  recordMissingFromListing,
+  refuseRemovalWithoutExactListing,
+} from './review-provider-snapshot-listing.server'
+import { recordedFailureCode } from './review-provider-snapshot-listing-change.server'
+import {
+  activeSubjectKeyHolds,
+  findSubjectMatches,
+  linkedSubjectValues,
+  verifiedCandidateOf,
+} from './review-provider-subject-link.server'
+import { SnapshotConflict, failCode } from './review-provider-snapshot-conflict.server'
+import {
+  storedFailureCode,
+  type SnapshotFailureRequest,
+} from './snapshot-listing-change.server'
+import {
+  REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+  createRunReviewSourceContentLifecycle,
+} from '../content/run-source-content-lifecycle.server'
+
+const ACTIVE_STATES = ['scanning', 'confirming', 'deleting'] as const
+const TERMINAL_RECORD_RETENTION = sql`interval '30 days'`
+
+type RunRow = typeof reviewProviderSnapshotRuns.$inferSelect
+type SubjectRow = typeof reviewProviderSubjects.$inferSelect
+
+function fromRunRow(row: RunRow): ReviewProviderSnapshotRun {
+  return {
+    id: row.id,
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.propertyId),
+    sourceEpoch: row.sourceEpoch,
+    observationOrigin:
+      row.observationOrigin as ReviewProviderSnapshotRun['observationOrigin'],
+    state: row.state as ReviewProviderSnapshotRun['state'],
+    phase: row.phase as ReviewProviderSnapshotRun['phase'],
+    startedAt: row.startedAt,
+    expectedProviderTotal: row.expectedTotal,
+    expectedProviderAverageRating: row.expectedAverageRating,
+    mainPageIndex: row.mainPageCount,
+    mainCursorRef: row.mainCursorRef,
+    mainUniqueCount: row.mainUniqueCount,
+    confirmationPageIndex: row.confirmationPageCount,
+    confirmationCursorRef: row.confirmationCursorRef,
+    confirmationUniqueCount: row.confirmationUniqueCount,
+    confirmationDeadline: row.confirmationDeadline,
+    applyCursorReviewId:
+      row.applyCursorReviewId == null ? null : reviewId(row.applyCursorReviewId),
+    terminalAt: row.terminalAt,
+    failureCode: row.failureCode as ReviewProviderSnapshotFailureCode | null,
+  }
+}
+
+const providerAggregateIsValid = (
+  total: number | null,
+  averageRating: number | null,
+): boolean =>
+  (total === 0 && averageRating === null) ||
+  (total !== null &&
+    total > 0 &&
+    total <= 10_000 &&
+    averageRating !== null &&
+    Number.isFinite(averageRating) &&
+    averageRating >= 0 &&
+    averageRating <= 5)
+
+/**
+ * Whether this terminal run ends the Property's FIRST Google history import,
+ * the one moment the summary notice is about (ADR 0046, amended 2026-09-24).
+ *
+ * Three conditions, all read inside the terminal transaction:
+ *
+ *  - the run's epoch has a history cutoff, so an import was admitted in it;
+ *  - no earlier epoch of this Property has one, so this is the first import
+ *    rather than a relink's;
+ *  - no completed run has listed that history yet — the verified reputation
+ *    fact each completed run writes is the durable proof, and this one has not
+ *    been written yet, so a later poll that completes announces nothing.
+ *
+ * A failure additionally requires the run to be carrying the import itself. An
+ * ordinary poll failing on an imported Property is not the import failing.
+ */
+async function endsFirstHistoryImport(
+  tx: Tx,
+  run: RunRow,
+  outcome: 'completed' | 'failed',
+): Promise<boolean> {
+  if (outcome === 'failed' && run.observationOrigin !== 'historical_onboarding') {
+    return false
+  }
+  const rows = await tx.execute(sql`
+    SELECT
+      NOT EXISTS (
+        SELECT 1
+        FROM review_provider_history_cutoffs earlier
+        WHERE earlier.organization_id = epoch.organization_id
+          AND earlier.property_id = epoch.property_id
+          AND earlier.source_epoch < epoch.source_epoch
+      ) AS first_import,
+      NOT ${historyListedSince} AS history_unlisted
+    FROM review_provider_history_cutoffs epoch
+    WHERE epoch.organization_id = ${run.organizationId}
+      AND epoch.property_id = ${run.propertyId}
+      AND epoch.source_epoch = ${run.sourceEpoch}
+  `)
+  const row = rows.rows[0] as
+    { first_import: unknown; history_unlisted: unknown } | undefined
+  return row?.first_import === true && row.history_unlisted === true
+}
+
+/** A listing that moved under the run (a different set between the scans, a
+ * different total or average from page to page, a review on two pages) is
+ * recorded as `listing_changed` until it repeats
+ * (review-provider-snapshot-listing-change.server.ts). */
+async function failLockedRun(
+  tx: Tx,
+  row: RunRow,
+  requested: SnapshotFailureRequest,
+  providerFailure?: GoogleProviderFailure,
+): Promise<RunRow> {
+  if (row.state === 'completed' || row.state === 'failed') return row
+  const code = await recordedFailureCode(tx, row, requested)
+  return endLockedRun(tx, row, code, providerFailure)
+}
+
+/** End the locked, unfinished run with exactly this code. */
+async function endLockedRun(
+  tx: Tx,
+  row: RunRow,
+  code: ReviewProviderSnapshotFailureCode,
+  providerFailure?: GoogleProviderFailure,
+): Promise<RunRow> {
+  if (await endsFirstHistoryImport(tx, row, 'failed')) {
+    await recordHistoryImportFinished(tx, row, { outcome: 'failed', code })
+  }
+  const terminal = await tx
+    .update(reviewProviderSnapshotRuns)
+    .set({
+      state: 'failed',
+      phase: 'terminal',
+      failureCode: code,
+      terminalAt: sql`transaction_timestamp()`,
+      recordExpiresAt: sql`transaction_timestamp() + ${TERMINAL_RECORD_RETENTION}`,
+      mainCursorRef: null,
+      confirmationCursorRef: null,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(reviewProviderSnapshotRuns.id, row.id),
+        eq(reviewProviderSnapshotRuns.organizationId, row.organizationId),
+      ),
+    )
+    .returning()
+  if (!terminal[0])
+    throw domainError(
+      'snapshot_run_missing_on_fail',
+      'Snapshot run disappeared while failing',
+    )
+  if (providerFailure !== undefined) {
+    await recordProviderFailure(tx, terminal[0], code, providerFailure)
+  }
+  return terminal[0]
+}
+
+/** Fail the locked run and answer with the code the run holds: the one
+ * recorded, or the one it already ended with. */
+async function failedResult(tx: Tx, row: RunRow, request: SnapshotFailureRequest) {
+  const failed = fromRunRow(await failLockedRun(tx, row, request))
+  return {
+    status: 'failed' as const,
+    run: failed,
+    code: failed.failureCode ?? storedFailureCode(request),
+  }
+}
+
+type StartOrResumeInput = Parameters<ReviewProviderSnapshotRepository['startOrResume']>[0]
+type HistoryCutoffScope = Parameters<
+  ReviewProviderSnapshotRepository['fixImportHistoryCutoff']
+>[0]
+
+/**
+ * Fix an epoch's history cutoff at this transaction's instant. The first
+ * import wins; a later one, or a retry of the same one, keeps it.
+ */
+export async function fixHistoryCutoff(
+  executor: Pick<Tx, 'insert'>,
+  scope: HistoryCutoffScope,
+): Promise<void> {
+  await executor
+    .insert(reviewProviderHistoryCutoffs)
+    .values({
+      organizationId: scope.organizationId,
+      propertyId: scope.propertyId,
+      sourceEpoch: scope.sourceEpoch,
+      cutoffAt: sql`transaction_timestamp()`,
+    })
+    .onConflictDoNothing()
+}
+
+/**
+ * An import its admission did not cover (one queued before admission fixed
+ * cutoffs) fixes the cutoff when its run starts, or at the moment it joins an
+ * active run. Called after the run row is locked or inserted, so the Property
+ * foreign-key share lock follows the run lock as in every other snapshot
+ * transaction; once admission has fixed the cutoff the insert is a no-op.
+ */
+async function recordImportHistoryCutoff(
+  tx: Tx,
+  input: StartOrResumeInput,
+): Promise<void> {
+  if (input.observationOrigin !== 'historical_onboarding') return
+  await fixHistoryCutoff(tx, input)
+}
+
+const timestampFrom = (value: unknown): Date =>
+  value instanceof Date ? value : new Date(String(value))
+
+/**
+ * The epoch's cutoff, the Property's first import cutoff (the lowest epoch
+ * that has one), and whether a snapshot run of the epoch has completed a full
+ * listing since the cutoff: every completed run records its verified
+ * reputation fact in the transaction that completes it.
+ */
+async function readHistoryCutoffRow(
+  db: Database,
+  scope: HistoryCutoffScope,
+): Promise<ReviewProviderHistoryCutoff | null> {
+  const result = await db.execute(sql`
+    SELECT
+      epoch.cutoff_at,
+      (
+        SELECT first_import.cutoff_at
+        FROM review_provider_history_cutoffs first_import
+        WHERE first_import.organization_id = epoch.organization_id
+          AND first_import.property_id = epoch.property_id
+          AND first_import.source_epoch <= epoch.source_epoch
+        ORDER BY first_import.source_epoch
+        LIMIT 1
+      ) AS first_import_cutoff_at,
+      ${historyListedSince} AS history_listed
+    FROM review_provider_history_cutoffs epoch
+    WHERE epoch.organization_id = ${scope.organizationId}
+      AND epoch.property_id = ${scope.propertyId}
+      AND epoch.source_epoch = ${scope.sourceEpoch}
+  `)
+  const row = result.rows[0] as
+    | { cutoff_at: unknown; first_import_cutoff_at: unknown; history_listed: unknown }
+    | undefined
+  if (row == null) return null
+  return {
+    cutoffAt: timestampFrom(row.cutoff_at),
+    firstImportCutoffAt: timestampFrom(row.first_import_cutoff_at),
+    historyListed: row.history_listed === true,
+  }
+}
+
+type PageCommitInput = Parameters<ReviewProviderSnapshotRepository['commitPage']>[0]
+type DeletionCandidateRow = typeof reviewProviderDeletionCandidates.$inferSelect
+
+function selectLockedDeletionReviews(tx: Tx, reviewIds: ReadonlyArray<string>) {
+  return tx
+    .select({
+      id: reviews.id,
+      organizationId: reviews.organizationId,
+      propertyId: reviews.propertyId,
+      sourceEpoch: reviews.sourceEpoch,
+      sourceRevision: reviews.sourceRevision,
+    })
+    .from(reviews)
+    .where(inArray(reviews.id, [...reviewIds]))
+    .orderBy(asc(reviews.id))
+    .for('update')
+}
+
+type LockedDeletionReview = Awaited<
+  ReturnType<typeof selectLockedDeletionReviews>
+>[number]
+
+/** The candidate is no longer provably deletable: keep it as observed evidence
+ * and leave the Review untouched. */
+async function markDeletionCandidateObserved(
+  tx: Tx,
+  runId: string,
+  reviewId: string,
+): Promise<void> {
+  await tx
+    .update(reviewProviderDeletionCandidates)
+    .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
+    .where(
+      and(
+        eq(reviewProviderDeletionCandidates.runId, runId),
+        eq(reviewProviderDeletionCandidates.reviewId, reviewId),
+      ),
+    )
+}
+
+type DeletionCandidateOutcome = Readonly<{ kind: 'observed' | 'applied' }>
+
+const DELETION_OBSERVED: DeletionCandidateOutcome = { kind: 'observed' }
+
+/**
+ * Redact one confirmed-missing Review. The locked Review row, the provider
+ * subject mapping, and the erasure itself must all still match the evidence the
+ * candidate was recorded with; any mismatch downgrades the candidate to
+ * observed rather than deleting content on stale grounds.
+ */
+async function applyDeletionCandidate(
+  tx: Tx,
+  run: RunRow,
+  candidate: DeletionCandidateRow,
+  lockedReview: LockedDeletionReview | undefined,
+  replyEffects: ReplyScopeEffects | undefined,
+): Promise<DeletionCandidateOutcome> {
+  if (
+    lockedReview == null ||
+    lockedReview.organizationId !== run.organizationId ||
+    lockedReview.propertyId !== run.propertyId ||
+    lockedReview.sourceEpoch !== run.sourceEpoch ||
+    lockedReview.sourceRevision !== candidate.expectedSourceRevision
+  ) {
+    await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
+    return DELETION_OBSERVED
+  }
+  const mappings = await tx
+    .select()
+    .from(reviewProviderSubjects)
+    .where(
+      and(
+        snapshotSubjectScope(run.organizationId, run.propertyId, run.sourceEpoch),
+        eq(reviewProviderSubjects.reviewId, candidate.reviewId),
+      ),
+    )
+    .for('update')
+  const mapping = mappings[0]
+  if (
+    mapping == null ||
+    mapping.state !== candidate.expectedMappingState ||
+    mapping.lastSourceRevision !== candidate.expectedSourceRevision ||
+    mapping.firstMissingSnapshotRunId == null ||
+    mapping.lastSeenSnapshotRunId === run.id
+  ) {
+    await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
+    return DELETION_OBSERVED
+  }
+  const erased = await eraseReviewSourceContent(
+    tx,
+    {
+      reviewId: reviewId(candidate.reviewId),
+      organizationId: organizationId(run.organizationId),
+      propertyId: propertyId(run.propertyId),
+      sourceEpoch: run.sourceEpoch,
+      expectedSourceRevision: candidate.expectedSourceRevision,
+      state: 'provider_deleted',
+    },
+    requireReplyScopeEffects(replyEffects),
+  )
+  if (!erased) {
+    await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
+    return DELETION_OBSERVED
+  }
+  await recordSourceTransition(tx, mapping, 'provider_deleted')
+  await tx
+    .update(reviewProviderSubjects)
+    .set({
+      state: 'provider_deleted',
+      unlinkedAt: mapping.unlinkedAt ?? sql`transaction_timestamp()`,
+      unlinkExpiresAt:
+        mapping.unlinkExpiresAt ?? sql`transaction_timestamp() + interval '24 months'`,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(reviewProviderSubjects.organizationId, mapping.organizationId),
+        eq(reviewProviderSubjects.propertyId, mapping.propertyId),
+        eq(reviewProviderSubjects.sourceEpoch, mapping.sourceEpoch),
+        eq(reviewProviderSubjects.keyVersion, mapping.keyVersion),
+        eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
+      ),
+    )
+  return { kind: 'applied' }
+}
+
+/** The completed run publishes the verified provider aggregate exactly once,
+ * durably, at the database's own transaction instant. */
+async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<void> {
+  if (
+    run.expectedTotal == null ||
+    !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating)
+  ) {
+    throw domainError(
+      'provider_aggregate_unavailable',
+      'Verified provider aggregate is unavailable at completion',
+    )
+  }
+  const evaluatedRows = await tx.execute(
+    sql`SELECT transaction_timestamp() AS evaluated_at`,
+  )
+  const evaluatedValue = (evaluatedRows.rows[0] as { evaluated_at: Date | string })
+    .evaluated_at
+  const evaluatedAt =
+    evaluatedValue instanceof Date ? evaluatedValue : new Date(evaluatedValue)
+  const verified = reviewGoogleReputationSnapshotVerified({
+    organizationId: organizationId(run.organizationId),
+    propertyId: propertyId(run.propertyId),
+    sourceEpoch: run.sourceEpoch,
+    runId: run.id,
+    reviewCount: run.expectedTotal,
+    averageRating: run.expectedAverageRating,
+    evaluatedAt,
+    numbersObservedAt: run.startedAt,
+    occurredAt: evaluatedAt,
+  })
+  await tx.insert(reviewGoogleReputationSnapshotFacts).values({
+    runId: run.id,
+    eventId: verified.eventId,
+    organizationId: run.organizationId,
+    propertyId: run.propertyId,
+    sourceEpoch: run.sourceEpoch,
+    reviewCount: run.expectedTotal,
+    averageRating: run.expectedAverageRating,
+    evaluatedAt,
+    numbersObservedAt: run.startedAt,
+  })
+  await insertOutboxRow(tx, verified, { recordedAt: evaluatedAt })
+}
+
+/**
+ * Everything the transaction that completes a run records: the verified
+ * provider aggregate, one completed run off each unlisted-review hold, and —
+ * when this run ends the Property's first history import — that import's own
+ * terminal fact.
+ *
+ * The import question is asked BEFORE the verified fact is written, because
+ * that fact is the very proof `endsFirstHistoryImport` reads to decide the
+ * history is already listed.
+ */
+async function recordCompletionFacts(tx: Tx, run: RunRow): Promise<void> {
+  const endsImport = await endsFirstHistoryImport(tx, run, 'completed')
+  await recordVerifiedSnapshotFact(tx, run)
+  await countRunAgainstHolds(tx, run)
+  if (endsImport) await recordHistoryImportFinished(tx, run, { outcome: 'completed' })
+}
+
+/**
+ * The first conflict this page trips, in the order the failure taxonomy ranks
+ * them: a changed provider aggregate outranks a malformed one, which outranks a
+ * blown review cap, which outranks a blown page cap. Null means the page is
+ * acceptable.
+ */
+function pageCommitConflictCode(
+  run: RunRow,
+  input: PageCommitInput,
+): ReviewProviderSnapshotFailureCode | null {
+  if (run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount) {
+    return 'total_changed'
+  }
+  if (run.expectedTotal != null && run.expectedAverageRating !== input.averageRating) {
+    return 'average_changed'
+  }
+  if (!providerAggregateIsValid(input.totalReviewCount, input.averageRating)) {
+    return 'malformed_page'
+  }
+  if (input.totalReviewCount > 10_000) return 'review_cap_exceeded'
+  if (
+    input.expectedPageIndex >= 200 ||
+    input.observations.length > 50 ||
+    input.totalReviewCount < 0
+  ) {
+    return 'page_cap_exceeded'
+  }
+  return null
+}
+
+/** A confirmation page is only valid inside the run's frozen deadline. */
+async function isWithinConfirmationDeadline(tx: Tx, run: RunRow): Promise<boolean> {
+  const deadline = await tx.execute(sql`
+    SELECT transaction_timestamp() < ${run.confirmationDeadline} AS within_deadline
+  `)
+  return (
+    run.confirmationDeadline != null &&
+    (deadline.rows[0] as { within_deadline: boolean } | undefined)?.within_deadline ===
+      true
+  )
+}
+
+function selectPageMember(tx: Tx, run: RunRow, reviewId: string) {
+  return tx
+    .select()
+    .from(reviewProviderSnapshotMembers)
+    .where(
+      and(
+        eq(reviewProviderSnapshotMembers.runId, run.id),
+        eq(reviewProviderSnapshotMembers.reviewId, reviewId),
+      ),
+    )
+    .for('update')
+}
+
+type SnapshotMemberRow = Awaited<ReturnType<typeof selectPageMember>>[number]
+
+/** Main-scan sighting: each provider resource may be seen exactly once. One
+ * already seen on an EARLIER page of this scan is the listing shifting under
+ * it (a page overlap, quiet until it repeats); one twice on the same page is
+ * caught as `duplicate_resource` in `recordPageMembership` and by the use
+ * case, and stays loud. */
+async function markMainScanSeen(
+  tx: Tx,
+  run: RunRow,
+  reviewId: string,
+  member: SnapshotMemberRow | undefined,
+): Promise<void> {
+  if (member?.mainSeen) throw new SnapshotConflict('page_overlap')
+  if (member == null) {
+    await tx
+      .insert(reviewProviderSnapshotMembers)
+      .values({ runId: run.id, reviewId, mainSeen: true })
+    return
+  }
+  await tx
+    .update(reviewProviderSnapshotMembers)
+    .set({ mainSeen: true })
+    .where(
+      and(
+        eq(reviewProviderSnapshotMembers.runId, run.id),
+        eq(reviewProviderSnapshotMembers.reviewId, reviewId),
+      ),
+    )
+}
+
+/** Confirmation sighting: the resource must already be a main-scan member that
+ * has not been confirmed and has not become a deletion candidate. */
+async function markConfirmationSeen(
+  tx: Tx,
+  run: RunRow,
+  reviewId: string,
+  member: SnapshotMemberRow | undefined,
+): Promise<void> {
+  if (member == null || !member.mainSeen || member.confirmationSeen) {
+    throw new SnapshotConflict('confirmation_set_changed')
+  }
+  const candidate = await tx
+    .select({ state: reviewProviderDeletionCandidates.state })
+    .from(reviewProviderDeletionCandidates)
+    .where(
+      and(
+        eq(reviewProviderDeletionCandidates.runId, run.id),
+        eq(reviewProviderDeletionCandidates.reviewId, reviewId),
+      ),
+    )
+    .limit(1)
+  if (candidate.length > 0) {
+    throw new SnapshotConflict('confirmation_set_changed')
+  }
+  await tx
+    .update(reviewProviderSnapshotMembers)
+    .set({ confirmationSeen: true })
+    .where(
+      and(
+        eq(reviewProviderSnapshotMembers.runId, run.id),
+        eq(reviewProviderSnapshotMembers.reviewId, reviewId),
+      ),
+    )
+}
+
+/** Record every resource on this page against the run's membership set. */
+async function recordPageMembership(
+  tx: Tx,
+  run: RunRow,
+  input: PageCommitInput,
+): Promise<void> {
+  const pageIds = new Set<string>()
+  for (const observation of input.observations) {
+    if (pageIds.has(observation.reviewId)) {
+      throw new SnapshotConflict('duplicate_resource')
+    }
+    pageIds.add(observation.reviewId)
+    await recordObservationMapping(tx, run, observation)
+
+    const members = await selectPageMember(tx, run, observation.reviewId)
+    const member = members[0]
+    if (input.phase === 'main') {
+      await markMainScanSeen(tx, run, observation.reviewId, member)
+    } else {
+      await markConfirmationSeen(tx, run, observation.reviewId, member)
+    }
+  }
+}
+
+/** Cursor and counter advance for the phase this page belongs to. The main scan
+ * additionally freezes the provider aggregate on its first page. */
+function pageCommitUpdate(
+  run: RunRow,
+  input: PageCommitInput,
+  nextCount: number,
+  nextUnique: number,
+) {
+  if (input.phase === 'main') {
+    return {
+      expectedTotal: run.expectedTotal ?? input.totalReviewCount,
+      expectedAverageRating:
+        run.expectedTotal == null ? input.averageRating : run.expectedAverageRating,
+      mainPageCount: nextCount,
+      mainUniqueCount: nextUnique,
+      mainCursorRef: input.nextCursorRef,
+      updatedAt: sql`transaction_timestamp()`,
+    }
+  }
+  return {
+    confirmationPageCount: nextCount,
+    confirmationUniqueCount: nextUnique,
+    confirmationCursorRef: input.nextCursorRef,
+    updatedAt: sql`transaction_timestamp()`,
+  }
+}
+
+/** A mapping of the observed review, written by a sighting after the run
+ * began, at the observed revision or a newer one. */
+async function sameReviewMovedOn(
+  tx: Tx,
+  run: RunRow,
+  observation: ReviewProviderPersistedObservation,
+  mapping: SubjectRow,
+): Promise<boolean> {
+  return (
+    mapping.reviewId === observation.reviewId &&
+    verifiedCandidateOf(observation, mapping) != null &&
+    mapping.lastSourceRevision >= observation.sourceRevision &&
+    (await mappingObservedAfterRunStart(tx, run, mapping.reviewId))
+  )
+}
+
+async function recordObservationMapping(
+  tx: Tx,
+  run: RunRow,
+  observation: ReviewProviderPersistedObservation,
+): Promise<void> {
+  const active = observation.subjects[0]
+  if (!active) throw new SnapshotConflict('resource_collision')
+  if (!(await activeSubjectKeyHolds(tx, observation))) {
+    throw new SnapshotConflict('authorization_changed')
+  }
+
+  const matches = await findSubjectMatches(tx, run, observation)
+  if (matches.length > 1) throw new SnapshotConflict('resource_collision')
+  const match = matches[0]
+  if (match == null) {
+    const reviewConflict = await tx
+      .select({ reviewId: reviewProviderSubjects.reviewId })
+      .from(reviewProviderSubjects)
+      .where(
+        and(
+          snapshotSubjectScope(run.organizationId, run.propertyId, run.sourceEpoch),
+          eq(reviewProviderSubjects.reviewId, observation.reviewId),
+        ),
+      )
+      .for('update')
+    if (reviewConflict.length !== 0) throw new SnapshotConflict('duplicate_resource')
+    const inserted = await tx
+      .insert(reviewProviderSubjects)
+      .values(linkedSubjectValues(run, observation, run.id))
+      .onConflictDoNothing()
+      .returning({ reviewId: reviewProviderSubjects.reviewId })
+    if (inserted.length > 0) return
+    // A head check or a push mapped the review after the lookup above, and
+    // committed while this page was inserting: the mapping moved under the
+    // run as it does for an edit, unless it is another resource's.
+    const written = await findSubjectMatches(tx, run, observation)
+    const [mapped] = written
+    throw new SnapshotConflict(
+      written.length === 1 &&
+        mapped != null &&
+        (await sameReviewMovedOn(tx, run, observation, mapped))
+        ? 'review_edited'
+        : 'resource_collision',
+    )
+  }
+
+  if (
+    verifiedCandidateOf(observation, match) == null ||
+    match.reviewId !== observation.reviewId
+  ) {
+    throw new SnapshotConflict('resource_collision')
+  }
+  if (match.lastSourceRevision > observation.sourceRevision) {
+    // A head check or a push that stored a newer revision after this run
+    // began moved the mapping on: the review was edited on Google while the
+    // run listed it, which a fresh run reads as it is now.
+    throw new SnapshotConflict(
+      (await mappingObservedAfterRunStart(tx, run, match.reviewId))
+        ? 'review_edited'
+        : 'review_mutation',
+    )
+  }
+
+  const activeConflict = await tx
+    .select({ reviewId: reviewProviderSubjects.reviewId })
+    .from(reviewProviderSubjects)
+    .where(
+      and(
+        snapshotSubjectScope(run.organizationId, run.propertyId, run.sourceEpoch),
+        eq(reviewProviderSubjects.keyVersion, active.keyVersion),
+        eq(reviewProviderSubjects.locatorHmac, Buffer.from(active.locatorHmac)),
+      ),
+    )
+    .for('update')
+  if (
+    activeConflict.length > 0 &&
+    activeConflict.some((row) => row.reviewId !== observation.reviewId)
+  ) {
+    throw new SnapshotConflict('resource_collision')
+  }
+
+  await tx
+    .update(reviewProviderSubjects)
+    .set({
+      keyVersion: active.keyVersion,
+      locatorHmac: Buffer.from(active.locatorHmac),
+      verifierHmac: Buffer.from(active.verifierHmac),
+      lastSourceRevision: observation.sourceRevision,
+      state: 'linked',
+      lastObservedAt: sql`transaction_timestamp()`,
+      lastSeenSnapshotRunId: run.id,
+      unlistedHoldRunsLeft: null,
+      firstMissingAt: null,
+      firstMissingSnapshotRunId: null,
+      unlinkedAt: null,
+      unlinkExpiresAt: null,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(reviewProviderSubjects.organizationId, match.organizationId),
+        eq(reviewProviderSubjects.propertyId, match.propertyId),
+        eq(reviewProviderSubjects.sourceEpoch, match.sourceEpoch),
+        eq(reviewProviderSubjects.keyVersion, match.keyVersion),
+        eq(reviewProviderSubjects.locatorHmac, match.locatorHmac),
+      ),
+    )
+}
+
+async function recordSourceTransition(
+  tx: Tx,
+  mapping: SubjectRow,
+  change: 'source_expired' | 'provider_deleted',
+): Promise<void> {
+  const sequenceResult = await tx.execute(sql`
+    SELECT lock_review_ai_analysis_head_v1(
+      ${mapping.organizationId},
+      ${mapping.propertyId},
+      ${mapping.sourceEpoch}
+    ) AS analysis_sequence,
+    transaction_timestamp() AS occurred_at
+  `)
+  const value = sequenceResult.rows[0]
+  if (
+    value == null ||
+    typeof value !== 'object' ||
+    !('analysis_sequence' in value) ||
+    !('occurred_at' in value)
+  ) {
+    throw domainError(
+      'analysis_head_no_value',
+      'Review analysis head transition returned no value',
+    )
+  }
+  const analysisSequence = Number(value.analysis_sequence)
+  const occurredAt =
+    value.occurred_at instanceof Date
+      ? value.occurred_at
+      : new Date(String(value.occurred_at))
+  if (
+    !Number.isSafeInteger(analysisSequence) ||
+    analysisSequence < 0 ||
+    Number.isNaN(occurredAt.getTime())
+  ) {
+    throw domainError(
+      'analysis_head_invalid_controls',
+      'Review analysis head transition returned invalid controls',
+    )
+  }
+  const stamped = await tx
+    .update(reviews)
+    .set({
+      analysisSequence,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(reviews.id, mapping.reviewId),
+        eq(reviews.organizationId, mapping.organizationId),
+        eq(reviews.propertyId, mapping.propertyId),
+        eq(reviews.sourceEpoch, mapping.sourceEpoch),
+        eq(reviews.sourceRevision, mapping.lastSourceRevision),
+        eq(reviews.sourceContentState, change),
+      ),
+    )
+    .returning({ id: reviews.id })
+  if (!stamped[0]) {
+    throw domainError(
+      'source_transition_head_changed',
+      'Review source transition head changed before it was stamped',
+    )
+  }
+  const event = reviewSourceTransitioned({
+    reviewId: reviewId(mapping.reviewId),
+    organizationId: organizationId(mapping.organizationId),
+    propertyId: propertyId(mapping.propertyId),
+    sourceEpoch: mapping.sourceEpoch,
+    sourceRevision: mapping.lastSourceRevision,
+    analysisSequence,
+    change,
+    occurredAt,
+  })
+  await insertOutboxRow(tx, event)
+}
+
+/**
+ * A candidate an edit made stale ends the run as a listing that moved
+ * (`review_edited`), which a fresh run reads as it is now. Anything else that
+ * left it unconfirmed is `stale`, for the caller to fail loudly.
+ */
+async function endRunOnEditedCandidate(
+  tx: Tx,
+  input: Readonly<{ runId: string; reviewId: string; expectedSourceRevision: number }>,
+): Promise<'stale' | 'edited_run_failed'> {
+  const [run] = await tx
+    .select()
+    .from(reviewProviderSnapshotRuns)
+    .where(eq(reviewProviderSnapshotRuns.id, input.runId))
+    .for('update')
+  if (run?.state !== 'confirming') return 'stale'
+  if (!(await candidateEditedSinceListing(tx, run, input))) return 'stale'
+  await failLockedRun(tx, run, 'review_edited')
+  return 'edited_run_failed'
+}
+
+export async function startOrResumeSnapshot(
+  tx: Tx,
+  idGen: () => string,
+  input: StartOrResumeInput,
+) {
+  const existing = await tx
+    .select()
+    .from(reviewProviderSnapshotRuns)
+    .where(
+      and(
+        eq(reviewProviderSnapshotRuns.organizationId, input.organizationId),
+        eq(reviewProviderSnapshotRuns.propertyId, input.propertyId),
+        eq(reviewProviderSnapshotRuns.sourceEpoch, input.sourceEpoch),
+        inArray(reviewProviderSnapshotRuns.state, [...ACTIVE_STATES]),
+      ),
+    )
+    .for('update')
+  if (existing[0]) {
+    await recordImportHistoryCutoff(tx, input)
+    return fromRunRow(existing[0])
+  }
+  const rows = await tx
+    .insert(reviewProviderSnapshotRuns)
+    .values({
+      id: idGen(),
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      sourceEpoch: input.sourceEpoch,
+      observationOrigin: input.observationOrigin,
+      state: 'scanning',
+      phase: 'main',
+      startedAt: sql`transaction_timestamp()`,
+      expiresAt: sql`transaction_timestamp() + interval '12 hours'`,
+    })
+    .returning()
+  if (!rows[0])
+    throw domainError('snapshot_run_insert_empty', 'Snapshot run insert returned no row')
+  await recordImportHistoryCutoff(tx, input)
+  return fromRunRow(rows[0])
+}
+
+export const createReviewProviderSnapshotRepository = (
+  db: Database,
+  idGen: () => string,
+  replyEffects?: ReplyScopeEffects,
+): ReviewProviderSnapshotRepository => ({
+  startOrResume: async (input) =>
+    db.transaction((tx) => startOrResumeSnapshot(tx, idGen, input)),
+
+  fixImportHistoryCutoff: (input) => fixHistoryCutoff(db, input),
+
+  readHistoryCutoff: (input) => readHistoryCutoffRow(db, input),
+
+  readRun: async (input) => {
+    const rows = await db
+      .select()
+      .from(reviewProviderSnapshotRuns)
+      .where(
+        and(
+          eq(reviewProviderSnapshotRuns.id, input.runId),
+          eq(reviewProviderSnapshotRuns.organizationId, input.organizationId),
+          eq(reviewProviderSnapshotRuns.propertyId, input.propertyId),
+          eq(reviewProviderSnapshotRuns.sourceEpoch, input.sourceEpoch),
+        ),
+      )
+      .limit(1)
+    return rows[0] ? fromRunRow(rows[0]) : null
+  },
+  readExpiredActiveRun: async (input) => {
+    const rows = await db
+      .select()
+      .from(reviewProviderSnapshotRuns)
+      .where(
+        and(
+          eq(reviewProviderSnapshotRuns.organizationId, input.organizationId),
+          eq(reviewProviderSnapshotRuns.propertyId, input.propertyId),
+          eq(reviewProviderSnapshotRuns.sourceEpoch, input.sourceEpoch),
+          inArray(reviewProviderSnapshotRuns.state, [...ACTIVE_STATES]),
+          input.runId == null
+            ? undefined
+            : eq(reviewProviderSnapshotRuns.id, input.runId),
+          sql`(
+            ${reviewProviderSnapshotRuns.expiresAt} <= transaction_timestamp()
+            OR (
+              ${reviewProviderSnapshotRuns.state} = 'confirming'
+              AND ${reviewProviderSnapshotRuns.confirmationDeadline}
+                <= transaction_timestamp()
+            )
+          )`,
+        ),
+      )
+      .limit(1)
+    return rows[0] ? fromRunRow(rows[0]) : null
+  },
+
+  commitPage: async (input) =>
+    db.transaction(async (tx) => {
+      const locked = await tx
+        .select()
+        .from(reviewProviderSnapshotRuns)
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.id, input.runId),
+            eq(reviewProviderSnapshotRuns.organizationId, input.organizationId),
+          ),
+        )
+        .for('update')
+      const run = locked[0]
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
+      const expectedState = input.phase === 'main' ? 'scanning' : 'confirming'
+      const pageCount =
+        input.phase === 'main' ? run.mainPageCount : run.confirmationPageCount
+      const cursor =
+        input.phase === 'main' ? run.mainCursorRef : run.confirmationCursorRef
+      if (
+        run.state !== expectedState ||
+        run.phase !== input.phase ||
+        pageCount !== input.expectedPageIndex ||
+        cursor !== input.expectedCursorRef
+      ) {
+        return { status: 'stale_page' as const, run: fromRunRow(run) }
+      }
+      if (
+        input.phase === 'confirmation' &&
+        !(await isWithinConfirmationDeadline(tx, run))
+      ) {
+        return failedResult(tx, run, 'confirmation_deadline_elapsed')
+      }
+      try {
+        const conflict = pageCommitConflictCode(run, input)
+        if (conflict) throw new SnapshotConflict(conflict)
+        await recordPageMembership(tx, run, input)
+
+        const nextCount = pageCount + 1
+        const nextUnique =
+          (input.phase === 'main' ? run.mainUniqueCount : run.confirmationUniqueCount) +
+          input.observations.length
+        if (nextCount > 200 || nextUnique > 10_000) {
+          throw new SnapshotConflict(
+            nextCount > 200 ? 'page_cap_exceeded' : 'review_cap_exceeded',
+          )
+        }
+        const rows = await tx
+          .update(reviewProviderSnapshotRuns)
+          .set(pageCommitUpdate(run, input, nextCount, nextUnique))
+          .where(eq(reviewProviderSnapshotRuns.id, run.id))
+          .returning()
+        if (!rows[0])
+          throw domainError(
+            'snapshot_page_update_empty',
+            'Snapshot page update returned no row',
+          )
+        return {
+          status: 'committed' as const,
+          run: fromRunRow(rows[0]),
+          finalPage: input.nextCursorRef == null,
+        }
+      } catch (error) {
+        return failedResult(tx, run, failCode(error))
+      }
+    }),
+
+  finishMainScan: async ({ runId }) =>
+    db.transaction(async (tx) => {
+      const rows = await tx
+        .select()
+        .from(reviewProviderSnapshotRuns)
+        .where(eq(reviewProviderSnapshotRuns.id, runId))
+        .for('update')
+      const run = rows[0]
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
+      if (run.state !== 'scanning' || run.phase !== 'main') {
+        if (run.state === 'confirming') {
+          return { status: 'confirming' as const, run: fromRunRow(run) }
+        }
+        const code = run.failureCode as ReviewProviderSnapshotFailureCode
+        return { status: 'failed' as const, run: fromRunRow(run), code }
+      }
+      const agreement = listingAgreement(run)
+      if (
+        run.mainCursorRef != null ||
+        run.mainPageCount < 1 ||
+        !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating) ||
+        agreement.kind === 'mismatch'
+      ) {
+        return failedResult(tx, run, 'set_mismatch')
+      }
+
+      // Only a listing that agrees with Google's total says anything about
+      // what is missing. A small gap completes the run with no removals.
+      if (agreement.kind === 'exact') await recordMissingFromListing(tx, run)
+      const updated = await tx
+        .update(reviewProviderSnapshotRuns)
+        .set({
+          state: 'confirming',
+          phase: 'confirmation',
+          mainCursorRef: null,
+          // `::timestamptz` is load-bearing: with an untyped bind Postgres
+          // resolves `$n + interval` as `interval + interval`, so the parameter
+          // becomes an interval. That is what made `finishMainScan` fail with
+          // `operator does not exist: timestamp with time zone <= interval`
+          // the first time a run ever reached it.
+          confirmationDeadline: sql`${run.startedAt}::timestamptz + interval '12 hours'`,
+          updatedAt: sql`transaction_timestamp()`,
+        })
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.id, run.id),
+            eq(reviewProviderSnapshotRuns.organizationId, run.organizationId),
+          ),
+        )
+        .returning()
+      if (!updated[0])
+        throw domainError(
+          'snapshot_confirmation_transition_failed',
+          'Snapshot confirmation transition failed',
+        )
+      return { status: 'confirming' as const, run: fromRunRow(updated[0]) }
+    }),
+
+  readNextLinkedCandidate: async ({ runId }) => {
+    const rows = await db.execute(sql`
+      SELECT c.run_id, c.review_id, c.expected_mapping_state, c.expected_source_revision, c.state,
+             content.external_location_id || '/reviews/' || content.external_id AS review_name
+      FROM review_provider_deletion_candidates c
+      JOIN review_provider_snapshot_runs run ON run.id = c.run_id
+      JOIN reviews r ON r.id = c.review_id
+        AND r.organization_id = run.organization_id
+        AND r.property_id = run.property_id
+        AND r.source_epoch = run.source_epoch
+      LEFT JOIN review_source_contents content ON content.review_id = r.id AND content.organization_id = r.organization_id AND content.property_id = r.property_id
+      WHERE c.run_id = ${runId}
+        AND c.state = 'pending'
+        AND run.confirmation_deadline > transaction_timestamp()
+        AND c.expected_mapping_state = 'linked'
+      ORDER BY c.review_id
+      LIMIT 1
+    `)
+    const row = rows.rows[0]
+    if (row == null) return null
+    const value = row as {
+      run_id: string
+      review_id: string
+      expected_mapping_state: 'linked'
+      expected_source_revision: number
+      state: 'pending'
+      review_name: string
+    }
+    return {
+      runId: value.run_id,
+      reviewId: reviewId(value.review_id),
+      expectedState: value.expected_mapping_state,
+      expectedSourceRevision: Number(value.expected_source_revision),
+      status: value.state,
+      reviewName: value.review_name,
+    }
+  },
+
+  confirmLinkedCandidateMissing: async (input) =>
+    db.transaction(async (tx) => {
+      const rows = await tx.execute(sql`
+        UPDATE review_provider_deletion_candidates c
+        SET state = 'confirmed_missing', updated_at = transaction_timestamp()
+        FROM review_provider_snapshot_runs run, review_provider_subjects s
+        WHERE c.run_id = ${input.runId}
+          AND c.review_id = ${input.reviewId}
+          AND c.expected_source_revision = ${input.expectedSourceRevision}
+          AND c.state = 'pending'
+          AND run.id = c.run_id AND run.state = 'confirming'
+          AND s.organization_id = run.organization_id
+          AND s.property_id = run.property_id
+          AND s.source_epoch = run.source_epoch
+          AND s.review_id = c.review_id
+          AND s.state = 'linked'
+          AND s.last_source_revision = c.expected_source_revision
+          AND s.first_missing_snapshot_run_id IS NOT NULL
+        RETURNING c.review_id
+      `)
+      if (rows.rowCount === 1) return 'confirmed'
+      return endRunOnEditedCandidate(tx, input)
+    }),
+
+  recordCandidateObservation: async ({ runId, organizationId, observation }) =>
+    db.transaction(async (tx) => {
+      const run = await lockSnapshotRun(tx, { runId, organizationId })
+      if (!run || run.state !== 'confirming') return 'run_failed'
+      const unlistedAgain = await foundUnlistedBefore(tx, run, observation.reviewId)
+      try {
+        await recordObservationMapping(tx, run, observation)
+      } catch {
+        return 'stale'
+      }
+      if (!(await holdFoundUnlisted(tx, run, observation.reviewId))) return 'stale'
+      // Found again, unlisted, once its hold ran out: loud, so it is seen.
+      if (unlistedAgain) {
+        await endLockedRun(tx, run, 'confirmation_set_changed')
+        return 'unlisted_again_run_failed'
+      }
+      await failLockedRun(tx, run, 'confirmation_set_changed')
+      return 'observed_run_failed'
+    }),
+
+  beginConfirmationScan: async ({ runId, organizationId }) =>
+    db.transaction(async (tx) => {
+      const run = await requireSnapshotRun(tx, { runId, organizationId })
+      if (run.state !== 'confirming' || run.phase !== 'confirmation') {
+        throw domainError('snapshot_run_not_confirming', 'Snapshot run is not confirming')
+      }
+      const pending = await tx
+        .select({ reviewId: reviewProviderDeletionCandidates.reviewId })
+        .from(reviewProviderDeletionCandidates)
+        .where(
+          and(
+            eq(reviewProviderDeletionCandidates.runId, run.id),
+            eq(reviewProviderDeletionCandidates.state, 'pending'),
+            eq(reviewProviderDeletionCandidates.expectedMappingState, 'linked'),
+          ),
+        )
+        .limit(1)
+      if (pending.length > 0)
+        throw domainError(
+          'targeted_confirmations_remain',
+          'Targeted confirmations remain',
+        )
+      return fromRunRow(run)
+    }),
+
+  finishConfirmationScan: async ({ runId, organizationId }) =>
+    db.transaction(async (tx) => {
+      const [run] = await tx
+        .select()
+        .from(reviewProviderSnapshotRuns)
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.organizationId, organizationId),
+            eq(reviewProviderSnapshotRuns.id, runId),
+          ),
+        )
+        .for('update')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
+      if (run.state === 'deleting') {
+        return { status: 'deleting' as const, run: fromRunRow(run) }
+      }
+      const nowRows = await tx.execute(sql`SELECT transaction_timestamp() AS now`)
+      const now = (nowRows.rows[0] as { now: Date }).now
+      const memberMismatch = await tx.execute(sql`
+        SELECT 1
+        FROM review_provider_snapshot_members
+        WHERE run_id = ${run.id} AND (NOT main_seen OR NOT confirmation_seen)
+        LIMIT 1
+      `)
+      if (
+        run.state !== 'confirming' ||
+        run.phase !== 'confirmation' ||
+        run.confirmationCursorRef != null ||
+        !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating) ||
+        run.confirmationUniqueCount !== run.mainUniqueCount ||
+        listingAgreement(run).kind === 'mismatch' ||
+        memberMismatch.rowCount !== 0 ||
+        run.confirmationDeadline == null ||
+        now >= run.confirmationDeadline
+      ) {
+        const code =
+          run.confirmationDeadline != null && now >= run.confirmationDeadline
+            ? 'confirmation_deadline_elapsed'
+            : 'confirmation_set_changed'
+        return failedResult(tx, run, code)
+      }
+      await tx
+        .update(reviewProviderDeletionCandidates)
+        .set({ state: 'confirmed_missing', updatedAt: sql`transaction_timestamp()` })
+        .where(
+          and(
+            eq(reviewProviderDeletionCandidates.runId, run.id),
+            eq(reviewProviderDeletionCandidates.state, 'pending'),
+            eq(reviewProviderDeletionCandidates.expectedMappingState, 'source_expired'),
+          ),
+        )
+      const pending = await tx
+        .select({ reviewId: reviewProviderDeletionCandidates.reviewId })
+        .from(reviewProviderDeletionCandidates)
+        .where(
+          and(
+            eq(reviewProviderDeletionCandidates.runId, run.id),
+            eq(reviewProviderDeletionCandidates.state, 'pending'),
+          ),
+        )
+        .limit(1)
+      if (pending.length > 0) return failedResult(tx, run, 'confirmation_set_changed')
+      const updated = await tx
+        .update(reviewProviderSnapshotRuns)
+        .set({
+          state: 'deleting',
+          phase: 'apply',
+          confirmationCursorRef: null,
+          updatedAt: sql`transaction_timestamp()`,
+        })
+        .where(eq(reviewProviderSnapshotRuns.id, run.id))
+        .returning()
+      if (!updated[0])
+        throw domainError(
+          'snapshot_deleting_transition_failed',
+          'Snapshot deleting transition failed',
+        )
+      return { status: 'deleting' as const, run: fromRunRow(updated[0]) }
+    }),
+
+  failRun: async ({ runId, organizationId, code, providerFailure }) =>
+    db.transaction(async (tx) => {
+      const run = await requireSnapshotRun(tx, { runId, organizationId })
+      return fromRunRow(await failLockedRun(tx, run, code, providerFailure))
+    }),
+
+  applyDeletionBatch: async ({ runId, limit }) => {
+    if (limit !== 100)
+      throw new TypeError('Provider deletion batch must contain 100 rows')
+    const result = await db.transaction(async (tx) => {
+      const runRows = await tx
+        .select()
+        .from(reviewProviderSnapshotRuns)
+        .where(eq(reviewProviderSnapshotRuns.id, runId))
+        .for('update')
+      const run = runRows[0]
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
+      if (run.state === 'completed') {
+        return { run: fromRunRow(run), applied: 0, observed: 0, done: true }
+      }
+      if (run.state !== 'deleting')
+        throw domainError('snapshot_run_not_deleting', 'Snapshot run is not deleting')
+      const candidates = await tx
+        .select()
+        .from(reviewProviderDeletionCandidates)
+        .where(
+          and(
+            eq(reviewProviderDeletionCandidates.runId, run.id),
+            eq(reviewProviderDeletionCandidates.state, 'confirmed_missing'),
+            run.applyCursorReviewId == null
+              ? undefined
+              : gt(reviewProviderDeletionCandidates.reviewId, run.applyCursorReviewId),
+          ),
+        )
+        .orderBy(asc(reviewProviderDeletionCandidates.reviewId))
+        .limit(limit)
+        .for('update')
+      refuseRemovalWithoutExactListing(run, candidates.length)
+
+      // The provider-deletion path shares the lifecycle mutation order. Lock
+      // every Reply scope before any Review row; mapping locks come last.
+      // This prevents Property -> Reply -> Review -> mapping from being
+      // inverted by a concurrent expiry or re-observation transaction.
+      for (const candidate of candidates) {
+        const current = await lockReviewSourceMutationScope(tx, {
+          organizationId: organizationId(run.organizationId),
+          propertyId: propertyId(run.propertyId),
+          reviewId: reviewId(candidate.reviewId),
+          sourceEpoch: run.sourceEpoch,
+        })
+        if (!current) {
+          throw domainError(
+            'snapshot_source_epoch_changed',
+            'Provider snapshot source epoch changed before deletion',
+          )
+        }
+      }
+      const lockedReviews: LockedDeletionReview[] =
+        candidates.length === 0
+          ? []
+          : await selectLockedDeletionReviews(
+              tx,
+              candidates.map((candidate) => candidate.reviewId),
+            )
+      const lockedReviewsById = new Map(lockedReviews.map((row) => [row.id, row]))
+      let applied = 0
+      let observed = 0
+      for (const candidate of candidates) {
+        const outcome = await applyDeletionCandidate(
+          tx,
+          run,
+          candidate,
+          lockedReviewsById.get(candidate.reviewId),
+          replyEffects,
+        )
+        if (outcome.kind === 'applied') applied += 1
+        else observed += 1
+      }
+      const last = candidates.at(-1)?.reviewId ?? run.applyCursorReviewId
+      const more =
+        candidates.length === limit
+          ? await tx
+              .select({ reviewId: reviewProviderDeletionCandidates.reviewId })
+              .from(reviewProviderDeletionCandidates)
+              .where(
+                and(
+                  eq(reviewProviderDeletionCandidates.runId, run.id),
+                  eq(reviewProviderDeletionCandidates.state, 'confirmed_missing'),
+                  last == null
+                    ? undefined
+                    : gt(reviewProviderDeletionCandidates.reviewId, last),
+                ),
+              )
+              .limit(1)
+          : []
+      const done = more.length === 0
+      if (done) {
+        await recordCompletionFacts(tx, run)
+        await followCompletedListing(tx, run)
+      }
+      const updated = await tx
+        .update(reviewProviderSnapshotRuns)
+        .set(
+          done
+            ? {
+                state: 'completed',
+                phase: 'terminal',
+                applyCursorReviewId: last,
+                terminalAt: sql`transaction_timestamp()`,
+                recordExpiresAt: sql`transaction_timestamp() + interval '30 days'`,
+                updatedAt: sql`transaction_timestamp()`,
+              }
+            : {
+                applyCursorReviewId: last,
+                updatedAt: sql`transaction_timestamp()`,
+              },
+        )
+        .where(eq(reviewProviderSnapshotRuns.id, run.id))
+        .returning()
+      if (!updated[0])
+        throw domainError(
+          'snapshot_apply_checkpoint_failed',
+          'Snapshot apply checkpoint failed',
+        )
+      return { run: fromRunRow(updated[0]), applied, observed, done }
+    })
+    return result
+  },
+
+  expireRawSourceBatch: async ({ beforeOrAt, afterReviewId, limit }) => {
+    if (limit < 1 || limit > 100) throw new TypeError('Raw expiry batch is out of bounds')
+
+    // Compatibility report only. Translate the legacy Review-id cursor into
+    // the canonical frozen checkpoint, then delegate to the sole lifecycle
+    // application authority. No authorizer or apply confirmation is present.
+    let checkpoint = undefined
+    if (afterReviewId != null) {
+      const checkpointRows = await db
+        .select({ createdAt: reviews.createdAt })
+        .from(reviews)
+        .where(eq(reviews.id, afterReviewId))
+        .limit(1)
+      if (checkpointRows[0] == null) {
+        throw domainError(
+          'raw_expiry_checkpoint_missing',
+          'Raw expiry checkpoint Review no longer exists',
+        )
+      }
+      checkpoint = {
+        contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+        mode: 'report' as const,
+        scope: { kind: 'expired' as const },
+        evaluatedAt: beforeOrAt.toISOString(),
+        after: {
+          createdAt: checkpointRows[0].createdAt.toISOString(),
+          reviewId: afterReviewId,
+        },
+      }
+    }
+
+    const report = await createRunReviewSourceContentLifecycle({
+      store: createReviewSourceContentLifecycleStore(db),
+      clock: () => beforeOrAt,
+    })({
+      mode: 'report',
+      scope: { kind: 'expired' },
+      batchSize: limit,
+      ...(checkpoint == null ? {} : { checkpoint }),
+    })
+    return {
+      transitioned: 0,
+      nextReviewId:
+        report.nextCheckpoint == null
+          ? null
+          : reviewId(report.nextCheckpoint.after.reviewId),
+    }
+  },
+
+  sweepExpiredTombstones: async ({ beforeOrAt, afterReviewId, limit }) => {
+    if (limit < 1 || limit > 100) throw new TypeError('Tombstone batch is out of bounds')
+    return db.transaction(async (tx) => {
+      const rows = await tx
+        .select({
+          organizationId: reviewProviderSubjects.organizationId,
+          propertyId: reviewProviderSubjects.propertyId,
+          sourceEpoch: reviewProviderSubjects.sourceEpoch,
+          keyVersion: reviewProviderSubjects.keyVersion,
+          locatorHmac: reviewProviderSubjects.locatorHmac,
+          reviewId: reviewProviderSubjects.reviewId,
+        })
+        .from(reviewProviderSubjects)
+        .where(
+          and(
+            lte(reviewProviderSubjects.unlinkExpiresAt, beforeOrAt),
+            afterReviewId == null
+              ? undefined
+              : gt(reviewProviderSubjects.reviewId, afterReviewId),
+          ),
+        )
+        .orderBy(asc(reviewProviderSubjects.reviewId))
+        .limit(limit)
+        .for('update', { skipLocked: true })
+      for (const row of rows) {
+        await tx
+          .delete(reviewProviderSubjects)
+          .where(
+            and(
+              eq(reviewProviderSubjects.organizationId, row.organizationId),
+              eq(reviewProviderSubjects.propertyId, row.propertyId),
+              eq(reviewProviderSubjects.sourceEpoch, row.sourceEpoch),
+              eq(reviewProviderSubjects.keyVersion, row.keyVersion),
+              eq(reviewProviderSubjects.locatorHmac, row.locatorHmac),
+            ),
+          )
+      }
+      return {
+        deleted: rows.length,
+        nextReviewId: rows.length === limit ? reviewId(rows.at(-1)!.reviewId) : null,
+      }
+    })
+  },
+})

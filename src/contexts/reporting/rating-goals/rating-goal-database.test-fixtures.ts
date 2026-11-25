@@ -11,7 +11,6 @@ import {
   propertyRatingGoalDeferrals,
   propertyRatingGoals,
 } from '#/shared/db/schema/goal.schema'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { PropertyRatingGoal, RatingGoalChange } from '../domain/rating-goal'
 import { legacyPacePerWeek } from '../domain/rating-goal-pace'
@@ -51,7 +50,6 @@ let issuedIds = 0
  */
 export function useRatingGoalDatabase(): void {
   beforeAll(async () => {
-    registerAllEventSchemas()
     held = await holdTransaction()
   })
   afterAll(async () => {

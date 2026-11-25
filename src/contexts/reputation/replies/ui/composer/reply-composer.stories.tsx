@@ -49,8 +49,8 @@
 // language (`ReplyLanguageTarget`, `reply-language-options.ts`), and only AI
 // drafting and template loading read it — templates are per-language
 // (`reply-template-operations.ts:137` filters, `:304` stamps the tag), an AI
-// draft is stamped the same way (`ai-suggested-draft-store.ts:360`), and a
-// hand-typed draft only records the tag (`reply-operations.ts:325`). So the
+// draft is stamped the same way (`ai-suggested-draft-store.server.ts:360`), and a
+// hand-typed draft only records the tag (`reply-operations.server.ts:325`). So the
 // choice lives inside `Draft with AI ▾` (`Write in`) and `Template ▾`
 // (`Templates in`), and the result tag at the top of the text names the
 // language an assist action used.
@@ -99,9 +99,9 @@ import type {
   ReplyLanguageTarget,
   ReviewLanguageReadiness,
 } from './reply-language-options'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
-import type { FeedbackHandlingState } from '#/contexts/inbox/application/public-api'
-import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
+import type { ReplyTemplateListResultDto as ReplyTemplateListResult } from '#/contexts/reputation/library/contracts'
+import type { FeedbackHandlingState } from '#/contexts/reputation/public-api'
+import type { addInboxNoteFn } from '#/contexts/reputation/server/inbox'
 
 type Reply = Exclude<NonNullable<ReplyData>, { kind: 'google_observation' }>
 
@@ -976,7 +976,7 @@ export const ReplyWithTextAt390: Story = onPhone(ReplyWithTextAt720)
  * A draft that came from the model, reloaded. The provenance is the result tag
  * at the top of the text (row 18), not a sentence under the controls:
  * `hasAiDraft` is seeded from the saved reply's `aiGenerated`, and the language
- * is the tag the AI store stamped (`ai-suggested-draft-store.ts:360`), so the
+ * is the tag the AI store stamped (`ai-suggested-draft-store.server.ts:360`), so the
  * tag survives the reload.
  *
  * It is a MENU here, because Hotel Elegance has a second target — the tag's

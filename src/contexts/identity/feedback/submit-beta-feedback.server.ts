@@ -5,11 +5,11 @@
 // content-free triage row (with its optional masked layout) first, hands the
 // report to monitoring, then settles the row's delivery state.
 
-import { maskedLayoutExpiry } from '#/shared/beta-feedback-layout'
+import { maskedLayoutExpiry } from '#/shared/beta-feedback/beta-feedback-layout'
 import {
   type BetaFeedbackInput,
   classifyBetaFeedbackRoute,
-} from '#/shared/beta-feedback-contract'
+} from '#/shared/beta-feedback/beta-feedback-contract'
 import { betaFeedbackError } from '../domain/errors'
 import { betaFeedbackPseudonym } from '../application/beta-feedback-pseudonym'
 import type {

@@ -1,4 +1,4 @@
-import type { PropertyGooglePerformanceResultV1 } from '#/shared/google-performance-report-contract'
+import type { PropertyGooglePerformanceResultV1 } from '#/shared/google-contracts/google-performance-report-contract'
 
 export type PerformanceErrorResult = Extract<
   PropertyGooglePerformanceResultV1,

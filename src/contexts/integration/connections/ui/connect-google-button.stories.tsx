@@ -5,7 +5,7 @@
 // and reach every state without a live OAuth round-trip.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import type { GoogleAuthUrlInput } from '#/contexts/integration/application/public-api'
+import type { GoogleAuthUrlInput } from '#/contexts/integration/public-api'
 import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import { ConnectGoogleButton } from './connect-google-button'
 
@@ -53,7 +53,6 @@ export const Reauthorize: Story = {
     variant: 'outline',
     size: 'sm',
     request: {
-      visibility: 'organization',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
     },

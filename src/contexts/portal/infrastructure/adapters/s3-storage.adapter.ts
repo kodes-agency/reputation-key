@@ -77,28 +77,16 @@ export function buildS3ClientConfigs(config: ConfiguredS3Storage) {
 export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => {
   // If S3 is not configured, return a noop adapter
   if (!config.accessKey || !config.secretKey || !config.bucketName || !config.region) {
+    const unavailable = async (): Promise<never> => {
+      throw portalError('upload_failed', 'S3 storage is not configured')
+    }
     return {
-      createPresignedUploadUrl: async () => {
-        throw portalError('upload_failed', 'S3 storage is not configured')
-      },
-      confirmUpload: async () => {
-        throw portalError('upload_failed', 'S3 storage is not configured')
-      },
-      inspectObject: async () => {
-        throw portalError('upload_failed', 'S3 storage is not configured')
-      },
-      deleteObject: async () => {
-        throw portalError('upload_failed', 'S3 storage is not configured')
-      },
-      listObjects: async () => {
-        throw portalError('upload_failed', 'S3 storage is not configured')
-      },
-      getObject: async () => {
-        throw portalError('upload_failed', 'S3 storage is not configured')
-      },
-      putObject: async () => {
-        throw portalError('upload_failed', 'S3 storage is not configured')
-      },
+      createPresignedUploadUrl: unavailable,
+      inspectObject: unavailable,
+      deleteObject: unavailable,
+      listObjects: unavailable,
+      getObject: unavailable,
+      putObject: unavailable,
     }
   }
 
@@ -118,7 +106,7 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
     // (Identity's assertStoredUploadAllowed, at its finalize step and at the
     // avatar save). The address outlives that check: for the rest of its hour
     // it can replace the object, so a reader bounds its own read (`getObject`).
-    createPresignedUploadUrl: async (key, contentType, _maxSizeBytes) => {
+    createPresignedUploadUrl: async (key, contentType) => {
       const command = new PutObjectCommand({
         Bucket: bucketName,
         Key: key,
@@ -132,15 +120,6 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
       )
 
       return { uploadUrl, key }
-    },
-
-    confirmUpload: async (key) => {
-      await trace('s3.confirmUpload', () =>
-        internalClient.send(
-          new HeadObjectCommand({ Bucket: bucketName, Key: key }),
-          withinDeadline(),
-        ),
-      )
     },
 
     inspectObject: async (key) => {

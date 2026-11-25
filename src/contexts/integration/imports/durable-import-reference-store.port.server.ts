@@ -168,7 +168,6 @@ export type GoogleImportReferenceStore = Readonly<{
       authorization: ImportDiscoveryAuthorization
     }>,
   ): Promise<ImportReferenceResult<{ lease: ProviderContentLeaseDto }>>
-  invalidateOrganization(input: Readonly<{ organizationId: string }>): Promise<boolean>
   invalidateUser(
     input: Readonly<{
       organizationId: string

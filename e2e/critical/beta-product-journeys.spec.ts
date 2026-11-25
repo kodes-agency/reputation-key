@@ -47,7 +47,7 @@ import {
   seedPortalLookProperty,
 } from '../helpers/portal-look-fixtures'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../src/contexts/reporting/domain/goal-start'
-import { formatMonthName } from '../../src/lib/format'
+import { formatMonthName } from '../../src/shared/format/format'
 import { REFUSAL_COPY } from '../../src/shared/auth/capability-refusal-category'
 
 const seed = requireE2eSeedState()
@@ -184,13 +184,10 @@ async function publishRotatingPortal(page: Page, suffix: string) {
   // checking the address refusal, since a fresh Property has no wording yet.
   await callServerFn(page, {
     file: 'src/contexts/portal/server/portals.ts',
-    exportName: 'savePropertyPortalBrandProfile',
+    exportName: 'savePropertyPublicDisplayName',
     data: {
       propertyId: seed.p1PropertyId,
       displayName: 'E2E Beta Hotel P1',
-      primaryColor: '#6366f1',
-      backgroundColor: '#ffffff',
-      textColor: '#111827',
     },
   })
   await callServerFn(page, {

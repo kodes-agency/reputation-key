@@ -3,19 +3,3 @@
 
 /** v1 scope union. Ordered by breadth: none < assigned-properties < organization. */
 export type DataScope = 'organization' | 'assigned-properties' | 'none'
-
-const SCOPE_RANK: Readonly<Record<DataScope, number>> = {
-  none: 0,
-  'assigned-properties': 1,
-  organization: 2,
-}
-
-/** Runtime guard for scope strings from an untrusted source. */
-export function isDataScope(value: string): value is DataScope {
-  return value in SCOPE_RANK
-}
-
-/** Return the broader of two scopes (organization > assigned-properties > none). */
-export function broadestScope(a: DataScope, b: DataScope): DataScope {
-  return SCOPE_RANK[a] >= SCOPE_RANK[b] ? a : b
-}

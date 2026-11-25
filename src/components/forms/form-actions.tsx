@@ -21,7 +21,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { useStore, type AnyFormApi } from '@tanstack/react-form'
 import { Button } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { FormErrorBanner } from './form-error-banner'
 
 type Shared = Readonly<{

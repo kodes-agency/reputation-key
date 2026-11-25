@@ -6,7 +6,7 @@
 import { toast } from 'sonner'
 import { describe, expect, it, vi } from 'vitest'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { RETURN_CHECK_WINDOW_MS } from './google-return-watcher'
 import { MINUTE, installHookHarness, stubServer } from './use-google-review-check-harness'
 

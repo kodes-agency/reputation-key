@@ -1,4 +1,4 @@
-// AI event schemas, registered by ./schema-registrations.ts.
+// AI event schemas, listed in ./registry.server.ts.
 //
 // Every AI fact is identifier-only (ADR 0030): which Property, which review revision,
 // which analysis. Nothing a provider said and nothing a guest wrote crosses, and a
@@ -6,7 +6,7 @@
 // (./../outbox/event-adapter.ts) in any case.
 
 import { z } from 'zod/v4'
-import { REVIEW_TOPICS_V3 } from '../review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '../analysis/review-topic-taxonomy'
 import type { EventDescriptor } from './descriptor'
 
 const aiPropertyTrendGenerationRequestedSchema = z.object({

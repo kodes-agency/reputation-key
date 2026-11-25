@@ -3,11 +3,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { Job, Queue } from 'bullmq'
-import {
-  registerEventSchema,
-  clearEventSchemas,
-  validateEventPayload,
-} from '#/shared/events/schema-registry'
+import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   initDelayedExecutionPolicy,
   resetDelayedExecutionPolicy,
@@ -22,6 +18,15 @@ import type {
   OutboxRepository,
   UnpublishedEvent,
 } from './infrastructure/outbox-repository'
+import { overrideEventDescriptor } from '#/shared/testing/event-descriptor-overrides'
+
+vi.mock('#/shared/events/registry.server', async (importOriginal) => {
+  const { withEventDescriptorOverrides } =
+    await import('#/shared/testing/event-descriptor-overrides')
+  return withEventDescriptorOverrides(
+    await importOriginal<typeof import('#/shared/events/registry.server')>(),
+  )
+})
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -37,8 +42,7 @@ const testSchema = z.object({
 })
 
 function setupSchemaRegistry() {
-  clearEventSchemas()
-  registerEventSchema({
+  overrideEventDescriptor({
     aggregate: { type: 'event', id: 'eventId' },
     type: TEST_EVENT_TYPE,
     version: TEST_EVENT_VERSION,
@@ -158,17 +162,6 @@ describe('outbox crash boundaries', () => {
         /Unknown event type/,
       )
     })
-
-    it('rejects duplicate registration', () => {
-      expect(() =>
-        registerEventSchema({
-          aggregate: { type: 'event', id: 'eventId' },
-          type: TEST_EVENT_TYPE,
-          version: TEST_EVENT_VERSION,
-          schema: testSchema,
-        }),
-      ).toThrow(/Duplicate event schema/)
-    })
   })
 
   describe('consumer registration', () => {
@@ -204,7 +197,7 @@ describe('outbox crash boundaries', () => {
 
     it('allows same consumer name for different event types', () => {
       const handler = async (): Promise<{ status: 'applied' }> => ({ status: 'applied' })
-      registerEventSchema({
+      overrideEventDescriptor({
         aggregate: { type: 'event', id: 'eventId' },
         type: 'other.event',
         version: 1,

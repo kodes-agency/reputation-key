@@ -43,7 +43,7 @@ import type {
   InboxItemDetailResult,
   InboxNote,
   InboxNoteView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 // ─── the copy under test ────────────────────────────────────────────────────
 
@@ -111,8 +111,8 @@ const ADA_ID = 'user-ada-1111'
 type HistoryUserId = NonNullable<InboxHistoryEntry['actorUserId']>
 type OutcomeFact = NonNullable<FeedbackHandlingState['currentOutcome']>
 /**
- * `HandlingCycleCloseReason` lives in `inbox/domain`, which components may not
- * import, and `application/public-api.ts` does not re-export it. Narrowing the
+ * `HandlingCycleCloseReason` lives in `reputation/domain`, which components may not
+ * import, and `reputation/public-api.ts` does not re-export it. Narrowing the
  * state's own field is the one legal spelling, and the same one
  * `feedback-handling-body.tsx` uses for its sentence map.
  */
@@ -1215,7 +1215,7 @@ export const FeedbackInternalNoteWithheld: Story = {
  * A restricted reader: `inbox.read` and `inbox.write`, no `feedback.handle`.
  *
  * The server withholds `feedbackHandling` entirely for this caller
- * (`get-inbox-item-detail.ts:133-155`), so the pane is handed `null` — and the
+ * (`get-inbox-item-detail.server.ts:133-155`), so the pane is handed `null` — and the
  * chip's open/handled word has to come from `item.status` instead. That is the
  * fallback the strip states, and the reason it reads a bare `Handled` rather
  * than `Handled · undefined`.

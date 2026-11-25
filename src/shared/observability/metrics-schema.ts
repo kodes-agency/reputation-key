@@ -296,42 +296,6 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     emitted: true,
     description: 'Age of the oldest unpublished outbox event.',
   }),
-  def({
-    name: 'outbox.claimed',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['outbox.claimedCount'],
-    emitted: true,
-    description: 'In-flight relay claims (unexpired leases).',
-  }),
-  def({
-    name: 'outbox.oldest_claimed_age_ms',
-    kind: 'gauge',
-    unit: 'ms',
-    labels: {},
-    snapshotPath: ['outbox.oldestClaimedAgeMs'],
-    emitted: true,
-    description: 'Age of the oldest in-flight claim.',
-  }),
-  def({
-    name: 'outbox.stalled_leases',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['outbox.stalledLeaseCount'],
-    emitted: true,
-    description: 'Leases held beyond 2× duration (stalled relay).',
-  }),
-  def({
-    name: 'outbox.expired_leases',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['outbox.expiredLeaseCount'],
-    emitted: true,
-    description: 'Unpublished rows whose lease expired (bounded scan).',
-  }),
 
   // ── worker.* — heartbeat + registered jobs/runtime ──
   def({
@@ -561,7 +525,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.deliveryLag.materializationPending'],
     emitted: true,
     description:
-      'Redis-accepted Notification deliveries without an atomic PostgreSQL materialization receipt. Bounded; read materializationSaturated with it.',
+      'Always 0: kept so existing dashboards and alerts keep receiving data; materialization is no longer a separate stage.',
   }),
   def({
     name: 'notification.delivery.oldest_source_age_ms',
@@ -581,7 +545,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.deliveryLag.oldestMaterializationSourceAgeMs'],
     emitted: true,
     description:
-      'End-to-end age from durable source for the oldest Redis-accepted delivery still missing PostgreSQL materialization.',
+      'Always 0: kept so existing dashboards and alerts keep receiving data; materialization is no longer a separate stage.',
   }),
   def({
     name: 'notification.delivery.oldest_materialization_enqueue_age_ms',
@@ -591,7 +555,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.deliveryLag.oldestMaterializationEnqueuedAgeMs'],
     emitted: true,
     description:
-      'Redis→PostgreSQL stage age for the oldest accepted delivery still missing materialization.',
+      'Always 0: kept so existing dashboards and alerts keep receiving data; materialization is no longer a separate stage.',
   }),
   def({
     name: 'notification.delivery.source_saturated',
@@ -610,7 +574,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.deliveryLag.materializationSaturated'],
     emitted: true,
     description:
-      '1 when the bounded accepted-but-unmaterialized delivery scan reached its cap.',
+      'Always 0: kept so existing dashboards and alerts keep receiving data; materialization is no longer a separate stage.',
   }),
 
   // ── source.* — refresh-due / expiry / purge lifecycle ──

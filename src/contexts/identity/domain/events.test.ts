@@ -8,7 +8,6 @@ import {
   identityMemberRemoved,
   identityMemberRoleChanged,
   identityMerchantAiChanged,
-  identityOrganizationCreated,
 } from './events'
 import { organizationId, userId, invitationId } from '#/shared/domain/ids'
 import { isDomainError } from '#/shared/domain/errors'
@@ -20,19 +19,6 @@ const INV_ID = invitationId('inv-1')
 const NOW = new Date('2026-06-01T12:00:00Z')
 
 describe('identity events', () => {
-  it('identityOrganizationCreated generates eventId and sets occurredAt', () => {
-    const event = identityOrganizationCreated({
-      organizationId: ORG_ID,
-      organizationName: 'Test Org',
-      slug: 'test-org',
-      ownerId: USER_ID,
-      occurredAt: NOW,
-    })
-    expect(event.eventId).toBeDefined()
-    expect(event._tag).toBe('identity.organization.created')
-    expect(event.occurredAt).toBe(NOW)
-  })
-
   it('identityMemberInvited creates an identifier-only fact', () => {
     const event = identityMemberInvited({
       organizationId: ORG_ID,
@@ -48,14 +34,6 @@ describe('identity events', () => {
   it('preserves caller correlation across every constructor', () => {
     const correlationId = 'correlation-1'
     const correlated = [
-      identityOrganizationCreated({
-        organizationId: ORG_ID,
-        organizationName: 'Test Org',
-        slug: 'test-org',
-        ownerId: USER_ID,
-        occurredAt: NOW,
-        correlationId,
-      }),
       identityMemberInvited({
         organizationId: ORG_ID,
         userId: USER_ID,
@@ -118,11 +96,11 @@ describe('identity events', () => {
   it('throws/asserts for invalid occurredAt', () => {
     let caught: unknown
     try {
-      identityOrganizationCreated({
+      identityMemberInvited({
         organizationId: ORG_ID,
-        organizationName: 'Test',
-        slug: 'test',
-        ownerId: USER_ID,
+        userId: USER_ID,
+        role: 'Member' as Role,
+        invitationId: INV_ID,
         occurredAt: 'not-date' as unknown as Date,
       })
     } catch (e) {

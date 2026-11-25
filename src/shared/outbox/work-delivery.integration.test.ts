@@ -26,7 +26,6 @@ import {
   initDelayedExecutionPolicy,
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
-import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-registry'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createOperationsSnapshot } from '#/shared/health/operations-snapshot'
 import { createAlertAuxReader } from '#/shared/observability/alert-aux-reads'
@@ -36,6 +35,15 @@ import { createConsumerRegistry, type ConsumerEvent } from './consumer-registry'
 import { createDispatcherHandler } from './dispatcher'
 import { createOutboxRepository } from './infrastructure/outbox-repository'
 import { createOutboxRelay } from './relay'
+import { overrideEventDescriptor } from '#/shared/testing/event-descriptor-overrides'
+
+vi.mock('#/shared/events/registry.server', async (importOriginal) => {
+  const { withEventDescriptorOverrides } =
+    await import('#/shared/testing/event-descriptor-overrides')
+  return withEventDescriptorOverrides(
+    await importOriginal<typeof import('#/shared/events/registry.server')>(),
+  )
+})
 
 const EVENT_TYPE = 'property.updated'
 const KIND = 'outbox-delivery'
@@ -79,8 +87,7 @@ describe('durable outbox delivery through PostgreSQL', () => {
     organizationId = randomUUID()
     otherOrganizationId = randomUUID()
     recoveryRunId = undefined
-    clearEventSchemas()
-    registerEventSchema({
+    overrideEventDescriptor({
       aggregate: { type: 'event', id: 'eventId' },
       type: EVENT_TYPE,
       version: 1,
@@ -100,7 +107,6 @@ describe('durable outbox delivery through PostgreSQL', () => {
 
   afterEach(async () => {
     resetDelayedExecutionPolicy()
-    clearEventSchemas()
     await db().execute(
       sql`DELETE FROM work_items WHERE organization_id IN (${organizationId}, ${otherOrganizationId})`,
     )

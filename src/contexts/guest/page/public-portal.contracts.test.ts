@@ -11,17 +11,13 @@ const portal: PublicPortalData = {
     slug: 'lobby',
     description: null,
     heroImageUrl: null,
-    theme: null,
     organizationName: 'Hotel One',
   },
-  categories: [{ id: 'category-1', title: 'More', sortKey: 'secret-sort-category' }],
   links: [
     {
       id: 'link-1',
       label: 'Visit us',
       url: 'https://secondary-destination.example/private-path',
-      categoryId: 'category-1',
-      sortKey: 'secret-sort-link',
     },
   ],
   reviewGateway: {
@@ -50,14 +46,12 @@ const portal: PublicPortalData = {
   },
   organizationId: 'org-secret-id',
   propertyId: 'property-secret-id',
-  guestSurface: 'legacy',
   immersive: null,
   addressShape: 'long',
 }
 
 const immersivePortal: PublicPortalData = {
   ...portal,
-  guestSurface: 'immersive',
   localization: {
     selectedLocale: 'bg',
     primaryLocale: 'en',
@@ -123,41 +117,18 @@ describe('public Portal loader projection', () => {
     expect(projected.portal).not.toHaveProperty('id')
     expect(projected.reviewGateway.privateFeedbackThreshold).toBe(3)
     expect(projected.portal).not.toHaveProperty('slug')
-    expect(projected.categories).toEqual([{ id: 'category-1', title: 'More' }])
-    expect(projected.links).toEqual([
-      { id: 'link-1', label: 'Visit us', categoryId: 'category-1' },
-    ])
+    expect(projected.links).toEqual([{ id: 'link-1', label: 'Visit us' }])
     expect(projected.reviewGateway.googleReview).toEqual({ status: 'available' })
     expect(JSON.stringify(projected)).not.toContain('secondary-destination.example')
     expect(JSON.stringify(projected)).not.toContain('search.google.com')
-    expect(JSON.stringify(projected)).not.toContain('secret-sort')
   })
 
   it('carries the instant the server read the page, for deadlines both sides print alike', () => {
     expect(toPublicPortalLoaderData(portal, state()).servedAt).toBe(SERVED_AT)
   })
 
-  it('declares the app fonts for a portal on the legacy guest surface', () => {
-    const projected = toPublicPortalLoaderData(portal, {
-      guestSession: { csrfNonce: crypto.randomUUID() },
-      servedAt: SERVED_AT,
-      response: null,
-      responseForm: { availability: 'available' },
-    })
-
-    expect(projected.fontSet).toBe('app')
-  })
-
-  it('declares the guest fonts for a portal on the Immersive Hub surface', () => {
-    const projected = toPublicPortalLoaderData(
-      { ...portal, guestSurface: 'immersive' },
-      {
-        guestSession: { csrfNonce: crypto.randomUUID() },
-        servedAt: SERVED_AT,
-        response: null,
-        responseForm: { availability: 'available' },
-      },
-    )
+  it('declares the guest fonts', () => {
+    const projected = toPublicPortalLoaderData(portal, state())
 
     expect(projected.fontSet).toBe('guest')
     expect(projected).not.toHaveProperty('guestSurface')
@@ -185,7 +156,7 @@ describe('public Portal loader projection', () => {
     expect(JSON.stringify(projected)).not.toContain('writereview')
   })
 
-  it('serves no Immersive Hub content for a legacy portal', () => {
+  it('serves no Immersive Hub content when the portal carries none', () => {
     expect(toPublicPortalLoaderData(portal, state()).immersive).toBeNull()
   })
 

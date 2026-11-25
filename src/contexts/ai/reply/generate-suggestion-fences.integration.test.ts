@@ -10,24 +10,24 @@ import {
   SHA,
   createHarness,
 } from '#/contexts/ai/reply/reply-handler.test-fixtures'
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
-import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation-profiles'
+import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation/ai-operation-profiles'
 import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '#/shared/ai-reply-language-verifier'
 import {
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-} from '#/shared/ai-reply-output-leakage'
+} from '#/shared/reply/ai-reply-output-leakage'
 import {
   AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
   AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
-} from '#/shared/ai-reply-template-catalogue'
+} from '#/shared/reply/ai-reply-template-catalogue'
 import {
   LANGUAGE_CATALOGUE_DIGEST,
   mapReviewLanguageMetadata,
   parseCanonicalReplyLanguageTag,
 } from '#/shared/ai-review-language-catalogue'
-import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
+import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source/ai-review-source-contract'
 import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '#/shared/ai-zh-orthography-verifier'
 import {
   MERCHANT_AI_NOTICE_DIGEST,

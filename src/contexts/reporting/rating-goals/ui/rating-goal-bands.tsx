@@ -16,7 +16,7 @@ import {
 import type { RatingGoalDetailView } from '#/contexts/reporting/rating-goals/contracts'
 import { CheckInSection } from '#/components/ui/check-in-section'
 import { InlineLink } from '#/components/ui/inline-link'
-import { formatLocalDate } from '#/lib/format'
+import { formatLocalDate } from '#/shared/format/format'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   GOAL_ACTION_LINK,

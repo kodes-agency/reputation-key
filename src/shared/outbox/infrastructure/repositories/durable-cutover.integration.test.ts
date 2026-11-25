@@ -1,4 +1,5 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { reviewOpeningAnchor } from '#/contexts/reputation/inbox/review-opening-anchor.test-fixtures'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Outbox delivery end-to-end proof (real PostgreSQL + real BullMQ/Redis).
 //
 // fallow-ignore-file boundary-violation
@@ -21,7 +22,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // is awaited through bounded receipt polling, queues are unique per process,
 // and clocks are fixed at each delivery boundary.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Pool } from 'pg'
 import { Queue, Worker, type ConnectionOptions, type Job } from 'bullmq'
@@ -32,8 +33,6 @@ import {
   acquireRedisTestLease,
   type RedisTestLease,
 } from '#/shared/testing/redis-test-lease'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   organizationId,
   propertyId,
@@ -60,31 +59,31 @@ import {
 } from '#/shared/auth/process-policy-binding'
 import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import type { PolicyStoreHandle } from '#/contexts/identity/infrastructure/policy-store-init'
-import { reviewCreated } from '#/contexts/review/domain/events'
-import type { Review } from '#/contexts/review/domain/types'
-import { createAtomicReviewCommandStore } from '#/contexts/review/infrastructure/review-command-store'
-import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
+import { reviewCreated } from '#/contexts/reputation/domain/review-events'
+import type { Review } from '#/contexts/reputation/domain/review-types'
+import { createAtomicReviewCommandStore } from '#/contexts/reputation/reviews/review-command-store.server'
+import { createGoogleReplyObservationStore } from '#/contexts/reputation/publication/google-reply-observation-store.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
-import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
-import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
+import { createReviewRepository } from '#/contexts/reputation/reviews/review-repository.server'
+import { createReplyRepository } from '#/contexts/reputation/replies/reply-repository.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
-import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
+import { createReviewSourceLookupAdapter } from '#/contexts/reputation/inbox/review-source-lookup.adapter.server'
+import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
 import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
-import { createInboxItem as buildInboxItem } from '#/contexts/inbox/domain/constructors'
+import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,
-} from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
+} from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -153,7 +152,6 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt,
-    expiresAt: new Date('2027-07-01T00:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: reviewedAt,
@@ -366,7 +364,7 @@ async function seedOpenItem(source: string, sourceDate: Date): Promise<void> {
     clock: () => sourceDate,
   })
   if (built.isErr()) throw built.error
-  await store.createItem(built.value, null, { materialReviewRevision: 1 })
+  await store.createItem(built.value, null, reviewOpeningAnchor(built.value))
 }
 
 beforeAll(async () => {
@@ -374,9 +372,6 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: env.DATABASE_URL, max: 4 })
   const client = await pool.connect()
   client.release()
-
-  clearEventSchemas()
-  registerAllEventSchemas()
 
   await pool.query('DELETE FROM inbox_notes WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
@@ -525,7 +520,6 @@ afterAll(async () => {
     await deleteTestOrganizations(pool, [ORG])
     await pool.end()
   }
-  clearEventSchemas()
 })
 
 describe.sequential('outbox delivery end-to-end proof', () => {

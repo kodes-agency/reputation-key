@@ -9,7 +9,10 @@ import { HTTP_STATUS } from '#/shared/http/status'
 import { propertyId } from '#/shared/domain/ids'
 import { guestVoiceEvidenceReaders } from './guest-voice-evidence.server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { GUEST_VOICE_RANGES, type GuestVoiceRange } from '#/shared/dashboard-range'
+import {
+  GUEST_VOICE_RANGES,
+  type GuestVoiceRange,
+} from '#/shared/dashboard/dashboard-range'
 import type { GuestVoiceV2Read } from '../guest-voice/contracts'
 import { withLiveEvidence } from '../application/read-models/guest-voice-v2-evidence'
 import { resolveDraftReviews } from '../guest-voice/guest-voice-v2-resolve.server'

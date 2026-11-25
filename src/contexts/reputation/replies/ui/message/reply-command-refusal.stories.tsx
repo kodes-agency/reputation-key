@@ -27,7 +27,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { makeInboxItem } from '../../../../../../.storybook/in-memory/inbox-container'
 import { scriptReplyCommand } from '../../../../../../.storybook/stubs/review-reply-server'
 import { Toaster } from '#/components/ui/sonner'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 import { inboxKeys } from '#/shared/queries/query-keys'
@@ -54,7 +54,7 @@ const REJECTION_REASON = 'Too generic; please name the housekeeping fix we made.
 const ADDED_TEXT = ' See you next summer.'
 
 // What the server answers each command for a reply that has left the state
-// the command starts from (review/domain/reply-command-preconditions.ts), as
+// the command starts from (reputation/domain/reply-command-preconditions.ts), as
 // `reviewErrorStatus` sends it: a 400.
 const NOT_AWAITING_APPROVAL =
   'Only a reply that is waiting for approval can be confirmed and published'

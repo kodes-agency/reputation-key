@@ -11,8 +11,6 @@ import {
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -20,6 +18,7 @@ import {
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { readAggregateWindow } from './property-aggregate.test-fixtures'
 import { seedReviewContent } from './review-content.test-fixtures'
 import {
   createAnalyzeReviewEvent,
@@ -70,7 +69,6 @@ const analyzeReviewEvent = createAnalyzeReviewEvent({
   aggregates: {
     applyReviewAnalysis: unreachable('aggregates.applyReviewAnalysis'),
     advanceWithoutAnalysis: unreachable('aggregates.advanceWithoutAnalysis'),
-    readWindow: unreachable('aggregates.readWindow'),
   },
   processingProfiles: {
     readForAi: unreachable('processingProfiles.readForAi'),
@@ -214,8 +212,6 @@ async function clearFixture(): Promise<void> {
 
 describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', () => {
   beforeAll(async () => {
-    clearEventSchemas()
-    registerAllEventSchemas()
     await clearFixture()
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -277,7 +273,6 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
 
   afterAll(async () => {
     await clearFixture()
-    clearEventSchemas()
   })
 
   it('keeps exact coverage when reviews are imported before the merchant enables AI', async () => {
@@ -288,8 +283,10 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
           {
             analyzeReviewEvent,
             receipts,
-
             backlog: { enqueue: async () => {} },
+            applyAiAuthorizationLifecycle: async () => {
+              throw new Error('authorization lifecycle is not under test')
+            },
             nowEpochMillis: () => Date.now(),
           },
           reviewCreated(sequence),
@@ -306,7 +303,7 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
     // sequences are below it, so the window expects nothing yet and the read
     // that served a 500 in production returns an empty generation instead.
     await enableAtCurrentHead()
-    await expect(aggregates.readWindow(windowRequest())).resolves.toBeNull()
+    await expect(readAggregateWindow(db, windowRequest())).resolves.toBeNull()
 
     // The enrollment backfill re-allocates an eligible review a fresh sequence
     // inside the lineage; settling it is the first and only expected analysis.
@@ -336,7 +333,7 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
       ),
     ).resolves.toEqual({ status: 'terminal' })
 
-    const window = await aggregates.readWindow(windowRequest())
+    const window = await readAggregateWindow(db, windowRequest())
     expect(window?.coverage).toEqual({
       settledAnalysisCount: 1,
       expectedAnalysisCount: 1,

@@ -66,7 +66,7 @@ import type {
   addInboxNoteFn,
   getInboxItemDetailFn,
   getInboxItemHistoryFn,
-} from '#/contexts/inbox/server/inbox'
+} from '#/contexts/reputation/server/inbox'
 import type {
   FeedbackHandlingState,
   InboxItem,
@@ -74,12 +74,12 @@ import type {
   InboxNote,
   InboxNoteView,
   ResponseTargetView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 
 /**
  * The reply, spelled through the bundle that carries it.
  *
- * `ReplyView` itself lives in `inbox/application/ports/`, which components may
+ * `ReplyView` itself lives in `inbox/reply-lookup.port.server.ts`, which components may
  * not import; `public-api.ts` re-exports the detail result but not the member.
  * Narrowing the field is the one legal spelling — and the better one anyway,
  * because it is by construction the exact type the pane will be handed.

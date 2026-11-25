@@ -1,8 +1,8 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { getExecutionPolicy, type DecisionRequest } from '#/shared/auth/execution-policy'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/public-api'
 import type { ActiveConnectionTokenProvider } from '../connections/active-connection-token-provider.server'
 import {
   createGoogleImportCommandAuthorizer,
@@ -31,19 +31,18 @@ export type GoogleImportRuntimeDeps = Readonly<{
   tokenProvider: ActiveConnectionTokenProvider
   store: GoogleImportStore
   propertyApi: PropertyPublicApi
-  propertyBindingApi: PropertyGoogleBindingPublicApi | undefined
+  propertyBindingApi: PropertyGoogleBindingPublicApi
   resolveActiveMember: ActiveMemberAuthResolver
   /** Executor already wrapped with the single-401 refresh. */
   providerExecutor: GoogleAuthorizedProviderExecutor | undefined
   references: GoogleImportReferenceStore | undefined
   replayKeys: VersionedHmacKeyring | undefined
   authorizeContent: GoogleImportContentAuthorizer | undefined
-  refreshPolicyStoreRequired: (() => Promise<void>) | undefined
 }>
 
 export type GoogleImportRuntime = Readonly<{
-  lifecycle: ReturnType<typeof createGoogleImportLifecycle> | null
-  processor: ReturnType<typeof createGoogleImportProcessor> | null
+  lifecycle: ReturnType<typeof createGoogleImportLifecycle>
+  processor: ReturnType<typeof createGoogleImportProcessor>
   discovery: ReturnType<typeof createGoogleImportDiscovery> | null
   transaction: ReturnType<typeof createGoogleImportTransaction> | null
   refreshBoundCategories:
@@ -53,38 +52,23 @@ export type GoogleImportRuntime = Readonly<{
 
 /**
  * Wires the Google import: lifecycle, item processor, discovery and the
- * transaction. Everything past the lifecycle needs the Property binding API;
- * discovery needs a provider executor and references, the transaction needs
- * references and replay keys.
+ * transaction. Discovery needs a provider executor and references, the
+ * transaction needs references and replay keys.
  */
 export const createGoogleImportRuntime = (
   deps: GoogleImportRuntimeDeps,
 ): GoogleImportRuntime => {
   const binding = deps.propertyBindingApi
-  const lifecycle = binding
-    ? createGoogleImportLifecycle({
-        store: deps.store,
-        propertyBindingApi: binding,
-        clock: deps.clock,
-        newEventId: deps.newId,
-        references: deps.references,
-      })
-    : null
-  if (!binding) {
-    return {
-      lifecycle,
-      processor: null,
-      discovery: null,
-      transaction: null,
-      refreshBoundCategories: undefined,
-      reauthorizeProviderCall: undefined,
-    }
-  }
+  const lifecycle = createGoogleImportLifecycle({
+    store: deps.store,
+    propertyBindingApi: binding,
+    clock: deps.clock,
+    newEventId: deps.newId,
+    references: deps.references,
+  })
   const executor = deps.providerExecutor
-  const decideGoogleImport = async (request: DecisionRequest) => {
-    await deps.refreshPolicyStoreRequired?.()
-    return getExecutionPolicy().decide(request)
-  }
+  const decideGoogleImport = async (request: DecisionRequest) =>
+    getExecutionPolicy().decide(request)
   const authorizeCommand = createGoogleImportCommandAuthorizer({
     connectionRepo: deps.connectionRepo,
     tokenProvider: deps.tokenProvider,
@@ -159,7 +143,7 @@ export const createGoogleImportRuntime = (
           clock: deps.clock,
           logger: deps.logger,
           idGen: deps.newId,
-          ...(lifecycle ? { cancelImport: lifecycle.cancelRequest } : {}),
+          cancelImport: lifecycle.cancelRequest,
         })
       : null
   return {

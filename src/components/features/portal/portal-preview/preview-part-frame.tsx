@@ -18,7 +18,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { PORTAL_EDITOR_SECTION_ICONS } from '#/contexts/portal/editor/ui/portal-editor-section-icons'
 import { PORTAL_EDITOR_SECTION_LABELS } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import {

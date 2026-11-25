@@ -3,7 +3,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-contract'
+import { resolveAiRuntimeCapabilitySet } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import { planMerchantAiConsentTransition } from '../domain/merchant-ai-authorization'
 import {
   createMerchantAiAuthorization,
@@ -100,9 +100,6 @@ function makeHarness(
   const authorizeManagement = vi.fn<MerchantAiAuthorizationDeps['authorizeManagement']>(
     async () => true,
   )
-  const verifyStepUp = vi.fn<MerchantAiAuthorizationDeps['verifyStepUp']>(
-    async () => true,
-  )
   let ceremonySequence = 0
   const idGen = vi.fn(
     () => `c0000000-0000-4000-8000-${String(++ceremonySequence).padStart(12, '0')}`,
@@ -113,7 +110,6 @@ function makeHarness(
     authorize,
     authorizeManagement,
     isCurrentAccountAdmin: async () => true,
-    verifyStepUp,
     clock: () => NOW,
     idGen,
     noticeVersion: BASE_SNAPSHOT.noticeVersion,
@@ -129,7 +125,6 @@ function makeHarness(
     decisionDeferrals,
     authorize,
     authorizeManagement,
-    verifyStepUp,
     idGen,
   }
 }
@@ -204,7 +199,7 @@ describe('Merchant AI authorization', () => {
   })
 
   it('enables the fixed current capability bundle on an acknowledgement of the served notice', async () => {
-    const { service, store, authorize, verifyStepUp } = makeHarness()
+    const { service, store, authorize } = makeHarness()
 
     await expect(service.enable(baseCommand)).resolves.toMatchObject({
       state: 'enabled',
@@ -213,7 +208,6 @@ describe('Merchant AI authorization', () => {
     })
     expect(authorize).toHaveBeenCalledTimes(2)
     // The step-up port is a reserved hook: consent never asks for a proof.
-    expect(verifyStepUp).not.toHaveBeenCalled()
     expect(store.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
         operation: 'enable',
@@ -354,7 +348,7 @@ describe('Merchant AI authorization', () => {
       analysisStartSequence: 0,
       stateVersion: 7,
     }
-    const { service, verifyStepUp } = makeHarness(enabled)
+    const { service } = makeHarness(enabled)
 
     await expect(
       service.revoke({
@@ -370,7 +364,6 @@ describe('Merchant AI authorization', () => {
       capabilities: [],
       stateVersion: 8,
     })
-    expect(verifyStepUp).not.toHaveBeenCalled()
   })
 })
 
@@ -469,9 +462,6 @@ function makeCeremonyHarness(initialHeads: Readonly<Record<string, MerchantAiSna
   const isCurrentAccountAdmin = vi.fn<
     MerchantAiAuthorizationDeps['isCurrentAccountAdmin']
   >(async () => true)
-  const verifyStepUp = vi.fn<MerchantAiAuthorizationDeps['verifyStepUp']>(
-    async () => true,
-  )
   let ceremonySequence = 0
   const service = createMerchantAiAuthorization({
     store,
@@ -479,7 +469,6 @@ function makeCeremonyHarness(initialHeads: Readonly<Record<string, MerchantAiSna
     authorize,
     authorizeManagement,
     isCurrentAccountAdmin,
-    verifyStepUp,
     clock: () => NOW,
     idGen: () =>
       `c1000000-0000-4000-8000-${String(++ceremonySequence).padStart(12, '0')}`,
@@ -499,7 +488,6 @@ function makeCeremonyHarness(initialHeads: Readonly<Record<string, MerchantAiSna
     authorize,
     authorizeManagement,
     isCurrentAccountAdmin,
-    verifyStepUp,
   }
 }
 
@@ -551,7 +539,6 @@ describe('Merchant AI consent ceremony for several properties', () => {
     // Every Property passes the same checks as a single enable.
     expect(harness.authorizeManagement).toHaveBeenCalledTimes(3)
     expect(harness.authorize).toHaveBeenCalledTimes(6)
-    expect(harness.verifyStepUp).not.toHaveBeenCalled()
   })
 
   it('replays a repeated ceremony without writing again', async () => {

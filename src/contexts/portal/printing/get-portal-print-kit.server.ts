@@ -2,7 +2,7 @@
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalLastPrintRepository } from './portal-last-print-repository.port.server'
 import type { PortalPrintWordingRepository } from './portal-print-wording-repository.port.server'
 import type { PortalMediaAssetRepository } from '../media/portal-media-asset-repository.port.server'

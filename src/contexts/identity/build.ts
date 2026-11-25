@@ -5,9 +5,6 @@
 // console (ADR 0065) never reaches `publicApi`.
 //
 // Runtime contributions exposed to the composition root:
-//   - policy.refreshRequired — version-gated strong read of persisted policy
-//     state (workers await it before starting; side-effect paths use it for
-//     fresh reads).
 //   - policy.admin — least-privilege policy administration ops.
 
 import type { Database } from '#/shared/db'
@@ -39,7 +36,7 @@ import type { InvitationEmailSender } from './members/invitation-email.port.serv
 import type { PropertyNameLookup } from './members/invitation-read-model.port.server'
 import { retireReplacedIdentityAsset } from './images/retire-replaced-identity-asset.server'
 import { reclaimPendingIdentityUploads } from './images/reclaim-pending-identity-uploads.server'
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { StoragePort } from '#/contexts/portal/public-api'
 import { staffFailureDiagnostic } from './staff/staff-failure-diagnostic.server'
 import {
   MERCHANT_AI_NOTICE,
@@ -107,12 +104,6 @@ import {
   resendOrganizationAdminInvitation,
   type ResendOrganizationAdminInvitation,
 } from './operator/resend-organization-admin-invitation.server'
-import {
-  archiveStaffParticipation,
-  createStaffParticipation,
-  listStaffParticipations,
-  updatePortalResponsibilities,
-} from './staff/staff-participations.server'
 import { submitBetaFeedback } from './feedback/submit-beta-feedback.server'
 import { updateMemberRole } from './members/update-member-role.server'
 import { updateOrganization } from './organization/update-organization.server'
@@ -133,10 +124,7 @@ import { isAcceptanceAdmitted } from './members/invitation-admission.adapter.ser
 import { createInvitationReadModel } from './members/invitation-read-model.server'
 import { createInvitedRegistrationStore } from './members/invited-registration-store.server'
 import { createMemberPropertyAccessStore } from './members/member-property-access-store.server'
-import {
-  createMerchantAiManagementAuthorizer,
-  createStepUpVerifier,
-} from './consent/merchant-ai-management.server'
+import { createMerchantAiManagementAuthorizer } from './consent/merchant-ai-management.server'
 import {
   merchantAiPauseReason,
   merchantAiRenewalDecision,
@@ -171,9 +159,6 @@ type AuthSession = Readonly<{
   setActiveOrganization: (organizationId: string) => Promise<void>
   updateOrganization: (data: Record<string, unknown>) => Promise<void>
   currentOrganizationName: () => Promise<string | null>
-  verifyPassword: (
-    input: Readonly<{ headers: Headers; password: string }>,
-  ) => Promise<boolean>
 }>
 
 export type StaffAccountBindings = Pick<
@@ -316,13 +301,16 @@ const unavailableStaffAccountBindings: StaffAccountBindings = {
 }
 
 function buildStaffAccounts(
-  deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'idGen' | 'logger' | 'staffAccounts'> &
+  deps: Pick<
+    IdentityContextDeps,
+    'db' | 'clock' | 'idGen' | 'logger' | 'staffAccounts' | 'invitationExpiresInMs'
+  > &
     Readonly<{ commandStore: IdentityCommandStore }>,
 ) {
   const { db, clock, logger } = deps
-  const management = createStaffManagementStore(db, clock)
+  const management = createStaffManagementStore(db, clock, deps.invitationExpiresInMs)
   const input: ManageStaffDeps = {
-    store: createStaffAccountStore(db, clock, deps.idGen),
+    store: createStaffAccountStore(db, clock, deps.idGen, deps.invitationExpiresInMs),
     management,
     idGen: deps.idGen,
     ...(deps.staffAccounts ?? unavailableStaffAccountBindings),
@@ -388,7 +376,6 @@ function buildMerchantAi(
     'db' | 'replyEffects' | 'idGen' | 'clock' | 'logger' | 'authSession'
   > &
     Readonly<{
-      refreshPolicyRequired: () => Promise<unknown>
       isCurrentAccountAdmin: (
         input: Readonly<{ organizationId: string; userId: string }>,
       ) => Promise<boolean>
@@ -405,16 +392,13 @@ function buildMerchantAi(
     store: createMerchantAiAuthorizationStore(db, idGen, deps.replyEffects),
     decisionDeferrals,
     authorizeManagement,
-    authorize: async (input) => {
-      await deps.refreshPolicyRequired()
-      return checkScopedCapability(
+    authorize: async (input) =>
+      checkScopedCapability(
         { organizationId: input.organizationId, propertyId: input.propertyId },
         input.capability,
-      ).allowed
-    },
+      ).allowed,
     isCurrentAccountAdmin: ({ organizationId: orgId, actorUserId }) =>
       deps.isCurrentAccountAdmin({ organizationId: orgId, userId: actorUserId }),
-    verifyStepUp: createStepUpVerifier(deps.authSession.verifyPassword),
     clock,
     idGen,
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,
@@ -487,17 +471,10 @@ function buildMerchantAi(
   }
 }
 
-function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'idGen'>) {
+function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock'>) {
   const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
   const participationRepo = createStaffParticipationRepository(deps.db)
   const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
-  const participation = {
-    repo: participationRepo,
-    accessibleProperties: accessiblePropertyLookup,
-    clock: deps.clock,
-    idGen: deps.idGen,
-  } as const
-
   const listAssignedPortalIds = createAssignedPortalLookup(participationRepo)
 
   return Object.freeze({
@@ -516,16 +493,6 @@ function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'id
       ctx: AuthContext,
     ) => listAssignedPortalIds(ctx.organizationId, input.userId, input.propertyId),
     resolvePrimaryStaffAttribution,
-    findParticipationById: (organizationId: OrganizationId, participationId: string) =>
-      participationRepo.findById(organizationId, participationId),
-    listActiveParticipations: (organizationId: OrganizationId, propertyId: PropertyId) =>
-      participationRepo.list(organizationId, { propertyId, activeOnly: true }),
-    management: Object.freeze({
-      createStaffParticipation: createStaffParticipation(participation),
-      listStaffParticipations: listStaffParticipations(participation),
-      archiveStaffParticipation: archiveStaffParticipation(participation),
-      updatePortalResponsibilities: updatePortalResponsibilities(participation),
-    }),
   })
 }
 
@@ -607,7 +574,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   })
   const merchantAi = buildMerchantAi({
     ...deps,
-    refreshPolicyRequired: policyStore.refreshRequired,
     isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,
   })
 
@@ -748,10 +714,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     /** Capability-policy control plane owned by Identity. */
     policy: Object.freeze({
       admin: policyAdmin,
-      // Static policy is already current; these async no-ops preserve the
-      // deployment boot/readiness contract without a background poller.
-      refresh: policyStore.refresh,
-      refreshRequired: policyStore.refreshRequired,
       currentVersion: policyStore.currentVersion,
       // Container-owned policy objects: building identity does not install
       // them process-wide; an entry point binds exactly one set.

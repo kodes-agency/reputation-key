@@ -1,5 +1,5 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from 'vitest'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
+import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
@@ -22,8 +22,6 @@ import { createRefreshBoundGoogleCategories } from '../imports/refresh-bound-goo
 import { createGoogleBusinessInformationAdapter } from '../imports/google-business-information.adapter.server'
 import { createGoogleConnectionRepository } from './google-connection-repository.server'
 import { createGoogleOAuthExchangeRecoveryRepository } from './google-oauth-exchange-recovery-repository.server'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   integrationGoogleAccountDisconnected,
   integrationGoogleAccountReauthorizationRequired,
@@ -225,7 +223,6 @@ function reconnect(
       {
         exchangeAttemptId: OAUTH_ATTEMPT,
         code: 'synthetic-code',
-        visibility: 'organization',
         purpose: 'reviews',
         connectionMode: 'reconnect',
         targetConnectionId: CONNECTION,
@@ -282,10 +279,6 @@ const providerCategory = (category: string | null) => ({
   ],
 })
 
-beforeAll(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
 beforeEach(async () => {
   await cleanup()
   for (const [index, connectionId] of [
@@ -321,7 +314,6 @@ beforeEach(async () => {
 })
 afterAll(async () => {
   await cleanup()
-  clearEventSchemas()
 })
 
 describe('Google account category cleanup (PostgreSQL)', () => {
@@ -425,7 +417,6 @@ describe('Google account category cleanup (PostgreSQL)', () => {
       connectionId: CONNECTION,
       event: event(),
     })
-    const forConnection = vi.fn()
     const repo = createGoogleConnectionRepository(db, () => NOW)
     const command = disconnectGoogleAccount({
       connectionRepo: {
@@ -440,12 +431,6 @@ describe('Google account category cleanup (PostgreSQL)', () => {
       encryption: createTestTokenEncryption(),
       clock: () => NOW,
       logger: createMockLogger(),
-      sourceContentPurge: {
-        forConnection,
-        forProperty: vi.fn(),
-        forOrganization: vi.fn(),
-        inboxForProperty: vi.fn(),
-      },
     })
     await expect(
       command(
@@ -462,7 +447,6 @@ describe('Google account category cleanup (PostgreSQL)', () => {
       googleSubject: 'google-subject-123',
     })
     expect((await hints())[0]?.category).toBe('Day spa')
-    expect(forConnection).not.toHaveBeenCalled()
     expect(
       await db
         .select()

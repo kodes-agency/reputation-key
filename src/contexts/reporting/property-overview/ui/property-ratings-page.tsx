@@ -1,6 +1,6 @@
 // Dashboard → Ratings (redesign rows 7a, 8, 9, 10, 12–14).
 import { useId } from 'react'
-import type { DashboardData } from '#/contexts/reporting/application/public-api'
+import type { DashboardData } from '#/contexts/reporting/public-api'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
@@ -13,9 +13,9 @@ import {
   dashboardRangeComparisonLabel,
   DASHBOARD_RANGE_LABELS,
   type DashboardRange,
-} from '#/shared/dashboard-range'
+} from '#/shared/dashboard/dashboard-range'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { RatingFigure } from '#/components/ui/rating-figure'

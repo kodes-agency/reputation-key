@@ -1,4 +1,4 @@
-import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/analysis/review-analysis-v3'
 import {
   assembleGuestVoiceV2,
   guestVoiceWindowContext,

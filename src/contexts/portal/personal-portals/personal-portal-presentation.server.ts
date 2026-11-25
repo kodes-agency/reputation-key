@@ -20,7 +20,7 @@ import {
   type ServableMediaUrls,
 } from '../publication/public-portal-immersive.server'
 import type { ImmersiveBrandProfile } from '../domain/portal-publication-snapshot'
-import type { PublicImmersiveExperience } from '../application/public-api'
+import type { PublicImmersiveExperience } from '../public-api'
 
 export type PersonalPortalPresentationDeps = Readonly<{
   publicationRepo: Pick<PortalPublicationRepository, 'findActiveForPortal'>

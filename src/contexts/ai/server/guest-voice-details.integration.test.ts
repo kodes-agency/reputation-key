@@ -1,7 +1,7 @@
 // Guest voice detail drawers, read as signed-in members over PostgreSQL with
 // the real tenant resolution, execution policy, analysis stores and Inbox reads.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {

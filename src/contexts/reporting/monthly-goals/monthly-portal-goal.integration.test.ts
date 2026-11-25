@@ -9,7 +9,8 @@ import { findMetricVersionById } from '../readings/contracts'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
 import { monthlyPortalGoalOf } from './monthly-portal-goal-identity.server'
 import type { GoalProgramRepository } from '../application/ports/goal-program.repository'
-import { createGoalProgramService, type GoalActor } from './goal-programs.server'
+import { createGoalProgramService } from './goal-programs.server'
+import { type GoalActor } from '../application/use-cases/goal-program-shared'
 import { setMonthlyPortalGoal } from './monthly-portal-goal.server'
 import { createGoalProgramRepository } from './goal-program-repository.server'
 
@@ -58,6 +59,8 @@ describe.sequential('Monthly portal goal set (integration)', () => {
       repository,
       policy: { authorize: async () => undefined },
       subjects: {
+        ratingSubjectsSkipPrivateRating: async () => false,
+        staffTargetProblem: async () => null,
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
       },
@@ -98,7 +101,7 @@ describe.sequential('Monthly portal goal set (integration)', () => {
           recommendation: {
             subjects: { getTimezone: async () => 'UTC' },
             facts: {
-              listPortalReadiness: async () => ({ portals: [], truncated: false }),
+              listPortalReadiness: async () => ({ portals: [] }),
               readDailyCounts: async () => ({
                 days: [],
                 unreadable: [],

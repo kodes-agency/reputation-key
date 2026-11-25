@@ -4,7 +4,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import { assertReviewProviderSubjectKeysConfigured } from '#/shared/config/provider-config-guards'
-import { configureReviewProviderSubjectWriterKeys } from '#/contexts/review/application/provider-subject-keyring'
+import { configureReviewProviderSubjectWriterKeys } from '#/contexts/reputation/sync/provider-subject-keyring.server'
 import { readFileSync } from 'node:fs'
 import { validateGoogleRuntimeIsolationReadiness } from '#/shared/auth/google-runtime-isolation'
 import {

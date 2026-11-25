@@ -183,13 +183,6 @@ describe.each(paths)('%s withdrawal journal', (kind) => {
     expect(entry.journalTargets).toEqual({ kind, ids: [RESPONSE_ID] })
   })
 
-  it('keeps the existing withdrawal path when journal activation is absent', async () => {
-    const transaction = vi.fn().mockResolvedValue('applied')
-    const store = createAtomicGuestResponseCommandStore(database(transaction), () => NOW)
-    await expect(withdraw(store, kind)).resolves.toBe('applied')
-    expect(transaction).toHaveBeenCalledOnce()
-  })
-
   it('records no erasure intent when the session or response preflight does not match', async () => {
     const transaction = vi.fn().mockResolvedValue('applied')
     const put = vi.fn()
@@ -242,13 +235,6 @@ describe('operator erasure journal', () => {
 
     await expect(erase(store)).rejects.toThrow('journal write failed')
     expect(alert).toHaveBeenCalledOnce()
-    expect(transaction).not.toHaveBeenCalled()
-  })
-
-  it('refuses to erase when no journal is configured', async () => {
-    const transaction = vi.fn()
-    const store = createAtomicGuestResponseCommandStore(database(transaction), () => NOW)
-    await expect(erase(store)).rejects.toThrow('requires the erasure journal')
     expect(transaction).not.toHaveBeenCalled()
   })
 })

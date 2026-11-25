@@ -5,12 +5,12 @@
 // 1. Denylist strip of known content fields (defense in depth, ADR 0030).
 // 2. Schema-registry allowlist validation — only registered Zod fields are
 //    persisted. Unknown keys are dropped by Zod; missing required fields throw.
-// 3. Unregistered event types do not enter the outbox (tryToOutboxEvent → null).
+// 3. Unregistered event types are refused (OutboxPayloadError 'unregistered').
 
 import type { OutboxEventInsert } from '#/shared/db/schema/outbox.schema'
 import type { DomainEvent } from '#/shared/events/events'
-import { getEventSchema, validateEventPayload } from '#/shared/events/schema-registry'
-import { emittedEventVersion } from '#/shared/events/registry.server'
+import { validateEventPayload } from '#/shared/events/schema-registry'
+import { emittedEventVersion, getEventDescriptor } from '#/shared/events/registry.server'
 import { resolveEventAggregate } from '#/shared/events/descriptor'
 
 /**
@@ -106,7 +106,7 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
   const eventType = event._tag
   const eventVersion = emittedEventVersion(event)
 
-  const descriptor = getEventSchema(eventType, eventVersion)
+  const descriptor = getEventDescriptor(eventType, eventVersion)
   if (!descriptor) {
     throw new OutboxPayloadError(
       'unregistered',
@@ -179,24 +179,6 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
     sourceContext,
     sourceAggregateId: sourceAggregate.id,
     createdAt: new Date(),
-  }
-}
-
-/**
- * Like toOutboxEvent, but returns null for unregistered types (expand-phase
- * orphans still emit on the bus without polluting the durable outbox).
- * Still throws on invalid_payload for registered types.
- */
-export function tryToOutboxEvent(
-  event: DomainEvent,
-): Omit<OutboxEventInsert, 'id'> | null {
-  try {
-    return toOutboxEvent(event)
-  } catch (err) {
-    if (err instanceof OutboxPayloadError && err.code === 'unregistered') {
-      return null
-    }
-    throw err
   }
 }
 

@@ -5,7 +5,7 @@
 // RepKey never stands in the time it read Google. So a period can have replied
 // reviews and still no reply time, and "nothing replied to yet" beside a 40%
 // reply rate would contradict the figure next to it.
-import type { DashboardData } from '#/contexts/reporting/application/public-api'
+import type { DashboardData } from '#/contexts/reporting/public-api'
 
 export type ReplyTimeMissing = 'no_reviews' | 'no_replies' | 'no_reply_times'
 

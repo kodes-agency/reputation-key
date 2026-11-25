@@ -1,10 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
-import { inboxResponseTargetPolicyChanged } from '#/contexts/inbox/domain/events'
+import { inboxResponseTargetPolicyChanged } from '#/contexts/reputation/domain/inbox-events'
 import { userId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { toOutboxEvent } from './event-adapter'
 import { buildConsumerEvent } from './envelope'
 
@@ -23,11 +21,6 @@ const portalUpdated: DomainEvent = {
 }
 
 describe('declared event aggregates', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   it('stores a Portal update under its Portal even when it also names a Property', () => {
     expect(toOutboxEvent(portalUpdated).sourceAggregateId).toBe('portal-1')
   })

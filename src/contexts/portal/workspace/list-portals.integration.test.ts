@@ -2,7 +2,7 @@
 // organizations.
 
 import { describe, it, expect } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createPortalReadsWorld } from '../infrastructure/testing/portal-reads-world'

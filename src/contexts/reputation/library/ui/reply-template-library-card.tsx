@@ -25,8 +25,8 @@ import type {
   ResetReplyTemplateInput,
   SaveReplyTemplateInput,
   SetReplyTemplateHiddenInput,
-} from '#/contexts/review/application/dto/reply-library.dto'
-import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
+} from '#/contexts/reputation/library/contracts'
+import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 import { ReplyTemplateEditor, templateActionScope } from './reply-template-editor'
 
 type SaveAction = Action<{ data: SaveReplyTemplateInput }, ReplyLibraryDto>

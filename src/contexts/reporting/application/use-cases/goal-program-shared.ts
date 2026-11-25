@@ -53,12 +53,8 @@ export type GoalExecutionPolicy = Readonly<{
 }>
 
 export type GoalMetricReadPort = Readonly<{
-  queryGoalMetrics?: (
-    queries: readonly GovernedGoalMetricQuery[],
-  ) => Promise<readonly GovernedGoalMetricResult[]>
-
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
-  getApprovedGoalVersion?: (
+  getApprovedGoalVersion: (
     definitionVersionId: string,
   ) => Promise<GovernedMetricVersion | null>
 }>
@@ -70,24 +66,18 @@ const GOAL_METRIC_VERSION_IDS: Readonly<Record<GoalMetric, string>> = {
 }
 
 export type GoalProgramSubjectReader = Readonly<{
-  ratingSubjectsSkipPrivateRating?(
+  ratingSubjectsSkipPrivateRating(
     organizationId: string,
     propertyId: string,
     subjects: readonly GoalSubject[],
     asOf: Date,
   ): Promise<boolean>
-  staffTargetProblem?: (
+  staffTargetProblem: (
     organizationId: string,
     propertyId: string,
     subject: GoalSubject,
     metric: GoalMetric,
   ) => Promise<StaffTargetProblem | null>
-  staffTargetAllowed?: (
-    organizationId: string,
-    propertyId: string,
-    subject: GoalSubject,
-    metric: GoalMetric,
-  ) => Promise<boolean>
   getTimezone(organizationId: string, propertyId: string): Promise<string | null>
   subjectBelongsToProperty(
     organizationId: string,
@@ -159,7 +149,7 @@ export async function loadChangeableProgram(
   actor: GoalActor,
   input: Readonly<{ propertyId: string; programId: string }>,
 ): Promise<GoalProgramBundle> {
-  const current = await (deps.repository.getHistory ?? deps.repository.get)(
+  const current = await deps.repository.getHistory(
     actor.organizationId,
     input.propertyId,
     input.programId,
@@ -362,7 +352,7 @@ export async function resolveMetricVersion(
   metric: GoalMetric,
 ) {
   const versionId = GOAL_METRIC_VERSION_IDS[metric]
-  const governed = await deps.metrics.getApprovedGoalVersion?.(versionId)
+  const governed = await deps.metrics.getApprovedGoalVersion(versionId)
   if (
     !governed ||
     governed.version.id !== versionId ||
@@ -440,35 +430,20 @@ export async function assertRatingSubjectsAllowed(
     subjects: readonly GoalSubject[]
   }>,
 ): Promise<void> {
-  if (deps.subjects.staffTargetProblem) {
-    const problems = await Promise.all(
-      input.subjects.map((subject) =>
-        deps.subjects.staffTargetProblem!(
-          organizationId,
-          input.propertyId,
-          subject,
-          input.metric,
-        ),
+  const problems = await Promise.all(
+    input.subjects.map((subject) =>
+      deps.subjects.staffTargetProblem(
+        organizationId,
+        input.propertyId,
+        subject,
+        input.metric,
       ),
-    )
-    const problem = problems.find((problem) => problem !== null)
-    if (problem) throw new GoalProgramError(problem)
-  }
-  if (deps.subjects.staffTargetAllowed) {
-    const allowed = await Promise.all(
-      input.subjects.map((subject) =>
-        deps.subjects.staffTargetAllowed!(
-          organizationId,
-          input.propertyId,
-          subject,
-          input.metric,
-        ),
-      ),
-    )
-    if (allowed.some((value) => !value)) throw new GoalProgramError('invalid_subject')
-  }
+    ),
+  )
+  const problem = problems.find((problem) => problem !== null)
+  if (problem) throw new GoalProgramError(problem)
   if (input.metric === 'qualified_scans') return
-  const skipped = await deps.subjects.ratingSubjectsSkipPrivateRating?.(
+  const skipped = await deps.subjects.ratingSubjectsSkipPrivateRating(
     organizationId,
     input.propertyId,
     input.subjects,

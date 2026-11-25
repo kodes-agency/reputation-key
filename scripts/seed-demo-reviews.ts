@@ -21,7 +21,7 @@ import { reviews, replies } from '../src/shared/db/schema/review.schema'
 import { reviewSourceContents } from '../src/shared/db/schema/review-source-content.schema'
 import { inboxItems } from '../src/shared/db/schema/inbox.schema'
 import { sha256Hex } from '../src/shared/domain/sha256'
-import { computeAiReviewSourceProvenance } from '../src/contexts/review/application/ai-review-source'
+import { computeAiReviewSourceProvenance } from '../src/contexts/reputation/reviews/ai-review-source.server'
 
 const email = process.env.SEED_DEMO_EMAIL ?? 'bozhidar@local.dev'
 const propertySlug = process.env.SEED_DEMO_PROPERTY_SLUG ?? 'local-test-property'

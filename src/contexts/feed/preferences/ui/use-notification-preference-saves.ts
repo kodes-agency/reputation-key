@@ -6,7 +6,7 @@ import type {
   NotificationCategoryDefault,
   NotificationChannel,
   NotificationPreference,
-} from '#/contexts/feed/application/public-api'
+} from '#/contexts/feed/public-api'
 import {
   applyPreferencePatch,
   preferenceRowKey,

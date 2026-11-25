@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { StatusBadge, type StatusPresentation } from '#/components/ui/status-badge'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 type FrameProps = Readonly<{
   /** The card's `data-slot`: how a story, a test and a journey find this card. */

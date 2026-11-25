@@ -7,7 +7,7 @@ import { DataTableHead, DataTableHeader } from '#/components/ui/data-table'
 import { GlossaryTerm } from '#/components/ui/glossary-term'
 import { useOverviewClasses } from './portal-overview-density'
 import { MEASURE_COLUMNS } from './portal-overview-measure-cells'
-import type { GlossaryTermKey } from '#/shared/dashboard-glossary'
+import type { GlossaryTermKey } from '#/shared/dashboard/dashboard-glossary'
 import type { PortalOverviewResultsState } from './portal-overview-results'
 import type { SortDirection } from '#/components/ui/list-sort'
 

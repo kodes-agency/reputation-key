@@ -58,10 +58,10 @@ export type MetricCommandStore = Readonly<{
    */
   settleSourceReceipt(receipt: MetricSourceReceipt): Promise<void>
   recordMetrics(command: RecordMetricsCommand): Promise<readonly ReadingResult[]>
-  recordMetric(command: RecordMetricCommand): Promise<ReadingResult>
   retractMetrics(
     commands: readonly RetractMetricCommand[],
     sourceReceipt?: MetricSourceReceipt,
   ): Promise<readonly RetractMetricResult[]>
-  retractMetric(command: RetractMetricCommand): Promise<RetractMetricResult>
 }>
+
+export type RetractMetrics = MetricCommandStore['retractMetrics']

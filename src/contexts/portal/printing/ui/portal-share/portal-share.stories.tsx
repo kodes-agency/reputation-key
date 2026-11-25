@@ -23,7 +23,7 @@ type RevokeInput = { data: { portalId: string; reason: string } }
 type RevealInput = { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } }
 type LinkResult = {
   publicUrl: string
-  publicUrls?: { qr: string; nfc: string; direct: string }
+  publicUrls: { qr: string; nfc: string; direct: string }
 }
 
 const publicUrl = 'https://portal.example/p/opaque-token-shown-once'

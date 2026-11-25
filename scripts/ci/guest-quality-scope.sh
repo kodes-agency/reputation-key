@@ -10,7 +10,7 @@ is_guest_path() {
     .storybook/* | src/components/features/guest/* | src/components/features/portal/*) return 0 ;;
     src/components/ui/* | src/components/hooks/* | src/components/forms/*) return 0 ;;
     src/contexts/guest/* | src/contexts/portal/* | src/routes/p/* | src/routes/api/public/*) return 0 ;;
-    src/shared/* | src/lib/* | *.css | public/*) return 0 ;;
+    src/shared/* | *.css | public/*) return 0 ;;
     e2e/storybook-metrics/* | e2e/helpers/*) return 0 ;;
     scripts/e2e/guest-quality.sh | scripts/ci/install-playwright-deps.sh) return 0 ;;
     playwright.storybook.config.ts | vite.config.ts | vitest.config.ts) return 0 ;;

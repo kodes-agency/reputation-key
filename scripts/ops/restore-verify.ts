@@ -47,14 +47,14 @@ import { retentionRuleCutoff } from '../../src/shared/db/retention/retention-cut
 import {
   collectReviewSourceContentLifecycleReport,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
-} from '../../src/contexts/review/application/public-api'
+} from '../../src/contexts/reputation/public-api'
 import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
 import {
   composeRightsReplayers,
   rightsReplayRefusal,
 } from '../../src/composition/rights-executors'
 import { applyRestoreResurrectionFence } from '../../src/shared/db/lifecycle/backup-erasure-ledger'
-import { loadNotificationRightsReplayers } from '../../src/contexts/feed/application/public-api'
+import { loadNotificationRightsReplayers } from '../../src/contexts/feed/public-api'
 import { runOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
@@ -108,15 +108,10 @@ async function main(): Promise<void> {
           )
           return report.lifecycle.expired
         },
-        inspectGoogleImportLifecycle: async () => {
-          const inspect = container.integrationMaintenanceRuntime.imports.inspectBacklog
-          if (!inspect) throw new Error('Google import lifecycle unavailable')
-          return inspect()
-        },
+        inspectGoogleImportLifecycle: () =>
+          container.integrationMaintenanceRuntime.imports.inspectBacklog(),
         sweepGoogleImportLifecycle: async () => {
-          const sweep = container.integrationMaintenanceRuntime.imports.sweep
-          if (!sweep) throw new Error('Google import lifecycle unavailable')
-          await sweep()
+          await container.integrationMaintenanceRuntime.imports.sweep()
         },
         inspectRetentionBacklog: async () => {
           const now = container.clock()

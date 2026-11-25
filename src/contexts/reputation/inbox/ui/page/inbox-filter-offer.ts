@@ -15,7 +15,7 @@
 // What is not offered is not applied either, so a bookmark that carries one reads
 // the queue as it is, and moving into a queue drops what it cannot use.
 import { queueKind } from './inbox-queues'
-import type { InboxQueue } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue } from '#/contexts/reputation/public-api'
 import type { InboxListFilterValues } from './inbox-filters'
 
 type InboxFilterOffer = Readonly<{

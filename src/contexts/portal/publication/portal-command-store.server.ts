@@ -3,7 +3,7 @@ import {
   assertPortalCollectorChange,
   assertPortalCollectorAvailable,
 } from './portal-collector-guard.server'
-import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/public-api'
 import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
 // Atomic Portal command store (ARC-01).
 //
@@ -14,12 +14,11 @@ import { and, eq, isNull, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalHealthIntervals,
-  portals,
   portalTokens,
   portalPublicationActivations,
   portalPublicationSnapshots,
 } from '#/shared/db/schema'
-import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { lockPortalPublicationProperty } from './portal-publication-serialization.server'
 import { resolvePortalPendingContentChanges } from './portal-pending-content-changes.server'
 import {
@@ -38,7 +37,12 @@ import type {
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
 import { verifyPortalPublicationSnapshot } from './portal-publication-snapshot.server'
-import { assertCommittedRevision, sameInstant } from './portal-command-guards.server'
+import {
+  assertRevisionAdvances,
+  casPortalRow,
+  isFactAt,
+  sameInstant,
+} from './portal-command-guards.server'
 import { createPortalGroupCommands } from './portal-group-commands.server'
 import { createPortalLinkCommands } from './portal-link-commands.server'
 import { assertLocaleSetFact, watchPrimaryLocaleChange } from './portal-locale-set.server'
@@ -52,16 +56,10 @@ import {
 } from './portal-publication-commands.server'
 import { createPortalCreateCommand } from './portal-create-command.server'
 import { createPersonalPortalContentCommand } from '../personal-portals/portal-personal-content-command.server'
-import {
-  PORTAL_SLUG_UNIQUE,
-  refusingWhenTaken,
-  slugTaken,
-} from './portal-unique-violation.server'
 import { NO_SEALED_ADDRESS } from '../addresses/portal-sealed-address-columns.server'
 
 type PortalSetValues = {
   name?: string
-  slug?: string
   description?: string | null
   heroImageUrl?: string | null
   theme?: Record<string, unknown>
@@ -74,10 +72,11 @@ type PortalSetValues = {
   updatedAt?: Date
 }
 
-function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues {
+function buildPortalSetClause(
+  patch: Readonly<Omit<Partial<Portal>, 'slug'>>,
+): PortalSetValues {
   const set: PortalSetValues = {}
   if (patch.name !== undefined) set.name = patch.name
-  if (patch.slug !== undefined) set.slug = patch.slug
   if (patch.description !== undefined) set.description = patch.description
   if (patch.heroImageUrl !== undefined) set.heroImageUrl = patch.heroImageUrl
   if (patch.theme !== undefined)
@@ -105,20 +104,14 @@ function assertUpdateScopeAndRevision(command: UpdatePortalCommand): void {
     command.event.propertyId !== command.propertyId ||
     command.event.portalId !== command.portalId ||
     command.event.publicationState !== nextPublicationState ||
-    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(command.event.occurredAt, command.occurredAt)
+    !isFactAt(command.event, command.revision, command.occurredAt)
   ) {
     throw portalError(
       'forbidden',
       'Tenant, resource, or version mismatch on Portal update',
     )
   }
-  if (command.revision.getTime() <= command.expectedUpdatedAt.getTime()) {
-    throw portalError(
-      'revision_conflict',
-      'Portal command revision must advance monotonically',
-    )
-  }
+  assertRevisionAdvances(command.revision, command.expectedUpdatedAt, 'Portal')
 }
 
 type PortalStateTransition = Readonly<{
@@ -279,8 +272,7 @@ function matchesLifecycleEventScope(
     event.organizationId === command.organizationId &&
     event.propertyId === command.propertyId &&
     event.portalId === command.portalId &&
-    event.sourceAggregateVersion === command.revision.toISOString() &&
-    sameInstant(event.occurredAt, command.occurredAt) &&
+    isFactAt(event, command.revision, command.occurredAt) &&
     event.userId === command.actorUserId
   )
 }
@@ -424,12 +416,7 @@ function assertDeleteCommand(command: DeletePortalCommand): void {
       'Tenant, resource, or version mismatch on Portal delete',
     )
   }
-  if (command.revision.getTime() <= command.expectedUpdatedAt.getTime()) {
-    throw portalError(
-      'revision_conflict',
-      'Portal command revision must advance monotonically',
-    )
-  }
+  assertRevisionAdvances(command.revision, command.expectedUpdatedAt, 'Portal')
 }
 
 export const createAtomicPortalCommandStore = (
@@ -439,10 +426,6 @@ export const createAtomicPortalCommandStore = (
     'findPortalRatingGoalBlockInTransaction'
   >,
 ): PortalCommandStore => {
-  /** A transaction whose address collision is the refusal the use case's own check gives. */
-  const addressing = <T>(run: (tx: Tx) => Promise<T>): Promise<T> =>
-    refusingWhenTaken(() => db.transaction(run), PORTAL_SLUG_UNIQUE, slugTaken)
-
   return {
     ...createPortalLinkCommands(db),
     ...createPortalGroupCommands(db),
@@ -453,7 +436,7 @@ export const createAtomicPortalCommandStore = (
     updatePortal: async (command) =>
       trace('portal.commandStore.updatePortal', async () => {
         assertUpdateCommand(command)
-        await addressing(async (tx) => {
+        await db.transaction(async (tx) => {
           // Goal fence, publication fence, then Portal and owned rows.
           await lockStaffTargetProperty(tx, command.organizationId, command.propertyId)
           await assertStaffScanSwitch(tx, command)
@@ -466,26 +449,20 @@ export const createAtomicPortalCommandStore = (
           }
           const settingsBefore = await readPortalSettings(tx, command)
           await assertPortalCollectorChange(tx, command, settingsBefore, ratingGoalGuard)
-          const reconcileLinkTexts = await watchPrimaryLocaleChange(tx, command)
-          const [updated] = await tx
-            .update(portals)
-            .set({ ...buildPortalSetClause(command.patch), updatedAt: command.revision })
-            .where(
-              and(
-                eq(portals.organizationId, unbrand(command.organizationId)),
-                eq(portals.propertyId, unbrand(command.propertyId)),
-                eq(portals.id, unbrand(command.portalId)),
-                eq(portals.publicationState, command.event.previousPublicationState),
-                eq(portals.updatedAt, command.expectedUpdatedAt),
-                isNull(portals.deletedAt),
-              ),
-            )
-            .returning({ updatedAt: portals.updatedAt })
-          assertCommittedRevision(
-            updated,
-            command.revision,
-            'Portal',
-            'Portal changed while the update was being committed',
+          const reconcileLinkTexts = await watchPrimaryLocaleChange(
+            tx,
+            command,
+            settingsBefore,
+          )
+          await casPortalRow(
+            tx,
+            command,
+            { expected: command.expectedUpdatedAt, next: command.revision },
+            {
+              set: buildPortalSetClause(command.patch),
+              state: command.event.previousPublicationState,
+              conflictMessage: 'Portal changed while the update was being committed',
+            },
           )
           await reconcileLinkTexts()
 
@@ -613,24 +590,14 @@ export const createAtomicPortalCommandStore = (
             },
             ratingGoalGuard,
           )
-          const [deleted] = await tx
-            .update(portals)
-            .set({ deletedAt: command.occurredAt, updatedAt: command.revision })
-            .where(
-              and(
-                eq(portals.organizationId, unbrand(command.organizationId)),
-                eq(portals.propertyId, unbrand(command.propertyId)),
-                eq(portals.id, unbrand(command.portalId)),
-                eq(portals.updatedAt, command.expectedUpdatedAt),
-                isNull(portals.deletedAt),
-              ),
-            )
-            .returning({ updatedAt: portals.updatedAt })
-          assertCommittedRevision(
-            deleted,
-            command.revision,
-            'Portal',
-            'Portal changed while the delete was being committed',
+          await casPortalRow(
+            tx,
+            command,
+            { expected: command.expectedUpdatedAt, next: command.revision },
+            {
+              set: { deletedAt: command.occurredAt },
+              conflictMessage: 'Portal changed while the delete was being committed',
+            },
           )
 
           // fallow-ignore-next-line code-duplication

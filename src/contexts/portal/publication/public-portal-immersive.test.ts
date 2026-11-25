@@ -130,7 +130,7 @@ describe('presentImmersivePortal', () => {
     expect(presented?.immersive.links.map((link) => link.imageUrl)).toEqual([null, null])
   })
 
-  it('gives each approved link a zero-padded position as its legacy sort key', () => {
+  it('presents the approved links with their destinations', () => {
     const presented = presentImmersivePortal(
       configuration,
       'en',
@@ -138,7 +138,6 @@ describe('presentImmersivePortal', () => {
       MEDIA,
     )
 
-    expect(presented?.links.map((link) => link.sortKey)).toEqual(['0000', '0001'])
     expect(presented?.links.map((link) => link.url)).toEqual(
       configuration.links.map((link) => link.url),
     )
@@ -151,6 +150,6 @@ describe('presentImmersivePortal', () => {
     const presented = presentImmersivePortal(configuration, 'en', [spa], MEDIA)
 
     expect(presented?.immersive.links.map((link) => link.label)).toEqual(['Spa'])
-    expect(presented?.links.map((link) => link.sortKey)).toEqual(['0000'])
+    expect(presented?.links.map((link) => link.label)).toEqual(['Spa'])
   })
 })

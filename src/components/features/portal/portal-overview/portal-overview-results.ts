@@ -14,7 +14,7 @@ import type {
   PortalResultsMeasures,
   PortalResultsOverview,
   PortalResultsThresholds,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import {
   BELOW_MINIMUM_SAMPLE,
@@ -28,7 +28,7 @@ import {
   totalStripOf,
   type OverviewStrip,
 } from './portal-overview-results-strips'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 
 /** `missing`: no figure (still processing, or cannot be counted). `withheld`: too small to show. */
 export type MeasureTone = 'figure' | 'withheld' | 'missing'

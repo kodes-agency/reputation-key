@@ -2,8 +2,8 @@ import type {
   IdentityAccountAdminAuthorityPublicApi,
   IdentityManagerFactsPublicApi,
   StaffPublicApi,
-} from '#/contexts/identity/application/public-api'
-import type { PortalContactRequestManagerAuthorityPublicApi } from '#/contexts/portal/application/public-api'
+} from '#/contexts/identity/public-api'
+import type { PortalContactRequestManagerAuthorityPublicApi } from '#/contexts/portal/public-api'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import type { GuestSession } from '../domain/guest-session'
 import type { GuestResponseRepository } from '../responses/guest-response.repository.port.server'

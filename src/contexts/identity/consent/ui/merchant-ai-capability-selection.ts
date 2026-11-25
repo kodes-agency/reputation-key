@@ -1,4 +1,4 @@
-import type { CurrentMerchantAiCapability } from '#/contexts/identity/application/public-api'
+import type { CurrentMerchantAiCapability } from '#/contexts/identity/public-api'
 
 /** Keep selection in the order and capability set of the notice on screen. */
 export function toggleAiCapability(

@@ -5,13 +5,11 @@
 // stores, cipher, codec and command store; only the clock is fixed.
 
 import { randomBytes, randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { describe, expect, it } from 'vitest'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildPortalAddressOperations } from '../build-address-operations'
@@ -58,11 +56,6 @@ const { getPool } = setupIntegrationDb({
     'portals',
     'properties',
   ],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 const cipher = createPortalAddressCipher({

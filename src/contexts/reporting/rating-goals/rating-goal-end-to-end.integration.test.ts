@@ -10,18 +10,17 @@
 // One held transaction per test, always rolled back.
 
 import { randomUUID } from 'node:crypto'
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createGoogleRatingReads } from '#/contexts/review/infrastructure/google-rating-reads'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createGoogleRatingReads } from '#/contexts/reputation/reviews/google-rating-reads.server'
 import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import type {
   GoalActor,
   GoalExecutionPolicy,
-} from '../monthly-goals/goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import {
   createArchivedPropertyRatingGoalEnder,
   createRatingGoalEvaluator,
@@ -232,10 +231,6 @@ async function receiptsFor(eventId: string) {
   )
   return receipts.rows
 }
-
-beforeAll(() => {
-  registerAllEventSchemas()
-})
 
 beforeEach(async () => {
   held = await holdTransaction()

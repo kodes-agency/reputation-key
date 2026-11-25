@@ -6,7 +6,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { InboxQueueCounts } from '#/contexts/inbox/application/public-api'
+import type { InboxQueueCounts } from '#/contexts/reputation/public-api'
 import { InboxQueueBar } from './inbox-queue-bar'
 import { InboxQueueRail } from './inbox-queue-rail'
 import type { InboxQueueViewer } from './inbox-queue-sections'

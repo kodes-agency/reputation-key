@@ -4,20 +4,20 @@
 // Anthropic adapter is slice 3.6; the preparer must not care which one it is.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
-import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { analysisRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract.test-fixtures'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway/ai-gateway-transport-contract'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation/ai-operation-profiles'
 import { LANGUAGE_CATALOGUE_DIGEST } from '#/shared/ai-review-language-catalogue'
 import {
   defineOperationProviderPairing,
   providerRequestProfileOf,
-} from '#/shared/ai-provider-attestations'
+} from '#/shared/ai-provider-profile/ai-provider-attestations'
 import {
   maximumCostMicrosWith,
   type AiProviderPriceCatalogue,
-} from '#/shared/ai-provider-pricing'
-import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
+} from '#/shared/ai-provider-profile/ai-provider-pricing'
+import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-provider-profile/ai-openai-provider-profile'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,

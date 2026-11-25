@@ -206,10 +206,6 @@ function zeroHealthSignals(): HealthSignalValues {
     outbox: {
       unpublishedCount: 0,
       oldestUnpublishedAgeMs: null,
-      expiredLeaseCount: 0,
-      claimedCount: 0,
-      oldestClaimedAgeMs: null,
-      stalledLeaseCount: 0,
     },
     quarantine: null,
     reviews: {
@@ -254,10 +250,8 @@ function zeroHealthSignals(): HealthSignalValues {
       materializationPending: 0,
       oldestSourceRecordedAt: null,
       oldestSourceAgeMs: null,
-      oldestMaterializationSourceRecordedAt: null,
-      oldestMaterializationSourceAgeMs: null,
-      oldestMaterializationEnqueuedAt: null,
-      oldestMaterializationEnqueuedAgeMs: null,
+      oldestMaterializationSourceAgeMs: 0,
+      oldestMaterializationEnqueuedAgeMs: 0,
       sourceSaturated: false,
       materializationSaturated: false,
       immediateEmailAcceptance: {

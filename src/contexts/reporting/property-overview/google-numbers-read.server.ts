@@ -7,7 +7,7 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { googleNumbersView, type GoogleNumbersView } from '../domain/google-numbers'
 import type { RatingGoalPropertyFactsReader } from '../rating-goals/property-rating-goal-repository.port.server'
-import type { MetricPublicApi } from '../application/public-api'
+import type { MetricPublicApi } from '../public-api'
 
 export type GoogleNumbersReadDeps = Readonly<{
   properties: RatingGoalPropertyFactsReader

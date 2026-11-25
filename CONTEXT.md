@@ -4,7 +4,7 @@
 
 ## Architecture
 
-Layered hexagonal (clean architecture). Ten active bounded-context packages live
+Layered hexagonal (clean architecture). Nine active bounded-context packages live
 in `src/contexts/`; Team, Badge, and Leaderboard survive only as quarantined
 historical data rather than active context packages. Shared infrastructure is in
 `src/shared/`, with the React frontend in `src/components/` and `src/routes/`.
@@ -33,21 +33,20 @@ the presence of a route, table, or retained legacy module.
 
 ## Bounded contexts
 
-|     | Context     | Responsibility                                                                                         | Key Entities                                        |
-| --- | ----------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
-|     | Identity    | Users, organizations, members, invitations, Property access, and Staff participation/attribution       | User, Member, StaffParticipant, StaffParticipation  |
-|     | Property    | Properties (hotels/restaurants) owned by organizations                                                 | Property                                            |
-|     | Portal      | Review gateway first, secondary link tree, lifecycle, groups, and manager responsibility               | Portal, Link, LinkCategory, PortalGroup             |
-|     | Guest       | Private Guest Responses and direct Google actions, optional feedback/contact, and destination actions  | GuestResponse, Rating, Feedback                     |
-|     | Team        | Quarantined historical Team data and reconciliation; no beta surface                                   | Team, TeamMembership                                |
-|     | Integration | Organization-owned Google authority, import, discovery, notifications, and provider I/O                | GoogleConnection, GoogleImportSaga                  |
-|     | Review      | Stable Reviews, source observations/lifecycle, and RepKey-owned Reply workflow                         | Review, ReviewSourceObservation, Reply              |
-|     | AI          | Governed review analysis, Guest voice, and reply drafting                                              | AiOperation, AiReviewAnalysis                       |
-|     | Inbox       | Stable Inbox Items with numbered Handling Cycles for Google and private feedback work                  | InboxItem, HandlingCycle, InboxNote                 |
-|     | Reporting   | Governed metrics, monthly Goal Programs, Property Google rating goals, and dashboard read models       | MetricReading, GoalProgram, GoalMonthlyResult       |
-|     | Badge       | Inert legacy recognition inventory; no beta product behavior                                           | Historical BadgeAward envelope                      |
-|     | Leaderboard | Legacy ranking data retained for controlled contraction; not a beta product authority                  | LeaderboardEntry, LeaderboardSnapshot               |
-|     | Feed        | Restricted Operational Action History, retained Recent Activity records, and user-facing notifications | RecentActivityEntry, OperationalActionHistoryRecord |
+|     | Context     | Responsibility                                                                                                            | Key Entities                                                                |
+| --- | ----------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+|     | Identity    | Users, organizations, members, invitations, Property access, and Staff participation/attribution                          | User, Member, StaffParticipant, StaffParticipation                          |
+|     | Property    | Properties (hotels/restaurants) owned by organizations                                                                    | Property                                                                    |
+|     | Portal      | Review gateway first, secondary link tree, lifecycle, groups, and manager responsibility                                  | Portal, Link, LinkCategory, PortalGroup                                     |
+|     | Guest       | Private Guest Responses and direct Google actions, optional feedback/contact, and destination actions                     | GuestResponse, Rating, Feedback                                             |
+|     | Team        | Quarantined historical Team data and reconciliation; no beta surface                                                      | Team, TeamMembership                                                        |
+|     | Integration | Organization-owned Google authority, import, discovery, notifications, and provider I/O                                   | GoogleConnection, GoogleImportSaga                                          |
+|     | Reputation  | Stable Reviews, source observations/lifecycle, RepKey-owned Reply workflow, and Inbox Items with numbered Handling Cycles | Review, ReviewSourceObservation, Reply, InboxItem, HandlingCycle, InboxNote |
+|     | AI          | Governed review analysis, Guest voice, and reply drafting                                                                 | AiOperation, AiReviewAnalysis                                               |
+|     | Reporting   | Governed metrics, monthly Goal Programs, Property Google rating goals, and dashboard read models                          | MetricReading, GoalProgram, GoalMonthlyResult                               |
+|     | Badge       | Inert legacy recognition inventory; no beta product behavior                                                              | Historical BadgeAward envelope                                              |
+|     | Leaderboard | Legacy ranking data retained for controlled contraction; not a beta product authority                                     | LeaderboardEntry, LeaderboardSnapshot                                       |
+|     | Feed        | Restricted Operational Action History, retained Recent Activity records, and user-facing notifications                    | RecentActivityEntry, OperationalActionHistoryRecord                         |
 
 ## Glossary
 
@@ -135,20 +134,20 @@ unavailable state and must not load or calculate this model.
 
 | Term                   | Definition                                                                                                                                                                                                                                                                                                                                               |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Review**             | Stable RepKey identity for an external review. Provider observations and erasable source content have separate lifecycles; RepKey replies and handling history reference the stable Review. Lives in the `review` context.                                                                                                                               |
+| **Review**             | Stable RepKey identity for an external review. Provider observations and erasable source content have separate lifecycles; RepKey replies and handling history reference the stable Review. Lives in the `reputation` context.                                                                                                                           |
 | **Rating**             | A private 1–5 star rating submitted by a portal visitor. Lives in the `guest` context.                                                                                                                                                                                                                                                                   |
 | **Feedback**           | A private text comment submitted by a portal visitor. Lives in the `guest` context.                                                                                                                                                                                                                                                                      |
-| **GoogleConnection**   | An OAuth connection to a Google account. Stores encrypted tokens, scopes, visibility. Lives in the `integration` context.                                                                                                                                                                                                                                |
+| **GoogleConnection**   | An OAuth connection to a Google account. Stores encrypted tokens and scopes; always Organization-owned. Lives in the `integration` context.                                                                                                                                                                                                              |
 | **ReviewPlatform**     | The external source of a review (`'google'`). Extensible for future platforms.                                                                                                                                                                                                                                                                           |
 | **Review Sync**        | Process of observing Google review state. Pub/Sub notification is preferred, while bounded checkpoint polling and manual sync remain required repair and freshness paths.                                                                                                                                                                                |
 | **GBP Notification**   | GCP Pub/Sub push from Google when a review is created or updated. Subscribed per-account on first property import, unsubscribed on last property removal or disconnect.                                                                                                                                                                                  |
 | **Reply**              | A response to a review. Separate entity from Review. Has `source`: `google_sync` (mirrored from GBP) or `internal` (manager-authored with draft/approve/reject lifecycle). Internal replies follow: `draft` → `pending_approval` → `approved` → `published` (or `publish_failed`). Only PM+ roles can manage replies; Member cannot view or manage them. |
-| **Inbox Item**         | A unified triage entry pointing to a Review or Feedback. Carries denormalized filter/sort fields and inbox state (status, assignment). Lives in the `inbox` context.                                                                                                                                                                                     |
+| **Inbox Item**         | A unified triage entry pointing to a Review or Feedback. Carries denormalized filter/sort fields and inbox state (status, assignment). Lives in the `reputation` context.                                                                                                                                                                                |
 | **Inbox Status**       | The triage state of an inbox item: `open` or `closed` only. Assignment, escalation, priority and personal seen state are independent axes (ADR 0055, superseding the five-state graph of ADR 0004; priority, ADR 0071).                                                                                                                                  |
 | **Inbox Priority**     | The level a manager set on an Inbox Item: Urgent, High, Medium or Low, with who and when (`manager_priority`, ADR 0071). Human-owned: only a signed-in manager's command sets it. Not `notifications.priority` (urgent or normal delivery) and not ADR 0046's "Priority stays normal".                                                                   |
 | **Suggested priority** | The AI review analysis' current attention level for a Review, shown as "Suggested" while no Inbox Priority is set. Read live from the AI context and never stored by Inbox; the effective level is the Inbox Priority, else the suggestion, else "Not set".                                                                                              |
 | **Handling Cycle**     | A numbered unit of work on an Inbox Item, anchored to exactly one source revision. A material revision or the loss of a live provider reply opens a new cycle and preserves the previous one (ADR 0055).                                                                                                                                                 |
-| **Internal Note**      | A text annotation on an inbox item. Multiple per item, tracks author and timestamp. Lives in `inbox` context.                                                                                                                                                                                                                                            |
+| **Internal Note**      | A text annotation on an inbox item. Multiple per item, tracks author and timestamp. Lives in the `reputation` context.                                                                                                                                                                                                                                   |
 | **Response Target**    | The organization's target maximum elapsed time between a review being published on Google and a reply being published. Default 2,880 minutes (48 h), configurable 1–43,200. Explicitly **not** an SLA: `Overdue` is derived and never mutates status or escalation.                                                                                      |
 
 ## Permission Patterns
@@ -164,11 +163,11 @@ unavailable state and must not load or calculate this model.
 Capabilities are a separate axis — "is this feature on for this org/property?"
 rather than "may this role do it?" (ADR 0049). Never merge them into `can()`.
 
-| API                              | When                                                      | Import                                |
-| -------------------------------- | --------------------------------------------------------- | ------------------------------------- |
-| `assertBetaCapability(ctx, cap)` | Server functions and use cases, before any effect         | `#/shared/auth/beta-capabilities`     |
-| `gateControlledRoute({ data })`  | Route `beforeLoad` — answers in the app shell, as a 404   | `#/shared/auth/controlled-route-gate` |
-| `useCapabilities().has(cap)`     | React components — hide/disable dead-end affordances only | `#/shared/hooks/useCapabilities`      |
+| API                             | When                                                      | Import                                |
+| ------------------------------- | --------------------------------------------------------- | ------------------------------------- |
+| `requireExecutionAllowed(...)`  | Server functions and use cases, before any effect         | `#/shared/auth/execution-policy`      |
+| `gateControlledRoute({ data })` | Route `beforeLoad` — answers in the app shell, as a 404   | `#/shared/auth/controlled-route-gate` |
+| `useCapabilities().has(cap)`    | React components — hide/disable dead-end affordances only | `#/shared/hooks/useCapabilities`      |
 
 ### Forbidden patterns
 

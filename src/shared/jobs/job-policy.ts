@@ -15,7 +15,7 @@
 // via jobTimeoutMs, not by Redis.
 
 import type { JobsOptions, Queue } from 'bullmq'
-import { EVENT_TYPES } from '#/shared/events/consumer-definitions'
+import { EVENT_TYPES } from '#/shared/events/registry.server'
 import { JOB_DEFINITIONS, type JobDefinition } from './job-definitions'
 
 /**
@@ -48,7 +48,7 @@ export function isDomainRedriveOnlyJob(jobName: string): boolean {
  * relies on this for its no-redaction proof.
  */
 export function isCatalogueKnownWork(name: string): boolean {
-  return JOB_DEFINITIONS.some((def) => def.name === name) || EVENT_TYPES.includes(name)
+  return JOB_DEFINITIONS.some((def) => def.name === name) || EVENT_TYPES.has(name)
 }
 
 /**

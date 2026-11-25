@@ -3,13 +3,12 @@
 // the file-length limit; every entry shares the same dependencies. A Portal's
 // own look (ADR 0070) is composed here too, with its repository.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import {
   getPropertyPortalExperience,
   savePortalLocalizedOverride,
   savePropertyDefaultGuestLocales,
   savePropertyPortalBrandContent,
-  savePropertyPortalBrandProfile,
   savePropertyPublicDisplayName,
 } from './editor/manage-portal-experience.server'
 import {
@@ -37,7 +36,6 @@ type ExperienceDeps = Readonly<{
 
 export const buildExperienceUseCases = (deps: ExperienceDeps) => ({
   getPropertyPortalExperience: getPropertyPortalExperience(deps),
-  savePropertyPortalBrandProfile: savePropertyPortalBrandProfile(deps),
   savePropertyLook: savePropertyLook(deps),
   savePropertyHero: savePropertyHero(deps),
   savePropertyLogo: savePropertyLogo(deps),

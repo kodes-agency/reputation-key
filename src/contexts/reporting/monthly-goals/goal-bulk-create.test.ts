@@ -100,6 +100,8 @@ function setup(instants: readonly Date[] = [MID_MARCH]) {
     },
     policy: { authorize: vi.fn(async () => undefined) },
     subjects: {
+      ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
+      staffTargetProblem: vi.fn(async () => null),
       getTimezone: vi.fn(async (): Promise<string | null> => 'UTC'),
       subjectBelongsToProperty: vi.fn(async () => true),
     },
@@ -381,8 +383,9 @@ describe('createGoalsForSubjects', () => {
         }),
       ])
     }
-    // One reading resolves the month; one more per row checks it is still on.
-    expect(fakes.now).toHaveBeenCalledTimes(4)
+    // One reading resolves the month; one more per row checks it is still on,
+    // and a rating measure reads it once more per row for the private-rating check.
+    expect(fakes.now).toHaveBeenCalledTimes(7)
   })
 
   it('goals set for next month all wait for it', async () => {
@@ -461,8 +464,9 @@ describe('createGoalsForSubjects', () => {
       { subject: spa, code: 'start_month_changed' },
     ])
     expect(saved).toHaveLength(1)
-    // Nothing is read for a row once the month is over, not even the clock.
-    expect(fakes.now).toHaveBeenCalledTimes(3)
+    // Nothing is read for a row once the month is over, not even the clock: the
+    // saved row's private-rating check is the one read beyond the month's own.
+    expect(fakes.now).toHaveBeenCalledTimes(4)
     expect(fakes.subjectNames.getSubjectName).toHaveBeenCalledTimes(1)
   })
 

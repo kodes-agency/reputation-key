@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import type { ImportDiscoveryAuthorization } from './durable-import-reference-store.port.server'
 
 export type DurableImportReferenceAudience =
@@ -10,7 +10,7 @@ export type DurableImportInvalidationScope = Readonly<{
 }>
 
 /** Stored in `key_version` for server-issued random identifiers. */
-const SERVER_ID_VERSION = 'server'
+export const SERVER_ID_VERSION = 'server'
 const SERVER_ID = /^[A-Za-z0-9_-]{43}$/u
 
 const scope = (
@@ -43,43 +43,20 @@ export const invalidationScopeFor = (
   parts: readonly string[],
 ): DurableImportInvalidationScope => scope(kind, parts)
 
-export const createDurableImportReferenceKeys = (input: {
-  random?: (bytes: number) => Buffer
-}) => {
-  const random = input.random ?? randomBytes
-  // The browser holds the random identifier itself; the row is bound to the
-  // organization, user and connection, and every redemption re-checks them.
-  const recordKey = (
-    _audience: DurableImportReferenceAudience,
-    handle: string,
-  ): string | null => (SERVER_ID.test(handle) ? handle : null)
-  const issue = (
-    audience: DurableImportReferenceAudience,
-  ): Readonly<{ handle: string; key: string; keyVersion: string }> | null => {
-    const bytes = random(32)
-    if (!Buffer.isBuffer(bytes) || bytes.byteLength !== 32) return null
-    const handle = bytes.toString('base64url')
-    const key = recordKey(audience, handle)
-    return key ? { handle, key, keyVersion: SERVER_ID_VERSION } : null
-  }
-  const invalidationKeys = (target: DurableImportInvalidationScope) => [
-    {
-      key: createHash('sha256')
-        .update(`google-import-reference-invalidation:${target.kind}\0${target.value}`)
-        .digest('base64url'),
-      keyVersion: SERVER_ID_VERSION,
-      scopeKind: target.kind,
-    },
-  ]
+export const isHandle = (handle: string): boolean => SERVER_ID.test(handle)
 
-  return Object.freeze({
-    issue,
-    recordKey,
-    invalidationKeys,
-    keyVersion: SERVER_ID_VERSION,
-  })
+/**
+ * The browser holds the random identifier itself; the row is bound to the
+ * organization, user and connection, and every redemption re-checks them.
+ */
+export const newHandle = (random: (bytes: number) => Buffer): string | null => {
+  const bytes = random(32)
+  return Buffer.isBuffer(bytes) && bytes.byteLength === 32
+    ? bytes.toString('base64url')
+    : null
 }
 
-export type DurableImportReferenceKeys = ReturnType<
-  typeof createDurableImportReferenceKeys
->
+export const invalidationDigest = (target: DurableImportInvalidationScope): string =>
+  createHash('sha256')
+    .update(`google-import-reference-invalidation:${target.kind}\0${target.value}`)
+    .digest('base64url')

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { ReviewPolarityV3, ReviewStrengthV3 } from '#/shared/review-analysis-v3'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import type {
+  ReviewPolarityV3,
+  ReviewStrengthV3,
+} from '#/shared/analysis/review-analysis-v3'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import { assembleGuestVoiceV2, type GuestVoiceBuildInput } from './guest-voice-v2-build'
 import type {
   GuestVoiceIssueGroup,

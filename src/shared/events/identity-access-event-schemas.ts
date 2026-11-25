@@ -1,5 +1,5 @@
 // Identity membership-access event schemas, registered by
-// ./schema-registrations.ts.
+// ./registry.server.ts.
 //
 // Who joined through whose invitation, and which Properties an AccountAdmin
 // granted or revoked for a PropertyManager. Identifiers only (ADR 0030): Feed

@@ -1,13 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-registry'
+import { describe, expect, it } from 'vitest'
+import { validateEventPayload } from '#/shared/events/schema-registry'
 
 describe('stored metric.recorded facts', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   const payload = {
     readingId: 'reading-1',
     organizationId: 'organization-1',

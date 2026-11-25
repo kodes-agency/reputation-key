@@ -15,7 +15,7 @@ import {
   getMerchantAiAuthorizationFn,
   listMerchantAiOverviewFn,
 } from '#/contexts/identity/server/merchant-ai'
-import { listMembers } from '#/contexts/identity/server/organizations'
+import { listMembers } from '#/contexts/identity/server/organizations.query'
 import { listProperties, updateProperty } from '#/contexts/property/server/properties'
 import {
   listPropertyResponsibleManagers,
@@ -34,7 +34,7 @@ import { getPropertySetupFn } from '#/contexts/reporting/server/property-setup'
 import {
   getReplyLibraryFn,
   saveReplyVoiceFn,
-} from '#/contexts/review/server/reply-library'
+} from '#/contexts/reputation/server/reply-library'
 
 export const importFns: GoogleImportFns = {
   getGoogleAuthUrl,

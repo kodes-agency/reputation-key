@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import * as replyRules from '#/contexts/review/application/public-api'
+import * as replyRules from '#/contexts/reputation/replies/contracts'
 import {
   GOOGLE_REPLY_COMMENT_MAX_BYTES,
   replyCommentByteLength,
@@ -41,15 +41,15 @@ export { assistTargetFor, draftInLanguage } from './reply-composer-transitions'
  * only for the two assist actions: the template library is filtered by the
  * target's `templateGroup` (`reply-template-operations.ts:137`) and a loaded
  * template stamps `replyLanguageTag` on the draft (`:304`); an accepted AI
- * draft stamps the same tag (`ai-suggested-draft-store.ts:360`); a hand-typed
- * reply only records it (`reply-operations.ts:325`) and nothing reads it at
+ * draft stamps the same tag (`ai-suggested-draft-store.server.ts:360`); a hand-typed
+ * reply only records it (`reply-operations.server.ts:325`) and nothing reads it at
  * publish.
  *
  * The CLIENT does read it for a hand-typed reply, though, and the PR 4 review
  * was right that the plan missed it: while the selection is automatic
  * detection the draft is never autosaved and never submitted (`canSubmit`,
  * `flushOnBlur`, `updateDraft` below — an unresolved draft must not persist a
- * stale tag, which `reply-operations.ts:325` would keep). So the choice is
+ * stale tag, which `reply-operations.server.ts:325` would keep). So the choice is
  * shown, not only held: `Draft with AI ▾` (`Write in`) and `Template ▾` (its
  * switch) both take this value, and Submit carries
  * `unresolvedLanguageSubmitReason` while detection is pending.

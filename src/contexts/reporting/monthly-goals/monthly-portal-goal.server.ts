@@ -38,13 +38,13 @@ import type {
 } from '../application/ports/goal-program.repository'
 import type { PortalGoalPromptDeferralStore } from './portal-goal-prompt-deferrals-repository.port.server'
 import type { GoalMonthTargetChangeResult } from './goal-month-target.server'
+import { type GoalProgramService } from './goal-programs.server'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
-  type GoalProgramService,
   type GoalProgramSubjectReader,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import {
   gatherPortalGoalFacts,
   gatherPortalGoalRecommendation,
@@ -84,8 +84,7 @@ async function assertPrivateRatingsAvailable(
   const candidates = published.length > 0 ? published : listed.portals
   const skipped =
     subject.kind === 'property'
-      ? !listed.truncated &&
-        candidates.length > 0 &&
+      ? candidates.length > 0 &&
         candidates.every((portal) => portal.skipPrivateRating === true)
       : ratingSubjectSkipsPrivateRating(listed.portals, subject)
   if (skipped) throw new GoalProgramError('private_ratings_skipped')
@@ -149,15 +148,6 @@ export async function setMonthlyPortalGoal(
     actor,
   )
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type MonthlyPortalGoalSetRequestApi = Readonly<{
-  set: (
-    policy: GoalExecutionPolicy,
-    input: SetMonthlyPortalGoalRequest,
-    actor: GoalActor,
-  ) => Promise<GoalProgramBundle>
-}>
 
 export type MonthlyPortalGoalChangeDeps = Readonly<{
   policy: GoalExecutionPolicy
@@ -452,30 +442,6 @@ export async function keepMonthlyPortalGoal(
   return { month: input.month }
 }
 
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type MonthlyPortalGoalChangeRequestApi = Readonly<{
-  changeNow: (
-    policy: GoalExecutionPolicy,
-    input: ChangeMonthlyPortalGoalNowRequest,
-    actor: GoalActor,
-  ) => Promise<GoalMonthTargetChangeResult>
-  revise: (
-    policy: GoalExecutionPolicy,
-    input: ReviseMonthlyPortalGoalRequest,
-    actor: GoalActor,
-  ) => Promise<GoalProgramBundle>
-  stop: (
-    policy: GoalExecutionPolicy,
-    input: StopMonthlyPortalGoalRequest,
-    actor: GoalActor,
-  ) => Promise<GoalProgram>
-  keep: (
-    policy: GoalExecutionPolicy,
-    input: KeepMonthlyPortalGoalRequest,
-    actor: GoalActor,
-  ) => Promise<Readonly<{ month: string }>>
-}>
-
 export type MonthlyPortalGoalPromptDeps = Readonly<{
   policy: GoalExecutionPolicy
   /** The Property's time zone, whose months the prompt names. */
@@ -518,12 +484,3 @@ export async function deferMonthlyPortalGoalPrompt(
   })
   return { month }
 }
-
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type MonthlyPortalGoalPromptRequestApi = Readonly<{
-  defer: (
-    policy: GoalExecutionPolicy,
-    input: DeferMonthlyPortalGoalPromptRequest,
-    actor: GoalActor,
-  ) => Promise<Readonly<{ month: string }>>
-}>

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { PortalRatingFact } from '#/contexts/portal/application/public-api'
+import type { PortalRatingFact } from '#/contexts/portal/public-api'
 import { findPortalRatingGoalBlock } from './running-portal-rating-goal.server'
 import { propertyGoal } from './monthly-portal-goal.test-fixtures'
 

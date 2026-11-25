@@ -6,7 +6,7 @@ import type { Action } from '#/components/hooks/use-action'
 import type {
   GoogleAuthUrlInput,
   GoogleConnectionDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { IntegrationsSettingsPage } from './integrations-settings-page'
 
 type AuthorizeInput = Readonly<{ data: GoogleAuthUrlInput }>
@@ -33,7 +33,6 @@ function connection(status: GoogleConnectionDto['status']): GoogleConnectionDto 
     accountEmail: null,
     scopes: [],
     connectedBy: 'user-1',
-    visibility: 'organization',
     status,
     createdAt: new Date('2026-08-27T00:00:00Z'),
     updatedAt: new Date('2026-08-27T00:00:00Z'),

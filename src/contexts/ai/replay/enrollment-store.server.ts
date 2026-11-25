@@ -4,7 +4,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiReviewAnalysisEnrollments, eventConsumerReceipts } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import type {
   AiAuthorizationLifecycleApplyResult,
   AiAuthorizationLifecycleTrigger,
@@ -22,6 +22,7 @@ import {
 } from './enrollment-candidates.server'
 import { lockPropertyForAuthorizationChange } from '../analysis/review-analysis-property-fence.server'
 import { planReplaySnapshot } from './snapshot'
+import { rowValues } from './row-values.server'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
@@ -29,24 +30,12 @@ type Row = Readonly<Record<string, unknown>>
 const CONSUMER_NAME = 'ai.enroll-review-analysis'
 const BACKFILL_EVENT = 'ai.review_analysis.backfill_requested'
 
-function safeInteger(value: unknown, field: string, minimum = 0): number {
-  const parsed = typeof value === 'string' ? Number(value) : value
-  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed) || parsed < minimum) {
-    throw new Error(`Review Analysis enrollment read an invalid ${field}`)
-  }
-  return parsed
-}
+const { safeInteger, epochMillis } = rowValues(
+  (field) => `Review Analysis enrollment read an invalid ${field}`,
+)
 
 function nullableInteger(value: unknown, field: string): number | null {
   return value === null || value === undefined ? null : safeInteger(value, field)
-}
-
-function epochMillis(value: unknown, field: string): number {
-  const result = value instanceof Date ? value.getTime() : Date.parse(String(value))
-  if (!Number.isSafeInteger(result)) {
-    throw new Error(`Review Analysis enrollment read an invalid ${field}`)
-  }
-  return result
 }
 
 function nullableEpochMillis(value: unknown, field: string): number | null {

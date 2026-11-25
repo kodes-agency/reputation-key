@@ -24,7 +24,7 @@ function contract(
   return {
     jobName: FAMILY,
     owner: 'review',
-    processor: 'src/contexts/review/infrastructure/jobs/sync-property-reviews.job.ts',
+    processor: 'src/contexts/reputation/sync/sync-property-reviews-job.server.ts',
     action: 'system:review.sync',
     capability: 'property.connect_gbp',
     queue: 'default',
@@ -426,18 +426,6 @@ describe('acknowledging a failed family once its cause is fixed', () => {
       })
 
       expect((await acknowledger.assess(FAMILY)).outcome).toBe('nothing_to_acknowledge')
-    })
-
-    it('has nothing to acknowledge for a dark family, whose readiness never reads the latch', async () => {
-      const { acknowledger, failOnDemand } = await setup({
-        contracts: [contract({ posture: 'dark' })],
-      })
-      await failOnDemand(FAILED)
-
-      expect(await acknowledger.assess(FAMILY)).toMatchObject({
-        outcome: 'nothing_to_acknowledge',
-        family: { posture: 'dark' },
-      })
     })
 
     // A failed firing is answered by a later success, never by an operator:

@@ -1,5 +1,5 @@
-import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
-import type { TargetedGoogleReviewReferenceResolver } from '#/contexts/review/application/ports/targeted-google-review-reference.port'
+import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
+import type { TargetedGoogleReviewReferenceResolver } from '#/contexts/reputation/public-api'
 import type { GoogleReviewPushReferenceStore } from './google-review-push-reference-store.port.server'
 
 type CurrentGoogleBinding = Readonly<{

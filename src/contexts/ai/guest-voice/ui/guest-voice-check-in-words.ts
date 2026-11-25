@@ -6,7 +6,7 @@ import type {
   RatingTrendPeriod,
   ReviewTopicV3,
 } from '../contracts'
-import { formatNumber, formatLocalDate } from '#/lib/format'
+import { formatNumber, formatLocalDate } from '#/shared/format/format'
 import { monthLabel, reviewsPhrase, windowDates } from './guest-voice-words'
 
 export const FRIENDLY_TOPICS: Readonly<Record<ReviewTopicV3, string>> = {

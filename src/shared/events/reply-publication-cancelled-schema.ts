@@ -1,5 +1,5 @@
 // The reply publication cancellation fact's schema, registered by
-// ./schema-registrations.ts.
+// ./registry.server.ts.
 //
 // BQC-3.8: identifier-only (reply/review/property/org + cause). No reply text,
 // no actor content. `authorId` is the one person who was told the reply was
@@ -10,7 +10,7 @@
 // (`ReviewReplyPublicationCancelled`) and Feed's notice copy share. Review
 // records the first four when it stops a cycle; `source_changed` also when a
 // guest edit returns to draft a reply that was awaiting approval, or one whose
-// publication had failed (review/infrastructure/review-command-store.ts).
+// publication had failed (reputation/reviews/review-command-store.server.ts).
 // `ai_draft_withdrawn` is recorded by the AI draft purge
 // (src/shared/db/ai/ai-draft-purge.ts), which runs inside other contexts'
 // transactions: this schema is what checks the fact it builds. Review's
@@ -19,7 +19,7 @@
 
 import { z } from 'zod/v4'
 
-/** A PostgreSQL uuid as the outbox carries it; shared with ./schema-registrations.ts. */
+/** A PostgreSQL uuid as the outbox carries it; shared with ./registry.server.ts. */
 export const databaseUuidSchema = z
   .string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)

@@ -1,5 +1,5 @@
 // The app stylesheet loads no third-party font, so a route can choose its own
-// font set (src/shared/font-sets.ts) and no page makes a request to a font host;
+// font set (src/shared/fonts/font-sets.ts) and no page makes a request to a font host;
 // each web font in the theme stacks is followed by its size-adjusted fallback
 // face, so text does not jump when the font arrives.
 import { readFileSync } from 'node:fs'

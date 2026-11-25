@@ -1,7 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import type { PortalWorkflowFactCommand } from './complete-content-review.server'
 import { isPortalError } from '../domain/errors'
@@ -31,13 +29,13 @@ function makeHarness(options: HarnessOptions = {}) {
   const order: string[] = []
   const outboxRows: Array<Record<string, unknown>> = []
   const tx = {
-    execute: vi.fn(async () => {
-      order.push('tx.portal-lock')
-      return { rows: [{ publicationState }] }
-    }),
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
+          for: vi.fn(async () => {
+            order.push('tx.portal-lock')
+            return [{ publicationState }]
+          }),
           limit: vi.fn(async () => {
             order.push('tx.check')
             return alreadyRecorded ? [{ id: 'existing' }] : []
@@ -79,11 +77,6 @@ function makeHarness(options: HarnessOptions = {}) {
   } as unknown as Database
   return { db, order, outboxRows, tx }
 }
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
 
 describe('Portal workflow fact store', () => {
   it('atomically marks the review and records the content review fact alone', async () => {

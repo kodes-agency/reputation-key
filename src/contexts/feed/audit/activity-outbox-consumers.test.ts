@@ -1,12 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createConsumerRegistry,
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { operationalActionHistoryRecordId } from '../domain/operational-action-history'
 import type { ConsumerEvent } from '#/shared/outbox'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   ACTIVITY_OPERATIONAL_ACTION_HISTORY_CONSUMER,
   handleOperationalActionHistoryFact,
@@ -49,14 +47,8 @@ const dependencies = () => {
   }
 }
 
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
 afterEach(() => {
   consumerRegistry = createConsumerRegistry()
-  clearEventSchemas()
   vi.clearAllMocks()
 })
 

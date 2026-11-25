@@ -1,27 +1,26 @@
+import { reviewOpeningAnchor } from '#/contexts/reputation/inbox/review-opening-anchor.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Pool, PoolClient } from 'pg'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { reviewSourceTransitioned } from '#/contexts/review/domain/events'
+import { reviewSourceTransitioned } from '#/contexts/reputation/domain/review-events'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import { handleInboxReviewSourceTransitioned } from '#/contexts/reputation/inbox/outbox-consumers.server'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
-import type { ReplyObservationAuthorityPort } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
+import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
+import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
+import type { ReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -59,7 +58,7 @@ const propertyLookup = {
 
 const obsoleteReplyAuthority = {
   withExactCurrent: async () => ({ status: 'obsolete' as const }),
-} satisfies ReplyObservationAuthorityPort
+} satisfies ReviewReplyObservationAuthority
 
 const item = (): InboxItem => ({
   id: ITEM,
@@ -104,13 +103,10 @@ async function cleanFixtureRows(): Promise<void> {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 4)
   pool = lease.pool
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
   await cleanFixtureRows()
-  clearEventSchemas()
   await lease.release()
 })
 
@@ -165,7 +161,7 @@ describe.sequential('Review source transition -> Inbox exact-current boundary', 
       allowAllCommandAuthority,
       () => TRANSITIONED_AT,
     )
-    await commandStore.createItem(item(), null, { materialReviewRevision: 1 })
+    await commandStore.createItem(item(), null, reviewOpeningAnchor(item()))
 
     const source = reviewSourceTransitioned({
       reviewId: REVIEW,
@@ -177,10 +173,7 @@ describe.sequential('Review source transition -> Inbox exact-current boundary', 
       change: 'source_expired',
       occurredAt: TRANSITIONED_AT,
     })
-    await createOutboxRepository(database).insert({
-      ...toOutboxEvent(source),
-      id: source.eventId,
-    })
+    await recordOutboxFact(database, source)
 
     const durable = toOutboxEvent(source)
     const event: ConsumerEvent = {

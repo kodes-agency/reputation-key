@@ -25,11 +25,8 @@ import type { PortalLookSources } from '../domain/portal-look'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalGroupId, PortalId, PropertyId } from '#/shared/domain/ids'
-import { propertyId } from '#/shared/domain/ids'
-import { canForContext } from '#/shared/domain/permissions'
-import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { portalError } from '../domain/errors'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import { listAccessiblePortals } from './list-portals.server'
 import {
   toPortalTokenStatus,
   type PortalTokenStatus,
@@ -112,27 +109,13 @@ export const listPortalOverview =
     input: ListPortalOverviewInput,
     ctx: AuthContext,
   ): Promise<ReadonlyArray<PortalOverviewRow>> => {
-    if (!canForContext(ctx, 'portal.read')) {
-      throw portalError('forbidden', 'No portal read permission')
-    }
-    // D6-001: scope reads to properties in the caller's staff_assignment.
-    // Organization-wide roles bypass (the lookup answers null).
-    const accessible = await getAccessiblePropertyIdsForPermission(
-      (orgId, userId, orgWide) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+    const listed = await listAccessiblePortals(
+      deps,
+      input.scope === 'property' ? { propertyId: input.propertyId } : {},
       ctx,
-      'portal.read',
     )
-    const listed =
-      input.scope === 'property'
-        ? await deps.portalRepo.listByProperty(
-            ctx.organizationId,
-            propertyId(input.propertyId),
-          )
-        : await deps.portalRepo.list(ctx.organizationId)
     const narrowedTo = input.scope === 'organization' ? input.propertyIds : undefined
     const portals = listed
-      .filter((portal) => accessible === null || accessible.includes(portal.propertyId))
       .filter((portal) => !narrowedTo || narrowedTo.includes(portal.propertyId))
       .sort(comparePortalsByName)
     if (portals.length === 0) return []

@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { recordScan } from './record-scan.server'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   portalAccessArtifactId,
@@ -23,11 +21,6 @@ const NOW = new Date('2026-05-01T12:00:00Z')
 const STAFF_EFFECTIVE_FROM = new Date('2026-04-01T00:00:00.000Z')
 const BROWSER = 'Mozilla/5.0 AppleWebKit/537.36 Chrome/140 Safari/537.36'
 const createdOrganizations: string[] = []
-
-beforeAll(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
 
 afterAll(async () => {
   if (createdOrganizations.length > 0) {
@@ -64,7 +57,6 @@ afterAll(async () => {
     await db.execute(sql`DELETE FROM properties WHERE organization_id IN (${list})`)
     await deleteTestOrganizations(db, createdOrganizations)
   }
-  clearEventSchemas()
 })
 
 /** A tenant of its own: a published Portal in a group, reached through a QR artifact. */

@@ -9,7 +9,7 @@
 // is answered read apart.
 // A `note` is a quiet line under the value, for where it came from ("From Google").
 import { createContext, use, type ReactNode } from 'react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 const TERM_WIDTH = {
   default: 'sm:gap-x-4 sm:grid-cols-[8rem_minmax(0,1fr)]',

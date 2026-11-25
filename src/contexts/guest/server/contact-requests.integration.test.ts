@@ -2,6 +2,7 @@
 // PostgreSQL with the real tenant resolution, execution policy and the
 // manager's authority over the Portal.
 
+import { createInMemoryWithdrawalJournal } from '../responses/guest-withdrawal-journal.test-fixtures'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
@@ -139,6 +140,7 @@ async function hotel(portalCreator?: string) {
       keys: { v1: KEY },
       generateIv: () => randomBytes(12),
     }),
+    createInMemoryWithdrawalJournal(),
   )
   const created = await repository.create({
     id: contactRequestId,

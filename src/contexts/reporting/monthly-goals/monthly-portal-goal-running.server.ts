@@ -8,7 +8,7 @@ import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { goalMonthDays, goalPace } from '../domain/goal-pace'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
-import { addLocalDays, localDateOf } from '../domain/local-days'
+import { addLocalDays, localDateOf } from '#/shared/domain/local-days'
 import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalLastMonth,
@@ -30,10 +30,14 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../application/ports/goal-program.repository'
-import type { GoalActor, GoalMetricReadPort } from './goal-programs.server'
+import type {
+  GoalActor,
+  GoalMetricReadPort,
+} from '../application/use-cases/goal-program-shared'
 import { progressOf, readSubjectMonth } from './goal-progress.server'
 import { changeFactsOf, newGoalFromOf } from './monthly-portal-goal-change-facts.server'
 import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in.server'
+import { currentAssignments } from './subject-assignments.server'
 
 export type MonthlyPortalGoalOnCardDeps = Readonly<{
   /** The governed read of a month so far. */
@@ -60,9 +64,10 @@ const FINAL_FIGURE_MARGIN_MS = 60 * 60 * 1_000
  * one Portal or Portal Group a goal was set for.
  */
 export const subjectOf = (bundle: GoalProgramBundle): GoalSubject =>
-  bundle.assignments.find(
-    ({ programVersionId }) => programVersionId === bundle.version.id,
-  )?.subject ?? { kind: 'property', propertyId: bundle.program.propertyId }
+  currentAssignments(bundle).at(0)?.subject ?? {
+    kind: 'property',
+    propertyId: bundle.program.propertyId,
+  }
 
 export const versionOf = (
   bundle: GoalProgramBundle,
@@ -155,13 +160,13 @@ export function monthCountsOf(
  * The card's counts of the running month (`monthCountsOf`). One Portal that
  * brought in all of it is named, but not while the month has nothing in: 0 is
  * no Portal's doing, so it is a row. From 5 Portals the card says how many. A
- * list cut at 100 Portals, or no published Portal, draws none.
+ * month with no published Portal draws none.
  */
 function rowsOf(
   recommendation: PortalGoalRecommendation,
   month: PortalGoalRunningMonth,
 ): PortalGoalRows | null {
-  const counts = recommendation.truncated ? null : monthCountsOf(recommendation, month)
+  const counts = monthCountsOf(recommendation, month)
   if (counts === null || counts.portals.length === 0) return null
   const { portals, elsewhere, total } = counts
   const lines =

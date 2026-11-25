@@ -3,7 +3,7 @@ import { initPermissionTable } from '#/shared/auth/permissions'
 import { setPermissionLookup } from '#/shared/domain/permissions'
 import { finalizeOrgLogoUpload } from './finalize-org-logo-upload.server'
 import { identityAssetPath } from './identity-assets.contracts'
-import { MAX_UPLOAD_BYTES } from './upload-policy.server'
+import { MAX_UPLOAD_BYTES } from './identity-assets.contracts'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -35,7 +35,6 @@ const mockStorage = {
     uploadUrl: 'https://example.com/upload',
     key: 'test',
   }),
-  confirmUpload: async () => {},
   inspectObject: async () => ({ contentType: 'image/png', sizeBytes: 1024 }),
   deleteObject: async () => {},
   listObjects: async () => ({ objects: [], truncated: false }),

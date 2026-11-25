@@ -4,7 +4,7 @@
 // account imported stays until Google's 30-day limit.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor } from 'storybook/test'
-import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionDto } from '#/contexts/integration/public-api'
 import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.open'
 import { GoogleConnectionSettingsRow } from './google-connection-settings-row'
 
@@ -14,7 +14,6 @@ const connection: GoogleConnectionDto = {
   accountEmail: 'owner@harborline.test',
   scopes: [],
   connectedBy: 'user-1',
-  visibility: 'organization',
   status: 'active',
   createdAt: new Date('2026-08-27T00:00:00Z'),
   updatedAt: new Date('2026-08-27T00:00:00Z'),

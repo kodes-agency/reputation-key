@@ -1,4 +1,4 @@
-import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import type { ImportCandidateDto } from '#/contexts/integration/public-api'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { Checkbox } from '#/components/ui/checkbox'
 import {

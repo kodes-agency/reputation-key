@@ -1,10 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Pool } from 'pg'
-import { bulkUpdateInboxStatus } from './bulk-update-inbox-status.server'
-import type { BulkUpdateInboxStatusInput } from '#/contexts/inbox/application/inbox-status-commands'
+import {
+  bulkUpdateInboxStatus,
+  type BulkUpdateInboxStatusInput,
+} from './bulk-update-inbox-status.server'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   inboxItemId,
   organizationId,
@@ -12,15 +13,19 @@ import {
   userId,
   type InboxItemId,
 } from '#/shared/domain/ids'
-import type { InboxItem, InboxStatus, SourceType } from '#/contexts/inbox/domain/types'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type {
+  InboxItem,
+  InboxStatus,
+  SourceType,
+} from '#/contexts/reputation/domain/inbox-types'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
-import { isInboxError } from '#/contexts/inbox/domain/errors'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
+import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import {
   buildFixtureItem,
   createInboxDatabaseStores,
@@ -28,7 +33,8 @@ import {
   fixtureUuid,
   readOutboxFacts,
   seedInboxScope,
-} from '#/contexts/inbox/infrastructure/inbox-database-fixtures'
+} from '#/contexts/reputation/inbox/inbox-database.test-fixtures'
+import { noLentReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.test-fixtures'
 
 const SCOPE = 'bulk-update-inbox-status'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -107,7 +113,7 @@ const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
       }),
     listReviewSources: async () => [],
   }
-  const responseTargetAuthority: ReviewResponseTargetAuthorityPort = {
+  const responseTargetAuthority: ReviewResponseTargetAuthority = {
     withExactCurrent: async () => ({ status: 'obsolete' }),
     withInboxProjection: async () => ({ status: 'obsolete' }),
     withExactCurrentBatch: async (expectations, apply) => ({
@@ -121,6 +127,7 @@ const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
           responseTargetStartAt: PROVIDER_TIME,
           rating: null,
         })),
+        noLentReviewTransaction,
       ),
     }),
   }
@@ -157,8 +164,6 @@ const bulkCommands = (...labels: string[]) =>
   }))
 
 describe.sequential('bulkUpdateInboxStatus', () => {
-  registerAllEventSchemas()
-
   beforeEach(() => dropInboxOrganization(pool, ORG_ID))
 
   afterAll(async () => {

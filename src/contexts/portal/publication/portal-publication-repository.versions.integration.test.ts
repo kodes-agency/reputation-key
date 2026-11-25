@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import {
@@ -513,7 +513,7 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
     await change('portal_links', 'settled', true)
 
     const repo = createPortalPublicationRepository(getDb())
-    const open = await repo.listOpenPendingContentChanges?.(ORG, PROPERTY, PORTAL)
+    const open = await repo.listOpenPendingContentChanges(ORG, PROPERTY, PORTAL)
 
     expect(open).toHaveLength(2)
     // Who made each change comes back with it; a change nobody is recorded for is null.

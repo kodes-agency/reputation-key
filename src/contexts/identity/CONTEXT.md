@@ -36,7 +36,7 @@ folder beside it; routes import the screens from there:
   and its Organization creation and first-AccountAdmin invitation screens
   (`operator/ui/`).
 - `staff/` — staff accounts, invitations and address checks; Staff
-  Participations and their repository, the staff self reader, the assigned-Portal
+  Participations and their read repository, the staff self reader, the assigned-Portal
   lookup, the invitation budget and `people-public-api`; the account roster is in
   `staff/ui/accounts/` and the personal staff home in `staff/ui/home/`.
 - `members/` — member invitations, role changes, removal and Property access
@@ -65,9 +65,6 @@ Server code is `*.server.ts`, and what the browser imports is
 `<name>.contracts.ts`. Server functions stay under `server/`. Only these stay in
 the layer folders:
 
-- `application/public-api.ts`.
-- `application/staff-self-context.ts` (`public-api` re-exports it to a browser
-  screen).
 - `application/ports/organization-export-contributor.port.ts` (foreign export
   contributors implement it).
 - The files operator scripts import: `beta-feedback-issue`,
@@ -154,8 +151,8 @@ Screens take other contexts' server-function signatures as types only.
 `buildIdentityContext` constructs the People surface first, then the remaining
 Identity repositories and request APIs. The composition root publishes the
 Identity context; its `people` surface supplies `StaffPublicApi` facts,
-primary attribution resolution, and participation management. Cross-context code
-imports only `#/contexts/identity/application/public-api`, which exports just
+and primary attribution resolution. Cross-context code
+imports only `#/contexts/identity/public-api`, which exports just
 what other contexts use.
 
 Server functions for Organizations, settings, invitations, registration, policy,
@@ -276,13 +273,13 @@ Property access grants.
 
 `staff-accounts.ts` exposes Property-scoped batch checking, Add, Remove, Rename, Resend, list and colleague settings through execution policy under `staff.accounts` (controlled beta). The session-only self door requires current membership, an active link and active personal participation. It never accepts a person id. Members keep only their own password/profile actions and `staff.self`; no manager function admits them.
 
-Add reserves one operation and stable identifiers under the address lease before creating anything. Add, Remove, Resend and Change email hold a row in `staff_address_leases` for each address while they run, keyed by a hash of the address across Organizations, so a second command on the address waits without holding a database connection. The holder renews the row; a stopped holder's row expires after a minute and the next command takes it over. Each write checks the lease is still held, and every invitation write takes the transaction-scoped invitation email lock that manager invitations take, then rereads the address. One process-wide limit admits four staff commands at a time and queues forty. Each step commits independently and a failed step resumes; completion or cancellation clears email and name in the checkpoint statement. Staff invitation acceptance creates membership and login link in the same transaction on signed-in, registration and recovery paths, with no Property grant. Existing Organization members link directly. Remove first cancels acceptance and ends participation access, then converges on Portal archival and, at the last Property, link closure and Member-only login removal. A manager login survives. Personal responsibilities cannot be replaced through the older participation commands.
+Add reserves one operation and stable identifiers under the address lease before creating anything. Add, Remove, Resend and Change email hold a row in `staff_address_leases` for each address while they run, keyed by a hash of the address across Organizations, so a second command on the address waits without holding a database connection. The holder renews the row; a stopped holder's row expires after a minute and the next command takes it over. Each write checks the lease is still held, and every invitation write takes the transaction-scoped invitation email lock that manager invitations take, then rereads the address. One process-wide limit admits four staff commands at a time and queues forty. Each step commits independently and a failed step resumes; completion or cancellation clears email and name in the checkpoint statement. Staff invitation acceptance creates membership and login link in the same transaction on signed-in, registration and recovery paths, with no Property grant. Existing Organization members link directly. Remove first cancels acceptance and ends participation access, then converges on Portal archival and, at the last Property, link closure and Member-only login removal. A manager login survives.
 
 `staff_onboardings` and `staff_property_settings` belong to Identity's retained `staff` export and purge contribution. The former holds contact data only while unfinished. The latter defaults the colleague list off. `staff_address_leases` holds no contact data and no rows once its commands finish. The notice version and acknowledgement time live on the effective-dated login link.
 
 ### Roster, delivery failures and email correction
 
-Staff is one account roster; there are no standalone profile server functions or forms. Retained participation commands still serve attribution and removal.
+Staff is one account roster; there are no standalone profile server functions or forms. The older participation commands (create, list, archive, replace responsibilities) and their `people` readers were removed as unused; the participation read repository now serves only the assigned-Portal lookup.
 The roster exposes joinedAt, current Group and a delivery failure code while
 email remains gated by staff.invite. Completed onboarding can retain
 invitation_delivery_failed without retaining its contact fields; Resend clears

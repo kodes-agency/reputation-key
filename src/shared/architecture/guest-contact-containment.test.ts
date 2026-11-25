@@ -107,7 +107,7 @@ describe('Contact Request containment', () => {
         .map((file) => join(ROOT, file.path)),
       ...sourceFiles(join(ROOT, 'src/worker')),
       ...sourceFiles(join(ROOT, 'src/shared/jobs')),
-      join(ROOT, 'src/contexts/guest/application/public-api.ts'),
+      join(ROOT, 'src/contexts/guest/public-api.ts'),
       join(ROOT, 'src/bootstrap.ts'),
     ]
 
@@ -173,25 +173,21 @@ describe('Contact Request containment', () => {
     ).rejects.toMatchObject(refused)
   })
 
-  it('keeps the withdrawal and expiry paths open when the launch switch is off', async () => {
+  it('keeps the withdrawal path open when the launch switch is off', async () => {
     await expect(
       withdrawalOpen.withdraw({
         ...SCOPE,
         authority: { signedSession: 'cookie', csrfNonce: 'nonce' },
       }),
     ).rejects.toThrow('repository.withdraw was reached')
-    await expect(withdrawalOpen.purgeExpired({ batchSize: 1 })).rejects.toThrow(
-      'repository.purgeExpired was reached',
-    )
   })
 
   it('keeps contact fields out of facts, notifications, analytics, inbox, AI, and search-owned code', () => {
     const consumers = [
       'src/contexts/feed',
       'src/contexts/ai',
-      'src/contexts/inbox',
       'src/contexts/reporting',
-      'src/contexts/review',
+      'src/contexts/reputation',
       'src/shared/email',
       'src/shared/events',
       'src/shared/observability',

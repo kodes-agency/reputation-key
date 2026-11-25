@@ -1,15 +1,15 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import type { ConcreteReplyLanguageResult } from '#/shared/ai-reply-language-verifier'
-import type { ReplyTone } from '#/shared/ai-reply-template-catalogue'
+import type { ReplyTone } from '#/shared/reply/ai-reply-template-catalogue'
 import type {
   EvaluatedReviewLanguage,
   ReplyTemplateLanguageGroup,
 } from '#/shared/ai-review-language-catalogue'
-import type { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
+import type { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/reply/ai-personalized-reply-profile'
 import type { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
-import type { ReplyDraftingV2Frame } from '#/shared/reply-drafting-v2-frame'
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
-import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
+import type { ReplyDraftingV2Frame } from '#/shared/reply/reply-drafting-v2-frame'
+import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/public-api'
 import type { AiAuthorizationPort } from '../consent/ai-authorization.port.server'
 import type { AiControlPort } from '../application/ports/ai-control.port'
 import type { AiInferencePort } from '../execution/ai-inprocess.port.server'
@@ -30,7 +30,7 @@ export type GenerateReplySuggestionInput = Readonly<{
   intent?: 'explicit' | 'background'
   trigger?: 'draft' | 'try_again' | 'shorter' | 'tone'
   /** Trusted in-process observer, never accepted from request JSON. */
-  onProgress?: import('#/shared/reply-drafting-progress').ReplyDraftingProgressSink
+  onProgress?: import('#/shared/reply/reply-drafting-progress').ReplyDraftingProgressSink
   onIdentity?: (identity: import('./requests.server').DraftingRequestIdentity) => void
   /** Explicitly request the governed local catalogue without AI admission or execution. */
   templateOnly?: boolean

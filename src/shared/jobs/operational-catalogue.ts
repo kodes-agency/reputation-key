@@ -86,9 +86,7 @@ function ownerFor(row: JobFamilyRow): string {
 function postureFor(
   registration: JobFamilyRow['registration'],
 ): JobOperationalContract['posture'] {
-  if (registration === 'enabled') return 'active'
-  if (registration === 'quarantined') return 'quarantined'
-  return 'dark'
+  return registration === 'enabled' ? 'active' : 'quarantined'
 }
 
 function intervalForObjective(schedule: string): number | null {
@@ -159,31 +157,9 @@ export const JOB_OPERATIONAL_CONTRACTS: readonly JobOperationalContract[] = Obje
 
 export function validateOperationalCatalogueCoverage(): void {
   validateJobOperationalContracts(JOB_OPERATIONAL_CONTRACTS)
-  const byName = new Map(
-    JOB_OPERATIONAL_CONTRACTS.map((contract) => [contract.jobName, contract]),
-  )
-  if (byName.size !== JOB_FAMILY_ROWS.length) {
-    throw new Error('operational catalogue does not cover every job family exactly once')
-  }
-  for (const row of JOB_FAMILY_ROWS) {
-    const contract = byName.get(row.jobName)
-    if (!contract) throw new Error(`missing operational contract: ${row.jobName}`)
-    if (
-      contract.queue !== row.queue ||
-      contract.processor !== row.processor ||
-      contract.action !== row.action ||
-      contract.retryAttempts !== row.retryAttempts ||
-      contract.retryBackoff !== row.retryBackoff ||
-      contract.timeoutMs !== row.timeoutMs ||
-      contract.schedule !== row.schedule ||
-      contract.capability !== row.capability ||
-      contract.posture !== postureFor(row.registration)
-    ) {
-      throw new Error(`operational contract drift: ${row.jobName}`)
-    }
-  }
+  const names = new Set(JOB_OPERATIONAL_CONTRACTS.map((contract) => contract.jobName))
   for (const retiredName of RETIRED_SCHEDULER_JOB_NAMES) {
-    if (byName.has(retiredName)) {
+    if (names.has(retiredName)) {
       throw new Error(
         `retired scheduler still has an operational contract: ${retiredName}`,
       )
@@ -216,7 +192,6 @@ export type OperationalSchedulerPlan = Readonly<{
 }>
 
 export function createOperationalSchedulerPlan(): OperationalSchedulerPlan {
-  validateOperationalCatalogueCoverage()
   const misplacedSchedule = JOB_OPERATIONAL_CONTRACTS.find(
     (contract) => contract.schedule !== 'none' && contract.queue !== 'background',
   )

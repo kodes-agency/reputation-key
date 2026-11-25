@@ -4,11 +4,11 @@
 // watched, what guests love and what moved, and which reviews could be quoted for each
 // card. It reads no text and calls no model.
 import type { GuestVoiceWindowContext } from '../../guest-voice/contracts'
-import type { AiTrendPopulationReview } from '#/contexts/review/application/public-api'
+import type { AiTrendPopulationReview } from '#/contexts/reputation/public-api'
 import { buildRatingTrend } from './guest-voice-v2-rating-trend'
 import { groupSeriousConcerns, seriousConcerns } from './guest-voice-v2-concerns'
 import { GUEST_VOICE_STATISTICS_VERSION } from '../../domain/guest-voice-statistics'
-import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/analysis/review-analysis-v3'
 import type { WindowPopulation } from '../../guest-voice/guest-voice-v2-join.server'
 import type { GuestVoiceV2Ready, Window } from '../../guest-voice/contracts'
 import { pickEvidenceCandidates, type EvidenceSlot } from './guest-voice-v2-evidence'

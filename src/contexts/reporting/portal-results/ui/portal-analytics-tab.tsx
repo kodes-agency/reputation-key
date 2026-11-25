@@ -1,4 +1,4 @@
-import type { PortalPublicationState } from '#/contexts/portal/application/public-api'
+import type { PortalPublicationState } from '#/contexts/portal/public-api'
 // Portal Results tab — the range is a viewing preference
 // that follows the reader from portal to portal; the figures come from one
 // server read per range, always compared with the period before. Above them, the Monthly portal goal's

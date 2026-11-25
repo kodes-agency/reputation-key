@@ -5,20 +5,17 @@ describe('Google authorization URL input', () => {
   it('keeps a normal connection Organization-owned and untargeted', () => {
     expect(
       googleAuthUrlInputSchema.parse({
-        visibility: 'organization',
         connectionMode: 'new',
         targetConnectionId: null,
       }),
     ).toEqual({
-      visibility: 'organization',
       connectionMode: 'new',
       targetConnectionId: null,
     })
   })
 
-  it('keeps the retained connect caller compatible while defaulting to new/null', () => {
-    expect(googleAuthUrlInputSchema.parse({ visibility: 'organization' })).toEqual({
-      visibility: 'organization',
+  it('defaults to new/null when the caller sends nothing', () => {
+    expect(googleAuthUrlInputSchema.parse({})).toEqual({
       connectionMode: 'new',
       targetConnectionId: null,
     })
@@ -27,12 +24,10 @@ describe('Google authorization URL input', () => {
   it('accepts reauthorization only with an exact target connection', () => {
     expect(
       googleAuthUrlInputSchema.parse({
-        visibility: 'organization',
         connectionMode: 'reauth',
         targetConnectionId: 'connection-7',
       }),
     ).toEqual({
-      visibility: 'organization',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
     })
@@ -40,27 +35,24 @@ describe('Google authorization URL input', () => {
 
   it.each([
     {
-      visibility: 'organization',
       connectionMode: 'new',
       targetConnectionId: 'connection-7',
     },
     {
-      visibility: 'organization',
       connectionMode: 'reauth',
       targetConnectionId: null,
     },
     {
-      visibility: 'organization',
       connectionMode: 'reauth',
       targetConnectionId: '',
     },
     {
-      visibility: 'organization',
       connectionMode: 'reconnect',
       targetConnectionId: 'connection-7',
     },
     {
-      visibility: 'private',
+      // The retired field is no longer an input.
+      visibility: 'organization',
       connectionMode: 'new',
       targetConnectionId: null,
     },

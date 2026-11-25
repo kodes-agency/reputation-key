@@ -1,5 +1,4 @@
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
-import { organizationId } from '#/shared/domain/ids'
+import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import type { GoogleImportReferenceStore } from './durable-import-reference-store.port.server'
 import { EXPIRED_ITEM_WRITE } from '../application/google-import-contract'
 import type {
@@ -20,13 +19,11 @@ type LifecycleStore = Pick<
   | 'fenceLifecycleParent'
   | 'listLifecycleScopeItems'
   | 'scrubLifecycleItems'
-  | 'countLifecycleScopeItems'
-  | 'getOperatorProgress'
 >
 
 type LifecyclePropertyApi = Pick<
   PropertyGoogleBindingPublicApi,
-  'sweepReleasedExpired' | 'countUnreleasedExpired' | 'cleanupOrganization'
+  'sweepReleasedExpired' | 'countUnreleasedExpired'
 >
 
 export type GoogleImportLifecycleSweepResult = Readonly<{
@@ -43,7 +40,6 @@ export type GoogleImportLifecycleCancellationResult = Readonly<{
   itemsVisited: number
   receiptsReconciled: number
   itemsCancelled: number
-  itemIds: readonly string[]
 }>
 
 export type GoogleImportLifecycleBacklog = Readonly<{
@@ -52,16 +48,9 @@ export type GoogleImportLifecycleBacklog = Readonly<{
   unreleasedExpiredReceipts: number
 }>
 
-export type GoogleImportLifecycleScopeInspection = Readonly<{
-  outstandingItems: number
-}>
-
 type LifecycleReferences = Pick<
   GoogleImportReferenceStore,
-  | 'invalidateOrganization'
-  | 'invalidateUser'
-  | 'invalidateConnection'
-  | 'invalidateProperty'
+  'invalidateUser' | 'invalidateConnection'
 >
 
 export function createGoogleImportLifecycle(
@@ -132,7 +121,7 @@ export function createGoogleImportLifecycle(
 
   const cancelScope = async (
     scope: GoogleImportLifecycleScope,
-    outcomeCode: 'authorization_changed' | 'property_deleted' | 'user_cancelled',
+    outcomeCode: 'authorization_changed' | 'user_cancelled',
     invalidate?: () => Promise<boolean>,
   ): Promise<GoogleImportLifecycleCancellationResult> => {
     if (invalidate && !(await invalidate())) {
@@ -144,13 +133,11 @@ export function createGoogleImportLifecycle(
     let itemsVisited = 0
     let receiptsReconciled = 0
     let itemsCancelled = 0
-    const itemIds = new Set<string>()
     for (;;) {
       const items = await deps.store.listLifecycleScopeItems(scope, SWEEP_LIMIT)
       if (items.length === 0) break
       let batchProgress = 0
       for (const item of items) {
-        itemIds.add(item.itemId)
         itemsVisited++
         if (!item.active) continue
         if (await reconcileReceipt(item.organizationId, item.itemId, now)) {
@@ -182,7 +169,6 @@ export function createGoogleImportLifecycle(
       itemsVisited,
       receiptsReconciled,
       itemsCancelled,
-      itemIds: [...itemIds],
     }
   }
 
@@ -263,15 +249,8 @@ export function createGoogleImportLifecycle(
     }
   }
 
-  const inspectScope = async (
-    scope: GoogleImportLifecycleScope,
-  ): Promise<GoogleImportLifecycleScopeInspection> => ({
-    outstandingItems: await deps.store.countLifecycleScopeItems(scope, SWEEP_LIMIT),
-  })
-
   return Object.freeze({
     inspectBacklog,
-    inspectScope,
     sweep,
     cancelConnection: (organizationIdValue: string, connectionId: string) =>
       cancelScope(
@@ -297,51 +276,10 @@ export function createGoogleImportLifecycle(
               })
           : undefined,
       ),
-    cancelOrganization: async (organizationIdValue: string) => {
-      const result = await cancelScope(
-        { kind: 'organization', organizationId: organizationIdValue },
-        'authorization_changed',
-        deps.references
-          ? () =>
-              deps.references!.invalidateOrganization({
-                organizationId: organizationIdValue,
-              })
-          : undefined,
-      )
-      await deps.propertyBindingApi.cleanupOrganization(
-        organizationId(organizationIdValue),
-      )
-      return result
-    },
-    preparePropertyDeletion: (organizationIdValue: string, propertyId: string) =>
-      cancelScope(
-        { kind: 'property', organizationId: organizationIdValue, propertyId },
-        'property_deleted',
-        deps.references
-          ? () =>
-              deps.references!.invalidateProperty({
-                organizationId: organizationIdValue,
-                propertyId,
-              })
-          : undefined,
-      ),
-    finalizePropertyDeletion: async (
-      organizationIdValue: string,
-      itemIds: readonly string[],
-    ): Promise<number> => {
-      const now = deps.clock()
-      let reconciled = 0
-      for (const itemId of itemIds) {
-        if (await reconcileReceipt(organizationIdValue, itemId, now)) reconciled++
-      }
-      return reconciled
-    },
     cancelRequest: (organizationIdValue: string, importJobId: string) =>
       cancelScope(
         { kind: 'request', organizationId: organizationIdValue, importJobId },
         'user_cancelled',
       ),
-    inspectRequest: (organizationIdValue: string, importJobId: string) =>
-      deps.store.getOperatorProgress(organizationIdValue, importJobId),
   })
 }

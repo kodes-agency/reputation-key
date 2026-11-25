@@ -13,7 +13,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { FeedbackHandlingState } from '#/contexts/inbox/application/public-api'
+import type { FeedbackHandlingState } from '#/contexts/reputation/public-api'
 
 /**
  * A first completion. Every case below overrides exactly the one field it is
@@ -358,7 +358,7 @@ describe('the work-status chip for a feedback item', () => {
   })
 
   // The server withholds `feedbackHandling` entirely from a caller who may read
-  // private feedback but not handle it (`get-inbox-item-detail.ts`), so there is
+  // private feedback but not handle it (`get-inbox-item-detail.server.ts`), so there is
   // no `closeReason` to branch on at all. That path must keep reading the item's
   // own status — `Closed — no outcome` would be a guess, and `Open`/`Closed`
   // would leak the review vocabulary onto a feedback item.

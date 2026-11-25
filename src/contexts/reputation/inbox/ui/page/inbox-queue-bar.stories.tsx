@@ -9,7 +9,7 @@
 // queue a choice reports.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { InboxQueueCounts } from '#/contexts/inbox/application/public-api'
+import type { InboxQueueCounts } from '#/contexts/reputation/public-api'
 import { InboxQueueBar } from './inbox-queue-bar'
 import type { InboxQueueViewer } from './inbox-queue-sections'
 

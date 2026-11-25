@@ -2,7 +2,7 @@
 
 import { z } from 'zod/v4'
 import { MAX_ADDITIONAL_GUEST_LOCALES } from '#/shared/domain/guest-locale'
-import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
+import { offeredGuestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
 
 const portalIdField = z.string().min(1, 'Portal ID is required')
 
@@ -39,14 +39,6 @@ export const updatePortalSettingsInputSchema = z
   })
   .strict()
 export type UpdatePortalSettingsInput = z.infer<typeof updatePortalSettingsInputSchema>
-
-export const changePortalSlugInputSchema = z
-  .object({
-    portalId: portalIdField,
-    slug: z.string().min(2, 'Must be at least 2 characters').max(64),
-  })
-  .strict()
-export type ChangePortalSlugInput = z.infer<typeof changePortalSlugInputSchema>
 
 export const changePortalLanguagesInputSchema = z
   .object({

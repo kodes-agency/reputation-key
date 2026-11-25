@@ -22,7 +22,7 @@ import {
 } from '@tanstack/react-query'
 import { createKeys } from '#/shared/queries/query-keys'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import type { NotificationFeedHead } from '#/contexts/feed/application/public-api'
+import type { NotificationFeedHead } from '#/contexts/feed/public-api'
 import {
   makeNotification,
   notificationFeedHeadFixture,

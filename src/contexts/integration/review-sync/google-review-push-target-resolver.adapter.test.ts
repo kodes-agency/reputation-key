@@ -4,7 +4,7 @@ import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_PROVIDER_FIXTURES_V1,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+} from '#/shared/testing/google-provider-identifiers-v1'
 import { createGoogleReviewPushTargetResolver } from './google-review-push-target-resolver.adapter.server'
 
 const organizationId = 'org-push-resolver' as OrganizationId

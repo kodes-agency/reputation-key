@@ -1,0 +1,152 @@
+// Review context — review repository port
+// Per architecture: "Repository ports for all data access."
+
+import type { Review, ReviewPlatform } from '../domain/review-types'
+import type {
+  OrganizationId,
+  PropertyId,
+  ReviewId,
+  GoogleConnectionId,
+} from '#/shared/domain/ids'
+import type {
+  AiReviewSourceDenial,
+  AiReviewSourceReadRequest,
+  AiReviewSourceRequest,
+  AiReviewSourceResult,
+  AiTrendPopulationRequest,
+  AiTrendPopulationResult,
+} from './ai-review-source.port.server'
+import type { ReviewProviderSubject } from '#/shared/google-contracts/review-provider-subject-contract'
+import type { ReviewProviderObservationOrigin } from './response-target-authority.port.server'
+
+export type StableReviewSourceIdentity = Readonly<{
+  id: ReviewId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+  sourceContentState: 'active' | 'source_expired' | 'provider_deleted'
+  firstFetchedAt: Date | null
+  sourceSeenGeneration: string | null
+  sentimentLabel: string | null
+  sentimentScore: number | null
+}>
+
+/**
+ * Every method here that returns Reviews, counts them or selects on the content
+ * clock sees LIVE Reviews only. A Review whose provider content was erased (a
+ * tombstone: `source_content_state` `source_expired` or `provider_deleted`) has
+ * no rating, provider ids or text, so it is not a `Review`; it is simply absent
+ * — `findById` answers null, the lists leave it out, the lifecycle sweeps never
+ * offer it — and a reader never receives an exception for it. Only
+ * `findStableIdentityByProviderSubjects` returns a tombstone, as identity.
+ * `readForAi` and `assertCurrentForAi` are the exception to the scope: they
+ * test the clock alone and deny a tombstone through its NULL
+ * `ai_source_byte_length` as `policy_unavailable`, the AI settlement outcome.
+ * `readForAi` answers only what the row says; a database fault is thrown,
+ * because analysis settles `policy_unavailable` as a terminal skip.
+ */
+export type ReviewRepository = Readonly<{
+  hasCurrentReplyForAi(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      reviewId: ReviewId
+    }>,
+  ): Promise<boolean>
+
+  findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
+  readForAi(input: AiReviewSourceReadRequest): Promise<AiReviewSourceResult>
+  readTrendPopulation(input: AiTrendPopulationRequest): Promise<AiTrendPopulationResult>
+  assertCurrentForAi(
+    input: AiReviewSourceRequest,
+  ): Promise<Readonly<{ status: 'current' | AiReviewSourceDenial }>>
+  readReplyStateRevision(
+    organizationId: OrganizationId,
+    reviewId: ReviewId,
+  ): Promise<number>
+  findByIds(
+    ids: ReadonlyArray<ReviewId>,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<Review>>
+  findByExternalId(
+    platform: ReviewPlatform,
+    externalId: string,
+    organizationId: OrganizationId,
+  ): Promise<Review | null>
+  findStableIdentityByProviderSubjects(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      sourceEpoch: number
+      subjects: readonly [ReviewProviderSubject, ...ReviewProviderSubject[]]
+    }>,
+  ): Promise<StableReviewSourceIdentity | null>
+  upsert(
+    review: Omit<Review, 'createdAt' | 'updatedAt'>,
+    now?: Date,
+    observationKey?: string,
+    observationOrigin?: ReviewProviderObservationOrigin,
+    providerUpdateTimeReported?: boolean,
+  ): Promise<Review>
+  /**
+   * Live Reviews of one Property, newest first. With no `limit` this is every
+   * one of them (the Inbox repair command's "all review sources"); a caller
+   * that wants a page passes one.
+   */
+  findByPropertyId(
+    propertyId: PropertyId,
+    organizationId: OrganizationId,
+    options?: { limit?: number },
+  ): Promise<ReadonlyArray<Review>>
+  /** Every live Review of the Organization, in id order. */
+  findByOrganizationId(orgId: OrganizationId): Promise<ReadonlyArray<Review>>
+  /**
+   * Keyset-bounded batch of reviews sourced through a Google
+   * connection (reviews.google_connection_id), ordered by id. `cursor`
+   * resumes strictly AFTER the given review id. Used by the disconnect
+   * publication-cancellation flow (same resolution the source-content purge
+   * applies: google_connection_id equality within the organization).
+   */
+  findByConnection(
+    organizationId: OrganizationId,
+    connectionId: GoogleConnectionId,
+    cursor: Readonly<{ id: string }> | null,
+    limit: number,
+  ): Promise<ReadonlyArray<Review>>
+  /**
+   * Review-owned eligible id query for cross-context list filters.
+   * Returns ids of live reviews whose content is eligible at `now`
+   * (contentExpiresAt IS NOT NULL AND > now), optionally narrowed by rating
+   * range and case-insensitive text search. Callers avoid cross-context JOINs.
+   */
+  findIdsByContentFilter(
+    orgId: OrganizationId,
+    filter: Readonly<{ ratingMin?: number; ratingMax?: number; textQuery?: string }>,
+    now: Date,
+  ): Promise<ReadonlyArray<string>>
+  /**
+   * ⚠️ CROSS-TENANT: keyset-bounded batch of expiring reviews,
+   * ordered (contentExpiresAt ASC, id ASC). `cursor` resumes strictly AFTER
+   * (contentExpiresAt, id) — no row is skipped or repeated as the cursor
+   * advances. Replaces the one-shot 5,000-row scan. Only reviews a refresh
+   * sync could still run for: the Property is live and bound to Google through
+   * the review's connection, and that connection is usable. A sync for any
+   * other can never be authorized, so offering it would only queue failures.
+   */
+  findExpiringBatchAcrossTenants(
+    date: Date,
+    cursor: Readonly<{ contentExpiresAt: Date; id: string }> | null,
+    limit: number,
+  ): Promise<ReadonlyArray<Review>>
+}>
+
+/**
+ * The read-only review slice Review publishes through `lookups.review`.
+ * Other contexts get these four reads and nothing that writes.
+ */
+export type ReviewLookups = Pick<
+  ReviewRepository,
+  'findById' | 'findByIds' | 'findByOrganizationId' | 'findByPropertyId'
+>

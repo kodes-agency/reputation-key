@@ -4,23 +4,22 @@
 // Pure and provider-token-free; the adapter owns the calls, this owns the shape.
 
 import { z } from 'zod/v4'
-import type { StarRating } from '#/contexts/review/application/public-api'
-import type { GoogleReviewRead } from '#/contexts/review/application/ports/google-review-api.port'
+import type { GoogleReviewRead, StarRating } from '#/contexts/reputation/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   parseReviewProviderResource,
   type ReviewProviderResource,
-} from '#/shared/review-provider-subject-contract'
+} from '#/shared/google-contracts/review-provider-subject-contract'
 import {
   parseGoogleReplyComment,
   parseGoogleReviewComment,
-} from '#/shared/google-review-comment'
+} from '#/shared/google-contracts/google-review-comment'
 import {
   reportRefusedReviewPages,
   reviewPageUrl,
   reviewReplyUrlField,
 } from './google-review-page.server'
-import { reviewApiError } from '#/contexts/review/application/public-api'
+import { reviewApiError } from '#/contexts/reputation/public-api'
 import {
   parseReplyModeration,
   replyModerationFields,

@@ -4,7 +4,7 @@
 import type { PortalGroupRepository } from './portal-group-repository.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalRemovedFromGroup } from '../domain/events'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { loadGroupAndPortalForMembership } from '../publication/load-accessible-portal.server'
 import type { PortalCommandStore } from '../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../publication/portal-command-version.server'

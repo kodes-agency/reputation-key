@@ -1,4 +1,4 @@
-import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 import {
   guestVoiceWindowContext,
   sectionInput,

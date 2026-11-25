@@ -1,17 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
-import { registerAllEventSchemas } from './schema-registrations'
-import { clearEventSchemas, validateEventPayload } from './schema-registry'
+import { validateEventPayload } from './schema-registry'
 
 const PROPERTY_A = '11111111-1111-4111-8111-111111111111'
 const PROPERTY_B = '22222222-2222-4222-8222-222222222222'
 
 describe('registered identity access schemas', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-
   describe('identity.invitation.accepted', () => {
     const accepted = {
       organizationId: 'organization-1',

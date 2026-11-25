@@ -12,8 +12,8 @@ import {
   PropertyPickerList,
   type PropertyPickerOption,
 } from '#/components/forms/property-picker'
-import type { InboxQueue } from '#/contexts/inbox/application/public-api'
-import { cn } from '#/lib/utils'
+import type { InboxQueue } from '#/contexts/reputation/public-api'
+import { cn } from '#/shared/class-names/utils'
 import { scopeCount, type InboxPropertyScope } from './inbox-property-scope'
 import { queueLabel } from './inbox-queues'
 import type { InboxServerFns } from './types'

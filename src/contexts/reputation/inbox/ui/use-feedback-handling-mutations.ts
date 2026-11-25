@@ -1,10 +1,10 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import {
-  isInboxRevisionConflictResult,
-  type InboxItem,
-  type InboxRevisionConflictResult,
-} from '#/contexts/inbox/application/public-api'
+import { isInboxRevisionConflictResult } from '#/contexts/reputation/inbox/contracts'
+import type {
+  InboxItem,
+  InboxRevisionConflictResult,
+} from '#/contexts/reputation/public-api'
 import { HTTP_STATUS } from '#/shared/http/status'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import { inboxCachePolicy } from '#/contexts/reputation/inbox/ui/page/inbox-cache-policy'

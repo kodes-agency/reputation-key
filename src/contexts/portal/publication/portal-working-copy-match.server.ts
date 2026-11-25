@@ -9,7 +9,7 @@
 // writes. A version 1 or 2 snapshot is the earlier design, so the working copy
 // (which would publish version 3) has by definition moved past it.
 
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import {
   IMMERSIVE_HUB_SCHEMA_VERSION,
   type PortalPublicationSnapshot,

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 // Vertical rail: a 32 px indicator column, a 2 px connector from each indicator
 // to the next item, content 12 px to the right.

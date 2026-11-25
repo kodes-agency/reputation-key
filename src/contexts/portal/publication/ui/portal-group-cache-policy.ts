@@ -21,7 +21,7 @@ function affectedProjectionKeys(propertyId: string): readonly QueryKey[] {
   ]
 }
 
-async function invalidateAffectedProjections(
+export async function invalidateGroupProjections(
   queryClient: QueryClient,
   propertyId: string,
 ): Promise<void> {
@@ -45,13 +45,3 @@ async function invalidateAffectedProjections(
     }),
   ])
 }
-
-export const portalGroupCachePolicy = {
-  onGroupCreated: invalidateAffectedProjections,
-  onGroupUpdated: invalidateAffectedProjections,
-  onGroupDeleted: invalidateAffectedProjections,
-  onGroupMemberAdded: invalidateAffectedProjections,
-  onGroupMemberRemoved: invalidateAffectedProjections,
-} as const
-
-export type PortalGroupCachePolicy = typeof portalGroupCachePolicy

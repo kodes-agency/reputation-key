@@ -2,8 +2,8 @@ import type { AiReplyOutputRefusal } from './reply-output-refusal'
 import { prepareReplyDraftingV2 } from './reply-drafting-v2'
 import { replyDynamicDeveloperBytes } from '#/shared/reply/request'
 import type { KeyObject } from 'node:crypto'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
+import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   LANGUAGE_CATALOGUE_DIGEST,
   mapReviewLanguageMetadata,
@@ -13,38 +13,36 @@ import {
   AI_REDACTION_PROFILE_DIGEST,
   AI_REDACTION_PROFILE_VERSION,
   redactAiReviewText,
-} from '#/shared/ai-deterministic-redactor'
+} from '#/shared/ai-redaction/ai-deterministic-redactor'
 import {
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
   AI_STRUCTURED_MARKER_DETECTORS_VERSION,
-} from '#/shared/ai-structured-marker-detectors'
+} from '#/shared/ai-redaction/ai-structured-marker-detectors'
 import type { ReplyLanguageDetector } from '#/shared/ai-reply-language-verifier'
-import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '#/shared/review-analysis-v3'
-import { maximumCostMicrosWith } from '#/shared/ai-provider-pricing'
-import type { AiOperationProviderPairing } from '#/shared/ai-provider-attestations'
+import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '#/shared/analysis/review-analysis-v3'
+import { maximumCostMicrosWith } from '#/shared/ai-provider-profile/ai-provider-pricing'
+import type { AiOperationProviderPairing } from '#/shared/ai-provider-profile/ai-provider-attestations'
 import {
   AI_OPERATION_PROFILES,
   type AiOperationProfile,
-} from '#/shared/ai-operation-profiles'
+} from '#/shared/ai-operation/ai-operation-profiles'
 import type {
   AiAdmissionDescriptorV1,
   AiSettlementReceiptV1,
-} from '#/shared/ai-internal-transport-contract'
+} from '#/shared/ai-gateway/ai-internal-transport-contract'
 import type {
   AiGatewayRouteRequestV1,
   AiGatewayRouteResponseV1,
-} from '#/shared/ai-gateway-transport-contract'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract'
 import {
   GatewayPreparationError,
   type AiGatewayRoutePreparer,
   type PreparedGatewayRouteExecution,
 } from './contracts'
 import type { DerivedDescriptorFacts } from './prepared-invocation'
-import { createOpenAiProviderPreparation } from './openai-provider-adapter'
 import type { AiProviderId, AiProviderPreparation } from './provider-contracts'
 import {
   AiProviderSelectionError,
-  createAiProviderRegistry,
   selectAiProvider,
   type AiProviderRegistry,
 } from './provider-selection'
@@ -294,9 +292,9 @@ export function createAiGatewayRoutePreparer(
     profiles?: readonly RoutePreparationProfile[]
     /**
      * The providers that can shape a request, and the operator's choice among
-     * them. Defaults to OpenAI alone, which is every v2 route.
+     * them.
      */
-    providers?: AiProviderRegistry<AiProviderPreparation>
+    providers: AiProviderRegistry<AiProviderPreparation>
     /**
      * Content-free notice of WHICH output rule refused a reply draft.
      *
@@ -314,9 +312,7 @@ export function createAiGatewayRoutePreparer(
   const now = dependencies.now ?? Date.now
   const profiles: readonly RoutePreparationProfile[] =
     dependencies.profiles ?? AI_OPERATION_PROFILES
-  const registry =
-    dependencies.providers ??
-    createAiProviderRegistry([createOpenAiProviderPreparation()])
+  const registry = dependencies.providers
   return Object.freeze({
     prepare: (request): PreparedGatewayRouteExecution => {
       const profile = profileFor(profiles, request)

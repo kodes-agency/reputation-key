@@ -4,7 +4,7 @@ import {
   type InboxShortcutEvent,
   type InboxShortcutInput,
 } from './use-inbox-keyboard-shortcuts'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/reputation/public-api'
 import { isCaseToolbarShown } from '../inbox-case-toolbar-props'
 
 // Only the three fields the handler reads — the same partial-fixture shape

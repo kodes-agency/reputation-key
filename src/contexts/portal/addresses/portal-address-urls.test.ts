@@ -2,7 +2,6 @@ import { randomBytes } from 'node:crypto'
 import QRCode from 'qrcode'
 import { describe, expect, it } from 'vitest'
 import {
-  buildPortalPublicUrls,
   portalPublicUrls,
   type ChannelPrintCodes,
   type PortalAddressFormat,
@@ -22,15 +21,19 @@ const NO_CODES: ChannelPrintCodes = { qr: null, nfc: null }
 const PRINT_HOST = 'https://ap.up.railway.app'
 const APP_HOST = 'https://web-closed-beta-v2.up.railway.app'
 
-const build = (overrides: Partial<Parameters<typeof buildPortalPublicUrls>[0]> = {}) =>
-  buildPortalPublicUrls({
+const build = (
+  overrides: Partial<PortalAddressFormat & Parameters<typeof portalPublicUrls>[1]> = {},
+) => {
+  const { appOrigin, printOrigin, ...input } = {
     appOrigin: APP_HOST,
     printOrigin: PRINT_HOST,
     rawToken: RAW,
     artifacts: ARTIFACTS,
     printCodes: CODES,
     ...overrides,
-  })
+  }
+  return portalPublicUrls({ appOrigin, printOrigin }, input)
+}
 
 /** The QR version an address is drawn at, at error correction M (the print kit's and Share's). */
 const versionOf = (address: string): number =>
@@ -38,7 +41,7 @@ const versionOf = (address: string): number =>
 
 const randomPrintCode = (): string => printCodeFromBytes(randomBytes(13))
 
-describe('buildPortalPublicUrls', () => {
+describe('portalPublicUrls', () => {
   it('writes the QR address on the print host, the code after /p/, everything else in capitals', () => {
     expect(build().qr).toBe('HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R')
   })
@@ -127,23 +130,5 @@ describe('buildPortalPublicUrls', () => {
     // The long address does not fit one on the beta (159 bytes), which is the point.
     const long = build({ printCodes: NO_CODES, printOrigin: APP_HOST }).nfc
     expect(Buffer.byteLength(long)).toBeGreaterThan(144)
-  })
-})
-
-describe('portalPublicUrls', () => {
-  const format: PortalAddressFormat = {
-    appOrigin: APP_HOST,
-    printOrigin: PRINT_HOST,
-  }
-  const input = { rawToken: RAW, artifacts: ARTIFACTS, printCodes: CODES }
-
-  it('shows verified short addresses without a rollout setting', () => {
-    expect(portalPublicUrls(format, input)).toEqual(build())
-  })
-
-  it('keeps the issued long address for channels without verified print codes', () => {
-    expect(portalPublicUrls(format, { ...input, printCodes: NO_CODES })).toEqual(
-      build({ printCodes: NO_CODES }),
-    )
   })
 })

@@ -272,7 +272,7 @@ describe('generate reply suggestion', () => {
 
     await expect(harness.generate(INPUT)).resolves.toEqual({
       status: 'ready',
-      profileVersion: 'reply-draft-v3',
+      profileVersion: 'reply-draft-v4',
       replyText: 'Thank you for your thoughtful review.',
       provenanceToken: 'signed-provenance-token',
       expiresAtEpochMillis: NOW + 5 * 60_000,
@@ -287,7 +287,7 @@ describe('generate reply suggestion', () => {
         baseReplyStateRevision: 3,
         replyDraftingEpoch: 7,
         operationProfileVersion: 'reply-suggestion-v2',
-        replyProfileVersion: 'reply-draft-v3',
+        replyProfileVersion: 'reply-draft-v4',
       }),
     )
     expect(harness.mocks.markDelivered).toHaveBeenCalledWith({

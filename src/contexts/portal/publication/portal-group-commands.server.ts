@@ -25,7 +25,11 @@ import {
   portalGroupHistoryEntry,
 } from '../domain/portal-group-history'
 import { portalGroupToRow } from '../groups/portal-group-mapper.server'
-import { assertCommittedRevision, sameInstant } from './portal-command-guards.server'
+import {
+  assertCommittedRevision,
+  assertRevisionAdvances,
+  isFactAt,
+} from './portal-command-guards.server'
 import {
   beginMembership,
   endMembership,
@@ -45,7 +49,6 @@ export type PortalGroupCommandStore = Pick<
   PortalCommandStore,
   | 'createPortalGroup'
   | 'updatePortalGroup'
-  | 'addPortalToGroup'
   | 'removePortalFromGroup'
   | 'movePortalToGroup'
   | 'deletePortalGroup'
@@ -57,17 +60,11 @@ function assertDeletePortalGroupCommand(command: DeletePortalGroupCommand): void
     event.organizationId !== command.organizationId ||
     event.propertyId !== command.propertyId ||
     event.portalGroupId !== command.portalGroupId ||
-    event.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(event.occurredAt, command.occurredAt)
+    !isFactAt(event, command.revision, command.occurredAt)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal Group delete')
   }
-  if (command.revision.getTime() <= command.expectedUpdatedAt.getTime()) {
-    throw portalError(
-      'revision_conflict',
-      'Portal Group command revision must advance monotonically',
-    )
-  }
+  assertRevisionAdvances(command.revision, command.expectedUpdatedAt, 'Portal Group')
 }
 
 const CREATE_MISMATCH = 'Tenant, resource, or fact mismatch on Portal Group creation'
@@ -80,8 +77,7 @@ function assertCreatePortalGroupCommand(command: CreatePortalGroupCommand): void
     created.organizationId !== command.organizationId ||
     created.propertyId !== command.group.propertyId ||
     created.portalGroupId !== command.group.id ||
-    created.sourceAggregateVersion !== command.group.updatedAt.toISOString() ||
-    !sameInstant(created.occurredAt, command.group.createdAt) ||
+    !isFactAt(created, command.group.updatedAt, command.group.createdAt) ||
     membershipEvents.length !== command.memberships.length ||
     membershipEvents.some((event, index) => {
       const membership = command.memberships[index]
@@ -92,8 +88,7 @@ function assertCreatePortalGroupCommand(command: CreatePortalGroupCommand): void
         event.propertyId !== command.group.propertyId ||
         event.portalGroupId !== command.group.id ||
         event.portalId !== membership.portalId ||
-        event.sourceAggregateVersion !== command.group.updatedAt.toISOString() ||
-        !sameInstant(event.occurredAt, command.group.createdAt)
+        !isFactAt(event, command.group.updatedAt, command.group.createdAt)
       )
     })
   ) {
@@ -124,8 +119,7 @@ function assertDepartures(command: CreatePortalGroupCommand): void {
       event.propertyId !== command.group.propertyId ||
       event.portalGroupId !== departure.portalGroupId ||
       event.portalId !== membership.portalId ||
-      event.sourceAggregateVersion !== fence.revision.toISOString() ||
-      !sameInstant(event.occurredAt, command.group.createdAt)
+      !isFactAt(event, fence.revision, command.group.createdAt)
     ) {
       throw portalError('forbidden', CREATE_MISMATCH)
     }
@@ -142,8 +136,7 @@ function assertUpdatePortalGroupCommand(command: UpdatePortalGroupCommand): void
     command.event.propertyId !== command.propertyId ||
     command.event.portalGroupId !== command.portalGroupId ||
     command.event.name !== command.name ||
-    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(command.event.occurredAt, command.occurredAt)
+    !isFactAt(command.event, command.revision, command.occurredAt)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal Group update')
   }
@@ -159,8 +152,7 @@ export function assertMembershipCommand(
     command.event.propertyId !== command.propertyId ||
     command.event.portalGroupId !== command.portalGroupId ||
     command.event.portalId !== command.portalId ||
-    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(command.event.occurredAt, command.occurredAt)
+    !isFactAt(command.event, command.revision, command.occurredAt)
   ) {
     throw portalError(
       'forbidden',
@@ -181,8 +173,7 @@ function assertMoveCommand(command: MovePortalToGroupCommand): void {
       side.event.propertyId !== command.propertyId ||
       side.event.portalGroupId !== side.portalGroupId ||
       side.event.portalId !== command.portalId ||
-      side.event.sourceAggregateVersion !== side.revision.toISOString() ||
-      !sameInstant(side.event.occurredAt, command.occurredAt),
+      !isFactAt(side.event, side.revision, command.occurredAt),
   )
   if (mismatch || command.from?.portalGroupId === command.to.portalGroupId) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal Group move')
@@ -353,12 +344,6 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
             recordedAt: command.occurredAt,
           })
         })
-      }),
-
-    addPortalToGroup: async (command) =>
-      trace('portal.commandStore.addPortalToGroup', async () => {
-        assertMembershipCommand(command, 'portal_group.portal_added')
-        await db.transaction((tx) => joinPortalGroupInTransaction(tx, command))
       }),
 
     removePortalFromGroup: async (command) =>

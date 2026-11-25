@@ -16,7 +16,7 @@ import type {
   BetaFeedbackImpact,
   BetaFeedbackRouteKey,
   BetaFeedbackType,
-} from '#/shared/beta-feedback-contract'
+} from '#/shared/beta-feedback/beta-feedback-contract'
 
 export type BetaFeedbackIssueSource = Readonly<{
   reference: string

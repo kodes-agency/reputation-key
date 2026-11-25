@@ -1,9 +1,9 @@
-import type { GenerateReplySuggestionResult } from '../application/public-api'
+import type { GenerateReplySuggestionResult } from '../public-api'
 import { getLogger } from '#/shared/observability/logger'
 import type {
   ReplyDraftingProgress,
   ReplyDraftingProgressSink,
-} from '#/shared/reply-drafting-progress'
+} from '#/shared/reply/reply-drafting-progress'
 
 type Delivered = Extract<GenerateReplySuggestionResult, { status: 'ready' | 'fallback' }>
 type Event =

@@ -8,8 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   portalApprovedDestinationId,
@@ -17,7 +15,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { revalidatePortalApprovedDestinations } from './manage-portal-approved-destinations.server'
 import { createRevalidateApprovedDestinationsHandler } from './revalidate-approved-destinations-job.server'
 import type { PortalDestinationNetworkValidator } from './portal-destination-network-validator.port.server'
@@ -82,8 +80,6 @@ const request = (uri: string, at: Date = STORED_AT) =>
 
 beforeEach(async () => {
   ids = 0
-  clearEventSchemas()
-  registerAllEventSchemas()
   const portal = buildTestPortal({
     id: PORTAL_A,
     organizationId: ORG_A,
@@ -236,28 +232,6 @@ describe('contact destinations (real PostgreSQL)', () => {
     await expect(request('5551234567')).resolves.toMatchObject({
       id: phone.id,
       approvalState: 'disabled',
-    })
-  })
-
-  it('never quarantines a contact, even when a stale re-check reaches one', async () => {
-    const email = await request('front@hotel.com')
-
-    const recorded = await repo().recordNetworkValidation({
-      organizationId: ORG_A,
-      propertyId: PROPERTY_A,
-      id: email.id,
-      expectedLastValidatedAt: email.lastValidatedAt,
-      result: {
-        outcome: 'unsafe',
-        reason: 'redirect_target_invalid',
-        observedAt: A_DAY_LATER,
-      },
-    })
-
-    expect(recorded).toBeNull()
-    await expect(repo().findById(ORG_A, PROPERTY_A, email.id)).resolves.toMatchObject({
-      approvalState: 'approved',
-      disabledReason: null,
     })
   })
 

@@ -60,7 +60,6 @@ describe('review analysis terminal settlement', () => {
         reviewAnalysisEpoch: 3,
         analysisSequence: 18,
         propertyProfileVersion: 4,
-        calendarProfileVersion: 'property-calendar-v1',
       })
       expect(result.status).toBe(
         status === 'stale' || status === 'unavailable'

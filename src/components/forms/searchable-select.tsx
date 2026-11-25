@@ -10,7 +10,7 @@ import {
   CommandList,
 } from '#/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 export type SearchableSelectOption = Readonly<{
   value: string

@@ -21,14 +21,14 @@
 // Pure unit tests — no database.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { REPLY_TONES } from '#/shared/ai-reply-template-catalogue'
+import { REPLY_TONES } from '#/shared/reply/ai-reply-template-catalogue'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import type { AiReviewCurrentSource } from '#/contexts/review/application/public-api'
+import type { AiReviewCurrentSource } from '#/contexts/reputation/public-api'
 import type { GenerateReplySuggestionResult } from '#/contexts/ai/reply/generate-suggestion.server'
 import type * as ExecutionPolicyModule from '#/shared/auth/execution-policy'
 import type { PolicyDenyReason } from '#/shared/auth/execution-policy'
@@ -152,7 +152,7 @@ const ACTOR = {
 /**
  * A never-edited review: the property binding has never been re-generated, so
  * `sourceEpoch` sits at its floor of 0, while `sourceRevision` starts at 1 for
- * a first observation (see reviewFromSource in review/domain/types).
+ * a first observation (see reviewFromSource in reputation/domain/review-types).
  */
 const NEVER_EDITED_REVIEW_SOURCE: AiReviewCurrentSource = {
   organizationId: organizationId(ORGANIZATION_ID),

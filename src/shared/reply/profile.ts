@@ -1,16 +1,16 @@
-import { REPLY_STREAM_RESPONSE_MAX_BYTES } from '#/shared/ai-openai-stream-profile'
+import { REPLY_STREAM_RESPONSE_MAX_BYTES } from '#/shared/ai-provider-profile/ai-openai-stream-profile'
 import { REPLY_DRAFTING_V2_APOLOGY_STARTS } from '#/shared/domain/reply-drafting-v2'
 import {
   defineLogicalOperationProfile,
   operationProfileForCatalogue,
   REVIEW_SOURCE_ATTESTATION,
   PROPERTY_CALENDAR_ATTESTATION,
-} from '#/shared/ai-operation-profile'
-import { openAiPairingOf } from '#/shared/ai-openai-provider-attestation'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
+} from '#/shared/ai-operation/ai-operation-profile'
+import { openAiPairingOf } from '#/shared/ai-provider-profile/ai-openai-provider-attestation'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-operation/ai-route-output-schemas'
 import { REPLY_DRAFTING_V2_PROMPT } from '#/shared/reply/prompt'
 import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
-import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply-drafting-v2-contract'
+import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply/reply-drafting-v2-contract'
 import {
   REPLY_DRAFTING_V2_DYNAMIC_PROMPT_BYTES,
   REPLY_DRAFTING_V2_EXAMPLES_DIGEST,

@@ -15,8 +15,8 @@ import {
   TOPIC_LEVEL_ISSUE_KEY,
   normalizeIssueThing,
   type NormalizedIssueThing,
-} from '#/shared/property-issue-normalization'
-import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/property-issue-normalization'
+import type { ReviewTopicV3 } from '#/shared/analysis/review-topic-taxonomy'
 import type { AnalysisKey } from './ai-review-analysis-mentions.server'
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]

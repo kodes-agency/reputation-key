@@ -201,27 +201,4 @@ describe('outbox durable admission', () => {
     expect(checked).toBe(true)
     expect(await repo.delivery.workItems.list(ORG)).toEqual([])
   })
-
-  it('keeps the expired legacy lease health read until admission clears it', async () => {
-    const expired = await insertEvent(new Date(NOW.getTime() - 2_000))
-    const active = await insertEvent(new Date(NOW.getTime() - 1_000))
-    // The compatibility health read uses the database clock.
-    await db.execute(sql`
-      UPDATE outbox_events SET lease_owner = 'outgoing-worker',
-        leased_at = NOW(), lease_expires_at = NOW() - INTERVAL '1 second'
-      WHERE id = ${expired}::uuid
-    `)
-    await db.execute(sql`
-      UPDATE outbox_events SET lease_owner = 'outgoing-worker',
-        leased_at = NOW(), lease_expires_at = NOW() + INTERVAL '1 day'
-      WHERE id = ${active}::uuid
-    `)
-    const rows = await repo.findExpiredLeases(10)
-    expect(rows.map((event) => event.id)).toEqual([expired])
-    expect(rows[0]!.recordedAt).toEqual(new Date(NOW.getTime() - 2_000))
-
-    // Use the live clock for admission so the active fixture stays excluded.
-    await createOutboxRepository(db).delivery.schedulePending(10)
-    expect(await repo.findExpiredLeases(10)).toEqual([])
-  })
 })

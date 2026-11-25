@@ -91,7 +91,7 @@ test.describe('Critical workflow: inbox triage persists', () => {
     await expect(page.getByRole('button', { name: 'Close', exact: true })).toHaveCount(0)
     const open = await getInboxItemById(inboxItemId)
     const refusal = await callServerFnExpectError(page, {
-      file: 'src/contexts/inbox/server/inbox-status.ts',
+      file: 'src/contexts/reputation/server/inbox-status.ts',
       exportName: 'updateInboxStatusFn',
       data: {
         inboxItemId,
@@ -147,7 +147,7 @@ test.describe('Critical workflow: inbox triage persists', () => {
     // current revision is read immediately before the call.
     const beforeAssign = await getInboxItemById(inboxItemId)
     await callServerFn(page, {
-      file: 'src/contexts/inbox/server/inbox-item-actions.ts',
+      file: 'src/contexts/reputation/server/inbox-item-actions.ts',
       exportName: 'assignInboxItemFn',
       data: {
         inboxItemId,

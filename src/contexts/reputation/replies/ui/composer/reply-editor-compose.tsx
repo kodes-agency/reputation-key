@@ -8,7 +8,7 @@ import {
   replyCommentByteLength,
 } from '#/shared/google-provider-control/reply-comment'
 import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from './reply-suggestion-contract'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   DOCK_FOOT_ROW_CLASS,
   DOCK_TEXT_ROW_CLASS,
@@ -70,9 +70,7 @@ export type ReplyComposeProps = Readonly<{
   ) => Promise<LoadedReplyTemplateDraft>
   onCheckDraft?: (
     text: string,
-  ) => Promise<
-    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
-  >
+  ) => Promise<import('#/contexts/reputation/library/contracts').ReplyDraftCheckDto>
 }>
 
 const PRIMARY_EXPLANATIONS: Readonly<Record<ReviewLanguageReadiness, string>> = {
@@ -198,8 +196,8 @@ export function ReplyCompose(props: ReplyComposeProps) {
     // the two assist actions: the template library is filtered by the target's
     // `templateGroup` (`reply-template-operations.ts:137`) and a loaded
     // template stamps `replyLanguageTag` (`:304`); an AI draft is stamped the
-    // same way (`ai-suggested-draft-store.ts:360`); a hand-typed draft only
-    // records it (`reply-operations.ts:325`) and nothing reads it at publish.
+    // same way (`ai-suggested-draft-store.server.ts:360`); a hand-typed draft only
+    // records it (`reply-operations.server.ts:325`) and nothing reads it at publish.
     // So the choice rides inside `Draft with AI ▾` (`Write in`) and `Template
     // ▾` (`Templates in`), and the result tag at the top of the text names the
     // language the assist action actually used.

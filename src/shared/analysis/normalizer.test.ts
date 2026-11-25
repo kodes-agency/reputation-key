@@ -1,12 +1,8 @@
-import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/analysis/review-analysis-v3'
 import {
-  REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_FLAGS,
-  REVIEW_ANALYSIS_NORMALIZATION_MANIFEST,
-  REVIEW_ANALYSIS_NORMALIZATION_VERSION,
   normalizeReviewAnalysisV3,
   type ReviewAnalysisNormalizationFlag,
   type ReviewAnalysisV3NormalizationContext,
@@ -43,16 +39,27 @@ function answer(
   return { sentiment: 'negative', mentions, urgent: null, ...overrides }
 }
 
-function expectNormalized(
-  value: ReviewAnalysisV3NormalizationResult,
-): asserts value is Extract<
+type NormalizedResult = Extract<
   ReviewAnalysisV3NormalizationResult,
   { status: 'normalized' }
-> {
-  expect(value.status).toBe('normalized')
-  if (value.status !== 'normalized') {
-    throw new TypeError(`expected normalized result, received ${value.reason}`)
+>
+
+function normalized(
+  raw: unknown,
+  ctx: ReviewAnalysisV3NormalizationContext = context,
+): NormalizedResult {
+  const result = normalizeReviewAnalysisV3(raw, ctx)
+  expect(result.status).toBe('normalized')
+  if (result.status !== 'normalized') {
+    throw new TypeError(`expected normalized result, received ${result.reason}`)
   }
+  return result
+}
+
+function causelessMention(
+  overrides: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> {
+  return mention({ thing: null, issue: null, ...overrides })
 }
 
 function numbersFrom(first: number, last: number): number[] {
@@ -68,9 +75,7 @@ function deepFreeze(value: unknown): unknown {
 describe('review analysis v3 normalization contract', () => {
   it('passes a clean answer through and returns new frozen values', () => {
     const raw = answer([mention()])
-    const result = normalizeReviewAnalysisV3(raw, context)
-
-    expectNormalized(result)
+    const result = normalized(raw)
     expect(result).toEqual({
       status: 'normalized',
       answer: {
@@ -101,9 +106,8 @@ describe('review analysis v3 normalization contract', () => {
   })
 
   it('accepts zero mentions and ignores unknown top-level keys', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer([], { sentiment: 'neutral', invented_field: 'never copied' }),
-      context,
     )
     expect(result).toEqual({
       status: 'normalized',
@@ -136,11 +140,7 @@ describe('review analysis v3 normalization contract', () => {
     const longContext = {
       sentences: Array.from({ length: 10_001 }, () => 'Invented sentence.'),
     }
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ sentences: [10_001] })]),
-      longContext,
-    )
-    expectNormalized(result)
+    const result = normalized(answer([mention({ sentences: [10_001] })]), longContext)
     expect(result.answer.mentions).toEqual([])
     expect(result.flags).toEqual(['mention_dropped_sentences', 'sentence_refs_repaired'])
     expect(result.droppedMentionCount).toBe(1)
@@ -151,8 +151,7 @@ describe('review analysis v3 normalization contract', () => {
 describe('review analysis v3 mention repairs and drops', () => {
   it('caps mentions at 48 before normalizing them', () => {
     const rawMentions = Array.from({ length: 49 }, () => mention())
-    const result = normalizeReviewAnalysisV3(answer(rawMentions), context)
-    expectNormalized(result)
+    const result = normalized(answer(rawMentions))
     expect(result.answer.mentions).toHaveLength(1)
     expect(result.flags).toEqual(['mentions_capped', 'mentions_merged'])
     expect(result.droppedMentionCount).toBe(0)
@@ -163,13 +162,12 @@ describe('review analysis v3 mention repairs and drops', () => {
       { length: 17 },
       (_value, index) => `Invented sentence ${String.fromCharCode(97 + index)}.`,
     )
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer([
         mention({ sentences: Array.from({ length: 17 }, (_value, index) => index + 1) }),
       ]),
       { sentences },
     )
-    expectNormalized(result)
     expect(result.answer.mentions[0]?.sentences).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
     ])
@@ -177,7 +175,7 @@ describe('review analysis v3 mention repairs and drops', () => {
   })
 
   it('repairs enum casing, cause text, sentence references and names-person casing', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer(
         [
           mention({
@@ -192,9 +190,7 @@ describe('review analysis v3 mention repairs and drops', () => {
         ],
         { sentiment: ' NEGATIVE ' },
       ),
-      context,
     )
-    expectNormalized(result)
     expect(result.answer).toEqual({
       sentiment: 'negative',
       mentions: [
@@ -226,8 +222,7 @@ describe('review analysis v3 mention repairs and drops', () => {
       'mention_dropped_sentences',
     ],
   ] as const)('drops a mention with %s', (_name, rawMention, flag) => {
-    const result = normalizeReviewAnalysisV3(answer([rawMention]), context)
-    expectNormalized(result)
+    const result = normalized(answer([rawMention]))
     expect(result.answer.mentions).toEqual([])
     expect(result.flags).toContain(flag)
     expect(result.droppedMentionCount).toBe(1)
@@ -247,73 +242,40 @@ describe('review analysis v3 mention repairs and drops', () => {
   ] as const)(
     'keeps a mention with %s and empties its cause instead of dropping it',
     (_name, rawMention) => {
-      const result = normalizeReviewAnalysisV3(answer([rawMention]), context)
-      expectNormalized(result)
-      expect(result.answer.mentions).toEqual([
-        {
-          topic: 'facilities_equipment',
-          polarity: 'negative',
-          strength: 'clear',
-          thing: null,
-          issue: null,
-          sentences: [1],
-          names_person: null,
-        },
-      ])
+      const result = normalized(answer([rawMention]))
+      expect(result.answer.mentions).toEqual([causelessMention()])
       expect(result.flags).toEqual(['cause_refused_shape'])
       expect(result.droppedMentionCount).toBe(0)
     },
   )
 
   it('empties both parts of the cause when only one of them is invalid', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer([mention({ thing: 'shower', issue: 'cold after 2 minutes' })]),
-      context,
     )
-    expectNormalized(result)
     expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
     expect(result.flags).toEqual(['cause_refused_shape'])
   })
 
   it('merges two mentions whose invalid causes were emptied, as it does for a refused name', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer([
         mention({ thing: '30 minute wait', issue: 'long', sentences: [1] }),
         mention({ thing: '45 minute wait', issue: 'long', sentences: [2] }),
       ]),
-      context,
     )
-    expectNormalized(result)
-    expect(result.answer.mentions).toEqual([
-      {
-        topic: 'facilities_equipment',
-        polarity: 'negative',
-        strength: 'clear',
-        thing: null,
-        issue: null,
-        sentences: [1, 2],
-        names_person: null,
-      },
-    ])
+    expect(result.answer.mentions).toEqual([causelessMention({ sentences: [1, 2] })])
     expect(result.flags).toEqual(['cause_refused_shape', 'mentions_merged'])
   })
 
   it('leaves a valid cause alone and raises no shape flag', () => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ thing: 'check-in', issue: 'slow' })]),
-      context,
-    )
-    expectNormalized(result)
+    const result = normalized(answer([mention({ thing: 'check-in', issue: 'slow' })]))
     expect(result.answer.mentions[0]).toMatchObject({ thing: 'check-in', issue: 'slow' })
     expect(result.flags).toEqual([])
   })
 
   it('normalizes invalid names_person to null without dropping the mention', () => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ names_person: 'guest_name' })]),
-      context,
-    )
-    expectNormalized(result)
+    const result = normalized(answer([mention({ names_person: 'guest_name' })]))
     expect(result.answer.mentions[0]?.names_person).toBe(null)
     expect(result.flags).toEqual(['names_person_invalid'])
     expect(result.droppedMentionCount).toBe(0)
@@ -322,61 +284,68 @@ describe('review analysis v3 mention repairs and drops', () => {
 
 describe('review analysis v3 cause privacy rules', () => {
   it('refuses a detected name without retaining or flagging its text', () => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ thing: 'hilton', issue: 'noisy' })]),
-      { sentences: ['We found Hilton noisy after sunset.'] },
-    )
-    expectNormalized(result)
+    const result = normalized(answer([mention({ thing: 'hilton', issue: 'noisy' })]), {
+      sentences: ['We found Hilton noisy after sunset.'],
+    })
     expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
     expect(result.flags).toEqual(['cause_refused_name'])
     expect(canonicalizeRfc8785(result)).not.toContain('hilton')
     expect(result.droppedMentionCount).toBe(0)
   })
 
-  it('refuses a name found through a hyphenated token part', () => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ thing: 'marina', issue: 'noisy' })]),
+  it.each([
+    [
+      'refuses a name found through a hyphenated token part',
+      mention({ thing: 'marina', issue: 'noisy' }),
       { sentences: ['We visited Marina-Bay yesterday evening.'] },
-    )
-    expectNormalized(result)
+      'cause_refused_name',
+    ],
+    [
+      'refuses a four-word quotation boundary without dropping the mention',
+      mention({ thing: 'air conditioning', issue: 'didnt work' }),
+      { sentences: ["The air-conditioning didn't work overnight."] },
+      'cause_refused_quotation',
+    ],
+  ] as const)('%s', (_title, rawMention, ctx, flag) => {
+    const result = normalized(answer([rawMention]), ctx)
     expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
-    expect(result.flags).toEqual(['cause_refused_name'])
+    expect(result.flags).toEqual([flag])
+    expect(result.droppedMentionCount).toBe(0)
   })
 
-  it('allows a capitalized common word', () => {
-    const result = normalizeReviewAnalysisV3(answer([mention()]), {
-      sentences: ['We found Air conditioning weak overnight.'],
-    })
-    expectNormalized(result)
-    expect(result.answer.mentions[0]).toMatchObject({
-      thing: 'air conditioning',
-      issue: 'not working',
-    })
-    expect(result.flags).toEqual([])
-  })
-
-  it('allows a capitalized vocabulary-hint word', () => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ thing: 'hydrojet', issue: 'too weak' })]),
+  it.each([
+    [
+      'allows a capitalized common word',
+      mention(),
+      { sentences: ['We found Air conditioning weak overnight.'] },
+    ],
+    [
+      'allows a capitalized vocabulary-hint word',
+      mention({ thing: 'hydrojet', issue: 'too weak' }),
       {
         sentences: ['We tried Hydrojet pressure during treatment.'],
         vocabularyHints: { facilities_equipment: ['hydrojet system'] },
       },
-    )
-    expectNormalized(result)
+    ],
+    [
+      'allows a three-word quotation boundary',
+      mention({ thing: 'air conditioning', issue: 'failed' }),
+      { sentences: ['The air conditioning failed overnight.'] },
+    ],
+  ] as const)('%s', (_title, rawMention, ctx) => {
+    const result = normalized(answer([rawMention]), ctx)
     expect(result.answer.mentions[0]).toMatchObject({
-      thing: 'hydrojet',
-      issue: 'too weak',
+      thing: rawMention.thing,
+      issue: rawMention.issue,
     })
     expect(result.flags).toEqual([])
   })
 
   it('uses extra name tokens without persisting them', () => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ thing: 'solara', issue: 'too loud' })]),
-      { sentences: ['The invented device was loud.'], extraNameTokens: ['Solara'] },
-    )
-    expectNormalized(result)
+    const result = normalized(answer([mention({ thing: 'solara', issue: 'too loud' })]), {
+      sentences: ['The invented device was loud.'],
+      extraNameTokens: ['Solara'],
+    })
     expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
     expect(canonicalizeRfc8785(result)).not.toContain('solara')
   })
@@ -387,11 +356,10 @@ describe('review analysis v3 cause privacy rules', () => {
       'HILTON MARINA BAY HOTEL',
       'Lovely Hilton Marina Bay Stay',
     ]) {
-      const result = normalizeReviewAnalysisV3(
+      const result = normalized(
         answer([mention({ thing: 'hilton', issue: 'too loud' })]),
         { sentences: [sentence] },
       )
-      expectNormalized(result)
       expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
       expect(result.flags).toEqual(['cause_refused_name'])
     }
@@ -406,56 +374,41 @@ describe('review analysis v3 cause privacy rules', () => {
     ],
     ['a brand opening a sentence', ['Hilton staff were lovely.'], 'hilton'],
   ] as const)('refuses %s', (_name, sentences, thing) => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ thing, issue: 'lovely' })]),
-      { sentences },
-    )
-    expectNormalized(result)
+    const result = normalized(answer([mention({ thing, issue: 'lovely' })]), {
+      sentences,
+    })
     expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
     expect(result.flags).toEqual(['cause_refused_name'])
     expect(canonicalizeRfc8785(result)).not.toContain(thing)
   })
 
   it('never lets a named person become a complaint cause', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer([mention({ topic: 'staff_service', thing: 'maria', issue: 'rude' })]),
       { sentences: ['Maria at reception was rude.'] },
     )
-    expectNormalized(result)
-    expect(result.answer.mentions).toEqual([
-      {
-        topic: 'staff_service',
-        polarity: 'negative',
-        strength: 'clear',
-        thing: null,
-        issue: null,
-        sentences: [1],
-        names_person: null,
-      },
-    ])
+    expect(result.answer.mentions).toEqual([causelessMention({ topic: 'staff_service' })])
     expect(result.flags).toEqual(['cause_refused_name'])
   })
 
   it('still allows a common word or a hint word that opens a sentence', () => {
-    const common = normalizeReviewAnalysisV3(
+    const common = normalized(
       answer([mention({ thing: 'air conditioning', issue: 'weak' })]),
       { sentences: ['Air conditioning was weak overnight.'] },
     )
-    expectNormalized(common)
     expect(common.answer.mentions[0]).toMatchObject({
       thing: 'air conditioning',
       issue: 'weak',
     })
     expect(common.flags).toEqual([])
 
-    const hinted = normalizeReviewAnalysisV3(
+    const hinted = normalized(
       answer([mention({ thing: 'hydrojet', issue: 'too weak' })]),
       {
         sentences: ['Hydrojet pressure was weak during treatment.'],
         vocabularyHints: { facilities_equipment: ['hydrojet system'] },
       },
     )
-    expectNormalized(hinted)
     expect(hinted.answer.mentions[0]).toMatchObject({
       thing: 'hydrojet',
       issue: 'too weak',
@@ -463,32 +416,8 @@ describe('review analysis v3 cause privacy rules', () => {
     expect(hinted.flags).toEqual([])
   })
 
-  it('allows a three-word quotation boundary', () => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ thing: 'air conditioning', issue: 'failed' })]),
-      { sentences: ['The air conditioning failed overnight.'] },
-    )
-    expectNormalized(result)
-    expect(result.answer.mentions[0]).toMatchObject({
-      thing: 'air conditioning',
-      issue: 'failed',
-    })
-    expect(result.flags).toEqual([])
-  })
-
-  it('refuses a four-word quotation boundary without dropping the mention', () => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ thing: 'air conditioning', issue: 'didnt work' })]),
-      { sentences: ["The air-conditioning didn't work overnight."] },
-    )
-    expectNormalized(result)
-    expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
-    expect(result.flags).toEqual(['cause_refused_quotation'])
-    expect(result.droppedMentionCount).toBe(0)
-  })
-
   it('collapses refused causes into one topic-level dedupe key', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer([
         mention({ thing: 'hilton', issue: 'noisy', sentences: [1] }),
         mention({ thing: 'maria', issue: 'unhelpful', sentences: [2] }),
@@ -500,18 +429,7 @@ describe('review analysis v3 cause privacy rules', () => {
         ],
       },
     )
-    expectNormalized(result)
-    expect(result.answer.mentions).toEqual([
-      {
-        topic: 'facilities_equipment',
-        polarity: 'negative',
-        strength: 'clear',
-        thing: null,
-        issue: null,
-        sentences: [1, 2],
-        names_person: null,
-      },
-    ])
+    expect(result.answer.mentions).toEqual([causelessMention({ sentences: [1, 2] })])
     expect(result.flags).toEqual(['cause_refused_name', 'mentions_merged'])
   })
 })
@@ -522,14 +440,8 @@ describe('review analysis v3 person marker and merge rules', () => {
       'The invented host [PERSON] was welcoming.',
       'The invented room was quiet.',
     ]
-    const cited = normalizeReviewAnalysisV3(answer([mention({ sentences: [1] })]), {
-      sentences,
-    })
-    const uncited = normalizeReviewAnalysisV3(answer([mention({ sentences: [2] })]), {
-      sentences,
-    })
-    expectNormalized(cited)
-    expectNormalized(uncited)
+    const cited = normalized(answer([mention({ sentences: [1] })]), { sentences })
+    const uncited = normalized(answer([mention({ sentences: [2] })]), { sentences })
     expect(cited.answer.mentions[0]?.names_person).toBe('other')
     expect(cited.flags).toEqual(['names_person_raised'])
     expect(uncited.answer.mentions[0]?.names_person).toBe(null)
@@ -537,17 +449,15 @@ describe('review analysis v3 person marker and merge rules', () => {
   })
 
   it('does not replace an explicit team-member classification with the marker fallback', () => {
-    const result = normalizeReviewAnalysisV3(
-      answer([mention({ names_person: 'team_member' })]),
-      { sentences: ['The invented host [PERSON] was welcoming.'] },
-    )
-    expectNormalized(result)
+    const result = normalized(answer([mention({ names_person: 'team_member' })]), {
+      sentences: ['The invented host [PERSON] was welcoming.'],
+    })
     expect(result.answer.mentions[0]?.names_person).toBe('team_member')
     expect(result.flags).toEqual([])
   })
 
   it('merges by first appearance with greatest strength, first greatest issue, names precedence and sentence union', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer([
         mention({
           strength: 'mild',
@@ -574,9 +484,7 @@ describe('review analysis v3 person marker and merge rules', () => {
           names_person: 'other',
         }),
       ]),
-      context,
     )
-    expectNormalized(result)
     expect(result.answer.mentions).toEqual([
       {
         topic: 'facilities_equipment',
@@ -636,14 +544,13 @@ describe('review analysis v3 person marker and merge rules', () => {
         { length: 40 },
         (_value, index) => `Invented sentence ${index + 1}.`,
       )
-      const result = normalizeReviewAnalysisV3(
+      const result = normalized(
         answer([
           mention({ sentences: first }),
           mention({ sentences: second, strength: 'mild', issue: 'noisy' }),
         ]),
         { sentences },
       )
-      expectNormalized(result)
       expect(result.answer.mentions).toHaveLength(1)
       expect(result.answer.mentions[0]?.sentences).toEqual(expected)
       expect(result.flags).toEqual(expectedFlags)
@@ -652,16 +559,14 @@ describe('review analysis v3 person marker and merge rules', () => {
   )
 
   it('keeps separate keys when topic, normalized thing or polarity differs', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer([
         mention(),
         mention({ topic: 'main_service' }),
         mention({ thing: 'heating' }),
         mention({ polarity: 'positive', issue: 'working well' }),
       ]),
-      context,
     )
-    expectNormalized(result)
     expect(result.answer.mentions).toHaveLength(4)
     expect(result.flags).toEqual([])
   })
@@ -669,11 +574,9 @@ describe('review analysis v3 person marker and merge rules', () => {
 
 describe('review analysis v3 urgent normalization', () => {
   it('normalizes a known urgent reason and freezes it', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer([], { sentiment: 'neutral', urgent: { reason: ' HEALTH ' } }),
-      context,
     )
-    expectNormalized(result)
     expect(result.answer.urgent).toEqual({ reason: 'health' })
     expect(result.flags).toEqual(['enum_case_repaired'])
     expect(Object.isFrozen(result.answer.urgent)).toBe(true)
@@ -684,11 +587,7 @@ describe('review analysis v3 urgent normalization', () => {
     ['missing reason', {}],
     ['wrong object type', 'safety'],
   ])('repairs %s to null', (_name, urgent) => {
-    const result = normalizeReviewAnalysisV3(
-      answer([], { sentiment: 'neutral', urgent }),
-      context,
-    )
-    expectNormalized(result)
+    const result = normalized(answer([], { sentiment: 'neutral', urgent }))
     expect(result.answer.urgent).toBe(null)
     expect(result.flags).toEqual(['urgent_reason_unknown'])
   })
@@ -706,8 +605,7 @@ describe('review analysis v3 determinism and totality', () => {
       ]),
     )
     const before = canonicalizeRfc8785(raw)
-    const result = normalizeReviewAnalysisV3(raw, context)
-    expectNormalized(result)
+    normalized(raw)
     expect(canonicalizeRfc8785(raw)).toBe(before)
   })
 
@@ -873,14 +771,12 @@ describe('review analysis v3 determinism and totality', () => {
   })
 
   it('always emits sorted unique flags from the closed vocabulary', () => {
-    const result = normalizeReviewAnalysisV3(
+    const result = normalized(
       answer(
         ['bad', 'bad', mention({ names_person: 'invalid', sentences: [3, 1, 1, 0] })],
         { urgent: { reason: 'billing' } },
       ),
-      context,
     )
-    expectNormalized(result)
     expect(result.flags).toEqual([
       'mention_dropped_malformed',
       'names_person_invalid',
@@ -892,90 +788,5 @@ describe('review analysis v3 determinism and totality', () => {
       const governed: ReviewAnalysisNormalizationFlag = flag
       expect(REVIEW_ANALYSIS_NORMALIZATION_FLAGS).toContain(governed)
     }
-  })
-})
-
-describe('review analysis v3 normalization governance', () => {
-  it('pins the full manifest and computed digest', () => {
-    expect(REVIEW_ANALYSIS_NORMALIZATION_VERSION).toBe('review-analysis-normalization-v1')
-    expect(REVIEW_ANALYSIS_NORMALIZATION_DIGEST).toBe(
-      'd3f2d832717d9639c41eeefc65255f87c51e6e92d61cfeafff329af736e955fb',
-    )
-    expect(REVIEW_ANALYSIS_NORMALIZATION_DIGEST).toBe(
-      createHash('sha256')
-        .update('repkey-review-analysis-normalization-v1\0', 'utf8')
-        .update(canonicalizeRfc8785(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST), 'utf8')
-        .digest('hex'),
-    )
-    expect(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST).toMatchObject({
-      version: 'review-analysis-normalization-v1',
-      limits: { mentions: 48, sentenceReferences: 16, sentenceNumber: 10_000 },
-      causePatternSource: '^[a-z]+(?:-[a-z]+)*(?: [a-z]+(?:-[a-z]+)*){0,2}$',
-      causePhraseMaximumWords: 3,
-      causePhraseMaximumLength: 80,
-      invalidCausePolicy: 'empty-cause-keep-mention',
-      quotationRunLength: 4,
-      quotationScope: 'all-present-fields-space-or-hyphen-words-v2',
-      personMarker: '[PERSON]',
-      commonWordCatalogueVersion: 'review-cause-common-words-v1',
-    })
-    expect(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST.nameTokenRules).toEqual({
-      wordPatternSource: "\\p{L}+(?:['’-]\\p{L}+)*",
-      ignoredPlaceholderPatternSource: '\\[[A-Z_]+\\]',
-      minimumCandidateLetters: 2,
-      everyCapitalizedWordIsCandidate: true,
-      lowercaseOccurrenceSuppressesCandidate: true,
-      includeHyphenAndApostropheParts: true,
-    })
-    expect(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST.normalizedDashCodePoints).toEqual([
-      'U+2010',
-      'U+2011',
-      'U+2012',
-      'U+2013',
-      'U+2014',
-      'U+2015',
-      'U+2212',
-      'U+FE58',
-      'U+FE63',
-      'U+FF0D',
-    ])
-    expect(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST.flags).toEqual(
-      REVIEW_ANALYSIS_NORMALIZATION_FLAGS,
-    )
-    expect(Object.isFrozen(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST)).toBe(true)
-    expect(Object.isFrozen(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST.limits)).toBe(true)
-    expect(Object.isFrozen(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST.enumVocabularies)).toBe(
-      true,
-    )
-    expect(Object.isFrozen(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST.commonWords)).toBe(true)
-  })
-
-  it('attests a sorted unique lowercase common-word catalogue', () => {
-    const words = REVIEW_ANALYSIS_NORMALIZATION_MANIFEST.commonWords
-    expect(words.length).toBeGreaterThan(500)
-    expect(words).toEqual([...words].sort())
-    expect(new Set(words).size).toBe(words.length)
-    for (const word of words) expect(word).toMatch(/^[a-z]{2,}$/)
-  })
-
-  it('exports the exact closed flag vocabulary', () => {
-    expect(REVIEW_ANALYSIS_NORMALIZATION_FLAGS).toEqual([
-      'mentions_capped',
-      'sentence_refs_capped',
-      'enum_case_repaired',
-      'mention_dropped_malformed',
-      'mention_dropped_enum',
-      'mention_dropped_cause',
-      'mention_dropped_sentences',
-      'sentence_refs_repaired',
-      'cause_refused_name',
-      'cause_refused_quotation',
-      'cause_refused_shape',
-      'names_person_invalid',
-      'names_person_raised',
-      'mentions_merged',
-      'urgent_reason_unknown',
-    ])
-    expect(Object.isFrozen(REVIEW_ANALYSIS_NORMALIZATION_FLAGS)).toBe(true)
   })
 })

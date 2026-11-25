@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { ListFilter, X } from 'lucide-react'
-import type { InboxQueue, InboxSort } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue, InboxSort } from '#/contexts/reputation/public-api'
 import { Button } from '#/components/ui/button'
 import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import {
@@ -11,7 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '#/components/ui/sheet'
-import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
+import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/analysis/aspect-labels'
 import { InboxChoiceChips } from './inbox-choice-chips'
 import { filtersOffered } from './inbox-filter-offer'
 import {

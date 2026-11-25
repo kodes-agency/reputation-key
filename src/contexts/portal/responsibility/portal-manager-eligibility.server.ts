@@ -1,14 +1,14 @@
 import type {
   IdentityManagerFactsPublicApi,
   ManagerMembership,
-} from '#/contexts/identity/application/public-api'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+} from '#/contexts/identity/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
   isEligibleResponsibleManager,
   listEligibleResponsibleManagers,
   listIneligibleResponsibleManagers,
-} from '#/shared/responsible-manager-eligibility'
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 
 export type PortalManagerEligibilityDeps = Readonly<{
   identityPublicApi: IdentityManagerFactsPublicApi

@@ -2,9 +2,7 @@
 // Google: its author, and the people who can approve it again — the same
 // people an approval request asks (I5.3), not every AccountAdmin.
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { describe, expect, it } from 'vitest'
 import { unbrand } from '#/shared/domain/ids'
 import { handleWorkflowNotificationEvent } from './inbox-workflow.server'
 import { NOTIF_TEST_IDS } from '../infrastructure/notification-consumer-test-fixtures'
@@ -33,12 +31,6 @@ const recipients = (deps: ReturnType<typeof makeWorkflowDeps>) =>
   queuedJobs(deps).map((job) => [job.userId, job.audience])
 
 describe('a publication cancelled after approval', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-  afterEach(() => clearEventSchemas())
-
   it('asks the Property’s responsible approvers, not every AccountAdmin', async () => {
     const deps = makeWorkflowDeps()
     deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([

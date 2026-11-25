@@ -37,15 +37,3 @@ export type GoalMetricAggregate = Readonly<{
   /** Latest current correction tip affecting this exact subject/period. */
   correctionHead: Date | null
 }>
-
-export type MetricReadingPresenceQuery = Readonly<{
-  organizationId: OrganizationId
-  definitionVersionId: string
-  sourceEventId: string
-}>
-
-export type MetricRepository = Readonly<{
-  queryGoalAggregate(query: GoalMetricAggregateQuery): Promise<GoalMetricAggregate>
-  /** Whether the source event has a reading under this version, corrected since or not. */
-  hasReading(query: MetricReadingPresenceQuery): Promise<boolean>
-}>

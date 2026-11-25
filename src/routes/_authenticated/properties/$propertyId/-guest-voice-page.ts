@@ -2,13 +2,10 @@
 // otherwise the reason there is none. The server decides (`getGuestVoiceV2Fn`); the route
 // only reads what it answered. An answer that is not a page is drawn as "AI is off" or
 // "being prepared".
-import type {
-  GuestVoiceV2Read,
-  GuestVoiceV2Response,
-} from '#/contexts/ai/application/public-api'
+import type { GuestVoiceV2Read, GuestVoiceV2Response } from '#/contexts/ai/public-api'
 import type { GuestVoiceGoalFacts } from '#/contexts/ai/guest-voice/ui/guest-voice-rating-goal-words'
 import type { RatingGoalCardView } from '#/contexts/reporting/rating-goals/contracts'
-import type { GuestVoiceRange } from '#/shared/dashboard-range'
+import type { GuestVoiceRange } from '#/shared/dashboard/dashboard-range'
 
 /** What the server function answers: the page, or why there is none to draw. */
 export type GuestVoiceV2Answer =

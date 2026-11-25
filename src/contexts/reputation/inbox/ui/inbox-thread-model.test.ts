@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { InboxNoteView } from '#/contexts/inbox/application/public-api'
+import type { InboxNoteView } from '#/contexts/reputation/public-api'
 import {
   inboxItemId,
   inboxNoteId,

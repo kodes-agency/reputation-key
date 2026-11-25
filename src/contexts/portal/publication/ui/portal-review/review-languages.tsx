@@ -3,7 +3,7 @@
 // is in the fallback language; the checks above say which.
 
 import { Check, CircleAlert, Sparkles } from 'lucide-react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { ReviewLanguageRow } from '#/contexts/portal/application/portal-management-contracts'
 import { Badge } from '#/components/ui/badge'
 import { describeReviewLanguage } from './portal-review-languages'

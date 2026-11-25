@@ -7,15 +7,13 @@
 // facts are supplied.
 
 import { randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type {
   IdentityManagerFactsPublicApi,
   StaffPublicApi,
-} from '#/contexts/identity/application/public-api'
+} from '#/contexts/identity/public-api'
 import { getDb } from '#/shared/db'
 import { organizationId, portalId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { getPortalContactRequestManagerAuthorityFacts } from './contact-request-authority.server'
@@ -40,11 +38,6 @@ const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
   tables: ['portal_responsible_managers', 'outbox_events', 'portals', 'properties'],
-})
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 /** The Organization's active managers as Identity reports them. */

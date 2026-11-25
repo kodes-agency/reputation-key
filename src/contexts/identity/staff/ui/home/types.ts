@@ -13,7 +13,7 @@ import type {
   submitMyStaffFeedback,
   listMyStaffFeedback,
 } from '#/contexts/identity/server/staff-self-account'
-import type { StaffHomeSearch } from '#/shared/staff-home-search'
+import type { StaffHomeSearch } from '#/shared/routing/staff-home-search'
 
 type Call<T extends (...args: never[]) => unknown> = (
   ...args: Parameters<T>

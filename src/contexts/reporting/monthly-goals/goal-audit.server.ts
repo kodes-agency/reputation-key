@@ -1,4 +1,4 @@
-import { writeAuditEvent } from '#/contexts/feed/application/public-api'
+import { writeAuditEvent } from '#/contexts/feed/public-api'
 import type { Tx } from '#/shared/outbox/commit'
 
 export type GoalAudit = Readonly<{

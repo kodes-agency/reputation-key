@@ -7,7 +7,7 @@ import {
   merchantAiEnablement,
 } from '#/shared/db/schema'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
-import { isExecutionCompatibleWithConsent } from '#/shared/ai-runtime-capability-contract'
+import { isExecutionCompatibleWithConsent } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
@@ -80,7 +80,6 @@ type Authorization = Pick<
   | 'capabilities'
   | 'reviewAnalysisEpoch'
   | 'replyDraftingEpoch'
-  | 'propertyTrendsEpoch'
   | 'authorizedSourceEpoch'
   | 'noticeVersion'
   | 'noticeDigest'
@@ -109,11 +108,7 @@ function matchesCapabilityEpochs(
 ): boolean {
   if (capability === 'reply_drafting')
     return authorization.replyDraftingEpoch === fence.replyDraftingEpoch
-  return (
-    authorization.reviewAnalysisEpoch === fence.reviewAnalysisEpoch &&
-    (capability !== 'property_trends' ||
-      authorization.propertyTrendsEpoch === fence.propertyTrendsEpoch)
-  )
+  return authorization.reviewAnalysisEpoch === fence.reviewAnalysisEpoch
 }
 
 function authorizationCoversEffect(
@@ -160,7 +155,6 @@ export async function isCurrentAuthorizedEffect(
       capabilities: merchantAiEnablement.capabilities,
       reviewAnalysisEpoch: merchantAiEnablement.reviewAnalysisEpoch,
       replyDraftingEpoch: merchantAiEnablement.replyDraftingEpoch,
-      propertyTrendsEpoch: merchantAiEnablement.propertyTrendsEpoch,
       authorizedSourceEpoch: merchantAiEnablement.authorizedSourceEpoch,
       noticeVersion: merchantAiEnablement.noticeVersion,
       noticeDigest: merchantAiEnablement.noticeDigest,

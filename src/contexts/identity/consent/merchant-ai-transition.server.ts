@@ -1,13 +1,12 @@
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
-import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-contract'
+import { resolveAiRuntimeCapabilitySet } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
 import {
   RECORDED_RUNTIME_PROFILE_VERSIONS,
   type CapabilityRuntimeProfileVersions,
   type MerchantAiCapability,
 } from '#/shared/domain/merchant-ai-capability'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { Tx } from '#/shared/outbox/commit'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { STANDING_RENEWAL_REASON } from '../domain/merchant-ai-standing-renewal'
@@ -17,6 +16,7 @@ import {
   type MerchantAiSnapshot,
   type MerchantAiState,
 } from '../domain/merchant-ai-authorization'
+import { providerSourceAdvisoryScope } from './provider-source-advisory-scope.server'
 import { decideMemberPropertyAuthority } from '../members/member-property-authority.server'
 import {
   MerchantAiAuthorizationStoreError,
@@ -150,11 +150,11 @@ async function lockProviderSource(
     sourceDiscovery.authorized_source_epoch !== undefined
       ? readInteger(sourceDiscovery, 'authorized_source_epoch', 0)
       : propertySourceEpoch
-  const providerSourceScope = createAiAdvisoryScope('provider-source', [
+  const providerSourceScope = providerSourceAdvisoryScope(
     target.organizationId,
     target.propertyId,
     discoveredSourceEpoch,
-  ])
+  )
   await tx.execute(sql`
     SELECT pg_advisory_xact_lock(ai_advisory_lock_key_v1(${providerSourceScope}))
   `)

@@ -17,25 +17,25 @@ import {
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/analysis/normalizer'
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/analysis/prompt'
-import { REVIEW_ATTENTION_V2_DIGEST } from '#/shared/review-analysis-v3'
+import { REVIEW_ATTENTION_V2_DIGEST } from '#/shared/analysis/review-analysis-v3'
 import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/analysis/profile'
 import {
   PROPERTY_ISSUE_NORMALIZATION_DIGEST,
   PROPERTY_ISSUE_NORMALIZATION_VERSION,
   normalizeIssueThing,
-} from '#/shared/property-issue-normalization'
+} from '#/shared/analysis/property-issue-normalization'
 import {
   REVIEW_SENTENCES_DIGEST,
   REVIEW_SENTENCES_VERSION,
-} from '#/shared/review-sentences'
+} from '#/shared/ai-review-source/review-sentences'
 import {
   REVIEW_TOPIC_TAXONOMY_V3_DIGEST,
   REVIEW_TOPIC_TAXONOMY_VERSION,
-} from '#/shared/review-topic-taxonomy'
+} from '#/shared/analysis/review-topic-taxonomy'
 import {
   REVIEW_VOCABULARY_HINTS_CATALOGUE_DIGEST,
   selectVocabularyHintSet,
-} from '#/shared/review-vocabulary-hints'
+} from '#/shared/analysis/review-vocabulary-hints'
 import { RELEASE_GATES } from './review-analysis-v3-gates'
 import type { CauseKey } from './review-analysis-v3-mention-metrics'
 import type { ScoredRun } from './review-analysis-v3-metrics'

@@ -7,11 +7,9 @@ import { z } from 'zod/v4'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { commandHandler } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
-import { portalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalError } from '../domain/errors'
 import { portalCommandErrors } from './portal-command-errors'
-import { requirePortalResourceScope } from './property-scope'
+import { requirePortalScope } from './portal-scope.server'
 
 const portalInput = z.object({ portalId: z.string().min(1, 'Portal ID is required') })
 const versionInput = portalInput.extend({ version: z.number().int().min(1) })
@@ -22,16 +20,7 @@ async function readWithScope<T>(
   id: string,
   read: () => Promise<T>,
 ): Promise<T> {
-  await requirePortalResourceScope({
-    actor: ctx,
-    action: 'portal.read',
-    capability: 'portal.read',
-    notFound: portalError('portal_not_found', 'portal not found'),
-    lookup: () =>
-      getContainer().portalPublicApi.management.resolvePortalManagementScope(
-        portalId(id),
-      ),
-  })
+  await requirePortalScope(ctx, id, 'portal.read')
   return await read()
 }
 

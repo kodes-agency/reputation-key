@@ -12,7 +12,7 @@
 // the same sentence a sighted user reads instead of a bare "chart" label.
 import { useId, type ReactNode } from 'react'
 import { ChartContainer, type ChartConfig } from '#/components/ui/chart'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 export type ChartFrameSize = 'compact' | 'standard'
 

@@ -3,7 +3,7 @@ import { portalKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { useStaffFunctions } from './staff-account-functions'
-import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
+import type { PortalResultsTimeRange } from '#/contexts/reporting/public-api'
 
 export function useStaffResults(
   propertyId: string,

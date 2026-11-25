@@ -13,7 +13,7 @@ import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { SegmentedControl } from '#/components/ui/segmented-control'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import {
   GUEST_LOCALE_METADATA,
   adminLanguageCode,

@@ -8,9 +8,8 @@ import { savePortalPrintWordingInputSchema } from '../printing/portal-print-word
 import {
   downloadPortalPrintFile,
   guardedPortalPrintAction,
-  portalPrintScope,
 } from './portal-print-file.server'
-import { requirePortalResourceScope } from './property-scope'
+import { requirePortalScope } from './portal-scope.server'
 
 /** Makes the PDF behind the shared print guards. */
 export const downloadPortalPrintFinal = createServerFn({ method: 'POST' })
@@ -19,13 +18,7 @@ export const downloadPortalPrintFinal = createServerFn({ method: 'POST' })
     tracedHandler(
       ({ data }) =>
         downloadPortalPrintFile(
-          (ctx) =>
-            requirePortalResourceScope({
-              actor: ctx,
-              action: 'portal.update',
-              capability: 'portal.write',
-              ...portalPrintScope(data.portalId),
-            }),
+          (ctx) => requirePortalScope(ctx, data.portalId, 'portal.update'),
           (ctx) => getContainer().portalPublicApi.management.createPortalPrint(data, ctx),
         ),
       'POST',
@@ -43,13 +36,7 @@ export const savePortalPrintWording = createServerFn({ method: 'POST' })
     tracedHandler(
       ({ data }) =>
         guardedPortalPrintAction(
-          (ctx) =>
-            requirePortalResourceScope({
-              actor: ctx,
-              action: 'portal.update',
-              capability: 'portal.write',
-              ...portalPrintScope(data.portalId),
-            }),
+          (ctx) => requirePortalScope(ctx, data.portalId, 'portal.update'),
           (ctx) =>
             getContainer().portalPublicApi.management.savePortalPrintWording(data, ctx),
           'wording',

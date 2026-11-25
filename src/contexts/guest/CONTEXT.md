@@ -161,8 +161,7 @@ correctness; Redis provides abuse control and observation-loss monitoring. State
 source-event identities, and identifier-only outbox facts commit atomically.
 
 Response and private-feedback withdrawals journal to the bucket through
-`responses/guest-withdrawal-journal.server.ts`, switched on by
-`GUEST_WITHDRAWAL_JOURNAL_ACTIVE`. The command store checks the existing
+`responses/guest-withdrawal-journal.server.ts`, always on. The command store checks the existing
 session/state predicate, writes an IDs-only intent outside the deletion
 transaction, then rechecks that predicate in the transaction. A failed bucket
 write refuses the withdrawal before anything is deleted and produces a
@@ -179,10 +178,9 @@ member to authorize, so these functions do not authorize a caller themselves; ad
 the exact origin, the signed session, the CSRF nonce and the public policy decision, all
 applied in `server/` before a function is called. The surface therefore also holds edge
 controls that are not commands: the session signer and verifier (`guestSessions`), the
-network-pressure and observation-loss controls, and the network pseudonym hasher. One member
-has no caller at all: `responseLifecycle.changeIntegrity`, the internal integrity control,
-takes its actor as data and decides nothing about who may use it, so no server function
-may expose it to a manager.
+network-pressure and observation-loss controls, and the network pseudonym hasher. The
+reserved reviewer control for changing a response's integrity (`changeIntegrity`) was removed
+as unused. Stored integrity outcomes, including `under_review`, remain readable.
 
 Cleanup runs whether or not contact requests are on; it cannot submit, read, reveal, or withdraw a request.
 

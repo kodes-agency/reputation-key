@@ -2,7 +2,7 @@
 // decorative stop.
 
 import { Check } from 'lucide-react'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import type { GoalRulerModel, GoalRulerStop } from './goal-ruler-view'
 
 const percent = (share: number): string => `${share * 100}%`

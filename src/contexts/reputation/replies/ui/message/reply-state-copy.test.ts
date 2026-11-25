@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  replyQueueStage,
-  type InboxItemReplyState,
-} from '#/contexts/inbox/application/public-api'
+import { replyQueueStage } from '#/contexts/reputation/inbox/inbox-queues.contracts'
+import type { InboxItemReplyState } from '#/contexts/reputation/public-api'
 import {
   REPLY_CHIP_WORDS,
   replyStateDescription,
@@ -258,7 +256,7 @@ describe('publication failure copy', () => {
   })
 
   /**
-   * `sending` is claimed BEFORE the provider call (publish-reply.job.ts
+   * `sending` is claimed BEFORE the provider call (publish-reply-job.server.ts
    * header), and D4 settles some of those attempts as never dispatched. The
    * sentence may not assert a send the code cannot know happened.
    */

@@ -44,12 +44,11 @@ import {
 } from '../application/goal-month-target-marker'
 import { goalTargetProvenance } from '../application/goal-target-provenance'
 import { metricSubject } from '../application/use-cases/goal-program-shared'
+import type { GoalProgramService } from './goal-programs.server'
 import type {
   GoalActor,
-  GoalExecutionPolicy,
   GoalMetricReadPort,
-  GoalProgramService,
-} from './goal-programs.server'
+} from '../application/use-cases/goal-program-shared'
 import type { GovernedGoalMetricResult } from '../readings/query-goal-metric.server'
 
 export type GoalProgress = Readonly<{
@@ -86,8 +85,8 @@ export type GoalProgressInput = Readonly<{
 }>
 
 export type GoalProgressDeps = Readonly<{
-  reads: Pick<GoalProgramService, 'list' | 'get'>
-  metrics: Pick<GoalMetricReadPort, 'queryGoalMetric' | 'queryGoalMetrics'>
+  reads: Pick<GoalProgramService, 'list'>
+  metrics: Pick<GoalMetricReadPort, 'queryGoalMetric'>
   now: () => Date
 }>
 
@@ -101,34 +100,6 @@ export type GoalProgressReader = (
  * governed read; past this the page shows none rather than some.
  */
 export const MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS = 25
-
-export type GoalProgramProgressInput = Readonly<{
-  propertyId: string
-  programId: string
-}>
-
-/** The month so far for one subject of a goal. */
-export type GoalSubjectProgress = Readonly<{
-  subject: GoalSubject
-  progress: GoalProgress
-}>
-
-export type GoalProgramProgressReader = (
-  input: GoalProgramProgressInput,
-  actor: GoalActor,
-) => Promise<readonly GoalSubjectProgress[]>
-
-/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
-export type GoalProgressRequestApi = Readonly<{
-  progress: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgressReader>
-  ) => ReturnType<GoalProgressReader>
-  programProgress: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramProgressReader>
-  ) => ReturnType<GoalProgramProgressReader>
-}>
 
 type ShownStatus = GoalProgress['status']
 
@@ -168,11 +139,6 @@ function subjectsWhere(
     }
   }
   return [...subjects.values()]
-}
-
-/** Every subject with an assignment in force or still to begin, once each. */
-function currentSubjects(bundle: GoalProgramBundle, now: Date): readonly GoalSubject[] {
-  return subjectsWhere(bundle, (assignment) => assignmentHoldsFrom(assignment, now))
 }
 
 /** Every subject whose assignment has begun and has not ended, once each. */
@@ -337,31 +303,6 @@ export function createGoalProgressReader(deps: GoalProgressDeps): GoalProgressRe
       ),
     )
     return goals.flatMap((goal) => (goal ? [goal] : []))
-  }
-}
-
-/**
- * One goal, with the month so far for each of its current subjects. A goal
- * with more subjects than the page reads figures for returns none, and so does
- * an ended goal.
- */
-export function createGoalProgramProgressReader(
-  deps: GoalProgressDeps,
-): GoalProgramProgressReader {
-  return async (input, actor) => {
-    const bundle = await deps.reads.get(input, actor)
-    const { status } = bundle.program
-    if (!isShown(status)) return []
-    const now = deps.now()
-    const subjects = currentSubjects(bundle, now)
-    if (subjects.length > MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS) return []
-    const read = await Promise.all(
-      subjects.map(async (subject) => {
-        const progress = await progressOf(deps, bundle, subject, status, now, actor)
-        return progress ? [{ subject, progress }] : []
-      }),
-    )
-    return read.flat()
   }
 }
 

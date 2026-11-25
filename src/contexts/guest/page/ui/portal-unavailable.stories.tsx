@@ -2,7 +2,7 @@
 // (`a11y.test = 'error'`). It takes the visitor's language and nothing else.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, waitFor, within } from 'storybook/test'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { GUEST_FONT_STYLESHEET } from '#/shared/fonts/font-sets'
 import { PortalUnavailable } from './portal-unavailable'
 import { PortalUnavailableInBrowserLanguage } from './portal-unavailable-in-browser-language'
 import { unavailableCopyOf } from './portal-unavailable-copy'

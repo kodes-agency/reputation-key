@@ -16,7 +16,7 @@
 // canceled fact name no one — and it carries ids only, never an address.
 
 import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
-import { writeAuditEvent } from '#/contexts/feed/application/public-api'
+import { writeAuditEvent } from '#/contexts/feed/public-api'
 import type { Database, Tx } from '#/shared/db/index'
 import { invitation, member, organization } from '#/shared/db/schema/auth'
 import { trace } from '#/shared/observability/trace'

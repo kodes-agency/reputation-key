@@ -25,7 +25,7 @@ import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { createHealthChecker } from '#/shared/observability/health-metrics'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-identifiers-v1'
 import {
   insertLegacyTombstone,
   insertLiveReview,

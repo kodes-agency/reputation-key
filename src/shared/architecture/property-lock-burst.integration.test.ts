@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Burst regression for the Property source fence.
 //
 // Each import transaction and each Inbox projection takes the Property fence,
@@ -23,17 +23,15 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { JOB_OPERATIONAL_QUEUE_CONCURRENCY } from '#/shared/jobs/operational-catalogue'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { deleteTestOrganizations, seedOrgs } from '#/shared/testing/integration-helpers'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { reviewCreated } from '#/contexts/review/domain/events'
-import type { Review, StarRating } from '#/contexts/review/domain/types'
-import { createAtomicReviewCommandStore } from '#/contexts/review/infrastructure/review-command-store'
+import { reviewCreated } from '#/contexts/reputation/domain/review-events'
+import type { Review, StarRating } from '#/contexts/reputation/domain/review-types'
+import { createAtomicReviewCommandStore } from '#/contexts/reputation/reviews/review-command-store.server'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import {
   createAtomicInboxCommandStore,
@@ -44,11 +42,11 @@ import {
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
-import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
-import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
+import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
+import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
+import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 
 const ORG = organizationId('org-property-lock-burst')
 const PROPERTY = propertyId('af300000-0000-4000-8000-000000000001')
@@ -149,7 +147,6 @@ function burstReview(index: number): Omit<Review, 'createdAt' | 'updatedAt'> {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: new Date(IMPORTED_AT.getTime() - (index + 1) * 60_000),
-    expiresAt: new Date('2027-09-29T12:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: new Date(IMPORTED_AT.getTime() - (index + 1) * 60_000),
@@ -374,8 +371,6 @@ function createBurstPool(max: number): Pool {
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 2)
   pool = createBurstPool(EXHAUSTIBLE_POOL_SIZE)
-  clearEventSchemas()
-  registerAllEventSchemas()
 })
 
 afterAll(async () => {
@@ -383,7 +378,6 @@ afterAll(async () => {
   await clean()
   await deleteTestOrganizations(lease.pool, [ORG])
   await lease.release()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

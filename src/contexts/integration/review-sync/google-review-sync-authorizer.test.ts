@@ -45,10 +45,9 @@ function connection(overrides: Partial<GoogleConnection> = {}): GoogleConnection
     encryptedRefreshToken: 'encrypted-refresh',
     tokenExpiresAt: new Date('2026-08-27T12:00:00.000Z'),
     scopes: ['https://www.googleapis.com/auth/business.manage'],
-    // Provenance deliberately points at a non-member and the legacy decoder
-    // still reports private. Neither fact participates in authorization.
+    // Provenance deliberately points at a non-member; it does not participate
+    // in authorization.
     connectedBy: userId('former-connector'),
-    visibility: 'private',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,

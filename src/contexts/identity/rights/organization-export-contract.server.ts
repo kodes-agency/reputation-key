@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { TextDecoder } from 'node:util'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import { isFormulaSafeCsv } from '#/shared/security/csv-cell'
 import {
   ORGANIZATION_LIFECYCLE_CONTEXTS,

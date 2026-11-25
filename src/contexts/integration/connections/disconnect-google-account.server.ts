@@ -12,7 +12,6 @@ import type { GoogleConnection } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { DisconnectGoogleInput } from './disconnect-google.contracts'
 export type { DisconnectGoogleInput as DisconnectGoogleAccountInput } from './disconnect-google.contracts'
-import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../domain/errors'
@@ -39,11 +38,6 @@ export type DisconnectGoogleAccountDeps = Readonly<{
     organizationId: OrganizationId,
     connectionId: string,
   ) => Promise<unknown>
-  /**
-   * BQC-1.7: bounded lifecycle purge of the connection's source content.
-   * Optional until wired in composition (kept out of older test fixtures).
-   */
-  sourceContentPurge?: SourceContentPurge
   /** Fail-closed import lifecycle fence before provider or connection mutation. */
   cancelGoogleImportsForConnection?: (
     organizationId: OrganizationId,
@@ -217,8 +211,7 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
 
     // 4. If provider cleanup is unavailable, local disconnect remains safe and
     // deterministic. Status, identifier/secret redaction, and the durable
-    // disconnected fact commit in one transaction. Source-content purge remains
-    // an idempotent cross-context cleanup after the commit.
+    // disconnected fact commit in one transaction.
     const updated =
       revoked ??
       (await deps.commandStore.disconnectGoogleAccount({
@@ -234,11 +227,6 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
           occurredAt: deps.clock(),
         }),
       }))
-
-    // 5. Purge source content owned under this connection.
-    if (deps.sourceContentPurge) {
-      await deps.sourceContentPurge.forConnection(ctx.organizationId, input.connectionId)
-    }
 
     return updated
   }

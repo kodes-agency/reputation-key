@@ -1,16 +1,15 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { strictlyAfter } from '#/shared/domain/clock'
-import { canForContext } from '#/shared/domain/permissions'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
-import { propertyId } from '#/shared/domain/ids'
-import { MANAGER_BECAME_INELIGIBLE_END_REASON } from '#/shared/responsible-manager-eligibility'
+import {
+  listEligibleResponsibleManagers,
+  listIneligibleResponsibleManagers,
+  MANAGER_BECAME_INELIGIBLE_END_REASON,
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PropertyRepository } from '../profile/property-repository.port.server'
+import { loadAccessibleProperty } from '../profile/load-accessible-property.server'
 import type { PropertyResponsibleManagerRepository } from './manager-repository.port.server'
 import type { PropertyManagerEligibilityDeps } from './property-manager-eligibility.server'
-import {
-  listEligiblePropertyManagers,
-  listIneligiblePropertyManagers,
-} from './property-manager-eligibility.server'
+import { policyDeps } from './property-manager-eligibility.server'
 import type { Property } from '../domain/types'
 import { propertyError } from '../domain/errors'
 import { propertyResponsibilityNeeded } from '../domain/events'
@@ -22,28 +21,7 @@ type QueryDeps = PropertyManagerEligibilityDeps &
     clock: () => Date
   }>
 
-async function loadAccessibleProperty(
-  deps: QueryDeps,
-  rawPropertyId: string,
-  ctx: AuthContext,
-  permission: 'property.read' | 'property.update',
-) {
-  if (!canForContext(ctx, permission)) {
-    throw propertyError('forbidden', 'this role cannot manage Property responsibility')
-  }
-  const pid = propertyId(rawPropertyId)
-  const property = await deps.propertyRepo.findById(ctx.organizationId, pid)
-  if (!property) throw propertyError('property_not_found', 'property not found')
-  const accessible = await isPropertyAccessibleForPermission(
-    (orgId, userId, organizationWide) =>
-      deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, organizationWide),
-    ctx,
-    permission,
-    pid,
-  )
-  if (!accessible) throw propertyError('forbidden', 'No access to this property')
-  return property
-}
+const RESPONSIBILITY_DENIED = 'this role cannot manage Property responsibility'
 
 export const listPropertyResponsibleManagers =
   (deps: QueryDeps) =>
@@ -53,10 +31,11 @@ export const listPropertyResponsibleManagers =
       input.propertyId,
       ctx,
       'property.read',
+      RESPONSIBILITY_DENIED,
     )
     const [assignments, eligibleManagers] = await Promise.all([
       deps.managerRepo.listActive(ctx.organizationId, property.id),
-      listEligiblePropertyManagers(deps, ctx.organizationId, property.id),
+      listEligibleResponsibleManagers(policyDeps(deps), ctx.organizationId, property.id),
     ])
     return {
       assignments,
@@ -95,8 +74,8 @@ async function releaseAssignedNoLongerEligible(
   managerUserIds: readonly string[],
   assignedAt: Date,
 ): Promise<readonly string[]> {
-  const lost = await listIneligiblePropertyManagers(
-    deps,
+  const lost = await listIneligibleResponsibleManagers(
+    policyDeps(deps),
     property.organizationId,
     property.id,
     managerUserIds,
@@ -132,6 +111,7 @@ export const updatePropertyResponsibleManagers =
       input.propertyId,
       ctx,
       'property.update',
+      RESPONSIBILITY_DENIED,
     )
     const managerUserIds = [...new Set(input.managerUserIds)]
     if (managerUserIds.length !== input.managerUserIds.length) {
@@ -140,8 +120,8 @@ export const updatePropertyResponsibleManagers =
         'responsible manager selection contains duplicates',
       )
     }
-    const ineligible = await listIneligiblePropertyManagers(
-      deps,
+    const ineligible = await listIneligibleResponsibleManagers(
+      policyDeps(deps),
       ctx.organizationId,
       property.id,
       managerUserIds,

@@ -8,8 +8,6 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId, portalLinkId } from '#/shared/domain/ids'
 import { portalPublicationSnapshots } from '#/shared/db/schema/portal-publication.schema'
@@ -22,10 +20,11 @@ import { snapshotToRow } from '#/contexts/portal/publication/portal-publication-
 import { immersiveSnapshot } from '#/contexts/portal/application/__fixtures__/immersive-snapshot'
 import { immersiveConfiguration } from '#/contexts/portal/domain/__fixtures__/immersive-configuration'
 import { resolvePublicPortalToken } from '#/contexts/portal/publication/resolve-public-portal-token.server'
-import type { PublicPortalLookup } from './public-portal-lookup.port.server'
+import { quietGuestReadDeps } from '#/contexts/portal/publication/resolve-public-portal-token.test-fixtures'
+import type { PortalPublicApi } from '#/contexts/portal/public-api'
 import { createAtomicGuestObservationStore } from './guest-observation-store.server'
 import { getPublicPortal } from './get-public-portal.server'
-import { resolveLinkAndTrack } from './resolve-link-and-track.server'
+import { findPortalLink, resolvePortalLink } from './resolve-portal-link.server'
 import { trackReviewLinkClick } from './track-review-link-click.server'
 import { isGuestError } from '../domain/errors'
 
@@ -142,8 +141,8 @@ async function seedPublishedPortal(
 type Gate = { allowed: boolean }
 
 /** The real public read, over the real stores; `gate` is the public execution decision. */
-const publicLookup = (gate: Gate): PublicPortalLookup => {
-  const resolve = resolvePublicPortalToken({
+const publicLookup = (gate: Gate): PortalPublicApi['findPublicPortalByToken'] =>
+  resolvePublicPortalToken({
     tokenCodec: codec,
     portalPublicationRepo: createPortalPublicationRepository(db),
     portalHealthRepo: createPortalHealthRepository(db),
@@ -158,15 +157,9 @@ const publicLookup = (gate: Gate): PublicPortalLookup => {
       profileVersion: immersiveConfiguration().googleReviewBinding.profileVersion,
     }),
     decidePublic: async () => gate,
+    ...quietGuestReadDeps,
     clock: () => NOW,
   })
-  return {
-    findByToken: async (rawToken, preference) => {
-      const outcome = await resolve(rawToken, preference)
-      return outcome.status === 'found' ? outcome.data : null
-    },
-  }
-}
 
 const clickFacts = async (org: string) => {
   const rows = await db.execute(sql`
@@ -186,17 +179,13 @@ const clickReceipts = async (org: string) => {
   return rows.rows.map((row) => row.payload)
 }
 
-const redirector = (gate: Gate, losses: string[] = []) =>
-  resolveLinkAndTrack({
-    publicPortalLookup: publicLookup(gate),
-    trackClick: trackReviewLinkClick({
-      observationStore: createAtomicGuestObservationStore(db),
-      clock: () => NOW,
-      reportObservationLoss: async (kind) => {
-        losses.push(kind)
-        return 'recorded' as const
-      },
-    }),
+const redirector = (gate: Gate) =>
+  resolvePortalLink({ findPublicPortalByToken: publicLookup(gate) })
+
+const tracker = (losses: string[] = []) =>
+  trackReviewLinkClick({
+    observationStore: createAtomicGuestObservationStore(db),
+    clock: () => NOW,
     reportObservationLoss: async (kind) => {
       losses.push(kind)
       return 'recorded' as const
@@ -207,8 +196,6 @@ let own: Seeded
 let other: Seeded
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   for (const id of [ORG, OTHER_ORG]) {
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
@@ -241,13 +228,12 @@ afterAll(async () => {
     }
   }
   await deleteTestOrganizations(db, [ORG, OTHER_ORG])
-  clearEventSchemas()
 })
 
 describe('getPublicPortal', () => {
   it('serves the live Portal for its address, with only approved links and the Google gateway', async () => {
     const result = await getPublicPortal({
-      publicPortalLookup: publicLookup({ allowed: true }),
+      findPublicPortalByToken: publicLookup({ allowed: true }),
     })({
       token: own.rawToken,
     })
@@ -263,20 +249,36 @@ describe('getPublicPortal', () => {
 
   it('serves the language of the signed session over the browser header', async () => {
     const result = await getPublicPortal({
-      publicPortalLookup: publicLookup({ allowed: true }),
+      findPublicPortalByToken: publicLookup({ allowed: true }),
     })({
       token: own.rawToken,
-      requestedLocale: null,
-      sessionLocale: 'bg',
-      acceptLanguage: 'en-US',
+      preference: { requestedLocale: null, sessionLocale: 'bg', acceptLanguage: 'en-US' },
     })
 
     expect(result.localization.selectedLocale).toBe('bg')
   })
 
+  it('hands the admitted scope to the preference before choosing a language', async () => {
+    const scopes: unknown[] = []
+    const result = await getPublicPortal({
+      findPublicPortalByToken: publicLookup({ allowed: true }),
+    })({
+      token: own.rawToken,
+      preference: (scope) => {
+        scopes.push(scope)
+        return { sessionLocale: 'bg', acceptLanguage: 'en-US' }
+      },
+    })
+
+    expect(scopes).toEqual([
+      { organizationId: ORG, propertyId: own.property, portalId: own.portal },
+    ])
+    expect(result.localization.selectedLocale).toBe('bg')
+  })
+
   it('answers portal_not_found for an address that names no Portal', async () => {
     await expect(
-      getPublicPortal({ publicPortalLookup: publicLookup({ allowed: true }) })({
+      getPublicPortal({ findPublicPortalByToken: publicLookup({ allowed: true }) })({
         token: `pt_${'A'.repeat(16)}_${'B'.repeat(43)}`,
       }),
     ).rejects.toSatisfy(
@@ -286,7 +288,7 @@ describe('getPublicPortal', () => {
 
   it('answers portal_not_found when the public execution decision refuses the read', async () => {
     await expect(
-      getPublicPortal({ publicPortalLookup: publicLookup({ allowed: false }) })({
+      getPublicPortal({ findPublicPortalByToken: publicLookup({ allowed: false }) })({
         token: own.rawToken,
       }),
     ).rejects.toSatisfy(
@@ -308,7 +310,7 @@ describe('a Portal that must stay closed', () => {
       const closed = await seedPublishedPortal(ORG, options)
 
       await expect(
-        getPublicPortal({ publicPortalLookup: publicLookup({ allowed: true }) })({
+        getPublicPortal({ findPublicPortalByToken: publicLookup({ allowed: true }) })({
           token: closed.rawToken,
         }),
       ).rejects.toSatisfy(
@@ -318,17 +320,13 @@ describe('a Portal that must stay closed', () => {
         redirector({ allowed: true })({
           token: closed.rawToken,
           linkId: portalLinkId(closed.linkId),
-          qualifyObservation: async () => ({
-            sessionId: randomUUID(),
-            sessionExpiresAt: SESSION_EXPIRES_AT,
-          }),
         }),
       ).resolves.toBeNull()
     },
   )
 })
 
-describe('resolveLinkAndTrack (token-bound public redirect)', () => {
+describe('resolvePortalLink (token-bound public redirect)', () => {
   const link = () => portalLinkId(own.linkId)
 
   it('resolves a link of the token Portal without recording anything for a GET', async () => {
@@ -340,29 +338,61 @@ describe('resolveLinkAndTrack (token-bound public redirect)', () => {
     expect(await clickFacts(ORG)).toEqual([])
   })
 
-  it('records a click for an explicitly qualified signed-session mutation', async () => {
+  it('answers null for an unavailable address or a refused read', async () => {
+    const before = await clickFacts(ORG)
+
+    await expect(
+      redirector({ allowed: true })({
+        token: `pt_${'C'.repeat(16)}_${'D'.repeat(43)}`,
+        linkId: link(),
+      }),
+    ).resolves.toBeNull()
+    await expect(
+      redirector({ allowed: false })({ token: own.rawToken, linkId: link() }),
+    ).resolves.toBeNull()
+
+    expect(await clickFacts(ORG)).toEqual(before)
+  })
+
+  it('refuses a link of another Portal forged under this token, and records nothing', async () => {
     // @proof PUBLIC_REDIRECT_AND_ABUSE#2
-    const scopes: unknown[] = []
-    const sessionId = randomUUID()
+    const before = await clickFacts(ORG)
+    const beforeOther = await clickFacts(OTHER_ORG)
+
     await expect(
       redirector({ allowed: true })({
         token: own.rawToken,
-        linkId: link(),
-        qualifyObservation: async (scope) => {
-          scopes.push(scope)
-          return { sessionId, sessionExpiresAt: SESSION_EXPIRES_AT }
-        },
+        linkId: portalLinkId(other.linkId),
       }),
-    ).resolves.toEqual({ url: own.linkUrl })
+    ).resolves.toBeNull()
+    const portal = await getPublicPortal({
+      findPublicPortalByToken: publicLookup({ allowed: true }),
+    })({ token: own.rawToken })
+    expect(findPortalLink(portal, other.linkId)).toBeNull()
+    expect(findPortalLink(portal, own.linkId)).toEqual(
+      expect.objectContaining({ url: own.linkUrl }),
+    )
 
-    expect(scopes).toEqual([
-      {
-        linkId: own.linkId,
-        organizationId: organizationId(ORG),
-        propertyId: propertyId(own.property),
-        portalId: portalId(own.portal),
-      },
-    ])
+    expect(await clickFacts(ORG)).toEqual(before)
+    expect(await clickFacts(OTHER_ORG)).toEqual(beforeOther)
+  })
+})
+
+describe('trackReviewLinkClick (qualified secondary-link action)', () => {
+  const click = (sessionId: string, sessionExpiresAt: Date) => ({
+    linkId: portalLinkId(own.linkId),
+    destinationKind: 'secondary_link' as const,
+    sessionId,
+    sessionExpiresAt,
+    organizationId: organizationId(ORG),
+    propertyId: propertyId(own.property),
+    portalId: portalId(own.portal),
+  })
+
+  it('records a click for a signed-session mutation', async () => {
+    const sessionId = randomUUID()
+    await tracker()(click(sessionId, SESSION_EXPIRES_AT))
+
     expect(await clickFacts(ORG)).toMatchObject([
       {
         linkId: own.linkId,
@@ -385,106 +415,18 @@ describe('resolveLinkAndTrack (token-bound public redirect)', () => {
     ])
   })
 
-  it('answers null and records nothing for an unavailable address or a refused read', async () => {
-    const before = await clickFacts(ORG)
-    const qualify = async () => ({
-      sessionId: randomUUID(),
-      sessionExpiresAt: SESSION_EXPIRES_AT,
-    })
-
-    await expect(
-      redirector({ allowed: true })({
-        token: `pt_${'C'.repeat(16)}_${'D'.repeat(43)}`,
-        linkId: link(),
-        qualifyObservation: qualify,
-      }),
-    ).resolves.toBeNull()
-    await expect(
-      redirector({ allowed: false })({
-        token: own.rawToken,
-        linkId: link(),
-        qualifyObservation: qualify,
-      }),
-    ).resolves.toBeNull()
-
-    expect(await clickFacts(ORG)).toEqual(before)
-  })
-
-  it('refuses a link of another Portal forged under this token, and records nothing', async () => {
-    const before = await clickFacts(ORG)
-    const beforeOther = await clickFacts(OTHER_ORG)
-
-    await expect(
-      redirector({ allowed: true })({
-        token: own.rawToken,
-        linkId: portalLinkId(other.linkId),
-        qualifyObservation: async () => ({
-          sessionId: randomUUID(),
-          sessionExpiresAt: SESSION_EXPIRES_AT,
-        }),
-      }),
-    ).resolves.toBeNull()
-
-    expect(await clickFacts(ORG)).toEqual(before)
-    expect(await clickFacts(OTHER_ORG)).toEqual(beforeOther)
-  })
-
-  it('returns the destination but records no click when the qualifier finds the visit unqualified', async () => {
-    const before = await clickFacts(ORG)
-
-    await expect(
-      redirector({ allowed: true })({
-        token: own.rawToken,
-        linkId: link(),
-        qualifyObservation: async () => null,
-      }),
-    ).resolves.toEqual({ url: own.linkUrl })
-
-    expect(await clickFacts(ORG)).toEqual(before)
-  })
-
-  it('keeps navigation available, and reports the loss, when the store refuses the click', async () => {
+  it('reports the loss, and does not throw, when the store refuses the click', async () => {
     // A session that ended before the click is refused by the real store.
     const before = await clickFacts(ORG)
     const receipts = await clickReceipts(ORG)
     const losses: string[] = []
 
     await expect(
-      redirector(
-        { allowed: true },
-        losses,
-      )({
-        token: own.rawToken,
-        linkId: link(),
-        qualifyObservation: async () => ({
-          sessionId: randomUUID(),
-          sessionExpiresAt: new Date(NOW.getTime() - 1_000),
-        }),
-      }),
-    ).resolves.toEqual({ url: own.linkUrl })
+      tracker(losses)(click(randomUUID(), new Date(NOW.getTime() - 1_000))),
+    ).resolves.toBeUndefined()
 
     expect(losses).toEqual(['review_link'])
     expect(await clickFacts(ORG)).toEqual(before)
     expect(await clickReceipts(ORG)).toEqual(receipts)
-  })
-
-  it('keeps navigation available, and reports the loss, when the qualifier is unavailable', async () => {
-    const before = await clickFacts(ORG)
-    const losses: string[] = []
-
-    await expect(
-      redirector(
-        { allowed: true },
-        losses,
-      )({
-        token: own.rawToken,
-        linkId: link(),
-        qualifyObservation: async () =>
-          Promise.reject(new Error('rate limit store down')),
-      }),
-    ).resolves.toEqual({ url: own.linkUrl })
-
-    expect(losses).toEqual(['review_link'])
-    expect(await clickFacts(ORG)).toEqual(before)
   })
 })

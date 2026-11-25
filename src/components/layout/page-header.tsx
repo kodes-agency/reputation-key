@@ -1,6 +1,6 @@
 import { Children, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { Skeleton } from '#/components/ui/skeleton'
 import {
   Breadcrumb,

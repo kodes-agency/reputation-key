@@ -8,8 +8,11 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import {
+  blockedStatements,
+  waitForDatabaseCondition,
+  withTriggerLockGate,
+} from '#/shared/db/testing/lock-gate'
 import { portalLinkCategoryId, portalLinkId, userId } from '#/shared/domain/ids'
 import { portalPublicationPublished, portalUpdated } from '../domain/events'
 import { portalLinkDeleted } from '../domain/portal-link-events'
@@ -62,11 +65,6 @@ const { getPool } = setupIntegrationDb({
   ],
 })
 
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
 const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
 
 const readWorkingCopy = async () => {
@@ -95,6 +93,52 @@ function snapshotOf(
   })
 }
 
+const activationOf = (id: string, snapshotId: string, sequence: number, at: Date) => ({
+  id,
+  organizationId: SCENARIO.organizationId,
+  propertyId: SCENARIO.propertyId,
+  portalId: SCENARIO.portalId,
+  snapshotId,
+  activationSequence: sequence,
+  kind: 'publish' as const,
+  activatedBy: MANAGER,
+  activatedAt: at,
+  deactivatedAt: null,
+  deactivationReason: null,
+})
+
+const publishedFact = (
+  snapshot: ReturnType<typeof snapshotOf>,
+  revision: Date,
+  at: Date,
+) =>
+  portalPublicationPublished({
+    organizationId: SCENARIO.organizationId,
+    propertyId: SCENARIO.propertyId,
+    portalId: SCENARIO.portalId,
+    publicationSnapshotId: snapshot.id,
+    publicationVersion: snapshot.version,
+    publicationDigest: snapshot.configurationDigest,
+    userId: MANAGER,
+    sourceAggregateVersion: revision.toISOString(),
+    occurredAt: at,
+  })
+
+const portalUpdatedFact = (
+  previousPublicationState: 'draft' | 'published',
+  revision: Date,
+  at: Date,
+) =>
+  portalUpdated({
+    portalId: SCENARIO.portalId,
+    organizationId: SCENARIO.organizationId,
+    propertyId: SCENARIO.propertyId,
+    previousPublicationState,
+    publicationState: 'published',
+    sourceAggregateVersion: revision.toISOString(),
+    occurredAt: at,
+  })
+
 /** The first publication, through the ordinary publish path. */
 async function publishFirstVersion(): Promise<void> {
   const snapshot = snapshotOf(await readWorkingCopy(), {
@@ -114,40 +158,10 @@ async function publishFirstVersion(): Promise<void> {
     publication: {
       kind: 'publish',
       snapshot,
-      activation: {
-        id: FIRST_ACTIVATION,
-        organizationId: SCENARIO.organizationId,
-        propertyId: SCENARIO.propertyId,
-        portalId: SCENARIO.portalId,
-        snapshotId: snapshot.id,
-        activationSequence: 1,
-        kind: 'publish',
-        activatedBy: MANAGER,
-        activatedAt: PUBLISHED_AT,
-        deactivatedAt: null,
-        deactivationReason: null,
-      },
+      activation: activationOf(FIRST_ACTIVATION, snapshot.id, 1, PUBLISHED_AT),
     },
-    lifecycleEvent: portalPublicationPublished({
-      organizationId: SCENARIO.organizationId,
-      propertyId: SCENARIO.propertyId,
-      portalId: SCENARIO.portalId,
-      publicationSnapshotId: snapshot.id,
-      publicationVersion: 1,
-      publicationDigest: snapshot.configurationDigest,
-      userId: MANAGER,
-      sourceAggregateVersion: PUBLISHED_AT.toISOString(),
-      occurredAt: PUBLISHED_AT,
-    }),
-    event: portalUpdated({
-      portalId: SCENARIO.portalId,
-      organizationId: SCENARIO.organizationId,
-      propertyId: SCENARIO.propertyId,
-      previousPublicationState: 'draft',
-      publicationState: 'published',
-      sourceAggregateVersion: PUBLISHED_AT.toISOString(),
-      occurredAt: PUBLISHED_AT,
-    }),
+    lifecycleEvent: publishedFact(snapshot, PUBLISHED_AT, PUBLISHED_AT),
+    event: portalUpdatedFact('draft', PUBLISHED_AT, PUBLISHED_AT),
   })
 }
 
@@ -179,39 +193,14 @@ async function republishCommand(
     revision,
     occurredAt: at,
     snapshot,
-    activation: {
-      id: `6e000000-0000-4000-8000-00000000000${suffix}`,
-      organizationId: SCENARIO.organizationId,
-      propertyId: SCENARIO.propertyId,
-      portalId: SCENARIO.portalId,
-      snapshotId: snapshot.id,
-      activationSequence: 2,
-      kind: 'publish',
-      activatedBy: MANAGER,
-      activatedAt: at,
-      deactivatedAt: null,
-      deactivationReason: null,
-    },
-    lifecycleEvent: portalPublicationPublished({
-      organizationId: SCENARIO.organizationId,
-      propertyId: SCENARIO.propertyId,
-      portalId: SCENARIO.portalId,
-      publicationSnapshotId: snapshot.id,
-      publicationVersion: snapshot.version,
-      publicationDigest: snapshot.configurationDigest,
-      userId: MANAGER,
-      sourceAggregateVersion: revision.toISOString(),
-      occurredAt: at,
-    }),
-    event: portalUpdated({
-      portalId: SCENARIO.portalId,
-      organizationId: SCENARIO.organizationId,
-      propertyId: SCENARIO.propertyId,
-      previousPublicationState: 'published',
-      publicationState: 'published',
-      sourceAggregateVersion: revision.toISOString(),
-      occurredAt: at,
-    }),
+    activation: activationOf(
+      `6e000000-0000-4000-8000-00000000000${suffix}`,
+      snapshot.id,
+      2,
+      at,
+    ),
+    lifecycleEvent: publishedFact(snapshot, revision, at),
+    event: portalUpdatedFact('published', revision, at),
     ...rest,
   }
 }
@@ -587,102 +576,63 @@ describe.sequential('republishPortal (real PostgreSQL)', () => {
 
   it('takes the Portal fence like a content edit: the edit that commits first wins', async () => {
     const republish = await republishCommand()
-    const lockClass = 43_822
-    const lockObject = 9
     const pool = getPool()
-    const gate = await pool.connect()
-    const pending: Promise<unknown>[] = []
-    let gateOpen = false
-    try {
-      await pool.query(`
-        DROP TRIGGER IF EXISTS portal_republish_lock_order_gate ON portals;
-        DROP FUNCTION IF EXISTS portal_republish_lock_order_gate();
-        CREATE FUNCTION portal_republish_lock_order_gate()
-        RETURNS trigger
-        LANGUAGE plpgsql
-        AS $function$
-        BEGIN
-          IF NEW.id = '${SCENARIO.portalId}'
-             AND NEW.updated_at = TIMESTAMPTZ '${EDITED_AT.toISOString()}'
-          THEN
-            PERFORM pg_advisory_xact_lock(${lockClass}, ${lockObject});
-          END IF;
-          RETURN NEW;
-        END;
-        $function$;
-        CREATE TRIGGER portal_republish_lock_order_gate
-          BEFORE UPDATE ON portals
-          FOR EACH ROW EXECUTE FUNCTION portal_republish_lock_order_gate();
-      `)
-      await gate.query('BEGIN')
-      gateOpen = true
-      await gate.query('SELECT pg_advisory_xact_lock($1, $2)', [lockClass, lockObject])
-
-      const edit = store().savePortalLinktreeSettings({
-        organizationId: SCENARIO.organizationId,
-        actorUserId: MANAGER,
-        propertyId: SCENARIO.propertyId,
-        portalId: SCENARIO.portalId,
-        expectedPortalUpdatedAt: PUBLISHED_AT,
-        enabled: false,
-        revision: EDITED_AT,
-        occurredAt: EDITED_AT,
-        event: portalUpdated({
-          portalId: SCENARIO.portalId,
-          organizationId: SCENARIO.organizationId,
-          propertyId: SCENARIO.propertyId,
-          previousPublicationState: 'published',
-          publicationState: 'published',
-          sourceAggregateVersion: EDITED_AT.toISOString(),
-          occurredAt: EDITED_AT,
-        }),
-      })
-      pending.push(edit)
-      await waitFor('the edit to hold the Portal row', async () => {
-        const waits = await pool.query<{ waiters: number }>(
-          `SELECT COUNT(*)::int AS waiters FROM pg_locks
-            WHERE locktype = 'advisory' AND granted = false
-              AND classid::bigint = $1 AND objid::bigint = $2`,
-          [lockClass, lockObject],
+    await withTriggerLockGate(
+      pool,
+      {
+        name: 'portal_republish_lock_order_gate',
+        table: 'portals',
+        event: 'UPDATE',
+        when: `NEW.id = '${SCENARIO.portalId}'
+             AND NEW.updated_at = TIMESTAMPTZ '${EDITED_AT.toISOString()}'`,
+        lockClass: 43_822,
+        lockObject: 9,
+      },
+      async (gate) => {
+        const edit = gate.track(
+          store().savePortalLinktreeSettings({
+            organizationId: SCENARIO.organizationId,
+            actorUserId: MANAGER,
+            propertyId: SCENARIO.propertyId,
+            portalId: SCENARIO.portalId,
+            expectedPortalUpdatedAt: PUBLISHED_AT,
+            enabled: false,
+            revision: EDITED_AT,
+            occurredAt: EDITED_AT,
+            event: portalUpdated({
+              portalId: SCENARIO.portalId,
+              organizationId: SCENARIO.organizationId,
+              propertyId: SCENARIO.propertyId,
+              previousPublicationState: 'published',
+              publicationState: 'published',
+              sourceAggregateVersion: EDITED_AT.toISOString(),
+              occurredAt: EDITED_AT,
+            }),
+          }),
         )
-        return waits.rows[0]?.waiters === 1
-      })
+        await gate.waitForQueued('the edit to hold the Portal row')
 
-      const publish = store().republishPortal(republish)
-      pending.push(publish)
-      await waitFor('both Portal updates to be lock-blocked', async () => {
-        const waits = await pool.query<{ waiters: number }>(`
-          SELECT COUNT(*)::int AS waiters FROM pg_stat_activity
-           WHERE datname = current_database()
-             AND cardinality(pg_blocking_pids(pid)) > 0
-             AND query ILIKE '%update "portals"%'`)
-        return (waits.rows[0]?.waiters ?? 0) >= 2
-      })
+        const publish = gate.track(store().republishPortal(republish))
+        await waitForDatabaseCondition(
+          'both Portal updates to be lock-blocked',
+          async () => (await blockedStatements(pool, '%update "portals"%')) >= 2,
+        )
 
-      await gate.query('COMMIT')
-      gateOpen = false
-      const [editResult, publishResult] = await Promise.allSettled([edit, publish])
-      pending.length = 0
+        await gate.commit()
+        const [editResult, publishResult] = await Promise.allSettled([edit, publish])
 
-      expect(editResult).toMatchObject({ status: 'fulfilled' })
-      expect(publishResult).toMatchObject({
-        status: 'rejected',
-        reason: { code: 'revision_conflict' },
-      })
-      expect(await activations()).toEqual(LIVE_ONLY_FIRST)
-      expect(await portalRow()).toEqual({
-        publication_state: 'published',
-        updated_at: EDITED_AT,
-      })
-    } finally {
-      if (gateOpen) await gate.query('ROLLBACK')
-      await Promise.allSettled(pending)
-      gate.release()
-      await pool.query(`
-        DROP TRIGGER IF EXISTS portal_republish_lock_order_gate ON portals;
-        DROP FUNCTION IF EXISTS portal_republish_lock_order_gate();
-      `)
-    }
+        expect(editResult).toMatchObject({ status: 'fulfilled' })
+        expect(publishResult).toMatchObject({
+          status: 'rejected',
+          reason: { code: 'revision_conflict' },
+        })
+        expect(await activations()).toEqual(LIVE_ONLY_FIRST)
+        expect(await portalRow()).toEqual({
+          publication_state: 'published',
+          updated_at: EDITED_AT,
+        })
+      },
+    )
   })
 
   it('waits for the Property publication fence that a first publication or a Property edit holds', async () => {
@@ -704,13 +654,16 @@ describe.sequential('republishPortal (real PostgreSQL)', () => {
         .finally(() => {
           settled = true
         })
-      await waitFor('the republish to wait for the Property fence', async () => {
-        const waits = await pool.query<{ waiters: number }>(`
+      await waitForDatabaseCondition(
+        'the republish to wait for the Property fence',
+        async () => {
+          const waits = await pool.query<{ waiters: number }>(`
           SELECT COUNT(*)::int AS waiters FROM pg_stat_activity
            WHERE datname = current_database()
              AND wait_event_type = 'Lock' AND wait_event = 'advisory'`)
-        return (waits.rows[0]?.waiters ?? 0) === 1
-      })
+          return (waits.rows[0]?.waiters ?? 0) === 1
+        },
+      )
 
       expect(settled).toBe(false)
       expect(await activations()).toEqual(LIVE_ONLY_FIRST)
@@ -755,8 +708,6 @@ describe.sequential('republishPortal (real PostgreSQL)', () => {
     await changeWording('Хотел Рила, обновен')
     const command = await republishCommand()
     const linkId = SCENARIO.links[0]!.id
-    const lockClass = 43_822
-    const lockObject = 11
     const pool = getPool()
     const [link] = (
       await pool.query<{ category_id: string }>(
@@ -764,103 +715,67 @@ describe.sequential('republishPortal (real PostgreSQL)', () => {
         [linkId],
       )
     ).rows
-    const gate = await pool.connect()
-    const pending: Promise<unknown>[] = []
-    let gateOpen = false
-    try {
-      // The publish stops where it writes its snapshot: after it has locked the
-      // Portal row and compared the working copy, before it commits.
-      await pool.query(`
-        DROP TRIGGER IF EXISTS portal_republish_commit_gate ON portal_publication_snapshots;
-        DROP FUNCTION IF EXISTS portal_republish_commit_gate();
-        CREATE FUNCTION portal_republish_commit_gate()
-        RETURNS trigger
-        LANGUAGE plpgsql
-        AS $function$
-        BEGIN
-          IF NEW.id = '${command.snapshot.id}' THEN
-            PERFORM pg_advisory_xact_lock(${lockClass}, ${lockObject});
-          END IF;
-          RETURN NEW;
-        END;
-        $function$;
-        CREATE TRIGGER portal_republish_commit_gate
-          BEFORE INSERT ON portal_publication_snapshots
-          FOR EACH ROW EXECUTE FUNCTION portal_republish_commit_gate();
-      `)
-      await gate.query('BEGIN')
-      gateOpen = true
-      await gate.query('SELECT pg_advisory_xact_lock($1, $2)', [lockClass, lockObject])
+    // The publish stops where it writes its snapshot: after it has locked the
+    // Portal row and compared the working copy, before it commits.
+    await withTriggerLockGate(
+      pool,
+      {
+        name: 'portal_republish_commit_gate',
+        table: 'portal_publication_snapshots',
+        event: 'INSERT',
+        when: `NEW.id = '${command.snapshot.id}'`,
+        lockClass: 43_822,
+        lockObject: 11,
+      },
+      async (gate) => {
+        const publish = gate.track(store().republishPortal(command))
+        await gate.waitForQueued('the publish to reach its snapshot')
 
-      const publish = store().republishPortal(command)
-      pending.push(publish)
-      await waitFor('the publish to reach its snapshot', async () => {
-        const waits = await pool.query<{ waiters: number }>(
-          `SELECT COUNT(*)::int AS waiters FROM pg_locks
-            WHERE locktype = 'advisory' AND granted = false
-              AND classid::bigint = $1 AND objid::bigint = $2`,
-          [lockClass, lockObject],
+        // A manager deletes a link the snapshot carries, from the revision the
+        // publish started from.
+        const edit = gate.track(
+          store().deletePortalLink({
+            organizationId: SCENARIO.organizationId,
+            propertyId: SCENARIO.propertyId,
+            portalId: SCENARIO.portalId,
+            actorUserId: MANAGER,
+            expectedPortalUpdatedAt: PUBLISHED_AT,
+            revision: EDITED_AT,
+            occurredAt: EDITED_AT,
+            linkId: portalLinkId(linkId),
+            categoryId: portalLinkCategoryId(link!.category_id),
+            event: portalLinkDeleted({
+              portalId: SCENARIO.portalId,
+              linkId: portalLinkId(linkId),
+              categoryId: portalLinkCategoryId(link!.category_id),
+              organizationId: SCENARIO.organizationId,
+              propertyId: SCENARIO.propertyId,
+              sourceAggregateVersion: EDITED_AT.toISOString(),
+              occurredAt: EDITED_AT,
+            }),
+          }),
         )
-        return waits.rows[0]?.waiters === 1
-      })
+        await waitForDatabaseCondition(
+          'the edit to wait for the Portal row',
+          async () => (await blockedStatements(pool, '%update "portals"%')) === 1,
+        )
 
-      // A manager deletes a link the snapshot carries, from the revision the
-      // publish started from.
-      const edit = store().deletePortalLink({
-        organizationId: SCENARIO.organizationId,
-        propertyId: SCENARIO.propertyId,
-        portalId: SCENARIO.portalId,
-        actorUserId: MANAGER,
-        expectedPortalUpdatedAt: PUBLISHED_AT,
-        revision: EDITED_AT,
-        occurredAt: EDITED_AT,
-        linkId: portalLinkId(linkId),
-        categoryId: portalLinkCategoryId(link!.category_id),
-        event: portalLinkDeleted({
-          portalId: SCENARIO.portalId,
-          linkId: portalLinkId(linkId),
-          categoryId: portalLinkCategoryId(link!.category_id),
-          organizationId: SCENARIO.organizationId,
-          propertyId: SCENARIO.propertyId,
-          sourceAggregateVersion: EDITED_AT.toISOString(),
-          occurredAt: EDITED_AT,
-        }),
-      })
-      pending.push(edit)
-      await waitFor('the edit to wait for the Portal row', async () => {
-        const waits = await pool.query<{ waiters: number }>(`
-          SELECT COUNT(*)::int AS waiters FROM pg_stat_activity
-           WHERE datname = current_database()
-             AND cardinality(pg_blocking_pids(pid)) > 0
-             AND query ILIKE '%update "portals"%'`)
-        return (waits.rows[0]?.waiters ?? 0) === 1
-      })
+        await gate.commit()
+        const [publishResult, editResult] = await Promise.allSettled([publish, edit])
 
-      await gate.query('COMMIT')
-      gateOpen = false
-      const [publishResult, editResult] = await Promise.allSettled([publish, edit])
-      pending.length = 0
-
-      expect(publishResult).toMatchObject({ status: 'fulfilled' })
-      expect(editResult).toMatchObject({
-        status: 'rejected',
-        reason: { code: 'revision_conflict' },
-      })
-      // The link the published version shows is still in the working copy.
-      const remaining = await pool.query('SELECT id FROM portal_links WHERE id = $1', [
-        linkId,
-      ])
-      expect(remaining.rows).toEqual([{ id: linkId }])
-      expect((await activations()).map((row) => row.version)).toEqual([1, 2])
-    } finally {
-      if (gateOpen) await gate.query('ROLLBACK')
-      await Promise.allSettled(pending)
-      gate.release()
-      await pool.query(`
-        DROP TRIGGER IF EXISTS portal_republish_commit_gate ON portal_publication_snapshots;
-        DROP FUNCTION IF EXISTS portal_republish_commit_gate();
-      `)
-    }
+        expect(publishResult).toMatchObject({ status: 'fulfilled' })
+        expect(editResult).toMatchObject({
+          status: 'rejected',
+          reason: { code: 'revision_conflict' },
+        })
+        // The link the published version shows is still in the working copy.
+        const remaining = await pool.query('SELECT id FROM portal_links WHERE id = $1', [
+          linkId,
+        ])
+        expect(remaining.rows).toEqual([{ id: linkId }])
+        expect((await activations()).map((row) => row.version)).toEqual([1, 2])
+      },
+    )
   })
 
   it('after an edit that went in first, a republish built on the new revision commits', async () => {
@@ -930,16 +845,4 @@ async function settledOrBlocked(
   }
   await done
   return 'settled'
-}
-
-async function waitFor(
-  description: string,
-  condition: () => Promise<boolean>,
-): Promise<void> {
-  const deadline = Date.now() + 5_000
-  while (Date.now() < deadline) {
-    if (await condition()) return
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-  throw new Error(`Timed out waiting for ${description}`)
 }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryObserver, environmentManager } from '@tanstack/react-query'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { inboxCachePolicy } from './inbox-cache-policy'
 
 let client: QueryClient

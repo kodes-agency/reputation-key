@@ -4,7 +4,7 @@ import type {
   ImportParentStatus,
   ImportProfileField,
   ImportProgressDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 
 const ITEM_STATUS_MESSAGES: Record<GbpImportItemStatus, string> = {
   pending: 'Waiting to start',

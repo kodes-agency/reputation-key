@@ -14,7 +14,6 @@ import {
 } from '#/shared/db/schema'
 import { notificationEmailId, notificationId, inboxItemId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import {
@@ -51,7 +50,7 @@ import {
   inboxBulkReopenCompleted,
   inboxHandlingCycleReopened,
   inboxItemAssigned,
-} from '#/contexts/inbox/domain/events'
+} from '#/contexts/reputation/domain/inbox-events'
 import { createRetireMovedAssignment } from './settle.server'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { createNoticeWriter } from './consumers.server'
@@ -94,7 +93,6 @@ describe.sequential('Inbox workflow delivery races (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
-    registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL, 5)
     db = drizzle(lease.pool) as Database
   })
@@ -104,9 +102,7 @@ describe.sequential('Inbox workflow delivery races (real PostgreSQL)', () => {
     now = OCCURRED_AT
     commandRevision = 1
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-    )
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
     await db.insert(properties).values({
       id: PROPERTY,
       organizationId: ORG,

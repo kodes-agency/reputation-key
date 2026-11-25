@@ -3,8 +3,8 @@ import { join } from 'node:path'
 import { getTableColumns, getTableName } from 'drizzle-orm'
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
-import { REVIEW_CAUSE_PHRASE_PATTERN } from '#/shared/review-analysis-v3'
-import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_CAUSE_PHRASE_PATTERN } from '#/shared/analysis/review-analysis-v3'
+import { REVIEW_TOPICS_V3 } from '#/shared/analysis/review-topic-taxonomy'
 import {
   aiPropertyIssueGroups,
   aiPropertyIssueMembers,

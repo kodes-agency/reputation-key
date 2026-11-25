@@ -6,11 +6,9 @@ import { eq } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { organizationId, type PropertyId } from '#/shared/domain/ids'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { isPropertyError } from '../domain/errors'
 import { createPropertyRepository } from './property-repository.server'
 import { seedTestProperty } from './property.test-fixtures'
@@ -62,8 +60,6 @@ const recordedUpdates = async () =>
   ).map((row) => row.payload as { name: string })
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   const store = createAtomicPropertyCommandStore(db)
   const updates: UpdatePropertyCommand[] = []
   const commandStore: PropertyCommandStore = {

@@ -8,36 +8,33 @@ import {
   cycleHeadItemColumns,
   mirrorCycleHead,
   persistedHeadFromItemRow,
-} from '#/contexts/inbox/infrastructure/inbox-cycle-head'
+} from '#/contexts/reputation/inbox/inbox-cycle-head.server'
 import {
   insertReceiptRow,
   reserveReceiptRow,
   restateReceiptRow,
   settleSupersededDeliveryRow,
-} from '#/contexts/inbox/infrastructure/consumer-receipt-rows'
+} from '#/contexts/reputation/inbox/consumer-receipt-rows.server'
 import { trace } from '#/shared/observability/trace'
-import { inboxError } from '#/contexts/inbox/domain/errors'
-import { isAnsweringGoogleReply } from '#/contexts/inbox/domain/rules'
-import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
-import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
-import { transitionInsert } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { closeHandlingCycle } from '#/contexts/inbox/domain/handling-cycles'
-import type {
-  HandlingCycleCreationAnchor,
-  InboxCommandStore,
-} from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import { cancelPrivateFeedbackTarget } from '#/contexts/reputation/inbox/response-targets/store.server'
+import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
+import { isAnsweringGoogleReply } from '#/contexts/reputation/domain/inbox-rules'
+import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
+import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
+import { transitionInsert } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
+import { closeHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
+import { cancelPrivateFeedbackTarget } from '#/contexts/reputation/response-targets/store.server'
 import {
   assertObservationMatchesItem,
   assertReviewProjectionCommand,
   handlingCycleHeadFromRow,
   lifecycleFactFor,
   projectionTargetAnchor,
-} from '#/contexts/inbox/infrastructure/inbox-command-guards'
+} from '#/contexts/reputation/inbox/inbox-command-guards.server'
 import {
   insertReviewItemAnsweredOnGoogle,
   lockReviewRowsForObservation,
-} from '#/contexts/inbox/infrastructure/review-reply-close'
+} from '#/contexts/reputation/inbox/review-reply-close.server'
 import {
   insertItemIdempotent,
   lockReviewProjectionRows,
@@ -48,8 +45,8 @@ import {
   reopenCycleOnDeletedReply,
   openNextFeedbackCycleOnResubmission,
   closeCycleForSourceTransition,
-  scrubTransitionedItemRow,
-} from '#/contexts/inbox/infrastructure/inbox-source-projection'
+  closeTransitionedItemRow,
+} from '#/contexts/reputation/inbox/inbox-source-projection.server'
 import type { CommandRuntime } from './command-runtime.server'
 
 export const createSourceCommands = (
@@ -104,16 +101,7 @@ export const createSourceCommands = (
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
             return 'duplicate' as const
           }
-          const cycleAnchor: HandlingCycleCreationAnchor = command.cycleAnchor ?? {
-            sourceRevision: 1,
-            openedReason:
-              command.item.sourceType === 'review'
-                ? 'review_observed'
-                : 'feedback_submitted',
-            actorType: command.item.sourceType === 'review' ? 'provider' : 'guest',
-            triggerEventId: command.eventId,
-            openedAt: command.item.createdAt,
-          }
+          const { cycleAnchor } = command
           const inserted = await insertItemIdempotent(tx, command.item, cycleAnchor)
           if (!inserted.created) {
             const resubmissionFacts =
@@ -388,18 +376,14 @@ export const createSourceCommands = (
 
           const shouldCloseItem = command.closeIfOpen && current.status === 'open'
           const shouldCloseCycle = command.closeIfOpen && headRow?.status === 'open'
-          const needsScrub =
-            current.rating !== null ||
-            current.snippet !== null ||
-            current.reviewerName !== null
-          if (!shouldCloseItem && !shouldCloseCycle && !needsScrub) return
+          if (!shouldCloseItem && !shouldCloseCycle) return
 
           const cycleFact =
             shouldCloseCycle && headRow
               ? await closeCycleForSourceTransition(tx, command, headRow)
               : null
 
-          await scrubTransitionedItemRow(tx, command, current, shouldCloseItem)
+          await closeTransitionedItemRow(tx, command, current, shouldCloseItem)
           if (shouldCloseItem) await insertOutboxRow(tx, closeFact)
           if (cycleFact) await insertOutboxRow(tx, cycleFact)
         })

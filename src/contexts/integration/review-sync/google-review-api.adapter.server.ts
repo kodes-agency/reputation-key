@@ -1,12 +1,10 @@
 import {
   reviewApiError,
   type GoogleReviewApiPort,
+  type GoogleReviewHeadContinuation,
+  type GoogleReviewHeadRequest,
   type GoogleReviewPageRequest,
-} from '#/contexts/review/application/public-api'
-import type {
-  GoogleReviewHeadContinuation,
-  GoogleReviewHeadRequest,
-} from '#/contexts/review/application/ports/google-review-api.port'
+} from '#/contexts/reputation/public-api'
 import { REVIEW_LIST_NEWEST_UPDATED_FIRST } from '#/shared/google-provider-control/review-route-descriptors'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -20,7 +18,7 @@ import type {
   GoogleReviewSyncProviderCallAuthorization,
 } from '../provider/contracts'
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
-import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
+import { parseReviewProviderResource } from '#/shared/google-contracts/review-provider-subject-contract'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import {
   createGoogleCallError,

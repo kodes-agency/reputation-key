@@ -66,10 +66,10 @@ letter and preserves the resulting correspondence.
 
 ## Internal evidence (not part of the letter)
 
-- `src/shared/ai-openai-provider-profile.ts:72,85,239-240`;
+- `src/shared/ai-provider-profile/ai-openai-provider-profile.ts:72,85,239-240`;
   `src/shared/merchant-ai-notice-contract.ts:61,97-99,176`
 - `docs/operations/backup-and-lifecycle.md:324-330`
 - `google-business-profile-ai-policy-response-2026-07-14.md:104`
 - `src/shared/merchant-ai-notice-contract.ts:4-8`
 - `src/shared/merchant-ai-notice-contract.ts:13,97`;
-  `src/shared/ai-openai-provider-profile.ts:80,202`
+  `src/shared/ai-provider-profile/ai-openai-provider-profile.ts:80,202`

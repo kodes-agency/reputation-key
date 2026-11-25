@@ -1,9 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Loader2, RotateCcw } from 'lucide-react'
-import type { ImportProgressItemDto } from '#/contexts/integration/application/public-api'
+import type { ImportProgressItemDto } from '#/contexts/integration/public-api'
 import { Button } from '#/components/ui/button'
 import { TONE_ICON, TONE_INK, type Tone } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import {
   Table,
   TableBody,

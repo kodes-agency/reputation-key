@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { providerRequestProfileOf } from '#/shared/ai-provider-attestations'
+import { providerRequestProfileOf } from '#/shared/ai-provider-profile/ai-provider-attestations'
 import { createProviderAdapter } from '../provider-adapter'
 import type {
   AiProviderAdapter,

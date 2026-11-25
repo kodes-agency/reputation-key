@@ -1,0 +1,279 @@
+import { describe, expect, it } from 'vitest'
+import { ZodError } from 'zod/v4'
+import {
+  parseAiGatewayRouteRequest,
+  type AnalysisResult,
+  type ReplySuggestionResult,
+} from './ai-gateway-transport-contract'
+import { reviewAnalysisV3GatewayResultSchema } from '../analysis/review-analysis-v3-request'
+import { aiInternalSafeIdSchema } from './ai-internal-transport-contract'
+import {
+  analysisRequest,
+  analysisV3Request,
+  analysisV3Result,
+  receipt,
+  replyRequest,
+} from './ai-gateway-transport-contract.test-fixtures'
+
+describe('AI gateway caller-wire contract', () => {
+  it('accepts exact operation permit and attempt metadata with the complete route DTO', () => {
+    expect(parseAiGatewayRouteRequest(analysisRequest())).toEqual(analysisRequest())
+  })
+
+  // `properties.source_epoch` is 0-based (drizzle/0060). Every fixture in this
+  // file used `sourceEpoch: 1`, so `sourceEpoch: positive` on the binding survived
+  // here and rejected the reply request for a freshly imported property with
+  // `Too small: expected number to be >0` — a 500, after the operation identity
+  // and consent had already been fixed.
+  it('accepts the domain default source epoch of 0 on the binding', () => {
+    for (const request of [analysisRequest(), replyRequest()]) {
+      const atZero = { ...request, binding: { ...request.binding, sourceEpoch: 0 } }
+      expect(parseAiGatewayRouteRequest(atZero)).toEqual(atZero)
+    }
+  })
+
+  it('still rejects a negative source epoch and keeps the 1-based versions strict', () => {
+    const request = replyRequest()
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...request,
+        binding: { ...request.binding, sourceEpoch: -1 },
+      }),
+    ).toThrow(ZodError)
+    for (const field of ['propertyProfileVersion', 'routingPolicyVersion']) {
+      expect(() =>
+        parseAiGatewayRouteRequest({
+          ...request,
+          binding: { ...request.binding, [field]: 0 },
+        }),
+      ).toThrow(ZodError)
+    }
+  })
+
+  it('shares the admission-safe identifier grammar for organization, actor, and subject IDs', () => {
+    expect(aiInternalSafeIdSchema.parse(analysisRequest().organizationId)).toBe(
+      'better-auth-org_01',
+    )
+    expect(parseAiGatewayRouteRequest(analysisRequest()).organizationId).toBe(
+      'better-auth-org_01',
+    )
+    expect(parseAiGatewayRouteRequest(replyRequest()).actorId).toBe('better-auth-user_01')
+    for (const malformed of ['organization id', 'org-é', 'org\u0000id']) {
+      expect(() =>
+        parseAiGatewayRouteRequest({ ...analysisRequest(), organizationId: malformed }),
+      ).toThrow(ZodError)
+    }
+    expect(() =>
+      parseAiGatewayRouteRequest({ ...replyRequest(), actorId: 'user-é' }),
+    ).toThrow(ZodError)
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...analysisRequest(),
+        internalSubjectId: 'subject with spaces',
+      }),
+    ).toThrow(ZodError)
+  })
+
+  it('rejects unpaired surrogates in review source text and language metadata', () => {
+    for (const malformed of ['\uD800', 'before\uD800after', '\uDC00']) {
+      expect(() =>
+        parseAiGatewayRouteRequest({
+          ...analysisRequest(),
+          source: { ...analysisRequest().source, text: malformed },
+        }),
+      ).toThrow(ZodError)
+      expect(() =>
+        parseAiGatewayRouteRequest({
+          ...analysisRequest(),
+          source: { ...analysisRequest().source, languageCode: malformed },
+        }),
+      ).toThrow(ZodError)
+    }
+    const parsed = parseAiGatewayRouteRequest(
+      analysisV3Request({ rawText: 'valid 😀 source' }),
+    )
+    expect(parsed.source.text).toBe('valid 😀 source')
+  })
+
+  it('rejects a reply binding whose concrete tag and template group are cross-wired', () => {
+    const request = replyRequest()
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...request,
+        binding: {
+          ...request.binding,
+          concreteReplyLanguage: {
+            tag: 'en-Latn',
+            templateGroup: 'es-Latn',
+          },
+        },
+      }),
+    ).toThrow(ZodError)
+  })
+
+  it('carries only the distinct personalized profile on the reply route', () => {
+    expect(parseAiGatewayRouteRequest(replyRequest())).toMatchObject({
+      route: 'reply-suggestion',
+      replyProfileVersion: 'reply-draft-v4',
+      brandProfile: { displayName: 'Example Hotel' },
+    })
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...replyRequest(),
+        replyProfileVersion: 'reply-suggestion-v1',
+      }),
+    ).toThrow(ZodError)
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...replyRequest(),
+        brandProfile: {
+          displayName: 'Example Hotel',
+          logoUrl: 'https://cdn.example/logo.png',
+        },
+      }),
+    ).toThrow(ZodError)
+
+    const response: ReplySuggestionResult = {
+      route: 'reply-suggestion',
+      status: 'success',
+      result: {
+        profileVersion: 'reply-draft-v4',
+        replyText: 'Thank you for sharing that the room was quiet during your stay.',
+        provenanceToken: 'signed-personalized-provenance',
+        expiresAtEpochMillis: 1_780_000_010_000,
+        baseReplyStateRevision: 0,
+        concreteLanguageTag: 'en-Latn',
+        templateGroup: 'en-Latn',
+        case: 'praise',
+        mainPoint: [1],
+      },
+      settlementReceipt: receipt,
+    }
+    const withTemplate: ReplySuggestionResult = {
+      route: 'reply-suggestion',
+      status: 'success',
+      result: {
+        profileVersion: 'reply-draft-v4',
+        replyText: 'Thank you for sharing that the room was quiet during your stay.',
+        provenanceToken: 'signed-personalized-provenance',
+        expiresAtEpochMillis: 1_780_000_010_000,
+        baseReplyStateRevision: 0,
+        concreteLanguageTag: 'en-Latn',
+        templateGroup: 'en-Latn',
+        case: 'praise',
+        mainPoint: [1],
+        // @ts-expect-error a reply response names no template
+        templateId: 'appreciation_positive',
+      },
+      settlementReceipt: receipt,
+    }
+    expect(withTemplate.route).toBe(response.route)
+  })
+
+  it.each([
+    'descriptor',
+    'sourceDigest',
+    'preparedDigest',
+    'preparedPayload',
+    'redactedPayload',
+  ])('rejects caller-supplied gateway-private field %s', (field) => {
+    expect(() =>
+      parseAiGatewayRouteRequest({ ...analysisRequest(), [field]: 'forbidden' }),
+    ).toThrow(ZodError)
+  })
+
+  it('rejects unknown nested fields and cross-wired route bindings', () => {
+    const input = analysisRequest()
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...input,
+        source: { ...input.source, descriptor: {} },
+      }),
+    ).toThrow(ZodError)
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...input,
+        binding: {
+          ...input.binding,
+          capabilityFence: {
+            capability: 'reply_drafting',
+            replyDraftingEpoch: 1,
+            baseReplyStateRevision: 0,
+          },
+        },
+      }),
+    ).toThrow(ZodError)
+  })
+
+  // The switch-on notice (2026-10-30) changed what a merchant agrees to, so it is the only
+  // notice in force: a Property consented under an earlier one is refused before an
+  // operation is claimed, and a binding under one is cross-wired. A version is in force
+  // only with its own digest.
+  it('accepts a binding under the served notice and refuses one under any earlier notice', () => {
+    const earlier = [
+      {
+        noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+        noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+      },
+      {
+        noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+        noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+      },
+      {
+        noticeVersion: 'merchant-ai-notice-2026-09-09.v1',
+        noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
+      },
+    ]
+    for (const request of [analysisRequest(), replyRequest()]) {
+      expect(parseAiGatewayRouteRequest(request)).toEqual(request)
+
+      for (const lapsed of [
+        ...earlier,
+        { ...earlier[0]!, noticeDigest: request.binding.noticeDigest },
+        {
+          noticeVersion: request.binding.noticeVersion,
+          noticeDigest: earlier[0]!.noticeDigest,
+        },
+      ]) {
+        expect(() =>
+          parseAiGatewayRouteRequest({
+            ...request,
+            binding: { ...request.binding, ...lapsed },
+          }),
+        ).toThrow(/route binding is cross-wired/)
+      }
+    }
+  })
+
+  it('types only strict route-matched success and error responses', () => {
+    const success: AnalysisResult = {
+      route: 'review-analysis',
+      status: 'success',
+      result: analysisV3Result,
+      settlementReceipt: receipt,
+    }
+    const failure: AnalysisResult = {
+      route: 'review-analysis',
+      status: 'error',
+      code: 'provider_rate_limited',
+      retryAfterEpochMillis: 1_780_000_010_000,
+    }
+    const leaked: AnalysisResult = {
+      ...success,
+      // @ts-expect-error a response carries no provider request id
+      providerRequestId: 'forbidden',
+    }
+    expect([failure.status, leaked.status]).toEqual(['error', 'success'])
+    // The answer itself is the route's accepted output, which admits no extra field.
+    if (success.status !== 'success') throw new Error('expected success')
+    expect(reviewAnalysisV3GatewayResultSchema.safeParse(success.result).success).toBe(
+      true,
+    )
+    expect(
+      reviewAnalysisV3GatewayResultSchema.safeParse({
+        ...success.result,
+        reasoning: 'forbidden',
+      }).success,
+    ).toBe(false)
+  })
+})

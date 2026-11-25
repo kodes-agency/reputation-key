@@ -9,9 +9,9 @@ import { getDb } from '#/shared/db'
 import type {
   IdentityManagerFactsPublicApi,
   StaffPublicApi,
-} from '#/contexts/identity/application/public-api'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
-import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
+} from '#/contexts/identity/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/public-api'
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/public-api'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'

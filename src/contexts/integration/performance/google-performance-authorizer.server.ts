@@ -26,7 +26,7 @@ import type {
   GooglePerformanceAuthorizationSnapshot,
   GooglePerformanceAuthorizer,
 } from './get-property-google-performance.server'
-import type { GoogleImportContentAuthorizationResult } from '../imports/google-import-command-authorizer.server'
+import type { GoogleContentAuthorizationResult } from '../provider/contracts'
 
 type PropertyAuthorizationView = GooglePropertyAuthorizationView &
   Readonly<{
@@ -56,7 +56,7 @@ export type PerformanceContentAuthorizer = (
     connectionId: GoogleConnectionId
     phase: 'before_provider' | 'before_return'
   }>,
-) => Promise<GoogleImportContentAuthorizationResult>
+) => Promise<GoogleContentAuthorizationResult>
 
 const PRINCIPAL_AUDIENCE = 'google-performance-authorization-lease-principal-v1'
 
@@ -272,7 +272,7 @@ export function createGooglePerformanceAuthorizer(
     connection: GoogleConnection,
     phase: Parameters<GooglePerformanceAuthorizer>[0]['phase'],
   ) => {
-    let content: Extract<GoogleImportContentAuthorizationResult, { ok: true }>
+    let content: Extract<GoogleContentAuthorizationResult, { ok: true }>
     try {
       const result = await deps.authorizeGoogleContent({
         actor,

@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 import { describedByOf, FormFieldFrame } from './form-field-frame'
 import {
   RATING_THRESHOLDS,

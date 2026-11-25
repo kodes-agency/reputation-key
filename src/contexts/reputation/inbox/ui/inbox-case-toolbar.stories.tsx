@@ -43,7 +43,7 @@ import type {
   FeedbackHandlingState,
   InboxItem,
   ResponseTargetView,
-} from '#/contexts/inbox/application/public-api'
+} from '#/contexts/reputation/public-api'
 import type { InboxAssignmentOption } from '#/contexts/reputation/inbox/ui/page/inbox-owner-view'
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 
@@ -112,7 +112,7 @@ const closedItem: InboxItem = { ...reviewItem, status: 'closed' }
 const escalatedItem: InboxItem = { ...reviewItem, isEscalated: true }
 
 /**
- * `isEscalated` stays set once acknowledged (`domain/types.ts:164-169`, ADR
+ * `isEscalated` stays set once acknowledged (`domain/inbox-types.ts:164-169`, ADR
  * 0023), so a resolved escalation is the flag AND a resolution instant. The
  * toolbar is handed `isEscalationActive` already derived by
  * `inbox-case-toolbar-props.ts` — its unit test proves this item derives
@@ -508,7 +508,7 @@ export const FeedbackClosedNoOutcome390: Story = {
 
 /**
  * The same private-feedback item read by someone the server withholds
- * `feedbackHandling` from (`get-inbox-item-detail.ts:132`). The item kind must
+ * `feedbackHandling` from (`get-inbox-item-detail.server.ts:132`). The item kind must
  * still come from `item.sourceType`: a toolbar that inferred it from the
  * handling state would label private feedback `Open` / `Closed` for exactly
  * the audience least equipped to know what that means.

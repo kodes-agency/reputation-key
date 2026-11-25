@@ -8,14 +8,13 @@
 // Portal as staffed by someone who is gone.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { Pool } from 'pg'
 import { identityMemberRemoved } from '#/contexts/identity/domain/events'
 import { capabilityForSystemAction } from '#/shared/auth/system-execution-policy'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
@@ -23,7 +22,7 @@ import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-re
 import {
   releaseRemovedMemberResponsibilities,
   type ResponsibleManagerMembership,
-} from '#/shared/responsible-manager-eligibility'
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { policyDeps } from './portal-manager-eligibility.server'
@@ -114,7 +113,7 @@ async function removeMembership(): Promise<ConsumerEvent> {
     occurredAt: REMOVED_AT,
   })
   const row = toOutboxEvent(fact)
-  await outbox.insert({ ...row, id: fact.eventId })
+  await recordOutboxFact(db, fact)
   return {
     eventId: fact.eventId,
     eventType: fact._tag,
@@ -202,15 +201,12 @@ async function clean(): Promise<void> {
 }
 
 beforeAll(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
 })
 
 afterAll(async () => {
   await clean()
   await pool.end()
-  clearEventSchemas()
 })
 
 beforeEach(async () => {

@@ -2,13 +2,13 @@ import { staffPortalCounts } from './portal-goal-staff-counts'
 // The read owns eligibility, figures and dates. Share month facts between the average's
 // strip and count bars; do not derive competing results in presentation.
 import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/public-api'
 import type {
   PortalGoalPageMonth,
   PortalGoalPageRows,
   PortalGoalQuietFact,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { goalFigure } from './goal-so-far'
 import {
   dayWords,
@@ -79,7 +79,6 @@ export function fromPortalsWords(
 ): Readonly<{
   rows: readonly Readonly<{ key: string; name: string; count: string }>[] | null
   total: string | null
-  truncated: string | null
   quiet: readonly PortalGoalQuietWords[]
 }> {
   const quiet = portals.flatMap(({ portalId, name }) => {
@@ -96,7 +95,7 @@ export function fromPortalsWords(
           },
         ]
   })
-  if (rows === null) return { rows: null, total: null, truncated: null, quiet }
+  if (rows === null) return { rows: null, total: null, quiet }
   const listed = staffPortalCounts(rows.portals).map(({ portalId, name, count }) => ({
     key: portalId,
     name,
@@ -115,7 +114,6 @@ export function fromPortalsWords(
           ]
         : listed,
     total: formatNumber(rows.total),
-    truncated: rows.truncated ? 'Showing the first 100 portals by name.' : null,
     quiet,
   }
 }

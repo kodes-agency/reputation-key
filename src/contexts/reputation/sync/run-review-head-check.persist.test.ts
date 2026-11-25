@@ -1,0 +1,420 @@
+// Review context — a head check in persist mode: what it stores, and when it
+// stores nothing.
+import { describe, expect, it } from 'vitest'
+import { HEAD_FACT_HEARTBEAT_MS } from '../domain/head-persist'
+import {
+  CONNECTION,
+  DAY_MS,
+  EPOCH,
+  FACT_ID,
+  GENERATION,
+  LOCATION,
+  ORG,
+  PROPERTY,
+  T0,
+  googleReview,
+  okHead,
+  readyState,
+  setup,
+  storedCopy,
+} from './review-head-check.test-fixtures'
+
+describe('runReviewHeadCheck: persist mode stores only what differs', () => {
+  it('writes the new and the edited review and leaves the unchanged one alone', async () => {
+    const { run, persist } = setup({
+      head: okHead(
+        [
+          googleReview('r-new'),
+          googleReview('r-same'),
+          googleReview('r-edited', {
+            sourceUpdatedAt: new Date(T0.getTime() - 1_000),
+            text: 'Changed canary text',
+          }),
+        ],
+        { totalReviewCount: 3, averageRating: 5 },
+      ),
+      copies: [
+        storedCopy('r-same'),
+        storedCopy('r-edited', { sourceUpdatedAt: new Date(T0.getTime() - 2 * DAY_MS) }),
+      ],
+      newReviewIds: new Set(['r-new']),
+    })
+
+    const result = await run()
+
+    expect(persist.mock.calls.map(([call]) => call.review.externalId)).toEqual([
+      'r-new',
+      'r-edited',
+    ])
+    expect(result).toMatchObject({
+      status: 'compared',
+      persistence: { outcome: 'stored', storedNew: 1, storedOther: 1, failed: 0 },
+    })
+  })
+
+  it('stores a reply written on Google on a review whose text did not change', async () => {
+    const { run, persist } = setup({
+      head: okHead(
+        [
+          googleReview('r-1', {
+            replyText: 'Thanks for staying',
+            replyUpdatedAt: new Date(T0.getTime() - 60_000),
+          }),
+        ],
+        { totalReviewCount: 1, averageRating: 5 },
+      ),
+      copies: [storedCopy('r-1')],
+    })
+
+    await run()
+
+    expect(persist).toHaveBeenCalledOnce()
+    expect(persist.mock.calls[0]?.[0].review.replyText).toBe('Thanks for staying')
+  })
+
+  it('stores a copy last fetched five days ago or more, so its lease is refreshed', async () => {
+    const { run, persist } = setup({
+      head: okHead([googleReview('r-1')], { totalReviewCount: 1, averageRating: 5 }),
+      copies: [storedCopy('r-1', { lastFetchedAt: new Date(T0.getTime() - 5 * DAY_MS) })],
+    })
+
+    await run()
+
+    expect(persist).toHaveBeenCalledOnce()
+  })
+
+  it('stores nothing at all when every review matches its stored copy', async () => {
+    const { run, persist } = setup()
+
+    const result = await run()
+
+    expect(persist).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      persistence: { outcome: 'stored', storedNew: 0, storedOther: 0, failed: 0 },
+    })
+  })
+
+  it('writes each review as ongoing work first seen via head, with one read generation for the page', async () => {
+    const { run, persist, allocateReplyReadGeneration } = setup({
+      copies: [],
+      newReviewIds: new Set(['r-1', 'r-2']),
+    })
+
+    await run()
+
+    expect(allocateReplyReadGeneration).toHaveBeenCalledOnce()
+    for (const [call] of persist.mock.calls) {
+      expect(call).toMatchObject({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        connectionId: CONNECTION,
+        sourceEpoch: EPOCH,
+        observationOrigin: 'ongoing',
+        firstSeenVia: 'head',
+        replyReadGeneration: GENERATION,
+      })
+      expect(call.observationKey).toMatch(/^[0-9a-f]{64}$/u)
+    }
+    const keys = persist.mock.calls.map(([call]) => call.observationKey)
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it('never repeats an observation key across two checks, so an edit and its undoing are both applied', async () => {
+    const first = setup({ copies: [] })
+    const second = setup({ copies: [], generation: GENERATION + 1 })
+
+    await first.run()
+    await second.run()
+
+    const firstKeys = first.persist.mock.calls.map(([call]) => call.observationKey)
+    const secondKeys = second.persist.mock.calls.map(([call]) => call.observationKey)
+    expect(firstKeys.some((key) => secondKeys.includes(key))).toBe(false)
+  })
+
+  it('takes the read generation right after Google answers, before the stored copies are read', async () => {
+    const { run, order } = setup({ copies: [] })
+
+    await run()
+
+    expect(order.slice(0, 2)).toEqual(['read', 'allocate'])
+  })
+
+  it('maps each stored review to the provider subject it was written with, after its write', async () => {
+    const { run, persist, recordSighting, order } = setup({
+      copies: [storedCopy('r-2')],
+      newReviewIds: new Set(['r-1']),
+      head: okHead(
+        [
+          googleReview('r-1'),
+          googleReview('r-2', {
+            sourceUpdatedAt: new Date(T0.getTime() - 1_000),
+            text: 'Changed canary text',
+          }),
+        ],
+        { totalReviewCount: 2, averageRating: 5 },
+      ),
+    })
+
+    await run()
+
+    expect(recordSighting.mock.calls.map(([sighting]) => sighting)).toEqual(
+      persist.mock.calls.map(([call]) => ({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        sourceEpoch: EPOCH,
+        reviewId: `id-${call.review.externalId}`,
+        sourceRevision: 1,
+        subjects: call.subjects,
+      })),
+    )
+    expect(
+      order.filter((step) => step.startsWith('persist:') || step === 'sighting'),
+    ).toEqual(['persist:r-1', 'sighting', 'persist:r-2', 'sighting'])
+  })
+
+  it('maps nothing for a review whose write failed, nor for one it did not store', async () => {
+    const { run, recordSighting } = setup({
+      copies: [storedCopy('r-2')],
+      failPersistFor: new Set(['r-1']),
+    })
+
+    await expect(run()).resolves.toMatchObject({
+      persistence: { outcome: 'stored', storedNew: 0, storedOther: 0, failed: 1 },
+    })
+    expect(recordSighting).not.toHaveBeenCalled()
+  })
+
+  it('stamps the discovery ladder when the page held a review nobody had', async () => {
+    const withNew = setup({ copies: [storedCopy('r-2')], newReviewIds: new Set(['r-1']) })
+    const withoutNew = setup({ copies: [] })
+
+    await withNew.run()
+    await withoutNew.run()
+
+    expect(withNew.recordNewReviewObserved).toHaveBeenCalledOnce()
+    expect(withoutNew.recordNewReviewObserved).not.toHaveBeenCalled()
+  })
+
+  it('still stores when stamping the ladder fails', async () => {
+    const { run, logger } = setup({
+      copies: [],
+      newReviewIds: new Set(['r-1']),
+      stampActivity: new Error('db down'),
+    })
+
+    await expect(run()).resolves.toMatchObject({
+      persistence: { outcome: 'stored', storedNew: 1 },
+    })
+    expect(logger.warn).toHaveBeenCalledWith(
+      { event: 'review_head_check_activity_not_recorded' },
+      expect.any(String),
+    )
+  })
+})
+
+describe('runReviewHeadCheck: persist mode and the head fact', () => {
+  it('stores Google’s numbers after the reviews when they moved', async () => {
+    const { run, repository, order } = setup({
+      head: okHead([googleReview('r-1')], { totalReviewCount: 130, averageRating: 4.7 }),
+      copies: [],
+    })
+
+    const result = await run()
+
+    expect(repository.recordHeadFact).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      sourceEpoch: EPOCH,
+      factId: FACT_ID,
+      reviewCount: 130,
+      averageRating: 4.7,
+      numbersObservedAt: expect.any(Date),
+    })
+    expect(order.indexOf('fact')).toBeGreaterThan(order.indexOf('persist:r-1'))
+    expect(result).toMatchObject({ persistence: { factWritten: true } })
+  })
+
+  it('stamps the fact with the instant the page was read', async () => {
+    const { run, repository } = setup({
+      head: okHead([googleReview('r-1')], { totalReviewCount: 130, averageRating: 4.7 }),
+      copies: [],
+    })
+
+    await run()
+
+    // The clock ticks 100 ms per call: start, then the read right after Google answered.
+    expect(repository.recordHeadFact).toHaveBeenCalledWith(
+      expect.objectContaining({ numbersObservedAt: new Date(T0.getTime() + 100) }),
+    )
+  })
+
+  it('writes no fact while Google’s numbers equal the newest fact and it is recent', async () => {
+    const { run, repository } = setup()
+
+    const result = await run()
+
+    expect(repository.recordHeadFact).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ persistence: { factWritten: false } })
+  })
+
+  it('writes a heartbeat fact once the newest fact is six hours old', async () => {
+    const { run, repository } = setup({
+      state: {
+        ...readyState,
+        newestFact: {
+          reviewCount: 2,
+          averageRating: 5,
+          observedAt: new Date(T0.getTime() - HEAD_FACT_HEARTBEAT_MS - 1_000),
+        },
+      },
+    })
+
+    await run()
+
+    expect(repository.recordHeadFact).toHaveBeenCalledOnce()
+  })
+
+  it('does not overwrite newer numbers acquired while this page was being stored', async () => {
+    const { run, persist, repository } = setup({
+      copies: [],
+      head: okHead([googleReview('r-1')], { totalReviewCount: 40, averageRating: 4.5 }),
+      stateAtFact: {
+        ...readyState,
+        newestFact: {
+          reviewCount: 41,
+          averageRating: 4.6,
+          observedAt: new Date(T0.getTime() + 200),
+        },
+      },
+    })
+
+    const result = await run()
+
+    expect(persist).toHaveBeenCalledOnce()
+    expect(repository.readPersistState).toHaveBeenCalledTimes(2)
+    expect(repository.recordHeadFact).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      persistence: { outcome: 'stored', storedOther: 1, factWritten: false },
+    })
+
+    // A later acquisition can still write: superseding one page latches no failure.
+    await expect(run()).resolves.toMatchObject({
+      persistence: { outcome: 'stored', factWritten: true },
+    })
+    expect(repository.recordHeadFact).toHaveBeenCalledOnce()
+  })
+
+  it('reports the fact as not written, and does not throw, when it cannot be recorded', async () => {
+    const { run, logger } = setup({
+      head: okHead([googleReview('r-1')], { totalReviewCount: 130, averageRating: 4.7 }),
+      copies: [storedCopy('r-1')],
+      recordHeadFact: new Error('db down CANARY'),
+    })
+
+    const result = await run()
+
+    expect(result).toMatchObject({
+      status: 'compared',
+      persistence: { outcome: 'stored', factWritten: false },
+    })
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('CANARY')
+  })
+})
+
+describe('runReviewHeadCheck: persist mode never throws and leaves no latch', () => {
+  it('counts a review whose write failed, stores the rest, and does not throw', async () => {
+    const { run, persist, logger } = setup({
+      copies: [],
+      failPersistFor: new Set(['r-1']),
+      newReviewIds: new Set(['r-2']),
+    })
+
+    const result = await run()
+
+    expect(persist).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({
+      status: 'compared',
+      persistence: { outcome: 'stored', storedNew: 1, failed: 1 },
+    })
+    expect(logger.warn).toHaveBeenCalledWith(
+      { event: 'review_head_check_persist_failed', failed: 1 },
+      expect.any(String),
+    )
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('CANARY')
+  })
+
+  it('counts a review that belongs to another location as failed instead of writing it', async () => {
+    const { run, persist } = setup({
+      head: okHead([googleReview('r-1', { reviewName: `${LOCATION}x/reviews/r-1` })], {
+        totalReviewCount: 1,
+        averageRating: 5,
+      }),
+      copies: [],
+    })
+
+    const result = await run()
+
+    expect(persist).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ persistence: { storedNew: 0, failed: 1 } })
+  })
+
+  it('writes the row as mode head with what was actually stored and whether the fact was written', async () => {
+    const { run, repository } = setup({
+      head: okHead(
+        [googleReview('r-new'), googleReview('r-edit', { sourceUpdatedAt: T0 })],
+        {
+          totalReviewCount: 99,
+          averageRating: 4.5,
+        },
+      ),
+      copies: [storedCopy('r-edit')],
+      newReviewIds: new Set(['r-new']),
+    })
+
+    await run()
+
+    expect(repository.recordRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'head',
+        outcome: 'compared',
+        persistence: {
+          outcome: 'stored',
+          storedNew: 1,
+          storedOther: 1,
+          failed: 0,
+          factWritten: true,
+        },
+      }),
+    )
+  })
+
+  it('logs counts and closed codes only: no id, location, review field or provider message', async () => {
+    const { run, logger } = setup({ copies: [], failPersistFor: new Set(['r-1']) })
+
+    await run()
+
+    const logged = JSON.stringify([logger.info.mock.calls, logger.warn.mock.calls])
+    for (const secret of [
+      String(ORG),
+      String(PROPERTY),
+      String(CONNECTION),
+      LOCATION,
+      'r-1',
+      'Canary',
+      'CANARY',
+      FACT_ID,
+    ]) {
+      expect(logged).not.toContain(secret)
+    }
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        persisted: 'stored',
+        storedNew: 0,
+        storedOther: 1,
+        storeFailed: 1,
+        factWritten: false,
+      }),
+      'Review head check finished',
+    )
+  })
+})

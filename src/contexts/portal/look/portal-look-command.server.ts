@@ -2,7 +2,7 @@
 // it answers (ADR 0070). The three saves (colours, name and logo, photo) share
 // one prologue so who may change a Portal's look cannot drift between them.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId, propertyId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'

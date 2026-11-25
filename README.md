@@ -283,8 +283,8 @@ Install hooks after cloning: `pnpm install` (the `prepare` script registers Husk
 
 ```
 src/
-├── contexts/       # Bounded business domains (ten packages; see root CONTEXT.md)
-│   └── <name>/    # Each has: domain/, application/, infrastructure/, server/
+├── contexts/       # Bounded business domains (nine packages; see root CONTEXT.md)
+│   └── <name>/    # Features, domain/, server/, build.ts, public-api.ts
 ├── components/     # React UI
 │   ├── ui/        # shadcn primitives
 │   ├── forms/     # shared form blocks (SubmitButton, FormErrorBanner, etc.)
@@ -305,7 +305,6 @@ src/
 │   └── testing/   # In-memory port fakes, test fixtures
 ├── routes/         # TanStack Router file-based routes
 │   └── _authenticated/ # Protected routes with layout shell
-├── lib/            # Shared utilities (utils, lookups)
 ├── composition.ts  # Dependency wiring
 ├── bootstrap.ts    # Event/job handler registration
 └── worker/         # Background worker entry point

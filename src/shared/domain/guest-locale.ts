@@ -3,7 +3,7 @@
 // registered language packs exist for each.
 //
 // Pure on purpose (no zod, no I/O) so domain code may import it; the zod
-// schemas built from it live in `src/shared/guest-locale-schemas.ts`.
+// schemas built from it live in `src/shared/domain-schemas/guest-locale-schemas.ts`.
 
 /** Every locale the guest surface can ever render, in display order. */
 export const GUEST_LOCALES = Object.freeze(['en', 'es', 'it', 'fr', 'de', 'bg'] as const)

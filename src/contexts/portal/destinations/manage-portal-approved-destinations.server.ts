@@ -5,7 +5,7 @@ import {
   portalId,
   type PortalApprovedDestinationId,
 } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
 import type { PortalApprovedDestinationRepository } from './portal-approved-destination-repository.port.server'
 import { APPROVED_DESTINATION_REVALIDATION_DUE_AFTER_MS } from './approved-destination-age.server'

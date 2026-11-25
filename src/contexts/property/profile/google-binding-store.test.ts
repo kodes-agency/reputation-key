@@ -1,4 +1,4 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import type { SQL } from 'drizzle-orm'
@@ -72,12 +72,17 @@ function harness(overrides: Record<string, unknown> = {}, connectionAvailable = 
     },
     update: () => ({
       set: (values: Record<string, unknown>) => ({
-        where: () => ({
-          returning: async () => {
+        where: () => {
+          const apply = async () => {
             row = { ...row, ...values }
             return [{ ...row }]
-          },
-        }),
+          }
+          return {
+            returning: apply,
+            // Awaited without `returning`: the UPDATE runs and its rows are unused.
+            then: (resolve: (rows: unknown) => unknown) => apply().then(resolve),
+          }
+        },
       }),
     }),
     insert: () => ({ values: async () => undefined }),

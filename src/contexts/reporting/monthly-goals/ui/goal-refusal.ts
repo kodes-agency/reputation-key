@@ -5,7 +5,7 @@ import {
   isServerFunctionError,
   ServerFunctionError,
 } from '#/shared/auth/server-function-error'
-import type { GoalProgramError } from '#/contexts/reporting/application/public-api'
+import type { GoalProgramError } from '#/contexts/reporting/public-api'
 
 const GOAL_REFUSAL = 'GoalProgramError'
 

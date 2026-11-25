@@ -1,5 +1,5 @@
 import { buttonVariants } from '#/components/ui/button'
-import type { PortalPublicationState } from '#/contexts/portal/application/public-api'
+import type { PortalPublicationState } from '#/contexts/portal/public-api'
 /**
  * Where a portal's Results tab is: what its empty states and its Private notes
  * figure link to. Absent where the figures are drawn without a portal around

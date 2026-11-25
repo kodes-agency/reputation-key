@@ -3,7 +3,7 @@ import { createReplyProgressParser } from './reply-progress-parser'
 import {
   reportReplyProgress,
   type ReplyDraftingProgress,
-} from '#/shared/reply-drafting-progress'
+} from '#/shared/reply/reply-drafting-progress'
 
 const output = JSON.stringify({
   languageCode: 'bg-Cyrl',

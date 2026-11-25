@@ -4,7 +4,7 @@ import {
   IMPORT_OUTCOME_CODES,
   IMPORT_PROFILE_FIELDS,
   type ImportProgressDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import {
   importItemMessage,
   importItemNeedsReimport,

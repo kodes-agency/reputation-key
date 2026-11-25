@@ -1,8 +1,8 @@
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Badge, type BadgeVariant } from '#/components/ui/badge'
-import { cn } from '#/lib/utils'
-import { URGENT_REASON_SENTENCES_V3 } from '#/shared/review-urgent-reasons'
-import type { ReviewUrgentReasonV3 } from '#/shared/review-analysis-v3'
+import { cn } from '#/shared/class-names/utils'
+import { URGENT_REASON_SENTENCES_V3 } from '#/shared/analysis/review-urgent-reasons'
+import type { ReviewUrgentReasonV3 } from '#/shared/analysis/review-analysis-v3'
 import { INBOX_CHIP_STATIC_CLASS } from '#/contexts/reputation/inbox/ui/page/inbox-chip'
 import {
   prioritySuggestion,
@@ -20,10 +20,7 @@ import {
   type ReadyAnalysisV3,
 } from './review-cause-view'
 import type { ReactNode } from 'react'
-import type {
-  InboxMentionV3,
-  InboxPriority,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxMentionV3, InboxPriority } from '#/contexts/reputation/public-api'
 import type { MatchedIssue } from './use-matched-issue'
 
 /**

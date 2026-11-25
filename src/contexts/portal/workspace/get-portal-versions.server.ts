@@ -10,9 +10,12 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
-import type { PortalHistoryRepository } from './portal-history-repository.port.server'
+import {
+  MAX_LISTED_VERSIONS,
+  type PortalHistoryRepository,
+} from './portal-history-repository.port.server'
 import type { PortalPublicationRepository } from '../publication/portal-publication-repository.port.server'
 import type { PortalActorDirectory } from './portal-actor-directory.port.server'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
@@ -27,9 +30,6 @@ import {
   type PublicationContentChange,
 } from '../domain/portal-publication-content'
 import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../domain/portal-publication-snapshot'
-
-/** More versions than a Portal is ever published; older ones are named, not listed. */
-const MAX_LISTED_VERSIONS = 200
 
 export type PortalVersionItem = Readonly<{
   version: number

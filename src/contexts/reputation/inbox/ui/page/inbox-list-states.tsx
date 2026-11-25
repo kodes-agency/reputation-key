@@ -4,7 +4,7 @@ import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
-import type { InboxQueue } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue } from '#/contexts/reputation/public-api'
 import { inboxEmptyCopy } from './inbox-queues'
 
 export function InboxListSkeleton() {

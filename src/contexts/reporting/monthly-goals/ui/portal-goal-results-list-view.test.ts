@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   GoalResultsMatrix,
   GoalResultsMatrixRow,
-} from '#/contexts/reporting/application/public-api'
+} from '#/contexts/reporting/public-api'
 import { resultGoals } from './portal-goal-results-list-view'
 import {
   ALL_EVIDENCE_STATES,

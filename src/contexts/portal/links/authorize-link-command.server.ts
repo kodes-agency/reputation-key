@@ -1,7 +1,7 @@
 // Portal context — the opening of every command on an existing link: the role
 // may update Portals, the link exists, and the caller may reach its Property.
 
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalLinkId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'

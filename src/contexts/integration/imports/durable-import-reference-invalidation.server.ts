@@ -4,30 +4,23 @@ import { googleImportDiscoveryRecords } from '#/shared/db/schema/google-import-d
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import type { GoogleImportReferenceStore } from './durable-import-reference-store.port.server'
 import {
+  invalidationDigest,
   invalidationScopeFor,
+  SERVER_ID_VERSION,
   type DurableImportInvalidationScope,
-  type DurableImportReferenceKeys,
 } from './durable-import-reference-keys.server'
 import { acquireDurableImportScopeLocks } from './durable-import-reference-persistence.server'
 
 const INVALIDATION_FENCE_MS = 30_000
 
-type InvalidationMethod =
-  | 'invalidateOrganization'
-  | 'invalidateUser'
-  | 'invalidateConnection'
-  | 'invalidateProperty'
+type InvalidationMethod = 'invalidateUser' | 'invalidateConnection' | 'invalidateProperty'
 
 type InvalidationInput =
-  | Readonly<{ kind: 'organization'; organizationId: string }>
   | Readonly<{ kind: 'user'; organizationId: string; userId: string }>
   | Readonly<{ kind: 'connection'; organizationId: string; connectionId: string }>
   | Readonly<{ kind: 'property'; organizationId: string; propertyId: string }>
 
 const scopeFor = (input: InvalidationInput): DurableImportInvalidationScope => {
-  if (input.kind === 'organization') {
-    return invalidationScopeFor('organization', [input.organizationId])
-  }
   if (input.kind === 'user') {
     return invalidationScopeFor('user', [input.organizationId, input.userId])
   }
@@ -45,9 +38,7 @@ const deleteScope = async (
     googleImportDiscoveryRecords.organizationId,
     input.organizationId,
   )
-  if (input.kind === 'organization') {
-    await tx.delete(googleImportDiscoveryRecords).where(organization)
-  } else if (input.kind === 'user') {
+  if (input.kind === 'user') {
     await tx
       .delete(googleImportDiscoveryRecords)
       .where(and(organization, eq(googleImportDiscoveryRecords.userId, input.userId)))
@@ -75,7 +66,6 @@ const deleteScope = async (
 export const createDurableImportReferenceInvalidation = (
   deps: Readonly<{
     db: Database
-    keys: DurableImportReferenceKeys
     clock: () => Date
   }>,
 ): Pick<GoogleImportReferenceStore, InvalidationMethod> => {
@@ -86,23 +76,19 @@ export const createDurableImportReferenceInvalidation = (
     try {
       await deps.db.transaction(async (tx) => {
         await acquireDurableImportScopeLocks(tx, [target])
-        const fences = deps.keys.invalidationKeys(target)
-        if (fences.length === 0) throw new Error('invalidation key unavailable')
         await tx
           .insert(idempotencyReceipts)
-          .values(
-            fences.map((fence) => ({
-              scope: 'google_import_discovery',
-              key: fence.key,
-              payload: {
-                keyVersion: fence.keyVersion,
-                scopeKind: fence.scopeKind,
-                invalidatedAt: now.toISOString(),
-                expiresAt: expiresAt.toISOString(),
-              },
-              recordedAt: now,
-            })),
-          )
+          .values({
+            scope: 'google_import_discovery',
+            key: invalidationDigest(target),
+            payload: {
+              keyVersion: SERVER_ID_VERSION,
+              scopeKind: target.kind,
+              invalidatedAt: now.toISOString(),
+              expiresAt: expiresAt.toISOString(),
+            },
+            recordedAt: now,
+          })
           .onConflictDoUpdate({
             target: [idempotencyReceipts.scope, idempotencyReceipts.key],
             set: {
@@ -119,8 +105,6 @@ export const createDurableImportReferenceInvalidation = (
   }
 
   return Object.freeze({
-    invalidateOrganization: (input) =>
-      invalidate({ kind: 'organization', organizationId: input.organizationId }),
     invalidateUser: (input) =>
       invalidate({
         kind: 'user',

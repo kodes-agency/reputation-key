@@ -6,7 +6,7 @@
 // This module holds the two things that are genuinely view concerns: which
 // icon a type gets, and how a timestamp reads in the user's own locale.
 
-import { formatDateTime } from '#/lib/format-date-time'
+import { formatDateTime } from '#/shared/format/format-date-time'
 import {
   Bell,
   MessageSquare,
@@ -25,7 +25,7 @@ import {
   Unplug,
   type LucideIcon,
 } from 'lucide-react'
-import type { NotificationType } from '#/contexts/feed/application/public-api'
+import type { NotificationType } from '#/contexts/feed/public-api'
 
 // ── Locale-aware timestamps ─────────────────────────────────────────
 //

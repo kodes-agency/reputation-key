@@ -14,7 +14,6 @@ import {
   createScheduledScopeAuthorizer,
   gateDispatcherConsumer,
 } from '#/shared/jobs/delayed-execution-gate'
-import { GateDenyRetryError } from '#/shared/jobs/errors'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { createConsumerRegistry, type OutboxRepository } from '#/shared/outbox'
 import {
@@ -403,12 +402,9 @@ describe('AI review outbox consumer', () => {
     )
   })
 
-  it('leaves the event unreceipted for a retry when policy cannot be read', async () => {
+  it('leaves the event unreceipted for a retry when the scope authorizer rejects', async () => {
     const test = harness({ status: 'completed' })
-    const unavailable = new GateDenyRetryError(
-      'system:ai.review_analysis_backlog_drain',
-      'policy_unavailable',
-    )
+    const unavailable = new Error('scope authorizer failed')
     test.authorizeScope.mockRejectedValue(unavailable)
 
     await expect(
@@ -778,9 +774,7 @@ describe('AI consumer authorization', () => {
   ) => gateUnder({ BETA_CAPABILITIES_OFF: stopped }, consumerName, envelope)
 
   beforeEach(() => {
-    initDelayedExecutionPolicy(
-      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
-    )
+    initDelayedExecutionPolicy(createDelayedExecutionPolicy())
   })
 
   afterEach(() => {

@@ -133,6 +133,20 @@ describe('statement scope on a pooled client', () => {
     ])
   })
 
+  it('sets the tenant before a statement sent as a query config, as the ORM sends it', async () => {
+    const { client, sent } = fakeClient()
+
+    await withTenantScope(tenant('org-a'), () =>
+      client.query({ text: 'select * from reviews where id = $1', values: ['r1'] }),
+    )
+
+    expect(sent).toEqual([
+      expect.objectContaining({ values: ['tenant', 'org-a'] }),
+      { text: 'select * from reviews where id = $1', values: ['r1'] },
+    ])
+    expect(sent[0]!.text).toContain('set_config')
+  })
+
   it('leaves statements inside a transaction to the scope set before it began', async () => {
     const { client, sent } = fakeClient()
 
@@ -164,6 +178,33 @@ describe('statement scope on a pooled client', () => {
     await withTenantScope(tenant('org-b'), () => client.query('b2'))
     expect(settings(sent).at(-1)!.values).toEqual(['tenant', 'org-b'])
     expect(sent.at(-1)!.text).toBe('b2')
+  })
+
+  it('answers a callback-form statement with the refusal when its setting fails', async () => {
+    const failing = new Set([
+      "select set_config('app.scope', $1, false), set_config('app.organization_id', $2, false)",
+    ])
+    const { client, sent } = fakeClient(failing)
+
+    const answered = await withTenantScope(
+      tenant('org-a'),
+      () =>
+        new Promise((resolve) => {
+          // A statement nobody answers must fail this test, not hang it.
+          const giveUp = setTimeout(() => resolve('unanswered'), 250)
+          ;(client.query as unknown as (...args: unknown[]) => void)(
+            'select 1',
+            [],
+            (error: unknown) => {
+              clearTimeout(giveUp)
+              resolve(error)
+            },
+          )
+        }),
+    )
+
+    expect(answered).toBeInstanceOf(StatementScopeError)
+    expect(sent.map((statement) => statement.text)).not.toContain('select 1')
   })
 
   it('rejects a statement queued behind a setting when sending it throws', async () => {

@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   revision: vi.fn(),
   policy: vi.fn(),
   generate: vi.fn(),
-  runtime: vi.fn(),
   signal: new AbortController().signal,
 }))
 vi.mock('@tanstack/react-start', () => ({
@@ -54,9 +53,6 @@ vi.mock('#/shared/auth/middleware', () => ({ resolveTenantContext: mocks.tenant 
 vi.mock('#/shared/auth/execution-policy', () => ({
   requireExecutionAllowed: mocks.policy,
 }))
-vi.mock('#/shared/ai-runtime-capability-contract', () => ({
-  getAiRuntimeCapability: mocks.runtime,
-}))
 
 const data = {
   reviewId: '72000000-0000-4000-8000-000000000102',
@@ -73,7 +69,6 @@ beforeEach(() => {
     source: { propertyId: 'property', sourceEpoch: 2, sourceRevision: 3 },
   })
   mocks.revision.mockResolvedValue(4)
-  mocks.runtime.mockReturnValue({ operationProfileVersion: 'reply-suggestion-v2' })
   mocks.generate.mockResolvedValue({
     status: 'unavailable',
     code: 'busy',
@@ -131,12 +126,6 @@ describe('authenticated drafting POST stream', () => {
         onProgress: expect.any(Function),
       }),
     )
-  })
-  it('keeps the v2 endpoint dark under the served v1 selection', async () => {
-    mocks.runtime.mockReturnValue({ operationProfileVersion: 'reply-suggestion-v1' })
-    const response = await generateReplySuggestionStreamFn({ data })
-    expect(await response.text()).toContain('policy_unavailable')
-    expect(mocks.generate).not.toHaveBeenCalled()
   })
   it.each(['tenant', 'policy'] as const)(
     'performs no generation after %s authorization fails',

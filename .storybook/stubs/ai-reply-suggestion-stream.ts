@@ -3,7 +3,7 @@
 // use-reply-actions.ts (streamReplyDraft) loads the stream server function with a
 // dynamic import so it stays out of first paint. In the Storybook Vite build the
 // real module would leak @tanstack/start-server-core (createServerFn and
-// #/composition), like #/contexts/review/server/reply, so it is aliased here
+// #/composition), like #/contexts/reputation/server/reply, so it is aliased here
 // (see .storybook/main.ts). Lazy client transport must never load composition or
 // Node's server runtime in stories.
 //

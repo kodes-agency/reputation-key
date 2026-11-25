@@ -11,7 +11,7 @@ import {
   PORTAL_MEDIA_PURPOSE_SQL_LIST,
   PORTAL_MEDIA_SOURCE_FORMAT_SQL_LIST,
   PORTAL_MEDIA_STATUS_SQL_LIST,
-} from '#/shared/portal-media-schemas'
+} from '#/shared/domain-schemas/portal-media-schemas'
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..')
 const MIGRATION = readFileSync(

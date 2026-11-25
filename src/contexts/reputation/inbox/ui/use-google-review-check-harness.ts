@@ -16,10 +16,7 @@ import {
   environmentManager,
 } from '@tanstack/react-query'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
-import type {
-  InboxGoogleCheckOutcome,
-  InboxItem,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxGoogleCheckOutcome, InboxItem } from '#/contexts/reputation/public-api'
 import { fakePage } from './google-return-fake-page'
 import type { InboxServerFns } from '#/contexts/reputation/inbox/ui/page/types'
 import type { GoogleReviewCheck } from './use-google-review-check'

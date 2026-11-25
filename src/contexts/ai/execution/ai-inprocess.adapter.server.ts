@@ -1,4 +1,4 @@
-import type { ReplyDraftingProgressSink } from '#/shared/reply-drafting-progress'
+import type { ReplyDraftingProgressSink } from '#/shared/reply/reply-drafting-progress'
 import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply/request'
 // WP2.3 — the AI inference port, calling the egress gateway in this process.
 //
@@ -29,10 +29,10 @@ import {
   type AiGatewayRouteResponseV1,
   type AnalysisResult,
   type ReplySuggestionResult,
-} from '#/shared/ai-gateway-transport-contract'
-import { AI_REVIEW_ROUTE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
-import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
-import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
+} from '#/shared/ai-gateway/ai-gateway-transport-contract'
+import { AI_REVIEW_ROUTE_MAX_BYTES } from '#/shared/ai-gateway/ai-internal-transport-contract'
+import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
+import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/analysis/review-analysis-v3-request'
 import { createSensitiveSourceLease } from '#/shared/ai-provider-control/source-lease'
 import type { AiEgressGatewayService } from '#/shared/ai-provider-control/service'
 import type { AiInferencePort } from './ai-inprocess.port.server'
@@ -55,7 +55,7 @@ export function aiGatewayRequestMaxBytes(request: AiGatewayRouteRequestV1): numb
     request.binding.operationProfileVersion === 'reply-suggestion-v2'
   )
     return REPLY_DRAFTING_V2_ROUTE_MAX_BYTES
-  return request.route === 'review-analysis' && request.source.sentences !== undefined
+  return request.route === 'review-analysis'
     ? AI_REVIEW_V3_ROUTE_MAX_BYTES
     : REQUEST_MAX_BYTES[request.route]
 }

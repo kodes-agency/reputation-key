@@ -1,6 +1,6 @@
 import * as React from 'react'
 
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 /**
  * A keyboard key, printed. Presentation only: it renders a real `<kbd>` but binds

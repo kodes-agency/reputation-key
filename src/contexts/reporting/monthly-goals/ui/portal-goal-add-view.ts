@@ -7,7 +7,7 @@ import type {
   PortalGoalAddOffer,
   PortalGoalAddOptions,
 } from '#/contexts/reporting/monthly-goals/contracts'
-import { formatNumber } from '#/lib/format'
+import { formatNumber } from '#/shared/format/format'
 import { goalMetricLabel } from './goal-metric-label'
 import {
   AVERAGE_METRIC,

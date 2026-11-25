@@ -4,7 +4,7 @@ import { ChevronDown, RefreshCcw } from 'lucide-react'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
-} from '#/contexts/integration/application/public-api'
+} from '#/contexts/integration/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { Button } from '#/components/ui/button'
@@ -24,7 +24,7 @@ import {
   parentStatusMessage,
 } from './google-import-progress-model'
 import { PARENT_STATUS } from './google-import-parent-status'
-import { formatClock } from '#/lib/format'
+import { formatClock } from '#/shared/format/format'
 
 type Props = Readonly<{
   progress: ImportProgressDto

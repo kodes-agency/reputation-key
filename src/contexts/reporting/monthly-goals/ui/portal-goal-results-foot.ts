@@ -1,7 +1,7 @@
 // Keep navigation words separate from the results page so callers do not load that
 // page's implementation. Tests hold its anchor and title to the destination.
 
-import type { buildGoalResultsMatrix } from '#/contexts/reporting/application/public-api'
+import type { buildGoalResultsMatrix } from '#/contexts/reporting/public-api'
 
 /** A Portal goal as the Goals list reads it, ended ones included, with its months. */
 type PortalGoal = Parameters<typeof buildGoalResultsMatrix>[0]['programs'][number]

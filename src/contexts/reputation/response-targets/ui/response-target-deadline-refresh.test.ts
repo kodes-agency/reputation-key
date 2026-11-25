@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ResponseTargetView } from '#/contexts/inbox/application/public-api'
+import type { ResponseTargetView } from '#/contexts/reputation/public-api'
 import {
   responseTargetDeadlineRefreshAt,
   scheduleResponseTargetDeadlineRefresh,

@@ -9,7 +9,7 @@ import { Questionnaire as QuestionnairePrimitive } from '@shadcn/react/questionn
 import { CheckIcon } from 'lucide-react'
 
 import { buttonVariants, type Button } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
+import { cn } from '#/shared/class-names/utils'
 
 type NavigationButtonProps = Pick<React.ComponentProps<typeof Button>, 'size' | 'variant'>
 

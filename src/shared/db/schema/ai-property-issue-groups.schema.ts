@@ -15,8 +15,8 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
-import { REVIEW_CAUSE_PHRASE_PATTERN } from '../../review-analysis-v3'
-import { REVIEW_TOPICS_V3 } from '../../review-topic-taxonomy'
+import { REVIEW_CAUSE_PHRASE_PATTERN } from '../../analysis/review-analysis-v3'
+import { REVIEW_TOPICS_V3 } from '../../analysis/review-topic-taxonomy'
 import {
   propertyTenantForeignKey,
   sqlPatternLiteral,

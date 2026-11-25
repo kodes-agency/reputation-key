@@ -1,0 +1,187 @@
+[
+  {
+    "path": "src/shared/domain/property-access.ts",
+    "group": "tenant-policy",
+    "fault": "A caller from another Organization, or an assigned-scope caller without a grant, can use a Property they cannot reach (mayUsePermissionsOnProperties / isPropertyAccessibleForPermission)."
+  },
+  {
+    "path": "src/shared/domain/permissions.ts",
+    "group": "tenant-policy",
+    "fault": "An Organization-wide scope on one permission widens another permission's record visibility, or a permission missing from the scope map is not treated as 'none' (canForContext / scopeForPermission)."
+  },
+  {
+    "path": "src/shared/auth/execution-policy.ts",
+    "group": "tenant-policy",
+    "fault": "A server function is allowed without the Organization match, capability, role permission, active Property grant or consent it requires: decision order broken, or a deny turned into an allow."
+  },
+  {
+    "path": "src/shared/auth/system-execution-policy.ts",
+    "group": "tenant-policy",
+    "fault": "Delayed worker, consumer or schedule work runs for a suspended or other Organization, with a missing scope or an unknown action, instead of failing closed."
+  },
+  {
+    "path": "src/shared/auth/user-organization-membership.ts",
+    "group": "tenant-policy",
+    "fault": "A user with membership in two Organizations, or whose only membership is not the session's active Organization, is admitted."
+  },
+  {
+    "path": "src/shared/auth/tenant-resolver.ts",
+    "group": "tenant-policy",
+    "fault": "A removed or role-downgraded member keeps access because a cached auth context is served past a permission_version change or an unreadable version."
+  },
+  {
+    "path": "src/shared/auth/permissions.ts",
+    "group": "tenant-policy",
+    "fault": "A PropertyManager or Member role holds a permission reserved for the account owner (for example ai.manage or member.create)."
+  },
+  {
+    "path": "src/shared/db/scope-store.server.ts",
+    "group": "tenant-policy",
+    "fault": "A web request process can enter system database scope and read every Organization's rows, or a request's tenant scope leaks to another unit of work."
+  },
+  {
+    "path": "src/shared/db/statement-scope.server.ts",
+    "group": "tenant-policy",
+    "fault": "A pooled client runs a statement under the previous request's or job's tenant, or runs it after the scope setting failed."
+  },
+  {
+    "path": "src/shared/db/base-where.ts",
+    "group": "tenant-policy",
+    "fault": "A repository query omits the organization_id filter or returns soft-deleted rows, so another Organization's records are readable."
+  },
+  {
+    "path": "src/contexts/identity/domain/property-access-grant.ts",
+    "group": "tenant-policy",
+    "fault": "A lapsed or replaced Property access grant is kept as if it still gave access, or an active grant is superseded wrongly (decidePropertyGrant)."
+  },
+  {
+    "path": "src/contexts/identity/members/member-property-authority.server.ts",
+    "group": "tenant-policy",
+    "fault": "An assigned-scope manager acts on a Property without a current, unexpired grant, or a deny requirement collapses to an Organization-wide allow."
+  },
+  {
+    "path": "src/contexts/reputation/domain/reply-publication-workflow.ts",
+    "group": "attempt-fence",
+    "fault": "A second attempt publishes twice: an ambiguous or in-flight publication is authorized or claimed again, the idempotency key or cycle fails to advance, or a failure is misclassified as retryable."
+  },
+  {
+    "path": "src/contexts/reputation/replies/reply-command-store.server.ts",
+    "group": "attempt-fence",
+    "fault": "Two workers claim the same authorized publication cycle, or a claim goes through with a duplicate provider operation key or a stale observation head (markPublicationSending)."
+  },
+  {
+    "path": "src/contexts/reputation/publication/attempt-never-dispatched.server.ts",
+    "group": "attempt-fence",
+    "fault": "An unreadable dispatch-evidence lookup counts as proof the attempt never left RepKey, so an ambiguous attempt is settled and sent again."
+  },
+  {
+    "path": "src/contexts/reputation/publication/publication-property-admission.server.ts",
+    "group": "attempt-fence",
+    "fault": "A Reply is claimed for publication on an archived Property, or one restored since approval (stale source epoch)."
+  },
+  {
+    "path": "src/shared/auth/authorization-execution-permit.ts",
+    "group": "attempt-fence",
+    "fault": "A provider call starts on a permit that is already started or fenced, or past its start deadline, or completes after its operation deadline."
+  },
+  {
+    "path": "src/shared/ai-provider-control/execution-admission.ts",
+    "group": "attempt-fence",
+    "fault": "One AI admission reaches the provider twice, or a forged or copied admission is accepted (mint and consume once)."
+  },
+  {
+    "path": "src/contexts/ai/execution/ai-execution-admission.adapter.server.ts",
+    "group": "attempt-fence",
+    "fault": "An AI call is admitted for an operation that is not the executing attempt, or has another permit, source digest or authorization fence."
+  },
+  {
+    "path": "src/contexts/ai/execution/ai-review-source-fence.server.ts",
+    "group": "attempt-fence",
+    "fault": "An AI result is admitted or written against a review source whose epoch, revision or digest changed, or whose content has expired (sourceHoldsOperation)."
+  },
+  {
+    "path": "src/contexts/integration/imports/import-claims.server.ts",
+    "group": "attempt-fence",
+    "fault": "A stale or second worker claims or acts on a Google import item: wrong claim fence, dispatch epoch or retry revision, or an unexpired claim lease is overtaken."
+  },
+  {
+    "path": "src/contexts/integration/imports/google-import-item-attempt.server.ts",
+    "group": "attempt-fence",
+    "fault": "An import item attempt beyond the attempt budget, or one that skips an ordinal, is admitted (importItemAdmitsAttempt off-by-one)."
+  },
+  {
+    "path": "src/contexts/reputation/reviews/review-source-mutation-serialization.server.ts",
+    "group": "attempt-fence",
+    "fault": "A Google sync or review write proceeds against a Property whose source epoch moved (archive, restore or relink), or takes locks out of the canonical order."
+  },
+  {
+    "path": "src/shared/db/work-items.server.ts",
+    "group": "attempt-fence",
+    "fault": "A worker with an expired or wrong lease token completes or fails work another worker now holds, or work runs past its max attempts."
+  },
+  {
+    "path": "src/shared/outbox/dispatcher.ts",
+    "group": "attempt-fence",
+    "fault": "An outbox consumer applies the same event twice on redelivery because its receipt is not honoured, or a failed consumer is silently dropped instead of failing the job."
+  },
+  {
+    "path": "src/shared/domain/period-range.ts",
+    "group": "period-clock",
+    "fault": "A month, week or quarter boundary in the Property's timezone shifts a day, or a repeated DST hour resolves to the wrong local midnight (calendarPeriodRange / dayKeyInTimezone)."
+  },
+  {
+    "path": "src/shared/domain/property-calendar.ts",
+    "group": "period-clock",
+    "fault": "A DST gap or fold moves a Property-local day boundary by an hour or a day when shifting local days or converting wall-clock to an instant."
+  },
+  {
+    "path": "src/shared/domain/local-days.ts",
+    "group": "period-clock",
+    "fault": "A Property-local calendar date or day count is off by one around midnight or DST."
+  },
+  {
+    "path": "src/contexts/reporting/domain/goal-start.ts",
+    "group": "period-clock",
+    "fault": "A new goal starts in the wrong Property-local month: the day-20 cut-off, the current or next month option, or a stale month key after midnight is mishandled."
+  },
+  {
+    "path": "src/contexts/reporting/application/use-cases/goal-program-shared.ts",
+    "group": "period-clock",
+    "fault": "A due goal month is skipped, duplicated or opened before it begins, or catch-up runs past the version window (dueMonthlyPeriods / openResultsForPeriods)."
+  },
+  {
+    "path": "src/contexts/reporting/domain/goal-program.ts",
+    "group": "period-clock",
+    "fault": "A goal month closes before the reconciliation delay has passed or before source data reaches the month end (isGoalResultReadyToClose), or a monthly period is cut wrongly."
+  },
+  {
+    "path": "src/contexts/reporting/domain/rating-goal-weeks.ts",
+    "group": "period-clock",
+    "fault": "A Property-local Monday-based week key or DST day count shifts a day and disagrees with the database's date_trunc('week') bucket."
+  },
+  {
+    "path": "src/contexts/reporting/domain/staff-results-window.ts",
+    "group": "period-clock",
+    "fault": "A today, week, month or last-month results window opens at the wrong Property-local midnight or week start (US Sunday versus Monday), or last month crosses a year boundary wrongly."
+  },
+  {
+    "path": "src/contexts/reporting/portal-results/time-range.server.ts",
+    "group": "period-clock",
+    "fault": "A 'last N days' results window or its prior window shifts a day across DST or the Property's timezone, or the two windows overlap or differ in length."
+  },
+  {
+    "path": "src/contexts/reputation/domain/response-target.ts",
+    "group": "period-clock",
+    "fault": "A Response Target deadline or reminder is computed from the wrong start or duration, or a reply at or after the due instant is classed on time."
+  },
+  {
+    "path": "src/shared/db/retention/retention-cutoff.ts",
+    "group": "period-clock",
+    "fault": "A retention cutoff reaches rows before their full horizon, for example a month-end date rolling forward instead of clamping when subtracting months."
+  },
+  {
+    "path": "src/shared/domain/source-content-policy.ts",
+    "group": "period-clock",
+    "fault": "Google review content outlives its 30-day clock, the clock is reset by something other than a successful fetch, or the refresh-due lead time is wrong."
+  }
+]

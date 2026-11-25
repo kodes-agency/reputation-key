@@ -14,7 +14,6 @@ import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { walk } from '#/shared/testing/source-tree'
 import { createContainer } from '#/composition'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import {
@@ -33,7 +32,7 @@ beforeEach(clearTestContainerEnv)
 describe('BQC-3.2 delayed policy delegation', () => {
   it('no *.job.ts handler file imports or calls the capability gate directly', () => {
     const jobFiles = walk(join(ROOT, 'src/contexts')).filter(
-      (f) => f.endsWith('.job.ts') && !f.endsWith('.test.ts'),
+      (f) => /[.-]job(?:\.server)?\.ts$/u.test(f) && !f.endsWith('.test.ts'),
     )
     expect(jobFiles.length).toBeGreaterThan(0)
 
@@ -73,7 +72,6 @@ describe('ARC-03-T8 container-owned policy objects', () => {
   ) as unknown as Database
 
   function build() {
-    clearEventSchemas()
     return createContainer({
       clock,
       queue: createInMemoryQueue({ clock }),

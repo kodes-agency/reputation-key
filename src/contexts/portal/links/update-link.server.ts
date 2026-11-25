@@ -13,7 +13,7 @@ import type { PortalMediaAssetRepository } from '../media/portal-media-asset-rep
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { validateLinkIconKey, validateLinkLabel } from '../domain/rules'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { authorizeLinkCommand } from './authorize-link-command.server'
 import type { PortalCommandStore } from '../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../publication/portal-command-version.server'

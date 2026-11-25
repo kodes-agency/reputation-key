@@ -13,7 +13,7 @@ import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
 import { clearGooglePrimaryCategoryForProperty } from '#/shared/db/google-primary-category-purge'
 import { lockGoogleConnectionBindingAuthority } from '#/shared/db/google-connection-binding-authority'
-import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
+import { googleConnectionId } from '#/shared/domain/ids'
 import { normalizeGooglePrimaryCategory } from '#/shared/domain/google-primary-category'
 import { isGoogleResourceSuffix } from '../domain/google-binding-contract'
 import {
@@ -320,7 +320,7 @@ export const createPropertyGoogleBindingStore = (
 
             const nextSourceEpoch = current.sourceEpoch + 1
             const nextProfileVersion = current.profileVersion + 1
-            const [updated] = await tx
+            await tx
               .update(properties)
               .set({
                 googleConnectionId: input.connectionId,
@@ -352,12 +352,8 @@ export const createPropertyGoogleBindingStore = (
                 and(
                   eq(properties.organizationId, input.organizationId),
                   eq(properties.id, input.propertyId),
-                  eq(properties.sourceEpoch, input.expectedSourceEpoch),
-                  eq(properties.profileVersion, input.expectedProfileVersion),
                 ),
               )
-              .returning({ id: properties.id })
-            if (!updated) deny('stale_binding')
             await purgeAiDraftsForProfile(
               tx,
               {
@@ -454,12 +450,9 @@ export const createPropertyGoogleBindingStore = (
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
-                eq(properties.sourceEpoch, input.expectedSourceEpoch),
-                eq(properties.profileVersion, input.expectedProfileVersion),
               ),
             )
             .returning()
-          if (!updated) deny('stale_binding')
           await purgeAiDraftsForProfile(
             tx,
             {
@@ -477,102 +470,10 @@ export const createPropertyGoogleBindingStore = (
             occurredAt: input.now,
           })
           await insertOutboxRow(tx, event)
-          return summaryFromRow(updated)
+          return summaryFromRow(updated!)
         }),
       )
       return result
-    },
-
-    scrubProviderIdentity: async (input) => {
-      let event: ReturnType<typeof propertyGoogleBindingChanged> | undefined
-      const result = await trace('property.googleBinding.scrub', () =>
-        db.transaction(async (tx) => {
-          const current = await lockPropertyRow(
-            tx,
-            input.organizationId,
-            input.propertyId,
-          )
-          if (!current) deny('property_not_found')
-          if (current.deletedAt !== null) deny('property_deleted')
-          if (
-            current.googleBindingState === 'unbound' &&
-            current.googleConnectionId === null &&
-            current.gbpAccountId === null &&
-            current.gbpLocationId === null
-          ) {
-            return summaryFromRow(current)
-          }
-          if (current.sourceEpoch !== input.expectedSourceEpoch) deny('stale_binding')
-          if (current.profileVersion !== input.expectedProfileVersion)
-            deny('stale_profile')
-          if (!current.googleConnectionId) deny('invalid_binding')
-          const nextSourceEpoch = current.sourceEpoch + 1
-          const [updated] = await tx
-            .update(properties)
-            .set({
-              googleConnectionId: null,
-              gbpAccountId: null,
-              gbpLocationId: null,
-              googleBindingState: 'unbound',
-              sourceEpoch: nextSourceEpoch,
-              googleReviewUri: null,
-              googleReviewDestinationState: 'unavailable',
-              googleReviewDestinationRetrievedAt: null,
-              googleReviewDestinationSourceEpoch: null,
-              googleReviewDestinationProfileVersion: null,
-              googlePrimaryCategory: null,
-              googlePrimaryCategoryUpdatedAt: null,
-              updatedAt: input.now,
-            })
-            .where(
-              and(
-                eq(properties.organizationId, input.organizationId),
-                eq(properties.id, input.propertyId),
-                eq(properties.sourceEpoch, input.expectedSourceEpoch),
-                eq(properties.profileVersion, input.expectedProfileVersion),
-              ),
-            )
-            .returning()
-          if (!updated) deny('stale_binding')
-          await purgeAiDraftsForProfile(
-            tx,
-            {
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-            },
-            replyEffects,
-          )
-          event = propertyGoogleBindingChanged({
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-            connectionId: googleConnectionId(current.googleConnectionId),
-            sourceEpoch: nextSourceEpoch,
-            change: 'deletion_started',
-            occurredAt: input.now,
-          })
-          await insertOutboxRow(tx, event)
-          return summaryFromRow(updated)
-        }),
-      )
-      return result
-    },
-
-    releaseRetention: async (input) => {
-      const uniqueKeys = [...new Set(input.idempotencyKeys)]
-      if (
-        uniqueKeys.length === 0 ||
-        uniqueKeys.length > PROPERTY_OPERATION_SWEEP_LIMIT ||
-        uniqueKeys.some((key) => !UUID.test(key))
-      ) {
-        deny('invalid_binding')
-      }
-      const rows = await markRetentionReleased(
-        db,
-        input.organizationId,
-        uniqueKeys,
-        input.releasedAt,
-      )
-      return rows.length
     },
 
     sweepReleasedExpired: async (input) => {
@@ -673,19 +574,6 @@ export const createPropertyGoogleBindingStore = (
         )
         return 'applied'
       })
-    },
-
-    cleanupOrganization: async (organizationIdValue: OrganizationId) => {
-      const rows = await db
-        .delete(idempotencyReceipts)
-        .where(
-          and(
-            eq(idempotencyReceipts.scope, 'property_operation'),
-            sql`${idempotencyReceipts.payload}->>'organizationId' = ${organizationIdValue}`,
-          ),
-        )
-        .returning({ key: idempotencyReceipts.key })
-      return rows.length
     },
   })
 }

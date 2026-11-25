@@ -6,10 +6,10 @@ import type {
   ReviewCurrentSourceTransitionPermit,
   ReviewSourceTransitionAuthority,
   ReviewSourceTransitionExpectation,
-} from '#/contexts/review/application/ports/source-transition-authority.port'
-import type { ReviewOpenTransaction } from '#/contexts/review/application/ports/open-transaction'
-import { lendReviewTransaction } from '#/contexts/review/infrastructure/open-transaction'
-import { lockReviewSourceMutationScope } from '#/contexts/review/infrastructure/review-source-mutation-serialization'
+} from '#/contexts/reputation/reviews/source-transition-authority.port.server'
+import type { ReviewOpenTransaction } from '#/contexts/reputation/reviews/open-transaction.port.server'
+import { lendReviewTransaction } from '#/contexts/reputation/reviews/open-transaction.server'
+import { lockReviewSourceMutationScope } from '#/contexts/reputation/reviews/review-source-mutation-serialization.server'
 
 const sameInstant = (left: Date, right: Date): boolean =>
   left.getTime() === right.getTime()

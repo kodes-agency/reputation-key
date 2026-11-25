@@ -1,8 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
 import { inboxItemId, organizationId, userId } from '#/shared/domain/ids'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import {
@@ -102,15 +100,6 @@ const makeDeps = () => {
   base.userLookup.findByRole.mockResolvedValue([ADMIN])
   return { base, deps, receipts }
 }
-
-beforeEach(() => {
-  clearEventSchemas()
-  registerAllEventSchemas()
-})
-
-afterEach(() => {
-  clearEventSchemas()
-})
 
 describe('the Urgent alert route', () => {
   it('registers the one fact the AI context writes per review revision', () => {

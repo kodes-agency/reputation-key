@@ -1,6 +1,6 @@
 import { Star } from 'lucide-react'
 import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
-import type { DashboardReplyStatus } from '#/contexts/reporting/application/public-api'
+import type { DashboardReplyStatus } from '#/contexts/reporting/public-api'
 
 export function Stars({ rating }: { rating: number | null }) {
   return (

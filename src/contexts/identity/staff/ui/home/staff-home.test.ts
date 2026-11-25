@@ -22,7 +22,7 @@ import {
   STAFF_RESULTS_FIXTURE,
 } from './staff-home-fixtures'
 import { createKeys } from '#/shared/queries/query-keys'
-import { staffHomeSearch } from '#/shared/staff-home-search'
+import { staffHomeSearch } from '#/shared/routing/staff-home-search'
 
 const { staffSelfKeys } = createKeys({ userId: 'polly', organizationId: null })
 

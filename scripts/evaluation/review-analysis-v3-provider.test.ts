@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-operation/ai-route-output-schemas'
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/analysis/prompt'
-import { buildReviewAnalysisV3ProviderPayload } from '#/shared/review-analysis-v3-request'
-import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { buildReviewAnalysisV3ProviderPayload } from '#/shared/analysis/review-analysis-v3-request'
+import { resolveReviewPropertyContext } from '#/shared/analysis/review-vocabulary-hints'
 import {
   acceptEvaluationAnswer,
   prepareEvaluationItem,

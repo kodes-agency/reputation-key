@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { canonicalizeRfc8785 } from '#/shared/json/canonical-json'
 import type { PortalPublicationSnapshot } from '../domain/portal-publication-snapshot'
 import { buildLegacyPortalPublicationSnapshot as buildPortalPublicationSnapshot } from './legacy-snapshot-builder.test-fixtures'
 import { verifyPortalPublicationSnapshot } from './portal-publication-snapshot.server'

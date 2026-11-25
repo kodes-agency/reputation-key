@@ -11,8 +11,8 @@ import {
   GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
   createGoogleReplyPublicationAuthorizer,
   createReplyPublicationProviderCall,
-  type GoogleReplyPublicationContentAuthorizationResult,
 } from './google-reply-publication-authorizer.server'
+import type { GoogleContentAuthorizationResult } from '../provider/contracts'
 
 const ORG_ID = organizationId('org-1')
 const PROPERTY_ID = propertyId('11111111-1111-4111-8111-111111111111')
@@ -60,7 +60,6 @@ function connection(overrides: Partial<GoogleConnection> = {}): GoogleConnection
     tokenExpiresAt: new Date('2026-08-27T12:00:00.000Z'),
     scopes: ['https://www.googleapis.com/auth/business.manage'],
     connectedBy: userId('departed-connector'),
-    visibility: 'private',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,
@@ -124,7 +123,7 @@ function setup(
   overrides: Partial<{
     bindings: ReturnType<typeof binding>[]
     connections: GoogleConnection[]
-    contents: GoogleReplyPublicationContentAuthorizationResult[]
+    contents: GoogleContentAuthorizationResult[]
   }> = {},
 ) {
   const bindings = overrides.bindings ?? [binding(), binding()]
@@ -134,7 +133,7 @@ function setup(
   const findConnection = vi.fn(async () => connections.shift() ?? null)
   const getAccessToken = vi.fn(async () => 'access-token')
   const authorizeGoogleContent = vi.fn(
-    async (): Promise<GoogleReplyPublicationContentAuthorizationResult> =>
+    async (): Promise<GoogleContentAuthorizationResult> =>
       contents.shift() ?? { ok: false, code: 'runtime_unavailable' },
   )
   return {

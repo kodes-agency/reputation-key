@@ -8,8 +8,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortal } from '#/shared/testing/fixtures'
-import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   organizationId,
   portalGroupId,
@@ -121,8 +119,6 @@ async function seedMembership(portal: PortalId, group: PortalGroupId): Promise<v
 }
 
 beforeEach(async () => {
-  clearEventSchemas()
-  registerAllEventSchemas()
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
      VALUES ($1, $2, 'Group Move Property', 'group-move-property', 'UTC', $3, $3)`,
@@ -681,14 +677,19 @@ describe.sequential(
         sourceAggregateVersion: at.toISOString(),
         occurredAt: at,
       })
-      await store().addPortalToGroup({
-        ...base,
+      await store().movePortalToGroup({
+        organizationId: ORG_A,
+        propertyId: PROPERTY,
         portalId: PORTAL_1,
-        expectedUpdatedAt: GROUP_REVISION,
-        revision: MOVED_AT,
-        occurredAt: MOVED_AT,
         changedBy: MANAGER,
-        event: portalAddedToGroup(fact(MOVED_AT)),
+        occurredAt: MOVED_AT,
+        to: {
+          portalGroupId: GROUP_A,
+          expectedUpdatedAt: GROUP_REVISION,
+          revision: MOVED_AT,
+          event: portalAddedToGroup(fact(MOVED_AT)),
+        },
+        from: null,
       })
       await store().removePortalFromGroup({
         ...base,

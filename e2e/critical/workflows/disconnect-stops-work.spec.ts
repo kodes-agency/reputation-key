@@ -68,7 +68,7 @@ const HELD_TEXT = 'Approved before the disconnect, never sent'
 
 const PUBLISH_QUEUE = 'default'
 const PUBLISH_JOB = 'publish-reply'
-const REPLY_FILE = 'src/contexts/review/server/reply-draft.ts'
+const REPLY_FILE = 'src/contexts/reputation/server/reply-draft.ts'
 const CONNECTIONS_FILE = 'src/contexts/integration/server/google-connections.ts'
 
 const stubReview = (externalId: string, body: string): StubReview => ({

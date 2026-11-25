@@ -1,4 +1,4 @@
-import type { ImportParentStatus } from '#/contexts/integration/application/public-api'
+import type { ImportParentStatus } from '#/contexts/integration/public-api'
 import type { StatusMap } from '#/components/ui/status-badge'
 
 // Apart from the progress model on purpose: that module is shared with the

@@ -3,7 +3,7 @@ import { Flag, FlagOff } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Fact } from '#/components/ui/fact'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { SourceType } from '#/contexts/inbox/application/public-api'
+import type { SourceType } from '#/contexts/reputation/public-api'
 import { INBOX_SOURCE_HANDLE_PERMISSION } from '#/contexts/reputation/inbox/ui/page/inbox-owner-control'
 
 type Props = Readonly<{
@@ -68,9 +68,9 @@ const LABEL_CLASS = 'max-md:sr-only'
  * draws no box.
  *
  * The permission gate reproduces the server's, then narrows it. Both commands
- * check `inbox.write` (`escalate-inbox-item.ts:42`, `resolve-escalation.ts:41`)
+ * check `inbox.write` (`escalate-inbox-item.server.ts:42`, `resolve-escalation.server.ts:41`)
  * and then `canHandleInboxSource` (`:52`, `:51`), which is `inbox.write` AND
- * `SOURCE_HANDLE_PERMISSION[sourceType]` (`inbox-access.ts:36-38`). Neither
+ * `SOURCE_HANDLE_PERMISSION[sourceType]` (`inbox-access.server.ts:36-38`). Neither
  * checks `inbox.manage`, and `inbox.manage` does not imply `inbox.write` — the
  * client `can` is a flat membership test (`usePermissions.ts:26`) and custom
  * roles carry no implication rules. Gating on `inbox.manage` alone would

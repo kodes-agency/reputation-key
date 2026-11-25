@@ -6,13 +6,13 @@
 // words a manager types for a changed cause stay in this Property.
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
-import { normalizeCausePhrase } from '#/shared/property-issue-normalization'
+import { normalizeCausePhrase } from '#/shared/analysis/property-issue-normalization'
 import {
   collectVocabularyHintWords,
   managerCauseRefusal,
-} from '#/shared/review-analysis-v3-cause-rules'
+} from '#/shared/analysis/review-analysis-v3-cause-rules'
 import { REVIEW_CAUSE_COMMON_WORDS } from '#/shared/analysis/normalizer'
-import { VOCABULARY_HINT_SETS } from '#/shared/review-vocabulary-hints'
+import { VOCABULARY_HINT_SETS } from '#/shared/analysis/review-vocabulary-hints'
 import {
   requireAiPropertyReadAccess,
   type AiPropertyAccess,
