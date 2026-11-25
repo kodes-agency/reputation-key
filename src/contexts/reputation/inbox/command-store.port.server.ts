@@ -146,7 +146,7 @@ export type ApplyReviewSourceTransitionedCommand = Readonly<{
   consumerName: string
   item: InboxItem
   transitionedAt: Date
-  /** Exact-current source transitions close; unversioned legacy expiry only scrubs. */
+  /** Exact-current source transitions close; unversioned legacy expiry closes nothing. */
   closeIfOpen: boolean
   closeReason?: HandlingCycleCloseReason
   closeFact: InboxItemStatusChanged
@@ -322,7 +322,7 @@ export type InboxCommandStore = Readonly<{
     command: ApplySourceWithdrawnCommand,
     tx?: Tx,
   ): Promise<'applied' | 'obsolete'>
-  /** Review source transition: scrub legacy content, close open work, and receipt. */
+  /** Review source transition: close open work, and receipt. */
   applyReviewSourceTransitionedOnce(
     command: ApplyReviewSourceTransitionedCommand,
     tx?: Tx,

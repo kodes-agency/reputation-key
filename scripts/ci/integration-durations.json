@@ -524,7 +524,6 @@
   "src/contexts/reputation/inbox/inbox-repository.integration.test.ts": 800,
   "src/contexts/reputation/inbox/inbox-view-repository.integration.test.ts": 100,
   "src/contexts/reputation/inbox/manager-handling-authority.integration.test.ts": 200,
-  "src/contexts/reputation/inbox/null-inbox-source-copies.integration.test.ts": 0,
   "src/contexts/reputation/inbox/outbox-consumers.integration.test.ts": 1000,
   "src/contexts/reputation/inbox/rebuild-google-reply.integration.test.ts": 700,
   "src/contexts/reputation/inbox/rebuild-inbox-projection.integration.test.ts": 500,

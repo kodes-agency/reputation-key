@@ -11,6 +11,7 @@ import {
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
+import { INBOX_BULK_LIMIT } from '#/contexts/reputation/inbox/contracts'
 import {
   inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
@@ -515,7 +516,7 @@ export const createAssignmentCommands = (
         const commandOrganizationId = items[0]?.organizationId
         if (
           items.length === 0 ||
-          items.length > 100 ||
+          items.length > INBOX_BULK_LIMIT ||
           new Set(itemIds).size !== items.length ||
           commandOrganizationId === undefined ||
           items.some((item) => item.organizationId !== commandOrganizationId) ||

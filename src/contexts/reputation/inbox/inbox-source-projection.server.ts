@@ -463,18 +463,12 @@ export async function convergeProjectedItemRow(
     OR ${inboxItems.platform} IS DISTINCT FROM ${projection.platform}
     OR ${inboxItems.status} IS DISTINCT FROM ${finalStatus}
     OR ${inboxItems.closedAt} IS DISTINCT FROM ${closedAt}
-    OR ${inboxItems.rating} IS NOT NULL
-    OR ${inboxItems.snippet} IS NOT NULL
-    OR ${inboxItems.reviewerName} IS NOT NULL
   )`
   const [updatedItem] = await tx
     .update(inboxItems)
     .set({
       sourceDate: projection.sourceDate,
       platform: projection.platform,
-      rating: null,
-      snippet: null,
-      reviewerName: null,
       status: finalStatus,
       closedAt,
       commandRevision: sql<number>`CASE
@@ -746,8 +740,8 @@ export async function closeCycleForSourceTransition(
   return cycleFact
 }
 
-/** Drop every provider-controlled copy, and close the row when the source transition closes work. */
-export async function scrubTransitionedItemRow(
+/** Close the row when the source transition closes work, and advance its command fence. */
+export async function closeTransitionedItemRow(
   tx: Tx,
   command: ApplyReviewSourceTransitionedCommand,
   current: PersistedItem,
@@ -756,16 +750,12 @@ export async function scrubTransitionedItemRow(
   const [updated] = await tx
     .update(inboxItems)
     .set({
-      rating: null,
-      snippet: null,
-      reviewerName: null,
       ...(closeItem
         ? { status: 'closed' as const, closedAt: command.transitionedAt }
         : {}),
-      // Source-content erasure must not be blocked by an already
-      // exhausted human-command fence. At the maximum, human writes
-      // already fail closed; retain that value while completing the
-      // mandatory scrub/terminal close.
+      // A source transition must not be blocked by an already exhausted
+      // human-command fence. At the maximum, human writes already fail
+      // closed; retain that value while completing the terminal close.
       commandRevision: sql<number>`LEAST(
                 ${inboxItems.commandRevision} + 1,
                 '9007199254740991'::bigint
