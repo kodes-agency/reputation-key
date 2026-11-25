@@ -22,10 +22,7 @@ import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-event
 import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
 import { transitionInsert } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import { closeHandlingCycle } from '#/contexts/reputation/domain/handling-cycles'
-import type {
-  HandlingCycleCreationAnchor,
-  InboxCommandStore,
-} from '#/contexts/reputation/inbox/command-store.port.server'
+import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import { cancelPrivateFeedbackTarget } from '#/contexts/reputation/response-targets/store.server'
 import {
   assertObservationMatchesItem,
@@ -104,16 +101,7 @@ export const createSourceCommands = (
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
             return 'duplicate' as const
           }
-          const cycleAnchor: HandlingCycleCreationAnchor = command.cycleAnchor ?? {
-            sourceRevision: 1,
-            openedReason:
-              command.item.sourceType === 'review'
-                ? 'review_observed'
-                : 'feedback_submitted',
-            actorType: command.item.sourceType === 'review' ? 'provider' : 'guest',
-            triggerEventId: command.eventId,
-            openedAt: command.item.createdAt,
-          }
+          const { cycleAnchor } = command
           const inserted = await insertItemIdempotent(tx, command.item, cycleAnchor)
           if (!inserted.created) {
             const resubmissionFacts =

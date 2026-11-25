@@ -269,7 +269,13 @@ export function reviewSeeds(context: HarnessSeedContext): ReviewSeeds {
       context.clock,
     )
     const created = isReview
-      ? await store.createItem(item, null, { materialReviewRevision: 1 })
+      ? await store.createItem(item, null, {
+          sourceRevision: 1,
+          openedReason: 'review_observed',
+          actorType: 'provider',
+          triggerEventId: null,
+          openedAt: item.createdAt,
+        })
       : await store.createItem(item, null, {
           sourceRevision: 1,
           openedReason: 'feedback_submitted',

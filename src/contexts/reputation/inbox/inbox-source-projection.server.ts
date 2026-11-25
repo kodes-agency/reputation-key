@@ -23,7 +23,6 @@ import type {
   ApplyReviewSourceTransitionedCommand,
   ApplySourceCreatedCommand,
   HandlingCycleCreationAnchor,
-  ReviewCycleCreationAnchor,
 } from './command-store.port.server'
 import type { ReviewCurrentReplyObservationPermit } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import type { ReviewCurrentInboxProjectionPermit } from '#/contexts/reputation/reviews/response-target-authority.port.server'
@@ -35,7 +34,6 @@ import {
   handlingCycleHeadFromRow,
   itemFromRow,
   lifecycleFactFor,
-  normalizeCreationAnchor,
   projectionTargetAnchor,
   type LifecycleFactMarks,
   type PersistedHead,
@@ -120,7 +118,7 @@ export async function insertNextHandlingCycleDecision(
 export async function insertItemIdempotent(
   tx: Tx,
   item: InboxItem,
-  cycleAnchor?: HandlingCycleCreationAnchor | ReviewCycleCreationAnchor,
+  cycleAnchor?: HandlingCycleCreationAnchor,
 ): Promise<{
   item: InboxItem
   created: boolean
@@ -137,11 +135,7 @@ export async function insertItemIdempotent(
     const insertedItem = itemFromRow(inserted[0])
     let openingFacts: ReadonlyArray<DomainEvent> = []
     if (cycleAnchor) {
-      const decision = await insertInitialHandlingCycle(
-        tx,
-        insertedItem,
-        normalizeCreationAnchor(insertedItem, cycleAnchor),
-      )
+      const decision = await insertInitialHandlingCycle(tx, insertedItem, cycleAnchor)
       // Initial Review remains represented by inbox_item.created. Guest
       // private-feedback creation has its own canonical opened fact.
       if (insertedItem.sourceType === 'feedback') {

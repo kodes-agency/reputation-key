@@ -444,13 +444,12 @@ export async function handleInboxReplyObserved(
         )
       }
       if (
-        cycleHead.currentMaterialReviewRevision <
-          currentObservation.materialReviewRevision &&
+        cycleHead.currentSourceRevision < currentObservation.materialReviewRevision &&
         !(
           currentObservation.sourceEpochCarryFromMaterialReviewRevision ===
-            cycleHead.currentMaterialReviewRevision &&
+            cycleHead.currentSourceRevision &&
           currentObservation.materialReviewRevision ===
-            cycleHead.currentMaterialReviewRevision + 1
+            cycleHead.currentSourceRevision + 1
         )
       ) {
         throw inboxError(
@@ -458,10 +457,7 @@ export async function handleInboxReplyObserved(
           'Current reply observation is waiting for the Inbox material revision',
         )
       }
-      if (
-        cycleHead.currentMaterialReviewRevision >
-        currentObservation.materialReviewRevision
-      ) {
+      if (cycleHead.currentSourceRevision > currentObservation.materialReviewRevision) {
         await deps.commandStore.recordReceipt(
           event.eventId,
           ON_REPLY_OBSERVED,

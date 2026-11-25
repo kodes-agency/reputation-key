@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { describe, it, expect } from 'vitest'
 import {} from '#/shared/domain/ids'
 import type { InboxItem, InboxPriority } from '#/contexts/reputation/domain/inbox-types'
@@ -74,7 +75,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
 
     const set = await store.setPriority(
       item,
@@ -153,7 +154,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
     await store.escalate(
       item,
       { escalatedBy: USER_B },
@@ -193,9 +194,11 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     }
     const store = createProductionInboxCommandStore(db, revoked, () => NOW)
     const item = makeItem()
-    await createAtomicInboxCommandStore(db).createItem(item, null, {
-      materialReviewRevision: 1,
-    })
+    await createAtomicInboxCommandStore(db).createItem(
+      item,
+      null,
+      reviewOpeningAnchor(item),
+    )
 
     const refusal: unknown = await store
       .setPriority(
@@ -232,7 +235,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     // An authority that would allow anything: the refusal must not depend on it.
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
     const withoutWebActor = {
       ...priorityFact(item, 'urgent', null),
       source: 'import',
@@ -261,7 +264,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
     const ghost = {
       ...priorityFact(item, 'urgent', null),
       _tag: 'inbox.inbox_item.ghost_priority_changed',
@@ -282,7 +285,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
     let current = await store.setPriority(
       item,
       { priority: 'high', setBy: USER_A },
@@ -341,7 +344,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
 
     await expect(
       pool.query(`UPDATE inbox_items SET manager_priority = 'urgent' WHERE id = $1`, [

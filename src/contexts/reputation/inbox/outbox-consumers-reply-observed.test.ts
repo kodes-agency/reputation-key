@@ -68,7 +68,7 @@ describe('inbox.on-reply-observed ordering wait', () => {
   it('still fails as an ordinary error when the material revision is behind', async () => {
     const deps = makeDeps({
       item: { id: 'item-1', organizationId: ORG },
-      head: { currentMaterialReviewRevision: 0 },
+      head: { currentSourceRevision: 0 },
     })
 
     const failure = await handleInboxReplyObserved(deps, event).catch((e: unknown) => e)

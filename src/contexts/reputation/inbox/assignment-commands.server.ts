@@ -344,10 +344,7 @@ export const createAssignmentCommands = (
       return trace('inbox.commandStore.reopenReviewCycle', async () => {
         const { item, fact, expected, now } = command
         const actorId = webActorId(fact)
-        const expectedSourceRevision =
-          'sourceRevision' in expected
-            ? expected.sourceRevision
-            : expected.materialReviewRevision
+        const expectedSourceRevision = expected.sourceRevision
         if (
           actorId === null ||
           fact.inboxItemId !== item.id ||
