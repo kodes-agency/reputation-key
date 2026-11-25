@@ -92,16 +92,6 @@ export function fontSetOfMatches(
     : 'app'
 }
 
-/**
- * The set a guest surface is rendered with. The surface comes from the
- * snapshot's schema version, the same fact the renderer switches on, so the
- * fonts and the page cannot disagree: the legacy page keeps the app fonts, the
- * Immersive Hub gets the guest set. Every published snapshot is legacy today.
- */
-export function fontSetForGuestSurface(surface: 'legacy' | 'immersive'): FontSet {
-  return surface === 'immersive' ? 'guest' : 'app'
-}
-
 /** The `<link>` tags a set needs in the document head. */
 export function fontSetLinks(set: FontSet, locale: GuestLocale): readonly FontLink[] {
   if (set === 'app') {

@@ -87,7 +87,7 @@ function localizedLinks(
 export type PublicImmersivePresentation = Readonly<{
   immersive: PublicImmersiveExperience
   portal: PublicPortalResult['portal']
-  /** The approved links in the legacy shape, which click tracking still reads. */
+  /** The approved links, which click tracking reads. */
   links: PublicPortalResult['links']
 }>
 
@@ -134,16 +134,13 @@ export function presentImmersivePortal(
       slug: configuration.portal.slug,
       description: content.shortDescription.value,
       heroImageUrl: hero?.url ?? null,
-      theme: null,
       logoUrl: logo?.url ?? null,
       organizationName: brand.displayName,
     },
-    links: links.map(({ link, text }, index) => ({
+    links: links.map(({ link, text }) => ({
       id: link.id,
       label: text.label,
       url: link.url,
-      categoryId: null,
-      sortKey: String(index).padStart(4, '0'),
     })),
   }
 }

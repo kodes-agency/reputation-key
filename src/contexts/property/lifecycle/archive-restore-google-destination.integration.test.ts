@@ -416,7 +416,7 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
     await expect(publicationReadiness(LINKED)).resolves.toEqual(accepted)
     await expect(guestVisit()).resolves.toMatchObject({
       status: 'found',
-      data: {
+      result: {
         reviewGateway: { googleReview: { status: 'available', uri: REVIEW_URI } },
       },
     })
@@ -442,7 +442,7 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
     )
     await expect(guestVisit()).resolves.toMatchObject({
       status: 'found',
-      data: { reviewGateway: { googleReview: { status: 'unavailable' } } },
+      result: { reviewGateway: { googleReview: { status: 'unavailable' } } },
     })
 
     await archive(LINKED)
@@ -453,7 +453,7 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
     await expect(publicationReadiness(LINKED)).resolves.toEqual(accepted)
     await expect(guestVisit()).resolves.toMatchObject({
       status: 'found',
-      data: {
+      result: {
         reviewGateway: { googleReview: { status: 'available', uri: REVIEW_URI } },
       },
     })
@@ -487,7 +487,7 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
     // The Portal still serves the private rating; only the Google action closes.
     await expect(guestVisit()).resolves.toMatchObject({
       status: 'found',
-      data: { reviewGateway: { googleReview: { status: 'unavailable' } } },
+      result: { reviewGateway: { googleReview: { status: 'unavailable' } } },
     })
     // The one case in which a live Portal of an active Property reports the
     // Google link on hold: it waits for a relink, not for anything under way.
