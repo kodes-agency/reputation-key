@@ -11,6 +11,7 @@
 //   4. rebuildInboxProjection heals a corrupted projection from canonical
 //      review/reply data; dryRun writes nothing.
 
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { describe, it, expect } from 'vitest'
 import { inboxItemId } from '#/shared/domain/ids'
 import type {} from '#/contexts/reputation/domain/review-types'
@@ -62,6 +63,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       consumerName: CONSUMER,
       item,
       fact,
+      cycleAnchor: { ...reviewOpeningAnchor(item), triggerEventId: source.eventId },
     })
 
     expect(outcome).toBe('applied')
@@ -122,6 +124,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       consumerName: CONSUMER,
       item,
       fact: createdFact(item),
+      cycleAnchor: { ...reviewOpeningAnchor(item), triggerEventId: source.eventId },
     })
 
     expect(outcome).toBe('duplicate')
@@ -239,6 +242,10 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         consumerName: CONSUMER,
         item: makeItem(),
         fact: ghost,
+        cycleAnchor: {
+          ...reviewOpeningAnchor(makeItem()),
+          triggerEventId: source.eventId,
+        },
       }),
     ).rejects.toThrow(
       /Event type inbox\.inbox_item\.ghost:v1 is not registered for the outbox/,
@@ -269,6 +276,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         consumerName: CONSUMER,
         item: makeItem(),
         fact: createdFact(makeItem()),
+        cycleAnchor: { ...reviewOpeningAnchor(makeItem()), triggerEventId: ghostEventId },
       }),
     ).rejects.toSatisfy(
       (e: unknown) =>
@@ -312,6 +320,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       consumerName: CONSUMER,
       item,
       fact: createdFact(item),
+      cycleAnchor: { ...reviewOpeningAnchor(item), triggerEventId: source.eventId },
     })
     // Same delivered event again (replay after the receipt pre-check raced).
     const second = await store.applySourceCreatedOnce({
@@ -319,6 +328,10 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       consumerName: CONSUMER,
       item: makeItem({ id: inboxItemId(crypto.randomUUID()) }),
       fact: createdFact(item),
+      cycleAnchor: {
+        ...reviewOpeningAnchor(makeItem({ id: inboxItemId(crypto.randomUUID()) })),
+        triggerEventId: source.eventId,
+      },
     })
 
     expect(first).toBe('applied')
@@ -344,7 +357,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.createItem(item, null, reviewOpeningAnchor(item))
 
     await testReviewRepository(db).upsert(
       makeReview({

@@ -24,18 +24,19 @@ const PROPERTY_ID = '0b6f8a52-4c2e-4d61-9a55-2f1d3c7e9b10'
 const PORTAL_ID = '7c1e5a90-3b44-4f0d-8e21-6a9d0b2c4f33'
 
 const LIVE_ADDRESS = 'https://app.example.com/p/tok_pool?accessArtifact=artifact-qr-1'
+const DIRECT_ADDRESS = 'https://app.example.com/p/tok_pool'
 const revealCalls: Array<{ portalId: string; purpose: string }> = []
 const revealMutation = Object.assign(
   async (input: {
     data: { portalId: string; purpose: 'download' | 'copy' | 'show' }
   }) => {
     revealCalls.push(input.data)
-    return { publicUrl: LIVE_ADDRESS }
+    return { publicUrl: LIVE_ADDRESS, publicUrls: { direct: DIRECT_ADDRESS } }
   },
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<
   { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } },
-  { publicUrl: string }
+  { publicUrl: string; publicUrls: { direct: string } }
 > as PortalShareMutations['revealMutation']
 
 type FrameProps = Readonly<{
@@ -462,7 +463,7 @@ export const OpenPageRevealsForShowAndOpensTheBarePage: Story = {
       window.open = originalOpen
     }
     await expect(revealCalls).toEqual([{ portalId: PORTAL_ID, purpose: 'show' }])
-    await expect(sent).toEqual(['https://app.example.com/p/tok_pool'])
+    await expect(sent).toEqual([DIRECT_ADDRESS])
   },
 }
 

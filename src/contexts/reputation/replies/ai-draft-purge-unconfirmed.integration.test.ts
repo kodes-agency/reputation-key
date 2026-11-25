@@ -64,7 +64,7 @@ const draftStore = createAiSuggestedDraftStore(
     resolveSavedFrame: async () => null,
     resolveV2Frame: async () => null,
     resolveLocalFrame: async () => null,
-    isCurrentVoice: async () => false,
+    isCurrentVoice: async () => true,
   },
 )
 const profiles = createPropertyProcessingProfileAdapter(

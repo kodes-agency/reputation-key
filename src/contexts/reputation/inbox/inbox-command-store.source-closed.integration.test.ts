@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { describe, it, expect } from 'vitest'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {} from '#/shared/domain/ids'
@@ -50,7 +51,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         commandRevision: Number.MAX_SAFE_INTEGER,
       })
       const store = createAtomicInboxCommandStore(db)
-      await store.createItem(legacy, null, { materialReviewRevision: 1 })
+      await store.createItem(legacy, null, reviewOpeningAnchor(legacy))
       const noteId = '4d000000-0000-0000-0000-000000000099'
       await pool.query(
         `INSERT INTO inbox_notes (
@@ -155,7 +156,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         commandRevision: Number.MAX_SAFE_INTEGER,
       })
       const store = createAtomicInboxCommandStore(db)
-      await store.createItem(legacy, null, { materialReviewRevision: 1 })
+      await store.createItem(legacy, null, reviewOpeningAnchor(legacy))
       const noteId = '4d000000-0000-0000-0000-000000000098'
       await pool.query(
         `INSERT INTO inbox_notes (

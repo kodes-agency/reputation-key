@@ -15,10 +15,7 @@ import type {
   InboxPriority,
 } from '../domain/inbox-types'
 import type { ManualReopenReason } from '../domain/inbox-types'
-import type {
-  HandlingCycleExpectation,
-  ReviewHandlingCycleExpectation,
-} from './review-handling-cycle-store.port.server'
+import type { HandlingCycleExpectation } from './review-handling-cycle-store.port.server'
 import type {
   InboxItemAssigned,
   InboxItemBulkStatusChanged,
@@ -50,7 +47,7 @@ export type HandlingCycleCreationAnchor = Readonly<{
   responseTarget?: ReviewCycleTargetAnchor | null
 }>
 
-/** Compatibility input for existing Review repair callers. */
+/** The revision a rebuilt Review item opens on, answered by Google. */
 export type ReviewCycleCreationAnchor = Readonly<{
   materialReviewRevision: number
 }>
@@ -90,7 +87,7 @@ export type BulkReopenGovernance = Readonly<{
 
 export type ReopenReviewHandlingCycleCommand = Readonly<{
   item: InboxItem
-  expected: HandlingCycleExpectation | ReviewHandlingCycleExpectation
+  expected: HandlingCycleExpectation
   reason: ManualReopenReason
   explanation: string | null
   fact: InboxItemStatusChanged
@@ -109,7 +106,7 @@ export type ApplySourceCreatedCommand = Readonly<{
   consumerName: string
   item: InboxItem
   fact: InboxItemCreated
-  cycleAnchor?: HandlingCycleCreationAnchor
+  cycleAnchor: HandlingCycleCreationAnchor
 }>
 
 /** Source withdrawal: guarded close + status fact + consumer receipt. */
@@ -196,7 +193,7 @@ export type InboxCommandStore = Readonly<{
   createItem(
     item: InboxItem,
     event: InboxItemCreated | null,
-    cycleAnchor?: HandlingCycleCreationAnchor | ReviewCycleCreationAnchor,
+    cycleAnchor?: HandlingCycleCreationAnchor,
     tx?: Tx,
   ): Promise<CreateItemResult>
 

@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Inbox context — an Inbox item whose Review Google deleted.
 // Real PostgreSQL behind the real Review repository.
@@ -250,9 +251,11 @@ beforeEach(async () => {
     [LIVE_CLOSED_ITEM, LIVE_CLOSED_REVIEW],
     [ERASED_ITEM, ERASED_REVIEW],
   ] as const) {
-    await commandStore.createItem(reviewItem(item, sourceId), null, {
-      materialReviewRevision: 1,
-    })
+    await commandStore.createItem(
+      reviewItem(item, sourceId),
+      null,
+      reviewOpeningAnchor(reviewItem(item, sourceId)),
+    )
   }
   // Google deletes the review: the sync erases the Review row and keeps the
   // content clock it had, and Inbox closes the item.

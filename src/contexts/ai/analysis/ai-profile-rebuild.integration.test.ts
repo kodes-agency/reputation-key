@@ -111,7 +111,9 @@ describe.sequential('processing profile rebuild through PostgreSQL', () => {
       .from(aiReviewAnalyses)
       .where(eq(aiReviewAnalyses.reviewId, seededReviewId(IDS, 1)))
     if (!analysis) throw new Error('Missing stored analysis')
-    const outputs = createAiOutputStoreAdapter(db)
+    const outputs = createAiOutputStoreAdapter(db, {
+      isCurrentAiReplyBrandProfile: async () => true,
+    })
     const request = {
       ...scope(version),
       actorUserId: userId('ai-profile-rebuild-actor'),

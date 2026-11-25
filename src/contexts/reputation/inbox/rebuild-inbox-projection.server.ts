@@ -372,7 +372,13 @@ async function materializeMissingItem(
   }
   // Idempotent create, NO created/status fact — rebuild is repair, not
   // new information; the durable record is this report.
-  await deps.commandStore.createItem(item, null, anchor)
+  await deps.commandStore.createItem(item, null, {
+    sourceRevision: anchor.materialReviewRevision,
+    openedReason: 'review_observed',
+    actorType: 'provider',
+    triggerEventId: null,
+    openedAt: item.createdAt,
+  })
 }
 
 /**

@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from '#/contexts/reputation/inbox/review-opening-anchor.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Outbox delivery end-to-end proof (real PostgreSQL + real BullMQ/Redis).
 //
@@ -363,7 +364,7 @@ async function seedOpenItem(source: string, sourceDate: Date): Promise<void> {
     clock: () => sourceDate,
   })
   if (built.isErr()) throw built.error
-  await store.createItem(built.value, null, { materialReviewRevision: 1 })
+  await store.createItem(built.value, null, reviewOpeningAnchor(built.value))
 }
 
 beforeAll(async () => {

@@ -1,3 +1,4 @@
+import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
@@ -112,9 +113,11 @@ async function seedScope(): Promise<void> {
     ],
   )
   await insertMaterialRevision(1)
-  await createAtomicInboxCommandStore(db).createItem(makeItem(), null, {
-    materialReviewRevision: 1,
-  })
+  await createAtomicInboxCommandStore(db).createItem(
+    makeItem(),
+    null,
+    reviewOpeningAnchor(makeItem()),
+  )
 }
 
 async function insertMaterialRevision(revision: number): Promise<void> {
@@ -154,10 +157,11 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
 
     await expect(store.findHead(ITEM_ID, ORG_ID)).resolves.toMatchObject({
       currentCycleNumber: 1,
-      currentMaterialReviewRevision: 1,
+      currentSourceRevision: 1,
       stateRevision: 1,
       status: 'open',
-      reviewId: REVIEW_ID,
+      sourceType: 'review',
+      sourceId: REVIEW_ID,
     })
     const cycles = await pool.query(
       `SELECT cycle_number, material_review_revision, opened_reason,
