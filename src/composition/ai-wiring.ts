@@ -26,8 +26,6 @@ export function buildAiRuntime({
     enableJobs,
     pool,
     clock,
-    inferenceOverride: options?.providers?.aiInference,
-    subjectHmacOverride: options?.providers?.aiSubjectHmac,
   })
   return aiRuntime
 }

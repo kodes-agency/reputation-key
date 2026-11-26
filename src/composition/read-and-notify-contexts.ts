@@ -27,7 +27,7 @@ import type { InboxContextApi } from '#/contexts/reputation/build-inbox'
 import type { buildIntegrationContext } from '#/contexts/integration/build'
 
 export type ReadAndNotifyContextsInput = Readonly<{
-  staffScanTargetsEnabled?: boolean
+  staffScanTargetsEnabled: boolean
   db: Database
   clock: Clock
   idGen: () => string
@@ -41,8 +41,6 @@ export type ReadAndNotifyContextsInput = Readonly<{
   identity: ReturnType<typeof buildIdentityContext>
   integration: ReturnType<typeof buildIntegrationContext>
   inbox: InboxContextApi
-  /** Review-owned governed serving reads, forwarded to Reporting's dashboard. */
-  reviewServingStats: ReturnType<typeof buildReviewContext>['lookups']['servingStats']
   /**
    * Keys refused email addresses so the suppression list holds no digest a
    * dictionary of addresses could reverse. Separated from its other uses by a
@@ -53,17 +51,6 @@ export type ReadAndNotifyContextsInput = Readonly<{
   retiredNotificationEmailAddressKeys: readonly string[]
 }>
 
-/**
- * Whether email may be delivered in a scope right now: the process policy
- * store's scoped posture — the allowlist, suspension and kill switch that also
- * gate the email jobs. Feed's delivery-lag evidence reads it so a
- * capability-dark scope's untouched rows are not late mail.
- *
- * A scope with no Property is an Organization-scoped mandatory notice, which
- * travels under its own core capability (ADR 0046, amended 2026-09-24). Asking
- * the allowlisted capability for it would hide a stuck final deletion warning
- * in exactly the Organizations the allowlist never named.
- */
 /**
  * The key refused email addresses are stored under, and the ones they may
  * still be stored under. They used to be keyed with BETTER_AUTH_SECRET, which
@@ -94,6 +81,17 @@ export function notificationEmailAddressKeys(
       }
 }
 
+/**
+ * Whether email may be delivered in a scope right now: the process policy
+ * store's scoped posture — the allowlist, suspension and kill switch that also
+ * gate the email jobs. Feed's delivery-lag evidence reads it so a
+ * capability-dark scope's untouched rows are not late mail.
+ *
+ * A scope with no Property is an Organization-scoped mandatory notice, which
+ * travels under its own core capability (ADR 0046, amended 2026-09-24). Asking
+ * the allowlisted capability for it would hide a stuck final deletion warning
+ * in exactly the Organizations the allowlist never named.
+ */
 export function isEmailDeliveryAllowed(
   scope: Readonly<{ organizationId: string; propertyId: string | null }>,
 ): boolean {
@@ -127,7 +125,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
   } as const
 
   const reporting = buildReportingContext({
-    staffScanTargetsEnabled: input.staffScanTargetsEnabled ?? false,
+    staffScanTargetsEnabled: input.staffScanTargetsEnabled,
     db: input.db,
     clock: input.clock,
     idGen: input.idGen,
@@ -136,7 +134,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
     portalApi: input.portal.publicApi.portal,
     propertyApi: input.property.publicApi,
     staffPublicApi: input.identity.publicApi.people,
-    reviewServingStats: input.reviewServingStats,
+    reviewServingStats: input.review.lookups.servingStats,
     reviewGoogleRatingReads: input.review.lookups.googleRatingReads,
     inboxTargets: input.inbox.publicApi,
     guestResponseIntegrity: input.guest.publicApi,
