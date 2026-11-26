@@ -167,7 +167,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
             reviewId: review,
             baseReplyStateRevision: 0,
           }),
-          now: NOW,
         }),
       ).resolves.toEqual({ status: 'rejected', reason: 'stale' })
 
@@ -210,7 +209,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         actorUserId: ACTOR_USER_ID,
         text: SUGGESTION,
         provenanceToken,
-        now: NOW,
         ...input,
       })
 

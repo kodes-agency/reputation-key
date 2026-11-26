@@ -133,7 +133,10 @@ function fixture(
     replyLibrary: { loadSnapshot },
     googleReplyObservationStore: { findCurrentHead },
     propertyPublicationScope: {
-      getPublicationScope: vi.fn(async () => ({ lifecycle: 'active', sourceEpoch: 0 })),
+      getPublicationScope: vi.fn(async () => ({
+        lifecycleState: 'active',
+        sourceEpoch: 0,
+      })),
     },
     dispatchEvidence: { findDispatchEvidence: vi.fn(async () => 'possibly_dispatched') },
     staffPublicApi: { getAccessiblePropertyIds: vi.fn(async () => null) },

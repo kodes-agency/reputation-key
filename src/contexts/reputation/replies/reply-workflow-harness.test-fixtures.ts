@@ -535,7 +535,7 @@ export async function createReplyWorkflowHarness(
     dispatchEvidence,
     googleReplyObservationStore: observationStore,
     propertyPublicationScope: {
-      getPublicationScope: async () => ({ lifecycle: 'active', sourceEpoch: 0 }),
+      getPublicationScope: async () => ({ lifecycleState: 'active', sourceEpoch: 0 }),
     },
     clock,
     idGen: nextReplyId,
