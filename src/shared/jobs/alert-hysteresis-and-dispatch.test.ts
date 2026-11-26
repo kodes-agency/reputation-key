@@ -18,7 +18,7 @@ import {
   ALERT_STATE_TTL_SECONDS,
   type AlertStateStore,
 } from '#/shared/health/alert-state'
-import { isBannedLogKey } from '#/shared/observability/metrics-schema'
+import { isBannedLogKey } from '#/shared/observability/log-field-policy.test-fixtures'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import {
   createHealthCheckHandler,

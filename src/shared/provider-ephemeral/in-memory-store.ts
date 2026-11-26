@@ -34,13 +34,6 @@ export function createInMemoryProviderEphemeralStore(
       if (!entry || entry.expiresAtMs <= nowMs()) return undefined
       return entry.value
     },
-    consume: async (namespace, key) => {
-      const id = composite(namespace, key)
-      const entry = entries.get(id)
-      entries.delete(id)
-      if (!entry || entry.expiresAtMs <= nowMs()) return undefined
-      return entry.value
-    },
     consumeIfEquals: async (namespace, key, expectedValue) => {
       assertProviderEphemeralValue(expectedValue)
       const id = composite(namespace, key)

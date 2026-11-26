@@ -64,7 +64,6 @@ export function describeProviderEphemeralStoreContract(
       if (!h) return
 
       await expect(h.store.read('oauth-state', freshKey())).resolves.toBeUndefined()
-      await expect(h.store.consume('oauth-state', freshKey())).resolves.toBeUndefined()
     })
 
     it('round-trips the exact value, including non-ASCII text and NUL', async () => {
@@ -92,17 +91,6 @@ export function describeProviderEphemeralStoreContract(
         h.store.putIfAbsent('authorization-lease', key, 'lease', 60),
       ).resolves.toBe(true)
       await expect(h.store.read('oauth-state', key)).resolves.toBe('state')
-    })
-
-    it('consumes a value exactly once', async () => {
-      const h = await harness()
-      if (!h) return
-      const key = track('oauth-state', freshKey())
-      await h.store.putIfAbsent('oauth-state', key, 'once', 60)
-
-      await expect(h.store.consume('oauth-state', key)).resolves.toBe('once')
-      await expect(h.store.consume('oauth-state', key)).resolves.toBeUndefined()
-      await expect(h.store.read('oauth-state', key)).resolves.toBeUndefined()
     })
 
     it('removes a value, and removing a missing key is not an error', async () => {
@@ -192,7 +180,6 @@ export function describeProviderEphemeralStoreContract(
 
       await h.advance(EXPIRY_STEP_MS)
 
-      await expect(h.store.consume('authorization-lease', key)).resolves.toBeUndefined()
       await h.store.putIfAbsent('authorization-lease', key, 'lease', 1)
       await h.advance(EXPIRY_STEP_MS)
       await expect(
