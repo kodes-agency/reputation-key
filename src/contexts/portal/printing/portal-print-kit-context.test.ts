@@ -32,7 +32,7 @@ describe('printKitContextOfLive', () => {
         focalX: 0.4,
         focalY: 0.6,
       },
-      logo: { assetId: IMMERSIVE_LOGO_ASSET_ID },
+      logo: { assetId: IMMERSIVE_LOGO_ASSET_ID, width: 480, height: 120 },
     })
   })
 
@@ -129,7 +129,11 @@ describe('printKitContextOfLive', () => {
         focalX: 0.2,
         focalY: 0.4,
       },
-      logo: { assetId: '70000000-0000-4000-8000-0000000000b2' },
+      logo: {
+        assetId: '70000000-0000-4000-8000-0000000000b2',
+        width: 300,
+        height: 300,
+      },
     })
     expect(followsProperty.look.accentColour).toBe('#C8A45A')
     expect(followsProperty.look.hero?.assetId).toBe(IMMERSIVE_HERO_ASSET_ID)
