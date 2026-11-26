@@ -328,7 +328,7 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
     )
   })
 
-  it('lands a save through the settings path in both places', async () => {
+  it('lands a save through the settings path in the preference row only', async () => {
     const answer: NotificationCategoryDefault = {
       userId: userId(BOTH),
       organizationId: organizationId(ORG_A),
@@ -341,7 +341,7 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
       updatedAt: CREATED,
     }
     await store.saveCategoryDefault(db, answer, P1)
-    await store.saveCategoryDefault(
+    const saved = await store.saveCategoryDefault(
       db,
       { ...answer, maxRating: 4, updatedAt: CHANGED },
       P1,
@@ -352,9 +352,9 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
       .from(notificationCategoryDefaults)
       .where(eq(notificationCategoryDefaults.userId, BOTH))
     const mirror = await mirrorRows()
-    expect(earlier).toHaveLength(1)
+    expect(earlier).toHaveLength(0)
     expect(mirror).toHaveLength(1)
-    expect(mirror[0]).toMatchObject({
+    expect(saved).toMatchObject({
       organizationId: ORG_A,
       category: 'low_ratings',
       channel: 'email',
@@ -363,10 +363,14 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
       maxRating: 4,
       updatedAt: CHANGED,
     })
-    expect(earlier[0]).toMatchObject({ maxRating: 4, updatedAt: CHANGED })
-    await expect(countCategoryDefaultsToCopy(db)).resolves.toEqual({
-      missing: 0,
-      differing: 0,
+    expect(mirror[0]).toMatchObject({
+      organizationId: ORG_A,
+      category: 'low_ratings',
+      channel: 'email',
+      enabled: true,
+      cadence: 'immediate',
+      maxRating: 4,
+      updatedAt: CHANGED,
     })
   })
 
