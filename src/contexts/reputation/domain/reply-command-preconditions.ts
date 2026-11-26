@@ -1,6 +1,6 @@
 // Review context — what each reply command may start from.
 //
-// REPLY_TRANSITIONS (review-rules.ts) says which status may follow which. It cannot say
+// The status graph says which status may follow which. It cannot say
 // which command may make the move: `publish_failed → approved` is a retry and
 // never an approval, and a reply that returns from `approved` to `draft` got
 // there by a cancellation and never by a draft save. A command that trusted the

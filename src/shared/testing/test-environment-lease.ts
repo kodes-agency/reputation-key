@@ -10,21 +10,14 @@
 //   4. The database host is localhost / 127.0.0.1 / ::1 / a unix socket
 //      (BQC-6.1 — refuse destructive tests against shared/remote databases;
 //      opt out ONLY via ALLOW_REMOTE_TEST_DB=1, the denylist still applies)
-//   5. A cryptographically unique lease marker exists inside the target database
-//
-// The lease marker is a row in a _test_lease table. If the table or marker
-// is missing, the guard refuses to proceed — proving the database was not
-// intentionally leased for testing.
+//   5. The database is not the one the application is configured to use
 
-import { randomUUID } from 'crypto'
 import { Pool } from 'pg'
 import {
   assertNotConfiguredDatabase,
   isLocalhostAlias,
 } from './configured-database-fence'
 import { TestEnvironmentError } from './test-environment-error'
-
-const LEASE_TABLE = '_test_lease'
 
 /** Hostnames patterns that indicate a managed/remote database — never safe for destructive tests. */
 export const DENYLIST_HOST_PATTERNS = [
@@ -41,8 +34,6 @@ export const DENYLIST_HOST_PATTERNS = [
 const DENYLIST_DB_PATTERNS = ['prod', 'staging', 'beta', 'live']
 
 export type TestLease = Readonly<{
-  /** Unique random marker stored in the _test_lease table. */
-  marker: string
   /** The pool connected to the leased database. */
   pool: Pool
   /** Release the lease and close the pool. */
@@ -125,38 +116,10 @@ export function checkLocalTestHost(host: string): void {
   )
 }
 
-async function ensureLeaseTable(pool: Pool): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS ${LEASE_TABLE} (
-      marker TEXT PRIMARY KEY,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `)
-}
-
-async function insertLeaseMarker(pool: Pool, marker: string): Promise<void> {
-  await pool.query(
-    `INSERT INTO ${LEASE_TABLE} (marker) VALUES ($1) ON CONFLICT DO NOTHING`,
-    [marker],
-  )
-}
-
-async function verifyLeaseMarker(pool: Pool, marker: string): Promise<boolean> {
-  const result = await pool.query(`SELECT 1 FROM ${LEASE_TABLE} WHERE marker = $1`, [
-    marker,
-  ])
-  return result.rowCount !== null && result.rowCount > 0
-}
-
-async function removeLeaseMarker(pool: Pool, marker: string): Promise<void> {
-  await pool.query(`DELETE FROM ${LEASE_TABLE} WHERE marker = $1`, [marker])
-}
-
 /**
  * Acquire a test environment lease on the given database URL.
  *
- * Validates the environment, checks the denylist, creates a lease marker,
- * and returns a handle that must be released after the test suite completes.
+ * Validates the environment and the target database, and returns a handle that must be released after the test suite completes.
  *
  * @param databaseUrl - The PostgreSQL connection string to lease.
  * @param maxConnections - Pool size (default 5).
@@ -170,32 +133,7 @@ export async function acquireTestLease(
   validateTestDatabaseTarget(databaseUrl)
 
   const pool = new Pool({ connectionString: databaseUrl, max: maxConnections })
-
-  try {
-    await ensureLeaseTable(pool)
-    const marker = randomUUID()
-    await insertLeaseMarker(pool, marker)
-
-    const verified = await verifyLeaseMarker(pool, marker)
-    if (!verified) {
-      throw new TestEnvironmentError(
-        'lease_verification_failed',
-        'Failed to verify lease marker in the target database.',
-      )
-    }
-
-    return {
-      marker,
-      pool,
-      release: async () => {
-        await removeLeaseMarker(pool, marker)
-        await pool.end()
-      },
-    }
-  } catch (err) {
-    await pool.end()
-    throw err
-  }
+  return { pool, release: () => pool.end() }
 }
 
 /**

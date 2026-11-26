@@ -1,6 +1,6 @@
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/monthly-goals/portal-rating-goal-guard.server'
 import { getDb } from '#/shared/db'
-import { newTestUuid } from '#/shared/db/testing/test-ids'
+import { freshUuid } from '#/shared/testing/fresh-uuid'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortal, buildTestPortalLink } from '#/shared/testing/fixtures'
 import {
@@ -57,7 +57,7 @@ export async function base() {
 
 /** A link as code that predates the texts table wrote it: no text row. */
 export async function seedLegacyLink(label: string, sortKey: string): Promise<string> {
-  const id = newTestUuid()
+  const id = freshUuid()
   await getPool().query(
     `INSERT INTO portal_links (id, category_id, portal_id, organization_id, property_id,
                                label, url, legacy_destination_state, sort_key,
@@ -88,13 +88,13 @@ export async function seedPublishedSnapshot(): Promise<void> {
        destination_profile_version, created_by, created_at
      ) VALUES ($1, $2, $3, $4, 1, $5, '{}'::jsonb, 'en', 'guest-ui-en-v1', 3,
                'https://example.test/review', $6, 0, 1, $7, $6)`,
-    [newTestUuid(), ORG_A, PROPERTY_A, PORTAL_A, 'a'.repeat(64), CREATED_AT, MANAGER],
+    [freshUuid(), ORG_A, PROPERTY_A, PORTAL_A, 'a'.repeat(64), CREATED_AT, MANAGER],
   )
 }
 
 export async function createLink(label: string, sortKey: string) {
   const command = await base()
-  const id = portalLinkId(newTestUuid())
+  const id = portalLinkId(freshUuid())
   const link = buildTestPortalLink({
     id,
     categoryId: CATEGORY_A,
@@ -167,7 +167,7 @@ export async function saveSettings(input: {
     ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
     titles: (input.titles ?? []).map((title) => ({
       ...title,
-      overrideId: newTestUuid(),
+      overrideId: freshUuid(),
     })),
     event: portalUpdated({
       portalId: PORTAL_A,

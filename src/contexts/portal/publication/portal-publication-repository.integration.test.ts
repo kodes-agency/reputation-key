@@ -112,7 +112,7 @@ async function seedActivations(
         portalId: portal,
         snapshotId,
         activationSequence: index + 1,
-        kind: index === 0 ? 'publish' : 'rollback',
+        kind: index === 0 ? ('publish' as const) : ('rollback' as const),
         activatedBy: 'manager-live-runs',
         activatedAt: new Date(activatedAt),
         deactivatedAt: closed ? new Date(closed.at) : null,

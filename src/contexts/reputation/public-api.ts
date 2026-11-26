@@ -47,7 +47,7 @@ export {
 export { historicalOnboardingItem } from './inbox/historical-onboarding-item.server'
 
 // ── Review ───────────────────────────────────────────────────────────
-export type { GoogleReview, Review, Reply, StarRating } from './domain/review-types'
+export type { StarRating } from './domain/review-types'
 export type { ReplyModeration } from './domain/reply-moderation'
 export type { ReplyDraftCheckDto } from './library/contracts'
 // The Reply library's stored template shapes, which the resolver contract reads.
@@ -56,47 +56,25 @@ export type {
   StoredReplyTemplateVisibility,
 } from './library/reply-library-repository.port.server'
 
-export type { ReplyCommand } from './domain/reply-command-preconditions'
-export type {
-  PersistedPublicationState,
-  PublicationFailureClass,
-} from './domain/reply-publication-workflow'
-
 // Event re-exports — cross-context consumers import events from here, not from domain/review-events.
 export type {
-  ReviewCreated,
-  ReviewUpdated,
-  ReviewExpired,
-  ReviewSourceTransitioned,
   ReviewReplyPublished,
-  ReviewReplyObserved,
-  ReviewGoogleReputationSnapshotVerified,
   ReviewReplySubmitted,
   ReviewReplyApproved,
-  ReviewReplyPublicationRequested,
   ReviewReplyRejected,
   ReviewReplyPublishFailed,
   ReplyPublishFailureOutcome,
-  ReviewReplyUpdated,
   ReviewReplyPublicationCancelled,
-  ReviewEvent,
 } from './domain/review-events'
-export {
-  reviewCreated,
-  reviewUpdated,
-  reviewReplyPublished,
-  reviewReplyPublicationRequested,
-} from './domain/review-events'
+export { reviewCreated } from './domain/review-events'
 
 // Port types needed by cross-context consumers. Integration's review-sync
 // adapters implement the Google review port through these names.
 export type {
-  GoogleConnectionStatusPort,
   GoogleReviewApiPort,
   GoogleReviewApiErrorCode,
   GoogleReviewApiError,
   GoogleReviewApiFailure,
-  GoogleReviewGetRequest,
   GoogleReviewHeadContinuation,
   GoogleReviewHeadRequest,
   GoogleReviewPageRequest,
@@ -137,12 +115,8 @@ export {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
 } from './content/run-source-content-lifecycle.server'
-export type { ReviewReplyObservationAuthority } from './reviews/reply-observation-authority.port.server'
-export type { ReviewResponseTargetAuthority } from './reviews/response-target-authority.port.server'
-export type { ReviewSourceTransitionAuthority } from './reviews/source-transition-authority.port.server'
 // Inbox reads one review from Google before it releases a Response Target
 // reminder for it; the result is content-free.
-export type { CheckReviewOnGoogle as ReviewGoogleReviewCheck } from './sync/check-review-on-google.server'
 export type {
   AmbiguousPublicationReconciliationCandidate,
   FindAmbiguousPublicationReconciliationCandidates,
@@ -177,7 +151,6 @@ export type {
 } from './reviews/google-rating-reads.port.server'
 export type {
   AiReviewSourcePort,
-  AiReviewSourceReadRequest,
   AiReviewCurrentSource,
   AiTrendPopulationReview,
   AiTrendPopulationRequest,
@@ -194,7 +167,6 @@ export type PrepareGoogleImportSync = (
 export type {
   InboxItem,
   InboxNote,
-  InboxStatus,
   SourceType,
   ManualReopenReason,
   InboxItemReplyState,
@@ -224,7 +196,6 @@ export type { InboxRevisionConflictResult } from './domain/inbox-errors'
 export type { InboxItemDetailResult } from './inbox/get-inbox-item-detail.server'
 export type { InboxGoogleCheckOutcome } from './inbox/check-inbox-review-on-google.server'
 export type { InboxNoteView } from './inbox/get-inbox-notes.server'
-export type { InboxError } from './domain/inbox-errors'
 export type { GetInboxItemHistoryResult } from './inbox/get-inbox-item-history.server'
 export type {
   Cursor,
@@ -273,18 +244,7 @@ export type InboxPublicApi = Readonly<{
 
 // Event re-exports — cross-context consumers import event types from here, not from domain/inbox-events.
 export type {
-  InboxItemCreated,
-  InboxItemStatusChanged,
   InboxItemEscalated,
   InboxItemAssigned,
   InboxNoteAdded,
-  InboxBulkAssignmentCompleted,
-  InboxAssignmentsReleased,
-  InboxBulkReopenCompleted,
-  InboxHandlingCycleOpened,
-  InboxHandlingCycleClosed,
-  InboxHandlingCycleReopened,
-  InboxResponseTargetReminderDue,
-  InboxResponseTargetPolicyChanged,
-  InboxEvent,
 } from './domain/inbox-events'

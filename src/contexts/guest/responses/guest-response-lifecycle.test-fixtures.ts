@@ -2,7 +2,8 @@ import { createInMemoryWithdrawalJournal } from './guest-withdrawal-journal.test
 import { afterAll, expect } from 'vitest'
 import { sql } from 'drizzle-orm'
 import type { GuestResponseScope } from './guest-response.repository.port.server'
-import { newTestId, testDb } from '#/shared/testing/ambient-test-runtime'
+import { testDb } from '#/shared/testing/ambient-test-runtime'
+import { freshUuid } from '#/shared/testing/fresh-uuid'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   guestSessionId,
@@ -77,13 +78,13 @@ async function seedTenant(): Promise<{
   experience: ReturnType<typeof experienceFor>
   snapshot: string
 }> {
-  const org = `org-guest-lifecycle-${newTestId()}`
-  const property = newTestId()
-  const portal = newTestId()
-  const participant = newTestId()
-  const participation = newTestId()
-  const responsibility = newTestId()
-  const snapshot = newTestId()
+  const org = `org-guest-lifecycle-${freshUuid()}`
+  const property = freshUuid()
+  const portal = freshUuid()
+  const participant = freshUuid()
+  const participation = freshUuid()
+  const responsibility = freshUuid()
+  const snapshot = freshUuid()
   createdOrganizations.push(org)
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
@@ -162,12 +163,12 @@ export async function harness(
   const repo = createGuestResponseRepository(db, clock)
   let resolvedStaffAttribution: PrimaryStaffAttributionSnapshot | null = staffAttribution
   let staffAttributionResolutionCount = 0
-  const journal = createInMemoryWithdrawalJournal(() => newTestId())
+  const journal = createInMemoryWithdrawalJournal(() => freshUuid())
   const journalWrites = journal.writes
   const rawLifecycle = guestResponseLifecycle({
     repo,
     clock,
-    idGen: () => newTestId(),
+    idGen: () => freshUuid(),
     commandStore: createAtomicGuestResponseCommandStore(db, clock, journal),
     operatorAuthority,
     resolvePrimaryStaffAttribution: async () => {

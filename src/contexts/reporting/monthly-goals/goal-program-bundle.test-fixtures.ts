@@ -2,7 +2,7 @@
 //
 // They only build values: the caller writes them through the repository, in
 // whatever transaction its suite uses.
-import { newTestId } from '#/shared/testing/ambient-test-runtime'
+import { freshUuid } from '#/shared/testing/fresh-uuid'
 import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../readings/contracts'
 import type {
   GoalMonthlyResult,
@@ -46,7 +46,7 @@ type VersionInput = Readonly<{
 export function goalVersion(input: VersionInput): GoalProgramVersion {
   const goal = GOALS[input.goal ?? 'ratings']
   return {
-    id: newTestId(),
+    id: freshUuid(),
     programId: input.programId,
     organizationId: input.organizationId,
     propertyId: input.propertyId,
@@ -80,7 +80,7 @@ export function goalAssignment(
   options: Readonly<{ subject?: GoalSubject; at?: Date }> = {},
 ): GoalSubjectAssignment {
   return {
-    id: newTestId(),
+    id: freshUuid(),
     programId: version.programId,
     programVersionId: version.id,
     organizationId: version.organizationId,
@@ -102,7 +102,7 @@ export function openMonth(
   timezone = 'UTC',
 ): GoalMonthlyResult {
   return {
-    id: newTestId(),
+    id: freshUuid(),
     assignmentId: assignment.id,
     programId: assignment.programId,
     programVersionId: assignment.programVersionId,
@@ -183,7 +183,7 @@ export function followingVersion(
 ) {
   const version: GoalProgramVersion = {
     ...previous,
-    id: newTestId(),
+    id: freshUuid(),
     version: previous.version + 1,
     targetValue,
     effectiveFrom,

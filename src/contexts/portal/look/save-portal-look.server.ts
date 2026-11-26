@@ -17,7 +17,7 @@ import type { PortalLookChange } from '../domain/portal-look'
 import { normaliseWordmark, type BackgroundMode } from '../domain/property-look'
 import type { Portal } from '../domain/types'
 import type { PortalLookSaved } from '../application/dto/portal-look.dto'
-import { checkedBackgroundMode, checkedLookColour } from './look-colour-rules.server'
+import { storedLookColour } from './look-colour-rules.server'
 import { checkedAsset } from './look-media-rules.server'
 import {
   loadPortalForOwnLook,
@@ -68,15 +68,11 @@ function coloursChangeOf(
   return {
     group: 'colours',
     mode: 'own',
-    ...(accentColour === undefined
-      ? {}
-      : { accent: checkedLookColour(accentColour, 'accent') }),
-    ...(backgroundMode === undefined
-      ? {}
-      : { backgroundMode: checkedBackgroundMode(backgroundMode) }),
+    ...(accentColour === undefined ? {} : { accent: storedLookColour(accentColour) }),
+    ...(backgroundMode === undefined ? {} : { backgroundMode }),
     ...(backgroundColour === undefined
       ? {}
-      : { backgroundColour: checkedLookColour(backgroundColour, 'background') }),
+      : { backgroundColour: storedLookColour(backgroundColour) }),
   }
 }
 

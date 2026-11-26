@@ -10,6 +10,7 @@ import {
   getDefaultEnabled,
   getDefaultMaxRating,
   type ConfigurableNotificationCategory,
+  type NotificationCategoryDefault,
   type NotificationChannel,
   type NotificationPreference,
 } from '#/contexts/feed/public-api'
@@ -34,6 +35,27 @@ export function preferenceRowKey(
 ): string {
   return `${propertyId}:${category}:${channel}`
 }
+
+/** The Property's own stored row for a category and channel, if it has one. */
+export const findOwnPreference = (
+  preferences: readonly NotificationPreference[],
+  propertyId: string,
+  category: ConfigurableNotificationCategory,
+  channel: NotificationChannel,
+) =>
+  preferences.find(
+    (row) =>
+      row.propertyId === propertyId &&
+      row.category === category &&
+      row.channel === channel,
+  )
+
+/** The person's default for a category and channel, if they set one. */
+export const findCategoryDefault = (
+  defaults: readonly NotificationCategoryDefault[],
+  category: ConfigurableNotificationCategory,
+  channel: NotificationChannel,
+) => defaults.find((row) => row.category === category && row.channel === channel)
 
 /**
  * The whole row a save writes: the patch over the current values, and the

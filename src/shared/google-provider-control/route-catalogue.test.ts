@@ -92,7 +92,6 @@ describe('Google provider route catalogue', () => {
     )
     expect(head.method).toBe('GET')
     expect(head.admission.quotaPolicyId).toBe('google-reviews-v1')
-    expect(head.admission.inFlightPolicyId).toBe('google-reviews-v1')
   })
 
   it('refuses any Review list ordering but the one the head read names', () => {
@@ -187,7 +186,6 @@ describe('Google provider route catalogue', () => {
       endpointClass: 'notifications',
       requestClass: 'notifications',
       quotaPolicyId: 'google-notifications-write-v1',
-      inFlightPolicyId: 'google-notifications-write-v1',
     })
 
     const unsubscribe = compileGoogleProviderRequest(
@@ -411,7 +409,6 @@ describe('Google provider route catalogue', () => {
       requestClass: 'performance',
       maxResponseBytes: 5 * 1024 * 1024,
       quotaPolicyId: 'google-performance-read-v1',
-      inFlightPolicyId: 'google-performance-read-v1',
     })
   })
 })

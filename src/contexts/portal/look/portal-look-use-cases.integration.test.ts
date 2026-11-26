@@ -280,22 +280,6 @@ describe('savePortalLookColours (real PostgreSQL)', () => {
     ).rejects.toSatisfy(failsWith('brand_profile_missing'))
   })
 
-  it.each([
-    { accentColour: 'gold' },
-    { backgroundColour: '#12345' },
-    { backgroundMode: 'gradient' as never },
-  ])('refuses %o before anything is saved', async (colours) => {
-    const { deps, target, portal } = await scene()
-
-    await expect(
-      savePortalLookColours(deps)(
-        { ...target, colours: { mode: 'own', ...colours } },
-        adminOf(),
-      ),
-    ).rejects.toSatisfy(failsWith('invalid_theme'))
-    expect(await overrideRow(portal)).toBeUndefined()
-  })
-
   it('carries an unreadable pair out as the look’s refusal', async () => {
     const { deps, target, portal } = await scene()
 

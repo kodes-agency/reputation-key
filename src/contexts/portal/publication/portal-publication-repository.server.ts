@@ -27,7 +27,6 @@ import type {
   PortalPublicationActivationRecord,
   PortalPublicationCursor,
   PortalPublicationRepository,
-  PortalPendingContentChange,
   ResolvedPortalPublication,
 } from './portal-publication-repository.port.server'
 import type { PresentedAddressDigest } from '../addresses/portal-token-codec.port.server'
@@ -171,21 +170,7 @@ const publicationConfigurationSchema = z.discriminatedUnion('schemaVersion', [
 type SnapshotRow = typeof portalPublicationSnapshots.$inferSelect
 type ActivationRow = typeof portalPublicationActivations.$inferSelect
 
-const activationKindSchema = z.enum(['publish', 'rollback'])
-const deactivationReasonSchema = z.enum(['disabled', 'archived', 'replaced']).nullable()
-const pendingContentChangeKindSchema = z.enum([
-  'portal_configuration',
-  'portal_links',
-  'property_brand_profile',
-  'property_brand_content',
-  'portal_localized_override',
-  'approved_destination',
-])
-
-function activationFromRow(row: ActivationRow): PortalPublicationActivation | null {
-  const kind = activationKindSchema.safeParse(row.kind)
-  const deactivationReason = deactivationReasonSchema.safeParse(row.deactivationReason)
-  if (!kind.success || !deactivationReason.success) return null
+function activationFromRow(row: ActivationRow): PortalPublicationActivation {
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -193,11 +178,11 @@ function activationFromRow(row: ActivationRow): PortalPublicationActivation | nu
     portalId: row.portalId,
     snapshotId: row.snapshotId,
     activationSequence: row.activationSequence,
-    kind: kind.data,
+    kind: row.kind,
     activatedBy: row.activatedBy,
     activatedAt: row.activatedAt,
     deactivatedAt: row.deactivatedAt,
-    deactivationReason: deactivationReason.data,
+    deactivationReason: row.deactivationReason,
   }
 }
 
@@ -205,7 +190,7 @@ function activationFromRow(row: ActivationRow): PortalPublicationActivation | nu
 const MAX_ACTIVATIONS_BETWEEN = 100
 
 /** The closing reasons that end a live run; `replaced` hands it to the next activation. */
-const RUN_BREAKS = ['disabled', 'archived']
+const RUN_BREAKS: readonly ('disabled' | 'archived')[] = ['disabled', 'archived']
 
 /**
  * A localized row keeps its own copy of the configuration's locale and look
@@ -261,9 +246,8 @@ function activationRecordFromRows(
   activationRow: ActivationRow,
   snapshotRow: SnapshotRow,
 ): PortalPublicationActivationRecord | null {
-  const activation = activationFromRow(activationRow)
   const snapshot = snapshotFromRow(snapshotRow)
-  return activation && snapshot ? { activation, snapshot } : null
+  return snapshot ? { activation: activationFromRow(activationRow), snapshot } : null
 }
 
 const resolvableTokenAsOf = (asOf: Date) =>
@@ -529,10 +513,7 @@ export const createPortalPublicationRepository = (
           ),
         )
         .orderBy(asc(activation.portalId), asc(activation.activationSequence))
-      return rows.flatMap((row) => {
-        const parsed = activationFromRow(row)
-        return parsed ? [parsed] : []
-      })
+      return rows.map(activationFromRow)
     }),
 
   listOpenPendingContentChanges: (organizationId, propertyId, portalId) =>
@@ -558,17 +539,12 @@ export const createPortalPublicationRepository = (
           asc(portalPendingContentChanges.changedAt),
           asc(portalPendingContentChanges.id),
         )
-      return rows.flatMap((row): readonly PortalPendingContentChange[] => {
-        const kind = pendingContentChangeKindSchema.safeParse(row.kind)
-        return kind.success ? [{ ...row, kind: kind.data }] : []
-      })
+      return rows
     }),
 
   countOpenPendingContentChanges: (organizationId, portalIds) =>
     trace('portalPublication.countOpenPendingContentChanges', async () => {
       if (portalIds.length === 0) return []
-      // The same rows listOpenPendingContentChanges would list: open, and of a
-      // kind this reader knows.
       const rows = await db
         .select({
           portalId: portalPendingContentChanges.portalId,
@@ -581,10 +557,6 @@ export const createPortalPublicationRepository = (
             inArray(
               portalPendingContentChanges.portalId,
               portalIds.map((id) => unbrand(id)),
-            ),
-            inArray(
-              portalPendingContentChanges.changeKind,
-              pendingContentChangeKindSchema.options,
             ),
             isNull(portalPendingContentChanges.resolvedAt),
           ),
