@@ -148,11 +148,7 @@ in the file). `pnpm check:schema-drift` compares the migrated database with
 `structure.sql` and verifies every applied journal hash. The integration gate
 also migrates a new empty database and requires the same canonical dump.
 
-Two commands that look like this loop are not it. `pnpm db:baseline` deletes
-`drizzle/` and writes the three generated entries again. It was the loop while
-every environment started from an empty database; it now refuses while
-`drizzle/` holds an appended migration (`scripts/local/db-baseline.test.ts`).
-`pnpm db:generate` diffs the model against drizzle-kit's newest snapshot, and
+One command that looks like this loop is not it. `pnpm db:generate` diffs the model against drizzle-kit's newest snapshot, and
 the snapshots in `drizzle/meta/` stop at `0013`, so it would restate every
 change the hand-written migrations have made since.
 
