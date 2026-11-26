@@ -66,18 +66,12 @@ describe('Google provider authority wiring', () => {
     const notificationWiring = read(
       `${INTEGRATION}/connections/notifications-runtime.server.ts`,
     )
-    expect(notificationWiring).toContain('withSingle401Refresh')
+    expect(notificationWiring).toContain('createSingle401RefreshExecutor')
     expect(notificationWiring).toContain('createMyBusinessNotificationsAdapter')
     expect(notificationWiring).toContain('authorization_unavailable')
+    expect(notificationWiring).toContain('manageNotifications({')
     expect(notificationWiring).toContain('notifications,')
     expect(notificationWiring).not.toContain('createGoogleAccountManagementAdapter')
-
-    const runtime = read(
-      `${INTEGRATION}/connections/google-notification-runtime.server.ts`,
-    )
-    expect(runtime).toContain('manageNotifications({')
-    expect(runtime).toContain('notifications: deps.notifications')
-    expect(runtime).not.toContain('createGoogleAccountManagementAdapter')
 
     // The account targets come from active Property bindings, never discovery.
     expect(

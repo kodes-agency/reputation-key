@@ -4,7 +4,6 @@ import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyr
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
 import {
   googleReviewApiNotConfigured,
-  type GoogleConnectionStatusPort,
   type GoogleReviewApiPort,
   type TargetedGoogleReviewReferenceResolver,
 } from '#/contexts/reputation/public-api'
@@ -13,8 +12,8 @@ import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderReauthorize,
   GoogleProviderTokenAccess,
-  GoogleRefreshingProviderExecutorFactory,
 } from '../provider/google-client.port.server'
+import { createSingle401RefreshExecutor } from '../provider/google-client.server'
 import type { GoogleReviewPushReferenceStore } from './google-review-push-reference-store.port.server'
 import { sameAuthorizationVectorExceptCredentialGeneration } from '../provider/google-authorization-vector.server'
 import { createGoogleNotificationProviderAuthorizer } from '../connections/google-notification-provider-authorizer.server'
@@ -41,7 +40,6 @@ export type GoogleReviewSyncRuntimeDeps = Readonly<{
   connectionRepo: ActiveConnectionTokenProviderDeps['connectionRepo']
   getAccessToken: Parameters<typeof createGoogleReviewSyncAuthorizer>[0]['getAccessToken']
   providerTokenAccess: GoogleProviderTokenAccess
-  withSingle401Refresh: GoogleRefreshingProviderExecutorFactory
   findLinkedPropertyIds: Parameters<
     typeof createGoogleNotificationProviderAuthorizer
   >[0]['findLinkedPropertyIds']
@@ -57,7 +55,6 @@ export type GoogleReviewSyncRuntimeDeps = Readonly<{
 
 export type GoogleReviewSyncRuntime = Readonly<{
   googleReviewApi: GoogleReviewApiPort
-  googleConnectionStatus: GoogleConnectionStatusPort
   googleReviewPushTargetResolver: TargetedGoogleReviewReferenceResolver
   /** Present only when review-sync content authority and the binding reader exist. */
   notification:
@@ -173,7 +170,7 @@ export const createGoogleReviewSyncRuntime = (
     : undefined
 
   const providerExecutor = deps.executor
-    ? deps.withSingle401Refresh({
+    ? createSingle401RefreshExecutor({
         executor: deps.executor,
         ...deps.providerTokenAccess,
         reauthorize: async ({ authorization }) => {
@@ -246,14 +243,8 @@ export const createGoogleReviewSyncRuntime = (
       references: deps.pushReferences,
     })
 
-  const googleConnectionStatus: GoogleConnectionStatusPort = {
-    findStatus: async (organizationId, connectionId) =>
-      (await deps.connectionRepo.findById(organizationId, connectionId))?.status ?? null,
-  }
-
   return Object.freeze({
     googleReviewApi,
-    googleConnectionStatus,
     googleReviewPushTargetResolver,
     notification:
       binding && reviewSyncAuthorizer

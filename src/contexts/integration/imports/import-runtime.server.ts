@@ -17,7 +17,11 @@ import { createGoogleImportProcessor } from './google-import-processor.server'
 import type { GoogleImportStore } from './import-store.port.server'
 import type { GoogleImportReferenceStore } from './durable-import-reference-store.port.server'
 import { createRefreshBoundGoogleCategories } from './refresh-bound-google-categories.server'
-import type { GoogleAuthorizedProviderExecutor } from '../provider/google-client.port.server'
+import type {
+  GoogleAuthorizedProviderExecutor,
+  GoogleProviderTokenAccess,
+} from '../provider/google-client.port.server'
+import { createSingle401RefreshExecutor } from '../provider/google-client.server'
 import { createGoogleAccountManagementAdapter } from './google-account-management.adapter.server'
 import { createGoogleBusinessInformationAdapter } from './google-business-information.adapter.server'
 import type { ActiveMemberAuthResolver } from '../provider/active-member-auth.adapter.server'
@@ -33,8 +37,9 @@ export type GoogleImportRuntimeDeps = Readonly<{
   propertyApi: PropertyPublicApi
   propertyBindingApi: PropertyGoogleBindingPublicApi
   resolveActiveMember: ActiveMemberAuthResolver
-  /** Executor already wrapped with the single-401 refresh. */
+  /** The raw executor; the runtime wraps it with the single-401 refresh. */
   providerExecutor: GoogleAuthorizedProviderExecutor | undefined
+  providerTokenAccess: GoogleProviderTokenAccess
   references: GoogleImportReferenceStore | undefined
   replayKeys: VersionedHmacKeyring | undefined
   authorizeContent: GoogleImportContentAuthorizer | undefined
@@ -47,7 +52,6 @@ export type GoogleImportRuntime = Readonly<{
   transaction: ReturnType<typeof createGoogleImportTransaction> | null
   refreshBoundCategories:
     ReturnType<typeof createRefreshBoundGoogleCategories> | undefined
-  reauthorizeProviderCall: ReturnType<typeof createGoogleImportReauthorizer> | undefined
 }>
 
 /**
@@ -66,7 +70,6 @@ export const createGoogleImportRuntime = (
     newEventId: deps.newId,
     references: deps.references,
   })
-  const executor = deps.providerExecutor
   const decideGoogleImport = async (request: DecisionRequest) =>
     getExecutionPolicy().decide(request)
   const authorizeCommand = createGoogleImportCommandAuthorizer({
@@ -85,6 +88,17 @@ export const createGoogleImportRuntime = (
     warn: (fields, message) => deps.logger.warn(fields, message),
   })
   const nowMs = () => deps.clock().getTime()
+  const reauthorizeProviderCall = createGoogleImportReauthorizer({
+    resolveActor: deps.resolveActiveMember,
+    authorize: authorizeCommand,
+  })
+  const executor = deps.providerExecutor
+    ? createSingle401RefreshExecutor({
+        executor: deps.providerExecutor,
+        ...deps.providerTokenAccess,
+        reauthorize: reauthorizeProviderCall,
+      })
+    : undefined
   const refreshBoundCategories = executor
     ? createRefreshBoundGoogleCategories({
         findPropertyIds: deps.propertyApi.findIdsByGoogleConnection,
@@ -94,10 +108,6 @@ export const createGoogleImportRuntime = (
         clock: deps.clock,
       })
     : undefined
-  const reauthorizeProviderCall = createGoogleImportReauthorizer({
-    resolveActor: deps.resolveActiveMember,
-    authorize: authorizeCommand,
-  })
   const processor = createGoogleImportProcessor({
     store: deps.store,
     propertyBindingApi: binding,
@@ -152,6 +162,5 @@ export const createGoogleImportRuntime = (
     discovery,
     transaction,
     refreshBoundCategories,
-    reauthorizeProviderCall,
   }
 }
