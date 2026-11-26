@@ -20,7 +20,6 @@ export function usePrintKit({
     isError: hasFailed(query),
     error: query.error,
     isRetrying: isRetrying(query),
-    retry: () => void query.refetch(),
-    refresh: () => void query.refetch(),
+    refetch: () => void query.refetch(),
   }
 }

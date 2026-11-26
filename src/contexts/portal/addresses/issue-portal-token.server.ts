@@ -119,8 +119,6 @@ export const issuePortalToken =
     }
   }
 
-export type IssuePortalToken = ReturnType<typeof issuePortalToken>
-
 /** A checkpoint retry must keep the existing code recoverable for its person. */
 export const ensurePersonalPortalToken =
   (
