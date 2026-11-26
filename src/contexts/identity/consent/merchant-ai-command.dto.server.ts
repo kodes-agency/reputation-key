@@ -3,12 +3,9 @@
 // for everything a schema cannot know (the served notice, authority, state).
 
 import { z } from 'zod/v4'
+import { CURRENT_MERCHANT_AI_CAPABILITIES } from '#/shared/domain/merchant-ai-capability'
 
-const merchantAiCapabilityInputSchema = z.enum([
-  'review_analysis',
-  'reply_drafting',
-  'property_trends',
-])
+const merchantAiCapabilityInputSchema = z.enum(CURRENT_MERCHANT_AI_CAPABILITIES)
 
 export const merchantAiAuthorizationInputSchema = z.object({
   propertyId: z.uuid().optional(),
