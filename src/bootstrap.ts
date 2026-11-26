@@ -72,6 +72,31 @@ import {
   createSweepPortalMediaHandler,
   JOB_NAME as PORTAL_MEDIA_SWEEP_JOB,
 } from '#/contexts/portal/media/sweep-portal-media-job.server'
+import {
+  createScheduledRetentionSweepHandler,
+  JOB_NAME as RETENTION_SWEEP_JOB_NAME,
+} from '#/shared/jobs/retention-sweep.job'
+import {
+  createQuarantineTtlSweepHandler,
+  JOB_NAME as QUARANTINE_TTL_JOB_NAME,
+} from '#/shared/jobs/quarantine-ttl-sweep.job'
+import {
+  createPermitStartDeadlineSweepHandler,
+  JOB_NAME as PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
+} from '#/shared/jobs/permit-start-deadline-sweep.job'
+import { createExecutionPermitStartDeadlineSweeper } from '#/shared/auth/execution-permit-start-deadline-sweep'
+import { createGoogleContentAuthorityRepository } from '#/contexts/identity/policy/google-content-authority-repository.server'
+import { createNotificationEmailSender } from '#/contexts/feed/email/notification-email-sender.server'
+import {
+  activeOneClickUnsubscribeKeyVersion,
+  oneClickUnsubscribeUrl,
+  unsubscribeKeysConfigError,
+} from '#/contexts/feed/email/one-click-unsubscribe-token.server'
+import {
+  MANDATORY_EMAIL_JOB_NAME,
+  URGENT_EMAIL_JOB_NAME,
+} from '#/contexts/feed/email/notification-delivery-processors.server'
+import { DIGEST_JOB_NAME } from '#/contexts/feed/email/digest-notification-job.server'
 
 // BQC-5.5: the ops queue read handles are composition-owned (container.opsQueues)
 // — the per-module getOpsQueues() duplicate is gone. The health-check job
@@ -379,8 +404,6 @@ export async function bootstrap(
   )
 
   // ── Retention sweep (BQC-1.6: bounded, evidence-backed, daily) ──────
-  const { createScheduledRetentionSweepHandler, JOB_NAME: RETENTION_SWEEP_JOB_NAME } =
-    await import('#/shared/jobs/retention-sweep.job')
   const retentionSweepHandler = createScheduledRetentionSweepHandler({
     db: container.db,
     clock: container.clock,
@@ -397,8 +420,6 @@ export async function bootstrap(
   // The quarantine queue is absent when Redis is — the schedule that would
   // dispatch this job is Redis-backed too, so an absent queue is unreachable
   // in practice; the guard keeps registration unconditional like neighbors.
-  const { createQuarantineTtlSweepHandler, JOB_NAME: QUARANTINE_TTL_JOB_NAME } =
-    await import('#/shared/jobs/quarantine-ttl-sweep.job')
   const quarantineTtlHandler = container.opsQueues.quarantine
     ? createQuarantineTtlSweepHandler({
         queue: container.opsQueues.quarantine,
@@ -428,14 +449,6 @@ export async function bootstrap(
   // RESTRICT approval binding and inflates the active-permit index forever.
   // Registered unconditionally: an unconfigured/killed Google Content runtime is
   // precisely when nothing will ever start those permits.
-  const {
-    createPermitStartDeadlineSweepHandler,
-    JOB_NAME: PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
-  } = await import('#/shared/jobs/permit-start-deadline-sweep.job')
-  const { createExecutionPermitStartDeadlineSweeper } =
-    await import('#/shared/auth/execution-permit-start-deadline-sweep')
-  const { createGoogleContentAuthorityRepository } =
-    await import('#/contexts/identity/policy/google-content-authority-repository.server')
   const permitStartDeadlineSweep = createPermitStartDeadlineSweepHandler({
     sweep: createExecutionPermitStartDeadlineSweeper({
       store: createGoogleContentAuthorityRepository(container.db),
@@ -509,7 +522,7 @@ export async function bootstrap(
     'registered AI Review Analysis enrollment sweep job handler',
   )
 
-  await registerNotificationJobs(container, runtime)
+  registerNotificationJobs(container, runtime)
 }
 
 /**
@@ -520,10 +533,10 @@ export async function bootstrap(
  * It is a separate unit because every declaration below is used only by this
  * family — nothing in the rest of the worker's registration reads them.
  */
-async function registerNotificationJobs(
+function registerNotificationJobs(
   container: Container,
   runtime: BootstrapRuntimeConfig,
-): Promise<void> {
+): void {
   const logger = container.logger
   // Outbound email transport is chosen ONCE, here, and logged loudly. Before
   // this the real Resend adapter was constructed unconditionally, so a local
@@ -531,8 +544,6 @@ async function registerNotificationJobs(
   // .env.example placeholder failed deep inside a BullMQ job instead of at
   // wiring time. A production worker that would capture admitted mail refuses
   // to boot. Rules live in shared/email/transport-selection.ts.
-  const { createNotificationEmailSender } =
-    await import('#/contexts/feed/email/notification-email-sender.server')
   const notifEmailSender = createNotificationEmailSender({
     transport: runtime.notification,
     outboundEmailEnabled: isCapabilityJobEnabled('notification.send_email'),
@@ -543,11 +554,6 @@ async function registerNotificationJobs(
   // from env inside a job.
   const notifBaseUrl = runtime.notification.appBaseUrl
   const unsubscribeKeys = runtime.notification.unsubscribeHmacKeys
-  const {
-    activeOneClickUnsubscribeKeyVersion,
-    oneClickUnsubscribeUrl,
-    unsubscribeKeysConfigError,
-  } = await import('#/contexts/feed/email/one-click-unsubscribe-token.server')
   // Parsed here, not first at send time: a malformed keyring otherwise boots
   // and then fails every optional email while composing its unsubscribe link.
   const unsubscribeKeysError = unsubscribeKeysConfigError({
@@ -598,11 +604,7 @@ async function registerNotificationJobs(
   // One processor, two names: the mandatory name carries the core capability
   // the beta allowlist does not gate, so an account/security notice leaves
   // even for an Organization ordinary product mail is still dark for.
-  const { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } =
-    await import('#/contexts/feed/email/notification-delivery-processors.server')
   registerCapabilityGatedJob(container, URGENT_EMAIL_JOB_NAME, processors.email)
   registerCapabilityGatedJob(container, MANDATORY_EMAIL_JOB_NAME, processors.email)
-  const { DIGEST_JOB_NAME } =
-    await import('#/contexts/feed/email/digest-notification-job.server')
   registerCapabilityGatedJob(container, DIGEST_JOB_NAME, processors.digest)
 }

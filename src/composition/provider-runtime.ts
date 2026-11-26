@@ -1,5 +1,6 @@
 import type { Pool } from 'pg'
 import type { Env } from '#/shared/config/env'
+import type { GoogleProviderEndpoints } from '#/contexts/integration/build'
 import type { GoogleOAuthPort } from '#/contexts/integration/connections/google-oauth.port.server'
 import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/provider/google-client.port.server'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
@@ -30,18 +31,7 @@ export type ProviderOverrides = Readonly<{
  * Google's approved endpoint construction config. Adapters are built from this
  * one value; the local sandbox overrides it explicitly below.
  */
-export type ProviderEndpoints = Readonly<{
-  gbpApiBaseUrl: string
-  gbpAccountManagementBaseUrl: string
-  gbpPerformanceBaseUrl: string
-  reviewsApiBaseUrl: string
-  notificationsApiBaseUrl: string
-  oauthTokenUrl: string
-  oauthJwksUrl: string
-  oauthRevokeUrl: string
-}>
-
-export const GOOGLE_PROVIDER_ENDPOINTS: ProviderEndpoints = Object.freeze({
+export const GOOGLE_PROVIDER_ENDPOINTS: GoogleProviderEndpoints = Object.freeze({
   gbpApiBaseUrl: 'https://mybusinessbusinessinformation.googleapis.com/v1',
   gbpAccountManagementBaseUrl: 'https://mybusinessaccountmanagement.googleapis.com/v1',
   gbpPerformanceBaseUrl: 'https://businessprofileperformance.googleapis.com/v1',
@@ -54,9 +44,9 @@ export const GOOGLE_PROVIDER_ENDPOINTS: ProviderEndpoints = Object.freeze({
 
 /** Apply the explicit local-sandbox endpoint profile exactly once at build. */
 export function applyProviderEndpointOverrides(
-  endpoints: ProviderEndpoints,
+  endpoints: GoogleProviderEndpoints,
   env: Env,
-): ProviderEndpoints {
+): GoogleProviderEndpoints {
   const overrides = [
     env.GBP_API_BASE_URL,
     env.GBP_ACCOUNT_MANAGEMENT_BASE_URL,
