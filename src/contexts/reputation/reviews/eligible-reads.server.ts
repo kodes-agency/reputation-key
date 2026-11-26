@@ -13,7 +13,7 @@
 import type { ReviewRepository } from './review-repository.port.server'
 import type { GoogleReplyObservationLookup } from '../publication/google-reply-observation-store.port.server'
 import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
-import { isContentEligibleForRead } from '../content/source-content-lifecycle.server'
+import { isContentEligibleForRead } from '#/shared/domain/source-content-policy'
 
 /** Content DTO for serving reads — no review-context internals. */
 export type EligibleReviewSnippet = Readonly<{

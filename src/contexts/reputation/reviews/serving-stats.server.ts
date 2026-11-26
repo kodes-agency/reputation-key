@@ -6,7 +6,7 @@
 // of the move): EVERY review-content read now applies THE source-eligibility
 // predicate — `contentExpiresAt IS NOT NULL AND contentExpiresAt > now` with
 // `now` INJECTED from the composition clock (never DB now()). This
-// mirrors isContentEligibleForRead (content/source-content-lifecycle.server.ts,
+// mirrors isContentEligibleForRead (shared/domain/source-content-policy.ts,
 // ADR 0031): clock-less rows fail closed. The reply joins apply the same
 // eligibility on the review side — a reply of an expired review is not
 // servable.

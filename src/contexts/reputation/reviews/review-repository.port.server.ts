@@ -63,8 +63,7 @@ export type ReviewRepository = Readonly<{
     input: AiReviewSourceRequest,
   ): Promise<Readonly<{ status: 'current' | AiReviewSourceDenial }>>
   readReplyStateRevision(
-    organizationId: OrganizationId,
-    reviewId: ReviewId,
+    input: Readonly<{ organizationId: OrganizationId; reviewId: ReviewId }>,
   ): Promise<number>
   findByIds(
     ids: ReadonlyArray<ReviewId>,
