@@ -101,9 +101,9 @@ transport and draft measurement tests retain their focused coverage.
 `replay/` owns enrollment, backlog draining, reopening abandoned analysis, the analyse-now
 request and its job, the backlog drain job, the progress read, applying an authorization
 transition, and erasing the derivatives it retires (`ai-review-analysis-erasure.server.ts`).
-Its shared contract keeps the stored enrollment vocabulary; readiness maps it
-to preparing, running, caught up or needing attention without changing the
-public readiness response. Server implementations use `*.server.ts`.
+Its shared contract keeps the stored enrollment vocabulary; the readiness read
+reduces it to analysing, needing attention and a verified-through time for the
+progress card. Server implementations use `*.server.ts`.
 
 Enrollment pins at most 100 reviews per transaction. The authorization's
 start-sequence watermark selects remaining candidates; each committed page

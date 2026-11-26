@@ -10,7 +10,6 @@ import {
   type PrintFace,
 } from '#/shared/domain/portal-print'
 import { choosePrintTile } from '#/shared/domain/portal-print-code'
-import { PRINT_DEFAULT_FRAMING } from '#/shared/domain/portal-print-framing'
 import { layoutPrintImmersiveFace } from '#/shared/domain/portal-print-immersive-face'
 import type { PrintPhotoSample } from '#/shared/domain/portal-print-photo-sample'
 import { newDocument } from './print-kit-face.test-fixtures'
@@ -112,7 +111,6 @@ describe('the preview’s Immersive faces', () => {
             photo: {
               ...PHOTO,
               focal: { x: 0.5, y: 0.4 },
-              framing: PRINT_DEFAULT_FRAMING,
             },
           })
           const what = `${languages.join('+')} · logo ${withLogo}`

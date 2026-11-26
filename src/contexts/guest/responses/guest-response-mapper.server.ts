@@ -40,11 +40,9 @@ export function guestResponseFromRow(
     integrityRevision: row.integrityRevision,
     integrityAssessedAt: row.integrityAssessedAt,
     rating: row.rating,
-    category: row.categoryId,
     text: feedback?.body ?? null,
     responseConsent: row.responseConsent,
     textConsent: row.textConsent,
-    mediaConsent: row.mediaConsent,
     privateFeedbackThreshold: row.privateFeedbackThreshold,
     experienceSnapshot: experience
       ? {
@@ -83,7 +81,6 @@ export function guestResponseFromRow(
     moderatedAt: row.moderatedAt,
     deletedAt: row.deletedAt,
     retentionDeadline: row.retentionDeadline,
-    schemaVersion: 1,
   }
 }
 
@@ -102,10 +99,8 @@ export function guestResponseToInsertRow(
     integrityRevision: response.integrityRevision,
     integrityAssessedAt: response.integrityAssessedAt,
     rating: response.rating,
-    categoryId: response.category,
     responseConsent: response.responseConsent,
     textConsent: response.textConsent,
-    mediaConsent: response.mediaConsent,
     privateFeedbackThreshold: response.privateFeedbackThreshold,
     ratingSourceEventId: response.ratingSourceEventId,
     feedbackSourceEventId: response.feedbackSourceEventId,

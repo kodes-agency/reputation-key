@@ -1,12 +1,6 @@
 import { WORK_DISPATCH_BATCH_SIZE } from '#/shared/db/work-items.server'
 import { startSingleFlight } from './single-flight'
 
-export {
-  createWorkItems,
-  type WorkItems,
-  type WorkRequest,
-} from '#/shared/db/work-items.server'
-
 export function isWorkItemJob(job: Readonly<{ data: unknown }>): boolean {
   const data = job.data
   return (

@@ -121,12 +121,10 @@ function DialogContent({
   children,
   showCloseButton = true,
   size = 'md',
-  presentation = 'dialog',
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   size?: DialogSize
-  presentation?: 'dialog' | 'screen'
 }) {
   const isBusy = useDialogIsBusy()
   return (
@@ -137,13 +135,9 @@ function DialogContent({
         data-size={size}
         aria-busy={isBusy || undefined}
         className={cn(
-          presentation === 'screen'
-            ? 'fixed inset-0 z-50 flex h-dvh w-full flex-col overflow-y-auto bg-background p-4 outline-none'
-            : [
-                'fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border bg-background p-(--dialog-pad) shadow-lg [--dialog-pad:1.5rem] duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
-                DIALOG_WIDTH_CAP,
-                DIALOG_SIZE[size],
-              ],
+          'fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border bg-background p-(--dialog-pad) shadow-lg [--dialog-pad:1.5rem] duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+          DIALOG_WIDTH_CAP,
+          DIALOG_SIZE[size],
           className,
         )}
         {...props}

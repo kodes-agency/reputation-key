@@ -14,9 +14,10 @@ import {
 } from '#/shared/domain/ids'
 
 /**
- * The Portals a user is the primary responsible for, through their personal Portal.
- * A login link counts only while its interval contains now and no other current
- * link claims the same participant or user.
+ * The Portals a user is the primary responsible for, through their personal
+ * Portal. The user's login link counts only while it is current and no other
+ * current link claims the same participant or user; the participation counts
+ * only while it is active and started.
  */
 export const createAssignedPortalLookup =
   (db: Database) =>
@@ -57,8 +58,8 @@ export const createAssignedPortalLookup =
         and(
           eq(portalResponsibilities.organizationId, staffParticipations.organizationId),
           eq(portalResponsibilities.staffParticipationId, staffParticipations.id),
-          eq(portalResponsibilities.portalId, staffParticipations.personalPortalId),
           eq(portalResponsibilities.kind, 'primary'),
+          eq(portalResponsibilities.portalId, staffParticipations.personalPortalId),
           isNull(portalResponsibilities.effectiveTo),
         ),
       )

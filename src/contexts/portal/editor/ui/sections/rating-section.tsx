@@ -24,7 +24,7 @@ export function RatingSection({ resources, canEdit }: PortalEditorSectionProps) 
         portal={resources.portal}
         mutation={resources.completeReviewMutation}
         disabled={!canEdit}
-        liveVersion={resources.publicationHistory?.current?.version ?? null}
+        liveVersion={resources.publicationHistory?.liveVersion ?? null}
         hasPendingChanges={resources.publicationHistory?.hasPendingChanges ?? false}
       />
     </PortalEditorSectionFrame>

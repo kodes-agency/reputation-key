@@ -10,10 +10,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Job, JobProgress, JobsOptions } from 'bullmq'
 import { ZodError } from 'zod/v4'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import {
-  createRedriveJob,
-  quarantineExhaustedJob,
-} from '#/shared/jobs/failure-quarantine'
+import { createRedriveJob } from '#/shared/jobs/failure-quarantine'
+import { quarantineExhaustedJob } from '#/shared/jobs/failure-quarantine.test-fixtures'
 import {
   ANALYZE_REVIEW_NOW_JOB_NAME,
   createAnalyzeReviewNowJobHandler,

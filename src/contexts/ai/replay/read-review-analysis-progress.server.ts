@@ -72,20 +72,18 @@ export function createReadReviewAnalysisProgress(
       }),
       dependencies.readEnrollmentReadiness(property),
     ])
-    const analysing =
-      progress.queued + progress.inProgress > 0 || readiness.status === 'preparing'
+    const analysing = progress.queued + progress.inProgress > 0 || readiness.analysing
     return {
       status: analysing
         ? 'analysing'
-        : readiness.status === 'unavailable'
+        : readiness.needsAttention
           ? 'needs_attention'
           : 'caught_up',
       queued: progress.queued,
       inProgress: progress.inProgress,
       analysed: progress.analysed,
       notAnalysable: Math.max(0, progress.settled - progress.analysed),
-      verifiedThroughEpochMillis:
-        readiness.status === 'ready' ? readiness.caughtUpAtEpochMillis : null,
+      verifiedThroughEpochMillis: readiness.verifiedThroughEpochMillis,
     }
   }
 }

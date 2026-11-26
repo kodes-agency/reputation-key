@@ -91,7 +91,6 @@ export { goalMonthlyResultClosed } from './domain/goal-events'
 export type {
   KPIValue,
   MetricAvailabilityState,
-  MetricKPIValue,
   KPIs,
   RecentReview,
   DashboardReplyStatus,

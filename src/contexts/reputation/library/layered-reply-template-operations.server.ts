@@ -51,8 +51,6 @@ import {
 } from '../replies/reply-access.server'
 
 type ReplyTemplateLanguageTarget = ReplyTemplateLanguageTargetDto
-export type ReplyTemplateListItem = ReplyTemplateListItemDto
-export type ReplyTemplateListResult = ReplyTemplateListResultDto
 export type ResolveReplyTemplateLanguage = (
   input: Readonly<{ text: string; evaluatedLanguage: EvaluatedReviewLanguage }>,
 ) => Promise<ConcreteReplyLanguageResult>
@@ -60,9 +58,7 @@ export type ResolveReplyTemplateLanguage = (
 export type ListReplyTemplates = (
   input: Readonly<{ reviewId: ReviewId; targetLanguage: ReplyTemplateLanguageTarget }>,
   ctx: AuthContext,
-) => Promise<ReplyTemplateListResult>
-
-export type ReplyDraftCheck = ReplyDraftCheckDto
+) => Promise<ReplyTemplateListResultDto>
 
 export type LoadReplyTemplate = (
   input: Readonly<{
@@ -181,23 +177,16 @@ export const listReplyTemplates =
       review,
       languageGroup,
     )
-    const items = templates.map((template): ReplyTemplateListItem => ({
+    const items = templates.map((template): ReplyTemplateListItemDto => ({
       id: template.ref,
-      ref: template.ref,
       title: template.title,
-      aspect: null,
-      openLabel: null,
-      languageTag: languageGroup!,
-      version: template.revision,
-      layer: template.layer,
     }))
     return {
-      profile: null,
       groups:
         languageGroup === null || items.length === 0
           ? []
           : [{ languageGroup, templates: items }],
-      recommendedTemplateId: items[0]?.ref ?? null,
+      recommendedTemplateId: items[0]?.id ?? null,
       recommendedReason:
         items.length === 0
           ? null
@@ -212,7 +201,7 @@ async function checkDraft(
   languageGroup: string,
   privacyMode: boolean,
   emojiAllowed: boolean,
-): Promise<ReplyDraftCheck> {
+): Promise<ReplyDraftCheckDto> {
   const findings = checkReplyText({
     text,
     kind: 'final_reply',
@@ -377,7 +366,7 @@ export const checkReplyDraft =
   async (
     input: Readonly<{ reviewId: ReviewId; text: string }>,
     ctx: AuthContext,
-  ): Promise<ReplyDraftCheck> => {
+  ): Promise<ReplyDraftCheckDto> => {
     const {
       review,
       scope,

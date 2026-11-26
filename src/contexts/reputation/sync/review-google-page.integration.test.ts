@@ -33,7 +33,7 @@ import { createGoogleReplyObservationStore } from '../publication/google-reply-o
 import { createReviewSourceContentLifecycleStore } from '../content/source-content-lifecycle-store.server'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createAtomicReviewCommandStore } from '../reviews/review-command-store.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = organizationId('review-google-page-org-a')

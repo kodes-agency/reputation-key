@@ -39,22 +39,6 @@ export const GBP_STUB_PORT = 4100
 export const GBP_STUB_BASE_URL =
   process.env.GBP_STUB_BASE_URL ?? `http://localhost:${GBP_STUB_PORT}`
 
-/**
- * BQC-6.5 sandbox env: point every provider endpoint the app consumes at the
- * stub. Spread into the web + worker process env by the Playwright harness.
- */
-export const GBP_SANDBOX_ENV = {
-  GOOGLE_PROVIDER_ENDPOINT_PROFILE: 'local-sandbox',
-  GBP_ACCOUNT_MANAGEMENT_BASE_URL: GBP_STUB_BASE_URL,
-  GBP_API_BASE_URL: GBP_STUB_BASE_URL,
-  GBP_PERFORMANCE_BASE_URL: GBP_STUB_BASE_URL,
-  GBP_REVIEWS_API_BASE_URL: GBP_STUB_BASE_URL,
-  GBP_NOTIFICATIONS_API_BASE_URL: GBP_STUB_BASE_URL,
-  GOOGLE_OAUTH_TOKEN_URL: `${GBP_STUB_BASE_URL}/oauth/token`,
-  GOOGLE_OAUTH_USERINFO_URL: `${GBP_STUB_BASE_URL}/oauth/userinfo`,
-  GOOGLE_OAUTH_REVOKE_URL: `${GBP_STUB_BASE_URL}/oauth/revoke`,
-} as const
-
 // ── Scripted data shapes (mirror the adapters' expectations) ──────────
 
 export type StubReviewer = Readonly<{ displayName?: string; profilePhotoUrl?: string }>

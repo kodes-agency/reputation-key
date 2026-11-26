@@ -91,7 +91,10 @@ const makeDeps = (current: Reply) => {
     queue: { addPublishJob: vi.fn(async () => {}) },
     googleReplyObservationStore: { findCurrentHead: vi.fn(async () => null) },
     propertyPublicationScope: {
-      getPublicationScope: vi.fn(async () => ({ lifecycle: 'active', sourceEpoch: 0 })),
+      getPublicationScope: vi.fn(async () => ({
+        lifecycleState: 'active',
+        sourceEpoch: 0,
+      })),
     },
     commandStore: {
       submitReply: (saved: Reply, updates: ConditionalReplyUpdate, event: DomainEvent) =>

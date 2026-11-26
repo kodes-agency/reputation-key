@@ -14,7 +14,7 @@
 // timeoutMs is enforced by the gated dispatch closure (delayed-execution-gate)
 // via jobTimeoutMs, not by Redis.
 
-import type { JobsOptions, Queue } from 'bullmq'
+import type { JobsOptions } from 'bullmq'
 import { EVENT_TYPES } from '#/shared/events/registry.server'
 import { JOB_DEFINITIONS, type JobDefinition } from './job-definitions'
 
@@ -127,18 +127,4 @@ export function jobRetryDelayUpperBoundMs(
     throw new Error(`retry delay for '${jobName}' exceeds the safe integer range`)
   }
   return delay
-}
-
-/**
- * Wrap a queue so `add` merges the catalogue policy into every enqueue;
- * explicit call-site opts win. Non-mutating (the original queue is the
- * prototype, only `add` is shadowed) — used at the handler-registration seam
- * so the activity/notification insert handlers inherit the policy without
- * editing every per-tag handler file.
- */
-export function withCatalogueJobOptions(queue: Queue): Queue {
-  const wrapped = Object.create(queue) as Queue
-  wrapped.add = ((name: string, data: unknown, opts?: JobsOptions) =>
-    queue.add(name, data, { ...jobEnqueueOptions(name), ...opts })) as Queue['add']
-  return wrapped
 }

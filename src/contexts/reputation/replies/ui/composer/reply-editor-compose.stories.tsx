@@ -91,7 +91,6 @@ const onGenerateShortTemplate = fn(async () =>
   localTemplateSuggestion('language_undetermined'),
 )
 const noLibraryTemplates = (): ReplyTemplateListResult => ({
-  profile: null,
   groups: [],
   recommendedTemplateId: null,
   recommendedReason: null,
@@ -109,20 +108,13 @@ const LIBRARY_TEMPLATE_ID = '73000000-0000-4000-8000-000000000001'
 const LIBRARY_REPLY =
   'Dear {guest_name},\n\nThank you for sharing your experience.\n\nWarm regards,\nHotel Team'
 const onListLibraryTemplates = fn(async (): Promise<ReplyTemplateListResult> => ({
-  profile: null,
   groups: [
     {
       languageGroup: 'en-Latn',
       templates: [
         {
           id: LIBRARY_TEMPLATE_ID,
-          ref: LIBRARY_TEMPLATE_ID,
-          layer: 'property',
           title: 'Guest appreciation',
-          aspect: null,
-          openLabel: null,
-          languageTag: 'en-Latn',
-          version: 3,
         },
       ],
     },
@@ -1436,20 +1428,13 @@ const onGenerateDetectsTurkish = fn(
   }),
 )
 const bulgarianLibrary = (): ReplyTemplateListResult => ({
-  profile: null,
   groups: [
     {
       languageGroup: 'bg-Cyrl',
       templates: [
         {
           id: BULGARIAN_LIBRARY_ID,
-          ref: BULGARIAN_LIBRARY_ID,
-          layer: 'property',
           title: BULGARIAN_LIBRARY_TITLE,
-          aspect: null,
-          openLabel: null,
-          languageTag: 'bg-Cyrl',
-          version: 1,
         },
       ],
     },
@@ -1682,7 +1667,6 @@ export const TemplateSwitchBackWhileLoadingKeepsTheComposerLive: Story = {
       page().findByRole('menuitem', { name: BULGARIAN_LIBRARY_TITLE }),
     ).resolves.toBeVisible()
     resolveEnglish({
-      profile: null,
       groups: [],
       recommendedTemplateId: null,
       recommendedReason: null,

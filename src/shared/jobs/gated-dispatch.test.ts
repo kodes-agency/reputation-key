@@ -3,7 +3,7 @@
 // createGatedJobHandler produces the single worker dispatch closure shared by
 // the default/background BullMQ workers. It classifies schedule firings,
 // authorizes through gateJob, and converts the outcome into runtime behavior:
-// allow → invoke, deny → typed denial result (no side effect, no
+// allowed → invoke, denied → typed denial result (no side effect, no
 // retry, never counted as a success).
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -92,7 +92,7 @@ describe('createGatedJobHandler', () => {
     })
   })
 
-  it('skips the handler and resolves a typed denial on a denial', async () => {
+  it('skips the handler and resolves a typed denial on a terminal deny', async () => {
     decideMock.mockResolvedValue(decision({ reason: 'org_suspended' }))
     initDelayedExecutionPolicy({ decide: decideMock })
     const registry = createJobRegistry()

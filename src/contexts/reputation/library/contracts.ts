@@ -395,17 +395,10 @@ export type ReplyDraftCheckDto = Readonly<{
 
 export type ReplyTemplateListItemDto = Readonly<{
   id: ReplyLibraryRef
-  ref: ReplyLibraryRef
   title: string
-  aspect: null
-  openLabel: string | null
-  languageTag: string
-  version: number
-  layer: 'builtin' | 'account' | 'property'
 }>
 
 export type ReplyTemplateListResultDto = Readonly<{
-  profile: null
   groups: readonly Readonly<{
     languageGroup: ReplyTemplateLanguageGroup
     templates: readonly ReplyTemplateListItemDto[]

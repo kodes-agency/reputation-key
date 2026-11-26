@@ -288,11 +288,9 @@ describe('reading one response by its signed session', () => {
       integrityRevision: 1,
       integrityAssessedAt: expect.any(Date),
       rating: 5,
-      category: null,
       text: 'Helpful staff',
       responseConsent: true,
       textConsent: true,
-      mediaConsent: false,
       privateFeedbackThreshold: 3,
       experienceSnapshot: {
         portalPublicationState: 'published',
@@ -317,7 +315,6 @@ describe('reading one response by its signed session', () => {
       moderatedAt: null,
       deletedAt: null,
       retentionDeadline: expect.any(Date),
-      schemaVersion: 1,
     })
   })
 

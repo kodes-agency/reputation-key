@@ -13,8 +13,9 @@
 // handlers never re-check capabilities themselves — direct in-handler checks
 // were removed in BQC-3.2 (see architecture/delayed-policy-delegation.test).
 //
-// Outcome mapping (phase BQC-3 §3.2 typed runtime outcomes):
-//   decision.allowed             → invoke the work
+// Outcome (phase BQC-3 §3.2 typed runtime outcomes): the gate returns the
+// policy decision itself.
+//   allowed                      → invoke the work
 //   every deny                   → terminal state, no side effect, no retry.
 //                                  The worker dispatch resolves a
 //                                  GateDeniedResult so the runtime
@@ -39,7 +40,7 @@ import { UnknownJobError } from './errors'
 import type { GateDeniedExecutionKind, GateDeniedResult } from './gate-denial'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
-import type { WorkItems } from './work-items.server'
+import type { WorkItems } from '#/shared/db/work-items.server'
 import { executionKindOf } from './schedule-firing'
 import { runJobWithDeadline } from './job-deadline.server'
 import { withTenantScope, type TenantScopeEntry } from '#/shared/db/tenant-scope.server'

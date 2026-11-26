@@ -31,7 +31,7 @@ import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/shared/testing/google-provider-id
 import { createReviewDiscoveryRepository } from './review-discovery-repository.server'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createReviewRefreshRunRepository } from './review-refresh-run-repository.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 import { createRefreshExpiringReviewsHandler } from './refresh-expiring-reviews-job.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 

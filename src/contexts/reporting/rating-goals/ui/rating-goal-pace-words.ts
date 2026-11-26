@@ -36,21 +36,11 @@ export function paceText(tenthsPerWeek: number, unit: 'day' | 'month' = 'day'): 
 export const weeklyTarget = (tenthsPerWeek: number): number =>
   Math.max(1, Math.floor((2 * tenthsPerWeek + TENTHS) / (2 * TENTHS)))
 
-/** "10.5 a week": the pace a week with its decimal. */
-export const perWeekText = (tenthsPerWeek: number): string => weekWords(tenthsPerWeek)
-
 /** "2 a day · about 14 a week"; under one a day "3 a week · about 13 a month". */
 export function paceSentence(tenthsPerWeek: number): string {
   return readsPerDay(tenthsPerWeek)
     ? `${paceText(tenthsPerWeek)} · about ${formatNumber(weeklyTarget(tenthsPerWeek))} a week`
     : `${paceText(tenthsPerWeek)} · about ${monthText(tenthsPerWeek)}`
-}
-
-/** The note under a plan's pace: "About 14 a week · 60 a month", or the month alone under one a day. */
-export function planPaceNote(tenthsPerWeek: number): string {
-  return readsPerDay(tenthsPerWeek)
-    ? `About ${formatNumber(weeklyTarget(tenthsPerWeek))} a week · ${monthText(tenthsPerWeek)}`
-    : `About ${monthText(tenthsPerWeek)}`
 }
 
 /** "about 2 new reviews a day", "about 3 new reviews a week": a new goal's aim. */

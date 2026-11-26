@@ -9,7 +9,6 @@ export type AiSuggestedDraftStoreInput = Readonly<{
   actorUserId: UserId
   text: string
   provenanceToken: string
-  now: Date
 }>
 export type AiSuggestedDraftBindingInput = Readonly<{
   organizationId: OrganizationId

@@ -78,19 +78,9 @@ export function makeResources(
     propertyId: 'prop-1',
     // Live version 5, with saved changes waiting to go live.
     publicationHistory: {
-      current: {
-        activationSequence: 5,
-        version: 5,
-        kind: 'publish' as const,
-        activatedBy: { userId: 'u-1', displayName: 'Georgi Petrov' },
-        activatedAt: '2026-09-20T10:00:00.000Z',
-        deactivatedAt: null,
-        deactivationReason: null,
-      },
-      priorActivations: [],
+      liveVersion: 5,
+      pendingChangeCount: 0,
       hasPendingChanges: true,
-      pendingChanges: [],
-      nextCursor: null,
     },
     googleReviewDestination: {
       state: 'verified' as const,

@@ -9,7 +9,6 @@ import {
   SECTION_NAV_ROW_HEIGHT,
   sectionNavClasses,
   type SectionNavFrame,
-  type SectionNavPresentation,
 } from './section-nav-styles'
 import type { SectionNavItem } from './section-nav-types'
 import { stripFadeStyle } from './strip-scroll'
@@ -23,7 +22,8 @@ import { useStripOverflow } from './use-strip-overflow'
 // - Items carry an optional icon, summary line, trailing count and group; a group
 //   is a run of neighbours under a heading.
 // - A strip (one scrolling row; the side that continues fades, the open item
-//   scrolls into view) or a list, or `auto` (see `SectionNavLayout`).
+//   scrolls into view) that becomes a list by container width (see
+//   `SectionNavLayout`).
 // - The current row's fill is drawn from the `aria-current` that `NavLink` sets, so
 //   what is drawn and what is announced are one answer.
 
@@ -32,7 +32,6 @@ type Props = Readonly<{
   items: ReadonlyArray<SectionNavItem>
   /** The key of the item that is the page the person is on; null when none is. */
   current: string | null
-  presentation?: SectionNavPresentation
   /** Print each group's heading in a list. Default on. */
   groupHeadings?: boolean
   /** A note under a list, left out of a strip. */
@@ -45,12 +44,10 @@ function Row({
   item,
   current,
   frame,
-  presentation,
 }: Readonly<{
   item: SectionNavItem
   current: boolean
   frame: SectionNavFrame
-  presentation: SectionNavPresentation
 }>) {
   const Icon = item.icon
   return (
@@ -69,7 +66,7 @@ function Row({
         {item.summary ? (
           <span
             data-slot="section-nav-summary"
-            className={sectionNavClasses(frame, 'summary', presentation)}
+            className={sectionNavClasses(frame, 'summary')}
           >
             {item.summary}
           </span>
@@ -78,7 +75,7 @@ function Row({
       {item.marker ? (
         <span
           data-slot="section-nav-marker"
-          className={sectionNavClasses(frame, 'marker', presentation)}
+          className={sectionNavClasses(frame, 'marker')}
         >
           {item.marker}
         </span>
@@ -93,13 +90,11 @@ function Group({
   showHeading,
   current,
   frame,
-  presentation,
 }: Readonly<{
   group: SectionNavGroup
   showHeading: boolean
   current: string | null
   frame: SectionNavFrame
-  presentation: SectionNavPresentation
 }>) {
   const headingId = useId()
   const heading = showHeading ? group.heading : null
@@ -109,23 +104,18 @@ function Group({
         <p
           id={headingId}
           data-slot="section-nav-heading"
-          className={sectionNavClasses(frame, 'heading', presentation)}
+          className={sectionNavClasses(frame, 'heading')}
         >
           {heading}
         </p>
       ) : null}
       <ul
         {...(heading ? { 'aria-labelledby': headingId } : {})}
-        className={sectionNavClasses(frame, 'list', presentation)}
+        className={sectionNavClasses(frame, 'list')}
       >
         {group.items.map((item) => (
           <li key={item.key} className="shrink-0">
-            <Row
-              item={item}
-              current={item.key === current}
-              frame={frame}
-              presentation={presentation}
-            />
+            <Row item={item} current={item.key === current} frame={frame} />
           </li>
         ))}
       </ul>
@@ -137,7 +127,6 @@ export function SectionNav({
   'aria-label': ariaLabel,
   items,
   current,
-  presentation = 'auto',
   groupHeadings = true,
   footer,
   frame: frameProp,
@@ -157,14 +146,13 @@ export function SectionNav({
     <nav
       aria-label={ariaLabel}
       data-slot="section-nav"
-      data-presentation={presentation}
-      className={sectionNavClasses(frame, 'nav', presentation)}
+      className={sectionNavClasses(frame, 'nav')}
     >
       <div
         ref={scrollerRef}
         data-slot="section-nav-scroller"
         style={stripFadeStyle(edges)}
-        className={sectionNavClasses(frame, 'scroller', presentation)}
+        className={sectionNavClasses(frame, 'scroller')}
       >
         {groupSectionNavItems(items).map((group) => (
           <Group
@@ -173,11 +161,10 @@ export function SectionNav({
             showHeading={groupHeadings}
             current={current}
             frame={frame}
-            presentation={presentation}
           />
         ))}
         {footer ? (
-          <div className={sectionNavClasses(frame, 'footer', presentation)}>{footer}</div>
+          <div className={sectionNavClasses(frame, 'footer')}>{footer}</div>
         ) : null}
       </div>
     </nav>
