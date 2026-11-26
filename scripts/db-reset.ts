@@ -17,14 +17,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config as loadEnv } from 'dotenv'
 import { Client } from 'pg'
+import { isLocalhostAlias } from '../src/shared/testing/configured-database-fence'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const LOCAL_HOSTS: Record<string, true> = {
-  localhost: true,
-  '127.0.0.1': true,
-  '::1': true,
-  '': true,
-}
 
 function maintenanceUrl(url: URL): string {
   const maintenance = new URL(url.toString())
@@ -33,8 +28,7 @@ function maintenanceUrl(url: URL): string {
 }
 
 function assertLocalTarget(url: URL): void {
-  if (LOCAL_HOSTS[url.hostname] === true || process.env.ALLOW_REMOTE_TEST_DB === '1')
-    return
+  if (isLocalhostAlias(url.hostname) || process.env.ALLOW_REMOTE_TEST_DB === '1') return
   throw new Error(
     `refusing to drop a non-local database (host ${url.hostname}). ` +
       'Set ALLOW_REMOTE_TEST_DB=1 only if you mean to destroy it.',
