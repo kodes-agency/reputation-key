@@ -6,7 +6,6 @@
 // and the receipt fence run on the server, so those methods refuse here.
 import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
-import { timestampFieldsForStatus } from '#/contexts/reputation/domain/inbox-rules'
 import type {
   InboxItem,
   InboxNote,
@@ -253,7 +252,7 @@ export function createStoryOnlyInboxCommandStore(deps: {
           item.organizationId,
           {
             status: event.newStatus,
-            ...timestampFieldsForStatus(event.newStatus, event.occurredAt),
+            closedAt: event.newStatus === 'closed' ? event.occurredAt : null,
           },
           event.occurredAt,
         )
