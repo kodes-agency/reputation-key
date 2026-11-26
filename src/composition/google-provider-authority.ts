@@ -258,20 +258,19 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   if (env.NODE_ENV === 'production' && !redis) {
     throw new Error('Production Google credential refresh coordination requires Redis')
   }
-  const googleRefreshCoordination =
-    redis && googleOpaqueReferenceKeys
-      ? createRedisGoogleRefreshCoordination({
-          redis,
-          connectionKeys: googleOpaqueReferenceKeys,
-          nowMs: () => clock().getTime(),
-          sleep: (durationMs) =>
-            new Promise<void>((resolve) => {
-              setTimeout(resolve, durationMs)
-            }),
-          ownerId: randomUUID,
-          jitterSample: () => randomBytes(4).readUInt32BE(0),
-        })
-      : undefined
+  const googleRefreshCoordination = redis
+    ? createRedisGoogleRefreshCoordination({
+        redis,
+        connectionKeys: googleOpaqueReferenceKeys,
+        nowMs: () => clock().getTime(),
+        sleep: (durationMs) =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, durationMs)
+          }),
+        ownerId: randomUUID,
+        jitterSample: () => randomBytes(4).readUInt32BE(0),
+      })
+    : undefined
 
   const googleContentControlStore = createGoogleContentAuthorityRepository(db)
   const googleContentAuthorizationCheck = createGoogleContentAuthorizationCheck({
@@ -288,125 +287,107 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     nowMs: performance.now.bind(performance),
     logger,
   })
-  const defaultProviderAuthorizationLeases =
-    providerEphemeralStore && googleOpaqueReferenceKeys
-      ? createProviderAuthorizationLeaseService({
-          store: providerEphemeralStore,
-          handleKeys: googleOpaqueReferenceKeys,
-          randomNonce: () => randomBytes(32).toString('base64url'),
-          ensureRuntimeReady: ensureProviderEphemeralReady,
-          revalidate: async (record) => {
-            try {
-              const result = await checkLiveGoogleAuthorization(
-                googleContentControlStore,
-                googleContentAuthorizationCheck,
-                {
-                  capability: record.capability,
-                  scope: {
-                    organizationId: record.organizationId,
-                    propertyId: record.propertyId,
-                    connectionId: record.connectionId,
-                    initiatorUserId: record.initiatorUserId,
-                  },
-                  operationKey: `${record.audience}.lease_renewal`,
-                },
-              )
-              if (!result.ok) {
-                return { allowed: false, authorizationFenceSha256: null }
-              }
-              const lifecycleVersion =
-                result.authorizationVector.connectionLifecycleVersion
-              const accessVersion = result.authorizationVector.connectionAccessVersion
-              const credentialGeneration = result.authorizationVector.credentialGeneration
-              if (
-                !Number.isSafeInteger(lifecycleVersion) ||
-                !Number.isSafeInteger(accessVersion) ||
-                !Number.isSafeInteger(credentialGeneration)
-              ) {
-                return { allowed: false, authorizationFenceSha256: null }
-              }
-              return {
-                allowed: true,
-                authorizationFenceSha256: providerAuthorizationFenceSha256({
-                  connectionLifecycleVersion: lifecycleVersion as number,
-                  connectionAccessVersion: accessVersion as number,
-                  authorizationVector: result.authorizationVector,
-                }),
-              }
-            } catch {
-              return { allowed: false, authorizationFenceSha256: null }
-            }
+  const providerAuthorizationLeases = createProviderAuthorizationLeaseService({
+    store: providerEphemeralStore,
+    handleKeys: googleOpaqueReferenceKeys,
+    randomNonce: () => randomBytes(32).toString('base64url'),
+    ensureRuntimeReady: ensureProviderEphemeralReady,
+    revalidate: async (record) => {
+      try {
+        const result = await checkLiveGoogleAuthorization(
+          googleContentControlStore,
+          googleContentAuthorizationCheck,
+          {
+            capability: record.capability,
+            scope: {
+              organizationId: record.organizationId,
+              propertyId: record.propertyId,
+              connectionId: record.connectionId,
+              initiatorUserId: record.initiatorUserId,
+            },
+            operationKey: `${record.audience}.lease_renewal`,
           },
-        })
-      : undefined
-  const providerAuthorizationLeases =
-    options?.providers?.providerAuthorizationLeases ?? defaultProviderAuthorizationLeases
-  const googleImportReferences =
-    options?.providers?.googleImportReferences ??
-    (googleOpaqueReferenceKeys && providerAuthorizationLeases
-      ? createDurableGoogleImportReferenceStore({
-          db,
-          leasePrincipalKeys: googleOpaqueReferenceKeys,
-          leases: providerAuthorizationLeases,
-          clock,
-        })
-      : undefined)
-  const googlePerformancePrincipalKeys =
-    options?.providers?.googlePerformancePrincipalKeys ?? googleOpaqueReferenceKeys
+        )
+        if (!result.ok) {
+          return { allowed: false, authorizationFenceSha256: null }
+        }
+        const lifecycleVersion = result.authorizationVector.connectionLifecycleVersion
+        const accessVersion = result.authorizationVector.connectionAccessVersion
+        const credentialGeneration = result.authorizationVector.credentialGeneration
+        if (
+          !Number.isSafeInteger(lifecycleVersion) ||
+          !Number.isSafeInteger(accessVersion) ||
+          !Number.isSafeInteger(credentialGeneration)
+        ) {
+          return { allowed: false, authorizationFenceSha256: null }
+        }
+        return {
+          allowed: true,
+          authorizationFenceSha256: providerAuthorizationFenceSha256({
+            connectionLifecycleVersion: lifecycleVersion as number,
+            connectionAccessVersion: accessVersion as number,
+            authorizationVector: result.authorizationVector,
+          }),
+        }
+      } catch {
+        return { allowed: false, authorizationFenceSha256: null }
+      }
+    },
+  })
+  const googleImportReferences = createDurableGoogleImportReferenceStore({
+    db,
+    leasePrincipalKeys: googleOpaqueReferenceKeys,
+    leases: providerAuthorizationLeases,
+    clock,
+  })
+  const googlePerformancePrincipalKeys = googleOpaqueReferenceKeys
 
   const authorizeContent = createGoogleContentAuthorizer({
     store: googleContentControlStore,
     authorize: googleContentAuthorizationCheck,
     warn: (fields, message) => logger.warn(fields, message),
   })
-  const authorizeGoogleImportContent: GoogleImportContentAuthorizer =
-    options?.providers?.authorizeGoogleImportContent ??
-    (async (input) => {
-      try {
-        return await authorizeContent('import', {
-          capability: 'property.import_gbp_v2',
-          scope: {
-            organizationId: input.actor.organizationId,
-            propertyId: null,
-            connectionId: input.connectionId,
-            initiatorUserId: input.actor.userId,
-          },
-          operationKey: `import.${input.phase}`,
-        })
-      } catch (err) {
-        logger.warn({ err }, 'Google Content authorization failed')
-        throw err
-      }
-    })
-  const authorizeGooglePerformanceContent: PerformanceContentAuthorizer =
-    options?.providers?.authorizeGooglePerformanceContent ??
-    ((input) =>
-      authorizeContent('performance', {
-        capability: 'property.read_gbp_performance',
+  const authorizeGoogleImportContent: GoogleImportContentAuthorizer = async (input) => {
+    try {
+      return await authorizeContent('import', {
+        capability: 'property.import_gbp_v2',
         scope: {
           organizationId: input.actor.organizationId,
-          propertyId: input.propertyId,
+          propertyId: null,
           connectionId: input.connectionId,
           initiatorUserId: input.actor.userId,
         },
-        operationKey: `performance.${input.phase}`,
-      }))
-  const authorizeGoogleReviewSyncContent: GoogleReviewSyncContentAuthorizer =
-    options?.providers?.authorizeGoogleReviewSyncContent ??
-    ((input) =>
-      authorizeContent('review-sync', {
-        capability: 'property.connect_gbp',
-        scope: {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-          initiatorUserId: null,
-        },
-        operationKey: input.operationKey,
-      }))
+        operationKey: `import.${input.phase}`,
+      })
+    } catch (err) {
+      logger.warn({ err }, 'Google Content authorization failed')
+      throw err
+    }
+  }
+  const authorizeGooglePerformanceContent: PerformanceContentAuthorizer = (input) =>
+    authorizeContent('performance', {
+      capability: 'property.read_gbp_performance',
+      scope: {
+        organizationId: input.actor.organizationId,
+        propertyId: input.propertyId,
+        connectionId: input.connectionId,
+        initiatorUserId: input.actor.userId,
+      },
+      operationKey: `performance.${input.phase}`,
+    })
+  const authorizeGoogleReviewSyncContent: GoogleReviewSyncContentAuthorizer = (input) =>
+    authorizeContent('review-sync', {
+      capability: 'property.connect_gbp',
+      scope: {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        connectionId: input.connectionId,
+        initiatorUserId: null,
+      },
+      operationKey: input.operationKey,
+    })
   const authorizeGoogleReplyPublicationContent: GoogleReplyPublicationContentAuthorizer =
-    options?.providers?.authorizeGoogleReplyPublicationContent ??
-    ((input) =>
+    (input) =>
       authorizeContent('reply-publication', {
         capability: 'property.publish_reply',
         scope: {
@@ -424,70 +405,70 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           },
         },
         operationKey: input.operationKey,
-      }))
-  const authorizeGoogleOAuthProviderCall: GoogleOAuthProviderCallAuthorizer =
-    options?.providers?.authorizeGoogleOAuthProviderCall ??
-    (async (input) => {
-      if (input.disconnectRevoke && input.operation !== 'oauth.revoke') {
-        throw new Error('Google OAuth cleanup authority is inconsistent')
-      }
-      // Every denial is logged with the deciding code before the content-free
-      // error reaches the OAuth callback, where authorization internals must
-      // remain flattened to `connection_failed`.
-      const result = await checkLiveGoogleAuthorization(
-        googleContentControlStore,
-        googleContentAuthorizationCheck,
-        {
-          capability: 'property.import_gbp_v2',
-          scope: {
-            organizationId: input.organizationId,
-            propertyId: null,
-            connectionId: input.connectionId,
-            initiatorUserId: input.initiatorUserId,
-          },
-          operationKey: input.operation,
-        },
-      )
-      const credentialGeneration = result.ok
-        ? result.authorizationVector.credentialGeneration
-        : null
-      if (
-        !result.ok ||
-        typeof credentialGeneration !== 'number' ||
-        !Number.isSafeInteger(credentialGeneration) ||
-        credentialGeneration < 0
-      ) {
-        logger.warn(
-          {
-            stage: 'google-oauth-authorize',
-            // A denial reports the authorization check's own code; an ok
-            // result that got this far failed the credential-generation
-            // invariant instead, and saying which keeps the two apart in the log.
-            code: result.ok ? 'credential_generation_invalid' : result.code,
-            operation: input.operation,
-          },
-          'Google OAuth authorization denied',
-        )
-        throw new Error('Google OAuth provider authorization is unavailable')
-      }
-      return Object.freeze({
-        capability: 'property.import_gbp_v2' as const,
-        organizationId: organizationId(input.organizationId),
-        propertyId: null,
-        connectionId: googleConnectionId(input.connectionId),
-        initiatorUserId: input.initiatorUserId,
-        expectedCredentialGeneration: credentialGeneration,
-        authorizationVector: result.authorizationVector,
-        ...(input.disconnectRevoke
-          ? {
-              disconnectRevoke: Object.freeze({
-                attemptId: input.disconnectRevoke.attemptId,
-                cleanupDeadlineAtMs: input.disconnectRevoke.cleanupDeadlineAt.getTime(),
-              }),
-            }
-          : {}),
       })
+  const authorizeGoogleOAuthProviderCall: GoogleOAuthProviderCallAuthorizer = async (
+    input,
+  ) => {
+    if (input.disconnectRevoke && input.operation !== 'oauth.revoke') {
+      throw new Error('Google OAuth cleanup authority is inconsistent')
+    }
+    // Every denial is logged with the deciding code before the content-free
+    // error reaches the OAuth callback, where authorization internals must
+    // remain flattened to `connection_failed`.
+    const result = await checkLiveGoogleAuthorization(
+      googleContentControlStore,
+      googleContentAuthorizationCheck,
+      {
+        capability: 'property.import_gbp_v2',
+        scope: {
+          organizationId: input.organizationId,
+          propertyId: null,
+          connectionId: input.connectionId,
+          initiatorUserId: input.initiatorUserId,
+        },
+        operationKey: input.operation,
+      },
+    )
+    const credentialGeneration = result.ok
+      ? result.authorizationVector.credentialGeneration
+      : null
+    if (
+      !result.ok ||
+      typeof credentialGeneration !== 'number' ||
+      !Number.isSafeInteger(credentialGeneration) ||
+      credentialGeneration < 0
+    ) {
+      logger.warn(
+        {
+          stage: 'google-oauth-authorize',
+          // A denial reports the authorization check's own code; an ok
+          // result that got this far failed the credential-generation
+          // invariant instead, and saying which keeps the two apart in the log.
+          code: result.ok ? 'credential_generation_invalid' : result.code,
+          operation: input.operation,
+        },
+        'Google OAuth authorization denied',
+      )
+      throw new Error('Google OAuth provider authorization is unavailable')
+    }
+    return Object.freeze({
+      capability: 'property.import_gbp_v2' as const,
+      organizationId: organizationId(input.organizationId),
+      propertyId: null,
+      connectionId: googleConnectionId(input.connectionId),
+      initiatorUserId: input.initiatorUserId,
+      expectedCredentialGeneration: credentialGeneration,
+      authorizationVector: result.authorizationVector,
+      ...(input.disconnectRevoke
+        ? {
+            disconnectRevoke: Object.freeze({
+              attemptId: input.disconnectRevoke.attemptId,
+              cleanupDeadlineAtMs: input.disconnectRevoke.cleanupDeadlineAt.getTime(),
+            }),
+          }
+        : {}),
     })
+  }
 
   const googleDisconnectRevokeStore = createGoogleDisconnectRevokeRepository(db)
 

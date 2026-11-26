@@ -68,7 +68,6 @@ export type OperationalReadoutInput = Readonly<{
   }>
   overrides?: Readonly<{
     opsBackgroundQueue?: Queue
-    opsDomainEventsQueue?: Queue
     opsQuarantineQueue?: Queue
   }>
 }>
@@ -88,7 +87,7 @@ function openOperationsQueues(input: OperationalReadoutInput) {
       options?.opsBackgroundQueue ??
       infra.backgroundQueue ??
       (redis ? createJobQueue('background') : undefined),
-    domainEvents: options?.opsDomainEventsQueue ?? infra.domainEventsQueue,
+    domainEvents: infra.domainEventsQueue,
     quarantine:
       options?.opsQuarantineQueue ??
       (redis ? createJobQueue(QUARANTINE_QUEUE_NAME) : undefined),

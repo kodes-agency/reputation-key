@@ -99,7 +99,6 @@ export function wireIntegration(
     googleImportReferences,
     providerEphemeralStore,
     googleOpaqueReferenceKeys,
-    googleReviewCursorStore: options?.providers?.googleReviewCursorStore,
     oauthStateHandles,
     oauthCallbackAbuseGate,
     googleRefreshCoordination,
