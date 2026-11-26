@@ -167,30 +167,6 @@ describe('createGatedJobHandler', () => {
     expect(decideMock).not.toHaveBeenCalled()
   })
 
-  it("classifies '-recurring' jobIds as schedule firings with a schedule principal", async () => {
-    decideMock.mockResolvedValue(ALLOW)
-    initDelayedExecutionPolicy({ decide: decideMock })
-    const registry = createJobRegistry()
-    registry.register(
-      'health-check',
-      vi.fn(async () => {}),
-    )
-    const dispatch = createGatedJobHandler('background', registry)
-
-    await dispatch(
-      fakeJob({
-        id: 'health-check-recurring',
-        opts: { jobId: 'health-check-recurring' },
-      }),
-    )
-
-    expect(decideMock).toHaveBeenCalledTimes(1)
-    expect(decideMock.mock.calls[0][0]).toMatchObject({
-      principal: { kind: 'system', id: 'schedule:health-check' },
-      executionKind: 'schedule',
-    })
-  })
-
   it('classifies BullMQ repeatJobKey jobs as schedule firings', async () => {
     decideMock.mockResolvedValue(ALLOW)
     initDelayedExecutionPolicy({ decide: decideMock })

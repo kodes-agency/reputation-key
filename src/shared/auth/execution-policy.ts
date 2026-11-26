@@ -16,10 +16,9 @@
 //      ACTIVE GRANT — missing grant data is deny, never org-wide allow)
 //   5. purpose/consent (when the request declares a purpose)
 //
-// Delayed/system principals (worker/consumer/schedule) deny as
-// `unsupported_principal` here — the BQC-2.5 contract defines their
-// normalized identity and BQC-3 integrates it (system-execution-policy.ts).
-// Public principals get the global capability check only.
+// Delayed executions (worker/consumer/schedule) are not decided here: their
+// normalized identity lives in system-execution-policy.ts. Public principals
+// get the global capability check only.
 //
 // BQC-7.5: operator principals (scripts/ops/* commands) are SUPPORTED with
 // their own branch — the named-operator identity requirement comes FIRST
@@ -55,12 +54,10 @@ import { throwContextError } from './server-errors'
 /** Bump when decision semantics change. */
 export const EXECUTION_POLICY_VERSION = 'beta-local-2'
 
-export type ExecutionKind =
-  'interactive' | 'worker' | 'consumer' | 'schedule' | 'operator' | 'public'
+export type ExecutionKind = 'interactive' | 'operator' | 'public'
 
 export type Principal =
   | Readonly<{ kind: 'user'; ctx: AuthContext }>
-  | Readonly<{ kind: 'system'; id: string }>
   | Readonly<{ kind: 'operator'; id: string }>
   | Readonly<{ kind: 'public'; id?: string }>
 
@@ -426,10 +423,6 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
         // BQC-7.5: operator commands (named operator + explicit scope).
         case 'operator':
           return decideOperator(request, request.principal.id)
-        // BQC-2.5 defines the normalized system identity (the delayed
-        // contract in system-execution-policy.ts); here it stays fail-closed.
-        case 'system':
-          return finish(request, false, 'unsupported_principal')
       }
     },
   }
