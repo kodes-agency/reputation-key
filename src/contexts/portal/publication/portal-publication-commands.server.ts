@@ -140,26 +140,71 @@ export async function assertSnapshotMatchesCommittedWorkingCopy(
   }
 }
 
-/** The snapshot and its activation belong to this Portal and to each other. */
+/**
+ * Under the Portal row lock: the snapshot must say what the committed working
+ * rows say, the live activation (`expectedClosed` of them) is replaced by the
+ * new one, and the pending changes the snapshot covers are resolved.
+ */
+export async function writeActivatedSnapshot(
+  tx: Tx,
+  command: PublicationScope & Readonly<{ occurredAt: Date }>,
+  publication: Readonly<{
+    snapshot: PortalPublicationSnapshot
+    activation: PortalPublicationActivation
+  }>,
+  expectation: Readonly<{ expectedClosed: 0 | 1; conflictMessage: string }>,
+): Promise<void> {
+  const { snapshot, activation } = publication
+  await assertSnapshotMatchesCommittedWorkingCopy(tx, command, snapshot)
+  const closed = await closeActivePublication(tx, command, 'replaced')
+  if (closed !== expectation.expectedClosed) {
+    throw portalError('revision_conflict', expectation.conflictMessage)
+  }
+  await tx.insert(portalPublicationSnapshots).values(snapshotToRow(snapshot))
+  await tx.insert(portalPublicationActivations).values(activationToRow(activation))
+  await resolvePortalPendingContentChanges(tx, {
+    organizationId: unbrand(command.organizationId),
+    propertyId: unbrand(command.propertyId),
+    portalId: unbrand(command.portalId),
+    snapshotId: snapshot.id,
+    resolvedAt: command.occurredAt,
+  })
+}
+
+/**
+ * The snapshot and its activation belong to this Portal and to each other, and
+ * both were made at the command's time. A go-live and a republish each add
+ * their own conditions on top.
+ */
+export function activationMatchesSnapshotScope(
+  command: PublicationScope & Readonly<{ occurredAt: Date }>,
+  snapshot: PortalPublicationSnapshot,
+  activation: PortalPublicationActivation,
+): boolean {
+  return (
+    snapshot.organizationId === unbrand(command.organizationId) &&
+    snapshot.propertyId === unbrand(command.propertyId) &&
+    snapshot.portalId === unbrand(command.portalId) &&
+    activation.organizationId === snapshot.organizationId &&
+    activation.propertyId === snapshot.propertyId &&
+    activation.portalId === snapshot.portalId &&
+    activation.snapshotId === snapshot.id &&
+    activation.deactivatedAt === null &&
+    activation.deactivationReason === null &&
+    activation.activatedBy === snapshot.createdBy &&
+    verifyPortalPublicationSnapshot(snapshot) &&
+    sameInstant(snapshot.createdAt, command.occurredAt) &&
+    sameInstant(activation.activatedAt, command.occurredAt)
+  )
+}
+
+/** A republish replaces an activation, so it is never the first. */
 function assertRepublishActivation(command: RepublishPortalCommand): void {
   const { snapshot, activation } = command
   if (
-    snapshot.organizationId !== unbrand(command.organizationId) ||
-    snapshot.propertyId !== unbrand(command.propertyId) ||
-    snapshot.portalId !== unbrand(command.portalId) ||
-    activation.organizationId !== snapshot.organizationId ||
-    activation.propertyId !== snapshot.propertyId ||
-    activation.portalId !== snapshot.portalId ||
-    activation.snapshotId !== snapshot.id ||
+    !activationMatchesSnapshotScope(command, snapshot, activation) ||
     activation.kind !== 'publish' ||
-    // A republish replaces an activation, so it is never the first.
-    activation.activationSequence < 2 ||
-    activation.deactivatedAt !== null ||
-    activation.deactivationReason !== null ||
-    activation.activatedBy !== snapshot.createdBy ||
-    !verifyPortalPublicationSnapshot(snapshot) ||
-    !sameInstant(snapshot.createdAt, command.occurredAt) ||
-    !sameInstant(activation.activatedAt, command.occurredAt)
+    activation.activationSequence < 2
   ) {
     throw portalError(
       'publication_snapshot_unavailable',
@@ -227,26 +272,9 @@ export const createPortalPublicationCommands = (
         // The Portal row is locked, which holds its links, categories and link
         // texts still: their writers take the same row first. The comparison
         // reads the rows under it.
-        await assertSnapshotMatchesCommittedWorkingCopy(tx, command, command.snapshot)
-        const closed = await closeActivePublication(tx, command, 'replaced')
-        if (closed !== 1) {
-          throw portalError(
-            'revision_conflict',
-            'Republishing requires exactly one live Portal publication',
-          )
-        }
-        await tx
-          .insert(portalPublicationSnapshots)
-          .values(snapshotToRow(command.snapshot))
-        await tx
-          .insert(portalPublicationActivations)
-          .values(activationToRow(command.activation))
-        await resolvePortalPendingContentChanges(tx, {
-          organizationId: unbrand(command.organizationId),
-          propertyId: unbrand(command.propertyId),
-          portalId: unbrand(command.portalId),
-          snapshotId: command.snapshot.id,
-          resolvedAt: command.occurredAt,
+        await writeActivatedSnapshot(tx, command, command, {
+          expectedClosed: 1,
+          conflictMessage: 'Republishing requires exactly one live Portal publication',
         })
         await insertOutboxRow(tx, command.event, {
           recordedAt: command.event.occurredAt,
