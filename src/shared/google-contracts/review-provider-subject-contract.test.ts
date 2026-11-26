@@ -156,6 +156,7 @@ describe('review-provider-subject-v1', () => {
     expect(parseReviewProviderResource(fixture.resourceName)).toEqual({
       name: fixture.resourceName,
       ...fixture.expectedSegments,
+      locationName: `accounts/${fixture.expectedSegments.accountId}/locations/${fixture.expectedSegments.locationId}`,
     })
   })
 

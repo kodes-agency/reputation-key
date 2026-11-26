@@ -132,9 +132,7 @@ function mapReview(
   } catch {
     throw reviewApiError('malformed_response', false)
   }
-  if (
-    `accounts/${resource.accountId}/locations/${resource.locationId}` !== locationName
-  ) {
+  if (resource.locationName !== locationName) {
     throw reviewApiError('malformed_response', false)
   }
   const rating = STAR_RATING_MAP[raw.starRating]

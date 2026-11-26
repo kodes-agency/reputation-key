@@ -17,89 +17,82 @@ type SharedDeps = Readonly<{
   clock: () => Date
 }>
 
-export type GetPrivateFeedbackTargetAnalytics = ReturnType<
-  typeof getPrivateFeedbackTargetAnalytics
->
-export type GetPrivateFeedbackTargetAnalyticsDeps = SharedDeps
-export type GetPrivateFeedbackTargetAnalyticsInput = Readonly<{
-  propertyId?: PropertyId
-}>
+type TargetAnalyticsInput = Readonly<{ propertyId?: PropertyId }>
 
-export const getPrivateFeedbackTargetAnalytics = (
-  deps: GetPrivateFeedbackTargetAnalyticsDeps,
-) => {
-  return async (input: GetPrivateFeedbackTargetAnalyticsInput, ctx: AuthContext) => {
-    if (!canReadInboxSource(ctx, 'feedback')) {
-      throw inboxError('forbidden', 'No permission to read private-feedback targets')
+const readTargetAnalytics =
+  <Result>(
+    deps: SharedDeps,
+    sourceType: 'feedback' | 'review',
+    refusal: string,
+    read: (
+      query: Readonly<{
+        organizationId: AuthContext['organizationId']
+        propertyIds: ReadonlyArray<PropertyId> | null
+        now: Date
+      }>,
+    ) => Promise<Result>,
+  ) =>
+  async (input: TargetAnalyticsInput, ctx: AuthContext): Promise<Result> => {
+    if (!canReadInboxSource(ctx, sourceType)) {
+      throw inboxError('forbidden', refusal)
     }
     if (input.propertyId) {
       await assertInboxSourcePropertyAccessible(
         deps.staffPublicApi,
         ctx,
         'read',
-        'feedback',
+        sourceType,
         input.propertyId,
       )
     }
     const scopes = await resolveInboxSourceScopes(deps.staffPublicApi, ctx, 'read')
-    const feedbackScope = scopes.find((scope) => scope.sourceType === 'feedback')
+    const sourceScope = scopes.find((scope) => scope.sourceType === sourceType)
     const propertyIds = input.propertyId
       ? [input.propertyId]
-      : feedbackScope?.propertyIds === undefined
-        ? feedbackScope
+      : sourceScope?.propertyIds === undefined
+        ? sourceScope
           ? null
           : []
-        : feedbackScope.propertyIds
+        : sourceScope.propertyIds
 
-    return deps.targetStore.getPrivateFeedbackAnalytics({
+    return read({
       organizationId: ctx.organizationId,
       propertyIds,
       now: deps.clock(),
     })
   }
-}
+
+export type GetPrivateFeedbackTargetAnalytics = ReturnType<
+  typeof getPrivateFeedbackTargetAnalytics
+>
+export type GetPrivateFeedbackTargetAnalyticsDeps = SharedDeps
+export type GetPrivateFeedbackTargetAnalyticsInput = TargetAnalyticsInput
+
+export const getPrivateFeedbackTargetAnalytics = (
+  deps: GetPrivateFeedbackTargetAnalyticsDeps,
+) =>
+  readTargetAnalytics(
+    deps,
+    'feedback',
+    'No permission to read private-feedback targets',
+    (query) => deps.targetStore.getPrivateFeedbackAnalytics(query),
+  )
 
 export type GetGoogleReviewTargetAnalytics = ReturnType<
   typeof getGoogleReviewTargetAnalytics
 >
 export type GetGoogleReviewTargetAnalyticsDeps = SharedDeps
-export type GetGoogleReviewTargetAnalyticsInput = Readonly<{
-  propertyId?: PropertyId
-}>
+export type GetGoogleReviewTargetAnalyticsInput = TargetAnalyticsInput
 
 export const getGoogleReviewTargetAnalytics = (
   deps: GetGoogleReviewTargetAnalyticsDeps,
-) => {
-  return async (input: GetGoogleReviewTargetAnalyticsInput, ctx: AuthContext) => {
-    if (!canReadInboxSource(ctx, 'review')) {
-      throw inboxError('forbidden', 'No permission to read Google review targets')
-    }
-    if (input.propertyId) {
-      await assertInboxSourcePropertyAccessible(
-        deps.staffPublicApi,
-        ctx,
-        'read',
-        'review',
-        input.propertyId,
-      )
-    }
-    const scopes = await resolveInboxSourceScopes(deps.staffPublicApi, ctx, 'read')
-    const reviewScope = scopes.find((scope) => scope.sourceType === 'review')
-    const propertyIds = input.propertyId
-      ? [input.propertyId]
-      : reviewScope?.propertyIds === undefined
-        ? reviewScope
-          ? null
-          : []
-        : reviewScope.propertyIds
-
-    return deps.targetStore.getGoogleReviewAnalytics({
-      organizationId: ctx.organizationId,
-      propertyIds,
-      now: deps.clock(),
-    })
-  }
-}
+) =>
+  readTargetAnalytics(
+    deps,
+    'review',
+    'No permission to read Google review targets',
+    (query) => deps.targetStore.getGoogleReviewAnalytics(query),
+  )
 
 export type GetResponseTargetPolicySettings = ReturnType<
   typeof getResponseTargetPolicySettings

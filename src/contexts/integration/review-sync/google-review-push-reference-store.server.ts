@@ -53,8 +53,7 @@ function assertScope(scope: GoogleReviewPushScope): void {
 
 function assertTarget(locationName: string, reviewName: string): void {
   const resource = parseReviewProviderResource(reviewName)
-  const embeddedLocation = `accounts/${resource.accountId}/locations/${resource.locationId}`
-  if (embeddedLocation !== locationName) {
+  if (resource.locationName !== locationName) {
     throw new TypeError('Google review push resource mismatch')
   }
 }

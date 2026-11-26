@@ -369,9 +369,7 @@ const validatePage = (
   for (const review of reviews) {
     try {
       const resource = parseReviewProviderResource(review.reviewName)
-      if (
-        `accounts/${resource.accountId}/locations/${resource.locationId}` !== locationName
-      ) {
+      if (resource.locationName !== locationName) {
         return 'malformed_page'
       }
     } catch {
