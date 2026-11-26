@@ -14,12 +14,11 @@
 // are switched off.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { propertyId, type PropertyId } from '#/shared/domain/ids'
-import { canForContext } from '#/shared/domain/permissions'
+import type { PropertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import { portalError } from '../domain/errors'
-import { assertPropertyAccess } from '../publication/assert-property-access.server'
 import {
+  authorizePropertyLookWrite,
+  brandProfileMissing,
   checkedAsset,
   givenFocalPoint,
   normalisedAltTexts,
@@ -60,15 +59,6 @@ export type SavePropertyLogoInput = Readonly<{
   assetId: string | null
 }>
 
-function assertAdmin(ctx: AuthContext): void {
-  if (!canForContext(ctx, 'portal.admin')) {
-    throw portalError(
-      'forbidden',
-      'Only an Account Admin can change Property-wide Portal branding',
-    )
-  }
-}
-
 /** Each language's description with its own row id: they are inserted side by side. */
 function altTextRows(input: SavePropertyHeroInput, idGen: () => string) {
   if (input.altTexts === undefined) return undefined
@@ -86,21 +76,14 @@ async function answer(
   pid: PropertyId,
   profile: PropertyPortalBrandProfile | null,
 ) {
-  if (!profile) {
-    throw portalError(
-      'brand_profile_missing',
-      'Set the public display name before changing the look',
-    )
-  }
+  if (!profile) throw brandProfileMissing()
   const media = await resolvePropertyLookMedia(deps, ctx.organizationId, pid, profile)
   return { profile, media }
 }
 
 export const savePropertyHero =
   (deps: Deps) => async (input: SavePropertyHeroInput, ctx: AuthContext) => {
-    assertAdmin(ctx)
-    const pid = propertyId(input.propertyId)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
+    const pid = await authorizePropertyLookWrite(deps, ctx, input.propertyId)
     const altTexts = altTextRows(input, deps.idGen)
     const focal = givenFocalPoint(input)
     const assetId =
@@ -126,9 +109,7 @@ export const savePropertyHero =
 
 export const savePropertyLogo =
   (deps: Deps) => async (input: SavePropertyLogoInput, ctx: AuthContext) => {
-    assertAdmin(ctx)
-    const pid = propertyId(input.propertyId)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
+    const pid = await authorizePropertyLookWrite(deps, ctx, input.propertyId)
     const logoAssetId =
       input.assetId === null
         ? null
