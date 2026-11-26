@@ -508,8 +508,6 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       consumerName: 'inbox.response-target-source-transition-test',
       item,
       transitionedAt: OPENED_AT,
-      closeIfOpen: true,
-      closeReason: 'source_ineligible',
       closeFact: importStatusFact(item, 'open', 'closed', OPENED_AT),
     })
 

@@ -1,4 +1,4 @@
-// Durable inbox consumers for the Review lifecycle (created, expired, source
+// Durable inbox consumers for the Review lifecycle (created, source
 // transitioned, updated) apply projections via applyOnce. Duplicate deliveries
 // record receipts without second facts; missing items/reviews are applied
 // no-ops (rebuild heals).
@@ -6,7 +6,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   handleInboxReviewCreated,
-  handleInboxReviewExpired,
   handleInboxReviewSourceTransitioned,
   handleInboxReviewUpdated,
 } from './outbox-consumers.server'
@@ -131,7 +130,7 @@ describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
   })
 })
 
-describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
+describe('Review Inbox item content', () => {
   it('the database refuses provider text on a review item, so none can be restored', async () => {
     await makeDeps({})
 
@@ -142,40 +141,6 @@ describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
         [INBOX],
       ),
     ).rejects.toMatchObject({ constraint: 'inbox_items_review_source_content_free' })
-  })
-
-  it.each([
-    [
-      'scrubs legacy content but never stale-closes current work',
-      makeItem,
-      { status: 'open', closedAt: null },
-    ],
-    [
-      'already closed: scrubs restored legacy content without a false status fact',
-      () => makeItem({ status: 'closed' }),
-      { id: INBOX, status: 'closed' },
-    ],
-  ] as const)('%s', async (_title, buildItem, expected) => {
-    const { deps, repo, events, expectReceipt } = await makeDeps({ item: buildItem() })
-    const result = await handleInboxReviewExpired(deps, reviewEvent('review.expired'))
-
-    expect(result).toEqual({ status: 'applied' })
-    expect(await repo.first()).toMatchObject({
-      ...expected,
-      rating: null,
-      snippet: null,
-      reviewerName: null,
-    })
-    expect(await events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
-    await expectReceipt('inbox.on-review-expired', 'applied')
-  })
-
-  it('applies when no inbox item exists', async () => {
-    const { deps, receipts } = await makeDeps({ item: null })
-    const result = await handleInboxReviewExpired(deps, reviewEvent('review.expired'))
-
-    expect(result).toEqual({ status: 'applied' })
-    expect(await receipts()).toHaveLength(1)
   })
 })
 

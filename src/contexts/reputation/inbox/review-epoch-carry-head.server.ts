@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import type { HandlingCycleHead, InboxItem } from '../domain/inbox-types'
-import { persistedHeadFromItemRow, type PersistedHead } from './inbox-cycle-head.server'
+import { persistedHeadFromItemRow } from './inbox-cycle-head.server'
 
 /**
  * Move a Review Handling Cycle head across a Review-attested source-epoch
@@ -21,7 +21,7 @@ export async function advanceHeadAcrossSourceEpochCarry(
     head: Pick<HandlingCycleHead, 'currentCycleNumber' | 'stateRevision' | 'status'>
     carriedFrom: number
   }>,
-): Promise<PersistedHead | null> {
+): Promise<HandlingCycleHead | null> {
   const { item, head, carriedFrom } = input
   const [carried] = await tx
     .update(inboxItems)
