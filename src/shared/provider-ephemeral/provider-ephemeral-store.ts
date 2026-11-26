@@ -14,17 +14,14 @@ export function assertProviderEphemeralLocation(
   namespace: ProviderEphemeralNamespace,
   key: string,
 ): void {
-  if (
-    typeof namespace !== 'string' ||
-    !(PROVIDER_EPHEMERAL_NAMESPACES as readonly string[]).includes(namespace)
-  ) {
+  if (!(PROVIDER_EPHEMERAL_NAMESPACES as readonly string[]).includes(namespace)) {
     throw new Error('provider ephemeral namespace is malformed')
   }
   if (!SAFE_KEY.test(key)) throw new Error('provider ephemeral key is malformed')
 }
 
 export function assertProviderEphemeralValue(value: string): void {
-  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > MAX_VALUE_BYTES) {
+  if (Buffer.byteLength(value, 'utf8') > MAX_VALUE_BYTES) {
     throw new Error('provider ephemeral value is outside the bounded range')
   }
 }
@@ -99,10 +96,6 @@ export type ProviderEphemeralStore = Readonly<{
     namespace: ProviderEphemeralNamespace,
     key: string,
   ) => Promise<string | undefined>
-  consume: (
-    namespace: ProviderEphemeralNamespace,
-    key: string,
-  ) => Promise<string | undefined>
   consumeIfEquals: (
     namespace: ProviderEphemeralNamespace,
     key: string,
@@ -164,8 +157,6 @@ export function createRedisProviderEphemeralStore(
     },
     read: async (namespace, key) =>
       (await redis.get(redisKey(namespace, key))) ?? undefined,
-    consume: async (namespace, key) =>
-      (await redis.getdel(redisKey(namespace, key))) ?? undefined,
     consumeIfEquals: async (namespace, key, expectedValue) => {
       assertProviderEphemeralValue(expectedValue)
       const result = (await redis.eval(

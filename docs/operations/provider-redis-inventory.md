@@ -22,7 +22,7 @@ Wiring: `src/composition/google-provider-authority.ts` builds one client (`creat
 
 ### A. Ephemeral store (`src/shared/provider-ephemeral/provider-ephemeral-store.ts`)
 
-Key pattern for every row: `provider-ephemeral:{<namespace>}:<key>`, key matching `[A-Za-z0-9_-]{32,128}`, value at most 5 MiB, TTL 1 to 86,400 s. Operations: `SET EX NX`, `GET`, `GETDEL`, `DEL`, `INFO server` (restart detection), and compare-and-swap Lua scripts.
+Key pattern for every row: `provider-ephemeral:{<namespace>}:<key>`, key matching `[A-Za-z0-9_-]{32,128}`, value at most 5 MiB, TTL 1 to 86,400 s. Operations: `SET EX NX`, `GET`, `DEL`, `INFO server` (restart detection), and compare-and-swap Lua scripts.
 
 | Namespace                           | Lifetime           | Owning feature                                                                                            | What it coordinates                                                                      | Cost to remove or replace                                                                                                                 |
 | ----------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |

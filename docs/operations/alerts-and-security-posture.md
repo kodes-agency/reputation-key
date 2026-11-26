@@ -90,8 +90,8 @@ the configured app URL. Cookies: `Secure` in production, `HttpOnly`,
 callback rejects a state redeemed by a different session, fail closed to the
 generic `invalid_state` redirect); 10-minute freshness window;
 constant-time signature comparison. PKCE S256: the verifier is stored
-server-side in Redis under the state nonce (TTL = state TTL, one-time use via
-atomic GETDEL) and only the challenge leaves the process; a missing/expired/
+server-side in Redis under the state nonce (TTL = state TTL, one-time use, removed on
+redemption) and only the challenge leaves the process; a missing/expired/
 replayed verifier fails closed. **Redirect allowlist:** the OAuth redirect URI
 is the fixed `${BETTER_AUTH_URL}/api/auth/google/callback` and post-callback
 redirects are fixed app paths (`/import?…`) — no request-derived redirect
