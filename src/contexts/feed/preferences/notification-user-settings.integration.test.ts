@@ -25,6 +25,7 @@ const buildFeed = (db: Database) => {
       logger,
       operationalHistoryIdGen: () =>
         operationalActionHistoryRecordId('86000000-0000-4000-8000-000000000098'),
+      operationalHistoryAccessAuthority: { isCurrentAccountAdmin: async () => false },
     },
     notification: {
       db,
