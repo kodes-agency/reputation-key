@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { listEligiblePortalManagers } from './portal-manager-eligibility.server'
+import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
+import {
+  policyDeps,
+  type PortalManagerEligibilityDeps,
+} from './portal-manager-eligibility.server'
+
+const listEligiblePortalManagers = (
+  deps: PortalManagerEligibilityDeps,
+  ...rest: [ReturnType<typeof organizationId>, ReturnType<typeof propertyId>]
+) => listEligibleResponsibleManagers(policyDeps(deps), ...rest)
 
 describe('Portal Responsible Manager eligibility', () => {
   it('allows active admins org-wide and requires a current grant for managers', async () => {

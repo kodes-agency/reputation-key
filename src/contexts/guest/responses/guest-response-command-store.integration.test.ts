@@ -331,15 +331,13 @@ describe.sequential('atomic Guest response submission', () => {
     `)
 
     await expect(
-      createGuestResponseRepository(db).summarizePortalIntegrity(
-        {
-          organizationId: ORG,
-          propertyId: PROPERTY,
-          portalId: PORTAL,
-        },
+      createGuestResponseRepository(db).summarizePortalIntegrity({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
         startAt,
         endAt,
-      ),
+      }),
     ).resolves.toEqual({
       accepted: 1,
       filteredAutomatically: 1,

@@ -1,21 +1,41 @@
 import { and, count, eq, gt, min, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { guestNetworkPressureRecords } from '#/shared/db/schema/guest.schema'
-import type { GuestNetworkPressureStore } from './guest-network-pressure-store.port.server'
 import {
   GUEST_NETWORK_PRESSURE_RETENTION_MS,
   createGuestNetworkPressureRecord,
+  type GuestNetworkPressureAction,
 } from '../domain/networkPressure'
 import { trace } from '#/shared/observability/trace'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
+export type GuestNetworkPressureConsumeInput = Readonly<{
+  organizationId: string
+  propertyId: string
+  portalId: string
+  pseudonym: string
+  action: GuestNetworkPressureAction
+  maxRequests: number
+  windowSeconds: number
+}>
+
+export type GuestNetworkPressureDecision = Readonly<{
+  allowed: boolean
+  remaining: number
+  resetAt: Date
+}>
+
 export const createGuestNetworkPressureStore = (
   db: Database,
+  clock: () => Date,
   idGen: () => string,
-): GuestNetworkPressureStore => {
+) => {
   return {
-    consume: (input) =>
+    consume: (
+      request: GuestNetworkPressureConsumeInput,
+    ): Promise<GuestNetworkPressureDecision> =>
       trace('guest.networkPressure.consume', async () => {
+        const input = { ...request, observedAt: clock() }
         if (!Number.isInteger(input.maxRequests) || input.maxRequests < 1) {
           throw new Error('Guest network pressure maximum must be a positive integer')
         }

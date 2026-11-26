@@ -17,10 +17,6 @@ type GoalPrograms = ReturnType<
   ReturnType<typeof getContainer>['goalPublicApi']['programsFor']
 >
 
-export const requestActor = (
-  ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
-): GoalActor => ctx
-
 /**
  * The request's Goal policy: the caller acts only as themselves in their own
  * Organization, and every action asks the execution policy with goal.use on
@@ -84,7 +80,7 @@ export async function withGoalPrograms<T>(
   const ctx = await resolveTenantContext(await headersFromContext())
   const programs = getContainer().goalPublicApi.programsFor(requestPolicy(ctx))
   try {
-    return await run(programs, requestActor(ctx))
+    return await run(programs, ctx)
   } catch (error) {
     if (error instanceof GoalProgramError) {
       throwContextError('GoalProgramError', error, goalProgramStatus(error))

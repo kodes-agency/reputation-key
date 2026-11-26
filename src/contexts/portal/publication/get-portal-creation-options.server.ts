@@ -11,9 +11,10 @@ import { resolveNewPortalLocales } from '../domain/portal-new-locales'
 import { loadPropertyDefaultLocales } from './create-portal-resolvers.server'
 import { assertNewPortalPropertyAccess } from './load-accessible-portal.server'
 import {
-  listEligiblePortalManagers,
+  policyDeps,
   type PortalManagerEligibilityDeps,
 } from '../responsibility/portal-manager-eligibility.server'
+import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PortalExperienceRepository } from '../editor/portal-experience-repository.port.server'
 
 export type GetPortalCreationOptionsDeps = PortalManagerEligibilityDeps &
@@ -45,8 +46,8 @@ export const getPortalCreationOptions =
     )
     const [defaults, eligible] = await Promise.all([
       loadPropertyDefaultLocales(deps, ctx, input.propertyId),
-      listEligiblePortalManagers(
-        deps,
+      listEligibleResponsibleManagers(
+        policyDeps(deps),
         ctx.organizationId,
         toPropertyId(input.propertyId),
       ),

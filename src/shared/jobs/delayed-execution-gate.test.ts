@@ -6,7 +6,7 @@
 //   1. request building from the entry-point catalogue + job/event envelope
 //      (org from payload, TENANT_CROSS_ORG sentinel for tenant_cross/none
 //      rows, resolver-provided property scope, content-free policy context);
-//   2. outcome mapping (allow / deny_terminal — every deny is terminal);
+//   2. outcome mapping (allowed / denied — every deny is terminal);
 //   3. the REAL BQC-2.5 policy driven by the shared DELAYED_CONTRACT_FIXTURES
 //      envs (execution ownership: BQC-2 IMPLEMENTS the contract, BQC-3
 //      INTEGRATES it — the same fixtures prove both sides).
@@ -97,7 +97,7 @@ describe('gateJob — request building (stubbed policy)', () => {
       'worker',
     )
 
-    expect(outcome.kind).toBe('allow')
+    expect(outcome.allowed).toBe(true)
     expect(lastRequest()).toMatchObject({
       principal: { kind: 'system', id: 'worker:default' },
       action: 'system:review.sync',
@@ -139,7 +139,7 @@ describe('gateJob — request building (stubbed policy)', () => {
     const outcome = await gateJob('urgent-email', {}, 'worker:default', 'worker')
 
     expect(lastRequest().organizationId).toBe('')
-    expect(outcome.kind).toBe('deny_terminal')
+    expect(outcome.allowed).toBe(false)
   })
 
   it('passes unknown job names through so decide() denies unknown_action', async () => {
@@ -156,7 +156,7 @@ describe('gateJob — request building (stubbed policy)', () => {
     )
 
     expect(lastRequest().action).toBe('mystery-job')
-    expect(outcome.kind).toBe('deny_terminal')
+    expect(outcome.allowed).toBe(false)
   })
 
   it('resolves property scope via the resolver when the payload has no propertyId', async () => {
@@ -261,10 +261,10 @@ describe('gateJob — outcome mapping (stubbed policy)', () => {
     installStub()
     decideMock.mockResolvedValue(ALLOW)
     const outcome = await gateJob('health-check', {}, 'worker:default', 'worker')
-    expect(outcome).toEqual({ kind: 'allow', decision: ALLOW })
+    expect(outcome).toEqual(ALLOW)
   })
 
-  it('maps every deny reason to deny_terminal', async () => {
+  it('denies every deny reason terminally', async () => {
     installStub()
     for (const reason of [
       'capability_blocked',
@@ -276,7 +276,7 @@ describe('gateJob — outcome mapping (stubbed policy)', () => {
     ] as const) {
       decideMock.mockResolvedValue(decision({ reason }))
       const outcome = await gateJob('health-check', {}, 'worker:default', 'worker')
-      expect(outcome.kind, reason).toBe('deny_terminal')
+      expect(outcome.allowed, reason).toBe(false)
     }
   })
 })
@@ -302,7 +302,7 @@ describe('gateDispatcherConsumer (stubbed policy)', () => {
       envelope,
     )
 
-    expect(outcome.kind).toBe('allow')
+    expect(outcome.allowed).toBe(true)
     expect(lastRequest()).toMatchObject({
       principal: { kind: 'system', id: 'consumer:inbox.on-review-created' },
       action: 'system:inbox.project_review',
@@ -358,9 +358,9 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
       'worker',
     )
 
-    expect(outcome.kind).toBe('allow')
-    expect(outcome.decision.outcome).toBe('allow')
-    expect(outcome.decision.freshRead).toBe(true)
+    expect(outcome.allowed).toBe(true)
+    expect(outcome.outcome).toBe('allow')
+    expect(outcome.freshRead).toBe(true)
   })
 
   it('org-suspended deny — suspension after enqueue denies at dispatch (terminal)', async () => {
@@ -378,8 +378,8 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
       'worker',
     )
 
-    expect(outcome.kind).toBe('deny_terminal')
-    expect(outcome.decision.reason).toBe('org_suspended')
+    expect(outcome.allowed).toBe(false)
+    expect(outcome.reason).toBe('org_suspended')
   })
 
   it('capability-killed deny — a stale allow in the queue never overrides a current deny', async () => {
@@ -398,8 +398,8 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
       'worker',
     )
 
-    expect(outcome.kind).toBe('deny_terminal')
-    expect(outcome.decision.reason).toBe('capability_disabled')
+    expect(outcome.allowed).toBe(false)
+    expect(outcome.reason).toBe('capability_disabled')
   })
 
   it('stale_context annotation — envelope version differs; fresh allow stands', async () => {
@@ -417,9 +417,9 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
       'worker',
     )
 
-    expect(outcome.kind).toBe('allow')
-    expect(outcome.decision.outcome).toBe('stale_context')
-    expect(outcome.decision.allowed).toBe(true)
+    expect(outcome.allowed).toBe(true)
+    expect(outcome.outcome).toBe('stale_context')
+    expect(outcome.allowed).toBe(true)
   })
 
   it('reconcile-ambiguous-publications sweep allows under its own tenant-cross action (regression: shared system:review.sync scope merge denied it missing_scope)', async () => {
@@ -434,9 +434,9 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
 
     // Tenant-cross + capability 'none' + the distinct system:review.reconcile
     // action → allow under the sentinel org (no property required).
-    expect(outcome.kind).toBe('allow')
-    expect(outcome.decision.action).toBe('system:review.reconcile')
-    expect(outcome.decision.freshRead).toBe(false)
+    expect(outcome.allowed).toBe(true)
+    expect(outcome.action).toBe('system:review.reconcile')
+    expect(outcome.freshRead).toBe(false)
   })
 
   it('goal-program.maintain firing allows under its tenant-cross row (regression: a property-scoped consumer sharing system:goal.maintain denied it missing_scope)', async () => {
@@ -449,7 +449,7 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
       'schedule',
     )
 
-    expect(outcome.kind).toBe('allow')
-    expect(outcome.decision.action).toBe('system:goal.maintain')
+    expect(outcome.allowed).toBe(true)
+    expect(outcome.action).toBe('system:goal.maintain')
   })
 })

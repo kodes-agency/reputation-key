@@ -9,7 +9,6 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { isRatingGoalError, type RatingGoalErrorCode } from '../domain/rating-goal'
 import {
   GoalProgramError,
-  type GoalActor,
   type GoalExecutionPolicy,
 } from '../application/use-cases/goal-program-shared'
 import type { RatingGoalRequestApi } from '../rating-goals/rating-goals.server'
@@ -38,21 +37,20 @@ const ratingGoalStatus = (code: RatingGoalErrorCode): number => {
 /**
  * Runs one rating goal request: resolves the tenant, binds the Goal request
  * policy (goal.* permissions, goal.use, the Property grant), and maps a
- * RatingGoalError to its HTTP status once. `run` also gets the request's
- * AuthContext, for a step outside the Goal policy (the detail's Inbox links).
+ * RatingGoalError to its HTTP status once. The actor is the request's
+ * AuthContext, which the detail's Inbox links need outside the Goal policy.
  */
 export async function withRatingGoals<T>(
   run: (
     ratingGoals: RatingGoalRequestApi,
     policy: GoalExecutionPolicy,
-    actor: GoalActor,
-    ctx: AuthContext,
+    actor: AuthContext,
   ) => Promise<T>,
 ): Promise<T> {
   const ctx = await resolveTenantContext(await headersFromContext())
   const ratingGoals = getContainer().goalPublicApi.ratingGoals
   try {
-    return await run(ratingGoals, requestPolicy(ctx), ctx, ctx)
+    return await run(ratingGoals, requestPolicy(ctx), ctx)
   } catch (error) {
     if (isRatingGoalError(error)) {
       throwContextError('RatingGoalError', error, ratingGoalStatus(error.code))

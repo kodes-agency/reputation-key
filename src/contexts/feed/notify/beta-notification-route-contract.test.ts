@@ -138,7 +138,7 @@ describe('every beta notification route passes the delayed execution gate', () =
         envelope,
       )
 
-      expect(outcome.decision.reason).toBe('allowed')
+      expect(outcome.reason).toBe('allowed')
     })
   }
 
@@ -156,8 +156,8 @@ describe('every beta notification route passes the delayed execution gate', () =
       'worker',
     )
 
-    expect(organizationNotice.decision.reason).toBe('allowed')
-    expect(propertyNotice.decision.reason).toBe('allowed')
+    expect(organizationNotice.reason).toBe('allowed')
+    expect(propertyNotice.reason).toBe('allowed')
   })
 
   it('sends a mandatory notice while optional email is switched off', async () => {
@@ -180,8 +180,8 @@ describe('every beta notification route passes the delayed execution gate', () =
 
     // A final deletion warning nobody receives is worse than an extra email;
     // ordinary product mail waits for the switch.
-    expect(mandatoryNotice.decision.reason).toBe('allowed')
-    expect(optionalNotice.decision.reason).toBe('capability_disabled')
+    expect(mandatoryNotice.reason).toBe('allowed')
+    expect(optionalNotice.reason).toBe('capability_disabled')
   })
 
   it('still stops mandatory mail for the environment stop and for a suspended tenant', async () => {
@@ -205,8 +205,8 @@ describe('every beta notification route passes the delayed execution gate', () =
       'worker',
     )
 
-    expect(suspended.decision.reason).toBe('org_suspended')
-    expect(stopped.decision.reason).toBe('capability_disabled')
+    expect(suspended.reason).toBe('org_suspended')
+    expect(stopped.reason).toBe('capability_disabled')
   })
 })
 

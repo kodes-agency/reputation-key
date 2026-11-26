@@ -19,10 +19,23 @@ import {
   guestResponseSessionBindings,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
-import type { GuestResponseRepository } from './guest-response.repository.port.server'
+import type {
+  GuestResponsePeriod,
+  GuestResponseRepository,
+} from './guest-response.repository.port.server'
 import { guestResponseFromRow } from './guest-response-mapper.server'
 import type { Clock } from '#/shared/domain/clock'
 import { guestResponseId } from '#/shared/domain/ids'
+
+const assertValidPeriod = ({ startAt, endAt }: GuestResponsePeriod, message: string) => {
+  if (
+    Number.isNaN(startAt.getTime()) ||
+    Number.isNaN(endAt.getTime()) ||
+    startAt >= endAt
+  ) {
+    throw new Error(message)
+  }
+}
 
 export const createGuestResponseRepository = (
   db: Database,
@@ -220,7 +233,9 @@ export const createGuestResponseRepository = (
       return rows.map((row) => guestResponseId(row.id))
     },
 
-    summarizePortalIntegrity: async (scope, startAt, endAt) => {
+    summarizePortalIntegrity: async (scope) => {
+      assertValidPeriod(scope, 'Guest response integrity summary period is invalid')
+      const { startAt, endAt } = scope
       const ratingBusinessAt = sql<Date>`COALESCE(
         ${guestResponses.correctedAt}, ${guestResponses.submittedAt}
       )`
@@ -269,7 +284,9 @@ export const createGuestResponseRepository = (
       return summary
     },
 
-    summarizePortalRatingLanguages: async (scope, startAt, endAt) => {
+    summarizePortalRatingLanguages: async (scope) => {
+      assertValidPeriod(scope, 'Guest rating languages period is invalid')
+      const { startAt, endAt } = scope
       // The same business time and eligibility as the integrity summary, for
       // the accepted outcome only: the ratings the Results measures count.
       const ratingBusinessAt = sql<Date>`COALESCE(
