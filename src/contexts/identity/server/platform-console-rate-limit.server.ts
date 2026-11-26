@@ -4,7 +4,7 @@
 // makes (provision, invite, resend, cancel) draws on one small hourly budget
 // per operator. The key is an HMAC of the user id, never the id itself.
 
-import { createHmac } from 'node:crypto'
+import { keyedPseudonym } from '#/shared/security/keyed-pseudonym'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
 
@@ -22,10 +22,7 @@ type Input = Readonly<{
 }>
 
 function pseudonym(secret: string, operatorUserId: string): string {
-  return createHmac('sha256', secret)
-    .update(`${KEY_DOMAIN}\0`)
-    .update(operatorUserId)
-    .digest('hex')
+  return keyedPseudonym(secret, `${KEY_DOMAIN}\0`, operatorUserId)
 }
 
 /** 30 console changes per operator per hour; the 31st is a 429. */

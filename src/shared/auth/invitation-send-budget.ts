@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { keyedPseudonym } from '#/shared/security/keyed-pseudonym'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 
 import {
@@ -14,10 +14,7 @@ type Input = Readonly<{
 }>
 
 function pseudonym(secret: string, audience: 'actor' | 'organization', value: string) {
-  return createHmac('sha256', secret)
-    .update(`repkey:identity:invitation-send:${audience}:v1\0`)
-    .update(value)
-    .digest('hex')
+  return keyedPseudonym(secret, `repkey:identity:invitation-send:${audience}:v1\0`, value)
 }
 
 /**

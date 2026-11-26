@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { keyedPseudonym } from '#/shared/security/keyed-pseudonym'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
 
@@ -14,10 +14,11 @@ type Input = Readonly<{
 
 /** The address never reaches the limiter store; a keyed pseudonym does. */
 function addressPseudonym(secret: string, email: string): string {
-  return createHmac('sha256', secret)
-    .update('repkey:identity:verify-resend:v1\0')
-    .update(email.trim().toLowerCase())
-    .digest('hex')
+  return keyedPseudonym(
+    secret,
+    'repkey:identity:verify-resend:v1\0',
+    email.trim().toLowerCase(),
+  )
 }
 
 function throwRateLimited(): never {

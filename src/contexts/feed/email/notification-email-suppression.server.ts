@@ -3,7 +3,7 @@
 // `notificationEmailSuppressions` in the schema for why it stands apart from
 // the queue.
 
-import { createHmac } from 'node:crypto'
+import { keyedPseudonym } from '#/shared/security/keyed-pseudonym'
 import { and, inArray, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -37,10 +37,7 @@ const normalizeAddress = (address: string): string => address.trim().toLowerCase
  * stored under it have moved (see `isAddressSuppressed`).
  */
 const addressDigest = (key: string, address: string): string =>
-  createHmac('sha256', key)
-    .update(ADDRESS_DIGEST_DOMAIN, 'utf8')
-    .update(normalizeAddress(address), 'utf8')
-    .digest('hex')
+  keyedPseudonym(key, ADDRESS_DIGEST_DOMAIN, normalizeAddress(address))
 
 // Fail closed: without its key the store cannot tell a refused address from
 // a live one, and guessing would either mail a complainer or mail no one.

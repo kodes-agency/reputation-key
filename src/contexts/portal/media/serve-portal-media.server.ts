@@ -15,6 +15,7 @@
 // and the hash all come from it, and bytes that disagree are not served.
 
 import { z } from 'zod/v4'
+import { ifNoneMatchMatches } from '#/shared/http/if-none-match'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { portalMediaAssetId } from '#/shared/domain/ids'
 import { PORTAL_MEDIA_STORED_CONTENT_TYPE } from '#/shared/domain/portal-media'
@@ -65,14 +66,6 @@ const uuidSchema = z.uuid()
 
 /** The entity tag of an asset: the hash of the bytes this system encoded. */
 const etagOf = (contentSha256: string): string => `"${contentSha256}"`
-
-/** Whether an If-None-Match header names `etag` (weak comparison, as the spec asks for GET). */
-export function ifNoneMatchMatches(header: string | null | undefined, etag: string) {
-  if (!header) return false
-  if (header.trim() === '*') return true
-  const bare = (value: string) => value.trim().replace(/^W\//u, '')
-  return header.split(',').some((candidate) => bare(candidate) === etag)
-}
 
 export const servePortalMedia =
   (deps: ServePortalMediaDeps) =>

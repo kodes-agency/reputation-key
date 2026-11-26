@@ -1,3 +1,4 @@
+import { reviewContentJoin } from '#/contexts/reputation/reviews/review-content-join.server'
 import { reviewIdentityValues } from '../content/store.server'
 // Review context — Drizzle review repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
@@ -99,14 +100,7 @@ const reviewsWithContent = (db: Database) =>
   db
     .select({ review: reviews, content: reviewSourceContents })
     .from(reviews)
-    .innerJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
+    .innerJoin(reviewSourceContents, reviewContentJoin)
 
 type ReviewWithContentRow = Awaited<ReturnType<typeof reviewsWithContent>>[number]
 
@@ -725,14 +719,7 @@ export const createReviewRepository = (
       const rows = await db
         .select({ id: reviews.id })
         .from(reviews)
-        .innerJoin(
-          reviewSourceContents,
-          and(
-            eq(reviewSourceContents.reviewId, reviews.id),
-            eq(reviewSourceContents.organizationId, reviews.organizationId),
-            eq(reviewSourceContents.propertyId, reviews.propertyId),
-          ),
-        )
+        .innerJoin(reviewSourceContents, reviewContentJoin)
         .where(and(...conditions))
       return rows.map((r) => r.id as string)
     })

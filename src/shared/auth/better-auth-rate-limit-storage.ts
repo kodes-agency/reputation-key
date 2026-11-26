@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { keyedPseudonym } from '#/shared/security/keyed-pseudonym'
 import type { BetterAuthRateLimitStorage } from 'better-auth'
 import type { Redis } from 'ioredis'
 
@@ -54,10 +54,7 @@ function positiveInteger(value: number, name: string): number {
 function redisBucketKey(prefix: string, key: string, hmacSecret: string): string {
   // Better Auth's key contains the client address and request path. The
   // limiter needs stable equality, not the identifying value itself.
-  const digest = createHmac('sha256', hmacSecret)
-    .update('repkey:better-auth-rate-limit:v1\0')
-    .update(key)
-    .digest('hex')
+  const digest = keyedPseudonym(hmacSecret, 'repkey:better-auth-rate-limit:v1\0', key)
   return `${prefix}:${digest}`
 }
 
