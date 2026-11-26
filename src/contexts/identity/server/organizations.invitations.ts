@@ -6,16 +6,12 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
-import {
-  requireAuth,
-  resolveTenantContext,
-  resetTenantCache,
-} from '#/shared/auth/middleware'
+import { requireAuth, resetTenantCache } from '#/shared/auth/middleware'
 import { catchUntagged } from '#/shared/auth/server-errors'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import { command } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
-import { throwIdentityError } from './organizations.errors.server'
+import { identityCommandErrors, throwIdentityError } from './organizations.errors.server'
 import { invitationId, userId } from '#/shared/domain/ids'
 import { acceptInvitationInputSchema } from '../members/invitation.contracts'
 import { enforceInvitationSendRateLimit } from './invitation-rate-limit.server'
@@ -58,24 +54,19 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
 export const cancelInvitation = createServerFn({ method: 'POST' })
   .validator(acceptInvitationInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        try {
-          const headers = await headersFromContext()
-          const ctx = await resolveTenantContext(headers)
-          await requireExecutionAllowed({ actor: ctx, action: 'invitation.cancel' })
-
-          await getContainer().identityPublicApi.requests.cancelInvitation(
-            { invitationId: invitationId(data.invitationId) },
-            ctx,
-          )
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.cancelInvitation',
+        action: 'invitation.cancel',
+        errors: identityCommandErrors,
       },
-      'POST',
-      'identity.cancelInvitation',
+      async ({ data, actor }) => {
+        await getContainer().identityPublicApi.requests.cancelInvitation(
+          { invitationId: invitationId(data.invitationId) },
+          actor,
+        )
+      },
     ),
   )
 
@@ -84,53 +75,38 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
 export const resendInvitation = createServerFn({ method: 'POST' })
   .validator(acceptInvitationInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'invitation.resend' })
-
-        try {
-          const { identityPublicApi, rateLimiter, identityRequestSecurity } =
-            getContainer()
-          await enforceInvitationSendRateLimit({
-            rateLimiter,
-            actorId: ctx.userId,
-            organizationId: ctx.organizationId,
-            keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
-          })
-          // Renews the same invitation, then mails it: { expiresAt, emailSent }.
-          return await identityPublicApi.requests.resendInvitation(data, ctx)
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.resendInvitation',
+        action: 'invitation.resend',
+        errors: identityCommandErrors,
       },
-      'POST',
-      'identity.resendInvitation',
+      async ({ data, actor }) => {
+        const { identityPublicApi, rateLimiter, identityRequestSecurity } = getContainer()
+        await enforceInvitationSendRateLimit({
+          rateLimiter,
+          actorId: actor.userId,
+          organizationId: actor.organizationId,
+          keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
+        })
+        // Renews the same invitation, then mails it: { expiresAt, emailSent }.
+        return await identityPublicApi.requests.resendInvitation(data, actor)
+      },
     ),
   )
 
 // ── List invitations ────────────────────────────────────────────────
 
 export const listInvitations = createServerFn({ method: 'GET' }).handler(
-  tracedHandler(
-    async () => {
-      const headers = await headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      await requireExecutionAllowed({ actor: ctx, action: 'invitation.list' })
-
-      try {
-        return await getContainer().identityPublicApi.requests.listInvitations(
-          undefined,
-          ctx,
-        )
-      } catch (e) {
-        if (isIdentityError(e)) throwIdentityError(e)
-        throw catchUntagged(e)
-      }
+  command(
+    {
+      method: 'GET',
+      name: 'identity.listInvitations',
+      action: 'invitation.list',
+      errors: identityCommandErrors,
     },
-    'GET',
-    'identity.listInvitations',
+    async ({ actor }) =>
+      getContainer().identityPublicApi.requests.listInvitations(undefined, actor),
   ),
 )
