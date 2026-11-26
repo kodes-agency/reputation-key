@@ -135,7 +135,7 @@ export type PublicPortalResult = Readonly<{
   }>
   responseConfiguration: PublicPortalResponseConfiguration
   /** The Immersive Hub's content. */
-  immersive: PublicImmersiveExperience | null
+  immersive: PublicImmersiveExperience
   /**
    * Which shape of address opened the page: the long website address or a print
    * code (ADR 0069). Content-free, for the page-read log; never the address itself.

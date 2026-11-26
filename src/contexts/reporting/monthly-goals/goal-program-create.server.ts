@@ -20,7 +20,7 @@ import {
   assertSubjectsAreFree,
   assignmentFor,
   GoalProgramError,
-  isMetricSourceInactive,
+  assertMetricSourceReadable,
   openResultFor,
   resolveGoalDefinition,
   type GoalActor,
@@ -54,13 +54,12 @@ type NewProgramFacts = Readonly<{
   timezone: string
   governed: GovernedMetricVersion
   targetValue: number
-  sourceInactive: boolean
 }>
 
 /**
  * The rows of a new Program: the Program, its first version, one assignment
  * per subject and, when it starts active, the first month of each. Active
- * means the month has begun and the metric's source is active; a month that
+ * means the month has begun; a month that
  * has not begun keeps the goal scheduled. That includes "this month" during a
  * repeated midnight hour, whose first instant is still ahead.
  */
@@ -70,11 +69,10 @@ function newProgramBundle(
   actor: GoalActor,
   facts: NewProgramFacts,
 ): GoalProgramBundle {
-  const { now, period, timezone, governed, sourceInactive } = facts
+  const { now, period, timezone, governed } = facts
   const programId = nextId()
   const versionId = nextId()
-  const status: GoalProgramStatus =
-    sourceInactive || period.start > now ? 'scheduled' : 'active'
+  const status: GoalProgramStatus = period.start > now ? 'scheduled' : 'active'
   const program = {
     id: programId,
     organizationId: actor.organizationId,
@@ -82,11 +80,7 @@ function newProgramBundle(
     name: input.name.trim(),
     description: input.description?.trim() || null,
     status,
-    statusReason: sourceInactive
-      ? 'metric_source_not_active'
-      : status === 'scheduled'
-        ? 'awaiting_first_full_month'
-        : null,
+    statusReason: status === 'scheduled' ? 'awaiting_first_full_month' : null,
     currentVersion: 1,
     createdBy: actor.userId,
     createdAt: now,
@@ -167,7 +161,7 @@ export async function createGoalCore(
     subjects: input.subjects,
   })
 
-  const sourceInactive = await isMetricSourceInactive(deps, {
+  await assertMetricSourceReadable(deps, {
     organizationId: actor.organizationId,
     propertyId: input.propertyId,
     governed,
@@ -180,7 +174,6 @@ export async function createGoalCore(
     timezone,
     governed,
     targetValue: target.normalizedTarget,
-    sourceInactive,
   })
   const outcome = await deps.repository.create({
     bundle,

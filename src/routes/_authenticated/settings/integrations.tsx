@@ -8,10 +8,8 @@ import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { can } from '#/shared/domain/permissions'
-import {
-  disconnectGoogle,
-  getGoogleAuthUrl,
-} from '#/contexts/integration/server/google-connections'
+import { disconnectGoogle } from '#/contexts/integration/server/google-connections'
+import { getGoogleAuthUrl } from '#/contexts/integration/server/google-auth-url'
 import { IntegrationsSettingsPage } from '#/contexts/integration/connections/ui/integrations-settings-page'
 import { createKeys } from '#/shared/queries/query-keys'
 import { googleConnectionsQuery } from '#/routes/-queries/route-queries'

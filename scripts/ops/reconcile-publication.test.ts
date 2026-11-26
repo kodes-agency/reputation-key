@@ -1,10 +1,6 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { ok } from '../../src/shared/domain'
 import { organizationId, replyId } from '../../src/shared/domain/ids'
-import type {
-  AmbiguousPublicationReconciliationCandidate,
-  ReconcileReplyPublicationInput,
-} from '../../src/contexts/reputation/public-api'
+import type { AmbiguousPublicationReconciliationCandidate } from '../../src/contexts/reputation/public-api'
 import {
   decodePublicationSweepResume,
   extractPublicationSweepResume,
@@ -79,14 +75,9 @@ describe('operator ambiguous-publication sweep continuation', () => {
           .slice(0, limit)
       },
     )
-    const reconcile = vi.fn(async (input: ReconcileReplyPublicationInput) => {
-      expect(input.organizationId).toBe(ORG)
-      return ok({ outcome: 'provider_review_missing' as const })
-    })
-
     const first = await runAmbiguousPublicationSweepPage(
-      { findCandidates: findBatch, reconcile, clock: () => DUE_THROUGH },
-      { batchSize: 2, resumeToken: null, dryRun: false },
+      { findCandidates: findBatch, clock: () => DUE_THROUGH },
+      { batchSize: 2, resumeToken: null },
     )
     expect(first).toMatchObject({
       coverage: 'partial',
@@ -94,9 +85,7 @@ describe('operator ambiguous-publication sweep continuation', () => {
       outcomeScope: 'current_page',
       dueThrough: DUE_THROUGH.toISOString(),
       seen: 2,
-      confirmedOnGoogle: 0,
-      notConfirmed: 2,
-      failed: 0,
+      notEvaluated: 2,
     })
     expect(first.nextResumeToken).toEqual(expect.any(String))
     expect(first.rows).toEqual(
@@ -104,30 +93,26 @@ describe('operator ambiguous-publication sweep continuation', () => {
         replyId: row.replyId,
         organizationId: row.organizationId,
         reconcileDueAt: row.reconcileDueAt!.toISOString(),
-        outcome: 'not_confirmed',
-        detail: 'provider_review_missing',
+        outcome: 'not_evaluated',
+        detail: null,
       })),
     )
 
     const decoded = decodePublicationSweepResume(first.nextResumeToken!)
     expect(decoded).toEqual({
-      mode: 'apply',
       dueThrough: DUE_THROUGH,
       reconcileDueAt: rows[1]!.reconcileDueAt,
       id: rows[1]!.replyId,
     })
 
     const second = await runAmbiguousPublicationSweepPage(
-      { findCandidates: findBatch, reconcile, clock: () => LATER },
-      { batchSize: 2, resumeToken: first.nextResumeToken, dryRun: false },
+      { findCandidates: findBatch, clock: () => LATER },
+      { batchSize: 2, resumeToken: first.nextResumeToken },
     )
     expect(second).toMatchObject({
       coverage: 'complete',
       dueThrough: DUE_THROUGH.toISOString(),
       seen: 1,
-      confirmedOnGoogle: 0,
-      notConfirmed: 1,
-      failed: 0,
       nextResumeToken: null,
     })
     expect(findBatch).toHaveBeenNthCalledWith(2, {
@@ -138,61 +123,6 @@ describe('operator ambiguous-publication sweep continuation', () => {
       },
       limit: 2,
     })
-    expect(reconcile.mock.calls.map((call) => call[0]!.replyId)).toEqual(
-      rows.map((row) => row.replyId),
-    )
-  })
-
-  it('isolates a thrown reconciliation so the page still checkpoints later rows', async () => {
-    const rows = [
-      ambiguousCandidate(
-        'b1000000-0000-4000-8000-000000000031',
-        new Date('2026-08-26T18:10:00.000Z'),
-      ),
-      ambiguousCandidate(
-        'b1000000-0000-4000-8000-000000000032',
-        new Date('2026-08-26T18:11:00.000Z'),
-      ),
-    ]
-    const reconcile = vi.fn(async ({ replyId: currentReplyId }) => {
-      if (currentReplyId === rows[0]!.replyId) {
-        throw new Error('provider read crashed')
-      }
-      return ok({ outcome: 'confirmed_on_google' as const })
-    })
-
-    const report = await runAmbiguousPublicationSweepPage(
-      {
-        findCandidates: vi.fn(async () => rows),
-        reconcile,
-        clock: () => DUE_THROUGH,
-      },
-      { batchSize: 2, resumeToken: null, dryRun: false },
-    )
-
-    expect(report).toMatchObject({
-      coverage: 'partial',
-      seen: 2,
-      attempted: 2,
-      confirmedOnGoogle: 1,
-      notConfirmed: 0,
-      failed: 1,
-      unresolvedInPage: 1,
-    })
-    expect(report.nextResumeToken).toEqual(expect.any(String))
-    expect(reconcile).toHaveBeenCalledTimes(2)
-    expect(report.rows).toMatchObject([
-      {
-        replyId: rows[0]!.replyId,
-        outcome: 'failed',
-        detail: 'unexpected_error',
-      },
-      {
-        replyId: rows[1]!.replyId,
-        outcome: 'confirmed_on_google',
-        detail: null,
-      },
-    ])
   })
 
   it('reports dry-run rows without evaluating provider truth', async () => {
@@ -202,15 +132,10 @@ describe('operator ambiguous-publication sweep continuation', () => {
         new Date('2026-08-26T18:20:00.000Z'),
       ),
     ]
-    const reconcile = vi.fn()
 
     const report = await runAmbiguousPublicationSweepPage(
-      {
-        findCandidates: vi.fn(async () => rows),
-        reconcile,
-        clock: () => DUE_THROUGH,
-      },
-      { batchSize: 2, resumeToken: null, dryRun: true },
+      { findCandidates: vi.fn(async () => rows), clock: () => DUE_THROUGH },
+      { batchSize: 2, resumeToken: null },
     )
 
     expect(report).toMatchObject({
@@ -227,7 +152,6 @@ describe('operator ambiguous-publication sweep continuation', () => {
       unresolvedInPage: 1,
       nextResumeToken: null,
     })
-    expect(reconcile).not.toHaveBeenCalled()
     expect(report.rows[0]).toMatchObject({
       replyId: rows[0]!.replyId,
       outcome: 'not_evaluated',
@@ -235,33 +159,23 @@ describe('operator ambiguous-publication sweep continuation', () => {
     })
   })
 
-  it('does not allow a dry-run cursor to skip rows when switching to apply', async () => {
-    const rows = [
-      ambiguousCandidate(
-        'b1000000-0000-4000-8000-000000000051',
-        new Date('2026-08-26T18:30:00.000Z'),
-      ),
-    ]
-    const findBatch = vi.fn(async () => rows)
-    const dryRun = await runAmbiguousPublicationSweepPage(
-      {
-        findCandidates: findBatch,
-        reconcile: vi.fn(),
-        clock: () => DUE_THROUGH,
-      },
-      { batchSize: 1, resumeToken: null, dryRun: true },
-    )
+  it('resumes from a token that still carries the retired mode field', async () => {
+    const token = Buffer.from(
+      JSON.stringify({
+        v: 1,
+        mode: 'dry_run',
+        dueThrough: DUE_THROUGH.toISOString(),
+        reconcileDueAt: DUE_THROUGH.toISOString(),
+        id: 'b1000000-0000-4000-8000-000000000051',
+      }),
+      'utf8',
+    ).toString('base64url')
 
-    await expect(
-      runAmbiguousPublicationSweepPage(
-        {
-          findCandidates: findBatch,
-          reconcile: vi.fn(),
-          clock: () => LATER,
-        },
-        { batchSize: 1, resumeToken: dryRun.nextResumeToken, dryRun: false },
-      ),
-    ).rejects.toThrow('resume token mode does not match')
+    expect(decodePublicationSweepResume(token)).toEqual({
+      dueThrough: DUE_THROUGH,
+      reconcileDueAt: DUE_THROUGH,
+      id: 'b1000000-0000-4000-8000-000000000051',
+    })
   })
 
   it('strips exactly one resume token before the shared operator parser runs', () => {

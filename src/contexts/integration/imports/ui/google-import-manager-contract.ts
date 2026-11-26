@@ -22,7 +22,7 @@ import type {
   retryPropertyImportItem,
   startPropertyImportV2,
 } from '#/contexts/integration/server/gbp-import'
-import type { getGoogleAuthUrl } from '#/contexts/integration/server/google-connections'
+import type { getGoogleAuthUrl } from '#/contexts/integration/server/google-auth-url'
 import type { PropertySetupFns } from '#/components/features/property-setup'
 
 export type GoogleImportStep = 'discover' | 'review' | 'progress'

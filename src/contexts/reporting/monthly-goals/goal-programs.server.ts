@@ -31,7 +31,7 @@ import {
   assertSubjectsAreFree,
   assignmentFor,
   GoalProgramError,
-  isMetricSourceInactive,
+  assertMetricSourceReadable,
   noteOf,
   resolveGoalDefinition,
   type GoalActor,
@@ -160,16 +160,13 @@ async function reviseGoal(
     effectiveFrom: period.start,
     subjects: input.subjects,
   })
-  const sourceInactive = await isMetricSourceInactive(deps, {
+  await assertMetricSourceReadable(deps, {
     organizationId: actor.organizationId,
     propertyId: input.propertyId,
     governed,
     subject: readinessSubject,
     period,
   })
-  if (sourceInactive && current.program.status !== 'scheduled') {
-    throw new GoalProgramError('metric_unavailable')
-  }
 
   const versionId = deps.id()
   const version: GoalProgramVersion = {
@@ -208,15 +205,9 @@ async function reviseGoal(
   )
   const change = {
     supersedeRowlessHead: head !== 'in_force',
-    // What a goal that has not started waits for was decided from the plan it
-    // was created with. This plan may have another measure, so it is decided
-    // again, by the rule creation uses: the source first, else the month.
+    // A goal that has not started waits for its first full month.
     scheduledStatusReason:
-      head !== 'never_started'
-        ? undefined
-        : sourceInactive
-          ? ('metric_source_not_active' as const)
-          : ('awaiting_first_full_month' as const),
+      head !== 'never_started' ? undefined : ('awaiting_first_full_month' as const),
   }
   const revised = await deps.repository.revise({
     expectedVersion: current.version,

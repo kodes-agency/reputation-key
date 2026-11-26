@@ -2,6 +2,7 @@ import { rethrowStaffAccount, staffAccountCommandErrors } from './staff-account-
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
+import type { Container } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
@@ -20,9 +21,7 @@ const row = z
   .strict()
 const participation = z.object({ participationId: z.uuid() }).strict()
 
-type StaffAccountsApi = ReturnType<
-  typeof getContainer
->['identityPublicApi']['staffAccounts']
+type StaffAccountsApi = Container['identityPublicApi']['staffAccounts']
 
 /** The Property a participation belongs to, so the policy is asked about it; unknown is a 404. */
 async function participationProperty(

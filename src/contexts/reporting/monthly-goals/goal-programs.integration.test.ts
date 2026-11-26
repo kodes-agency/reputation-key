@@ -54,33 +54,6 @@ describe('canonical Goal Program service', () => {
     expect(repository.create).toHaveBeenCalledOnce()
   })
 
-  it('keeps a configurable metric scheduled when its source producer is inactive', async () => {
-    const { service, metrics } = setup()
-    vi.mocked(metrics.queryGoalMetric).mockResolvedValueOnce(
-      readiness({
-        definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
-        metricKey: 'portal.qualified_scan',
-        reason: 'metric_source_not_active',
-      }),
-    )
-    const bundle = await service.create(
-      {
-        propertyId: PROPERTY_ID,
-        name: 'Qualified scans',
-        metric: 'qualified_scans',
-        targetValue: 100,
-        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
-      },
-      actor,
-    )
-    expect(bundle.program).toMatchObject({
-      status: 'scheduled',
-      statusReason: 'metric_source_not_active',
-    })
-    expect(bundle.assignments).toHaveLength(1)
-    expect(bundle.results).toEqual([])
-  })
-
   describe('start month', () => {
     const MARCH = {
       start: new Date('2026-03-01T00:00:00.000Z'),
@@ -168,42 +141,6 @@ describe('canonical Goal Program service', () => {
           periodEnd: new Date('2026-05-01T00:00:00.000Z'),
         }),
       )
-    })
-
-    it('the current month with an inactive source is scheduled and opens March on activation', async () => {
-      const { service, metrics, repository, getCreated } = setup(MID_MARCH)
-      vi.mocked(metrics.queryGoalMetric).mockResolvedValueOnce(
-        readiness({ reason: 'metric_source_not_active' }),
-      )
-
-      const bundle = await service.create(portalGoal('2026-03'), actor)
-
-      expect(bundle.program).toMatchObject({
-        status: 'scheduled',
-        statusReason: 'metric_source_not_active',
-      })
-      expect(bundle.version.effectiveFrom).toEqual(MARCH.start)
-      expect(bundle.results).toEqual([])
-
-      // The source is active on the next hourly run: the goal activates and
-      // March opens from its first day, not from the day of activation.
-      await expect(service.maintain()).resolves.toMatchObject({
-        activated: 1,
-        scheduledResults: 1,
-        failed: 0,
-      })
-      expect(repository.activate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          results: [
-            expect.objectContaining({
-              periodStart: MARCH.start,
-              periodEnd: MARCH.end,
-              status: 'open',
-            }),
-          ],
-        }),
-      )
-      expect((await getCreated())?.program.status).toBe('active')
     })
 
     it('create refuses a subject that already has a live goal for the metric', async () => {

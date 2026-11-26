@@ -29,6 +29,12 @@ const PROPERTY_B = propertyId('cb000000-0000-4000-8000-000000000001')
 
 let pool: Pool
 
+// A link stored before wording moved to portal_link_texts still carries its label.
+const legacyLabelRow = (link: ReturnType<typeof buildTestPortalLink>) => ({
+  ...linkToRow(link),
+  label: link.label,
+})
+
 async function truncateAll(pool: Pool) {
   await pool.query('DELETE FROM portal_links WHERE organization_id IN ($1, $2)', [
     ORG_A,
@@ -186,7 +192,7 @@ describe('portalLinkRepository (integration)', () => {
         url: 'https://book.example.com',
         sortKey: 'a0',
       })
-      await getDb().insert(portalLinks).values(linkToRow(link))
+      await getDb().insert(portalLinks).values(legacyLabelRow(link))
 
       const links = await repo.listLinks(ORG_A, portal.id, cat.id)
       expect(links).toHaveLength(1)
@@ -223,8 +229,8 @@ describe('portalLinkRepository (integration)', () => {
         label: 'Link B',
         sortKey: 'a0',
       })
-      await getDb().insert(portalLinks).values(linkToRow(linkA))
-      await getDb().insert(portalLinks).values(linkToRow(linkB))
+      await getDb().insert(portalLinks).values(legacyLabelRow(linkA))
+      await getDb().insert(portalLinks).values(legacyLabelRow(linkB))
 
       const orgALinks = await repo.listLinks(ORG_A, portalA.id, catA.id)
       expect(orgALinks).toHaveLength(1)
@@ -246,7 +252,7 @@ describe('portalLinkRepository (integration)', () => {
         label: 'All Links Test',
         sortKey: 'a0',
       })
-      await getDb().insert(portalLinks).values(linkToRow(link))
+      await getDb().insert(portalLinks).values(legacyLabelRow(link))
 
       const allLinks = await repo.listAllLinks(ORG_A, portal.id)
       expect(allLinks).toHaveLength(1)
@@ -287,7 +293,7 @@ describe('portalLinkRepository (integration)', () => {
           url: `https://example.test/${sortKey}`,
           sortKey,
         })
-        await getDb().insert(portalLinks).values(linkToRow(link))
+        await getDb().insert(portalLinks).values(legacyLabelRow(link))
         return link
       }
 

@@ -1,19 +1,19 @@
 // "How to print", open until the manager closes it: the numbered steps for the
-// style, piece and paper they chose (portal-print-kit-pieces.ts). A native
+// style, piece and paper they chose (portal-print-how-to.ts). A native
 // disclosure, so it needs no state of its own and stays as the manager left it
 // while they switch piece, paper or language.
 
 import { ChevronRight } from 'lucide-react'
-import type { PrintKitHowToStep } from '#/shared/domain/portal-print-kit-pieces'
+import type { PrintHowToStep } from '#/shared/domain/portal-print-how-to'
 
 type Props = Readonly<{
   /** What the steps are for: "Paper counter card"; the kit's section names none. */
   title?: string
-  steps: readonly PrintKitHowToStep[]
+  steps: readonly PrintHowToStep[]
 }>
 
 /** A step's words, with the phrase it stresses in bold. */
-function StepText({ step }: Readonly<{ step: PrintKitHowToStep }>) {
+function StepText({ step }: Readonly<{ step: PrintHowToStep }>) {
   const { text, strong } = step
   const at = strong === undefined ? -1 : text.indexOf(strong)
   if (strong === undefined || at < 0) return text

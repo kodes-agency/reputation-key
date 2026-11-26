@@ -60,7 +60,7 @@ export type PublicPortalLoaderData = Readonly<{
    * What the Immersive Hub renders. Destinations, asset ids and provenance never
    * appear in it.
    */
-  immersive: PublicImmersiveLoaderData | null
+  immersive: PublicImmersiveLoaderData
   /**
    * The web fonts the page loads. The root document reads it from the loader
    * data to link the right stylesheets.
@@ -146,7 +146,7 @@ export function toPublicPortalLoaderData(
       availableLocales: portal.localization.availableLocales,
       languagePackVersion: portal.localization.languagePackVersion,
     },
-    immersive: portal.immersive && toPublicImmersiveLoaderData(portal.immersive),
+    immersive: toPublicImmersiveLoaderData(portal.immersive),
     fontSet: 'guest',
     ...state,
   }
