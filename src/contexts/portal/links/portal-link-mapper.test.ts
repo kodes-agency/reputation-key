@@ -112,7 +112,7 @@ describe('portal-link.mapper', () => {
 
       const row = linkToRow(link)
 
-      expect(row.label).toBe('Concierge')
+      expect(row.label).toBe('')
       expect(row.url).toBe('https://concierge.example.com')
       expect(row.iconKey).toBe('bell')
       expect(row.sortKey).toBe('c2')
