@@ -5,11 +5,11 @@ import { setResponseHeader } from '@tanstack/react-start/server'
 import { getContainer } from '#/composition'
 import { throwContextError } from '#/shared/auth/server-errors'
 import type { PublicConsentAssertions } from '#/shared/auth/execution-policy'
+import { GuestResponseLifecycleError } from '../responses/guest-response-lifecycle.server'
 import {
   CORRECTION_WINDOW_MS,
-  GuestResponseLifecycleError,
   RESPONSE_WITHDRAWAL_WINDOW_MS,
-} from '../responses/guest-response-lifecycle.server'
+} from '../domain/guest-response'
 import {
   canStartNewGuestResponse,
   isQualifiedGuestResponse,

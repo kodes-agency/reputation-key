@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  CORRECTION_WINDOW_MS,
   type GuestResponse,
   createResponse,
   submitResponse,
@@ -308,7 +309,11 @@ describe('GuestResponse', () => {
         { rating: 5 },
         NOW,
       ) as GuestResponse
-      const result = correctResponse(r, { rating: 4 }, NOW, -1)
+      const result = correctResponse(
+        r,
+        { rating: 4 },
+        new Date(NOW.getTime() + CORRECTION_WINDOW_MS + 1),
+      )
       expect(result).toHaveProperty('code', 'correction_window_expired')
     })
 
