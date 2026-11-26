@@ -1,3 +1,4 @@
+import { plural } from '#/shared/format/format'
 import { visiblePortals } from './visible-portals'
 // The All properties page as data: every Portal the reader may see, under the
 // Property it belongs to, which Properties come first, and which page is open.
@@ -223,9 +224,6 @@ export function buildAllPropertiesOverview(
     to: start + onPage.size,
   }
 }
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`
 
 /**
  * The page's meta line under its title, as two facts ("All 3 properties in Avela

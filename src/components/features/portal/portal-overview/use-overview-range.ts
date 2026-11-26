@@ -5,6 +5,7 @@
 // nothing until the browser has looked, so the stored range is fetched once
 // rather than the default and then it.
 import { useSyncExternalStore } from 'react'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import { storedOverviewRange } from '../../../../contexts/reporting/portal-results/ui/portal-results-window'
 import {
   readOverviewRange,
@@ -12,16 +13,10 @@ import {
   subscribeOverviewRange,
 } from './overview-range-store'
 
-const noSubscription = () => () => undefined
-
 export function useOverviewRange() {
   const timeRange = useSyncExternalStore(subscribeOverviewRange, readOverviewRange, () =>
     storedOverviewRange(null),
   )
-  const ready = useSyncExternalStore(
-    noSubscription,
-    () => true,
-    () => false,
-  )
+  const ready = useHydrated()
   return { timeRange, setTimeRange: rememberOverviewRange, ready } as const
 }
