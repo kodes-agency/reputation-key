@@ -7,9 +7,10 @@
 // never maps it, and a stale id or a refused mute surfaces as an untagged 500.
 
 import { createServerFn } from '@tanstack/react-start'
+import { command } from '#/shared/commands/command.server'
+import type { CommandErrors } from '#/shared/commands/contracts'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer, type Container } from '#/composition'
-import { command } from '#/shared/commands/command.server'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -51,6 +52,20 @@ const resolveOptionalTenantContext = async (): Promise<AuthContext | null> => {
   })
 }
 
+/** Row actions answer 404 for a row that is gone; anything else is an unexpected failure. */
+const feedRowErrors: CommandErrors<NotificationError> = {
+  name: 'NotificationError',
+  is: isNotificationError,
+  status: (code) => (code === 'not_found' ? 404 : 500),
+}
+
+/** Preference and mute changes refuse bad input with a 400. */
+const feedSettingErrors: CommandErrors<NotificationError> = {
+  name: 'NotificationError',
+  is: isNotificationError,
+  status: () => 400,
+}
+
 async function runBulkNotificationMutation<T>(
   mutation: (feedPublicApi: Container['feedPublicApi'], ctx: AuthContext) => Promise<T>,
 ): Promise<T> {
@@ -63,20 +78,6 @@ async function runBulkNotificationMutation<T>(
   } catch (e) {
     throw catchUntagged(e)
   }
-}
-
-/** Row actions answer 404 for a missing notice and 500 for anything else. */
-const feedRowErrors = {
-  name: 'NotificationError',
-  is: isNotificationError,
-  status: (code: NotificationError['code']) => (code === 'not_found' ? 404 : 500),
-}
-
-/** Preference writes answer 400 for every refusal. */
-const feedSettingErrors = {
-  name: 'NotificationError',
-  is: isNotificationError,
-  status: () => 400,
 }
 
 // ── getNotificationsFn ────────────────────────────────────────────
