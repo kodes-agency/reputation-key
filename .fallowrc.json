@@ -146,15 +146,6 @@
       "exports": ["deleteProperty"]
     },
     {
-      "file": "src/contexts/reputation/public-api.ts",
-      "exports": [
-        "reviewExpired",
-        "reviewReplyPublicationRequested",
-        "reviewReplyPublished",
-        "reviewUpdated"
-      ]
-    },
-    {
       "file": "src/routes/api/auth/$.ts",
       "exports": ["handleAuthRequest"]
     },
