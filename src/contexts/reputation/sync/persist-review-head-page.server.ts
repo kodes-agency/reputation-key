@@ -113,10 +113,7 @@ const storeReviews = async (
   for (const review of toStore) {
     try {
       const resource = parseReviewProviderResource(review.reviewName)
-      if (
-        `accounts/${resource.accountId}/locations/${resource.locationId}` !==
-        input.locationName
-      ) {
+      if (resource.locationName !== input.locationName) {
         counts.failed++
         continue
       }

@@ -46,10 +46,7 @@ export async function persistGoogleReviewObservation(
   input: PersistGoogleReviewObservationInput,
 ): Promise<Awaited<ReturnType<ReviewProviderObservationWriter['persist']>>> {
   const resource = parseReviewProviderResource(input.review.reviewName)
-  if (
-    `accounts/${resource.accountId}/locations/${resource.locationId}` !==
-    input.locationName
-  ) {
+  if (resource.locationName !== input.locationName) {
     throw new TypeError('Targeted Google review resource mismatch')
   }
   const deriver = await deps.subjectKeyService.acquireDeriver()
