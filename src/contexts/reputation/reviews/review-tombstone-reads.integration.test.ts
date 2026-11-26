@@ -34,7 +34,7 @@ import { createAiReviewSource } from './ai-review-source.server'
 import { requireAccessibleReview } from '../replies/reply-access.server'
 import { createReviewRepository } from './review-repository.server'
 import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
-import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 
 const ORG = organizationId('org-review-tombstone-reads-1111111111')
 const PROPERTY = propertyId('7e100000-0000-4000-8000-000000000001')

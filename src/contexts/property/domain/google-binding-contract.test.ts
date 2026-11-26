@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_BINDING_STATES,
   PROPERTY_GOOGLE_BINDING_CHANGED_EVENT,
-  isGoogleBindingState,
   isGoogleBindingTupleValid,
   isGoogleResourceSuffix,
 } from './google-binding-contract'
@@ -18,11 +17,6 @@ describe('Property Google binding contract', () => {
       'disconnected',
     ])
     expect(PROPERTY_GOOGLE_BINDING_CHANGED_EVENT).toBe('property.google_binding.changed')
-  })
-
-  it('rejects unknown lifecycle states', () => {
-    expect(isGoogleBindingState('active')).toBe(true)
-    expect(isGoogleBindingState('connected')).toBe(false)
   })
 
   it('accepts only bare bounded provider suffixes', () => {

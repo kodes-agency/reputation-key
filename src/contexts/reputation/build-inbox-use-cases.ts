@@ -37,7 +37,6 @@ import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbo
 import { markFeedbackHandled } from './inbox/mark-feedback-handled.server'
 import { correctFeedbackHandlingOutcome } from './inbox/correct-feedback-handling-outcome.server'
 import {
-  getInboxResponseTarget,
   getGoogleReviewTargetAnalytics,
   getPrivateFeedbackTargetAnalytics,
   getResponseTargetPolicySettings,
@@ -219,12 +218,6 @@ export function wireUseCases(input: WireInput) {
       staffPublicApi: input.staffPublicApi,
       clock: input.clock,
       idGen: input.idGen,
-    }),
-    getInboxResponseTarget: getInboxResponseTarget({
-      repo: input.inboxRepo,
-      targetStore: input.responseTargetStore,
-      staffPublicApi: input.staffPublicApi,
-      clock: input.clock,
     }),
     getPrivateFeedbackTargetAnalytics: getPrivateFeedbackTargetAnalytics({
       targetStore: input.responseTargetStore,

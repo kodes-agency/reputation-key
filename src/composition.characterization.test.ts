@@ -70,7 +70,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'identityPublicApi',
   'identityRequestSecurity',
   'identityWorkerRuntime',
-  'inboxLifecycleRuntime',
   'inboxMaintenanceRuntime',
   'inboxPublicApi',
   'inboxRuntime',
@@ -230,7 +229,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(Object.keys(container.integrationPublicApi.connections).sort()).toEqual([
       'connect',
       'disconnect',
-      'findStatus',
       'list',
       'resume',
     ])
@@ -271,15 +269,11 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(Object.isFrozen(container.integrationWorkerRuntime)).toBe(true)
   })
 
-  it('exposes exact frozen Inbox lifecycle and maintenance capabilities', () => {
-    expect(Object.keys(container.inboxLifecycleRuntime).sort()).toEqual([
-      'getInboxResponseTarget',
-    ])
+  it('exposes exact frozen Inbox maintenance capabilities', () => {
     expect(Object.keys(container.inboxMaintenanceRuntime)).toEqual([
       'rebuildInboxProjection',
       'responseTargetExclusions',
     ])
-    expect(Object.isFrozen(container.inboxLifecycleRuntime)).toBe(true)
     expect(Object.isFrozen(container.inboxMaintenanceRuntime)).toBe(true)
   })
 

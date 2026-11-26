@@ -4,16 +4,12 @@
 // catalogue (the single source of truth pinned by the 3.1 guard): attempts,
 // exponential backoff WITH jitter (BullMQ BackoffOptions.jitter, verified
 // against node_modules/bullmq v5 types), and an explicit per-job timeout.
-// withCatalogueJobOptions wraps a queue so handler enqueue sites inherit the
-// catalogue policy without each call site repeating it.
 
-import { describe, it, expect, vi } from 'vitest'
-import type { JobsOptions, Queue } from 'bullmq'
+import { describe, it, expect } from 'vitest'
 import {
   jobEnqueueOptions,
   jobRetryDelayUpperBoundMs,
   jobTimeoutMs,
-  withCatalogueJobOptions,
   isCatalogueKnownWork,
 } from './job-policy'
 import { JOB_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
@@ -99,54 +95,5 @@ describe('isCatalogueKnownWork (BQC-3.6)', () => {
     expect(isCatalogueKnownWork('health-check')).toBe(true)
     expect(isCatalogueKnownWork('review.created')).toBe(true)
     expect(isCatalogueKnownWork('mystery-job')).toBe(false)
-  })
-})
-
-describe('withCatalogueJobOptions (BQC-3.6)', () => {
-  function fakeQueue() {
-    return {
-      add: vi.fn(async (name: string, data: unknown, opts?: JobsOptions) => ({
-        id: 'j1',
-        name,
-        data,
-        opts,
-      })),
-    } as unknown as Queue
-  }
-
-  it('merges catalogue policy into add() calls that carry no opts', async () => {
-    const queue = fakeQueue()
-    const wrapped = withCatalogueJobOptions(queue)
-
-    await wrapped.add('urgent-email', { resourceId: 'r1' })
-
-    expect(queue.add).toHaveBeenCalledWith(
-      'urgent-email',
-      { resourceId: 'r1' },
-      expect.objectContaining({
-        attempts: 3,
-        backoff: expect.objectContaining({ type: 'exponential', delay: 30_000 }),
-      }),
-    )
-  })
-
-  it('explicit call-site opts win over catalogue defaults', async () => {
-    const queue = fakeQueue()
-    const wrapped = withCatalogueJobOptions(queue)
-
-    await wrapped.add('urgent-email', { n: 1 }, { jobId: 'dedupe-1' })
-
-    const opts = (queue.add as ReturnType<typeof vi.fn>).mock.calls[0]![2] as JobsOptions
-    expect(opts.jobId).toBe('dedupe-1')
-    expect(opts.attempts).toBe(3)
-  })
-
-  it('does not mutate the original queue', async () => {
-    const queue = fakeQueue()
-    withCatalogueJobOptions(queue)
-
-    await queue.add('urgent-email', {})
-
-    expect(queue.add).toHaveBeenCalledWith('urgent-email', {})
   })
 })

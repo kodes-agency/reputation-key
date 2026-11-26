@@ -1,7 +1,5 @@
-import {
-  eraseReviewSourceContent,
-  replyScopeEffects,
-} from '#/contexts/reputation/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import type { Review } from '../domain/review-types'
