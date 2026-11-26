@@ -125,8 +125,8 @@ export type GenerateReplySuggestionDependencies = Readonly<{
     PortalAiReplyBrandProfilePublicApi,
     'readCurrentAiReplyBrandProfile'
   >
-  replyVoices?: Readonly<{
-    resolveV2Frame?(
+  replyVoices: Readonly<{
+    resolveV2Frame(
       input: Readonly<{
         organizationId: OrganizationId
         propertyId: PropertyId

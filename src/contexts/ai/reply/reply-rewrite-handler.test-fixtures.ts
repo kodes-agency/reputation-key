@@ -104,7 +104,7 @@ async function createV2Harness(
     ...base.dependencies,
     inference: { ...base.dependencies.inference, generateReply },
     replyVoices: {
-      ...base.dependencies.replyVoices!,
+      ...base.dependencies.replyVoices,
       resolveV2Frame: async () => ({
         ...frame,
         candidates: [
