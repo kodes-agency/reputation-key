@@ -253,7 +253,9 @@ describe('issued URL contracts', () => {
   it.each([LONG, QR, NFC])(
     'hands the issued credential and language to the page read as printed: %s',
     async (token) => {
-      mocks.readPage.mockResolvedValue({ immersive: null })
+      mocks.readPage.mockResolvedValue({
+        localization: { selectedLocale: 'en', languagePackVersion: 'guest-ui-en-v2' },
+      })
       await loadPage(token, 'de')
       expect(mocks.readPage).toHaveBeenCalledWith({ data: { token, locale: 'de' } })
     },
