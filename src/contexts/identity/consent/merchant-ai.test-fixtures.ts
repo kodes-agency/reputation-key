@@ -3,7 +3,8 @@ import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { Pool } from 'pg'
-import { newTestId, testDatabaseUrl, testDb } from '#/shared/testing/ambient-test-runtime'
+import { testDatabaseUrl, testDb } from '#/shared/testing/ambient-test-runtime'
+import { freshUuid } from '#/shared/testing/fresh-uuid'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -49,7 +50,7 @@ export const NOTICE_2026_11_01 = {
   noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
 } as const
 
-export const store = createMerchantAiAuthorizationStore(db, newTestId, replyScopeEffects)
+export const store = createMerchantAiAuthorizationStore(db, freshUuid, replyScopeEffects)
 
 type Capability = keyof MerchantAiSnapshot['capabilityEpochs']
 
@@ -77,7 +78,7 @@ export function command(overrides: Record<string, unknown> = {}) {
     providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
     redactionProfileFamily: 'gbp-review-global-v1',
     now: NOW,
-    ceremonyId: newTestId(),
+    ceremonyId: freshUuid(),
     ...overrides,
   }
 }
@@ -233,7 +234,7 @@ export function applyTransition(executor: Executor, args: TransitionArgs) {
     sql`${args.idempotencyKey}`,
     sql`${args.digestFill.repeat(64)}`,
     sql`${NOW}`,
-    ...(args.ceremonyId === null ? [] : [sql`${args.ceremonyId ?? newTestId()}::uuid`]),
+    ...(args.ceremonyId === null ? [] : [sql`${args.ceremonyId ?? freshUuid()}::uuid`]),
   ]
   const call = sql`apply_merchant_ai_transition_v1(${sql.join(values, sql`, `)})`
   return executor.execute(args.expand ? sql`SELECT (${call}).*` : sql`SELECT ${call}`)
@@ -251,7 +252,7 @@ export async function enableAsBeforeTheSwitchOn(
 ): Promise<MerchantAiSnapshot> {
   const [head] = await readAnalysisHead()
   await applyTransition(db, {
-    lineageId: newTestId(),
+    lineageId: freshUuid(),
     fromVersion: 0,
     operation: 'enable',
     runtimeProfiles: {

@@ -6,7 +6,6 @@ import type { Review } from '../domain/review-types'
 import type { Database } from '#/shared/db'
 import {
   aiExecutionControlHeads,
-  aiExecutionControlTransitions,
   aiOperations,
   aiOrganizationCostWindows,
   merchantAiConsentEvidence,
@@ -14,6 +13,7 @@ import {
   properties,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
+import { transitionControl } from '#/shared/db/testing/ai-execution-control-fixture'
 import type { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -180,45 +180,16 @@ export function createAiReplyAdoptionFixture(
     return head
   }
 
-  const transitionReplyControl = async (
+  const transitionReplyControl = (
     executionState: ReplyExecutionState,
     admissionState: ReplyAdmissionState,
-  ) => {
-    const head = await selectControl('capability:reply_drafting')
-    if (!head) throw new Error('Reply drafting execution control is not seeded')
-    if (
-      head.executionState === executionState &&
-      head.admissionState === admissionState
-    ) {
-      return
-    }
-    const occurredAt = now
-    const generation = head.generation + 1
-    await db.transaction(async (tx) => {
-      await tx.insert(aiExecutionControlTransitions).values({
-        controlId: head.controlId,
-        generation,
-        predecessorGeneration: head.generation,
-        scopeKey: head.scopeKey,
-        scopeKind: head.scopeKind,
-        scopeValue: head.scopeValue,
-        executionState,
-        admissionState,
-        reasonCode: 'integration_test_transition',
-        actorUserId,
-        ticketReference: `${config.label}-${generation}`,
-        candidateReleaseSha: null,
-        occurredAt,
-      })
-      await tx
-        .update(aiExecutionControlHeads)
-        .set({ generation, executionState, admissionState, updatedAt: occurredAt })
-        .where(
-          sql`${aiExecutionControlHeads.scopeKey} = 'capability:reply_drafting'
-            AND ${aiExecutionControlHeads.generation} = ${head.generation}`,
-        )
-    })
-  }
+  ) =>
+    transitionControl(
+      db,
+      'capability:reply_drafting',
+      { executionState, admissionState },
+      { actorUserId, ticketPrefix: config.label, occurredAt: now },
+    )
 
   /** Reads the reply control's current state so a suite can restore it. */
   const readReplyControl = async (): Promise<{
