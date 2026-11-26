@@ -49,17 +49,6 @@ const maxRatingOf = (value: number | null): LowRatingThreshold | null =>
 const isPropertyRow = (row: StoredPreferenceRow): row is PreferenceRow =>
   row.propertyId !== null
 
-/** The row answered last; the first wins a tie, and either may be absent. */
-const newerAnswer = <T extends { updatedAt: Date }>(
-  first: T | undefined,
-  second: T | undefined,
-): T | undefined =>
-  first && second
-    ? second.updatedAt > first.updatedAt
-      ? second
-      : first
-    : (first ?? second)
-
 const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
   const category = row.category as NotificationCategory
   const channel = row.channel as NotificationChannel
@@ -230,11 +219,7 @@ const scopedPreference = async (
   }
 }
 
-// The person's default is the preference row with no Property. Until the
-// earlier table is dropped, it is read too, and the newer answer wins: a
-// default not yet copied is still found, and one written by a release that
-// only knew the earlier table is not hidden by a stale copy. A tie goes to
-// the preference row.
+// The person's default is the preference row with no Property.
 const storedCategoryDefault = async (
   db: Database,
   userId: string,
@@ -242,25 +227,12 @@ const storedCategoryDefault = async (
   category: string,
   channel: string,
 ): Promise<NotificationCategoryDefault | null> => {
-  const [own] = await db
+  const [row] = await db
     .select()
     .from(notificationPreferences)
     .where(defaultScope(userId, orgId, category, channel))
     .limit(1)
-  const [earlier] = await db
-    .select()
-    .from(notificationCategoryDefaults)
-    .where(
-      and(
-        eq(notificationCategoryDefaults.userId, userId),
-        eq(notificationCategoryDefaults.organizationId, orgId),
-        eq(notificationCategoryDefaults.category, category),
-        eq(notificationCategoryDefaults.channel, channel),
-      ),
-    )
-    .limit(1)
-  const winner = newerAnswer(own, earlier)
-  return winner ? categoryDefaultFromRow(winner) : null
+  return row ? categoryDefaultFromRow(row) : null
 }
 
 const categoryDefault = async (
@@ -548,27 +520,11 @@ export const findCategoryDefaults = async (
   userId: string,
   orgId: string,
 ): Promise<NotificationCategoryDefault[]> => {
-  const own = await db
+  const rows = await db
     .select()
     .from(notificationPreferences)
     .where(defaultScope(userId, orgId))
-  const earlier = await db
-    .select()
-    .from(notificationCategoryDefaults)
-    .where(
-      and(
-        eq(notificationCategoryDefaults.userId, userId),
-        eq(notificationCategoryDefaults.organizationId, orgId),
-      ),
-    )
-  const key = (row: { category: string; channel: string }) =>
-    `${row.category}:${row.channel}`
-  const earlierByKey = new Map(earlier.map((row) => [key(row), row]))
-  const merged = own.map((row) => newerAnswer(row, earlierByKey.get(key(row)))!)
-  const covered = new Set(own.map(key))
-  return [...merged, ...earlier.filter((row) => !covered.has(key(row)))].map(
-    categoryDefaultFromRow,
-  )
+  return rows.map(categoryDefaultFromRow)
 }
 
 export const findPropertyDeliveryWindows = async (

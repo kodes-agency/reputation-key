@@ -182,16 +182,10 @@ async function buildProviderRequest(
     ),
     preferencesUrl,
   })
-  // Expand/contract compatibility: an open batch created by an older worker
-  // used the preferences page in this header. Reproduce that exact request;
-  // only newly prepared batches receive the signed RFC 8058 capability.
-  const unsubscribeUrl =
-    unsubscribeKeyVersion === 'legacy'
-      ? preferencesUrl
-      : deps.oneClickUnsubscribeUrl(
-          { kind: 'digest', id: batchId },
-          unsubscribeKeyVersion,
-        )
+  const unsubscribeUrl = deps.oneClickUnsubscribeUrl(
+    { kind: 'digest', id: batchId },
+    unsubscribeKeyVersion,
+  )
   return {
     to: recipient,
     subject: email.subject,
