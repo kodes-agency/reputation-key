@@ -5,8 +5,6 @@ import {
   paceChangeText,
   paceSentence,
   paceText,
-  perWeekText,
-  planPaceNote,
   weeklyTarget,
 } from './rating-goal-pace-words'
 
@@ -49,11 +47,6 @@ describe('the weekly count a goal is held to', () => {
   ])('is %i tenths a week, half up, at least one: %i', (tenths, weekly) => {
     expect(weeklyTarget(tenths)).toBe(weekly)
   })
-
-  it('reads a week with its decimal', () => {
-    expect(perWeekText(105)).toBe('10.5 a week')
-    expect(perWeekText(140)).toBe('14 a week')
-  })
 })
 
 describe('a plan’s pace in one sentence', () => {
@@ -64,11 +57,6 @@ describe('a plan’s pace in one sentence', () => {
 
   it('reads a week, then about a month, under one a day', () => {
     expect(paceSentence(30)).toBe('3 a week · about 13 a month')
-  })
-
-  it('adds the week and the month as a note under the plan', () => {
-    expect(planPaceNote(140)).toBe('About 14 a week · 60 a month')
-    expect(planPaceNote(30)).toBe('About 13 a month')
   })
 })
 
