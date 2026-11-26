@@ -12,7 +12,7 @@ import { reputationReplyScopeEffects } from './reply-scope-effects'
 import type { CompositionRuntime, ContextWiringInput } from './runtime'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
-import type { createDeferredMemberAuthorityLifecycle } from './member-authority-lifecycle'
+import type { MemberAuthorityLifecycle } from './member-authority-lifecycle'
 
 const INVITATION_EXPIRY_MS = INVITATION_EXPIRY_SECONDS * 1000
 const MS_PER_DAY = 86_400_000
@@ -39,7 +39,7 @@ export function buildIdentityPorts({ options, db, logger }: CompositionRuntime) 
 export function wireIdentity(
   { options, db, clock, logger, env, infra }: ContextWiringInput,
   { authSession, identityPort }: ReturnType<typeof buildIdentityPorts>,
-  memberAuthorityLifecycle: ReturnType<typeof createDeferredMemberAuthorityLifecycle>,
+  reconcileResponsibleManagerEligibility: MemberAuthorityLifecycle['reconcileResponsibleManagerEligibility'],
   getProperty: () => ReturnType<typeof buildPropertyContext>,
   getPortal: () => ReturnType<typeof buildPortalContext>,
 ) {
@@ -150,8 +150,7 @@ export function wireIdentity(
     logger,
     betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
     policy: { env },
-    reconcileResponsibleManagerEligibility:
-      memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
+    reconcileResponsibleManagerEligibility,
   })
 
   return identity
