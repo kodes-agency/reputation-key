@@ -4,7 +4,8 @@
 // transaction: nothing here is rolled back, and nothing reads another
 // suite's rows.
 import { afterAll, beforeAll } from 'vitest'
-import { newTestId, testDatabaseUrl, testDb } from '#/shared/testing/ambient-test-runtime'
+import { testDatabaseUrl, testDb } from '#/shared/testing/ambient-test-runtime'
+import { freshUuid } from '#/shared/testing/fresh-uuid'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import type { GoalSubject } from '../domain/goal-program'
@@ -29,8 +30,8 @@ type EndInput = Readonly<{
 
 export function useGoalProgramRepositorySuite(slug: string) {
   let lease: TestLease
-  const organizationId = `${slug}-${newTestId()}`
-  const propertyId = newTestId()
+  const organizationId = `${slug}-${freshUuid()}`
+  const propertyId = freshUuid()
 
   beforeAll(async () => {
     lease = await acquireTestLease(testDatabaseUrl())
@@ -38,7 +39,7 @@ export function useGoalProgramRepositorySuite(slug: string) {
       `INSERT INTO properties
          (id, organization_id, name, slug, timezone)
        VALUES ($1, $2, 'Goal Repository Property', $3, 'UTC')`,
-      [propertyId, organizationId, `goal-repository-${newTestId()}`],
+      [propertyId, organizationId, `goal-repository-${freshUuid()}`],
     )
   })
 
@@ -49,12 +50,12 @@ export function useGoalProgramRepositorySuite(slug: string) {
   const repository = () => createGoalProgramRepository(testDb())
 
   async function createProperty(label: string): Promise<string> {
-    const id = newTestId()
+    const id = freshUuid()
     await lease.pool.query(
       `INSERT INTO properties
          (id, organization_id, name, slug, timezone)
        VALUES ($1, $2, $3, $4, 'UTC')`,
-      [id, organizationId, label, `goal-${newTestId()}`],
+      [id, organizationId, label, `goal-${freshUuid()}`],
     )
     return id
   }
@@ -64,7 +65,7 @@ export function useGoalProgramRepositorySuite(slug: string) {
   ): GoalProgramBundle {
     return goalBundle({
       organizationId,
-      programId: newTestId(),
+      programId: freshUuid(),
       propertyId: input.propertyId,
       status: input.status,
       effectiveFrom: input.effectiveFrom,

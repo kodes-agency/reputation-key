@@ -1,9 +1,9 @@
-import { newTestId } from '#/shared/testing/ambient-test-runtime'
+import { freshUuid } from '#/shared/testing/fresh-uuid'
 import type { GuestWithdrawalJournal } from './guest-withdrawal-journal.server'
 
 /** The bucket is a provider transport: record what would be written, in order. */
 export const createInMemoryWithdrawalJournal = (
-  idGen: () => string = newTestId,
+  idGen: () => string = freshUuid,
 ): GuestWithdrawalJournal & Readonly<{ writes: string[] }> => {
   const writes: string[] = []
   return {

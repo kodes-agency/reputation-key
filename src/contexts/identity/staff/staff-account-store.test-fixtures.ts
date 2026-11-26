@@ -2,7 +2,8 @@ import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import type { Database } from '#/shared/db/index'
-import { newTestId, testDatabaseUrl } from '#/shared/testing/ambient-test-runtime'
+import { testDatabaseUrl } from '#/shared/testing/ambient-test-runtime'
+import { freshUuid } from '#/shared/testing/fresh-uuid'
 import type { Tx } from '#/shared/outbox/commit'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -47,7 +48,7 @@ export function useStaffAccountEnv() {
     (await lease.pool.query(text, params)).rows as Record<string, unknown>[]
 
   async function insertMember(org: string, user: string, role: string) {
-    const memberId = newTestId()
+    const memberId = freshUuid()
     await lease.pool.query(
       'INSERT INTO member (id, "organizationId", "userId", role, "createdAt") VALUES ($1, $2, $3, $4, $5)',
       [memberId, org, user, role, NOW],
@@ -59,9 +60,9 @@ export function useStaffAccountEnv() {
     await lease.pool.query(
       'INSERT INTO session (id, "userId", token, "expiresAt", "createdAt", "updatedAt", "activeOrganizationId") VALUES ($1,$2,$3,$4,$5,$5,$6)',
       [
-        newTestId(),
+        freshUuid(),
         user,
-        newTestId(),
+        freshUuid(),
         new Date(NOW.getTime() + 86400000),
         NOW,
         activeOrganizationId,
@@ -99,7 +100,7 @@ export function useStaffAccountEnv() {
         })
       }
     }
-    const base = createStaffAccountStore(db, () => NOW, newTestId, 7 * 86_400_000)
+    const base = createStaffAccountStore(db, () => NOW, freshUuid, 7 * 86_400_000)
     const decorate = (store: typeof base): typeof base => ({
       ...store,
       withAddressLock: (email, run) =>
@@ -122,7 +123,7 @@ export function useStaffAccountEnv() {
       store: decorate(base),
       spendAddressCheckBudget: async () => undefined,
       reportDeliveryFailure: () => undefined,
-      idGen: newTestId,
+      idGen: freshUuid,
       authorizeProperty: async () => undefined,
       invitationBudget: async () => 20,
       spendInvitationBudget: async () => undefined,
@@ -165,9 +166,9 @@ export function useStaffAccountEnv() {
       },
     }
     const input = {
-      operationId: newTestId(),
+      operationId: freshUuid(),
       propertyId: row.propertyId,
-      email: `new-${newTestId()}@example.com`,
+      email: `new-${freshUuid()}@example.com`,
       displayName: 'New colleague',
     }
     return { row, ctx, base, deps, input }
@@ -179,7 +180,7 @@ export function useStaffAccountEnv() {
     management: StaffManagementStore,
     { afterLogin }: { afterLogin?: () => void } = {},
   ) {
-    const commands = createAtomicIdentityCommandStore(db, newTestId)
+    const commands = createAtomicIdentityCommandStore(db, freshUuid)
     return {
       ...h.deps,
       management,
@@ -225,7 +226,7 @@ export function useStaffAccountEnv() {
         participationId: added.participationId,
         oldEmail: h.input.email,
         email,
-        invitationId: newTestId(),
+        invitationId: freshUuid(),
         actorId: h.row.inviterId,
       },
       spend,
