@@ -1,21 +1,13 @@
-// Share tenant/Property/date predicates and aggregate SQL across dashboard reads.
+// Share tenant/Property/date predicates and the statement timeout across dashboard reads.
 // Every direct read uses DASHBOARD_READ_BUDGET_MS inside withStatementTimeout,
 // raising DashboardReadTimeout instead of holding the pool connection indefinitely.
 // Client TanStack Query stale times own caching; a server cache would duplicate
 // the authoritative read model.
 
-import {
-  currentCorrectionTips,
-  effectiveValue,
-  effectiveSampleCount,
-} from '../readings/effective-readings.server'
-import { and, count, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
-import type { SQL } from 'drizzle-orm'
+import { and, eq, gte, lt, sql } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { metricReadings, inboxItems } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS, findMetricVersionById } from '../readings/contracts'
-import type { MetricStatsDataState } from './metric-stats.port.server'
 
 /** Hard statement-level budget for one direct dashboard read. */
 export const DASHBOARD_READ_BUDGET_MS = 5000
@@ -73,127 +65,6 @@ export function inboxScopeWhere(organizationId: OrganizationId, propertyId: Prop
     eq(inboxItems.organizationId, organizationId),
     eq(inboxItems.propertyId, propertyId),
   )
-}
-
-// ── Shared direct reads (one query skeleton per table family) ───────
-
-export type MetricAggregateRow = Readonly<{
-  definitionVersionId: string
-  metricKey: string
-  total: number
-  count: number
-  state: MetricStatsDataState
-  sampleCount: number
-  minimumSample: number
-}>
-
-const DASHBOARD_PORTAL_ANALYTICS = Object.freeze(
-  [
-    METRIC_VERSION_IDS.portalScanAnalytics,
-    METRIC_VERSION_IDS.portalRatingAnalytics,
-    METRIC_VERSION_IDS.portalFeedbackAnalytics,
-    METRIC_VERSION_IDS.portalDestinationClickAnalytics,
-  ].map((versionId) => {
-    const metric = findMetricVersionById(versionId)
-    if (!metric || !metric.version.permittedConsumers.includes('portal_analytics')) {
-      throw new Error(`Dashboard metric catalogue entry is unavailable: ${versionId}`)
-    }
-    return metric
-  }),
-)
-
-/**
- * THE aggregate skeleton over metric_readings: summed + counted values
- * grouped by metricKey for a scope. Consumers project the fields their port
- * returns (sums, counts, or both). Runs under the statement budget.
- */
-export async function readMetricAggregates(
-  db: Database,
-  scope: SQL | undefined,
-): Promise<readonly MetricAggregateRow[]> {
-  const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) => {
-    const correctionTips = currentCorrectionTips(tx)
-    const value = effectiveValue(correctionTips)
-    const sampleCount = effectiveSampleCount(correctionTips)
-    const cataloguePolicy = or(
-      ...DASHBOARD_PORTAL_ANALYTICS.map(({ definition, version }) =>
-        and(
-          eq(metricReadings.definitionVersionId, version.id),
-          eq(metricReadings.metricKey, definition.key),
-          inArray(metricReadings.sourcePolicy, [...version.sourcePolicyAllowlist]),
-        ),
-      ),
-    )
-    if (!cataloguePolicy) throw new Error('Dashboard metric catalogue is empty')
-    const governedSource = and(
-      isNotNull(metricReadings.exactValue),
-      eq(metricReadings.dataQuality, 'exact'),
-      sql`${metricReadings.attributionQuality} <> 'unresolved'`,
-      cataloguePolicy,
-    )
-    const governedEffectiveValue = sql<number>`CASE
-      WHEN ${governedSource} THEN ${value}
-      ELSE NULL
-    END`
-    const governedSampleCount = sql<number>`CASE
-      WHEN ${governedSource} THEN ${sampleCount}
-      ELSE 0
-    END`
-
-    return tx
-      .select({
-        definitionVersionId: metricReadings.definitionVersionId,
-        total: sql<number>`COALESCE(SUM(${governedEffectiveValue}), 0)`,
-        count: count(governedEffectiveValue),
-        sampleCount: sql<number>`COALESCE(SUM(${governedSampleCount}), 0)`,
-        evidenceCount: count(metricReadings.id),
-        governedEvidenceCount: sql<number>`COUNT(${metricReadings.id}) FILTER (
-          WHERE ${governedSource}
-        )`,
-      })
-      .from(metricReadings)
-      .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
-      .where(
-        and(
-          scope,
-          inArray(
-            metricReadings.definitionVersionId,
-            DASHBOARD_PORTAL_ANALYTICS.map(({ version }) => version.id),
-          ),
-        ),
-      )
-      .groupBy(metricReadings.definitionVersionId)
-  })
-  const rowsByVersion = new Map(
-    rows.map((row) => {
-      if (row.definitionVersionId === null) {
-        throw new Error('Dashboard metric projection returned an unversioned reading')
-      }
-      return [row.definitionVersionId, row] as const
-    }),
-  )
-
-  return DASHBOARD_PORTAL_ANALYTICS.map(({ definition, version }) => {
-    const row = rowsByVersion.get(version.id)
-    const sampleCount = Number(row?.sampleCount ?? 0)
-    const evidenceCount = Number(row?.evidenceCount ?? 0)
-    const governedEvidenceCount = Number(row?.governedEvidenceCount ?? 0)
-    const state =
-      evidenceCount === 0
-        ? 'insufficient_data'
-        : governedEvidenceCount === evidenceCount && sampleCount >= version.minimumSample
-          ? 'available'
-          : 'unavailable'
-    return {
-      definitionVersionId: version.id,
-      metricKey: definition.key,
-      total: Number(row?.total ?? 0),
-      count: Number(row?.count ?? 0),
-      state,
-      sampleCount,
-      minimumSample: version.minimumSample,
-    }
-  })
 }
 
 // ── Statement timeout ─────────────────────────────────────────────────

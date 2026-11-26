@@ -12,14 +12,8 @@
 import { describe, it, expect } from 'vitest'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import type { Database } from '#/shared/db'
-import { metricCorrections } from '#/shared/db/schema'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
-import {
-  metricPeriodWhere,
-  metricPortalWhere,
-  readMetricAggregates,
-} from './read-facade.server'
+import { metricPeriodWhere, metricPortalWhere } from './read-facade.server'
 
 const dialect = new PgDialect()
 
@@ -57,46 +51,5 @@ describe('metric_readings scope predicates', () => {
     expect(compiled).toContain('"event_at" >=')
     expect(compiled).toContain('"portal_id" =')
     expect(compiled).not.toContain('recorded_at')
-  })
-})
-
-describe('metric aggregate availability', () => {
-  it('reports an empty window as insufficient data, never as work in flight', async () => {
-    const correctionQuery = {
-      from: () => correctionQuery,
-      where: () => correctionQuery,
-      as: () => ({
-        readingId: metricCorrections.readingId,
-        kind: metricCorrections.kind,
-        exactDelta: metricCorrections.exactDelta,
-        replacementValue: metricCorrections.replacementValue,
-      }),
-    }
-    const aggregateQuery = {
-      from: () => aggregateQuery,
-      leftJoin: () => aggregateQuery,
-      where: () => aggregateQuery,
-      groupBy: async () => [],
-    }
-    let selectCount = 0
-    const tx = {
-      execute: async () => undefined,
-      select: () => {
-        selectCount += 1
-        return selectCount === 1 ? correctionQuery : aggregateQuery
-      },
-    }
-    const db = {
-      transaction: async (read: (transaction: unknown) => Promise<unknown>) => read(tx),
-    } as unknown as Database
-
-    const rows = await readMetricAggregates(db, undefined)
-
-    expect(rows.map(({ state }) => state)).toEqual([
-      'insufficient_data',
-      'insufficient_data',
-      'insufficient_data',
-      'insufficient_data',
-    ])
   })
 })

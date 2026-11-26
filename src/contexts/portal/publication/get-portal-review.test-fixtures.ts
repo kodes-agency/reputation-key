@@ -177,11 +177,9 @@ export async function setup(options: Options = {}) {
       nextSnapshotVersion: options.nextVersion ?? 5,
       nextActivationSequence: 5,
     })),
-    listActivationHistoryPage: vi.fn(async () => ({
-      records: published && !options.noLiveRecord ? [liveRecord] : [],
+    findCurrentAndLatestActivation: vi.fn(async () => ({
       latest: published && !options.noLiveRecord ? liveRecord : null,
       current: published && !options.noLiveRecord ? liveRecord : null,
-      nextCursor: null,
     })),
     listOpenPendingContentChanges: vi.fn(async () => options.pending ?? []),
   } as unknown as PortalPublicationRepository

@@ -149,7 +149,7 @@ describe('layered reply template language resolution', () => {
 
     expect(result.groups).toHaveLength(1)
     expect(result.groups[0]?.languageGroup).toBe('es-Latn')
-    expect(result.groups[0]?.templates[0]?.ref).toMatch(/^builtin:/u)
+    expect(result.groups[0]?.templates[0]?.id).toMatch(/^builtin:/u)
     expect(deps.resolveReplyLanguage).not.toHaveBeenCalled()
   })
 
@@ -184,7 +184,7 @@ describe('layered reply template language resolution', () => {
     expect(result.groups).toEqual([
       {
         languageGroup: 'ar-Arab',
-        templates: [expect.objectContaining({ ref: `template:${ARABIC_TEMPLATE_ID}` })],
+        templates: [expect.objectContaining({ id: `template:${ARABIC_TEMPLATE_ID}` })],
       },
     ])
   })

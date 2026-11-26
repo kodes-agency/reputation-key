@@ -16,8 +16,6 @@ import type { ReplyDraftSnapshot } from '#/contexts/reputation/replies/ui/use-re
 
 export type ReplyTone = GenerateReplySuggestionInput['tone']
 export type ReplySuggestionResult = GenerateReplySuggestionResult
-export type ComposerReplyTemplateListResult = ReplyTemplateListResult &
-  Readonly<{ recommendedReason?: string | null }>
 
 /**
  * One assist request. `idempotencyKey` belongs to the compose session: the
@@ -82,9 +80,7 @@ export type ReplyComposerInput = Readonly<{
     event: import('#/shared/domain/draft-measurement').DraftMeasurementEvent,
   ) => void
   onGenerate?: ReplySuggestionGenerate
-  onListTemplates?: (
-    target: ReplyLanguageTarget,
-  ) => Promise<ComposerReplyTemplateListResult>
+  onListTemplates?: (target: ReplyLanguageTarget) => Promise<ReplyTemplateListResult>
   onLoadTemplate?: (
     templateId: string,
     target: ReplyLanguageTarget,

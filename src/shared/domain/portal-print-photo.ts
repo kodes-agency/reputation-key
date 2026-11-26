@@ -49,29 +49,27 @@ const DPI_EPSILON = 1e-9
 
 /**
  * The dots per inch a photo prints at when it covers a box: the lesser of its
- * two sides' pixels per printed inch, divided by the manager's zoom (1 to 1.5),
- * and floored. The label and the notice both read this number.
+ * two sides' pixels per printed inch, floored. The label and the notice both
+ * read this number.
  */
 export function printPhotoDpi(
   photo: PrintPhotoPixels,
   cover: Pick<PrintPhotoBox, 'coverWidthPt' | 'coverHeightPt'>,
-  zoom = 1,
 ): number {
   const perInch = Math.min(
     photo.widthPx / (cover.coverWidthPt / 72),
     photo.heightPx / (cover.coverHeightPt / 72),
   )
-  return Math.floor(perInch / zoom + DPI_EPSILON)
+  return Math.floor(perInch + DPI_EPSILON)
 }
 
 /** The least photo that prints at `dpi` in this box: what the notice asks for ("a photo of at least 850 × 717 px"). */
 export function printPhotoPixelsFor(
   cover: Pick<PrintPhotoBox, 'coverWidthPt' | 'coverHeightPt'>,
   dpi: number,
-  zoom = 1,
 ): PrintPhotoPixels {
   return {
-    widthPx: Math.ceil((cover.coverWidthPt / 72) * dpi * zoom - DPI_EPSILON),
-    heightPx: Math.ceil((cover.coverHeightPt / 72) * dpi * zoom - DPI_EPSILON),
+    widthPx: Math.ceil((cover.coverWidthPt / 72) * dpi - DPI_EPSILON),
+    heightPx: Math.ceil((cover.coverHeightPt / 72) * dpi - DPI_EPSILON),
   }
 }

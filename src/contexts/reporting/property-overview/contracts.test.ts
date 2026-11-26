@@ -20,22 +20,23 @@ describe('timeRangePreset', () => {
 })
 
 describe('getDashboardDataDto', () => {
-  it('parses valid input with portalId', () => {
+  it('parses a Property and range, and ignores a stale portalId', () => {
     const result = getDashboardDataDto.parse({
       propertyId: 'a0000000-0000-4000-8000-000000000001',
       portalId: 'b0000000-0000-4000-8000-000000000001',
-      timeRange: '30d',
+      timeRange: '7d',
     })
-    expect(result.propertyId).toBe('a0000000-0000-4000-8000-000000000001')
-    expect(result.portalId).toBe('b0000000-0000-4000-8000-000000000001')
+    expect(result).toEqual({
+      propertyId: 'a0000000-0000-4000-8000-000000000001',
+      timeRange: '7d',
+    })
   })
 
-  it('parses valid input without portalId', () => {
+  it('defaults the time range', () => {
     const result = getDashboardDataDto.parse({
       propertyId: 'a0000000-0000-4000-8000-000000000001',
     })
-    expect(result.portalId).toBeUndefined()
-    expect(result.timeRange).toBe('30d') // default
+    expect(result.timeRange).toBe('30d')
   })
 
   it('rejects missing propertyId', () => {

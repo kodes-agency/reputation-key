@@ -29,7 +29,7 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import type { ReplyPublicationCheckResult } from '#/contexts/reputation/public-api'
-import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from '../../contexts/reputation/replies/ui/composer/reply-suggestion-contract'
+import type { ReplyTemplateListResultDto as ReplyTemplateListResult } from '#/contexts/reputation/library/contracts'
 import {
   inboxCachePolicy,
   type InboxReplyCacheChange,

@@ -98,11 +98,9 @@ export function buildGuestResponse(
     integrityRevision: 1,
     integrityAssessedAt: NOW,
     rating: 2,
-    category: null,
     text: 'Please contact the front desk.',
     responseConsent: true,
     textConsent: true,
-    mediaConsent: false,
     privateFeedbackThreshold: 3,
     experienceSnapshot: {
       portalPublicationState: 'published',
@@ -126,7 +124,6 @@ export function buildGuestResponse(
     moderatedAt: null,
     deletedAt: null,
     retentionDeadline: new Date('2028-08-25T12:00:00.000Z'),
-    schemaVersion: 1,
     ...overrides,
   }
 }
