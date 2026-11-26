@@ -110,10 +110,7 @@ import { updateOrganization } from './organization/update-organization.server'
 import { identityMemberRemoved } from './domain/events'
 import { createStaffManagementStore } from './staff/staff-management.store.server'
 import { createStaffSelfReader } from './staff/staff-self-reader.server'
-import {
-  createGrantAccessLookup,
-  createPropertyGrantHolderLookup,
-} from './members/grant-access-lookup.adapter.server'
+import { createGrantAccessLookup } from './members/grant-access-lookup.adapter.server'
 import { createIdentityAssetReferences } from './images/identity-asset-references.adapter.server'
 import { deliverBetaFeedback } from './feedback/beta-feedback-sentry-delivery.adapter.server'
 import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
@@ -140,7 +137,6 @@ import {
 } from './members/manager-membership-repository.server'
 import {
   decideCurrentManagerPropertyAuthorities,
-  decideCurrentManagerPropertyAuthority,
   createMemberPropertyAuthorityLookup,
   decidePublicationActorAuthority,
   resolveMemberPermissionPropertyScope,
@@ -173,7 +169,7 @@ export type StaffAccountBindings = Pick<
 >
 
 type IdentityContextDeps = Readonly<{
-  staffAccounts?: StaffAccountBindings
+  staffAccounts: StaffAccountBindings
   db: Database
   replyEffects: ReplyScopeEffects
   identityPort: IdentityPort
@@ -208,14 +204,7 @@ type IdentityContextDeps = Readonly<{
    * (readiness) and the least-privilege admin ops; the composition root
    * supplies the environment policy.
    */
-  policy: Readonly<{
-    env: CapabilityPolicyEnv
-    /** Suspension recovery bypasses the suspended property gate, then proves tenancy here. */
-    propertyBelongsToOrganization: (
-      organizationId: string,
-      propertyId: string,
-    ) => Promise<boolean>
-  }>
+  policy: Readonly<{ env: CapabilityPolicyEnv }>
   reconcileResponsibleManagerEligibility?: (
     organizationId: string,
     userId: string,
@@ -279,27 +268,6 @@ export function buildPlatformConsole(deps: PlatformConsoleDeps): PlatformConsole
   })
 }
 
-const unavailable = async (): Promise<never> => {
-  throw new Error('Staff account bindings are unavailable')
-}
-
-const unavailableStaffAccountBindings: StaffAccountBindings = {
-  authorizeProperty: unavailable,
-  portals: {
-    archiveForMemberDeparture: unavailable,
-    rename: unavailable,
-    check: unavailable,
-    create: unavailable,
-    issueCode: unavailable,
-    publish: unavailable,
-    archive: unavailable,
-  },
-  spendInvitationBudget: unavailable,
-  invitationBudget: unavailable,
-  deliverAccess: unavailable,
-  spendAddressCheckBudget: unavailable,
-}
-
 function buildStaffAccounts(
   deps: Pick<
     IdentityContextDeps,
@@ -313,7 +281,7 @@ function buildStaffAccounts(
     store: createStaffAccountStore(db, clock, deps.idGen, deps.invitationExpiresInMs),
     management,
     idGen: deps.idGen,
-    ...(deps.staffAccounts ?? unavailableStaffAccountBindings),
+    ...deps.staffAccounts,
     reportAddressRefusal: (reason) =>
       logger.warn({ security: true, reason }, 'Staff address refused'),
     reportStepFailure: (row, error) =>
@@ -385,8 +353,13 @@ function buildMerchantAi(
   const noticeUpdateReceipts = createMerchantAiNoticeUpdateStore(db)
   const decisionDeferrals = createMerchantAiDecisionDeferralStore(db)
   const authorizeManagement = createMerchantAiManagementAuthorizer(db)
-  const isNoticeAdmin = async (input: { organizationId: string; actorUserId: string }) =>
-    (await getMemberRole(db, input.organizationId, input.actorUserId)) === 'owner'
+  const isAccountAdmin = ({
+    organizationId,
+    actorUserId,
+  }: {
+    organizationId: string
+    actorUserId: string
+  }) => deps.isCurrentAccountAdmin({ organizationId, userId: actorUserId })
 
   const authorization = createMerchantAiAuthorization({
     store: createMerchantAiAuthorizationStore(db, idGen, deps.replyEffects),
@@ -397,8 +370,7 @@ function buildMerchantAi(
         { organizationId: input.organizationId, propertyId: input.propertyId },
         input.capability,
       ).allowed,
-    isCurrentAccountAdmin: ({ organizationId: orgId, actorUserId }) =>
-      deps.isCurrentAccountAdmin({ organizationId: orgId, userId: actorUserId }),
+    isCurrentAccountAdmin: isAccountAdmin,
     clock,
     idGen,
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,
@@ -423,7 +395,7 @@ function buildMerchantAi(
     clock,
     isNoticeInForce: isMerchantAiNoticeInForceForCapabilities,
     readLatestUpdate: async (input) =>
-      (await isNoticeAdmin(input))
+      (await isAccountAdmin(input))
         ? noticeUpdateReceipts.latest({ ...input, unseenOnly: false })
         : null,
     pauseReason: merchantAiPauseReason,
@@ -441,7 +413,7 @@ function buildMerchantAi(
     }),
     noticeUpdates: createMerchantAiNoticeUpdates({
       store: noticeUpdateReceipts,
-      isCurrentAccountAdmin: isNoticeAdmin,
+      isCurrentAccountAdmin: isAccountAdmin,
     }),
     renewal: renewLapsedMerchantAiAuthorizations({
       idGen,
@@ -726,12 +698,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       // Callers supply their authorization transaction so each decision shares
       // their commit check; the grant table stays Identity's.
       hasActivePropertyGrant: hasActiveGrant,
-      decideManagerPropertyAuthority: decideCurrentManagerPropertyAuthority,
       decideManagerPropertyAuthorities: decideCurrentManagerPropertyAuthorities,
       decidePublicationActorAuthority,
-      // Property-scoped recipient resolution for other contexts (notification
-      // fan-out).
-      propertyAccessHolders: createPropertyGrantHolderLookup(db, clock),
     }),
     /** Beta-feedback reporting for the signed-in reporter. Request-facing, but
      * kept off `publicApi`, which other contexts receive. */
