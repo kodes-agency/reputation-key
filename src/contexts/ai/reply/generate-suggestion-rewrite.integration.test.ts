@@ -19,7 +19,7 @@ describe('dark reply v2 rewrite orchestration', () => {
     'writes nothing before a %s admission',
     async (outcome) => {
       const h = await createV2Harness(['accepted'])
-      const reserveFrame = vi.spyOn(h.dependencies.replyVoices!, 'resolveV2Frame')
+      const reserveFrame = vi.spyOn(h.dependencies.replyVoices, 'resolveV2Frame')
       if (outcome === 'refused') await h.base.persistence.grant({ state: 'disabled' })
       else
         vi.mocked(h.base.mocks.acquire).mockResolvedValue({
@@ -41,7 +41,7 @@ describe('dark reply v2 rewrite orchestration', () => {
 
   it('releases admission when the frame cannot be reserved', async () => {
     const h = await createV2Harness(['accepted'])
-    vi.spyOn(h.dependencies.replyVoices!, 'resolveV2Frame').mockResolvedValue(null)
+    vi.spyOn(h.dependencies.replyVoices, 'resolveV2Frame').mockResolvedValue(null)
     expect(await h.generate(INPUT)).toMatchObject({
       status: 'unavailable',
       code: 'policy_unavailable',
@@ -195,7 +195,7 @@ describe('dark reply v2 rewrite orchestration', () => {
           if (change === 'consent') await h.base.persistence.grant({ state: 'disabled' })
           if (change === 'voice')
             vi.mocked(
-              h.base.dependencies.replyVoices!.resolveLocalFrame,
+              h.base.dependencies.replyVoices.resolveLocalFrame,
             ).mockResolvedValue(null)
           if (change === 'reply_revision')
             vi.mocked(
@@ -227,7 +227,7 @@ describe('dark reply v2 rewrite orchestration', () => {
           })
         if (change === 'consent') await base.persistence.grant({ state: 'disabled' })
         if (change === 'voice')
-          vi.mocked(base.dependencies.replyVoices!.resolveLocalFrame).mockResolvedValue({
+          vi.mocked(base.dependencies.replyVoices.resolveLocalFrame).mockResolvedValue({
             prefix: '',
             suffix: '',
             voiceDigest: 'b'.repeat(64),
@@ -325,7 +325,7 @@ describe('dark v2 background drafting', () => {
         })
       if (condition === 'consent') await h.base.persistence.grant({ state: 'disabled' })
       if (condition === 'voice')
-        vi.spyOn(h.dependencies.replyVoices!, 'resolveV2Frame').mockResolvedValue(null)
+        vi.spyOn(h.dependencies.replyVoices, 'resolveV2Frame').mockResolvedValue(null)
       expect((await h.generate({ ...INPUT, intent: 'background' })).status).toBe(
         'unavailable',
       )
@@ -475,7 +475,7 @@ it.each(['voice', 'language', 'profile'] as const)(
     const running = h.generate(request)
     await vi.waitFor(() => expect(h.generateReply).toHaveBeenCalledOnce())
     if (changed === 'voice')
-      vi.spyOn(h.dependencies.replyVoices!, 'resolveLocalFrame').mockResolvedValue(null)
+      vi.spyOn(h.dependencies.replyVoices, 'resolveLocalFrame').mockResolvedValue(null)
     if (changed === 'language')
       vi.mocked(h.base.mocks.readDefaultReplyLanguage).mockResolvedValue('es-Latn')
     if (changed === 'profile')

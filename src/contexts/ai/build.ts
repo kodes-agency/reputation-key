@@ -14,7 +14,6 @@ import {
 import type { AiInferencePort } from './execution/ai-inprocess.port.server'
 import type { AiAdmissionPort } from './execution/ai-lane-admission.port.server'
 import type { AiSubjectHmacPort } from './analysis/ai-subject-hmac.port.server'
-import type { AiProviderChoicePort } from './analysis/ai-provider-choice.port.server'
 import { REVIEW_ANALYSIS_OPERATION_PROFILE } from './analysis/review-analysis-steps.server'
 import { createAnalyzeReviewEvent } from './analysis/analyze-review-event.server'
 import { createAiOperationExecutionReaper } from './analysis/ai-operation-execution-reaper.server'
@@ -108,15 +107,7 @@ export type AiContextBuildInput = Readonly<{
   replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
   replyVoices: GenerateReplySuggestionDependencies['replyVoices']
   inference?: AiInferencePort
-  admission?: AiAdmissionPort
   subjectHmac?: AiSubjectHmacPort
-  /**
-   * Which provider a v3 review analysis is claimed under. Left out, it is the
-   * operator's choice, which names OpenAI alone (`OPERATOR_PROVIDER_SELECTION`);
-   * a test hands in its own.
-   */
-  providerChoice?: AiProviderChoicePort
-  resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
   /** Hands one waiting review to the worker's on-demand analysis job. */
   enqueueReviewAnalysisNow?: RequestReviewAnalysisNowDependencies['enqueueReviewAnalysisNow']
   /**
@@ -125,12 +116,9 @@ export type AiContextBuildInput = Readonly<{
    * the consumer queues every review for the backlog drain, which asks the
    * same question of each entry.
    */
-  authorizeReviewAnalysisScope?: AuthorizeReviewAnalysisScope
-  /**
-   * Records Review Analysis backlog entries whose attempt threw. Optional so
-   * existing constructions keep working; without it the drain says nothing.
-   */
-  logger?: Pick<LoggerPort, 'warn'>
+  authorizeReviewAnalysisScope: AuthorizeReviewAnalysisScope
+  /** Records Review Analysis backlog entries whose attempt threw. */
+  logger: Pick<LoggerPort, 'warn'>
   idGen: () => string
   nowEpochMillis: () => number
 }>
@@ -153,14 +141,12 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     input.replyEffects,
   )
   const inference = input.inference ?? unavailableInference
-  const admission =
-    input.admission ??
-    (input.redis
-      ? createRedisAiLaneAdmissionAdapter(input.redis, input.idGen)
-      : unavailableAdmission)
+  const admission = input.redis
+    ? createRedisAiLaneAdmissionAdapter(input.redis, input.idGen)
+    : unavailableAdmission
   const analyzeReviewEvent = createAnalyzeReviewEvent({
     vocabularyContext: createPropertyVocabularyContextAdapter(input.db),
-    providerChoice: input.providerChoice ?? createOperatorProviderChoice(),
+    providerChoice: createOperatorProviderChoice(),
     authorization,
     control,
     inference,
@@ -233,7 +219,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       nowEpochMillis,
     }),
     nowEpochMillis,
-    logger: input.logger ?? { warn: () => {} },
+    logger: input.logger,
   })
   const readDependencies = {
     propertyAccess: input.propertyAccess,
@@ -245,17 +231,15 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   }
   let replyLanguageDetector:
     Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>> | undefined
-  const resolveReplyLanguage =
-    input.resolveReplyLanguage ??
-    (async (
-      request: Parameters<GenerateReplySuggestionDependencies['resolveReplyLanguage']>[0],
-    ) => {
-      replyLanguageDetector ??= await createCld3ReplyLanguageDetector()
-      return resolveConcreteReplyLanguage({
-        ...request,
-        detector: replyLanguageDetector,
-      })
+  const resolveReplyLanguage = async (
+    request: Parameters<GenerateReplySuggestionDependencies['resolveReplyLanguage']>[0],
+  ) => {
+    replyLanguageDetector ??= await createCld3ReplyLanguageDetector()
+    return resolveConcreteReplyLanguage({
+      ...request,
+      detector: replyLanguageDetector,
     })
+  }
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     registerAiConsumers(consumerRegistry, {

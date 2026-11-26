@@ -27,7 +27,6 @@ import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import {
   bindReplyDraftingV2,
   replyDraftingV2GenerationSeed,
-  selectedReplyDraftingAttempt,
   rewriteReplyDraftingV2,
   releaseReplyAdmissionOnce,
   type ReplyDraftingV2Attempt,
@@ -119,9 +118,9 @@ async function isReplySuggestionStillCurrent(
     replyBrandDisplayName: string
     replyBrandDisplayNameDigest: string
     voiceDigest: string | null
-    authorizationStateVersion?: number
-    noticeVersion?: string
-    noticeDigest?: string
+    authorizationStateVersion: number
+    noticeVersion: string
+    noticeDigest: string
     languageGroup: ReplyTemplateLanguageGroup
   }>,
 ): Promise<'current' | 'source_changed' | 'brand_profile_changed' | 'voice_changed'> {
@@ -143,12 +142,12 @@ async function isReplySuggestionStillCurrent(
         input.organizationId,
         input.propertyId,
       ),
-      dependencies.replyVoices?.resolveLocalFrame({
+      dependencies.replyVoices.resolveLocalFrame({
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         reviewId: input.reviewId,
         languageGroup: expected.languageGroup,
-      }) ?? Promise.resolve(null),
+      }),
     ])
   if (
     brandProfile === null ||
@@ -160,10 +159,9 @@ async function isReplySuggestionStillCurrent(
   }
   if ((localFrame?.voiceDigest ?? null) !== expected.voiceDigest) return 'voice_changed'
   if (
-    expected.authorizationStateVersion !== undefined &&
-    (authorization?.stateVersion !== expected.authorizationStateVersion ||
-      authorization?.noticeVersion !== expected.noticeVersion ||
-      authorization?.noticeDigest !== expected.noticeDigest)
+    authorization?.stateVersion !== expected.authorizationStateVersion ||
+    authorization?.noticeVersion !== expected.noticeVersion ||
+    authorization?.noticeDigest !== expected.noticeDigest
   )
     return 'source_changed'
   return authorization?.authorizationLineageId === expected.authorizationLineageId &&
@@ -273,9 +271,12 @@ async function resolveDraftingGrant(
 
 export function createGenerateReplySuggestion(
   dependencies: GenerateReplySuggestionDependencies,
-  v2Attempt?: ReplyDraftingV2Attempt,
+  v2: ReplyDraftingV2Attempt = {
+    parentOperationId: null,
+    rewriteOrdinal: 0,
+    rewriteIssues: [],
+  },
 ): (input: GenerateReplySuggestionInput) => Promise<GenerateReplySuggestionResult> {
-  const v2 = selectedReplyDraftingAttempt(v2Attempt)
   const operationProfile = REPLY_DRAFTING_V2_OPERATION_PROFILE
   // fallow-ignore-next-line complexity -- fail-closed AI operation lifecycle must settle every claimed state in one boundary
   const generate = manageReplyDraftingRequests(dependencies, v2, async (input) => {
@@ -308,12 +309,12 @@ export function createGenerateReplySuggestion(
         language.result.concreteLanguageTag,
       )
       const frame = fallbackLanguage
-        ? ((await dependencies.replyVoices?.resolveLocalFrame({
+        ? await dependencies.replyVoices.resolveLocalFrame({
             organizationId: input.organizationId,
             propertyId: input.propertyId,
             reviewId: input.reviewId,
             languageGroup: fallbackLanguage.templateGroup,
-          })) ?? null)
+          })
         : null
       return frame === null
         ? language.result
@@ -344,7 +345,7 @@ export function createGenerateReplySuggestion(
     )
     try {
       const generationSeed = replyDraftingV2GenerationSeed(input)
-      const replyV2Frame = await dependencies.replyVoices?.resolveV2Frame?.({
+      const replyV2Frame = await dependencies.replyVoices.resolveV2Frame({
         ...input,
         languageGroup: concreteReplyLanguage.templateGroup,
         generationSeed,
