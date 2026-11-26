@@ -71,10 +71,7 @@ describe('switched-off feature containment matrix', () => {
       it(`${capability} (${label}) says it is not part of this beta`, () => {
         install({ BETA_CAPABILITIES_OFF: switchName })
         const decision = checkScopedCapability(
-          {
-            organizationId: 'org-controlled-route',
-            propertyId: 'property-controlled-route',
-          },
+          { organizationId: 'org-controlled-route' },
           capability,
         )
         let thrown: unknown

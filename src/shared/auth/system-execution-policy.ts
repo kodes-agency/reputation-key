@@ -189,7 +189,7 @@ export function createDelayedExecutionPolicy(): DelayedExecutionPolicy {
           organizationId: organizationId(request.organizationId),
           role: 'AccountAdmin',
         }
-        const capDecision = checkBetaCapability(systemCtx, capability, request.propertyId)
+        const capDecision = checkBetaCapability(systemCtx, capability)
         if (!capDecision.allowed) {
           return finish(request, false, capDecision.reason, freshRead)
         }

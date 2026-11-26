@@ -15,5 +15,5 @@ export const checkControlledRoute = createServerFn({ method: 'GET' })
   .handler(async ({ data }) => {
     const headers = await headersFromContext()
     const ctx = await resolveTenantContext(headers)
-    return checkBetaCapability(ctx, data.capability, data.propertyId)
+    return checkBetaCapability(ctx, data.capability)
   })

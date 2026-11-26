@@ -3,7 +3,6 @@ import {
   getClientIpFromForwardedFor,
   getClientIpFromRailwayHeaders,
   hasRailwayEdgeMarkers,
-  deriveClientIp,
   clientIpFromHeaders,
 } from './client-ip'
 import { resetEnv } from '#/shared/config/env'
@@ -30,6 +29,10 @@ describe('client-ip (B0.7)', () => {
     it('returns undefined for empty header', () => {
       expect(getClientIpFromForwardedFor(undefined, 1)).toBeUndefined()
       expect(getClientIpFromForwardedFor('', 1)).toBeUndefined()
+    })
+
+    it('rejects a missing proxy count', () => {
+      expect(getClientIpFromForwardedFor('203.0.113.5', 0)).toBeUndefined()
     })
 
     it('trims whitespace from hops', () => {
@@ -100,33 +103,6 @@ describe('client-ip (B0.7)', () => {
           }),
         ),
       ).toBeUndefined()
-    })
-  })
-
-  describe('deriveClientIp', () => {
-    it('uses forwarded header when behind trusted proxies', () => {
-      const result = deriveClientIp('10.0.0.1', '203.0.113.5', 1)
-      expect(result).toBe('203.0.113.5')
-    })
-
-    it('falls back to the socket when the forwarded chain is too short', () => {
-      const result = deriveClientIp('10.0.0.1', '203.0.113.5', 2)
-      expect(result).toBe('10.0.0.1')
-    })
-
-    it('falls back to remote address when no proxies', () => {
-      const result = deriveClientIp('192.168.1.1', undefined, 0)
-      expect(result).toBe('192.168.1.1')
-    })
-
-    it('falls back to remote address when header is missing', () => {
-      const result = deriveClientIp('192.168.1.1', undefined, 1)
-      expect(result).toBe('192.168.1.1')
-    })
-
-    it('returns unknown when no information available', () => {
-      const result = deriveClientIp(undefined, undefined, 0)
-      expect(result).toBe('unknown')
     })
   })
 

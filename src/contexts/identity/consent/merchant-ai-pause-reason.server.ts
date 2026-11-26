@@ -18,14 +18,10 @@ export function merchantAiPauseReason(
     authorization: { capabilities: readonly MerchantAiCapability[] } | null
   }>,
   organizationId: string,
-  propertyId: string,
 ): Pause | null {
   for (const capability of record.authorization?.capabilities ?? []) {
     if (capability === 'property_trends') continue
-    const decision = checkScopedCapability(
-      { organizationId, propertyId },
-      PURPOSE[capability],
-    )
+    const decision = checkScopedCapability({ organizationId }, PURPOSE[capability])
     if (!decision.allowed) return pauseOf(decision.reason)
   }
   return null
@@ -40,6 +36,9 @@ export function merchantAiRenewalDecision(
   }>,
 ): 'allowed' | Pause {
   if (input.capability === 'property_trends') return 'allowed'
-  const decision = checkScopedCapability(input, PURPOSE[input.capability])
+  const decision = checkScopedCapability(
+    { organizationId: input.organizationId },
+    PURPOSE[input.capability],
+  )
   return decision.allowed ? 'allowed' : pauseOf(decision.reason)
 }

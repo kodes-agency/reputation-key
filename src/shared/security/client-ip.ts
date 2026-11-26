@@ -5,7 +5,7 @@
 // headers beyond the configured proxy count.
 //
 // Usage:
-//   const ip = getClientIp(event, trustedProxyCount)
+//   const ip = clientIpFromHeaders(headers)
 //   // → "203.0.113.5"
 
 import { isIP } from 'node:net'
@@ -75,30 +75,6 @@ export function getClientIpFromRailwayHeaders(headers: Headers): string | undefi
 }
 
 /**
- * Derive the client IP from a Nitro/H3 event using trusted proxy configuration.
- *
- * @param remoteAddress - The direct socket address from event.node.req.socket.remoteAddress
- * @param forwardedFor - The X-Forwarded-For header value
- * @param trustedProxyCount - Number of trusted reverse proxies (from env TRUSTED_PROXY_COUNT)
- * @returns The best estimate of the real client IP
- */
-export function deriveClientIp(
-  remoteAddress: string | undefined,
-  forwardedFor: string | undefined,
-  trustedProxyCount: number,
-  maxHops = DEFAULT_MAX_FORWARDED_HOPS,
-): string {
-  // When behind trusted proxies, derive from X-Forwarded-For
-  if (trustedProxyCount > 0 && forwardedFor) {
-    const ip = getClientIpFromForwardedFor(forwardedFor, trustedProxyCount, maxHops)
-    if (ip) return ip
-  }
-
-  // Fallback to direct socket address
-  return remoteAddress ?? 'unknown'
-}
-
-/**
  * Derive the client IP from server-function request headers using the
  * explicitly configured edge contract.
  *
@@ -114,11 +90,12 @@ export function clientIpFromHeaders(headers: Headers): string {
     return getClientIpFromRailwayHeaders(headers) ?? 'unknown'
   }
   if (env.TRUSTED_PROXY_MODE === 'xff') {
-    return deriveClientIp(
-      undefined,
-      headers.get('x-forwarded-for') ?? undefined,
-      env.TRUSTED_PROXY_COUNT,
-      env.TRUSTED_PROXY_MAX_HOPS,
+    return (
+      getClientIpFromForwardedFor(
+        headers.get('x-forwarded-for') ?? undefined,
+        env.TRUSTED_PROXY_COUNT,
+        env.TRUSTED_PROXY_MAX_HOPS,
+      ) ?? 'unknown'
     )
   }
   return 'unknown'

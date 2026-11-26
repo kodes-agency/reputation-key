@@ -139,7 +139,7 @@ export function createPolicyDiagnostic(deps: PolicyDiagnosticDeps) {
       organizationId: organizationId(input.organizationId),
       role,
     }
-    const capDecision = checkBetaCapability(ctx, capability, input.propertyId)
+    const capDecision = checkBetaCapability(ctx, capability)
     const permissionAllowed = canForContext(ctx, input.action)
     const scopeOutcome = input.propertyId
       ? await scopeOutcomeFor(deps, {

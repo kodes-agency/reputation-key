@@ -331,7 +331,7 @@ export function resetCapabilityPolicyStore(): void {
  * role or grant; ExecutionPolicy composes those layers for user principals.
  */
 export function checkScopedCapability(
-  scope: Readonly<{ organizationId: string; propertyId?: string }>,
+  scope: Readonly<{ organizationId: string }>,
   capability: Capability,
 ): CapabilityDecision {
   const store = getStore()
@@ -350,12 +350,8 @@ export function checkScopedCapability(
 export function checkBetaCapability(
   ctx: AuthContext,
   capability: Capability,
-  propertyId?: string,
 ): CapabilityDecision {
-  return checkScopedCapability(
-    { organizationId: ctx.organizationId, ...(propertyId ? { propertyId } : {}) },
-    capability,
-  )
+  return checkScopedCapability({ organizationId: ctx.organizationId }, capability)
 }
 
 /**
