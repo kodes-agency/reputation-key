@@ -8,8 +8,6 @@ import {
   integrationGoogleAccountDisconnected,
   integrationGoogleAccountReauthorizationRequired,
   integrationGoogleReviewPushAccepted,
-  integrationPropertyImportRequested,
-  integrationPropertyImportRetentionReleased,
 } from './events'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 
@@ -97,57 +95,12 @@ describe('integrationGoogleAccountDisconnected', () => {
   })
 })
 
-describe('integrationPropertyImportRetentionReleased', () => {
-  it('creates a bounded identifier-only release event', () => {
-    const idempotencyKeys = ['40000000-0000-4000-8000-000000000001']
-    const event = integrationPropertyImportRetentionReleased({
-      organizationId: organizationId('org-1'),
-      importJobId: '40000000-0000-4000-8000-000000000000',
-      idempotencyKeys,
-      occurredAt: now,
-    })
-    expect(event).toMatchObject({
-      _tag: 'integration.property_import.retention_released',
-      organizationId: 'org-1',
-      importJobId: '40000000-0000-4000-8000-000000000000',
-      idempotencyKeys,
-      occurredAt: now,
-      correlationId: null,
-    })
-  })
-
-  it('rejects duplicate or oversized release sets', () => {
-    expect(() =>
-      integrationPropertyImportRetentionReleased({
-        organizationId: organizationId('org-1'),
-        importJobId: '40000000-0000-4000-8000-000000000000',
-        idempotencyKeys: ['same', 'same'],
-        occurredAt: now,
-      }),
-    ).toThrow('1..100 unique')
-    expect(() =>
-      integrationPropertyImportRetentionReleased({
-        organizationId: organizationId('org-1'),
-        importJobId: '40000000-0000-4000-8000-000000000000',
-        idempotencyKeys: Array.from({ length: 101 }, (_, index) => `key-${index}`),
-        occurredAt: now,
-      }),
-    ).toThrow('1..100 unique')
-  })
-})
-
 describe('correlation', () => {
   it('preserves caller correlation across every constructor', () => {
     const correlationId = 'correlation-1'
     const connectionId = googleConnectionId('connection-1')
     const organization = organizationId('organization-1')
     const correlated = [
-      integrationPropertyImportRequested({
-        organizationId: organization,
-        importJobId: 'import-1',
-        occurredAt: now,
-        correlationId,
-      }),
       integrationGoogleAccountConnected({
         connectionId,
         organizationId: organization,
@@ -166,13 +119,6 @@ describe('correlation', () => {
         connectionId,
         organizationId: organization,
         cause: 'member_removed',
-        occurredAt: now,
-        correlationId,
-      }),
-      integrationPropertyImportRetentionReleased({
-        organizationId: organization,
-        importJobId: 'import-1',
-        idempotencyKeys: ['key-1'],
         occurredAt: now,
         correlationId,
       }),
