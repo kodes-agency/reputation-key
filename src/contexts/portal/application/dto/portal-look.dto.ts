@@ -10,6 +10,7 @@ import { z } from 'zod/v4'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { MAX_ADDITIONAL_GUEST_LOCALES } from '#/shared/domain/guest-locale'
 import { offeredGuestLocaleSchema } from '#/shared/domain-schemas/guest-locale-schemas'
+import { colourSchema, focalSchema } from '../../look/property-look.contracts'
 import type { PortalLookSources } from '../../domain/portal-look'
 import { BACKGROUND_MODES, type BackgroundMode } from '../../domain/property-look'
 import type {
@@ -22,11 +23,7 @@ const scope = {
   portalId: z.string().min(1, 'Portal ID is required'),
 }
 
-const colourSchema = z
-  .string()
-  .regex(/^#[0-9a-f]{6}$/iu, 'Choose a valid six-digit colour')
 const assetIdSchema = z.uuid('Choose an uploaded image')
-const focalSchema = z.number().min(0).max(1)
 const inherit = z.object({ mode: z.literal('inherit') })
 
 /** The accent and the background of one Portal, or back to the Property's. */

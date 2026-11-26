@@ -4,7 +4,6 @@ import type { PortalRepository } from '../publication/portal-repository.port.ser
 import type { PortalTokenRepository } from './portal-token-repository.port.server'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
-import { portalError } from '../domain/errors'
 import { portalTokenRevoked } from '../domain/events'
 import type { PortalCommandStore } from '../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../publication/portal-command-version.server'
@@ -27,8 +26,6 @@ export const revokePortalTokens =
       permission: 'portal.update',
       forbiddenMessage: 'Insufficient permissions to revoke portal tokens',
     })
-    const reason = input.reason.trim()
-    if (!reason) throw portalError('token_unavailable', 'Revocation reason is required')
     const occurredAt = deps.clock()
     const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     const event = portalTokenRevoked({
@@ -44,7 +41,7 @@ export const revokePortalTokens =
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,
       revokedBy: ctx.userId,
-      reason,
+      reason: input.reason,
       revision,
       occurredAt,
       event,

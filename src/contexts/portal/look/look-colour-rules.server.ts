@@ -3,34 +3,21 @@
 // words, so a colour the Property look page accepts is never refused on a
 // Portal, nor the other way round.
 //
-// What is refused: a colour that is not `#rrggbb`, a background mode that is
-// neither automatic nor manual, and a pair whose page text light text cannot
-// be read on. An accent that is hard to see on its field is not: the guest
-// page draws the text colour in its place (the page's readout says so), and
-// the default palette every Property starts with is such an accent. Colours
-// are stored in capitals.
+// What is refused here: a pair whose page text light text cannot be read on.
+// The input schemas already hold each colour to `#rrggbb` and the background
+// mode to automatic or manual. An accent that is hard to see on its field is
+// not refused: the guest page draws the text colour in its place (the page's
+// readout says so), and the default palette every Property starts with is such
+// an accent. Colours are stored in capitals.
 
-import { parseHexColour } from '#/shared/domain/portal-field-colour'
 import { readLookContrast } from '#/shared/domain/portal-look-readout'
 import { portalError } from '../domain/errors'
-import { BACKGROUND_MODES, type BackgroundMode } from '../domain/property-look'
+import type { BackgroundMode } from '../domain/property-look'
 
 const INVALID_LOOK = 'invalid_theme'
 
-/** The background mode as the writer takes it, or the refusal. */
-export function checkedBackgroundMode(mode: string): BackgroundMode {
-  const known = BACKGROUND_MODES.find((candidate) => candidate === mode)
-  if (known === undefined) {
-    throw portalError(INVALID_LOOK, 'Choose an automatic or a manual background')
-  }
-  return known
-}
-
-/** A colour as the writer stores it (in capitals), or the refusal naming which one. */
-export function checkedLookColour(value: string, part: 'accent' | 'background'): string {
-  if (parseHexColour(value) === null) {
-    throw portalError(INVALID_LOOK, `Choose the ${part} as a six-digit colour`)
-  }
+/** A colour, already a `#rrggbb` by the input schema, as the writer stores it (in capitals). */
+export function storedLookColour(value: string): string {
   return value.toUpperCase()
 }
 
@@ -51,7 +38,7 @@ function assertReadableLook(
 
 export type LookColoursInput = Readonly<{
   accentColour: string
-  backgroundMode: string
+  backgroundMode: BackgroundMode
   /** Read only when the background is manual. */
   backgroundColour?: string
 }>
@@ -62,13 +49,11 @@ export function checkedColours(input: LookColoursInput): Readonly<{
   backgroundMode: BackgroundMode
   background?: string
 }> {
-  const backgroundMode = checkedBackgroundMode(input.backgroundMode)
-  const isManual = backgroundMode === 'manual'
-  const accent = checkedLookColour(input.accentColour, 'accent')
+  const { backgroundMode } = input
+  const accent = storedLookColour(input.accentColour)
   const background = input.backgroundColour ?? ''
-  const checkedBackground = isManual
-    ? checkedLookColour(background, 'background')
-    : undefined
+  const checkedBackground =
+    backgroundMode === 'manual' ? storedLookColour(background) : undefined
   assertReadableLook({ accent, backgroundMode, backgroundColour: background })
   return {
     accent,

@@ -218,20 +218,14 @@ describe.sequential('Portal token commands (real PostgreSQL, two tenants)', () =
     expect(await factsOf(ORG_A, 'portal.token.revoked')).toHaveLength(1)
   })
 
-  it('records no revocation fact when no token was live, and refuses a blank reason', async () => {
+  it('records no revocation fact when no token was live', async () => {
     const portal = await seedPortal(ORG_A)
-    const { issue, revoke } = wire()
+    const { revoke } = wire()
 
     await expect(
       revoke({ portalId: portal.id, reason: 'retired' }, ctxOf(ORG_A)),
     ).resolves.toEqual({ revoked: 0 })
     expect(await factsOf(ORG_A, 'portal.token.revoked')).toHaveLength(0)
-
-    await issue({ portalId: portal.id }, ctxOf(ORG_A))
-    await expect(
-      revoke({ portalId: portal.id, reason: '   ' }, ctxOf(ORG_A)),
-    ).rejects.toMatchObject({ code: 'token_unavailable' })
-    expect((await tokensOf(portal)).map((row) => row.status)).toEqual(['active'])
   })
 
   it('refuses a role that cannot update the Portal, changing nothing', async () => {

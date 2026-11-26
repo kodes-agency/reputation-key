@@ -257,7 +257,7 @@ describe('savePropertyLook', () => {
     expect(experienceRepo.savePropertyLook).not.toHaveBeenCalled()
   })
 
-  it('refuses a manual background that is not given or is not a colour', async () => {
+  it('refuses a manual background that is not given', async () => {
     const { save } = setup()
 
     await expect(
@@ -266,16 +266,6 @@ describe('savePropertyLook', () => {
           propertyId: PROPERTY,
           accentColour: '#EAD6A8',
           backgroundMode: 'manual',
-        },
-        admin(),
-      ),
-    ).rejects.toSatisfy(failsWith('invalid_theme'))
-    await expect(
-      save(
-        {
-          propertyId: PROPERTY,
-          accentColour: 'gold',
-          backgroundMode: 'auto',
         },
         admin(),
       ),
