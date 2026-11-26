@@ -107,12 +107,6 @@ function makeWorld() {
     authorize: async () => true,
     clock,
     idGen: () => 'c0000000-0000-4000-8000-0000000000d1',
-    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-    sourcePolicyId: 'google-business-profile-source-policy-v1',
-    routingPolicyVersion: 1,
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
-    redactionProfileFamily: 'gbp-review-global-v1',
   })
 
   return {
