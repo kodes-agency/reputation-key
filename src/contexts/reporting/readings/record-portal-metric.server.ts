@@ -223,11 +223,14 @@ export function makeDurablePortalMetricRetractionHandler<
       )
 }
 
+/** Persisted receipt key: never rename. */
+export const GUEST_METRIC_CONSUMER = 'metric.guest-analytics'
+
 const scanOptions = {
   definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
   sourcePolicy: 'review_solicitation_analytics_only',
   span: 'metric.event.onScanRecorded',
-  sourceReceiptConsumer: 'metric.guest-analytics',
+  sourceReceiptConsumer: GUEST_METRIC_CONSUMER,
 } as const
 
 const qualifiedScanOptions = {
@@ -235,7 +238,7 @@ const qualifiedScanOptions = {
   sourcePolicy: 'first_party_guest_gateway_metric',
   span: 'metric.event.onQualifiedScanRecorded',
   portalGroupId: (event: GuestQualifiedScanRecorded) => event.portalGroupId,
-  sourceReceiptConsumer: 'metric.guest-analytics',
+  sourceReceiptConsumer: GUEST_METRIC_CONSUMER,
 } as const
 
 const ratingOptions = [
@@ -244,21 +247,21 @@ const ratingOptions = [
     sourcePolicy: 'first_party_guest_private',
     span: 'metric.event.onRatingSubmitted',
     value: (event: GuestRatingSubmitted) => event.value,
-    sourceReceiptConsumer: 'metric.guest-analytics',
+    sourceReceiptConsumer: GUEST_METRIC_CONSUMER,
   },
   {
     definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
     sourcePolicy: 'first_party_guest_gateway_metric',
     span: 'metric.event.onRatingSubmitted',
     value: () => 1,
-    sourceReceiptConsumer: 'metric.guest-analytics',
+    sourceReceiptConsumer: GUEST_METRIC_CONSUMER,
   },
   {
     definitionVersionId: METRIC_VERSION_IDS.portalRatingAverageGoal,
     sourcePolicy: 'first_party_guest_gateway_metric',
     span: 'metric.event.onRatingSubmitted',
     value: (event: GuestRatingSubmitted) => event.value,
-    sourceReceiptConsumer: 'metric.guest-analytics',
+    sourceReceiptConsumer: GUEST_METRIC_CONSUMER,
   },
 ] as const
 
@@ -266,7 +269,7 @@ const feedbackOptions = {
   definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
   sourcePolicy: 'first_party_guest_private',
   span: 'metric.event.onFeedbackSubmitted',
-  sourceReceiptConsumer: 'metric.guest-analytics',
+  sourceReceiptConsumer: GUEST_METRIC_CONSUMER,
 } as const
 
 const reviewLinkOptions = {
@@ -276,7 +279,7 @@ const reviewLinkOptions = {
   destinationKind: (event: GuestReviewLinkClicked) => event.destinationKind,
   portalLinkId: (event: GuestReviewLinkClicked) =>
     secondaryPortalLinkId(event.destinationKind, event.linkId),
-  sourceReceiptConsumer: 'metric.guest-analytics',
+  sourceReceiptConsumer: GUEST_METRIC_CONSUMER,
 } as const
 
 export const onScanRecordedDurably =

@@ -23,6 +23,7 @@ import {
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import {
+  GUEST_METRIC_CONSUMER,
   onFeedbackRetractedDurably,
   onFeedbackSubmittedDurably,
   onQualifiedScanRecordedDurably,
@@ -272,122 +273,47 @@ function guestMetricDomainEvent(
   }
 }
 
+type GuestMetricDomainEvent = ReturnType<typeof guestMetricDomainEvent>
+
+/** One entry per event type; the parser's switch guarantees the event matches its handler. */
+function metricHandler<E extends GuestMetricDomainEvent>(
+  eventType: string,
+  handle: (event: E) => Promise<void>,
+) {
+  return [
+    eventType,
+    async (event: ConsumerEvent) => {
+      await handle(guestMetricDomainEvent(event) as E)
+    },
+  ] as const
+}
+
 export function registerGuestMetricConsumers(
   registry: ConsumerRegistry,
   deps: RecordPortalMetricDeps & RetractPortalMetricDeps,
 ): void {
-  const { registerConsumer } = registry
-  const scanHandler = onScanRecordedDurably(deps)
-  const qualifiedScanHandler = onQualifiedScanRecordedDurably(deps)
-  const qualifiedScanRetractionHandler = onQualifiedScanRetractedDurably(deps)
-  const ratingHandler = onRatingSubmittedDurably(deps)
-  const feedbackHandler = onFeedbackSubmittedDurably(deps)
-  const ratingRetractionHandler = onRatingRetractedDurably(deps)
-  const feedbackRetractionHandler = onFeedbackRetractedDurably(deps)
-  const clickHandler = onReviewLinkClickedDurably(deps)
-
-  registerConsumer({
-    eventType: 'guest.scan.recorded',
-    consumerName: 'metric.guest-analytics',
-    module: 'metric.guest-analytics',
-    handler: async (event) => {
-      const domainEvent = guestMetricDomainEvent(event)
-      if (domainEvent._tag !== 'guest.scan.recorded') {
-        throw new Error('unexpected Guest metric event')
-      }
-      await scanHandler(domainEvent)
-      return { status: 'applied' }
-    },
-  })
-  registerConsumer({
-    eventType: 'guest.qualified_scan.recorded',
-    consumerName: 'metric.guest-analytics',
-    module: 'metric.guest-analytics',
-    handler: async (event) => {
-      const domainEvent = guestMetricDomainEvent(event)
-      if (domainEvent._tag !== 'guest.qualified_scan.recorded') {
-        throw new Error('unexpected Guest metric event')
-      }
-      await qualifiedScanHandler(domainEvent)
-      return { status: 'applied' }
-    },
-  })
-  registerConsumer({
-    eventType: 'guest.qualified_scan.retracted',
-    consumerName: 'metric.guest-analytics',
-    module: 'metric.guest-analytics',
-    handler: async (event) => {
-      const domainEvent = guestMetricDomainEvent(event)
-      if (domainEvent._tag !== 'guest.qualified_scan.retracted') {
-        throw new Error('unexpected Guest metric event')
-      }
-      await qualifiedScanRetractionHandler(domainEvent)
-      return { status: 'applied' }
-    },
-  })
-  registerConsumer({
-    eventType: 'guest.rating.submitted',
-    consumerName: 'metric.guest-analytics',
-    module: 'metric.guest-analytics',
-    handler: async (event) => {
-      const domainEvent = guestMetricDomainEvent(event)
-      if (domainEvent._tag !== 'guest.rating.submitted') {
-        throw new Error('unexpected Guest metric event')
-      }
-      await ratingHandler(domainEvent)
-      return { status: 'applied' }
-    },
-  })
-  registerConsumer({
-    eventType: 'guest.rating.retracted',
-    consumerName: 'metric.guest-analytics',
-    module: 'metric.guest-analytics',
-    handler: async (event) => {
-      const domainEvent = guestMetricDomainEvent(event)
-      if (domainEvent._tag !== 'guest.rating.retracted') {
-        throw new Error('unexpected Guest metric event')
-      }
-      await ratingRetractionHandler(domainEvent)
-      return { status: 'applied' }
-    },
-  })
-  registerConsumer({
-    eventType: 'guest.feedback.submitted',
-    consumerName: 'metric.guest-analytics',
-    module: 'metric.guest-analytics',
-    handler: async (event) => {
-      const domainEvent = guestMetricDomainEvent(event)
-      if (domainEvent._tag !== 'guest.feedback.submitted') {
-        throw new Error('unexpected Guest metric event')
-      }
-      await feedbackHandler(domainEvent)
-      return { status: 'applied' }
-    },
-  })
-  registerConsumer({
-    eventType: 'guest.feedback.retracted',
-    consumerName: 'metric.guest-analytics',
-    module: 'metric.guest-analytics',
-    handler: async (event) => {
-      const domainEvent = guestMetricDomainEvent(event)
-      if (domainEvent._tag !== 'guest.feedback.retracted') {
-        throw new Error('unexpected Guest metric event')
-      }
-      await feedbackRetractionHandler(domainEvent)
-      return { status: 'applied' }
-    },
-  })
-  registerConsumer({
-    eventType: 'guest.review_link.clicked',
-    consumerName: 'metric.guest-analytics',
-    module: 'metric.guest-analytics',
-    handler: async (event) => {
-      const domainEvent = guestMetricDomainEvent(event)
-      if (domainEvent._tag !== 'guest.review_link.clicked') {
-        throw new Error('unexpected Guest metric event')
-      }
-      await clickHandler(domainEvent)
-      return { status: 'applied' }
-    },
-  })
+  const handlers = [
+    metricHandler('guest.scan.recorded', onScanRecordedDurably(deps)),
+    metricHandler('guest.qualified_scan.recorded', onQualifiedScanRecordedDurably(deps)),
+    metricHandler(
+      'guest.qualified_scan.retracted',
+      onQualifiedScanRetractedDurably(deps),
+    ),
+    metricHandler('guest.rating.submitted', onRatingSubmittedDurably(deps)),
+    metricHandler('guest.rating.retracted', onRatingRetractedDurably(deps)),
+    metricHandler('guest.feedback.submitted', onFeedbackSubmittedDurably(deps)),
+    metricHandler('guest.feedback.retracted', onFeedbackRetractedDurably(deps)),
+    metricHandler('guest.review_link.clicked', onReviewLinkClickedDurably(deps)),
+  ]
+  for (const [eventType, handle] of handlers) {
+    registry.registerConsumer({
+      eventType,
+      consumerName: GUEST_METRIC_CONSUMER,
+      module: GUEST_METRIC_CONSUMER,
+      handler: async (event) => {
+        await handle(event)
+        return { status: 'applied' }
+      },
+    })
+  }
 }
