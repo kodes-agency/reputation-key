@@ -26,7 +26,6 @@ export type GoogleProviderAdmissionMetadata = Readonly<{
   maxRequestBytes: number
   maxResponseBytes: number
   quotaPolicyId: string
-  inFlightPolicyId: string
 }>
 
 export type CompiledGoogleProviderRequest = Readonly<{
@@ -51,7 +50,6 @@ export type GoogleProviderRoutePolicy = GoogleProviderEgressPolicy &
     maxRequestBytes: number
     maxResponseBytes: number
     quotaPolicyId: string
-    inFlightPolicyId: string
   }>
 
 const DISCOVERY_POLICY = Object.freeze({
@@ -59,14 +57,12 @@ const DISCOVERY_POLICY = Object.freeze({
   maxRequestBytes: 0,
   maxResponseBytes: 5 * 1024 * 1024,
   quotaPolicyId: 'google-discovery-read-v1',
-  inFlightPolicyId: 'google-discovery-read-v1',
 })
 const IDENTITY_POLICY = Object.freeze({
   requestClass: 'identity' as const,
   maxRequestBytes: 64 * 1024,
   maxResponseBytes: 1024 * 1024,
   quotaPolicyId: 'google-identity-v1',
-  inFlightPolicyId: 'google-identity-v1',
 })
 const REVIEWS_POLICY = Object.freeze({
   endpointClass: 'reviews' as const,
@@ -74,7 +70,6 @@ const REVIEWS_POLICY = Object.freeze({
   maxRequestBytes: 64 * 1024,
   maxResponseBytes: 5 * 1024 * 1024,
   quotaPolicyId: 'google-reviews-v1',
-  inFlightPolicyId: 'google-reviews-v1',
 })
 
 export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
@@ -98,7 +93,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     maxRequestBytes: 0,
     maxResponseBytes: 5 * 1024 * 1024,
     quotaPolicyId: 'google-performance-read-v1',
-    inFlightPolicyId: 'google-performance-read-v1',
   }),
   'oauth.token.exchange': Object.freeze({
     method: 'POST',
@@ -115,7 +109,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     maxRequestBytes: 64 * 1024,
     maxResponseBytes: 64 * 1024,
     quotaPolicyId: 'google-credential-refresh-v1',
-    inFlightPolicyId: 'google-credential-refresh-v1',
   }),
   'oauth.jwks': Object.freeze({
     method: 'GET',
@@ -132,7 +125,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     maxRequestBytes: 64 * 1024,
     maxResponseBytes: 64 * 1024,
     quotaPolicyId: 'google-credential-cleanup-v1',
-    inFlightPolicyId: 'google-credential-cleanup-v1',
   }),
   'notifications.get': Object.freeze({
     method: 'GET',
@@ -142,7 +134,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     maxRequestBytes: 0,
     maxResponseBytes: 64 * 1024,
     quotaPolicyId: 'google-notifications-read-v1',
-    inFlightPolicyId: 'google-notifications-read-v1',
   }),
   'notifications.subscribe': Object.freeze({
     method: 'PATCH',
@@ -152,7 +143,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     maxRequestBytes: 64 * 1024,
     maxResponseBytes: 64 * 1024,
     quotaPolicyId: 'google-notifications-write-v1',
-    inFlightPolicyId: 'google-notifications-write-v1',
   }),
   'notifications.unsubscribe': Object.freeze({
     method: 'PATCH',
@@ -162,7 +152,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     maxRequestBytes: 64 * 1024,
     maxResponseBytes: 64 * 1024,
     quotaPolicyId: 'google-notifications-write-v1',
-    inFlightPolicyId: 'google-notifications-write-v1',
   }),
   'reviews.list': Object.freeze({
     method: 'GET',
@@ -184,7 +173,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     maxResponseBytes: 64 * 1024,
     // Its own lane: see `google-reviews-write-v1` in quota-coordinator.ts.
     quotaPolicyId: 'google-reviews-write-v1',
-    inFlightPolicyId: 'google-reviews-write-v1',
   }),
 } satisfies Readonly<Record<GoogleProviderRouteKey, GoogleProviderRoutePolicy>>)
 
@@ -595,7 +583,6 @@ export function compileGoogleProviderRequest(
       maxRequestBytes: policy.maxRequestBytes,
       maxResponseBytes: policy.maxResponseBytes,
       quotaPolicyId: policy.quotaPolicyId,
-      inFlightPolicyId: policy.inFlightPolicyId,
     }),
   })
 }
