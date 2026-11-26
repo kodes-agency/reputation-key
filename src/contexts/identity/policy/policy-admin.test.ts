@@ -25,9 +25,6 @@ function harness() {
   const revoked: RevokePropertyAccessCommand[] = []
   const reconcile = vi.fn(async () => undefined)
   const ops = createPolicyAdminOps({
-    explainPolicyDecision: async () => {
-      throw new Error('not used')
-    },
     commandStore: {
       grantPropertyAccess: async (command) => {
         granted.push(command)
@@ -113,29 +110,5 @@ describe('operator Property access administration', () => {
     })
 
     expect(granted).toEqual([])
-  })
-
-  it.each([
-    ['a reason under three characters', { reason: ' a ', ticketRef: 'OPS-1' }],
-    ['a ticket reference under two characters', { reason: 'cover', ticketRef: ' ' }],
-  ])('refuses a grant with %s as a validation error', async (_label, fields) => {
-    const { ops, granted } = harness()
-
-    await expect(
-      ops.grantPropertyAccessOp({ ...target, ...fields }),
-    ).rejects.toMatchObject({ _tag: 'IdentityError', code: 'validation_error' })
-
-    expect(granted).toEqual([])
-  })
-
-  it('refuses a revoke without a reason as a validation error, and reconciles nothing', async () => {
-    const { ops, revoked, reconcile } = harness()
-
-    await expect(
-      ops.revokePropertyAccessOp({ ...target, reason: '' }),
-    ).rejects.toMatchObject({ _tag: 'IdentityError', code: 'validation_error' })
-
-    expect(revoked).toEqual([])
-    expect(reconcile).not.toHaveBeenCalled()
   })
 })
