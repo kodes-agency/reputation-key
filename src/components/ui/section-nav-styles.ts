@@ -1,13 +1,9 @@
-// The class lists of a SectionNav, per frame and per presentation.
+// The class lists of a SectionNav, per frame and per slot.
 //
-// A nav is a strip (one scrolling row), a list (a column), or `auto`: a strip that
-// becomes a list once its container is wide enough. Tailwind finds a class only
-// when it is written out whole, so every slot lists its classes four ways:
-// - `base`: both presentations.
-// - `strip`: the row only.
-// - `list`: the column only (including resets).
-// - `auto`: the row, then each `list` class behind the container variant.
-//   `section-nav-styles.test.ts` fails when `auto` is not exactly that.
+// A nav is a strip (one scrolling row) that becomes a list (a column) once its
+// container is wide enough. Tailwind finds a class only when it is written out
+// whole, so each slot is one string: the row's classes, then each list class
+// behind the container variant.
 //
 // Frames: `rail` is a full-bleed workspace (bordered 18rem column that stays in
 // view, from an 80rem container); `inline` is a page's own content (14rem column
@@ -15,122 +11,45 @@
 import { PAGE_GUTTER_BLEED_PHONE, PAGE_GUTTER_X } from '#/components/layout/page-shell'
 
 export type SectionNavFrame = 'rail' | 'inline'
-export type SectionNavPresentation = 'list' | 'strip' | 'auto'
 export type SectionNavSlot =
   'nav' | 'scroller' | 'heading' | 'list' | 'summary' | 'marker' | 'footer'
 
-type SlotClasses = Readonly<{
-  base: string
-  strip: string
-  list: string
-  auto: string
-}>
-
-type FrameStyles = Readonly<Record<SectionNavSlot, SlotClasses>>
+type FrameStyles = Readonly<Record<SectionNavSlot, string>>
 
 /** The slots that are the same in both frames bar the container variant. */
-const SHARED_BASE = {
+const SHARED = {
   heading: 'px-3 pb-1 text-xs font-medium text-muted-foreground',
   list: 'flex gap-1',
 } as const
 
 export const SECTION_NAV_STYLES: Readonly<Record<SectionNavFrame, FrameStyles>> = {
   rail: {
-    nav: {
-      base: '',
-      strip: 'border-b',
-      list: 'w-72 shrink-0 self-stretch border-r border-b-0',
-      auto: 'border-b @7xl:w-72 @7xl:shrink-0 @7xl:self-stretch @7xl:border-r @7xl:border-b-0',
-    },
-    scroller: {
-      base: 'relative flex scroll-px-6',
-      strip: `${PAGE_GUTTER_X} gap-1 overflow-x-auto py-2 [scrollbar-width:none]`,
-      list: 'sticky top-0 flex-col gap-5 px-3 py-5',
-      auto: `${PAGE_GUTTER_X} gap-1 overflow-x-auto py-2 [scrollbar-width:none] @7xl:sticky @7xl:top-0 @7xl:flex-col @7xl:gap-5 @7xl:px-3 @7xl:py-5`,
-    },
-    heading: {
-      base: SHARED_BASE.heading,
-      strip: 'hidden',
-      list: 'block',
-      auto: 'hidden @7xl:block',
-    },
-    list: {
-      base: SHARED_BASE.list,
-      strip: '',
-      list: 'flex-col',
-      auto: '@7xl:flex-col',
-    },
-    summary: {
-      base: 'items-center gap-1 truncate text-xs font-normal text-muted-foreground',
-      strip: 'hidden',
-      list: 'flex',
-      auto: 'hidden @7xl:flex',
-    },
+    nav: 'border-b @7xl:w-72 @7xl:shrink-0 @7xl:self-stretch @7xl:border-r @7xl:border-b-0',
+    scroller: `relative flex scroll-px-6 ${PAGE_GUTTER_X} gap-1 overflow-x-auto py-2 [scrollbar-width:none] @7xl:sticky @7xl:top-0 @7xl:flex-col @7xl:gap-5 @7xl:px-3 @7xl:py-5`,
+    heading: `${SHARED.heading} hidden @7xl:block`,
+    list: `${SHARED.list} @7xl:flex-col`,
+    summary:
+      'items-center gap-1 truncate text-xs font-normal text-muted-foreground hidden @7xl:flex',
     // The strip's stand-in for what a summary flags: drawn where the summary is
     // left out, left out where it is drawn.
-    marker: {
-      base: 'flex shrink-0 items-center',
-      strip: '',
-      list: 'hidden',
-      auto: '@7xl:hidden',
-    },
-    footer: {
-      base: 'px-3 text-xs text-muted-foreground',
-      strip: 'hidden',
-      list: 'block',
-      auto: 'hidden @7xl:block',
-    },
+    marker: 'flex shrink-0 items-center @7xl:hidden',
+    footer: 'px-3 text-xs text-muted-foreground hidden @7xl:block',
   },
   inline: {
-    nav: {
-      base: 'min-w-0',
-      strip: '',
-      list: 'sticky top-(--app-top-bar-height)',
-      auto: '@3xl:sticky @3xl:top-(--app-top-bar-height)',
-    },
-    scroller: {
-      base: 'relative -mx-1 flex scroll-px-6 overflow-x-auto px-1 py-1',
-      strip: `${PAGE_GUTTER_BLEED_PHONE} gap-1 [scrollbar-width:none]`,
-      list: 'flex-col gap-5',
-      auto: `${PAGE_GUTTER_BLEED_PHONE} gap-1 [scrollbar-width:none] @3xl:flex-col @3xl:gap-5`,
-    },
-    heading: {
-      base: SHARED_BASE.heading,
-      strip: 'hidden',
-      list: 'block',
-      auto: 'hidden @3xl:block',
-    },
-    list: {
-      base: SHARED_BASE.list,
-      strip: '',
-      list: 'flex-col',
-      auto: '@3xl:flex-col',
-    },
-    summary: {
-      base: 'text-xs font-normal text-muted-foreground',
-      strip: 'hidden',
-      list: 'block',
-      auto: 'hidden @3xl:block',
-    },
-    marker: {
-      base: 'flex shrink-0 items-center',
-      strip: '',
-      list: 'hidden',
-      auto: '@3xl:hidden',
-    },
-    footer: {
-      base: 'text-xs text-muted-foreground',
-      strip: 'hidden',
-      list: 'block',
-      auto: 'hidden @3xl:block',
-    },
+    nav: 'min-w-0 @3xl:sticky @3xl:top-(--app-top-bar-height)',
+    scroller: `relative -mx-1 flex scroll-px-6 overflow-x-auto px-1 py-1 ${PAGE_GUTTER_BLEED_PHONE} gap-1 [scrollbar-width:none] @3xl:flex-col @3xl:gap-5`,
+    heading: `${SHARED.heading} hidden @3xl:block`,
+    list: `${SHARED.list} @3xl:flex-col`,
+    summary: 'text-xs font-normal text-muted-foreground hidden @3xl:block',
+    marker: 'flex shrink-0 items-center @3xl:hidden',
+    footer: 'text-xs text-muted-foreground hidden @3xl:block',
   },
 }
 
 /**
  * The container the nav and its content sit in: the outer element declares it (a
  * container cannot restyle itself), the inner one is the layout that changes with
- * its width. A frame's `auto` presentation waits for the same width.
+ * its width. The nav's classes wait for the same width.
  */
 export const SECTION_NAV_LAYOUT: Readonly<
   Record<SectionNavFrame, Readonly<{ outer: string; inner: string }>>
@@ -145,20 +64,9 @@ export const SECTION_NAV_LAYOUT: Readonly<
   },
 }
 
-/** The container variant a frame's `auto` presentation waits for. */
-export const SECTION_NAV_LIST_FROM: Readonly<Record<SectionNavFrame, string>> = {
-  rail: '@7xl:',
-  inline: '@3xl:',
-}
-
-/** The whole class list of one slot, in one presentation. */
-export function sectionNavClasses(
-  frame: SectionNavFrame,
-  slot: SectionNavSlot,
-  presentation: SectionNavPresentation,
-): string {
-  const classes = SECTION_NAV_STYLES[frame][slot]
-  return [classes.base, classes[presentation]].filter(Boolean).join(' ')
+/** The whole class list of one slot. */
+export function sectionNavClasses(frame: SectionNavFrame, slot: SectionNavSlot): string {
+  return SECTION_NAV_STYLES[frame][slot]
 }
 
 /**
