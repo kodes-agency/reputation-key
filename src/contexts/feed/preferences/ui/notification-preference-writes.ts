@@ -7,6 +7,8 @@ import type {
 import {
   applyPreferencePatch,
   createSerialRunner,
+  findCategoryDefault,
+  findOwnPreference,
   preferenceRequestValues,
   preferenceRowKey,
   type PreferencePatch,
@@ -77,18 +79,11 @@ export function createNotificationPreferenceWrites() {
     const key = preferenceRowKey(propertyId, category, channel)
     const own = current.rows.has(key)
       ? current.rows.get(key)
-      : snapshot.preferences.find(
-          (row) =>
-            row.propertyId === propertyId &&
-            row.category === category &&
-            row.channel === channel,
-        )
+      : findOwnPreference(snapshot.preferences, propertyId, category, channel)
     return (
       own ??
       current.defaults.get(channel) ??
-      snapshot.categoryDefaults.find(
-        (row) => row.category === category && row.channel === channel,
-      )
+      findCategoryDefault(snapshot.categoryDefaults, category, channel)
     )
   }
 
