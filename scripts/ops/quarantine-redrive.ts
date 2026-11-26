@@ -31,7 +31,7 @@ import {
   positionalArgs,
   type OperatorCommandSpec,
 } from '../../src/shared/ops/operator-command'
-import { exitIfHelp } from './command-help'
+import { exitIfHelp, exitWithUsage } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:quarantine'
@@ -55,11 +55,6 @@ export function quarantineCommandSpec(action: QuarantineAction): OperatorCommand
   }
 }
 
-function usage(): never {
-  console.error(`Usage: ${USAGE}`)
-  process.exit(1)
-}
-
 function printEntry(entry: QuarantinedEntry): void {
   const e = entry.envelope
   console.log(
@@ -79,8 +74,9 @@ function printEntry(entry: QuarantinedEntry): void {
 async function main(): Promise<void> {
   exitIfHelp(process.argv.slice(2), USAGE)
   const [action, id] = positionalArgs(process.argv.slice(2))
-  if (action !== 'list' && action !== 'redrive' && action !== 'discard') usage()
-  if (action !== 'list' && !id) usage()
+  if (action !== 'list' && action !== 'redrive' && action !== 'discard')
+    exitWithUsage(USAGE)
+  if (action !== 'list' && !id) exitWithUsage(USAGE)
 
   const result = await runOperatorCommand(
     quarantineCommandSpec(action),

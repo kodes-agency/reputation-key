@@ -1,7 +1,6 @@
 import { sameGooglePerformanceScope } from './google-performance-authorization-snapshot.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
-import { sameRecordEntries } from '#/shared/domain/record-entries'
 import type { ProviderAuthorizationLeaseResult } from '#/shared/provider-ephemeral/authorization-lease'
 import type {
   PropertyGooglePerformanceResultV1,
@@ -14,6 +13,7 @@ import {
   GooglePerformanceReportError,
 } from './google-performance-report.server'
 import { isGoogleCallError, googleCallError } from '../domain/google-call-error'
+import { sameAuthorizationVectorExceptCredentialGeneration } from '../provider/google-authorization-vector.server'
 
 const CONTENT_TTL_MS = 15 * 60_000
 
@@ -146,17 +146,6 @@ function mapProviderError(error: unknown): UnavailablePerformanceResult {
     case 'unclassified':
       return errorResult('temporarily_unavailable', true, retryAfterSeconds)
   }
-}
-
-function sameAuthorizationVectorExceptCredentialGeneration(
-  current: GooglePerformanceAuthorizationSnapshot['authorizationVector'],
-  expected: GooglePerformanceAuthorizationSnapshot['authorizationVector'],
-): boolean {
-  return sameRecordEntries(
-    current,
-    expected,
-    (key) => key === 'credentialGeneration' || current[key] === expected[key],
-  )
 }
 
 function sameSnapshot(

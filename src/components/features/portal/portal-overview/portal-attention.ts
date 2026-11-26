@@ -12,8 +12,8 @@
 // single quiet line for it? A Portal that is live and needs nothing gets no
 // line at all. Pure, so the rules are readable, and testable, apart from the
 // table that shows them.
-import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { plural } from '#/shared/format/format'
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 
 export type PortalAttentionInput = Pick<
   PortalOverviewRow,

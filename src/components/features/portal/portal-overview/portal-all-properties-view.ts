@@ -1,3 +1,4 @@
+import { plural } from '#/shared/format/format'
 import { visiblePortals } from './visible-portals'
 // The All properties page as data: every Portal the reader may see, under the
 // Property it belongs to, which Properties come first, and which page is open.
@@ -26,7 +27,6 @@ import {
   type PortalOverviewItem,
   type PortalOverviewSection,
 } from './portal-overview-view'
-import { plural } from '#/shared/format/format'
 
 export type PortalPropertyInfo = Readonly<{
   id: string

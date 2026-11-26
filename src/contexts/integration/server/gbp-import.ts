@@ -3,11 +3,12 @@
 // Never returns { success: false } — always throws on error.
 
 import { createServerFn } from '@tanstack/react-start'
-import { commandHandler } from '#/shared/commands/command.server'
-import type { CommandErrors } from '#/shared/commands/contracts'
-import type { AuthContext } from '#/shared/domain/auth-context'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { commandHandler } from '#/shared/commands/command.server'
+import type { CommandErrors } from '#/shared/commands/contracts'
+import { disableResponseCaching } from '#/shared/http/no-store.server'
 import { getContainer } from '#/composition'
 import { googleConnectionId } from '#/shared/domain/ids'
 import {
@@ -30,7 +31,6 @@ import {
   GoogleImportTransactionError,
   type GoogleImportTransactionErrorCode,
 } from '../imports/google-import-transaction.server'
-import { disableProviderContentCaching } from './provider-content-caching'
 
 function discoveryErrorStatus(code: GoogleImportDiscoveryErrorCode): number {
   switch (code) {
@@ -100,18 +100,19 @@ const transactionErrors: CommandErrors<GoogleImportTransactionError> = {
   status: transactionErrorStatus,
 }
 
+/** Provider content must not be cached anywhere; this runs before any other work. */
 async function runImportCommand<T>(
   headers: Headers,
   run: (ctx: AuthContext) => Promise<T>,
 ): Promise<T> {
-  disableProviderContentCaching()
+  disableResponseCaching()
   const ctx = await resolveTenantContext(headers)
   await requireExecutionAllowed({
     actor: ctx,
     action: 'integration.manage',
     capability: 'property.import_gbp_v2',
   })
-  return await run(ctx)
+  return run(ctx)
 }
 
 // ── bounded Google import discovery ────────────────────────────────
@@ -120,8 +121,12 @@ export const listImportAccounts = createServerFn({ method: 'POST' })
   .validator(listImportAccountsInputSchema)
   .handler(
     commandHandler(
-      { method: 'POST', name: 'integration.listImportAccounts', errors: discoveryErrors },
-      async ({ data, headers }) =>
+      {
+        method: 'POST',
+        name: 'integration.listImportAccounts',
+        errors: discoveryErrors,
+      },
+      ({ data, headers }) =>
         runImportCommand(headers, (ctx) =>
           requireGoogleImportDiscovery().listAccounts(
             {
@@ -143,15 +148,15 @@ export const listImportCandidates = createServerFn({ method: 'POST' })
         name: 'integration.listImportCandidates',
         errors: discoveryErrors,
       },
-      async ({ data, headers }) =>
-        runImportCommand(headers, async (ctx) => {
+      ({ data, headers }) =>
+        runImportCommand(headers, (ctx) => {
           const connectionId = googleConnectionId(data.connectionId)
           return data.accountRef
-            ? await requireGoogleImportDiscovery().listCandidates(
+            ? requireGoogleImportDiscovery().listCandidates(
                 { connectionId, accountRef: data.accountRef },
                 ctx,
               )
-            : await requireGoogleImportDiscovery().listCandidates(
+            : requireGoogleImportDiscovery().listCandidates(
                 { connectionId, cursorRef: data.cursorRef! },
                 ctx,
               )
@@ -168,7 +173,7 @@ export const renewImportAuthorizationLease = createServerFn({ method: 'POST' })
         name: 'integration.renewImportAuthorizationLease',
         errors: discoveryErrors,
       },
-      async ({ data, headers }) =>
+      ({ data, headers }) =>
         runImportCommand(headers, (ctx) =>
           requireGoogleImportDiscovery().renewAuthorizationLease(
             {
@@ -180,6 +185,7 @@ export const renewImportAuthorizationLease = createServerFn({ method: 'POST' })
         ),
     ),
   )
+
 // ── atomic v2 import intent ────────────────────────────────────────
 
 export const startPropertyImportV2 = createServerFn({ method: 'POST' })
@@ -191,11 +197,11 @@ export const startPropertyImportV2 = createServerFn({ method: 'POST' })
         name: 'integration.startPropertyImportV2',
         errors: transactionErrors,
       },
-      async ({ data, headers }) =>
-        runImportCommand(headers, async (ctx) => {
-          const result = await requireGoogleImportTransaction().start(data, ctx)
-          return { ...result, requestId: data.requestId }
-        }),
+      ({ data, headers }) =>
+        runImportCommand(headers, async (ctx) => ({
+          ...(await requireGoogleImportTransaction().start(data, ctx)),
+          requestId: data.requestId,
+        })),
     ),
   )
 
@@ -208,14 +214,11 @@ export const recoverPropertyImportV2 = createServerFn({ method: 'POST' })
         name: 'integration.recoverPropertyImportV2',
         errors: transactionErrors,
       },
-      async ({ data, headers }) =>
-        runImportCommand(headers, async (ctx) => {
-          const result = await requireGoogleImportTransaction().recover(
-            data.requestId,
-            ctx,
-          )
-          return { ...result, requestId: data.requestId }
-        }),
+      ({ data, headers }) =>
+        runImportCommand(headers, async (ctx) => ({
+          ...(await requireGoogleImportTransaction().recover(data.requestId, ctx)),
+          requestId: data.requestId,
+        })),
     ),
   )
 
@@ -228,7 +231,7 @@ export const retryPropertyImportItem = createServerFn({ method: 'POST' })
         name: 'integration.retryPropertyImportItem',
         errors: transactionErrors,
       },
-      async ({ data, headers }) =>
+      ({ data, headers }) =>
         runImportCommand(headers, (ctx) =>
           requireGoogleImportTransaction().retry(data, ctx),
         ),
@@ -244,7 +247,7 @@ export const cancelPropertyImportV2 = createServerFn({ method: 'POST' })
         name: 'integration.cancelPropertyImportV2',
         errors: transactionErrors,
       },
-      async ({ data, headers }) =>
+      ({ data, headers }) =>
         runImportCommand(headers, (ctx) =>
           requireGoogleImportTransaction().cancel(data.importJobId, ctx),
         ),
@@ -260,7 +263,7 @@ export const getPropertyImportV2Status = createServerFn({ method: 'GET' })
         name: 'integration.getPropertyImportV2Status',
         errors: transactionErrors,
       },
-      async ({ data, headers }) =>
+      ({ data, headers }) =>
         runImportCommand(headers, (ctx) =>
           requireGoogleImportTransaction().status(data.importJobId, ctx),
         ),

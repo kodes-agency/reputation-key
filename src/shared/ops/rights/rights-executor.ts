@@ -5,6 +5,7 @@
 // only runs the executors that cover the requested scope.
 
 import type { ErasureJournalContext } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { errorMessage } from '#/shared/db/lifecycle/rights-primitives'
 import type { OperatorIO } from '../operator-command'
 import { rightsAuditEvent, type RightsAudit } from './rights-audit'
 import type { RightsJournal } from './rights-journal'
@@ -86,10 +87,6 @@ async function writeExports(
     }
   }
   return written
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
 }
 
 /** The first refusal any covering executor or the journal gives, or null. */

@@ -18,6 +18,7 @@ import {
   formatTime,
   formatTimestamp,
   formatZonedTimestamp,
+  plural,
   toInstant,
 } from './format'
 
@@ -233,5 +234,13 @@ describe('dated AI update announcements', () => {
     expect(formatDayMonthYear('2026-10-31T23:30:00Z', 'Europe/Sofia')).toBe('1 Nov 2026')
     expect(formatDayMonthYear(null)).toBeNull()
     expect(formatDayMonthYear('invalid')).toBeNull()
+  })
+})
+
+describe('plural', () => {
+  it('names one with the singular and every other count with the plural', () => {
+    expect(plural(1, 'review', 'reviews')).toBe('1 review')
+    expect(plural(0, 'review', 'reviews')).toBe('0 reviews')
+    expect(plural(3, 'person', 'people')).toBe('3 people')
   })
 })

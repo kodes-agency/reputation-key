@@ -46,6 +46,11 @@ export const CONFIGURED_DATABASE_ENV_KEYS = [
 /** Host spellings that reach the same local PostgreSQL server. */
 const LOCALHOST_ALIASES = new Set(['localhost', '127.0.0.1', '::1', '[::1]', ''])
 
+/** Whether a URL hostname is a loopback spelling or empty (a unix socket). */
+export function isLocalhostAlias(host: string): boolean {
+  return LOCALHOST_ALIASES.has(host)
+}
+
 export type DatabaseIdentity = Readonly<{
   host: string
   port: string
@@ -74,7 +79,7 @@ export function databaseIdentity(url: string): DatabaseIdentity | null {
 }
 
 function canonicalHost(host: string): string {
-  return LOCALHOST_ALIASES.has(host) ? 'localhost' : host
+  return isLocalhostAlias(host) ? 'localhost' : host
 }
 
 /** Whether two identities address the same database, allowing localhost aliases. */

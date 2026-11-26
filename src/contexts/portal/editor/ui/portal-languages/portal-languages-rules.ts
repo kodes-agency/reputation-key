@@ -2,6 +2,7 @@
 // added, what a change does to the language set, and the words the section uses
 // for coverage. Pure, so the wording and the rules are pinned by tests.
 
+import { plural } from '#/shared/format/format'
 import {
   GUEST_LANGUAGE_PACKS,
   GUEST_LOCALES,
@@ -15,7 +16,6 @@ import type {
   MissingPortalText,
   PortalLanguageCoverageRow,
 } from '#/contexts/portal/application/portal-management-contracts'
-import { plural } from '#/shared/format/format'
 
 /** A Portal's languages: the fallback first, then the others in the order they were added. */
 export type PortalLanguageSet = Readonly<{

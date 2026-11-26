@@ -14,8 +14,8 @@
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
+import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import type { Tx } from '#/shared/outbox/commit'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type {
@@ -127,7 +127,10 @@ async function assertReady(tx: Tx, scope: PortalRightsScope): Promise<void> {
  * deletes as the apply and then rolls back, so a row another context still
  * references is found before any object is removed.
  */
-function erasureRefusal(db: Database, scope: PortalRightsScope): Promise<string | null> {
+async function erasureRefusal(
+  db: Database,
+  scope: PortalRightsScope,
+): Promise<string | null> {
   return refusalOf(db, async (tx) => {
     await assertReady(tx, scope)
     await erasePortalScopeInTx(tx, scope)

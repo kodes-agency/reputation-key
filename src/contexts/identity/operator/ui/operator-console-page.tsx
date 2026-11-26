@@ -5,6 +5,7 @@
 // Presentational: the route owns the list and the Actions. The operator holds
 // no role in these Organizations, so nothing here reads tenant permissions.
 
+import { plural } from '#/shared/format/format'
 import { Building2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -29,7 +30,6 @@ import type {
 } from './platform-admin-invitations'
 import { isReauthRequired, summarizeOrganizations } from './platform-console-model'
 import { PlatformOrganizationRow } from './platform-organization-row'
-import { plural } from '#/shared/format/format'
 
 export type OperatorConsoleActions = Readonly<{
   provision: ProvisionOrganizationAction

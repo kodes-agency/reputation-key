@@ -36,7 +36,7 @@ import type {
   AmbiguousPublicationReconciliationCandidate,
   FindAmbiguousPublicationReconciliationCandidates,
 } from '../../src/contexts/reputation/public-api'
-import { exitIfHelp } from './command-help'
+import { exitIfHelp, exitWithUsage } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
@@ -289,11 +289,6 @@ export async function runAmbiguousPublicationSweepPage(
   }
 }
 
-function usage(): never {
-  console.error(`Usage: ${USAGE}`)
-  process.exit(1)
-}
-
 async function main(): Promise<void> {
   exitIfHelp(process.argv.slice(2), USAGE)
   let resume: ReturnType<typeof extractPublicationSweepResume>
@@ -302,14 +297,14 @@ async function main(): Promise<void> {
     if (resume.resumeToken) decodePublicationSweepResume(resume.resumeToken)
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'invalid --resume token')
-    usage()
+    exitWithUsage(USAGE)
   }
   const argv = resume.argv
   const [singleReplyId] = positionalArgs(argv)
   const allAmbiguous = argv.includes('--all-ambiguous')
-  if (!singleReplyId && !allAmbiguous) usage()
-  if (singleReplyId && allAmbiguous) usage()
-  if (resume.resumeToken && !allAmbiguous) usage()
+  if (!singleReplyId && !allAmbiguous) exitWithUsage(USAGE)
+  if (singleReplyId && allAmbiguous) exitWithUsage(USAGE)
+  if (resume.resumeToken && !allAmbiguous) exitWithUsage(USAGE)
 
   const result = await runOperatorCommand(
     {

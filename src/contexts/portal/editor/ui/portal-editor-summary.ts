@@ -5,6 +5,7 @@
 // The one quiet line under each section name in the editor's list — what a
 // manager needs to know about a section without opening it. Pure and separate
 // from the navigation so the words are pinned by a test, not by JSX.
+import { plural } from '#/shared/format/format'
 import {
   hasPropertyWording,
   PROPERTY_LOOK_SOURCES,
@@ -14,7 +15,6 @@ import { countHiddenLinks } from './link-tree/linktree-approval-rules'
 import type { PortalGroupView } from '#/components/features/portal/portal-group/portal-group-types'
 import type { PortalEditorResources } from './portal-editor-types'
 import type { PortalEditorSection } from './portal-editor-sections'
-import { plural } from '#/shared/format/format'
 
 export type PortalEditorSummaryInput = Readonly<{
   portalName: string

@@ -1,4 +1,4 @@
-// Helpers the review, inbox and Google rights stores share. Each store keeps
+// Helpers the rights stores and adapters share. Each keeps
 // its own table registries, queries and Property existence check.
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -51,16 +51,17 @@ export function errorMessage(error: unknown): string {
 class RefusalProbeRolledBack extends Error {}
 
 /**
- * The reason `check` refuses, or null. It runs in a transaction that always
- * rolls back, so nothing the check does stays changed.
+ * The reason a rights run would be refused, or null. `run` does the readiness
+ * checks (and any erase worth proving); the transaction always rolls back, so
+ * nothing is left changed.
  */
 export async function refusalOf(
   db: Database,
-  check: (tx: Tx) => Promise<void>,
+  run: (tx: Tx) => Promise<void>,
 ): Promise<string | null> {
   try {
     await db.transaction(async (tx) => {
-      await check(tx)
+      await run(tx)
       throw new RefusalProbeRolledBack()
     })
     return null

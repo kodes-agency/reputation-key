@@ -10,6 +10,7 @@
 // never age out, so the closure deletes them.
 
 import type { Database } from '#/shared/db'
+import { errorMessage } from '#/shared/db/lifecycle/rights-primitives'
 import {
   isOrganizationSuspended,
   ORGANIZATION_NOT_SUSPENDED,
@@ -33,10 +34,6 @@ function refusalFor(organizationId: string) {
     }
     return null
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
 }
 
 export function createWorkItemsRightsExecutor(db: Database): RightsExecutor {

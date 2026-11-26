@@ -11,6 +11,7 @@
 // Pure: the page draws the pieces. A blocked check is one the server would
 // refuse the publication on, so every blocked line says what to do about it; a
 // warning says what guests would read instead and that publishing can go on.
+import { plural } from '#/shared/format/format'
 import type {
   MissingPortalText,
   ReviewCheck,
@@ -33,7 +34,6 @@ import {
   PORTAL_EDITOR_SECTION_LABELS,
   type PortalEditorSection,
 } from '#/contexts/portal/editor/ui/portal-editor-sections'
-import { plural } from '#/shared/format/format'
 
 /** Where a blocked check is put right: a section of the Page tab, or the Share tab. */
 export type ReviewFixTarget =

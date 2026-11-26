@@ -3,20 +3,20 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged } from '#/shared/auth/server-errors'
+import { disableResponseCaching } from '#/shared/http/no-store.server'
 import { propertyId } from '#/shared/domain/ids'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   getPropertyGooglePerformanceInputSchema,
   renewPropertyGooglePerformanceLeaseInputSchema,
 } from '../performance/contracts'
-import { disableProviderContentCaching } from './provider-content-caching'
 
 export const getPropertyGooglePerformance = createServerFn({ method: 'GET' })
   .validator(getPropertyGooglePerformanceInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        disableProviderContentCaching()
+        disableResponseCaching()
         const headers = await headersFromContext()
         const actor = await resolveTenantContext(headers)
         const getPerformance = getContainer().integrationPublicApi.performance.get
@@ -50,7 +50,7 @@ export const renewPropertyGooglePerformanceLease = createServerFn({
   .handler(
     tracedHandler(
       async ({ data }) => {
-        disableProviderContentCaching()
+        disableResponseCaching()
         const headers = await headersFromContext()
         const actor = await resolveTenantContext(headers)
         const renewLease = getContainer().integrationPublicApi.performance.renewLease

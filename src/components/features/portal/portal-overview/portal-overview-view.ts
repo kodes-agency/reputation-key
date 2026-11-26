@@ -1,3 +1,4 @@
+import { plural } from '#/shared/format/format'
 import { visiblePortals } from './visible-portals'
 // fallow-ignore-file code-duplication
 // r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
@@ -23,7 +24,6 @@ import {
   defaultSortDirection,
   type PortalOverviewSearch,
 } from './portal-overview-search-schema'
-import { plural } from '#/shared/format/format'
 
 /** A QR code per room means a Property can hold hundreds of Portals: the list is paged. */
 export const PORTAL_OVERVIEW_PAGE_SIZE = 20
