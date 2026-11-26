@@ -45,6 +45,7 @@ describe('toInstant', () => {
 describe('formatDate', () => {
   it('prints month-first, in UTC, for the same instant on every machine', () => {
     expect(formatDate(NOON_UTC)).toBe('Sep 12, 2026')
+    expect(formatDate('2026-09-30T23:30:00.000Z')).toBe('Sep 30, 2026')
   })
 
   it('reads the calendar day in the zone it is given', () => {
@@ -234,6 +235,13 @@ describe('dated AI update announcements', () => {
     expect(formatDayMonthYear('2026-10-31T23:30:00Z', 'Europe/Sofia')).toBe('1 Nov 2026')
     expect(formatDayMonthYear(null)).toBeNull()
     expect(formatDayMonthYear('invalid')).toBeNull()
+  })
+
+  it('prints the UTC calendar day with a three-letter month, whatever zone the viewer is in', () => {
+    expect(formatDayMonthYear(new Date('2026-09-29T09:00:00Z'))).toBe('29 Sep 2026')
+    expect(formatDayMonthYear(new Date('2026-01-05T00:00:00Z'))).toBe('5 Jan 2026')
+    expect(formatDayMonthYear(new Date('2026-10-06T23:59:59Z'))).toBe('6 Oct 2026')
+    expect(formatDayMonthYear(new Date('2026-10-07T00:00:00Z'))).toBe('7 Oct 2026')
   })
 })
 

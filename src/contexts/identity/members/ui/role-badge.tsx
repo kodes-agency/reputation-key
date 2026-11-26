@@ -22,5 +22,5 @@ export function RoleBadge({
       : role === 'PropertyManager'
         ? 'secondary'
         : 'outline'
-  return <Badge variant={variant}>{roleLabel(role, 'full')}</Badge>
+  return <Badge variant={variant}>{roleLabel(role)}</Badge>
 }

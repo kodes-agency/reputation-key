@@ -15,8 +15,8 @@ import { StoredObjectTooLargeError } from '#/contexts/portal/public-api'
 import type { StoragePort } from '#/contexts/portal/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
+import { ifNoneMatchMatches } from '#/shared/http/conditional-get'
 import {
-  ifNoneMatchMatches,
   MAX_UPLOAD_BYTES,
   parseIdentityAssetKey,
 } from '../images/identity-assets.contracts'
