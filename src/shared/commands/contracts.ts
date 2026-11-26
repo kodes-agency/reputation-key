@@ -25,7 +25,7 @@ export type CommandRequest<T> = Readonly<{ data: T; headers: Headers }>
 export type TenantCommandOptions<T, E extends CommandError> = CommandOptions<E> &
   Readonly<{
     action: Permission
-    propertyId?: (data: T) => string
+    propertyId?: (data: T) => string | undefined
   }>
 
 export type TenantCommandRequest<T> = CommandRequest<T> & Readonly<{ actor: AuthContext }>

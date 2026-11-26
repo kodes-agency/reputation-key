@@ -264,7 +264,7 @@ describe('gateJob — outcome mapping (stubbed policy)', () => {
     expect(outcome).toEqual(ALLOW)
   })
 
-  it('denies for every deny reason', async () => {
+  it('denies every deny reason terminally', async () => {
     installStub()
     for (const reason of [
       'capability_blocked',

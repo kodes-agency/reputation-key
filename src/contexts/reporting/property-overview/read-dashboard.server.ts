@@ -1,6 +1,6 @@
-// Authorizes the reader for the Property, orchestrates all repo queries into a
-// single DashboardData response, and hides reply state from a reader who may
-// not manage replies.
+// Orchestrates all repo queries into a single DashboardData response and hides
+// reply state from a reader who may not manage replies. The caller authorizes
+// the reader for the Property first.
 
 import type { DashboardRepository } from './dashboard-repository.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -10,15 +10,11 @@ import type { DashboardData } from '../domain/dashboard-types'
 import { hideReplyWorkflowWithoutAuthority } from '../domain/reply-workflow-redaction'
 import type { TimeRangePreset } from './contracts'
 import {
-  requireDashboardPropertyAccess,
-  type DashboardPropertyAccess,
-} from './dashboard-property-access.server'
-import {
   DEFAULT_RECENT_REVIEWS_LIMIT,
   priorPeriodDates,
 } from '../portal-results/time-range.server'
 
-export type GetDashboardDataInput = Readonly<{
+export type ReadDashboardInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
@@ -28,19 +24,9 @@ export type GetDashboardDataInput = Readonly<{
   propertyTimezone: string
 }>
 
-export type GetDashboardDataDeps = Readonly<{
-  repo: DashboardRepository
-  propertyAccess: DashboardPropertyAccess
-}>
-export type GetDashboardData = (
-  input: GetDashboardDataInput,
-  ctx: AuthContext,
-) => Promise<DashboardData>
-
-/** The reads and the reply redaction, for a caller that has already authorized the reader for the Property. */
 export const readDashboard = async (
   repo: DashboardRepository,
-  input: GetDashboardDataInput,
+  input: ReadDashboardInput,
   ctx: AuthContext,
 ): Promise<DashboardData> => {
   const {
@@ -111,13 +97,3 @@ export const readDashboard = async (
     recentReviews,
   })
 }
-
-export const getDashboardData =
-  (deps: GetDashboardDataDeps): GetDashboardData =>
-  async (input, ctx) => {
-    await requireDashboardPropertyAccess(deps.propertyAccess, ctx, {
-      organizationId: input.organizationId,
-      propertyIds: [input.propertyId],
-    })
-    return readDashboard(deps.repo, input, ctx)
-  }

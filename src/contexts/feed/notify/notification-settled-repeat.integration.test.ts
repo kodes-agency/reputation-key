@@ -95,7 +95,6 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
     await preferIn(inApp)
     return insertNotification({
       db,
-      onEmailQueued: () => {},
       clock: () => SETTLED_AT,
       idGen: () => notificationId(randomUUID()),
       emailIdGen: () => notificationEmailId(randomUUID()),
@@ -152,10 +151,12 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
 
   it('emails a second escalation raised after the first was resolved', async () => {
     const insert = await insertWith(true)
-    const first = await insert(escalation('settled-repeat-escalated-1'))
+    const { notification: first } = await insert(escalation('settled-repeat-escalated-1'))
     await settle()
 
-    const second = await insert(escalation('settled-repeat-escalated-2'))
+    const { notification: second } = await insert(
+      escalation('settled-repeat-escalated-2'),
+    )
 
     expect(second?.id).not.toBe(first?.id)
     const rows = await managerRows()
@@ -172,9 +173,9 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
 
   it('still folds a repeat into a row whose work is waiting', async () => {
     const insert = await insertWith(true)
-    const first = await insert(escalation('settled-repeat-waiting-1'))
+    const { notification: first } = await insert(escalation('settled-repeat-waiting-1'))
 
-    const second = await insert(escalation('settled-repeat-waiting-2'))
+    const { notification: second } = await insert(escalation('settled-repeat-waiting-2'))
 
     expect(second?.id).toBe(first?.id)
     expect(second?.coalescedCount).toBe(2)
@@ -183,7 +184,7 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
 
   it('gives a racing repeat its own row instead of reviving the settled one', async () => {
     const insert = await insertWith(true)
-    const first = await insert(escalation('settled-repeat-race-1'))
+    const { notification: first } = await insert(escalation('settled-repeat-race-1'))
     await settle()
 
     const raced = await writeNotification(db, {

@@ -165,35 +165,20 @@ export function findStoredAiReviewSourceProvenance(
   }
 }
 
-export type AiReviewSourceDependencies = Readonly<{
-  findById(
-    reviewId: Parameters<ReviewRepository['findById']>[0],
-    organizationId: Parameters<ReviewRepository['findById']>[1],
-  ): Promise<Pick<
-    NonNullable<Awaited<ReturnType<ReviewRepository['findById']>>>,
-    | 'id'
-    | 'organizationId'
-    | 'propertyId'
-    | 'sourceEpoch'
-    | 'sourceRevision'
-    | 'analysisSequence'
-  > | null>
-  hasCurrentReplyForAi: ReviewRepository['hasCurrentReplyForAi']
-  readForAi: ReviewRepository['readForAi']
-  readTrendPopulation: ReviewRepository['readTrendPopulation']
-  assertCurrentForAi: ReviewRepository['assertCurrentForAi']
-  readReplyStateRevision(
-    organizationId: Parameters<ReviewRepository['readForAi']>[0]['organizationId'],
-    reviewId: Parameters<ReviewRepository['readForAi']>[0]['reviewId'],
-  ): Promise<number>
-}>
-
 export const createAiReviewSource = (
-  dependencies: AiReviewSourceDependencies,
+  repository: Pick<
+    ReviewRepository,
+    | 'findById'
+    | 'hasCurrentReplyForAi'
+    | 'readForAi'
+    | 'readTrendPopulation'
+    | 'assertCurrentForAi'
+    | 'readReplyStateRevision'
+  >,
 ): AiReviewSourcePort => ({
-  hasCurrentReply: (input) => dependencies.hasCurrentReplyForAi(input),
+  hasCurrentReply: repository.hasCurrentReplyForAi,
   readCurrentSource: async (input) => {
-    const review = await dependencies.findById(input.reviewId, input.organizationId)
+    const review = await repository.findById(input.reviewId, input.organizationId)
     if (!review) return { status: 'not_found' }
     return {
       status: 'available',
@@ -207,9 +192,8 @@ export const createAiReviewSource = (
       },
     }
   },
-  readForAi: (input) => dependencies.readForAi(input),
-  readTrendPopulation: (input) => dependencies.readTrendPopulation(input),
-  assertCurrent: (input) => dependencies.assertCurrentForAi(input),
-  readReplyStateRevision: (input) =>
-    dependencies.readReplyStateRevision(input.organizationId, input.reviewId),
+  readForAi: repository.readForAi,
+  readTrendPopulation: repository.readTrendPopulation,
+  assertCurrent: repository.assertCurrentForAi,
+  readReplyStateRevision: repository.readReplyStateRevision,
 })

@@ -7,7 +7,6 @@
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { deriveOrganizationSlug } from '#/shared/domain/organization-slug'
 import { formatDateTime } from '#/shared/format/format-date-time'
-import { formatDate } from '#/shared/format/format'
 import type {
   PlatformAdminInvitationView,
   PlatformOrganizationView,
@@ -86,11 +85,6 @@ const CONSOLE_LOCALE = 'en-US'
 // UTC, pinned: the page renders on the server and hydrates in the browser, and
 // both must print the same string.
 const CONSOLE_TIME_ZONE = 'UTC'
-
-/** `Sep 30, 2026` — the UTC calendar date of an ISO timestamp. */
-export function formatConsoleDate(iso: string): string {
-  return formatDate(iso, CONSOLE_TIME_ZONE) ?? ''
-}
 
 /** `Expires Oct 7, 2026, 9:05 AM UTC`, or `Expired …` once it has lapsed. */
 export function formatInvitationExpiry(

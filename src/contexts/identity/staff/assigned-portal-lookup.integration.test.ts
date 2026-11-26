@@ -3,7 +3,7 @@ import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { organizationId, propertyId, type UserId } from '#/shared/domain/ids'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { createAssignedPortalLookup } from './assigned-portal-lookup.server'
 
 const ORG_A = 'org-staff-participation-a'
@@ -102,6 +102,7 @@ beforeEach(async () => {
 /** An active participation without a login, written straight to the tables. */
 const insertParticipation = async (
   ids: Readonly<{ participantId: string; participationId: string; name: string }>,
+  personalPortalId: string | null = null,
 ) => {
   await pool.query(
     `INSERT INTO staff_participants (id, organization_id, display_name, status, revision, created_by, created_at, updated_at)
@@ -111,9 +112,17 @@ const insertParticipation = async (
   await pool.query(
     `INSERT INTO staff_participations
        (id, organization_id, property_id, staff_participant_id, user_id, display_name,
-        status, started_at, revision, created_by, updated_at)
-     VALUES ($1, $2, $3, $4, NULL, $5, 'active', $6, 1, 'owner', $6)`,
-    [ids.participationId, ORG_A, PROPERTY_A, ids.participantId, ids.name, START],
+        status, started_at, revision, created_by, updated_at, personal_portal_id)
+     VALUES ($1, $2, $3, $4, NULL, $5, 'active', $6, 1, 'owner', $6, $7)`,
+    [
+      ids.participationId,
+      ORG_A,
+      PROPERTY_A,
+      ids.participantId,
+      ids.name,
+      START,
+      personalPortalId,
+    ],
   )
 }
 
@@ -139,33 +148,17 @@ const BLAIR = {
   name: 'Blair',
 }
 
-const OWNER_PORTAL = PORTAL_A
-
-/** Links 'linked-user' to Alex for an interval that contains now. */
-const linkCurrentUser = () =>
-  pool.query(
-    `INSERT INTO staff_user_links
-       (organization_id, staff_participant_id, user_id, effective_from, created_by)
-     VALUES ($1, $2, 'linked-user', NOW() - interval '1 hour', 'owner')`,
-    [ORG_A, PARTICIPANT],
+const lookupAssignedPortals = (org: string, user: string) =>
+  createAssignedPortalLookup(getDb())(
+    organizationId(org),
+    userId(user),
+    propertyId(PROPERTY_A),
   )
 
-/** Alex's participation with a personal Portal and an open primary on it. */
-const insertPersonalPortalOwner = async () => {
-  await insertParticipation(ALEX)
-  await pool.query(
-    `UPDATE staff_participations SET personal_portal_id = $1 WHERE id = $2`,
-    [OWNER_PORTAL, PARTICIPATION],
-  )
-  await insertResponsibility(PARTICIPATION, OWNER_PORTAL, 'primary', START, null)
-}
-
-describe('assigned portal lookup', () => {
+describe('assigned Portal lookup', () => {
   it('resolves a login link only while its effective interval contains now', async () => {
-    const lookup = createAssignedPortalLookup(getDb())
-    const forUser = (userId: string, org = ORG_A) =>
-      lookup(organizationId(org), userId as UserId, propertyId(PROPERTY_A))
-    await insertPersonalPortalOwner()
+    await insertParticipation(ALEX, PORTAL_A)
+    await insertResponsibility(PARTICIPATION, PORTAL_A, 'primary', START, null)
     const { rows } = await pool.query<{ now: Date }>('SELECT NOW() AS now')
     const now = new Date(rows[0].now)
     const hour = 60 * 60 * 1_000
@@ -184,9 +177,11 @@ describe('assigned portal lookup', () => {
       ],
     )
 
-    await expect(forUser('current-linked-user')).resolves.toEqual([OWNER_PORTAL])
-    await expect(forUser('future-linked-user')).resolves.toEqual([])
-    await expect(forUser('current-linked-user', ORG_B)).resolves.toEqual([])
+    await expect(lookupAssignedPortals(ORG_A, 'current-linked-user')).resolves.toEqual([
+      PORTAL_A,
+    ])
+    await expect(lookupAssignedPortals(ORG_A, 'future-linked-user')).resolves.toEqual([])
+    await expect(lookupAssignedPortals(ORG_B, 'current-linked-user')).resolves.toEqual([])
 
     const ambiguousLink = 'db000000-0000-4000-8000-000000000031'
     await pool.query(
@@ -202,19 +197,21 @@ describe('assigned portal lookup', () => {
         new Date(now.getTime() + hour),
       ],
     )
-    await expect(forUser('current-linked-user')).resolves.toEqual([])
+    await expect(lookupAssignedPortals(ORG_A, 'current-linked-user')).resolves.toEqual([])
     await pool.query('DELETE FROM staff_user_links WHERE id = $1', [ambiguousLink])
 
     await pool.query(`UPDATE staff_participations SET started_at = $1 WHERE id = $2`, [
       new Date(now.getTime() + hour / 2),
       PARTICIPATION,
     ])
-    await expect(forUser('current-linked-user')).resolves.toEqual([])
+    await expect(lookupAssignedPortals(ORG_A, 'current-linked-user')).resolves.toEqual([])
     await pool.query(`UPDATE staff_participations SET started_at = $1 WHERE id = $2`, [
       new Date(now.getTime() - hour),
       PARTICIPATION,
     ])
-    await expect(forUser('current-linked-user')).resolves.toEqual([OWNER_PORTAL])
+    await expect(lookupAssignedPortals(ORG_A, 'current-linked-user')).resolves.toEqual([
+      PORTAL_A,
+    ])
 
     await pool.query(
       `UPDATE staff_participants
@@ -222,32 +219,40 @@ describe('assigned portal lookup', () => {
        WHERE organization_id = $1 AND id = $2`,
       [ORG_A, PARTICIPANT],
     )
-    await expect(forUser('current-linked-user')).resolves.toEqual([])
+    await expect(lookupAssignedPortals(ORG_A, 'current-linked-user')).resolves.toEqual([])
   })
 
   it('returns only the open primary responsibility for the personal Portal', async () => {
-    const lookup = createAssignedPortalLookup(getDb())
-    await insertParticipation(ALEX)
-    await linkCurrentUser()
-    const forUser = () =>
-      lookup(organizationId(ORG_A), 'linked-user' as UserId, propertyId(PROPERTY_A))
-    await insertResponsibility(PARTICIPATION, PORTAL_A, 'primary', START, null)
-    await expect(forUser()).resolves.toEqual([])
-
+    await insertParticipation(ALEX, PORTAL_A)
     await pool.query(
-      `UPDATE staff_participations SET personal_portal_id = $1 WHERE id = $2`,
-      [OWNER_PORTAL, PARTICIPATION],
+      `INSERT INTO staff_user_links
+         (organization_id, staff_participant_id, user_id, effective_from, created_by)
+       VALUES ($1, $2, 'linked-user', $3, 'owner')`,
+      [ORG_A, PARTICIPANT, START],
     )
-    await insertResponsibility(PARTICIPATION, PORTAL_C, 'primary', START, null)
+    await insertResponsibility(PARTICIPATION, PORTAL_C, 'primary', START, CHANGE)
+    await insertResponsibility(PARTICIPATION, PORTAL_C, 'supporting', START, null)
+    await expect(lookupAssignedPortals(ORG_A, 'linked-user')).resolves.toEqual([])
+
     await insertResponsibility(PARTICIPATION, PORTAL_A, 'supporting', START, null)
-    await expect(forUser()).resolves.toEqual([OWNER_PORTAL])
+    await expect(lookupAssignedPortals(ORG_A, 'linked-user')).resolves.toEqual([])
 
+    await insertResponsibility(PARTICIPATION, PORTAL_A, 'primary', START, null)
+    await expect(lookupAssignedPortals(ORG_A, 'linked-user')).resolves.toEqual([PORTAL_A])
+    await expect(lookupAssignedPortals(ORG_B, 'linked-user')).resolves.toEqual([])
+  })
+
+  it('is empty when the participation has no personal Portal', async () => {
+    await insertParticipation(ALEX)
     await pool.query(
-      `UPDATE portal_responsibilities SET effective_to = $1
-       WHERE staff_participation_id = $2 AND portal_id = $3 AND kind = 'primary'`,
-      [CHANGE, PARTICIPATION, OWNER_PORTAL],
+      `INSERT INTO staff_user_links
+         (organization_id, staff_participant_id, user_id, effective_from, created_by)
+       VALUES ($1, $2, 'linked-user', $3, 'owner')`,
+      [ORG_A, PARTICIPANT, START],
     )
-    await expect(forUser()).resolves.toEqual([])
+    await insertResponsibility(PARTICIPATION, PORTAL_A, 'primary', START, null)
+
+    await expect(lookupAssignedPortals(ORG_A, 'linked-user')).resolves.toEqual([])
   })
 })
 

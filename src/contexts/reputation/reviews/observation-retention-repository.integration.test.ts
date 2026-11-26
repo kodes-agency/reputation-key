@@ -10,7 +10,7 @@ import { createReviewRepository } from './review-repository.server'
 import { createReviewSourceContentLifecycleStore } from '../content/source-content-lifecycle-store.server'
 import { createRestatedRevisionQuery } from '../response-targets/restated-revision-repository.server'
 import { selectRevisionBindingComparisons } from './source-epoch-carry.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 import { createObservationRetention } from './observation-retention-repository.server'
 
 // The rows an earlier writer stored, one per read, are rebuilt here

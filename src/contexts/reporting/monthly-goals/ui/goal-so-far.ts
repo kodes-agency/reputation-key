@@ -12,20 +12,6 @@ export function goalFigure(metric: GoalMetric, value: number): string {
 
 const UNREADABLE = 'This month’s figure can’t be read right now'
 
-type CountingReading = Exclude<GoalProgressReading, Readonly<{ kind: 'not_started' }>>
-
-/** The line under the start choice of a new goal: "So far this month: 412". */
-export function goalSoFarLine(metric: GoalMetric, reading: CountingReading): string {
-  switch (reading.kind) {
-    case 'live':
-      return `So far this month: ${goalFigure(metric, reading.value)}`
-    case 'too_few':
-      return `Too few ratings so far this month: ${reading.sampleCount} of the ${reading.minimumSample} an average needs`
-    case 'unavailable':
-      return UNREADABLE
-  }
-}
-
 /** The note on a goal's running month: "412 so far". Null for a goal that is not counting. */
 export function goalSoFarNote(
   metric: GoalMetric,

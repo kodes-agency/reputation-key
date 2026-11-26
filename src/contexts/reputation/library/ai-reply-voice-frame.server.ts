@@ -1,3 +1,4 @@
+import { buildAiReplyV2Frame } from './ai-reply-v2-frame.server'
 import { readAiReplyVoiceSnapshot } from './ai-reply-voice-snapshot.server'
 import {
   resolveAiReplyV2Frame,
@@ -12,7 +13,6 @@ import type { ReplyTemplateLanguageGroup } from '#/shared/reply-language-catalog
 import {
   digestResolvedReplyVoice,
   isReplyRenderError,
-  renderReply,
 } from '#/shared/reply-library/render-reply'
 import { BUILTIN_REPLY_VOICE, resolveVoice } from '#/shared/reply-library/reply-voice'
 import type { Tx } from '#/shared/outbox/commit'
@@ -54,8 +54,6 @@ export type AiReplyVoicePublicApi = Readonly<{
   ): Promise<boolean>
 }>
 
-const BODY_MARKER = 'RepKeyBodyMarker'
-
 export function createAiReplyVoicePublicApi(
   deps: Readonly<{
     repository: ReplyLibraryRepository
@@ -68,35 +66,24 @@ export function createAiReplyVoicePublicApi(
     resolveLocalFrame: async (input) => {
       const resolved = await readAiReplyVoiceSnapshot(deps, input)
       if (resolved === null) return null
-      const { snapshot, review, languageGroup, voice } = resolved
-      const rendered = renderFrameOrNull({
-        body: BODY_MARKER,
-        voice,
-        languageGroup,
-        rating: review.rating,
-        hasText: Boolean(review.text?.trim()),
-        reviewerDisplayName: review.reviewerName,
-        propertyDisplayName: snapshot.propertyName,
-        choices: {
-          closing: 0,
-          signOff: 0,
-          contactSentence: 0,
-          emoji: 0,
-          includeContact: true,
-        },
-      })
-      if (rendered === null) return null
-      const markerAt = rendered.text.indexOf(BODY_MARKER)
-      if (markerAt < 0) return null
-      return {
-        prefix: rendered.text.slice(0, markerAt).trim(),
-        suffix: rendered.text.slice(markerAt + BODY_MARKER.length).trim(),
-        voiceDigest: rendered.voiceDigest,
-        reviewerDisplayName: review.reviewerName,
-        contact: voice.contact.value,
-        signerName: voice.signerName.value,
-        signerTitle: voice.signerTitle.value,
-        businessName: voice.businessNameShort.value?.trim() || snapshot.propertyName,
+      try {
+        const { candidates, ...frame } = buildAiReplyV2Frame(resolved.frameInput, {
+          choices: {
+            closing: 0,
+            signOff: 0,
+            contactSentence: 0,
+            emoji: 0,
+            includeContact: true,
+          },
+          closingOrder: [0],
+        })
+        const [withClosing] = candidates
+        if (withClosing === undefined) return null
+        return { ...frame, prefix: withClosing.prefix, suffix: withClosing.suffix }
+      } catch (error) {
+        // A voice too long to frame any reply leaves the draft unframed rather than failing it.
+        if (isReplyRenderError(error)) return null
+        throw error
       }
     },
     isCurrentVoice: async (tx, input) => {
@@ -116,16 +103,4 @@ export function createAiReplyVoicePublicApi(
       return digestResolvedReplyVoice(voice, languageGroup) === input.voiceDigest
     },
   })
-}
-
-/** A voice too long to frame any reply leaves the draft unframed rather than failing it. */
-function renderFrameOrNull(
-  input: Parameters<typeof renderReply>[0],
-): ReturnType<typeof renderReply> | null {
-  try {
-    return renderReply(input)
-  } catch (error) {
-    if (isReplyRenderError(error)) return null
-    throw error
-  }
 }

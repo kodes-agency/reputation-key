@@ -1,5 +1,6 @@
-// Dashboard context — getDashboardData use case against real PostgreSQL: the
-// Dashboard Repository's Review and Metric reads decide what the reader sees.
+// Dashboard context — readDashboard against real PostgreSQL: the Dashboard
+// Repository's Review and Metric reads decide what the reader sees. The reader's
+// access to the Property is checked by the callers (see get-property-overview).
 
 import { describe, it, expect } from 'vitest'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
@@ -15,7 +16,7 @@ import {
   seedDashboardProperty,
   seedDashboardReview,
 } from '../infrastructure/testing/dashboard-fixtures'
-import { getDashboardData } from './get-dashboard-data.server'
+import { readDashboard } from './read-dashboard.server'
 
 const MS_PER_DAY = 86_400_000
 const NOW = new Date('2025-06-15T12:00:00.000Z')
@@ -24,10 +25,8 @@ const ORG_A = organizationId('org-dashboard-data-a')
 const ORG_B = organizationId('org-dashboard-data-b')
 // File-unique ids: the dashboard repository test seeds its own rows under the shared ones.
 const PROP_A = propertyId('da5b0a00-0000-0000-0000-000000000001')
-const OTHER_PROPERTY = propertyId('da5b0a00-0000-0000-0000-000000000002')
 const PORTAL_A = portalId('da5b0b00-0000-0000-0000-000000000001')
 const ADMIN = buildTestAuthContext({ organizationId: ORG_A, role: 'AccountAdmin' })
-const organizationWide = async () => null
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
@@ -84,16 +83,15 @@ const seedActivity = async () => {
   for (const daysBefore of [40, 41]) await reading('portal.scan', daysBefore)
 }
 
-describe('getDashboardData (use case)', () => {
+describe('readDashboard', () => {
   it('composes all dashboard sections from the stored Reviews, Replies and Metrics', async () => {
     await seedActivity()
     const { repo, calls } = recordedDashboardRepo(
       getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
-    const getDashboard = getDashboardData({ repo, propertyAccess: organizationWide })
 
-    const result = await getDashboard(last30Days(), ADMIN)
+    const result = await readDashboard(repo, last30Days(), ADMIN)
 
     expect(result.kpis.reviews).toEqual({ value: 3, priorValue: 1, trend: 200 })
     expect(result.kpis.scans).toMatchObject({ value: 4, priorValue: 2, trend: 100 })
@@ -141,9 +139,12 @@ describe('getDashboardData (use case)', () => {
       getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
-    const getDashboard = getDashboardData({ repo, propertyAccess: organizationWide })
 
-    const result = await getDashboard({ ...last30Days(), portalId: PORTAL_A }, ADMIN)
+    const result = await readDashboard(
+      repo,
+      { ...last30Days(), portalId: PORTAL_A },
+      ADMIN,
+    )
 
     expect(result.engagementFunnel).toEqual({ scans: 3, ratings: 5, reviewLinkClicks: 1 })
     expect(calls).toContain('getEngagementFunnel')
@@ -155,9 +156,9 @@ describe('getDashboardData (use case)', () => {
       getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
-    const getDashboard = getDashboardData({ repo, propertyAccess: organizationWide })
 
-    const result = await getDashboard(
+    const result = await readDashboard(
+      repo,
       { ...last30Days(), startDate: new Date(0), timeRange: 'all' },
       ADMIN,
     )
@@ -170,74 +171,20 @@ describe('getDashboardData (use case)', () => {
   })
 })
 
-describe('getDashboardData authorization', () => {
-  const manager = buildTestAuthContext({ organizationId: ORG_A, role: 'PropertyManager' })
-
-  it('refuses a manager with no grant on the Property before anything is read', async () => {
-    await seedActivity()
-    const { repo, calls } = recordedDashboardRepo(
-      getDb(),
-      createServingStats({ db: getDb(), clock: () => NOW }),
-    )
-    const getDashboard = getDashboardData({
-      repo,
-      propertyAccess: async () => [OTHER_PROPERTY],
-    })
-
-    await expect(getDashboard(last30Days(), manager)).rejects.toMatchObject({
-      _tag: 'DashboardError',
-      code: 'forbidden',
-    })
-    expect(calls).toEqual([])
-  })
-
-  it('refuses a reader who belongs to another Organization', async () => {
-    await seedActivity()
-    const { repo, calls } = recordedDashboardRepo(
-      getDb(),
-      createServingStats({ db: getDb(), clock: () => NOW }),
-    )
-    const getDashboard = getDashboardData({ repo, propertyAccess: async () => null })
-    const foreignAdmin = buildTestAuthContext({
-      organizationId: ORG_B,
-      role: 'AccountAdmin',
-    })
-
-    await expect(getDashboard(last30Days(), foreignAdmin)).rejects.toMatchObject({
-      _tag: 'DashboardError',
-      code: 'forbidden',
-    })
-    expect(calls).toEqual([])
-  })
-
-  it('serves a manager granted the Property', async () => {
-    await seedActivity()
-    const { repo } = recordedDashboardRepo(
-      getDb(),
-      createServingStats({ db: getDb(), clock: () => NOW }),
-    )
-    const getDashboard = getDashboardData({ repo, propertyAccess: async () => [PROP_A] })
-
-    const result = await getDashboard(last30Days(), manager)
-
-    expect(result.kpis.reviews.value).toBe(3)
-    expect(result.replyPerformance.replyRate).toBe(66.67)
-  })
-
+describe('readDashboard reply redaction', () => {
   it('hides reply state from a reader who may not manage replies', async () => {
     await seedActivity()
     const { repo } = recordedDashboardRepo(
       getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
-    const getDashboard = getDashboardData({ repo, propertyAccess: async () => null })
     const readOnly = createScopedAuthContext({
       organizationId: ORG_A,
       userId: ADMIN.userId,
       permissions: [['dashboard.read', 'organization']],
     })
 
-    const result = await getDashboard(last30Days(), readOnly)
+    const result = await readDashboard(repo, last30Days(), readOnly)
 
     expect(result.replyPerformance).toEqual({ replyRate: 0, avgReplyHours: null })
     expect(result.recentReviews.every((r) => r.replyStatus === 'none')).toBe(true)

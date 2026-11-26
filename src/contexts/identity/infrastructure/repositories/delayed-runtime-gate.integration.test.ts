@@ -66,6 +66,7 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
       'worker',
     )
 
+    expect(outcome.allowed).toBe(true)
     expect(outcome).toMatchObject({
       allowed: true,
       reason: 'allowed',

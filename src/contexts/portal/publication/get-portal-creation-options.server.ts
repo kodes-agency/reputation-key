@@ -1,3 +1,4 @@
+import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
 // Portal context — what the New portal dialog needs to know about a Property:
 // the languages a new Portal starts with and who may be made responsible. The
 // groups and the Portals that can be copied come from the reads the Portals
@@ -11,10 +12,9 @@ import { resolveNewPortalLocales } from '../domain/portal-new-locales'
 import { loadPropertyDefaultLocales } from './create-portal-resolvers.server'
 import { assertNewPortalPropertyAccess } from './load-accessible-portal.server'
 import {
-  policyDeps,
   type PortalManagerEligibilityDeps,
+  policyDeps,
 } from '../responsibility/portal-manager-eligibility.server'
-import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PortalExperienceRepository } from '../editor/portal-experience-repository.port.server'
 
 export type GetPortalCreationOptionsDeps = PortalManagerEligibilityDeps &

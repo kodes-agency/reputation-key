@@ -1,6 +1,6 @@
 import type { AttentionSignalsPort } from './attention-signals.port.server'
 import type { AttentionSignals, DashboardData } from '../domain/dashboard-types'
-import { readDashboard, type GetDashboardDataInput } from './get-dashboard-data.server'
+import { readDashboard, type ReadDashboardInput } from './read-dashboard.server'
 import type { DashboardRepository } from './dashboard-repository.port.server'
 import { attentionSignalsFrom } from './attention-signals.server'
 import type { InboxPublicApi } from '#/contexts/reputation/public-api'
@@ -27,7 +27,7 @@ export type PropertyOverviewData = Readonly<{
 /** The one range whose read carries Google's numbers (the Overview reads two). */
 const GOOGLE_NUMBERS_RANGE = 'all'
 
-export type GetPropertyOverviewInput = GetDashboardDataInput
+export type GetPropertyOverviewInput = ReadDashboardInput
 
 export type GetPropertyOverview = (
   input: GetPropertyOverviewInput,
@@ -39,9 +39,11 @@ export const getPropertyOverview =
     repo: DashboardRepository
     propertyAccess: DashboardPropertyAccess
     attention: AttentionSignalsPort
-    inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
-    /** Opens a review in the Inbox: the lookup behind the recent-review links. */
-    inboxItems: Pick<InboxPublicApi, 'getReviewInboxItemIds'>
+    /** The Google target counts, and the lookup behind the recent-review links. */
+    inbox: Pick<
+      InboxPublicApi,
+      'getGoogleReviewTargetCountsByProperty' | 'getReviewInboxItemIds'
+    >
     clock: () => Date
     googleNumbers: ReadGoogleNumbers
   }): GetPropertyOverview =>
@@ -59,7 +61,7 @@ export const getPropertyOverview =
     // and answers nothing for a review the reader could not open).
     const linkRecentReviews = async (read: DashboardData): Promise<DashboardData> => {
       if (read.recentReviews.length === 0) return read
-      const items = await deps.inboxItems.getReviewInboxItemIds(
+      const items = await deps.inbox.getReviewInboxItemIds(
         {
           propertyId: input.propertyId,
           reviewIds: read.recentReviews.map((review) => review.id),
@@ -78,7 +80,7 @@ export const getPropertyOverview =
     const [dashboard, counts, targetCounts, google] = await Promise.all([
       readDashboard(deps.repo, input, ctx).then((read) => linkRecentReviews(read)),
       deps.attention.getAttentionCounts(input.organizationId, input.propertyId),
-      deps.inboxTargets.getGoogleReviewTargetCountsByProperty({
+      deps.inbox.getGoogleReviewTargetCountsByProperty({
         organizationId: input.organizationId,
         propertyIds: [input.propertyId],
         now,

@@ -265,6 +265,9 @@ describe('the Portal results reads', () => {
     await expect(read({ ...scope(), startAt: END, endAt: START })).rejects.toThrow(
       'rating languages period is invalid',
     )
+    await expect(
+      read({ ...scope(), startAt: new Date(Number.NaN), endAt: END }),
+    ).rejects.toThrow('rating languages period is invalid')
   })
 
   it('summarizes the integrity outcomes of one Portal over the period', async () => {

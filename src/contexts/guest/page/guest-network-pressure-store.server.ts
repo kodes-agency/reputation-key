@@ -1,10 +1,11 @@
 import { and, count, eq, gt, min, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { guestNetworkPressureRecords } from '#/shared/db/schema/guest.schema'
+import type { Clock } from '#/shared/domain/clock'
 import {
+  type GuestNetworkPressureAction,
   GUEST_NETWORK_PRESSURE_RETENTION_MS,
   createGuestNetworkPressureRecord,
-  type GuestNetworkPressureAction,
 } from '../domain/networkPressure'
 import { trace } from '#/shared/observability/trace'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
@@ -31,12 +32,13 @@ export type GuestNetworkPressureStore = Readonly<{
 
 export const createGuestNetworkPressureStore = (
   db: Database,
+  clock: Clock,
   idGen: () => string,
-  clock: () => Date,
 ): GuestNetworkPressureStore => {
   return {
     consume: (input) =>
       trace('guest.networkPressure.consume', async () => {
+        const observedAt = clock()
         if (!Number.isInteger(input.maxRequests) || input.maxRequests < 1) {
           throw new Error('Guest network pressure maximum must be a positive integer')
         }
@@ -48,7 +50,6 @@ export const createGuestNetworkPressureStore = (
           throw new Error('Guest network pressure window must fit the retention period')
         }
 
-        const observedAt = clock()
         const windowMs = input.windowSeconds * 1000
         const cutoff = new Date(observedAt.getTime() - windowMs)
         return db.transaction(async (tx) => {
@@ -96,7 +97,7 @@ export const createGuestNetworkPressureStore = (
             portalId: portalId(input.portalId),
             pseudonym: input.pseudonym,
             action: input.action,
-            observedAt,
+            observedAt: observedAt,
           })
           if (record.isErr()) throw record.error
           await tx.insert(guestNetworkPressureRecords).values(record.value)

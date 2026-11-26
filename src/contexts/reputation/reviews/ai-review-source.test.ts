@@ -23,32 +23,20 @@ const REQUEST: AiReviewSourceRequest = {
   },
 }
 
+const NO_REPOSITORY_CALL = vi.fn()
+
+const repositoryWith = (findById: ReturnType<typeof vi.fn>) =>
+  ({
+    findById,
+    hasCurrentReplyForAi: NO_REPOSITORY_CALL,
+    readForAi: NO_REPOSITORY_CALL,
+    readTrendPopulation: NO_REPOSITORY_CALL,
+    assertCurrentForAi: NO_REPOSITORY_CALL,
+    readReplyStateRevision: NO_REPOSITORY_CALL,
+  }) as unknown as Parameters<typeof createAiReviewSource>[0]
+
 describe('createAiReviewSource', () => {
-  it('delegates reads and content-free currentness checks to the repository boundary', async () => {
-    const available = {
-      status: 'available' as const,
-      observation: {
-        kind: 'review' as const,
-        reviewId: REQUEST.reviewId,
-        organizationId: REQUEST.organizationId,
-        propertyId: REQUEST.propertyId,
-        text: '[PERSON] loved breakfast',
-        rating: 5 as const,
-        languageCode: 'en',
-        reviewedAtEpochMillis: 1_776_000_000_000,
-        contentExpiresAtEpochMillis: 1_778_000_000_000,
-        sourceEpoch: 4,
-        sourceRevision: 9,
-        analysisSequence: 12,
-      },
-    }
-    const readForAi = vi.fn(async () => available)
-    const readTrendPopulation = vi.fn(async () => ({
-      status: 'complete' as const,
-      reviews: [],
-      hasEvidenceBeforeStart: false,
-    }))
-    const assertCurrentForAi = vi.fn(async () => ({ status: 'current' as const }))
+  it('projects the six source fields of a live Review and nothing else', async () => {
     const findById = vi.fn(async () => ({
       organizationId: REQUEST.organizationId,
       propertyId: REQUEST.propertyId,
@@ -56,38 +44,10 @@ describe('createAiReviewSource', () => {
       sourceEpoch: 4,
       sourceRevision: 9,
       analysisSequence: 12,
+      text: 'not part of the source',
     }))
-    const readReplyStateRevision = vi.fn(async () => 7)
-    const source = createAiReviewSource({
-      hasCurrentReplyForAi: async () => false,
-      readForAi,
-      readTrendPopulation,
-      assertCurrentForAi,
-      findById,
-      readReplyStateRevision,
-    })
+    const source = createAiReviewSource(repositoryWith(findById))
 
-    await expect(source.readForAi(REQUEST)).resolves.toEqual(available)
-    await expect(source.assertCurrent(REQUEST)).resolves.toEqual({ status: 'current' })
-    expect(readForAi).toHaveBeenCalledWith(REQUEST)
-    expect(assertCurrentForAi).toHaveBeenCalledWith(REQUEST)
-    const trendRequest = {
-      organizationId: REQUEST.organizationId,
-      propertyId: REQUEST.propertyId,
-      sourceEpoch: 4,
-      timezone: 'Europe/Sofia',
-      calendarProfileVersion: 'property-calendar-v1' as const,
-      startLocalDate: '2026-06-01',
-      endLocalDate: '2026-07-30',
-      limit: 10_001,
-      detectEvidenceBeforeStart: false,
-    }
-    await expect(source.readTrendPopulation(trendRequest)).resolves.toEqual({
-      status: 'complete',
-      reviews: [],
-      hasEvidenceBeforeStart: false,
-    })
-    expect(readTrendPopulation).toHaveBeenCalledWith(trendRequest)
     await expect(
       source.readCurrentSource({
         organizationId: REQUEST.organizationId,
@@ -105,27 +65,10 @@ describe('createAiReviewSource', () => {
       },
     })
     expect(findById).toHaveBeenCalledWith(REQUEST.reviewId, REQUEST.organizationId)
-    await expect(
-      source.readReplyStateRevision({
-        organizationId: REQUEST.organizationId,
-        reviewId: REQUEST.reviewId,
-      }),
-    ).resolves.toBe(7)
-    expect(readReplyStateRevision).toHaveBeenCalledWith(
-      REQUEST.organizationId,
-      REQUEST.reviewId,
-    )
   })
 
   it('returns a content-free not-found result without leaking repository shape', async () => {
-    const source = createAiReviewSource({
-      hasCurrentReplyForAi: async () => false,
-      readForAi: vi.fn(),
-      readTrendPopulation: vi.fn(),
-      assertCurrentForAi: vi.fn(),
-      findById: vi.fn(async () => null),
-      readReplyStateRevision: vi.fn(),
-    })
+    const source = createAiReviewSource(repositoryWith(vi.fn(async () => null)))
 
     await expect(
       source.readCurrentSource({

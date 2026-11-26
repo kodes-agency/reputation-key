@@ -167,9 +167,7 @@ export function createGoogleConnectionsRuntime(deps: GoogleConnectionsRuntimeDep
     connectionRepo,
     exchangeRecovery,
     disconnectRevokeStore,
-    encryptionPort,
     oauthPort,
-    refreshToken,
     tokenProvider,
     providerTokenAccess,
     oauth: {

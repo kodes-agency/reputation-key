@@ -18,6 +18,7 @@ import { z } from 'zod/v4'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { portalMediaAssetId } from '#/shared/domain/ids'
 import { PORTAL_MEDIA_STORED_CONTENT_TYPE } from '#/shared/domain/portal-media'
+import { ifNoneMatchMatches } from '#/shared/http/conditional-get'
 import { isServablePortalMediaAsset } from '../domain/portal-media-asset'
 import type { PortalMediaAssetRepository } from './portal-media-asset-repository.port.server'
 import {
@@ -65,14 +66,6 @@ const uuidSchema = z.uuid()
 
 /** The entity tag of an asset: the hash of the bytes this system encoded. */
 const etagOf = (contentSha256: string): string => `"${contentSha256}"`
-
-/** Whether an If-None-Match header names `etag` (weak comparison, as the spec asks for GET). */
-export function ifNoneMatchMatches(header: string | null | undefined, etag: string) {
-  if (!header) return false
-  if (header.trim() === '*') return true
-  const bare = (value: string) => value.trim().replace(/^W\//u, '')
-  return header.split(',').some((candidate) => bare(candidate) === etag)
-}
 
 export const servePortalMedia =
   (deps: ServePortalMediaDeps) =>

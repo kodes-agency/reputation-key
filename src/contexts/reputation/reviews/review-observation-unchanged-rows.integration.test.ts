@@ -1,8 +1,8 @@
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import {
   eraseReviewSourceContent,
-  replyScopeEffects,
   writeObservedReviewIdentity,
-} from '#/contexts/reputation/public-api'
+} from '#/contexts/reputation/content/store.server'
 import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'

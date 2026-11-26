@@ -377,15 +377,15 @@ export function createGatedJobHandler(
       }
     }
     const executionKind = executionKindOf(job)
-    const outcome = await gateJob(
+    const decision = await gateJob(
       job.name,
       policyData,
       executionKind === 'schedule' ? `schedule:${job.name}` : `worker:${queueLabel}`,
       executionKind,
       resolveScope,
     )
-    if (!outcome.allowed) {
-      return terminalDenial(logger, job.name, outcome, executionKind)
+    if (!decision.allowed) {
+      return terminalDenial(logger, job.name, decision, executionKind)
     }
     const payload = isRecord(policyData) ? policyData : {}
     const row = rowForJob(job.name, executionKind)

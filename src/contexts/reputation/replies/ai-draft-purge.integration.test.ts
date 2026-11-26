@@ -1,7 +1,5 @@
-import {
-  replyScopeEffects,
-  eraseReviewSourceContent,
-} from '#/contexts/reputation/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 // The AI draft purge against real PostgreSQL.
 //
 // An AI-assisted reply is the unedited output of one AI operation. The purge
