@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -6,6 +6,13 @@ import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { ReviewLookupPort } from './inbox/review-lookup.port.server'
 import type { InboxContextBuildInput } from './build-inbox'
 import { buildInboxContext } from './build-inbox'
+
+const projectionRebuild = vi.hoisted(() => vi.fn())
+const rebuildFactory = vi.hoisted(() => vi.fn(() => projectionRebuild))
+
+vi.mock('./inbox/rebuild-inbox-projection.server', () => ({
+  rebuildInboxProjection: rebuildFactory,
+}))
 
 describe('buildInboxContext', () => {
   function build() {
@@ -52,8 +59,10 @@ describe('buildInboxContext', () => {
     expect(Object.keys(context.publicApi)).not.toContain('organizationLifecycle')
     // No raw item creation: the durable source consumers create Inbox Items,
     // under their receipts and after their source checks (Invariant 1).
-    expect(Object.keys(context.publicApi)).not.toContain('createInboxItem')
-    expect(Object.keys(context.publicApi)).not.toContain('startReviewHandlingCycle')
+    for (const capability of [context.publicApi, context.maintenance, context.worker]) {
+      expect(Object.keys(capability)).not.toContain('createInboxItem')
+      expect(Object.keys(capability)).not.toContain('startReviewHandlingCycle')
+    }
     expect(Object.keys(context.maintenance)).toEqual([
       'rebuildInboxProjection',
       'responseTargetExclusions',
@@ -63,9 +72,13 @@ describe('buildInboxContext', () => {
   })
 
   it('binds each named capability to the one Inbox-owned implementation', () => {
+    rebuildFactory.mockClear()
     const context = build()
 
-    expect(context.maintenance.rebuildInboxProjection).toBeTypeOf('function')
+    // The maintenance capability is the Inbox-owned projection rebuild, built
+    // once from this context's own stores and ports.
+    expect(rebuildFactory).toHaveBeenCalledTimes(1)
+    expect(context.maintenance.rebuildInboxProjection).toBe(projectionRebuild)
     expect(Object.keys(context.maintenance.responseTargetExclusions).sort()).toEqual([
       'apply',
       'findProperty',
