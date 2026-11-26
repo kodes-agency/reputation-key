@@ -8,6 +8,7 @@
 // identity row alone: a person may belong to another Organization.
 
 import { sql } from 'drizzle-orm'
+import { errorMessage } from '#/shared/db/lifecycle/rights-primitives'
 import type { Database } from '#/shared/db'
 import {
   isOrganizationSuspended,
@@ -39,10 +40,6 @@ const IDENTITY_GRANT_TABLES = Object.freeze([
 ])
 
 const READ_ONLY = { isolationLevel: 'repeatable read', accessMode: 'read only' } as const
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
-}
 
 async function identityReport(
   db: Database,
