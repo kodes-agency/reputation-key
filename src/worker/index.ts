@@ -40,7 +40,6 @@ import {
 } from '#/shared/jobs/worker'
 
 import { assertConfiguredJobRedisRuntime } from '#/shared/jobs/redis-runtime'
-import { createJobRedisConnection } from '#/shared/jobs/queue'
 import {
   assertProductionRedisTopology,
   getJobRedisUrl,
@@ -57,10 +56,7 @@ import {
   JOB_OPERATIONAL_CONTRACTS,
   createOperationalSchedulerPlan,
 } from '#/shared/jobs/operational-catalogue'
-import {
-  createJobRuntimeObservationStore,
-  createJobRuntimeReportReader,
-} from '#/shared/jobs/runtime-observations'
+import { createJobRuntimeReportReader } from '#/shared/jobs/runtime-observations'
 import { drainWorkerResources } from './drain'
 import { WORKER_POOL_MAX_CONNECTIONS } from './pool-budget'
 import {
@@ -126,9 +122,6 @@ async function main() {
   assertProductionRedisTopology(env)
   const jobRedisUrl = getJobRedisUrl(env)
   if (!jobRedisUrl) {
-    if (env.NODE_ENV === 'production') {
-      throw new Error('[CONFIG] BullMQ Redis runtime is incompatible: url_missing')
-    }
     logger.warn('No queue Redis configured — BullMQ runtime inspection skipped')
   } else {
     const redisReadiness = await assertConfiguredJobRedisRuntime(jobRedisUrl)
@@ -203,12 +196,10 @@ async function main() {
   // It is written to and never processed; jobs whose attempt budget is spent
   // land here with a content-safe envelope.
   const { quarantineQueue, domainEventsQueue } = container.jobDispatchWorkerRuntime
-  // Observations live on the JOB Redis beside the queues they describe;
-  // BullMQ 6 exposes no queue client, so this is a dedicated connection.
-  const runtimeObservationRedis = createJobRedisConnection()
-  const runtimeObservationStore = runtimeObservationRedis
-    ? createJobRuntimeObservationStore({ redis: runtimeObservationRedis })
-    : null
+  // Observations live on the JOB Redis beside the queues they describe, over
+  // the container's one connection for them.
+  const runtimeObservationRedis = container.runtimeObservations?.redis
+  const runtimeObservationStore = container.runtimeObservations?.store ?? null
   // Which scheduler plan owns the background queue — the latest boot's — so
   // an outgoing worker's watchdog cannot restore what its successor removed.
   const schedulerPlanRecord = runtimeObservationRedis

@@ -121,15 +121,12 @@ const config = defineConfig(({ mode }) => {
               //     known placeholder/test secret leaks into production.
               //   - error-monitoring (OBS-01): capture unexpected Nitro errors;
               //     Node --import preloads the SDK before any plugin starts.
-              //   - release-identity-guard: refuse a declared candidate that
-              //     differs from the revision baked into the image.
-              //   - restore-mode-guard (BQC-7.8): restore-isolated boot
-              //     assertion + the loud RESTORE MODE ISOLATED log line; the
-              //     capability fail-closed enforcement itself lives at the
-              //     beta-capabilities evaluation seam (per-request).
-              //   - redis-runtime-guard (DATA-18): require physically separate
-              //     cache/queue Redis and prove the queue runtime contract
-              //     before the web producer accepts traffic.
+              //   - boot-guards: refuse a declared candidate that differs from the
+              //     revision baked into the image (release identity), run the
+              //     restore-isolated boot assertion + the loud RESTORE MODE
+              //     ISOLATED log line (BQC-7.8), and require physically separate
+              //     cache/queue Redis with a proven queue runtime contract
+              //     (DATA-18) before the web producer accepts traffic.
               //   - graceful-shutdown (BQC-7.1): close pg/Redis/BullMQ on
               //     SIGTERM so the process exits inside the drain window.
               //   - security-headers (BQC-7.6, STD-P1-07): the B0.7 header set
@@ -141,9 +138,7 @@ const config = defineConfig(({ mode }) => {
               plugins: [
                 'server/plugins/production-secret-guard.ts',
                 'server/plugins/error-monitoring.ts',
-                'server/plugins/release-identity-guard.ts',
-                'server/plugins/restore-mode-guard.ts',
-                'server/plugins/redis-runtime-guard.ts',
+                'server/plugins/boot-guards.ts',
                 'server/plugins/graceful-shutdown.ts',
                 'server/plugins/security-headers.ts',
                 'server/plugins/request-guard.ts',
