@@ -373,7 +373,7 @@ export async function writeObservedReviewIdentity(
   }>,
   observationSequence: number,
   observedAt: Date,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<typeof reviews.$inferSelect> {
   const row = reviewIdentityValues(observedReview)
   // Each snapshot pass reads every Review twice. A read that leaves every

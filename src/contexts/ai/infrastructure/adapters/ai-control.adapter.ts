@@ -49,7 +49,7 @@ function mapHead(row: typeof aiExecutionControlHeads.$inferSelect): AiControlHea
 
 export const createAiControlAdapter = (
   db: Database,
-  replyEffects?: ReplyScopeEffects,
+  replyEffects: ReplyScopeEffects,
 ): AiControlPort => {
   return {
     async readHeads(input) {

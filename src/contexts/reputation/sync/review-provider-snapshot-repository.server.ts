@@ -6,7 +6,6 @@ import {
 import { and, asc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
-import { requireReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { Tx } from '#/shared/outbox/commit'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
@@ -355,7 +354,7 @@ async function applyDeletionCandidate(
   run: RunRow,
   candidate: DeletionCandidateRow,
   lockedReview: LockedDeletionReview | undefined,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<DeletionCandidateOutcome> {
   if (
     lockedReview == null ||
@@ -398,7 +397,7 @@ async function applyDeletionCandidate(
       expectedSourceRevision: candidate.expectedSourceRevision,
       state: 'provider_deleted',
     },
-    requireReplyScopeEffects(replyEffects),
+    replyEffects,
   )
   if (!erased) {
     await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
@@ -924,7 +923,7 @@ export async function startOrResumeSnapshot(
 export const createReviewProviderSnapshotRepository = (
   db: Database,
   idGen: () => string,
-  replyEffects?: ReplyScopeEffects,
+  replyEffects: ReplyScopeEffects,
 ): ReviewProviderSnapshotRepository => ({
   startOrResume: async (input) =>
     db.transaction((tx) => startOrResumeSnapshot(tx, idGen, input)),

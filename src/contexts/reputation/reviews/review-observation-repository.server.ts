@@ -277,7 +277,7 @@ type ObservationInput = Readonly<{
    */
   providerUpdateTimeReported?: boolean
   /** Withdraws AI-assisted Replies this observation outdates. */
-  replyEffects?: ReplyScopeEffects
+  replyEffects: ReplyScopeEffects
 }>
 
 /** Google's updateTime for the stored head and for this read, the latter null
