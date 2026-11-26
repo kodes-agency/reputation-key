@@ -42,7 +42,6 @@ export function buildInsertNotificationDeps(
     clock: () => FIXED_DATE,
     idGen: () => notificationId(randomUUID()),
     emailIdGen: () => notificationEmailId(randomUUID()),
-    onEmailQueued: vi.fn(),
     ratingForRouting: vi.fn(async () => null),
     logger: {
       info: vi.fn(),

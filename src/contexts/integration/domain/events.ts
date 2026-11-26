@@ -17,18 +17,6 @@ export type IntegrationPropertyImportRequested = Readonly<{
   correlationId: string | null
 }>
 
-export const integrationPropertyImportRequested = (
-  args: IntegrationEventArgs<IntegrationPropertyImportRequested>,
-): IntegrationPropertyImportRequested => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  return {
-    _tag: 'integration.property_import.requested',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
 export type IntegrationGoogleAccountConnected = Readonly<{
   _tag: 'integration.google_account.connected'
   eventId: string
@@ -128,25 +116,6 @@ export type IntegrationPropertyImportRetentionReleased = Readonly<{
   occurredAt: Date
   correlationId: string | null
 }>
-
-export const integrationPropertyImportRetentionReleased = (
-  args: IntegrationEventArgs<IntegrationPropertyImportRetentionReleased>,
-): IntegrationPropertyImportRetentionReleased => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.importJobId !== '', 'importJobId required')
-  assert(
-    args.idempotencyKeys.length >= 1 &&
-      args.idempotencyKeys.length <= 100 &&
-      new Set(args.idempotencyKeys).size === args.idempotencyKeys.length,
-    'idempotencyKeys must contain 1..100 unique values',
-  )
-  return {
-    _tag: 'integration.property_import.retention_released',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
 
 export type GoogleReviewPushNotificationKind =
   'NEW_REVIEW' | 'UPDATED_REVIEW' | 'REVIEW_CHANGED'

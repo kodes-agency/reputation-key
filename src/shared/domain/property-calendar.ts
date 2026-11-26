@@ -14,19 +14,30 @@ export type PropertyWallClock = Readonly<{
   millisecond: number
 }>
 
+const wallClockFormatters = new Map<string, Intl.DateTimeFormat>()
+
+function wallClockFormatter(timezone: string): Intl.DateTimeFormat {
+  let formatter = wallClockFormatters.get(timezone)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      fractionalSecondDigits: 3,
+      hourCycle: 'h23',
+    })
+    wallClockFormatters.set(timezone, formatter)
+  }
+  return formatter
+}
+
 export function propertyWallClockAt(date: Date, timezone: string): PropertyWallClock {
   if (Number.isNaN(date.getTime())) throw new RangeError('Invalid calendar instant')
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-    fractionalSecondDigits: 3,
-    hourCycle: 'h23',
-  }).formatToParts(date)
+  const parts = wallClockFormatter(timezone).formatToParts(date)
   const value = (type: Intl.DateTimeFormatPartTypes): number =>
     Number(parts.find((part) => part.type === type)?.value ?? '0')
   return {
@@ -56,7 +67,11 @@ function sameWallClock(left: PropertyWallClock, right: PropertyWallClock): boole
   )
 }
 
-function exactInstantsForWallClock(target: PropertyWallClock, timezone: string): Date[] {
+/** Every instant whose wall clock in the timezone equals the target, earliest first. */
+export function exactInstantsForWallClock(
+  target: PropertyWallClock,
+  timezone: string,
+): Date[] {
   const localEpoch = Date.UTC(
     target.year,
     target.month - 1,

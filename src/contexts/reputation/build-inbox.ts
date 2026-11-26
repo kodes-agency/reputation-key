@@ -10,7 +10,6 @@
 import type { Database } from '#/shared/db'
 import { registerInboxMemberOffboardingConsumers } from './inbox/member-offboarding-outbox-consumers.server'
 import type { ConsumerRegistry } from '#/shared/outbox'
-import { type InboxAssignmentRuntime } from './inbox/inbox-assignment-runtime.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
@@ -117,7 +116,7 @@ export type InboxContextApi = Readonly<{
   }>
   /** ARC-03-T12: the named member-authority capability. Replaces the root's
    * `inbox.internal.commandStore` reach-through. */
-  assignments: InboxAssignmentRuntime
+  assignments: Pick<InboxCommandStore, 'releaseIneligibleAssignmentsForUser'>
   /** The scheduled reminder release Inbox contributes to the worker. */
   runtime: Readonly<{
     releaseResponseTargetRemindersJob: Readonly<{
@@ -250,9 +249,12 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     publicApi,
     maintenance,
     worker: Object.freeze({ registerOutboxConsumers }),
+    // Assignment is operational metadata, never an authority: the command store
+    // re-proves each requirement inside its own write transaction, so this one
+    // operation is all the member-authority seam can reach.
     assignments: Object.freeze({
-      releaseIneligibleAssignmentsForUser: (input, tx) =>
-        commandStore.releaseIneligibleAssignmentsForUser(input, tx),
+      releaseIneligibleAssignmentsForUser:
+        commandStore.releaseIneligibleAssignmentsForUser,
     }),
     runtime: Object.freeze({
       releaseResponseTargetRemindersJob: Object.freeze({

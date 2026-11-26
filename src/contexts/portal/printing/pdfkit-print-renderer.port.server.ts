@@ -4,7 +4,6 @@
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import type { PrintAddress, PrintFace } from '#/shared/domain/portal-print'
 import type { PrintCodeRefusal } from '#/shared/domain/portal-print-code'
-import type { PrintFramings } from '#/shared/domain/portal-print-framing'
 import type { PrintKitPhoto } from './contracts'
 
 /**
@@ -42,8 +41,6 @@ export type PrintRenderInput = Readonly<{
   fieldColour: string
   /** The photo an Immersive face fades from; null for the no-photo ground. Paper ignores it. */
   photo: PrintKitPhoto | null
-  /** How the manager moved and zoomed the photo, per piece and orientation; the plain cover crop where none is stored. */
-  framings?: PrintFramings
   /** What the code encodes, and its shape: the tile depends on the symbol it makes. */
   qrAddress: string
   address: PrintAddress

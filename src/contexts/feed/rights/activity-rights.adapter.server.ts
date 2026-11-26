@@ -12,12 +12,12 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import type {
   BackupErasureLedgerEntry,
   BackupErasureReplayer,
 } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
-import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import type { Tx } from '#/shared/outbox/commit'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
 import { rightsJournalEntry } from '#/shared/ops/rights/rights-journal'

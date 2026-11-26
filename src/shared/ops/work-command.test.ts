@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { runWorkCommand, workCommandSpec } from './work-command'
 import { runOperatorCommand, type OperatorRuntime } from './operator-command'
-import type { WorkItems } from '#/shared/jobs/work-items.server'
+import type { WorkItems } from '#/shared/db/work-items.server'
 
 const id = '00000000-0000-4000-8000-000000000001'
 const runtime: OperatorRuntime = {

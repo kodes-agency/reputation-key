@@ -1,4 +1,4 @@
-import { reviewIdentityValues } from '#/contexts/reputation/public-api'
+import { reviewIdentityValues } from '#/contexts/reputation/content/store.server'
 // Review context — review mapper tests
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'

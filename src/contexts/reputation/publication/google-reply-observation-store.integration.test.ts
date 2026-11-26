@@ -5,7 +5,7 @@ import { getDb } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 import {
   ORG,
   PROP_A,

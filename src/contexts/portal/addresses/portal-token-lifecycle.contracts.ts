@@ -85,4 +85,3 @@ export function toRotatePortalTokenInput(
       }
     : { portalId, replacementKind: 'security' }
 }
-export type RevokePortalTokensInput = z.infer<typeof revokePortalTokensInputSchema>

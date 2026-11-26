@@ -63,19 +63,6 @@ export type PropertyDeleted = Readonly<{
   occurredAt: Date
   correlationId: string | null
 }>
-export const propertyDeleted = (
-  args: Omit<PropertyDeleted, '_tag' | 'eventId' | 'correlationId'> & {
-    correlationId?: string | null
-  },
-): PropertyDeleted => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  return {
-    ...args,
-    _tag: 'property.deleted',
-    eventId: newEventId(),
-    correlationId: args.correlationId ?? null,
-  }
-}
 
 export type PropertyArchived = Readonly<{
   _tag: 'property.archived'

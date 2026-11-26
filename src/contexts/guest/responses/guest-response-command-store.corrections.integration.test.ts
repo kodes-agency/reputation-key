@@ -220,6 +220,9 @@ describe.sequential('atomic Guest response submission', () => {
         feedback_source_event_id: originalFeedback.eventId,
       },
     ])
+    expect(await responseRow('category_id, media_consent')).toEqual([
+      { category_id: null, media_consent: false },
+    ])
     const snapshot = await db.execute(sql`
       SELECT configuration_digest, private_feedback_threshold, captured_at
       FROM guest_response_experience_snapshots

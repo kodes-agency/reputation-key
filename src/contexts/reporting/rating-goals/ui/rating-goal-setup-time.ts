@@ -4,6 +4,7 @@
 // years.
 
 import type { RatingFraction } from '#/contexts/reporting/rating-goals/contracts'
+import { plural } from '#/shared/format/format'
 
 const IN_DAYS_BELOW = 14
 const IN_WEEKS_BELOW = 70
@@ -31,9 +32,6 @@ const inWeeks = (days: RatingFraction): number =>
   Math.max(1, roundHalfUp(days.num, 7 * days.den))
 const inMonths = (days: RatingFraction): number =>
   Math.max(1, roundHalfUp(10 * days.num, MONTH_TENTHS * days.den))
-
-const plural = (count: number, unit: string): string =>
-  `${count} ${count === 1 ? unit : `${unit}s`}`
 
 /** "about 3 months", "about a year", "more than 3 years". */
 export function spanText(days: RatingFraction): string {

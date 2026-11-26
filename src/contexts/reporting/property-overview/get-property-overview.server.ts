@@ -1,6 +1,6 @@
 import type { AttentionSignalsPort } from './attention-signals.port.server'
 import type { AttentionSignals, DashboardData } from '../domain/dashboard-types'
-import { readDashboard, type GetDashboardDataInput } from './get-dashboard-data.server'
+import { readDashboard, type ReadDashboardInput } from './read-dashboard.server'
 import type { DashboardRepository } from './dashboard-repository.port.server'
 import { attentionSignalsFrom } from './attention-signals.server'
 import type { InboxPublicApi } from '#/contexts/reputation/public-api'
@@ -27,7 +27,7 @@ export type PropertyOverviewData = Readonly<{
 /** The one range whose read carries Google's numbers (the Overview reads two). */
 const GOOGLE_NUMBERS_RANGE = 'all'
 
-export type GetPropertyOverviewInput = GetDashboardDataInput
+export type GetPropertyOverviewInput = ReadDashboardInput
 
 export type GetPropertyOverview = (
   input: GetPropertyOverviewInput,

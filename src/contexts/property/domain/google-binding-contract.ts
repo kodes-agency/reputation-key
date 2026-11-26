@@ -8,12 +8,6 @@ export const GOOGLE_BINDING_STATES = [
 ] as const
 export type GoogleBindingState = (typeof GOOGLE_BINDING_STATES)[number]
 
-const GOOGLE_BINDING_STATE_SET = new Set<string>(GOOGLE_BINDING_STATES)
-
-export function isGoogleBindingState(value: string): value is GoogleBindingState {
-  return GOOGLE_BINDING_STATE_SET.has(value)
-}
-
 export function isGoogleResourceSuffix(value: string): boolean {
   if (
     value.length < 1 ||

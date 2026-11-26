@@ -108,7 +108,6 @@ function event(overrides: Partial<ConsumerEvent> = {}): ConsumerEvent {
     occurredAt: NOW.toISOString(),
     recordedAt: NOW.toISOString(),
     correlationId: null,
-    causationId: null,
     sourceAggregateVersion: null,
     ...overrides,
   }
@@ -391,7 +390,7 @@ describe('google account disconnected consumer authorization', () => {
     )
 
     expect(envelope.propertyId).toBeNull()
-    expect(outcome.decision.reason).toBe('allowed')
+    expect(outcome.reason).toBe('allowed')
   })
 
   it('cancels the connection publications when the dispatcher delivers that fact', async () => {
@@ -583,6 +582,6 @@ describe('property archived consumer authorization', () => {
     })
 
     expect(publish!.module).toBe('review.outbox-consumers')
-    expect(outcome.decision.allowed).toBe(false)
+    expect(outcome.allowed).toBe(false)
   })
 })

@@ -1,13 +1,11 @@
 // Turns measurements into violation lines. Pure: no page, no Playwright — every
-// input is a report `pane-metrics.ts` or `layer-probe.ts` already produced, so
-// a red run can be re-judged from its `pane-metrics.json` attachment alone.
+// input is a report `pane-metrics.ts` already produced, so a red run can be
+// re-judged from its `pane-metrics.json` attachment alone.
 //
-// Every failed rule is one line naming the story, the width, the stage (the
-// play's final frame, a layer the harness opened, or the pane after the harness
-// opened its disclosures), the element's accessible name and its measured box
-// — so a red run says what to fix without re-running anything by hand.
+// Every failed rule is one line naming the story, the width, the stage, the
+// element's accessible name and its measured box — so a red run says what to
+// fix without re-running anything by hand.
 
-import type { ExpansionReport, ProbeReport } from './layer-probe'
 import {
   COMPOSER_PRIMARY_NAMES,
   DESKTOP_TARGET_MIN_PX,
@@ -172,46 +170,4 @@ export function paneViolations(
     ...primaries,
     ...layers,
   ]
-}
-
-/** Every layer the harness opened, and every trigger it could not open. */
-export function probeViolations(
-  expectations: Expectations,
-  viewport: Readonly<{ width: number; height: number }>,
-  probes: ReadonlyArray<ProbeReport>,
-  stage = '',
-): ReadonlyArray<string> {
-  const at = `${expectations.storyId} @ ${expectations.width}px: ${stage}`
-  return probes.flatMap((probe) => [
-    ...(probe.error === null ? [] : [`${at}trigger "${probe.trigger}" ${probe.error}`]),
-    ...probe.layers.flatMap((layer) =>
-      layerLines(layer, expectations, viewport, `${at}"${probe.trigger}" opened `),
-    ),
-  ])
-}
-
-/** A disclosure the harness could not open is a line of its own. */
-export function expansionViolations(
-  expectations: Expectations,
-  expansion: ExpansionReport,
-): ReadonlyArray<string> {
-  const at = `${expectations.storyId} @ ${expectations.width}px: `
-  return expansion.errors.map((error) => `${at}${error}`)
-}
-
-/**
- * The expanded pane repeats every line the final frame already produced — a
- * 28 px control is still 28 px after a fold opens, only lower down. A line is
- * new when it differs from every earlier one once the stage and the box's
- * position are set aside.
- */
-export function onlyNew(
-  lines: ReadonlyArray<string>,
-  already: ReadonlyArray<string>,
-  stage: string,
-): ReadonlyArray<string> {
-  const key = (line: string): string =>
-    line.replace(stage, '').replace(/ at \(-?[\d.]+, -?[\d.]+\)/g, '')
-  const seen = new Set(already.map(key))
-  return lines.filter((line) => !seen.has(key(line)))
 }

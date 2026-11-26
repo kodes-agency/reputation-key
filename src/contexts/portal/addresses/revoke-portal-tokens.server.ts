@@ -50,5 +50,3 @@ export const revokePortalTokens =
       event,
     })
   }
-
-export type RevokePortalTokens = ReturnType<typeof revokePortalTokens>

@@ -40,10 +40,6 @@ import {
   type PrintImmersiveBrand,
   type PrintImmersiveFace,
 } from '#/shared/domain/portal-print-immersive-face'
-import {
-  PRINT_DEFAULT_FRAMING,
-  type PrintFraming,
-} from '#/shared/domain/portal-print-framing'
 import type { PrintBleed } from '#/shared/domain/portal-print-layers'
 import {
   estimatedLineWidthPt,
@@ -144,7 +140,6 @@ export type PreviewImmersiveInput = Readonly<{
   logo: PreviewLogo | null
   /** The photo once decoded; null with no photo (or one the browser could not read). */
   photo: PreviewPhoto | null
-  framing?: PrintFraming
   /** How far the art runs past the trim: on a sheet, the sheet's bleed; none on its own. */
   bleed?: PrintBleed
 }>
@@ -178,7 +173,6 @@ export function previewImmersiveFace(input: PreviewImmersiveInput): PrintImmersi
         : {
             ...photo,
             focal: look.heroFocal ?? { x: 0.5, y: 0.5 },
-            framing: input.framing ?? PRINT_DEFAULT_FRAMING,
           },
   })
 }

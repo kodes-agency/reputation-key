@@ -162,7 +162,7 @@ export type GetPortalReviewDeps = Readonly<{
     PortalPublicationRepository,
     | 'loadWorkingCopyWithLook'
     | 'getCursor'
-    | 'listActivationHistoryPage'
+    | 'findCurrentAndLatestActivation'
     | 'listOpenPendingContentChanges'
   >
   historyRepo: Pick<PortalHistoryRepository, 'listPageEdits'>
@@ -318,10 +318,11 @@ export const getPortalReview =
       deps.publicationRepo.loadWorkingCopyWithLook(organizationId, pid),
       deps.publicationRepo.getCursor(organizationId, pid),
       deps.publicationRepo.listOpenPendingContentChanges(organizationId, propertyId, pid),
-      deps.publicationRepo.listActivationHistoryPage(organizationId, propertyId, pid, {
-        beforeSequence: null,
-        limit: 1,
-      }),
+      deps.publicationRepo.findCurrentAndLatestActivation(
+        organizationId,
+        propertyId,
+        pid,
+      ),
       findVerifiedGoogleReviewDestination(deps, organizationId, portal),
       propertyAllowsPublication(deps, organizationId, portal),
       portalHasPublicAddress(deps, ctx, portal, at),

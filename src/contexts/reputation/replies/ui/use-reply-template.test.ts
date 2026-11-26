@@ -36,30 +36,17 @@ describe('loaded template verification', () => {
 })
 
 const library: ReplyTemplateListResult = {
-  profile: null,
   groups: [
     {
       languageGroup: 'bg-Cyrl',
       templates: [
         {
           id: APPRECIATION_ID,
-          ref: APPRECIATION_ID,
-          layer: 'property',
           title: 'Guest appreciation',
-          aspect: null,
-          openLabel: null,
-          languageTag: 'bg-Cyrl',
-          version: 3,
         },
         {
           id: APOLOGY_ID,
-          ref: APOLOGY_ID,
-          layer: 'property',
           title: 'Service apology',
-          aspect: null,
-          openLabel: null,
-          languageTag: 'bg-Cyrl',
-          version: 1,
         },
       ],
     },
@@ -85,7 +72,6 @@ describe('template title resolution (row 18)', () => {
     expect(
       templateTitleIn(
         {
-          profile: null,
           groups: [],
           recommendedTemplateId: null,
           recommendedReason: null,

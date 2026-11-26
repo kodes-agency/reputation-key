@@ -1,3 +1,4 @@
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 // Review context — Drizzle repository behind the dark head check.
 //
@@ -134,14 +135,7 @@ export const createReviewHeadCheckRepository = (
         replyProviderUpdatedAt: googleReplyObservations.providerUpdatedAt,
       })
       .from(reviews)
-      .innerJoin(
-        reviewSourceContents,
-        and(
-          eq(reviewSourceContents.reviewId, reviews.id),
-          eq(reviewSourceContents.organizationId, reviews.organizationId),
-          eq(reviewSourceContents.propertyId, reviews.propertyId),
-        ),
-      )
+      .innerJoin(reviewSourceContents, reviewContentJoin)
       .leftJoin(
         googleReplyObservationHeads,
         and(
@@ -177,14 +171,7 @@ export const createReviewHeadCheckRepository = (
         average: sql<string | null>`avg(${reviewSourceContents.rating})`,
       })
       .from(reviews)
-      .innerJoin(
-        reviewSourceContents,
-        and(
-          eq(reviewSourceContents.reviewId, reviews.id),
-          eq(reviewSourceContents.organizationId, reviews.organizationId),
-          eq(reviewSourceContents.propertyId, reviews.propertyId),
-        ),
-      )
+      .innerJoin(reviewSourceContents, reviewContentJoin)
       .where(
         and(
           eq(reviews.organizationId, input.organizationId),

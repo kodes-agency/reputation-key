@@ -13,8 +13,8 @@
 // the window per recipient.
 
 import { sql, type SQL } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
 import { activePropertyCondition } from '../notify/active-property.server'
+import type { Database } from '#/shared/db'
 
 /** Recipients one sweep reads at most. */
 export const DUE_RECIPIENT_SWEEP_CAP = 5_000

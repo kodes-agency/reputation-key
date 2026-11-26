@@ -54,8 +54,8 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     qrAddress: props.issuedLink?.publicUrl ?? null,
     downloadMutation: props.printKit?.downloadPrintMutation,
     saveWordingMutation: props.printKit?.saveWordingMutation,
-    onDownloaded: printKit.refresh,
-    onWordingSaved: printKit.refresh,
+    onDownloaded: printKit.refetch,
+    onWordingSaved: printKit.refetch,
   })
   // The Print cards lead the column and grow by most of a screen when their
   // first read answers, so what follows them waits for it rather than being

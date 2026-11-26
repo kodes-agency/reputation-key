@@ -16,7 +16,7 @@ import {
 } from 'vitest'
 import { z } from 'zod/v4'
 import { getEnv } from '#/shared/config/env'
-import { createWorkItems } from '#/shared/jobs/work-items.server'
+import { createWorkItems } from '#/shared/db/work-items.server'
 import { reconcileWorkItems } from '#/shared/jobs/work-items.server'
 import {
   createRetentionSweepHandler,

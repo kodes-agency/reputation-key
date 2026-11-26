@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { createWorkItems } from '#/shared/jobs/work-items.server'
+import { createWorkItems } from '#/shared/db/work-items.server'
 import type { Clock } from '#/shared/domain/clock'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { workItems as workItemRows } from '#/shared/db/schema/work-items.schema'

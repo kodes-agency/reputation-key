@@ -10,7 +10,6 @@
 // as the rest of the preview.
 
 import { useMemo } from 'react'
-import type { PrintFraming } from '#/shared/domain/portal-print-framing'
 import {
   printShopFaceBleed,
   PRINT_SHOP_MARK_COLOUR,
@@ -40,7 +39,6 @@ type Props = Readonly<{
   /** The face on the page; the page gives it its margin as bleed. */
   face: Omit<PrintDrawnFaceInput, 'bleed'>
   codeUrl: string | null
-  framing?: PrintFraming
   /** Show the back page instead of the front. */
   back?: boolean
   /** What the picture is, for a screen reader: "Print-shop file, page 1 of 1". */
@@ -70,14 +68,7 @@ function CropMarks({ page }: Readonly<{ page: PrintShopPage }>) {
   )
 }
 
-export function PrintShopArt({
-  page,
-  face,
-  codeUrl,
-  framing,
-  back = false,
-  label,
-}: Props) {
+export function PrintShopArt({ page, face, codeUrl, back = false, label }: Props) {
   // Held per page: a new bleed would lay the Immersive face out again on every render.
   const immersive = page.face.look === 'immersive'
   const bleed = useMemo(
@@ -114,7 +105,6 @@ export function PrintShopArt({
             drawn={drawn}
             look={face.look}
             codeUrl={codeUrl}
-            framing={framing}
             bleed={bleed}
             pt={u}
           />

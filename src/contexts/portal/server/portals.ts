@@ -59,11 +59,6 @@ const rollbackPortalPublicationSchema = z.object({
   version: z.number().int().min(1),
 })
 
-const portalPublicationHistorySchema = portalIdSchema.extend({
-  cursor: z.number().int().positive().optional(),
-  limit: z.number().int().min(1).max(50).optional(),
-})
-
 const portalHistorySchema = portalIdSchema.extend({
   // Opaque: the use case decodes it and starts over on anything it did not issue.
   cursor: z.string().max(100).optional(),
@@ -528,7 +523,7 @@ export const getPortal = createServerFn({ method: 'GET' })
   )
 
 export const getPortalPublicationHistory = createServerFn({ method: 'GET' })
-  .validator(portalPublicationHistorySchema)
+  .validator(portalIdSchema)
   .handler(
     commandHandler(
       {

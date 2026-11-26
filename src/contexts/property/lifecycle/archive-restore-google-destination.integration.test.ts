@@ -87,7 +87,6 @@ const property = buildPropertyContext({
       { userId: ADMIN, role: 'AccountAdmin', propertyAccessScope: 'organization' },
     ],
   },
-  logger: { info: () => {}, warn: () => {} },
 })
 
 const admin = buildTestAuthContext({

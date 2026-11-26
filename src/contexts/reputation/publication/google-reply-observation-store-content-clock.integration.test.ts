@@ -6,7 +6,7 @@ import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy
 import type { Review } from '../domain/review-types'
 import { createReviewRepository } from '../reviews/review-repository.server'
 import { createEligibleGoogleReplyReads } from '../reviews/eligible-reads.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store.server'
 import type { RecordGoogleReplyObservation } from './google-reply-observation-store.port.server'
 import {
