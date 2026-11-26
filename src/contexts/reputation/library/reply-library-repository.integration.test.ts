@@ -356,6 +356,23 @@ describe.sequential('AI frame reservations (PostgreSQL)', () => {
     )
     expect(new Set(frames.map((frame) => frame!.choices.closing)).size).toBe(3)
     expect(new Set(frames.map((frame) => frame!.choices.signOff)).size).toBe(3)
+    // Concurrent calls take the Property fence in any order, so the array
+    // position says nothing about which reservation the database recorded
+    // last. Ask the table, which is what rotation reads.
+    const recorded = await pool.query<{ closing: number; createdAt: Date }>(
+      `SELECT (choices->>'closing')::int AS closing, created_at AS "createdAt"
+         FROM reply_ai_frame_reservations
+        WHERE organization_id = $1 AND property_id = $2
+        ORDER BY created_at`,
+      [ORG, PROPERTY],
+    )
+    expect(recorded.rows.map((row) => row.closing).sort()).toEqual(
+      frames.map((frame) => frame!.choices.closing).sort(),
+    )
+    // Each reservation gets its own timestamp, so "last" is unambiguous.
+    expect(new Set(recorded.rows.map((row) => row.createdAt.getTime())).size).toBe(3)
+    const oldestClosing = recorded.rows[0]!.closing
+    const newestClosing = recorded.rows[2]!.closing
     const replay = await repository.reserveAiFrame!({
       ...scope,
       generationSeed: '0'.repeat(64),
@@ -367,7 +384,10 @@ describe.sequential('AI frame reservations (PostgreSQL)', () => {
       nowEpochMillis: NOW.getTime() + 1,
     })
     expect(next!.closingOrder).toHaveLength(3)
-    expect(next!.choices.closing).not.toBe(frames[2]!.choices.closing)
+    // Rotation moves away from the most recent reservation and lands on the
+    // least recently used option.
+    expect(next!.choices.closing).not.toBe(newestClosing)
+    expect(next!.choices.closing).toBe(oldestClosing)
   })
   it('keeps a published option in its recorded band after the source rating changes', async () => {
     const ids = [
