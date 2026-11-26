@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { createHash } from 'node:crypto'
-import {
-  AiReviewSourceRefusal,
-  canonicalizeRawAiReviewSourcePreviousRevision,
-} from '#/shared/ai-review-source/ai-review-source-contract'
+import { AiReviewSourceRefusal } from '#/shared/ai-review-source/ai-review-source-contract'
 import {
   REFUSED_AI_SOURCE_BYTE_LENGTH,
   computeAiReviewSourceProvenance,
@@ -171,17 +167,6 @@ describe('matchStoredAiReviewSourceProvenance', () => {
     reviewerDisplayName: null,
   }
 
-  function storedUnderRevisionOne(input: typeof MULTI_LINE) {
-    const canonical = canonicalizeRawAiReviewSourcePreviousRevision(input)
-    return {
-      byteLength: canonical.bytes.byteLength,
-      digest: createHash('sha256')
-        .update('ai-source-v1\0', 'utf8')
-        .update(canonical.bytes)
-        .digest('hex'),
-    }
-  }
-
   it('serves a row stored under the current rules with the text of the current rules', () => {
     const current = computeAiReviewSourceProvenance(MULTI_LINE)
     const matched = matchStoredAiReviewSourceProvenance(MULTI_LINE, {
@@ -193,17 +178,7 @@ describe('matchStoredAiReviewSourceProvenance', () => {
     )
   })
 
-  it('serves a row stored under revision 1 with the text its stored digest describes', () => {
-    const stored = storedUnderRevisionOne(MULTI_LINE)
-    const matched = matchStoredAiReviewSourceProvenance(MULTI_LINE, stored)
-    expect(matched).toMatchObject({
-      text: 'Room was clean.Staff were kind.Breakfast could be better.',
-      digest: stored.digest,
-      byteLength: stored.byteLength,
-    })
-  })
-
-  it('answers null for a digest or a length that neither revision computes', () => {
+  it('answers null for a digest or a length the current rules do not compute', () => {
     const current = computeAiReviewSourceProvenance(MULTI_LINE)
     expect(
       matchStoredAiReviewSourceProvenance(MULTI_LINE, {
@@ -219,21 +194,7 @@ describe('matchStoredAiReviewSourceProvenance', () => {
     ).toBeNull()
   })
 
-  it('serves a row stored under revision 1 whose text the current rules would refuse as too long', () => {
-    // 4,000 emoji, each followed by a line break: revision 1 deletes the breaks
-    // (16,022 bytes), revision 2 keeps each as a space and passes the 16,384 limit.
-    const long = { ...MULTI_LINE, text: '\u{1F600}\n'.repeat(4000) }
-    expect(() => computeAiReviewSourceProvenance(long)).toThrow(
-      'canonical source exceeds the operation byte limit',
-    )
-    const stored = storedUnderRevisionOne(long)
-    expect(matchStoredAiReviewSourceProvenance(long, stored)).toMatchObject({
-      digest: stored.digest,
-      byteLength: stored.byteLength,
-    })
-  })
-
-  it('still throws the current rules failure when no revision matches the stored row', () => {
+  it('still throws the current rules failure when the stored row does not match', () => {
     const long = { ...MULTI_LINE, text: '\u{1F600}\n'.repeat(4000) }
     expect(() =>
       matchStoredAiReviewSourceProvenance(long, {
@@ -241,16 +202,6 @@ describe('matchStoredAiReviewSourceProvenance', () => {
         byteLength: 10,
       }),
     ).toThrow('canonical source exceeds the operation byte limit')
-  })
-
-  it('answers null, rather than throwing, when only revision 1 cannot encode the text', () => {
-    const accented = { ...MULTI_LINE, text: 'cafe\u200e\u0301' }
-    expect(
-      matchStoredAiReviewSourceProvenance(accented, {
-        digest: '1'.repeat(64),
-        byteLength: 10,
-      }),
-    ).toBeNull()
   })
 })
 

@@ -130,7 +130,6 @@ export function makeDeps(
       observed: 0,
       done: true,
     })),
-    expireRawSourceBatch: vi.fn(async () => ({ transitioned: 0, nextReviewId: null })),
     sweepExpiredTombstones: vi.fn(async () => ({ deleted: 0, nextReviewId: null })),
   }
   const googleReviewApi: GoogleReviewApiPort = {

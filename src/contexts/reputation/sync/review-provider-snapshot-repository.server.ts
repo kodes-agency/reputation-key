@@ -39,7 +39,6 @@ import { domainError } from '#/shared/domain/errors'
 import { historyListedSince } from './review-provider-history-listed.server'
 import { eraseReviewSourceContent } from '../content/store.server'
 import { lockReviewSourceMutationScope } from '../reviews/review-source-mutation-serialization.server'
-import { createReviewSourceContentLifecycleStore } from '../content/source-content-lifecycle-store.server'
 import {
   candidateEditedSinceListing,
   countRunAgainstHolds,
@@ -63,10 +62,6 @@ import {
   storedFailureCode,
   type SnapshotFailureRequest,
 } from './snapshot-listing-change.server'
-import {
-  REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
-  createRunReviewSourceContentLifecycle,
-} from '../content/run-source-content-lifecycle.server'
 
 const ACTIVE_STATES = ['scanning', 'confirming', 'deleting'] as const
 const TERMINAL_RECORD_RETENTION = sql`interval '30 days'`
@@ -1419,55 +1414,6 @@ export const createReviewProviderSnapshotRepository = (
       return { run: fromRunRow(updated[0]), applied, observed, done }
     })
     return result
-  },
-
-  expireRawSourceBatch: async ({ beforeOrAt, afterReviewId, limit }) => {
-    if (limit < 1 || limit > 100) throw new TypeError('Raw expiry batch is out of bounds')
-
-    // Compatibility report only. Translate the legacy Review-id cursor into
-    // the canonical frozen checkpoint, then delegate to the sole lifecycle
-    // application authority. No authorizer or apply confirmation is present.
-    let checkpoint = undefined
-    if (afterReviewId != null) {
-      const checkpointRows = await db
-        .select({ createdAt: reviews.createdAt })
-        .from(reviews)
-        .where(eq(reviews.id, afterReviewId))
-        .limit(1)
-      if (checkpointRows[0] == null) {
-        throw domainError(
-          'raw_expiry_checkpoint_missing',
-          'Raw expiry checkpoint Review no longer exists',
-        )
-      }
-      checkpoint = {
-        contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
-        mode: 'report' as const,
-        scope: { kind: 'expired' as const },
-        evaluatedAt: beforeOrAt.toISOString(),
-        after: {
-          createdAt: checkpointRows[0].createdAt.toISOString(),
-          reviewId: afterReviewId,
-        },
-      }
-    }
-
-    const report = await createRunReviewSourceContentLifecycle({
-      store: createReviewSourceContentLifecycleStore(db),
-      clock: () => beforeOrAt,
-    })({
-      mode: 'report',
-      scope: { kind: 'expired' },
-      batchSize: limit,
-      ...(checkpoint == null ? {} : { checkpoint }),
-    })
-    return {
-      transitioned: 0,
-      nextReviewId:
-        report.nextCheckpoint == null
-          ? null
-          : reviewId(report.nextCheckpoint.after.reviewId),
-    }
   },
 
   sweepExpiredTombstones: async ({ beforeOrAt, afterReviewId, limit }) => {

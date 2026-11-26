@@ -22,8 +22,6 @@ import { organizationId } from '#/shared/domain/ids'
 import { createReviewSourceContentLifecycleStore } from '../content/source-content-lifecycle-store.server'
 import {
   EXPIRES_AT,
-  EXPIRING_REPLY_ID,
-  EXPIRING_REVIEW_ID,
   LIFECYCLE_RUN_ID,
   ORGANIZATION_ID,
   OTHER_RUN_ID,
@@ -565,105 +563,5 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
         new Date(String(reviewRows.rows[0]!.source_content_erased_at)).getTime(),
       ),
     ).toBe(false)
-  })
-
-  it('keeps the legacy expiry repository seam report-only without mutating source content', async () => {
-    await db.execute(sql`
-      INSERT INTO review_provider_subject_hmac_key_versions
-        (key_version, key_digest, state, generation, created_at)
-      VALUES
-        (${TEST_KEY_VERSION}, ${'1'.repeat(64)}, 'trusted_next', 999999, transaction_timestamp())
-      ON CONFLICT (key_version) DO NOTHING
-    `)
-    await db.execute(sql`
-      INSERT INTO reviews (
-        id, organization_id, property_id, platform, external_id,
-        external_location_id, expires_at, source_epoch, source_revision,
-        analysis_sequence, reply_state_revision, created_at, updated_at
-      ) VALUES (
-        ${EXPIRING_REVIEW_ID}, ${ORGANIZATION_ID}, ${PROPERTY_ID}, 'google',
-        'safe03-expiring-review', 'safe03-provider-location', ${EXPIRES_AT},
-        0, 1, 0, 0, ${STARTED_AT}, ${STARTED_AT}
-      )
-    `)
-    await db.execute(sql`
-      INSERT INTO replies (
-        id, review_id, organization_id, text, status, source, ai_generated,
-        authorship, state_revision, created_at, updated_at
-      ) VALUES (
-        ${EXPIRING_REPLY_ID}, ${EXPIRING_REVIEW_ID}, ${ORGANIZATION_ID},
-        'RepKey-owned expiry reply', 'draft', 'internal', false,
-        'human', 1, ${STARTED_AT}, ${STARTED_AT}
-      )
-    `)
-    await db.execute(sql`
-      INSERT INTO review_source_contents (
-        review_id, organization_id, property_id, platform, external_id,
-        external_location_id, rating, text, reviewed_at, first_fetched_at,
-        last_fetched_at, content_expires_at, source_epoch, source_revision,
-        ai_source_byte_length, ai_source_digest, created_at, updated_at
-      ) VALUES (
-        ${EXPIRING_REVIEW_ID}, ${ORGANIZATION_ID}, ${PROPERTY_ID}, 'google',
-        'safe03-expiring-review', 'safe03-provider-location', 4,
-        'expiring provider source', ${STARTED_AT}, ${STARTED_AT},
-        ${STARTED_AT}, ${EXPIRES_AT}, 0, 1, 24, ${'3'.repeat(64)},
-        ${STARTED_AT}, ${STARTED_AT}
-      )
-    `)
-    await db.execute(sql`
-      INSERT INTO review_provider_subjects (
-        organization_id, property_id, source_epoch, key_version,
-        locator_hmac, verifier_hmac, review_id, last_source_revision,
-        state, last_observed_at, created_at, updated_at
-      ) VALUES (
-        ${ORGANIZATION_ID}, ${PROPERTY_ID}, 0, ${TEST_KEY_VERSION},
-        decode(repeat('03', 32), 'hex'), decode(repeat('04', 32), 'hex'),
-        ${EXPIRING_REVIEW_ID}, 1, 'linked', ${STARTED_AT},
-        ${STARTED_AT}, ${STARTED_AT}
-      )
-    `)
-
-    const result = await repository.expireRawSourceBatch({
-      beforeOrAt: EXPIRES_AT,
-      afterReviewId: null,
-      limit: 100,
-    })
-
-    expect(result.transitioned).toBe(0)
-    const reviewRows = await db.execute(sql`
-      SELECT id, source_content_state, external_id, external_location_id
-      FROM reviews
-      WHERE id = ${EXPIRING_REVIEW_ID}
-    `)
-    const sourceContentRows = await db.execute(sql`
-      SELECT review_id, rating, text, ai_source_digest FROM review_source_contents
-      WHERE review_id = ${EXPIRING_REVIEW_ID}
-    `)
-    const replyRows = await db.execute(
-      sql`SELECT id FROM replies WHERE id = ${EXPIRING_REPLY_ID}`,
-    )
-    const providerSubjectRows = await db.execute(sql`
-      SELECT state FROM review_provider_subjects
-      WHERE review_id = ${EXPIRING_REVIEW_ID}
-    `)
-    expect(reviewRows.rows).toEqual([
-      expect.objectContaining({
-        id: EXPIRING_REVIEW_ID,
-        source_content_state: 'active',
-        external_id: 'safe03-expiring-review',
-        external_location_id: 'safe03-provider-location',
-      }),
-    ])
-    expect(sourceContentRows.rows).toEqual([
-      expect.objectContaining({
-        rating: 4,
-        text: 'expiring provider source',
-        ai_source_digest: '3'.repeat(64),
-      }),
-    ])
-    expect(replyRows.rows).toEqual([expect.objectContaining({ id: EXPIRING_REPLY_ID })])
-    expect(providerSubjectRows.rows).toEqual([
-      expect.objectContaining({ state: 'linked' }),
-    ])
   })
 })

@@ -34,10 +34,8 @@ export const expireReviewProviderSourceHandler = async (
   job: Job<ReviewProviderLifecycleSweepJobData>,
 ) =>
   trace('job.expireReviewProviderSource', async () => {
-    // Validate stale queue payloads, then drain them harmlessly. The legacy
-    // repository adapter now delegates to the Review-owned checkpointed
-    // report authority, while recurring apply remains unreachable until an
-    // explicit reviewed cutover supplies both confirmation and approval.
+    // Validate stale queue payloads, then drain them harmlessly. Nothing
+    // seeds this sweep; raw source expiry runs through purge-expired-reviews.
     parseSweepData(job.data)
     return { status: 'quarantined' as const, transitioned: 0, nextReviewId: null }
   })
@@ -47,10 +45,8 @@ export const sweepReviewProviderTombstonesHandler = async (
 ) =>
   trace('job.sweepReviewProviderTombstones', async () => {
     // Validate stale queue payloads, then drain them harmlessly. Nothing
-    // seeds this sweep, and it stays quarantined until a reviewed cutover:
-    // the setup checklist and Property setup still read the completed
-    // snapshot runs sweepExpiredTombstones would delete. Snapshot runs are
-    // bounded by the retention sweep's keep rule instead.
+    // seeds this sweep; the subject tombstone delete stays on the snapshot
+    // repository until its retention rule is decided.
     parseSweepData(job.data)
     return { status: 'quarantined' as const, deleted: 0, nextReviewId: null }
   })

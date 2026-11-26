@@ -202,12 +202,10 @@ So a rule change needs a new text revision (`AI_SOURCE_TEXT_REVISION`) with:
 
 Revision 2 (2026-10-14) turns a line break or tab between two words into a space
 (revision 1 deleted it and fused the words) and replaces Unicode noncharacters
-with U+FFFD. Two things hold until a stored row is observed again (at most 25
-days): the text it serves is revision 1's although an operation records the
-current canonicalizer digest (the digest names the rules that produced the text
-only after the next observation), and a row that holds a noncharacter fails
-`encodeCanonicalAiReviewSource` where revision 1 let it through to the gateway
-schema, which refused it later. A quiet rewrite that lands while a review's
+with U+FFFD. A row that holds a noncharacter fails
+`encodeCanonicalAiReviewSource`, which revision 1 let through to the gateway
+schema, where it was refused later. The revision-1 fallback was removed once
+every row stored under it had expired. A quiet rewrite that lands while a review's
 analysis is executing makes the store refuse the result (`generation_changed`,
 receipt `obsolete`) and opens no sequence; the reaper fails the abandoned
 operation as `operation_ambiguous`, a code the reopen pass queues a review again

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { GoogleReview, Review } from '../domain/review-types'
-import { computeAiReviewSourceProvenance } from '../reviews/ai-review-source.server'
+import type { Review } from '../domain/review-types'
 import { GOOGLE_REVIEW_PRIMARY_SEGMENTS } from '#/shared/testing/google-provider-identifiers-v1'
 import { providerReplyObservationKey } from './sync-reviews.server'
 import {
@@ -11,7 +10,6 @@ import {
   SCOPE_PROPERTY,
   SCOPE_PROVIDER_REVIEW,
   SCOPE_REVIEW,
-  revisionOneProvenance,
   scopeObservation,
   scopeReview,
   scopeWriter,
@@ -176,62 +174,6 @@ describe('Review provider observation of text the AI source contract refuses', (
 
     const written = upsertAndRecord.mock.calls[0]?.[0]
     expect(written?.aiSourceByteLength).toBeGreaterThan(CANONICAL_LIMIT)
-  })
-})
-
-describe('Review provider observation under the source text revisions', () => {
-  const MULTI_LINE = {
-    ...SCOPE_PROVIDER_REVIEW,
-    text: 'Room was clean.\nStaff were kind.\n\nBreakfast could be better.',
-  } satisfies GoogleReview
-
-  it('refreshes a Review stored under revision 1 without a review.updated or a new sequence', async () => {
-    const stored = revisionOneProvenance(MULTI_LINE)
-    const existing = scopeReview({
-      sourceEpoch: 4,
-      text: MULTI_LINE.text,
-      aiSourceDigest: stored.digest,
-      aiSourceByteLength: stored.byteLength,
-    })
-    const { writer, upsert, upsertAndRecord } = scopeWriter(existing)
-
-    await writer.persist(scopeObservation({ sourceEpoch: 4, review: MULTI_LINE }))
-
-    expect(upsertAndRecord).not.toHaveBeenCalled()
-    const refreshed = upsert.mock.calls[0]?.[0]
-    const current = computeAiReviewSourceProvenance({
-      text: MULTI_LINE.text,
-      rating: MULTI_LINE.rating,
-      languageCode: MULTI_LINE.languageCode,
-      reviewedAtEpochMillis: MULTI_LINE.reviewedAt.getTime(),
-      reviewerDisplayName: MULTI_LINE.reviewerName,
-    })
-    expect(current.digest).not.toBe(stored.digest)
-    expect(refreshed).toMatchObject({
-      aiSourceDigest: current.digest,
-      aiSourceByteLength: current.byteLength,
-    })
-  })
-
-  it('still records an update when the text of a revision 1 Review really changed', async () => {
-    const stored = revisionOneProvenance(MULTI_LINE)
-    const existing = scopeReview({
-      sourceEpoch: 4,
-      text: MULTI_LINE.text,
-      aiSourceDigest: stored.digest,
-      aiSourceByteLength: stored.byteLength,
-    })
-    const { writer, upsert, upsertAndRecord } = scopeWriter(existing)
-
-    await writer.persist(
-      scopeObservation({
-        sourceEpoch: 4,
-        review: { ...MULTI_LINE, text: `${MULTI_LINE.text} Parking was tight.` },
-      }),
-    )
-
-    expect(upsertAndRecord).toHaveBeenCalledTimes(1)
-    expect(upsert).not.toHaveBeenCalled()
   })
 })
 

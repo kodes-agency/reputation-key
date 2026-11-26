@@ -193,7 +193,6 @@ function snapshotRepository(run: ReviewProviderSnapshotRun) {
       failureCode: code,
     })),
     applyDeletionBatch: unexpected(),
-    expireRawSourceBatch: unexpected(),
     sweepExpiredTombstones: unexpected(),
   } satisfies ReviewProviderSnapshotRepository
 }
