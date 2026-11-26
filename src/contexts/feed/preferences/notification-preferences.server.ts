@@ -5,7 +5,6 @@ import {
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  notificationCategoryDefaults,
   notificationPreferences,
   notificationPropertyDeliveryWindows,
   notificationUserSettings,
@@ -37,7 +36,6 @@ import { isPreferenceDisableable } from '../domain/notification-policy'
 
 type StoredPreferenceRow = typeof notificationPreferences.$inferSelect
 type PreferenceRow = StoredPreferenceRow & { propertyId: string }
-type CategoryDefaultRow = typeof notificationCategoryDefaults.$inferSelect
 type DeliveryWindowRow = typeof notificationPropertyDeliveryWindows.$inferSelect
 type UserSettingsRow = typeof notificationUserSettings.$inferSelect
 
@@ -70,7 +68,7 @@ const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
 }
 
 const categoryDefaultFromRow = (
-  row: Omit<CategoryDefaultRow, 'id'>,
+  row: StoredPreferenceRow,
 ): NotificationCategoryDefault => {
   const category = row.category as ConfigurableNotificationCategory
   const channel = row.channel as NotificationChannel
@@ -419,36 +417,8 @@ export const saveCategoryDefault = async (
 ): Promise<NotificationCategoryDefault> => {
   refuseMandatory(categoryDefaultRow.category)
   return db.transaction(async (tx) => {
-    const rows = await tx
-      .insert(notificationCategoryDefaults)
-      .values({
-        userId: categoryDefaultRow.userId as string,
-        organizationId: categoryDefaultRow.organizationId as string,
-        category: categoryDefaultRow.category,
-        channel: categoryDefaultRow.channel,
-        enabled: categoryDefaultRow.enabled,
-        cadence: categoryDefaultRow.cadence,
-        maxRating: categoryDefaultRow.maxRating ?? null,
-        createdAt: categoryDefaultRow.createdAt,
-        updatedAt: categoryDefaultRow.updatedAt,
-      })
-      .onConflictDoUpdate({
-        target: [
-          notificationCategoryDefaults.userId,
-          notificationCategoryDefaults.organizationId,
-          notificationCategoryDefaults.category,
-          notificationCategoryDefaults.channel,
-        ],
-        set: {
-          enabled: categoryDefaultRow.enabled,
-          cadence: categoryDefaultRow.cadence,
-          maxRating: categoryDefaultRow.maxRating ?? null,
-          updatedAt: categoryDefaultRow.updatedAt,
-        },
-      })
-      .returning()
     // The same answer as a preference row with no Property: what reads use.
-    await tx
+    const rows = await tx
       .insert(notificationPreferences)
       .values({
         userId: categoryDefaultRow.userId as string,
@@ -477,6 +447,7 @@ export const saveCategoryDefault = async (
           updatedAt: categoryDefaultRow.updatedAt,
         },
       })
+      .returning()
     // The Property the answer was given at follows it now, so its own row
     // goes. Every other Property's own row stays until explicitly reset.
     await tx
