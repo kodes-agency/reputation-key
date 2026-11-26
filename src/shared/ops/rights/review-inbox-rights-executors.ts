@@ -31,10 +31,7 @@ import {
   readReviewRightsExport,
   readReviewRightsReport,
 } from '#/shared/db/lifecycle/review-rights-store'
-import {
-  requireReplyScopeEffects,
-  type ReplyScopeEffects,
-} from '#/shared/db/reply-scope-effects'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { RightsExecutor } from './rights-executor'
 import type { RightsRequestPlan } from './rights-request-command'
 
@@ -48,7 +45,7 @@ export type ReviewInboxRightsDeps = Readonly<{
 
 /** Closing Review writes Replies, so the Reply writer's effects are handed in. */
 export type ReviewRightsDeps = ReviewInboxRightsDeps &
-  Readonly<{ replyEffects?: ReplyScopeEffects }>
+  Readonly<{ replyEffects: ReplyScopeEffects }>
 
 function inboxTarget(plan: RightsRequestPlan): InboxRightsTarget {
   return plan.scope === 'property' && plan.propertyId
@@ -80,7 +77,7 @@ export function createReviewRightsExecutor(deps: ReviewRightsDeps): RightsExecut
       }
       const refusal = await reviewClosureRefusal(
         deps.db,
-        requireReplyScopeEffects(deps.replyEffects),
+        deps.replyEffects,
         reviewTarget(plan),
         now(),
       )
@@ -99,7 +96,7 @@ export function createReviewRightsExecutor(deps: ReviewRightsDeps): RightsExecut
       }
       const outcome = await closeReview(
         deps.db,
-        requireReplyScopeEffects(deps.replyEffects),
+        deps.replyEffects,
         reviewTarget(plan),
         now(),
       )
@@ -166,7 +163,7 @@ export function createReviewRightsReplayers(
     async reErase(tx, entry) {
       const outcome = await closeReviewInTx(
         tx,
-        requireReplyScopeEffects(deps.replyEffects),
+        deps.replyEffects,
         entryTarget(entry),
         now(),
       )

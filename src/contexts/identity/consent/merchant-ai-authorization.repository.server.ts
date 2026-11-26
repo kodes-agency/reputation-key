@@ -104,7 +104,7 @@ export async function hasActiveMerchantAiConsent(
 export const createMerchantAiAuthorizationStore = (
   db: Database,
   idGen: () => string,
-  replyEffects?: ReplyScopeEffects,
+  replyEffects: ReplyScopeEffects,
 ): MerchantAiAuthorizationStore => {
   return {
     getSnapshot: (input) => getMerchantAiAuthorizationSnapshot(db, input),

@@ -1,9 +1,6 @@
 import { and, asc, eq, gt, inArray, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  requireReplyScopeEffects,
-  type ReplyScopeEffects,
-} from '#/shared/db/reply-scope-effects'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import {
   googleReplyObservationHeads,
   googleReplyObservations,
@@ -366,7 +363,7 @@ async function applyLifecycleToReview(
     evaluatedAt: Date
     propertyEpochs: ReadonlyMap<string, number>
   }>,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<LifecycleApplyDelta> {
   if (!lockedRowMatchesScope(row, context.scope)) return NO_LIFECYCLE_CHANGE
 
@@ -392,7 +389,7 @@ async function applyLifecycleToReview(
             ? 'provider_deleted'
             : 'source_expired',
       },
-      requireReplyScopeEffects(replyEffects),
+      replyEffects,
     )
     if (!erased) {
       throw new Error('Review changed during lifecycle batch apply')
@@ -511,7 +508,7 @@ async function recordSourceExpiredFact(
  */
 export const createReviewSourceContentLifecycleStore = (
   db: Database,
-  replyEffects?: ReplyScopeEffects,
+  replyEffects: ReplyScopeEffects,
 ): ReviewSourceContentLifecycleStore => {
   const readInspectionBatch = async (
     {

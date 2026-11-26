@@ -176,7 +176,7 @@ async function consentForProperty(
   propertyId: string,
   facts: CeremonyFacts,
   idGen: () => string,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<MerchantAiPropertyConsentResult> {
   const result = await transitionMerchantAi(
     tx,
@@ -228,7 +228,7 @@ export function runMerchantAiConsentCeremony(
   db: Database,
   input: MerchantAiConsentCeremonyInput,
   idGen: () => string,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<ReadonlyArray<MerchantAiPropertyConsentResult>> {
   const facts: CeremonyFacts = {
     keyPrefix: ceremonyKeyPrefix(input.idempotencyKey),

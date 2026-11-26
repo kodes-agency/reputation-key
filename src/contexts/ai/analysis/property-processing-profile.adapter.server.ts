@@ -39,7 +39,7 @@ function compareExpected(
 export const createPropertyProcessingProfileAdapter = (
   db: Database,
   clock: () => Date,
-  replyEffects?: ReplyScopeEffects,
+  replyEffects: ReplyScopeEffects,
 ): PropertyProcessingProfilePort => {
   const readForAi: PropertyProcessingProfilePort['readForAi'] = async (input) => {
     const [row] = await db

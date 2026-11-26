@@ -8,10 +8,7 @@ import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
-import {
-  requireReplyScopeEffects,
-  type ReplyScopeEffects,
-} from '#/shared/db/reply-scope-effects'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { releaseAnalysisSequence } from '#/shared/db/review-analysis-released-sequences'
 import {
   replies,
@@ -71,7 +68,7 @@ async function supersedeStaleReviewPublications(
   tx: Tx,
   review: Review,
   occurredAt: Date,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<void> {
   const staleRows = await tx
     .select({
@@ -219,7 +216,7 @@ async function fenceRepliesWrittenForAnOlderSource(
   tx: Tx,
   observation: Pick<PersistedReviewObservation, 'review' | 'comparison'>,
   occurredAt: Date,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<void> {
   await supersedeStaleReviewPublications(tx, observation.review, occurredAt, replyEffects)
   if (isGuestEdit(observation.comparison)) {
@@ -337,7 +334,7 @@ async function redactJustExpiredSourceContent(
   tx: Tx,
   identity: StableReviewIdentity,
   occurredAt: Date,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<number> {
   const expirySequence = await allocateAnalysisSequence(
     tx,
@@ -364,7 +361,7 @@ async function redactJustExpiredSourceContent(
       expectedSourceRevision: identity.sourceRevision,
       state: 'source_expired',
     },
-    requireReplyScopeEffects(replyEffects),
+    replyEffects,
   )
   if (!erased) {
     throw reviewError('repo_upsert_failed', 'Expired Review redaction failed')
@@ -381,7 +378,7 @@ type PersistObservation = (
     observationKey?: string
     observationOrigin?: ReviewProviderObservationOrigin
     providerUpdateTimeReported?: boolean
-    replyEffects?: ReplyScopeEffects
+    replyEffects: ReplyScopeEffects
   }>,
 ) => Promise<PersistedReviewObservation>
 
@@ -416,7 +413,7 @@ export const createAtomicReviewCommandStore = (
   clock: () => Date,
   persistObservation: PersistObservation = persistReviewObservation,
   onProviderRestatement: (restatement: ProviderRestatement) => void = () => undefined,
-  replyEffects?: ReplyScopeEffects,
+  replyEffects: ReplyScopeEffects,
 ): ReviewCommandStore => {
   return {
     upsertAndRecord: async (
@@ -443,7 +440,7 @@ export const createAtomicReviewCommandStore = (
             ...(observationKey == null ? {} : { observationKey }),
             ...(observationOrigin == null ? {} : { observationOrigin }),
             ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
-            ...(replyEffects == null ? {} : { replyEffects }),
+            replyEffects,
           })
           const saved = observation.review
           if (observation.duplicate || observation.outOfOrder) {
@@ -543,7 +540,7 @@ export const createAtomicReviewCommandStore = (
             ...(observationKey == null ? {} : { observationKey }),
             ...(observationOrigin == null ? {} : { observationOrigin }),
             ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
-            ...(replyEffects == null ? {} : { replyEffects }),
+            replyEffects,
           })
           if (observation.duplicate || observation.outOfOrder) {
             throw reviewError(

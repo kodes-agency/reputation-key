@@ -45,14 +45,3 @@ export type ReplyScopeEffects = Readonly<{
 
 type OrganizationReplyRequest = Readonly<{ organizationId: string; occurredAt: Date }>
 type PropertyReplyRequest = OrganizationReplyRequest & Readonly<{ propertyId: string }>
-
-/**
- * Fails closed: an entry point built without the effects stops at the first
- * purge or fence instead of leaving Replies untouched.
- */
-export function requireReplyScopeEffects(
-  effects: ReplyScopeEffects | undefined,
-): ReplyScopeEffects {
-  if (!effects) throw new Error('Reply scope effects are not provided')
-  return effects
-}
