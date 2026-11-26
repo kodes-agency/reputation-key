@@ -110,13 +110,7 @@ async function policyAuthorizes(
   organizationId: string,
   propertyId: string | null,
 ): Promise<Readonly<{ version: number; emergencyKillVersion: number }> | null> {
-  const configured = checkScopedCapability(
-    {
-      organizationId,
-      ...(propertyId ? { propertyId } : {}),
-    },
-    capability,
-  )
+  const configured = checkScopedCapability({ organizationId }, capability)
   if (!configured.allowed) return null
 
   const result = await tx.execute(sql`

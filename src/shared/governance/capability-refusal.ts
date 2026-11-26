@@ -300,7 +300,6 @@ export function createCapabilityRefusalExplainer(deps: CapabilityRefusalDeps) {
           role: input.role,
         } satisfies AuthContext,
         capability,
-        input.propertyId,
       )
       if (!decision.allowed) {
         const reason = decision.reason as CapabilityDenyReason

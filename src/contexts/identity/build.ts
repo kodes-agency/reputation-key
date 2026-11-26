@@ -366,10 +366,8 @@ function buildMerchantAi(
     decisionDeferrals,
     authorizeManagement,
     authorize: async (input) =>
-      checkScopedCapability(
-        { organizationId: input.organizationId, propertyId: input.propertyId },
-        input.capability,
-      ).allowed,
+      checkScopedCapability({ organizationId: input.organizationId }, input.capability)
+        .allowed,
     isCurrentAccountAdmin: isAccountAdmin,
     clock,
     idGen,
@@ -709,11 +707,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     productUpdates: createProductUpdates({
       store: createProductUpdatesStore(db),
       clock,
-      hasCapability: ({ actor, propertyId }, capability) =>
-        checkScopedCapability(
-          { organizationId: actor.organizationId, propertyId },
-          capability,
-        ).allowed,
+      hasCapability: ({ actor }, capability) =>
+        checkScopedCapability({ organizationId: actor.organizationId }, capability)
+          .allowed,
     }),
   } as const
 }

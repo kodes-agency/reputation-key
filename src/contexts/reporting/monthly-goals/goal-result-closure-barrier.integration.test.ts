@@ -113,12 +113,7 @@ describe.sequential('Goal result closure barriers (integration)', () => {
       },
       policy: {
         authorize: async () => {
-          if (
-            !checkScopedCapability(
-              { organizationId: org, propertyId: property },
-              'goal.use',
-            ).allowed
-          )
+          if (!checkScopedCapability({ organizationId: org }, 'goal.use').allowed)
             throw new GoalProgramError('forbidden')
         },
       },

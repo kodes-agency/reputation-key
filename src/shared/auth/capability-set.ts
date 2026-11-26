@@ -72,7 +72,7 @@ export const getCapabilitySet = createServerFn({ method: 'GET' })
     > = []
 
     for (const capability of listAllCapabilities()) {
-      const decision = checkBetaCapability(ctx, capability, data.propertyId)
+      const decision = checkBetaCapability(ctx, capability)
       const category = refusalCategory(decision)
       if (decision.allowed) allowed.push(capability)
       if (category !== null) refused.push({ capability, category })

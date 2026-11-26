@@ -256,7 +256,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     capability: Capability | undefined,
   ) {
     if (!capability) return null
-    const capDecision = checkBetaCapability(ctx, capability, request.propertyId)
+    const capDecision = checkBetaCapability(ctx, capability)
     return capDecision.allowed ? null : finish(request, false, capDecision.reason)
   }
 
@@ -371,7 +371,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
       organizationId: organizationId(request.organizationId),
       role: 'AccountAdmin',
     }
-    const capDecision = checkBetaCapability(operatorCtx, capability, request.propertyId)
+    const capDecision = checkBetaCapability(operatorCtx, capability)
     return capDecision.allowed ? null : finish(request, false, capDecision.reason)
   }
 
@@ -398,10 +398,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     if (request.capability) {
       const capDecision = request.organizationId
         ? checkScopedCapability(
-            {
-              organizationId: request.organizationId,
-              ...(request.propertyId ? { propertyId: request.propertyId } : {}),
-            },
+            { organizationId: request.organizationId },
             request.capability,
           )
         : checkGlobalCapability(request.capability)
