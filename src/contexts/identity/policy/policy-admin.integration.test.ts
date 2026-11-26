@@ -21,11 +21,11 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const reconcileResponsibleManagerEligibility = vi.fn(async () => undefined)
 
 const commandStore = createPostgresPolicyAdminCommandStore(db)
+const explainPolicyDecision = createPolicyDiagnostic({
+  getMemberRole: (orgId, uid) => getMemberRole(db, orgId, uid),
+  hasActiveGrant: (input) => hasActiveGrant(db, input),
+})
 const ops = createPolicyAdminOps({
-  explainPolicyDecision: createPolicyDiagnostic({
-    getMemberRole: (orgId, uid) => getMemberRole(db, orgId, uid),
-    hasActiveGrant: (input) => hasActiveGrant(db, input),
-  }),
   commandStore,
   reconcileResponsibleManagerEligibility,
 })
@@ -250,7 +250,6 @@ describe('PropertyAccessGrant administration', () => {
 
   it('rolls the grant back when its fact cannot be recorded', async () => {
     const failing = createPolicyAdminOps({
-      explainPolicyDecision: ops.explainPolicyDecision,
       commandStore: {
         ...commandStore,
         grantPropertyAccess: (command) =>
@@ -335,7 +334,7 @@ describe('PropertyAccessGrant administration', () => {
 
   it('explains a decision from the stored role, without exposing identity content', async () => {
     const explain = (userId: string) =>
-      ops.explainPolicyDecision({
+      explainPolicyDecision({
         organizationId: ORG,
         action: 'property.read',
         propertyId: PROP,

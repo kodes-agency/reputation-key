@@ -124,6 +124,13 @@ describe('grantPropertyAccessFn', () => {
         }),
       ),
     ).rejects.toThrow(/reason is required/)
+    await expect(
+      harness.callAs(admin, () =>
+        grantPropertyAccessFn({
+          data: { ...grantData(manager, property), ticketRef: ' ' },
+        }),
+      ),
+    ).rejects.toThrow(/ticket\/reference is required/)
     expect(await grantRows(manager, property)).toEqual([])
   })
 
@@ -206,6 +213,25 @@ describe('revokePropertyAccessFn', () => {
     const rows = await grantRows(manager, property)
     expect(rows.every((row) => row.revoked_at !== null)).toBe(true)
     expect(await accessFacts(organization.id)).toBe(2)
+  })
+
+  it('refuses a revoke without a reason and leaves the access in place', async () => {
+    const { admin, manager, property } = await hotel()
+    await harness.callAs(admin, () =>
+      grantPropertyAccessFn({ data: grantData(manager, property) }),
+    )
+
+    await expect(
+      harness.callAs(admin, () =>
+        revokePropertyAccessFn({
+          data: { userId: manager.userId, propertyId: property.id, reason: '' },
+        }),
+      ),
+    ).rejects.toThrow(/reason is required/)
+
+    expect(
+      (await grantRows(manager, property)).some((row) => row.revoked_at === null),
+    ).toBe(true)
   })
 
   it('answers a Property outside the Organization as the validation error it is', async () => {

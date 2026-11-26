@@ -2,11 +2,10 @@
 //
 // One (Organization, Property, user) holds at most one unrevoked grant, and a
 // grant past its expiry is still unrevoked: it gives no access but keeps the
-// slot until a revoke retires it. The two commands that grant one member a
-// Property on request — the operator surface and the Members access edit —
-// decide here, so they cannot disagree about a lapsed grant. Invitation
-// provisioning grants through its own path and offboarding revokes in bulk;
-// neither decides here.
+// slot until a revoke retires it. Every command that grants one member a
+// Property — the operator surface, the Members access edit and invitation
+// provisioning — decides here, so they cannot disagree about a lapsed grant.
+// Offboarding revokes in bulk and does not decide here.
 
 /** The unrevoked grant found under the grant lock. */
 export type CurrentPropertyGrant = Readonly<{ expiresAt: Date | null }>

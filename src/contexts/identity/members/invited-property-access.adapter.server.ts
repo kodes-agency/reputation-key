@@ -3,24 +3,17 @@
 // An invitation names the Properties its PropertyManager may work on. Identity
 // owns `property_access_grant`, so those grants commit with the membership
 // they belong to: nobody is accepted without them, and no grant outlives an
-// acceptance that rolled back. It takes the per-grant locks and reuses the
-// statements of the operator surface and the Members access edit, so all three
+// acceptance that rolled back. It takes the per-grant locks and shares the
+// grant write of the operator surface and the Members access edit, so all three
 // serialize and converge on one active grant.
 
 import type { Tx } from '#/shared/outbox/commit'
 import { invitedPropertySelection } from '../domain/invitation-store-rules'
 import {
-  grantPropertyAccess,
-  revokePropertyAccess,
-} from './property-access-grant-repository.server'
-import {
   lockPropertyGrant,
   lockPropertyInOrganization,
-  lockUnrevokedGrant,
 } from './property-grant-locks.server'
-
-/** Why a lapsed grant the invitation replaced was retired. */
-const SUPERSEDED_REASON = 'superseded'
+import { writePropertyGrant } from './property-grant-write.server'
 
 type InvitedPropertyAccess = Readonly<{
   organizationId: string
@@ -44,16 +37,14 @@ async function grantInvitedProperty(
   }
   // Nothing is granted on a Property deleted since the invitation was sent.
   if (!(await lockPropertyInOrganization(tx, { ...key, live: true }))) return false
-  const current = await lockUnrevokedGrant(tx, key)
-  if (current && (current.expiresAt === null || current.expiresAt > access.now)) {
-    return true
-  }
-  // A lapsed grant still holds the one-active-grant slot: retire it first.
-  if (current) await revokePropertyAccess(tx, { ...key, reason: SUPERSEDED_REASON })
-  await grantPropertyAccess(tx, {
+  // A grant the Property already has is kept and still counts as granted.
+  await writePropertyGrant(tx, {
     ...key,
-    source: 'invitation',
     createdBy: access.inviterId,
+    source: 'invitation',
+    expiresAt: null,
+    replacesActiveTerm: false,
+    now: access.now,
   })
   return true
 }
