@@ -356,7 +356,7 @@ describe('updateMemberRole', () => {
   it('counts a multi-role owner via rawRole for the last-owner guard (H2/M4)', async () => {
     const { useCase, identity } = await setup()
     // A multi-role owner: built-in Role is null, but rawRole 'owner,editor' grants owner.
-    // Previously this member crashed listMembers (toDomainRoleStrict) AND escaped the
+    // Previously this member crashed listMembers AND escaped the
     // last-owner guard (role !== ADMIN_ROLE). Now it must be counted as an owner.
     await seedMemberBoth(identity, {
       id: 'multi-owner',

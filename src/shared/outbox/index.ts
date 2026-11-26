@@ -19,17 +19,9 @@ export type {
   ConsumerEvent,
   ConsumerHandler,
   ConsumerListing,
-  ConsumerRegistration,
   ConsumerRegistry,
   ConsumerResult,
 } from './consumer-registry'
-export type {
-  OutboxRepository,
-  UnpublishedEvent,
-  ReceiptStatus,
-} from './infrastructure/outbox-repository'
+export type { OutboxRepository, ReceiptStatus } from './infrastructure/outbox-repository'
 
-export {
-  PrerequisiteNotReadyError,
-  isPrerequisiteNotReady,
-} from './prerequisite-not-ready'
+export { PrerequisiteNotReadyError } from './prerequisite-not-ready'
