@@ -169,19 +169,16 @@ describe('reply publication requested durable consumer', () => {
       handleReplyPublicationRequested(subject as never, event()),
     ).resolves.toEqual({ status: 'applied' })
 
-    expect(subject.queue.addPublishJob).toHaveBeenCalledWith(
-      {
-        replyId: '97000000-0000-0000-0000-000000000002',
-        organizationId: 'org-publication-recovery',
-        publicationCycle: 4,
-        propertyId: '97000000-0000-0000-0000-000000000004',
-        sourceEpoch: 3,
-        materialReviewRevision: 7,
-        baseObservationRevision: 11,
-        initiator: { kind: 'user', id: 'manager-publication-recovery' },
-      },
-      { idempotencyKey: 'reply-97000000-0000-0000-0000-000000000002-v4' },
-    )
+    expect(subject.queue.addPublishJob).toHaveBeenCalledWith({
+      replyId: '97000000-0000-0000-0000-000000000002',
+      organizationId: 'org-publication-recovery',
+      publicationCycle: 4,
+      propertyId: '97000000-0000-0000-0000-000000000004',
+      sourceEpoch: 3,
+      materialReviewRevision: 7,
+      baseObservationRevision: 11,
+      initiator: { kind: 'user', id: 'manager-publication-recovery' },
+    })
     expect(subject.receipts.insertReceipt).toHaveBeenCalledWith(
       EVENT_ID,
       ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,

@@ -63,7 +63,6 @@ import {
   createWorkerProcessFailurePolicy,
   type WorkerTerminationTrigger,
 } from './process-failure'
-import { createPublishReplyScopeResolver } from '#/contexts/reputation/publication/publish-reply-scope-resolver.server'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { OUTBOX_DELIVERY_KIND } from '#/shared/outbox/dispatch-job-options'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
@@ -186,10 +185,6 @@ async function main() {
 
   markContainerReady()
 
-  // BQC-3.2: dispatch-time scope resolution for jobs whose envelope lacks the
-  // property id (publish-reply carries replyId only — resolved via reply →
-  // review → propertyId). Every other job name falls through to the payload.
-  const resolveScope = createPublishReplyScopeResolver({ db: container.db })
   const workItems = createWorkItems(container.db, container.clock)
 
   // ARC-03-T15: the dead-letter quarantine barrier queue is CONTAINER-owned.
@@ -229,7 +224,7 @@ async function main() {
     createGatedJobHandler(
       'default',
       registry,
-      resolveScope,
+      undefined,
       undefined,
       workItems.resolveDispatch,
     ),
@@ -255,7 +250,7 @@ async function main() {
     createGatedJobHandler(
       'background',
       registry,
-      resolveScope,
+      undefined,
       undefined,
       workItems.resolveDispatch,
     ),
