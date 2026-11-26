@@ -12,7 +12,7 @@ import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.serve
 import type { HandlingCycleHead, ManualReopenReason } from '../domain/inbox-types'
 import { inboxItemStatusChanged } from '../domain/inbox-events'
 import { inboxError } from '../domain/inbox-errors'
-import { handlingCycleHeadFromRow, itemFromRow } from './inbox-command-guards.server'
+import { itemFromRow } from './inbox-command-guards.server'
 import { persistedHeadFromItemRow } from './inbox-cycle-head.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { catchUpProjectionRevisions } from './inbox-source-projection.server'
@@ -55,7 +55,7 @@ const readHead = async (
     .limit(1)
   const head = row ? persistedHeadFromItemRow(row) : null
   if (!head) throw inboxError('not_found', 'Inbox Handling Cycle head not found')
-  return handlingCycleHeadFromRow(head)
+  return head
 }
 
 const reopenManually = async (
@@ -140,7 +140,7 @@ const reopenForMaterialRevision = async (
         },
       ],
       active: true,
-      current: handlingCycleHeadFromRow(headRow),
+      current: headRow,
       withItemCreation: false,
     })
     // Raw SQL on purpose: only the production writers the mirror guard names

@@ -173,17 +173,13 @@ describe('BQR-2.2: outbox consumer registration', () => {
     )
     expect(src).toContain("eventType: 'review.created'")
     expect(src).toContain("consumerName: 'inbox.on-review-created'")
-    expect(src).toContain("eventType: 'review.expired'")
-    expect(src).toContain("consumerName: 'inbox.on-review-expired'")
     // BQC-3.4: metadata-only refresh consumer (resolves the BQC-3.1 orphan).
     expect(src).toContain("eventType: 'review.updated'")
     expect(src).toContain("consumerName: 'inbox.on-review-updated'")
     // REV-01: stable Inbox identity receives a content-free source transition.
     expect(src).toContain("eventType: 'review.source_transitioned'")
     expect(src).toContain("consumerName: 'inbox.on-review-source-transitioned'")
-    // Compatibility receipt plus the observation-authority close/reopen consumer.
-    expect(src).toContain("eventType: 'review.reply.published'")
-    expect(src).toContain("consumerName: 'inbox.on-reply-published'")
+    // The observation-authority close/reopen consumer.
     expect(src).toContain("eventType: 'review.reply.observed'")
     expect(src).toContain("consumerName: 'inbox.on-reply-observed'")
     expect(guestSrc).toContain("eventType: 'guest.feedback.submitted'")
@@ -241,9 +237,7 @@ describe('BQR-2.2: outbox consumer registration', () => {
       'utf-8',
     )
     expect(src).toContain('handleInboxReviewCreated')
-    expect(src).toContain('handleInboxReviewExpired')
     expect(src).toContain('handleInboxReviewUpdated')
-    expect(src).toContain('handleInboxReplyPublished')
     expect(src).toContain('handleInboxReplyObserved')
     expect(src).toContain('applyReviewProjectionOnce')
     expect(guestSrc).toContain('applySourceCreatedOnce')

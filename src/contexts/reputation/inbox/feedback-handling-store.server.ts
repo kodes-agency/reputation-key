@@ -46,14 +46,11 @@ import { inboxItemFromRow } from '#/contexts/reputation/inbox/inbox-mapper.serve
 import {
   cycleHeadItemColumns,
   persistedHeadFromItemRow,
-  type PersistedHead,
 } from '#/contexts/reputation/inbox/inbox-cycle-head.server'
-import { handlingCycleHeadFromRow } from '#/contexts/reputation/inbox/inbox-command-guards.server'
 import { transitionInsert } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import { completePrivateFeedbackTarget } from '#/contexts/reputation/response-targets/store.server'
 
 type OutcomeRow = typeof inboxFeedbackHandlingOutcomes.$inferSelect
-type HeadRow = PersistedHead
 type ItemRow = typeof inboxItems.$inferSelect
 
 const outcomeFromRow = (row: OutcomeRow): FeedbackHandlingOutcomeFact => ({
@@ -120,16 +117,15 @@ async function closeReasonFor(
 
 const matchesExpected = (
   item: ItemRow,
-  head: HeadRow,
+  head: HandlingCycleHead,
   expected: FeedbackHandlingExpectation,
 ): boolean =>
   item.commandRevision === expected.commandRevision &&
   head.currentCycleNumber === expected.cycleNumber &&
   head.currentSourceRevision === expected.sourceRevision &&
-  head.stateRevision === expected.stateRevision &&
-  item.status === head.status
+  head.stateRevision === expected.stateRevision
 
-const conflict = (item: ItemRow, head: HeadRow) =>
+const conflict = (item: ItemRow, head: HandlingCycleHead) =>
   inboxError('revision_conflict', 'Private-feedback handling changed; reload', {
     currentCommandRevision: item.commandRevision,
     currentCycleNumber: head.currentCycleNumber,
@@ -141,7 +137,7 @@ const conflict = (item: ItemRow, head: HeadRow) =>
 async function lockCurrent(
   tx: Tx,
   item: InboxItem,
-): Promise<Readonly<{ item: ItemRow; head: HeadRow }>> {
+): Promise<Readonly<{ item: ItemRow; head: HandlingCycleHead }>> {
   const [currentItem] = await tx
     .select()
     .from(inboxItems)
@@ -271,9 +267,8 @@ export const createFeedbackHandlingStore = (
             ),
           )
           .limit(1)
-        const row = itemRow ? persistedHeadFromItemRow(itemRow) : null
-        if (!row) return null
-        const head = handlingCycleHeadFromRow(row)
+        const head = itemRow ? persistedHeadFromItemRow(itemRow) : null
+        if (!head) return null
         return toState(
           head,
           await historyFor(db, itemId, head.currentCycleNumber, orgId),
@@ -307,7 +302,7 @@ export const createFeedbackHandlingStore = (
             actorUserId: command.actorUserId,
             recordedAt: command.recordedAt,
           })
-          const current = handlingCycleHeadFromRow(locked.head)
+          const current = locked.head
           await assertManagerHandlingStillHonest(tx, current)
           const deadlineResult = await completePrivateFeedbackTarget(
             tx,
@@ -442,13 +437,10 @@ export const createFeedbackHandlingStore = (
             actorUserId: command.actorUserId,
             recordedAt: command.recordedAt,
           })
-          await assertManagerHandlingStillHonest(
-            tx,
-            handlingCycleHeadFromRow(locked.head),
-          )
+          await assertManagerHandlingStillHonest(tx, locked.head)
           const corrected = correctFeedbackHandlingOutcomeFact({
             id: command.outcomeId,
-            current: handlingCycleHeadFromRow(locked.head),
+            current: locked.head,
             previous: outcomeFromRow(latestRow),
             outcome: command.outcome,
             internalNote: command.internalNote,
@@ -490,11 +482,7 @@ export const createFeedbackHandlingStore = (
           )
           return {
             item: itemFromRow(savedItem, command.item),
-            feedbackHandling: toState(
-              handlingCycleHeadFromRow(locked.head),
-              history,
-              'private_feedback_handled',
-            ),
+            feedbackHandling: toState(locked.head, history, 'private_feedback_handled'),
           }
         })
       }),

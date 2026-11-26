@@ -13,9 +13,6 @@ export type ProducerlessReason = 'legacy_replay' | 'reserved'
 
 export const PRODUCERLESS_EVENT_FAMILIES: Readonly<Record<string, ProducerlessReason>> =
   Object.freeze({
-    // review.source_transitioned replaced it and nothing emits it now; a
-    // restored or still-pending fact converges on the same Inbox command.
-    'review.expired': 'legacy_replay',
     // Property deletion fails closed in the beta (property CONTEXT.md), so
     // nothing emits it; recorded facts are still delivered.
     'property.deleted': 'legacy_replay',

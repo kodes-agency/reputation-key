@@ -6,9 +6,7 @@
 //      forced receipt failure (missing source event row → FK violation)
 //      rolls back EVERYTHING — no item row survives.
 //   2. Duplicate delivery: exactly one item, one fact, receipt present.
-//   3. legacy review.expired: source-content scrub + receipt are atomic and
-//      replay-safe without changing current workflow status.
-//   4. rebuildInboxProjection heals a corrupted projection from canonical
+//   3. rebuildInboxProjection heals a corrupted projection from canonical
 //      review/reply data; dryRun writes nothing.
 
 import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'

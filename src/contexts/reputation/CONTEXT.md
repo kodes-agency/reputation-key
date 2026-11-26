@@ -480,8 +480,7 @@ Inbox stores nothing of it.
   held across the Google read.
 - **Durable consumers** (registered in `build-inbox.ts` through
   `registerOutboxConsumers`, apply-once): `inbox.on-review-created`,
-  `inbox.on-review-updated`, `inbox.on-review-expired`,
-  `inbox.on-review-source-transitioned`, `inbox.on-reply-published`,
+  `inbox.on-review-updated`, `inbox.on-review-source-transitioned`,
   `inbox.on-reply-observed`, `inbox.on-reply-submitted`
   (`inbox/outbox-consumers.server.ts`); `inbox.on-guest-feedback-submitted`,
   `inbox.on-guest-feedback-retracted`

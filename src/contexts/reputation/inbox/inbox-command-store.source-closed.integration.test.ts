@@ -4,12 +4,8 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {} from '#/shared/domain/ids'
 import type {} from '#/contexts/reputation/domain/review-types'
 import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
-import {
-  reviewExpired,
-  reviewSourceTransitioned,
-} from '#/contexts/reputation/domain/review-events'
+import { reviewSourceTransitioned } from '#/contexts/reputation/domain/review-events'
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
-import { testReviewRepository } from '#/contexts/reputation/reviews/review-stores.test-fixtures'
 import {
   ORG_A,
   ORG_B,
@@ -26,7 +22,6 @@ import {
   createAtomicInboxCommandStore,
   db,
   makeItem,
-  makeReview,
   insertSourceEvent,
   seedReviewRevisionOne,
   pool,
@@ -68,7 +63,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       consumerName: 'inbox.on-review-source-transitioned',
       item: legacy,
       transitionedAt: NOW,
-      closeIfOpen: true,
       closeFact: inboxItemStatusChanged({
         inboxItemId: legacy.id,
         organizationId: legacy.organizationId,
@@ -116,93 +110,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         note_count: 1,
         receipt_count: 1,
         status_fact_count: 1,
-      },
-    ])
-  })
-
-  it('expiry replay without closeIfOpen leaves the open item and Handling Cycle untouched', async () => {
-    const reviewRepo = testReviewRepository(db)
-    await reviewRepo.upsert(
-      makeReview({ sourceRevision: 1, analysisSequence: 1 }),
-      NOW,
-      'b'.repeat(64),
-    )
-    const legacy = makeItem({
-      assignedTo: USER_A,
-      commandRevision: Number.MAX_SAFE_INTEGER,
-    })
-    const store = createAtomicInboxCommandStore(db)
-    await store.createItem(legacy, reviewOpeningAnchor(legacy))
-    const noteId = '4d000000-0000-0000-0000-000000000098'
-    await pool.query(
-      `INSERT INTO inbox_notes (
-           id, inbox_item_id, organization_id, author_user_id, text, created_at
-         ) VALUES ($1, $2, $3, $4, 'Current manager history', $5)`,
-      [noteId, legacy.id, ORG_A, USER_A, NOW],
-    )
-
-    const source = reviewExpired({
-      reviewId: REVIEW_A,
-      propertyId: PROP_A,
-      organizationId: ORG_A,
-      occurredAt: new Date('2026-06-01T12:05:00.000Z'),
-    })
-    await insertSourceEvent(source)
-    const command = {
-      eventId: source.eventId,
-      consumerName: 'inbox.on-review-expired',
-      item: legacy,
-      transitionedAt: source.occurredAt,
-      closeIfOpen: false,
-      closeFact: inboxItemStatusChanged({
-        inboxItemId: legacy.id,
-        organizationId: legacy.organizationId,
-        propertyId: legacy.propertyId,
-        oldStatus: 'open',
-        newStatus: 'closed',
-        occurredAt: source.occurredAt,
-      }),
-    } as const
-
-    await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
-      'applied',
-    )
-    await expect(store.applyReviewSourceTransitionedOnce(command)).resolves.toBe(
-      'applied',
-    )
-
-    const proof = await pool.query(
-      `SELECT
-           item.id,
-           item.source_id,
-           item.status AS item_status,
-           item.current_cycle_number::int AS cycle_number,
-           item.assigned_to,
-           item.command_revision::text AS command_revision,
-           (SELECT count(*)::int FROM inbox_notes note
-            WHERE note.inbox_item_id = item.id) AS note_count,
-           (SELECT count(*)::int FROM event_consumer_receipts receipt
-            WHERE receipt.event_id = $2
-              AND receipt.consumer_name = 'inbox.on-review-expired') AS receipt_count,
-           (SELECT count(*)::int FROM outbox_events fact
-            WHERE fact.organization_id = $3
-              AND fact.event_type = 'inbox.inbox_item.status_changed'
-              AND fact.payload->>'inboxItemId' = item.id::text) AS status_fact_count
-         FROM inbox_items item
-         WHERE item.id = $1`,
-      [legacy.id, source.eventId, ORG_A],
-    )
-    expect(proof.rows).toEqual([
-      {
-        id: legacy.id,
-        source_id: REVIEW_A,
-        item_status: 'open',
-        cycle_number: 1,
-        assigned_to: USER_A,
-        command_revision: String(Number.MAX_SAFE_INTEGER),
-        note_count: 1,
-        receipt_count: 1,
-        status_fact_count: 0,
       },
     ])
   })
