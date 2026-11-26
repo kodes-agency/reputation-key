@@ -149,11 +149,7 @@ export function wireIdentity(
       ),
     logger,
     betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
-    policy: {
-      env,
-      propertyBelongsToOrganization: (orgId, pid) =>
-        getProperty().publicApi.propertyExists(organizationId(orgId), propertyId(pid)),
-    },
+    policy: { env },
     reconcileResponsibleManagerEligibility:
       memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
   })

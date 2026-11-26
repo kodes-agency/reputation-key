@@ -20,6 +20,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildIdentityContext } from './build'
+import { unavailableStaffAccountBindings } from './staff/staff-account-bindings.test-fixtures'
 import { createCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 
 const db = getDb()
@@ -53,7 +54,8 @@ const policyAdmin = buildIdentityContext({
   propertyNames: async () => [],
   logger: createMockLogger(),
   betaFeedbackHmacSecret: 'test-beta-feedback-pseudonym-secret',
-  policy: { env: {}, propertyBelongsToOrganization: async () => true },
+  policy: { env: {} },
+  staffAccounts: unavailableStaffAccountBindings,
 }).policy.admin
 
 async function admitPermits(

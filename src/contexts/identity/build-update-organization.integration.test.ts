@@ -17,6 +17,7 @@ import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { identityAssetPath } from './images/identity-assets.contracts'
 import { buildIdentityContext } from './build'
+import { unavailableStaffAccountBindings } from './staff/staff-account-bindings.test-fixtures'
 
 const db = getDb()
 const ORG = 'org-build-update-org'
@@ -44,7 +45,8 @@ const requests = buildIdentityContext({
   propertyNames: async () => [],
   logger: createMockLogger(),
   betaFeedbackHmacSecret: 'test-beta-feedback-pseudonym-secret',
-  policy: { env: {}, propertyBelongsToOrganization: async () => true },
+  policy: { env: {} },
+  staffAccounts: unavailableStaffAccountBindings,
 }).publicApi.requests
 
 const admin: AuthContext = {

@@ -54,6 +54,7 @@ import {
 import { isIdentityError } from '../domain/errors'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import { buildIdentityContext } from '../build'
+import { unavailableStaffAccountBindings } from '../staff/staff-account-bindings.test-fixtures'
 import { createInvitedRegistrationStore } from './invited-registration-store.server'
 import { createRecoverInvitedRegistrationsHandler } from './recover-invited-registrations-job.server'
 
@@ -283,7 +284,8 @@ function build(fixture: Fixture) {
     propertyNames: async () => [],
     logger: createMockLogger(),
     betaFeedbackHmacSecret: 'test-beta-feedback-pseudonym-secret',
-    policy: { env: {}, propertyBelongsToOrganization: async () => true },
+    policy: { env: {} },
+    staffAccounts: unavailableStaffAccountBindings,
   })
   const useCases = {
     ...context.publicApi.requests,
