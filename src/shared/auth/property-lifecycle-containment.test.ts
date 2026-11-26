@@ -18,12 +18,7 @@ describe('LIF-01 Property lifecycle containment', () => {
 
     expect(capability).toBe('property.erase')
     expect(listBlockedCapabilities()).toContain('property.erase')
-    expect(
-      checkScopedCapability(
-        { organizationId: 'org-1', propertyId: 'property-1' },
-        capability,
-      ),
-    ).toEqual({
+    expect(checkScopedCapability({ organizationId: 'org-1' }, capability)).toEqual({
       allowed: false,
       reason: 'capability_blocked',
       capability: 'property.erase',

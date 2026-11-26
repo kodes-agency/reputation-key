@@ -55,7 +55,6 @@ export type MerchantAiOverviewDeps = Readonly<{
   pauseReason?: (
     record: MerchantAiOverviewRecord,
     organizationId: string,
-    propertyId: string,
   ) => string | null
   readLatestUpdate?: (
     input: MerchantAiOverviewInput,
@@ -167,8 +166,7 @@ export const listMerchantAiOverview =
             {
               ...record,
               pauseReason:
-                deps.pauseReason?.(record, input.organizationId, record.propertyId) ??
-                record.pauseReason,
+                deps.pauseReason?.(record, input.organizationId) ?? record.pauseReason,
             },
             deps.isNoticeInForce,
           ),

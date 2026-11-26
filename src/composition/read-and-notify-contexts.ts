@@ -98,10 +98,7 @@ export function isEmailDeliveryAllowed(
   scope: Readonly<{ organizationId: string; propertyId: string | null }>,
 ): boolean {
   return checkScopedCapability(
-    {
-      organizationId: scope.organizationId,
-      ...(scope.propertyId === null ? {} : { propertyId: scope.propertyId }),
-    },
+    { organizationId: scope.organizationId },
     scope.propertyId === null
       ? 'notification.send_mandatory_email'
       : 'notification.send_email',

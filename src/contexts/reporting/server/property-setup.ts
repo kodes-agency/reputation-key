@@ -26,18 +26,11 @@ async function accessiblePropertyIds(ctx: AuthContext) {
 
 /**
  * Whether the rating goal step is the viewer's: they may set a Google rating
- * goal (`goal.create`) and Goals are on (`goal.use`), for the Property when one
- * is named. A step they could not act on is not shown to them.
+ * goal (`goal.create`) and Goals are on (`goal.use`). A step they could not act on is not shown to them.
  */
-function ratingGoalsEnabled(ctx: AuthContext, propertyIdValue?: string): boolean {
+function ratingGoalsEnabled(ctx: AuthContext): boolean {
   if (!canForContext(ctx, 'goal.create')) return false
-  return checkScopedCapability(
-    {
-      organizationId: ctx.organizationId,
-      ...(propertyIdValue ? { propertyId: propertyIdValue } : {}),
-    },
-    'goal.use',
-  ).allowed
+  return checkScopedCapability({ organizationId: ctx.organizationId }, 'goal.use').allowed
 }
 
 /** One Property's setup steps for the settings hub, property page and composer. */
@@ -57,7 +50,7 @@ export const getPropertySetupFn = createServerFn({ method: 'GET' })
             role: ctx.role,
             propertyId: propertyId(data.propertyId),
             accessiblePropertyIds: await accessiblePropertyIds(ctx),
-            ratingGoalsEnabled: ratingGoalsEnabled(ctx, data.propertyId),
+            ratingGoalsEnabled: ratingGoalsEnabled(ctx),
           })
         }),
       'GET',
