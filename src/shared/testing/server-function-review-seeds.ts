@@ -263,20 +263,16 @@ export function reviewSeeds(context: HarnessSeedContext): ReviewSeeds {
     }
     // The command store's own create, with every command allowed: seeding is
     // not what the test authorizes.
-    const store = createAtomicInboxCommandStore(
-      getDb(),
-      async () => ({ allowed: true }),
-      context.clock,
-    )
+    const store = createAtomicInboxCommandStore(getDb(), async () => ({ allowed: true }))
     const created = isReview
-      ? await store.createItem(item, null, {
+      ? await store.createItem(item, {
           sourceRevision: 1,
           openedReason: 'review_observed',
           actorType: 'provider',
           triggerEventId: null,
           openedAt: item.createdAt,
         })
-      : await store.createItem(item, null, {
+      : await store.createItem(item, {
           sourceRevision: 1,
           openedReason: 'feedback_submitted',
           actorType: 'guest',

@@ -27,6 +27,7 @@ import type { InboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note
 import type { InboxViewRepository } from '#/contexts/reputation/inbox/inbox-view-repository.port.server'
 import type { ReplyLookupPort } from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
 import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
 import type { FeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.port.server'
@@ -142,6 +143,13 @@ const noopReviewSourceLookup: ReviewSourceLookupPort = {
   getReviewSourceMetaById: async () => null,
   getReviewSourceMetaByIds: async () => [],
   listReviewSources: async () => [],
+}
+
+const noopPropertyLookup: PropertyLookupPort = {
+  getPropertyNameById: async () => null,
+  getPropertyNamesByIds: async () => new Map(),
+  getPropertyReplyLanguageById: async () => null,
+  getPropertyGoogleReviewsPageById: async () => null,
 }
 
 const noopResponseTargetAuthority: ReviewResponseTargetAuthority = {
@@ -267,6 +275,7 @@ export function createInboxContainer() {
     responseTargetStore: emptyResponseTargetStore,
     responseTargetPolicyStore: emptyResponseTargetPolicyStore,
     reviewSourceLookup: noopReviewSourceLookup,
+    propertyLookup: noopPropertyLookup,
     responseTargetAuthority: noopResponseTargetAuthority,
     replyLookup: noopReplyLookup,
     // Storybook projects no Google reply observations, so no permit is current.

@@ -34,6 +34,7 @@ import {
   fixtureUuid,
   seedInboxScope,
 } from './inbox-database.test-fixtures'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const SCOPE = 'get-inbox-items'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -101,10 +102,7 @@ const setup = (
         getFeedbackSnippetsByIds: async () => new Map(),
         findEligibleFeedbackIds: async () => [],
       },
-      propertyLookup: {
-        getPropertyNameById: async () => null,
-        getPropertyNamesByIds: async () => new Map(),
-      },
+      propertyLookup: inertPropertyLookup,
       aiInsights,
     },
     { clock: () => FIXED_TIME, logger: createMockLogger() },
@@ -135,7 +133,6 @@ const setup = (
         orgId,
         orgId === ORG_ID ? [PROP_ID, OTHER_PROP_ID] : [OTHER_ORG_PROP_ID],
         items.filter((item) => item.organizationId === orgId),
-        FIXED_TIME,
       )
     }
   }

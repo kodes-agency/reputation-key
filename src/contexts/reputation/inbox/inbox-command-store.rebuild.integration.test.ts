@@ -87,7 +87,6 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
         id: inboxItemId('4d000000-0000-0000-0000-000000000021'),
         sourceId: livePublished.id,
       }),
-      null,
       reviewOpeningAnchor(
         makeItem({
           id: inboxItemId('4d000000-0000-0000-0000-000000000021'),
@@ -110,7 +109,6 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
         id: inboxItemId('4d000000-0000-0000-0000-000000000022'),
         sourceId: expired.id,
       }),
-      null,
       reviewOpeningAnchor(
         makeItem({
           id: inboxItemId('4d000000-0000-0000-0000-000000000022'),
@@ -126,7 +124,6 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
         id: inboxItemId('4d000000-0000-0000-0000-000000000023'),
         sourceId: reviewId('4d000000-0000-0000-0000-000000000099'),
       }),
-      null,
     )
     // HEALTHY: live review, item closed with milestones — no change.
     const healthy = makeReview({ id: reviewId('4d000000-0000-0000-0000-000000000014') })
@@ -143,7 +140,6 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
         escalatedAt: NOW,
         escalatedBy: USER_A,
       }),
-      null,
       reviewOpeningAnchor(
         makeItem({
           id: inboxItemId('4d000000-0000-0000-0000-000000000024'),
@@ -350,7 +346,7 @@ describe.sequential('inboxCommandStore lent transaction (integration)', () => {
 
     await expect(
       db.transaction(async (tx) => {
-        await store.createItem(item, createdFact(item), reviewOpeningAnchor(item), tx)
+        await store.createItem(item, reviewOpeningAnchor(item), tx)
 
         expect((await repo.findBySource('review', item.sourceId, ORG_A, tx))?.id).toBe(
           item.id,
@@ -371,7 +367,7 @@ describe.sequential('inboxCommandStore lent transaction (integration)', () => {
     const item = makeItem()
 
     const assigned = await db.transaction(async (tx) => {
-      await store.createItem(item, null, reviewOpeningAnchor(item), tx)
+      await store.createItem(item, reviewOpeningAnchor(item), tx)
       return store.assign(
         item,
         { assignedTo: USER_A },
@@ -384,7 +380,6 @@ describe.sequential('inboxCommandStore lent transaction (integration)', () => {
           source: 'web',
           occurredAt: NOW,
         }),
-        NOW,
         tx,
       )
     })

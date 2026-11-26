@@ -9,7 +9,7 @@ export type PropertyLookupPort = Readonly<{
     propertyId: PropertyId,
     orgId: OrganizationId,
   ): Promise<string | null>
-  getPropertyReplyLanguageById?(
+  getPropertyReplyLanguageById(
     propertyId: PropertyId,
     orgId: OrganizationId,
   ): Promise<string | null>
@@ -18,7 +18,7 @@ export type PropertyLookupPort = Readonly<{
    * with no Business Profile page of its own; null unless the Property holds a
    * verified write-a-review destination naming a place.
    */
-  getPropertyGoogleReviewsPageById?(
+  getPropertyGoogleReviewsPageById(
     propertyId: PropertyId,
     orgId: OrganizationId,
   ): Promise<string | null>

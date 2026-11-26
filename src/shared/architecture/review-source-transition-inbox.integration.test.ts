@@ -17,13 +17,13 @@ import { handleInboxReviewSourceTransitioned } from '#/contexts/reputation/inbox
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
 import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
-import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import type { ReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createMockLogger } from '#/shared/testing/mock-logger'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const ORG = organizationId('org-source-transition-inbox-race')
 const PROPERTY = propertyId('ad000000-0000-4000-8000-000000000001')
@@ -51,10 +51,7 @@ const feedbackLookup = {
   findEligibleFeedbackIds: async () => [],
 } satisfies FeedbackLookupPort
 
-const propertyLookup = {
-  getPropertyNameById: async () => null,
-  getPropertyNamesByIds: async () => new Map(),
-} satisfies PropertyLookupPort
+const propertyLookup = inertPropertyLookup
 
 const obsoleteReplyAuthority = {
   withExactCurrent: async () => ({ status: 'obsolete' as const }),
@@ -159,9 +156,8 @@ describe.sequential('Review source transition -> Inbox exact-current boundary', 
     const commandStore = createProductionInboxCommandStore(
       database,
       allowAllCommandAuthority,
-      () => TRANSITIONED_AT,
     )
-    await commandStore.createItem(item(), null, reviewOpeningAnchor(item()))
+    await commandStore.createItem(item(), reviewOpeningAnchor(item()))
 
     const source = reviewSourceTransitioned({
       reviewId: REVIEW,
@@ -244,12 +240,6 @@ describe.sequential('Review source transition -> Inbox exact-current boundary', 
             withInboxProjection: async () => ({ status: 'obsolete' as const }),
           },
           sourceTransitionAuthority: guardedAuthority,
-          reviewLookup,
-          reviewSourceLookup: {
-            getReviewSourceMetaById: async () => null,
-            getReviewSourceMetaByIds: async () => [],
-            listReviewSources: async () => [],
-          },
           inboxRepo,
           idGen: () => ITEM,
           clock: () => TRANSITIONED_AT,

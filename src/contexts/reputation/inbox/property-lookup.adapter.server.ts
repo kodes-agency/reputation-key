@@ -11,14 +11,13 @@ export const createPropertyLookupAdapter = (
 ): PropertyLookupPort => ({
   getPropertyNameById: (pid, orgId) => deps.getPropertyName(orgId, pid),
 
-  getPropertyReplyLanguageById: (pid, orgId) =>
-    deps.getPropertyReplyLanguage?.(orgId, pid) ?? Promise.resolve(null),
+  getPropertyReplyLanguageById: (pid, orgId) => deps.getPropertyReplyLanguage(orgId, pid),
 
   // Only a verified destination is a rendering authority: one fenced as
   // `awaiting_refresh` (an archived Property, a disconnected binding) or
   // `unavailable` offers no page, as it offers no Portal Google action.
   getPropertyGoogleReviewsPageById: async (pid, orgId) => {
-    const destination = (await deps.getGoogleReviewDestination?.(orgId, pid)) ?? null
+    const destination = await deps.getGoogleReviewDestination(orgId, pid)
     return destination?.state === 'verified' && destination.uri !== null
       ? googleReviewsPageForDestination(destination.uri)
       : null

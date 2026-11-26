@@ -88,7 +88,7 @@ describe.sequential('bulkAssignInboxItems', () => {
 
   const setup = (accessible: readonly ReturnType<typeof propertyId>[] | null = null) => {
     const repo = createUseCaseInboxRepository(db, () => NOW)
-    const commandStore = createUseCaseCommandStore(db, () => NOW)
+    const commandStore = createUseCaseCommandStore(db)
     const execute = bulkAssignInboxItems({
       repo,
       commandStore,
@@ -97,7 +97,7 @@ describe.sequential('bulkAssignInboxItems', () => {
       idGen: () => BULK_ID,
     })
     const seed = async (...items: InboxItem[]) => {
-      for (const entry of items) await seedInboxItem(pool, db, entry, () => NOW)
+      for (const entry of items) await seedInboxItem(pool, db, entry)
     }
     const assignees = async () =>
       (

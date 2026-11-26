@@ -14,6 +14,8 @@ function adapter(source: Partial<PropertyLookupSource> = {}) {
   return createPropertyLookupAdapter({
     getPropertyName: vi.fn(async () => 'Seaside Rooms'),
     getPropertyNames: vi.fn(async () => []),
+    getPropertyReplyLanguage: vi.fn(async () => null),
+    getGoogleReviewDestination: vi.fn(async () => null),
     ...source,
   })
 }
@@ -25,7 +27,7 @@ describe("the Property's Google reviews page", () => {
     const getGoogleReviewDestination = holding('verified', WRITE_REVIEW)
     const lookup = adapter({ getGoogleReviewDestination })
 
-    await expect(lookup.getPropertyGoogleReviewsPageById?.(PROPERTY, ORG)).resolves.toBe(
+    await expect(lookup.getPropertyGoogleReviewsPageById(PROPERTY, ORG)).resolves.toBe(
       REVIEWS_PAGE,
     )
     expect(getGoogleReviewDestination).toHaveBeenCalledWith(ORG, PROPERTY)
@@ -38,7 +40,7 @@ describe("the Property's Google reviews page", () => {
   ])('is not offered for a destination that is %s (%s)', async (state, uri) => {
     const lookup = adapter({ getGoogleReviewDestination: holding(state, uri) })
     await expect(
-      lookup.getPropertyGoogleReviewsPageById?.(PROPERTY, ORG),
+      lookup.getPropertyGoogleReviewsPageById(PROPERTY, ORG),
     ).resolves.toBeNull()
   })
 
@@ -47,19 +49,14 @@ describe("the Property's Google reviews page", () => {
       getGoogleReviewDestination: holding('verified', 'https://g.page/r/place/review'),
     })
     await expect(
-      lookup.getPropertyGoogleReviewsPageById?.(PROPERTY, ORG),
+      lookup.getPropertyGoogleReviewsPageById(PROPERTY, ORG),
     ).resolves.toBeNull()
   })
 
-  it('is not offered when the Property is not found or the source cannot say', async () => {
+  it('is not offered when the Property is not found', async () => {
     const missing = adapter({ getGoogleReviewDestination: vi.fn(async () => null) })
     await expect(
-      missing.getPropertyGoogleReviewsPageById?.(PROPERTY, ORG),
-    ).resolves.toBeNull()
-
-    const legacy = adapter()
-    await expect(
-      legacy.getPropertyGoogleReviewsPageById?.(PROPERTY, ORG),
+      missing.getPropertyGoogleReviewsPageById(PROPERTY, ORG),
     ).resolves.toBeNull()
   })
 })

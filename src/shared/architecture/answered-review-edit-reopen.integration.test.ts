@@ -34,6 +34,7 @@ import { createNotificationWorkState } from '#/contexts/feed/notify/settle.serve
 import { buildInsertNotificationDeps } from '#/contexts/feed/notify/insert-notification.test-fixtures'
 import { notificationPreferences, notifications } from '#/shared/db/schema'
 import { eq } from 'drizzle-orm'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 // End to end, the guest edits a Google review the team had already answered,
 // and the owner reply stays live on Google. A reply written for revision 1
@@ -61,10 +62,7 @@ const lookups = {
     getFeedbackSnippetsByIds: async () => new Map(),
     findEligibleFeedbackIds: async () => [],
   },
-  propertyLookup: {
-    getPropertyNameById: async () => null,
-    getPropertyNamesByIds: async () => new Map(),
-  },
+  propertyLookup: inertPropertyLookup,
 }
 
 /** Inbox's durable consumers as production composes them, on the real DB. */
@@ -73,21 +71,11 @@ function inboxDeps(): InboxConsumerDeps {
   const logger = createMockLogger()
   const clock = () => CLOCK.deliveredAt
   return {
-    commandStore: createAtomicInboxCommandStore(
-      db,
-      async () => ({ allowed: true }),
-      clock,
-    ),
+    commandStore: createAtomicInboxCommandStore(db, async () => ({ allowed: true })),
     handlingCycleStore: createReviewHandlingCycleStore(db),
     replyObservationAuthority: createReviewReplyObservationAuthority(db),
     responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
-    reviewLookup: lookups.reviewLookup,
-    reviewSourceLookup: {
-      getReviewSourceMetaById: async () => null,
-      getReviewSourceMetaByIds: async () => [],
-      listReviewSources: async () => [],
-    },
     inboxRepo: createInboxRepository(db, lookups, { clock, logger }),
     idGen: () => SCOPE.itemId,
     clock,

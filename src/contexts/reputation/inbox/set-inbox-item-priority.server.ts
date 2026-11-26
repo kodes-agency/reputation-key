@@ -79,6 +79,5 @@ export const setInboxItemPriority =
         previousPriority: current,
         occurredAt: now,
       }),
-      now,
     )
   }

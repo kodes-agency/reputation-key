@@ -26,6 +26,7 @@ import {
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 export const ORG_A = organizationId('org-inbox-test-aaaa-1111111111111111')
 export const ORG_B = organizationId('org-inbox-test-bbbb-2222222222222222')
@@ -58,10 +59,7 @@ export const stubPorts = {
     getFeedbackSnippetsByIds: async () => new Map(),
     findEligibleFeedbackIds: async () => [],
   } satisfies FeedbackLookupPort,
-  propertyLookup: {
-    getPropertyNameById: async () => null,
-    getPropertyNamesByIds: async () => new Map(),
-  } satisfies PropertyLookupPort,
+  propertyLookup: inertPropertyLookup,
 }
 
 export type RepositoryPorts = Readonly<{
@@ -85,8 +83,7 @@ export function createInboxRepository(database: Database, ports: RepositoryPorts
           await createAtomicInboxCommandStore(
             database,
             allowAllCommandAuthority,
-            () => TEST_NOW,
-          ).createItem(item, null, {
+          ).createItem(item, {
             sourceRevision: 1,
             openedReason: 'feedback_submitted',
             actorType: 'guest',
@@ -141,8 +138,7 @@ export function createInboxRepository(database: Database, ports: RepositoryPorts
         await createAtomicInboxCommandStore(
           database,
           allowAllCommandAuthority,
-          () => TEST_NOW,
-        ).createItem(item, null, reviewOpeningAnchor(item))
+        ).createItem(item, reviewOpeningAnchor(item))
       ).item
     },
   }

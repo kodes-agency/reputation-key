@@ -115,7 +115,7 @@ describe.sequential('getReviewInboxItemIds', () => {
   let pool: Pool
 
   const seed = async (...items: InboxItem[]) => {
-    for (const item of items) await seedInboxItem(pool, db, item, () => NOW)
+    for (const item of items) await seedInboxItem(pool, db, item)
   }
 
   async function setup(staffPublicApi: StaffPublicApi = staffWithAccess(null)) {

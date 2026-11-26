@@ -182,7 +182,7 @@ function setup(opts: {
     logger: createMockLogger(),
   }
   const seed = async () => {
-    await seedInboxScope(pool, ORG, [PROP, PROP_2], opts.items ?? [], NOW)
+    await seedInboxScope(pool, ORG, [PROP, PROP_2], opts.items ?? [])
     for (const source of opts.sources ?? []) {
       await seedReviewSource(pool, {
         id: source.id,
@@ -231,8 +231,8 @@ describe.sequential('rebuildInboxProjection', () => {
     expect(await events.created()).toHaveLength(0)
   })
 
-  it('reports a review it cannot materialise instead of only logging it', async () => {
-    const src = makeSource({ materialReviewRevision: null })
+  it('reports a review whose item cannot be built instead of only logging it', async () => {
+    const src = makeSource({ platform: 'x'.repeat(51) })
     const { useCase, seed, items } = setup({ sources: [src] })
 
     await seed()

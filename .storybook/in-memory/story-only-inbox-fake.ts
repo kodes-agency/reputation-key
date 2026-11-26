@@ -291,9 +291,14 @@ export function createStoryOnlyInboxCommandStore(deps: {
       }
       return { updated: transitions.length, results }
     },
-    assign: async (item, updates, _event, now) =>
-      write(item.id, item.organizationId, { assignedTo: updates.assignedTo }, now),
-    escalate: async (item, updates, _event, now) =>
+    assign: async (item, updates, event) =>
+      write(
+        item.id,
+        item.organizationId,
+        { assignedTo: updates.assignedTo },
+        event.occurredAt,
+      ),
+    escalate: async (item, updates, event) =>
       write(
         item.id,
         item.organizationId,
@@ -304,10 +309,10 @@ export function createStoryOnlyInboxCommandStore(deps: {
           escalationResolvedAt: null,
           escalationResolvedBy: null,
         }),
-        now,
+        event.occurredAt,
       ),
-    setPriority: async (item, updates, _event, now) => {
-      const stamp = now ?? new Date()
+    setPriority: async (item, updates, event) => {
+      const stamp = event.occurredAt
       const priority: PriorityWrite = {
         managerPriority: updates.priority,
         managerPrioritySetBy: updates.priority === null ? null : updates.setBy,
@@ -315,7 +320,7 @@ export function createStoryOnlyInboxCommandStore(deps: {
       }
       return write(item.id, item.organizationId, priority, stamp)
     },
-    resolveEscalation: async (item, updates, _event, now) =>
+    resolveEscalation: async (item, updates, event) =>
       write(
         item.id,
         item.organizationId,
@@ -324,7 +329,7 @@ export function createStoryOnlyInboxCommandStore(deps: {
           escalationResolvedAt: stamp,
           escalationResolvedBy: updates.resolvedBy,
         }),
-        now,
+        event.occurredAt,
       ),
     addNote: async (item, note) => {
       write(item.id, item.organizationId, { assignedTo: item.assignedTo }, note.createdAt)

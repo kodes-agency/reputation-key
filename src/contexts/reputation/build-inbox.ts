@@ -185,11 +185,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
 
   // BQC-3.4: every fact-producing command commits state and its outbox row in
   // one transaction.
-  const commandStore = createAtomicInboxCommandStore(
-    input.db,
-    input.authorizeCommand,
-    input.clock,
-  )
+  const commandStore = createAtomicInboxCommandStore(input.db, input.authorizeCommand)
   const handlingCycleStore = createReviewHandlingCycleStore(input.db)
   const feedbackHandlingStore = createFeedbackHandlingStore(
     input.db,
@@ -239,8 +235,6 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
       replyObservationAuthority,
       responseTargetAuthority,
       sourceTransitionAuthority,
-      reviewLookup: input.reviewLookup,
-      reviewSourceLookup,
       inboxRepo,
       idGen: () => inboxItemId(input.idGen()),
       clock: input.clock,

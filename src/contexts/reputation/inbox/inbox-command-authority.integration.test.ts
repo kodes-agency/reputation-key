@@ -168,11 +168,7 @@ describe.sequential('Inbox command-wide authority', () => {
     await raceAgainstGrantRevocation({
       ...revocationOf(PROPERTY_A),
       start: () =>
-        createAtomicInboxCommandStore(
-          db,
-          authorityForSession(ASSIGN_SESSION),
-          () => NOW,
-        ).assign(
+        createAtomicInboxCommandStore(db, authorityForSession(ASSIGN_SESSION)).assign(
           item,
           { assignedTo: MANAGER },
           inboxItemAssigned({
@@ -184,7 +180,6 @@ describe.sequential('Inbox command-wide authority', () => {
             source: 'web',
             occurredAt: NOW,
           }),
-          NOW,
         ),
       afterRevocation: async (command) => {
         await expect(command).rejects.toSatisfy(
@@ -219,7 +214,6 @@ describe.sequential('Inbox command-wide authority', () => {
         createAtomicInboxCommandStore(
           db,
           authorityForSession(BULK_SESSION),
-          () => NOW,
         ).bulkUpdateStatus([itemA, itemB], events, {
           reason: 'new_information',
           explanation: null,
@@ -264,7 +258,7 @@ const realAuthority = createInboxCommandAuthority({
     decideCurrentManagerPropertyAuthorities(tx, input),
 })
 
-const commandStore = () => createAtomicInboxCommandStore(db, realAuthority, () => NOW)
+const commandStore = () => createAtomicInboxCommandStore(db, realAuthority)
 
 /** Seed through the real projection path so the item owns a Handling Cycle. */
 async function openCycleItem(
@@ -273,7 +267,7 @@ async function openCycleItem(
   sourceId: InboxItem['sourceId'],
 ): Promise<InboxItem> {
   const item = makeItem(id, property, sourceId, 'open')
-  await createAtomicInboxCommandStore(db, allowAll, () => NOW).createItem(item, null, {
+  await createAtomicInboxCommandStore(db, allowAll).createItem(item, {
     sourceRevision: 1,
     openedReason: 'feedback_submitted',
     actorType: 'guest',
@@ -370,7 +364,6 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
       item,
       { assignedTo: MANAGER },
       claimEvent(item, MANAGER),
-      NOW,
     )
 
     expect(saved.assignedTo).toBe(MANAGER)
@@ -388,7 +381,6 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
       item,
       { assignedTo: MANAGER },
       claimEvent(item, MANAGER, OWNER),
-      NOW,
     )
 
     await expect(itemRow(ITEM_A)).resolves.toMatchObject({ assigned_to: MANAGER })
@@ -486,7 +478,6 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
         createAtomicInboxCommandStore(
           db,
           authorityForSession(ASSIGN_SESSION),
-          () => NOW,
         ).bulkUpdateStatus([{ ...closed, assignedTo: MANAGER }], events, {
           reason: 'new_information',
           explanation: null,
@@ -543,7 +534,6 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
         createAtomicInboxCommandStore(
           db,
           authorityForSession(ASSIGN_SESSION),
-          () => NOW,
         ).releaseIneligibleAssignmentsForUser({
           organizationId: ORG,
           userId: MANAGER,
@@ -597,12 +587,7 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
     await revokeGrant(PROPERTY_A)
 
     await expect(
-      commandStore().assign(
-        item,
-        { assignedTo: MANAGER },
-        claimEvent(item, MANAGER),
-        NOW,
-      ),
+      commandStore().assign(item, { assignedTo: MANAGER }, claimEvent(item, MANAGER)),
     ).rejects.toSatisfy(
       (error: unknown) => isInboxError(error) && error.code === 'forbidden',
     )
@@ -623,7 +608,6 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
         item,
         { assignedTo: MANAGER },
         claimEvent(item, MANAGER, OWNER),
-        NOW,
       ),
     ).rejects.toMatchObject({
       code: 'forbidden',

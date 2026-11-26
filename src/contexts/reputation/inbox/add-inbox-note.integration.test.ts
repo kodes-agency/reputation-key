@@ -96,7 +96,7 @@ describe.sequential('addInboxNote', () => {
     const noteRepo = createInboxNoteRepository(db)
     const execute = addInboxNote({
       repo,
-      commandStore: createUseCaseCommandStore(db, () => FIXED_TIME),
+      commandStore: createUseCaseCommandStore(db),
       idGen: () => FIXED_ID,
       clock: () => FIXED_TIME,
       staffPublicApi: peopleApi,
@@ -118,7 +118,7 @@ describe.sequential('addInboxNote', () => {
         ctx,
       )
     const notes = () => noteRepo.findByInboxItemId(ITEM_ID, ORG_ID)
-    const seed = (item: InboxItem) => seedInboxItem(pool, db, item, () => FIXED_TIME)
+    const seed = (item: InboxItem) => seedInboxItem(pool, db, item)
     return { useCase, repo, notes, seed }
   }
 

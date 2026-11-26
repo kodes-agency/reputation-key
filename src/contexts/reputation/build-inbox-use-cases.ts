@@ -69,7 +69,7 @@ type WireInput = Readonly<{
   googleReviewCheck: CheckReviewOnGoogle
   googleCheckRateLimit: GoogleCheckRateLimitPort
   aiInsights?: AiReviewInsightsPort
-  propertyLookup?: PropertyLookupPort
+  propertyLookup: PropertyLookupPort
   staffPublicApi: StaffPublicApi
   actorDirectory: InboxActorDirectory
   logger: LoggerPort

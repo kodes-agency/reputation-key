@@ -357,7 +357,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
 
     await testReviewRepository(db).upsert(
       makeReview({

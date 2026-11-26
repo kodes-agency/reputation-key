@@ -63,7 +63,6 @@ export const createAssignmentCommands = (
   const {
     db,
     authorizeCommand,
-    clock,
     assertCommandAuthority,
     authorityRequirements,
     actorPrincipals,
@@ -642,9 +641,9 @@ export const createAssignmentCommands = (
       })
     },
 
-    assign: async (item, updates, event, now, lent) => {
+    assign: async (item, updates, event, lent) => {
       return trace('inbox.commandStore.assign', async () => {
-        const stamp = now ?? clock()
+        const stamp = event.occurredAt
         return inTransaction(db, lent, async (tx) => {
           const actorId = webActorId(event)
           const touchesAnotherAssignee =
@@ -669,36 +668,32 @@ export const createAssignmentCommands = (
             stamp,
             authorityRequirements(item, principals),
           )
-          const handlingCycleNumber = event
-            ? await currentAssignmentCycleNumber(tx, item)
-            : null
+          const handlingCycleNumber = await currentAssignmentCycleNumber(tx, item)
           const row = await updateItemRow(
             tx,
             item,
             { assignedTo: updates.assignedTo, updatedAt: stamp },
             'Inbox item assignment update failed — no row returned',
           )
-          if (event) {
-            const reason =
-              item.assignedTo === null
-                ? updates.assignedTo === event.userId
-                  ? 'claim'
-                  : 'assign'
-                : updates.assignedTo === null
-                  ? 'release'
-                  : 'reassign'
-            await appendAssignmentHistory(tx, item, {
-              resultingCommandRevision: row.commandRevision,
-              handlingCycleNumber,
-              previousAssignee: item.assignedTo,
-              nextAssignee: updates.assignedTo,
-              reason,
-              actorUserId: event.userId,
-              bulkId: null,
-              occurredAt: stamp,
-            })
-            await insertAssignmentFact(tx, event, row.commandRevision)
-          }
+          const reason =
+            item.assignedTo === null
+              ? updates.assignedTo === event.userId
+                ? 'claim'
+                : 'assign'
+              : updates.assignedTo === null
+                ? 'release'
+                : 'reassign'
+          await appendAssignmentHistory(tx, item, {
+            resultingCommandRevision: row.commandRevision,
+            handlingCycleNumber,
+            previousAssignee: item.assignedTo,
+            nextAssignee: updates.assignedTo,
+            reason,
+            actorUserId: event.userId,
+            bulkId: null,
+            occurredAt: stamp,
+          })
+          await insertAssignmentFact(tx, event, row.commandRevision)
           return row
         })
       })

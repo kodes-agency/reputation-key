@@ -33,11 +33,11 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const seedingStore = createAtomicInboxCommandStore(db)
     const closed = makeItem({ status: 'closed', closedAt: NOW, assignedTo: USER_A })
-    await seedingStore.createItem(closed, null, reviewOpeningAnchor(closed))
+    await seedingStore.createItem(closed, reviewOpeningAnchor(closed))
     const authorize: InboxCommandAuthority = vi.fn(async () => ({
       allowed: true as const,
     }))
-    const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+    const store = createProductionInboxCommandStore(db, authorize)
 
     await store.reopenReviewCycle({
       item: closed,
@@ -69,7 +69,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       const closed = makeItem({ status: 'closed', closedAt: NOW, assignedTo: USER_A })
       await createAtomicInboxCommandStore(db).createItem(
         closed,
-        null,
         reviewOpeningAnchor(closed),
       )
       const command = {
@@ -115,7 +114,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         allowed: false as const,
         reason: 'grant_revoked',
       }))
-      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+      const store = createProductionInboxCommandStore(db, authorize)
 
       await expect(store.reopenReviewCycle(command)).rejects.toMatchObject({
         code: 'forbidden',
@@ -139,7 +138,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
           ? { allowed: false as const, reason: 'assignee_assignment_denied' }
           : { allowed: true as const },
       )
-      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+      const store = createProductionInboxCommandStore(db, authorize)
 
       await store.reopenReviewCycle(command)
 
@@ -164,7 +163,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         if (!asksAssignee) return { allowed: true as const }
         return { allowed: false as const, reason: 'authority_changed' }
       })
-      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+      const store = createProductionInboxCommandStore(db, authorize)
 
       await expect(store.reopenReviewCycle(command)).rejects.toMatchObject({
         code: 'revision_conflict',
@@ -183,7 +182,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const closed = makeItem({ status: 'closed', closedAt: NOW })
-    await store.createItem(closed, null, reviewOpeningAnchor(closed))
+    await store.createItem(closed, reviewOpeningAnchor(closed))
 
     await expect(
       store.reopenReviewCycle({
@@ -219,7 +218,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       closedAt: NOW,
       assignedTo: USER_A,
     })
-    await store.createItem(closed, null, reviewOpeningAnchor(closed))
+    await store.createItem(closed, reviewOpeningAnchor(closed))
     const fact = inboxItemStatusChanged({
       inboxItemId: closed.id,
       organizationId: closed.organizationId,
@@ -319,7 +318,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     })
     const store = createAtomicInboxCommandStore(db)
     for (const item of [first, second]) {
-      await store.createItem(item, null, {
+      await store.createItem(item, {
         sourceRevision: 1,
         openedReason: 'legacy_backfill',
         actorType: 'system',
@@ -393,7 +392,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     ) as [InboxItem, InboxItem]
     const store = createAtomicInboxCommandStore(db)
     for (const item of [landed, stale]) {
-      await store.createItem(item, null, {
+      await store.createItem(item, {
         sourceRevision: 1,
         openedReason: 'legacy_backfill',
         actorType: 'system',
@@ -490,8 +489,8 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       closedAt: NOW,
     })
     const store = createAtomicInboxCommandStore(db)
-    await store.createItem(first, null, reviewOpeningAnchor(first))
-    await store.createItem(second, null, reviewOpeningAnchor(second))
+    await store.createItem(first, reviewOpeningAnchor(first))
+    await store.createItem(second, reviewOpeningAnchor(second))
     const command = (items: readonly InboxItem[], bulkId: string) =>
       store.bulkUpdateStatus(
         items,

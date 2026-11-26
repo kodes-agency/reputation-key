@@ -47,6 +47,7 @@ import { createReviewSourceLookupAdapter } from '#/contexts/reputation/inbox/rev
 import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createInboxRepository } from './inbox-repository.server'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const ORG = organizationId('org-inbox-erased-review-1111111111')
 const PROPERTY = propertyId('7e300000-0000-4000-8000-000000000001')
@@ -69,21 +70,14 @@ const db = getDb()
 const logger = createMockLogger()
 const reviewRepo = createReviewRepository(db, () => NOW, undefined, replyScopeEffects)
 const replyRepo = createReplyRepository(db, () => NOW)
-const commandStore = createAtomicInboxCommandStore(
-  db,
-  async () => ({ allowed: true }),
-  () => NOW,
-)
+const commandStore = createAtomicInboxCommandStore(db, async () => ({ allowed: true }))
 
 const feedbackLookup: FeedbackLookupPort = {
   getFeedbackSnippetById: async () => null,
   getFeedbackSnippetsByIds: async () => new Map(),
   findEligibleFeedbackIds: async () => [],
 }
-const propertyLookup: PropertyLookupPort = {
-  getPropertyNameById: async () => null,
-  getPropertyNamesByIds: async () => new Map(),
-}
+const propertyLookup: PropertyLookupPort = inertPropertyLookup
 const inboxRepo = createInboxRepository(
   db,
   {
@@ -253,7 +247,6 @@ beforeEach(async () => {
   ] as const) {
     await commandStore.createItem(
       reviewItem(item, sourceId),
-      null,
       reviewOpeningAnchor(reviewItem(item, sourceId)),
     )
   }
