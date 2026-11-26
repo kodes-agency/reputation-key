@@ -9,9 +9,9 @@ import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { transitionControl } from '#/shared/db/testing/ai-execution-control-fixture'
 import {
   aiExecutionControlHeads,
-  aiExecutionControlTransitions,
   aiOperations,
   aiOrganizationCostWindows,
   aiPropertyProcessingProfiles,
@@ -118,57 +118,10 @@ export type AiOperationFixture = Readonly<{
 
 const CAPABILITY_SCOPE_KEY = `capability:${AI_REPLY_OPERATION_PROFILE.capability}`
 
-async function transitionCapabilityControl(
-  db: Database,
-  actorUserId: string,
-  posture: AiControlPosture,
-): Promise<void> {
-  const [head] = await db
-    .select()
-    .from(aiExecutionControlHeads)
-    .where(eq(aiExecutionControlHeads.scopeKey, CAPABILITY_SCOPE_KEY))
-    .limit(1)
-  if (!head) throw new Error(`AI execution control ${CAPABILITY_SCOPE_KEY} is not seeded`)
-  if (
-    head.executionState === posture.executionState &&
-    head.admissionState === posture.admissionState
-  ) {
-    return
-  }
-  const generation = head.generation + 1
-  // The head guard refuses an update stamped before the previous one; use the
-  // wall clock so consecutive runs (and other suites) stay monotonic.
-  const occurredAt = new Date()
-  await db.transaction(async (tx) => {
-    await tx.insert(aiExecutionControlTransitions).values({
-      controlId: head.controlId,
-      generation,
-      predecessorGeneration: head.generation,
-      scopeKey: head.scopeKey,
-      scopeKind: head.scopeKind,
-      scopeValue: head.scopeValue,
-      executionState: posture.executionState,
-      admissionState: posture.admissionState,
-      reasonCode: 'integration_test_transition',
-      actorUserId,
-      ticketReference: `ai-operation-fixture-${generation}`,
-      candidateReleaseSha: null,
-      occurredAt,
-    })
-    await tx
-      .update(aiExecutionControlHeads)
-      .set({
-        generation,
-        executionState: posture.executionState,
-        admissionState: posture.admissionState,
-        updatedAt: occurredAt,
-      })
-      .where(
-        sql`${aiExecutionControlHeads.scopeKey} = ${CAPABILITY_SCOPE_KEY}
-          AND ${aiExecutionControlHeads.generation} = ${head.generation}`,
-      )
-  })
-}
+const CONTROL_OPTIONS = (actorUserId: string) => ({
+  actorUserId,
+  ticketPrefix: 'ai-operation-fixture',
+})
 
 /**
  * The Property's processing profile and its consent to reply drafting, written
@@ -342,10 +295,12 @@ export async function installAiOperationFixture(
     executionState: head.executionState,
     admissionState: head.admissionState,
   }
-  await transitionCapabilityControl(db, actorUserId, {
-    executionState: 'enabled',
-    admissionState: 'accepting',
-  })
+  await transitionControl(
+    db,
+    CAPABILITY_SCOPE_KEY,
+    { executionState: 'enabled', admissionState: 'accepting' },
+    CONTROL_OPTIONS(actorUserId),
+  )
 
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
@@ -508,11 +463,21 @@ export async function installAiOperationFixture(
       await (executor ? write(executor) : db.transaction(write))
     },
     async setCapabilityControl(posture: AiControlPosture) {
-      await transitionCapabilityControl(db, actorUserId, posture)
+      await transitionControl(
+        db,
+        CAPABILITY_SCOPE_KEY,
+        posture,
+        CONTROL_OPTIONS(actorUserId),
+      )
     },
     async remove() {
       await clear()
-      await transitionCapabilityControl(db, actorUserId, initialPosture)
+      await transitionControl(
+        db,
+        CAPABILITY_SCOPE_KEY,
+        initialPosture,
+        CONTROL_OPTIONS(actorUserId),
+      )
     },
   })
 }

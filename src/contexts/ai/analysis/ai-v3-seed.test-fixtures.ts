@@ -18,7 +18,6 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiExecutionControlHeads,
-  aiExecutionControlTransitions,
   aiOperations,
   aiPropertyAggregateContributions,
   aiPropertyAggregateHeads,
@@ -36,6 +35,7 @@ import {
 } from '#/shared/db/schema'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation/ai-operation-profiles'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { transitionControl } from '#/shared/db/testing/ai-execution-control-fixture'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -154,59 +154,7 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
   }> = []
   let lastIndex = 0
 
-  async function transitionControl(
-    scopeKey: string,
-    posture: Readonly<{
-      executionState: 'enabled' | 'killed'
-      admissionState: 'accepting' | 'draining'
-    }>,
-  ): Promise<void> {
-    const [head] = await db
-      .select()
-      .from(aiExecutionControlHeads)
-      .where(eq(aiExecutionControlHeads.scopeKey, scopeKey))
-      .limit(1)
-    if (!head) throw new Error(`AI execution control ${scopeKey} is not seeded`)
-    if (
-      head.executionState === posture.executionState &&
-      head.admissionState === posture.admissionState
-    ) {
-      return
-    }
-    const generation = head.generation + 1
-    const occurredAt = new Date()
-    await db.transaction(async (tx) => {
-      await tx.insert(aiExecutionControlTransitions).values({
-        controlId: head.controlId,
-        generation,
-        predecessorGeneration: head.generation,
-        scopeKey: head.scopeKey,
-        scopeKind: head.scopeKind,
-        scopeValue: head.scopeValue,
-        executionState: posture.executionState,
-        admissionState: posture.admissionState,
-        reasonCode: 'integration_test_transition',
-        actorUserId: ACTOR_USER_ID,
-        ticketReference: `ai-v3-seed-${scopeKey}-${generation}`,
-        candidateReleaseSha: null,
-        occurredAt,
-      })
-      await tx
-        .update(aiExecutionControlHeads)
-        .set({
-          generation,
-          executionState: posture.executionState,
-          admissionState: posture.admissionState,
-          updatedAt: occurredAt,
-        })
-        .where(
-          and(
-            eq(aiExecutionControlHeads.scopeKey, scopeKey),
-            eq(aiExecutionControlHeads.generation, head.generation),
-          ),
-        )
-    })
-  }
+  const controlOptions = { actorUserId: ACTOR_USER_ID, ticketPrefix: 'ai-v3-seed' }
 
   async function clear(): Promise<void> {
     if (adopt) return
@@ -501,10 +449,12 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
         admissionState: head.admissionState as 'accepting' | 'draining',
       }))
       for (const scopeKey of CONTROL_SCOPE_KEYS) {
-        await transitionControl(scopeKey, {
-          executionState: 'enabled',
-          admissionState: 'accepting',
-        })
+        await transitionControl(
+          db,
+          scopeKey,
+          { executionState: 'enabled', admissionState: 'accepting' },
+          controlOptions,
+        )
       }
       if (!adopt) {
         await db.execute(sql`
@@ -666,7 +616,7 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
         await clear()
       } finally {
         for (const control of initialControls) {
-          await transitionControl(control.scopeKey, control)
+          await transitionControl(db, control.scopeKey, control, controlOptions)
         }
       }
     },

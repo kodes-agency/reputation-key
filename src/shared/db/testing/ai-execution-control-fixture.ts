@@ -30,6 +30,8 @@ export type ControlTransitionOptions = Readonly<{
   actorUserId: string
   /** Prefix of the transition's ticket reference; the scope and generation follow it. */
   ticketPrefix?: string
+  /** Stamped on the transition and the head; defaults to the wall clock. */
+  occurredAt?: Date
 }>
 
 const DEFAULT_TICKET_PREFIX = 'ai-execution-control-fixture'
@@ -67,7 +69,7 @@ export async function readControlHeads(db: Database): Promise<readonly ControlHe
 
 export async function transitionControl(
   db: Database,
-  scopeKey: ControlScopeKey,
+  scopeKey: string,
   posture: ControlPosture,
   options: ControlTransitionOptions,
 ): Promise<void> {
@@ -85,7 +87,7 @@ export async function transitionControl(
   }
 
   const generation = head.generation + 1
-  const occurredAt = new Date()
+  const occurredAt = options.occurredAt ?? new Date()
   await db.transaction(async (tx) => {
     await tx.insert(aiExecutionControlTransitions).values({
       controlId: head.controlId,

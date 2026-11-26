@@ -3,6 +3,7 @@
 // Runs through whichever executor the suite holds (a pg Pool, or a Drizzle
 // database via drizzleSeedRunner), so two tenants can be seeded side by side.
 
+import { insertOrganization } from '#/shared/db/testing/tenant-seed'
 import type { SeedQueryRunner } from './google-connection-seed'
 
 export type TenantSeed = Readonly<{
@@ -21,12 +22,11 @@ export async function seedTenant(
   runner: SeedQueryRunner,
   seed: TenantSeed,
 ): Promise<void> {
-  await runner.query(
-    `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, $2, $3, now())
-     ON CONFLICT (id) DO NOTHING`,
-    [seed.organizationId, seed.organizationName, seed.organizationId],
-  )
+  await insertOrganization(runner, {
+    id: seed.organizationId,
+    name: seed.organizationName,
+    slug: seed.organizationId,
+  })
   await runner.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, $3, $4, 'UTC')

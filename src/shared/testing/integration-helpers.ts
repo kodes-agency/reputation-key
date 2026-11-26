@@ -3,25 +3,19 @@
 //
 // B0.3: All integration tests must acquire a TestEnvironmentLease before
 // creating a database pool. The lease validates NODE_ENV, opt-in flag,
-// denylist, and creates a cryptographically unique marker in the database.
+// denylist and the configured-database fence.
 
 import { Pool } from 'pg'
+import { insertOrganization } from '#/shared/db/testing/tenant-seed'
 import { getEnv } from '#/shared/config/env'
 import type { OrganizationId } from '#/shared/domain/ids'
 import {
   deleteTestOrganizationsWithExecutor,
   type TestOrganizationCleanupExecutor,
 } from '#/shared/db/testing/test-organization-cleanup'
-import {
-  acquireTestLease,
-  validateTestDatabaseUrl,
-  TestEnvironmentError,
-  type TestLease,
-} from './test-environment-lease'
+import { acquireTestLease, type TestLease } from './test-environment-lease'
 
-export { validateTestDatabaseUrl, TestEnvironmentError }
-
-export async function truncateTables(
+async function truncateTables(
   pool: Pool,
   tables: string[],
   orgIds: string[],
@@ -56,12 +50,7 @@ export async function seedOrgs(pool: Pool, ids: string[]): Promise<void> {
     // integration files share one database, so a suffix-derived slug collides
     // whenever two files pick ids ending in the same characters.
     const slug = 't-' + id.replace(/-/g, '')
-    await pool.query(
-      `INSERT INTO organization (id, name, slug, "createdAt")
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (id) DO NOTHING`,
-      [id, `Test Org ${slug}`, slug],
-    )
+    await insertOrganization(pool, { id, name: `Test Org ${slug}`, slug })
   }
 }
 

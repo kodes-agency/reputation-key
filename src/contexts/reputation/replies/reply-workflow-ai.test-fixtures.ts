@@ -33,7 +33,6 @@ import {
 } from '#/shared/db/ai/ai-draft-purge'
 import {
   aiExecutionControlHeads,
-  aiExecutionControlTransitions,
   aiOperations,
   aiOrganizationCostWindows,
   aiPropertyProcessingProfiles,
@@ -45,6 +44,10 @@ import {
   reviewAiAnalysisHeads,
   reviews,
 } from '#/shared/db/schema'
+import {
+  transitionControl,
+  type ControlPosture,
+} from '#/shared/db/testing/ai-execution-control-fixture'
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import type { Reply } from '../domain/review-types'
 import {
@@ -83,11 +86,6 @@ const MINUTE_MS = 60_000
 /** Long before any clock these tests run on. */
 const WINDOW_PASSED = new Date('2000-01-01T00:00:00.000Z')
 
-type ControlState = Readonly<{
-  executionState: string
-  admissionState: string
-}>
-
 export type ReplyWorkflowAiFixture = ReturnType<typeof createReplyWorkflowAiFixture>
 
 export function createReplyWorkflowAiFixture(
@@ -115,7 +113,7 @@ export function createReplyWorkflowAiFixture(
     },
   )
   let operationSequence = 0
-  let replyControlBefore: ControlState | null = null
+  let replyControlBefore: ControlPosture | null = null
 
   async function databaseNow(): Promise<Date> {
     const result = await db.execute<{ now: Date | string }>(sql`SELECT now() AS "now"`)
@@ -139,40 +137,11 @@ export function createReplyWorkflowAiFixture(
 
   /** The control is one row for the whole database; integration files run one
    * at a time, and `restore` puts back what `seed` found. */
-  async function setReplyControl(state: ControlState): Promise<void> {
-    const head = await controlHead(REPLY_CONTROL_SCOPE)
-    if (
-      head.executionState === state.executionState &&
-      head.admissionState === state.admissionState
-    ) {
-      return
-    }
-    const occurredAt = await databaseNow()
-    const generation = head.generation + 1
-    await db.transaction(async (tx) => {
-      await tx.insert(aiExecutionControlTransitions).values({
-        controlId: head.controlId,
-        generation,
-        predecessorGeneration: head.generation,
-        scopeKey: head.scopeKey,
-        scopeKind: head.scopeKind,
-        scopeValue: head.scopeValue,
-        ...state,
-        reasonCode: 'integration_test_transition',
-        actorUserId,
-        ticketReference: `reply-workflow-model-${generation}`,
-        candidateReleaseSha: null,
-        occurredAt,
-      })
-      await tx
-        .update(aiExecutionControlHeads)
-        .set({ generation, ...state, updatedAt: occurredAt })
-        .where(
-          and(
-            eq(aiExecutionControlHeads.scopeKey, REPLY_CONTROL_SCOPE),
-            eq(aiExecutionControlHeads.generation, head.generation),
-          ),
-        )
+  async function setReplyControl(state: ControlPosture): Promise<void> {
+    await transitionControl(db, REPLY_CONTROL_SCOPE, state, {
+      actorUserId,
+      ticketPrefix: 'reply-workflow-model',
+      occurredAt: await databaseNow(),
     })
   }
 
@@ -209,8 +178,8 @@ export function createReplyWorkflowAiFixture(
   async function seed(): Promise<void> {
     const head = await controlHead(REPLY_CONTROL_SCOPE)
     replyControlBefore = {
-      executionState: head.executionState,
-      admissionState: head.admissionState,
+      executionState: head.executionState as ControlPosture['executionState'],
+      admissionState: head.admissionState as ControlPosture['admissionState'],
     }
     await setReplyControl({ executionState: 'enabled', admissionState: 'accepting' })
 
