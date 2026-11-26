@@ -202,11 +202,13 @@ export const portalPublicationActivations = pgTable(
     portalId: uuid('portal_id').notNull(),
     snapshotId: uuid('snapshot_id').notNull(),
     activationSequence: integer('activation_sequence').notNull(),
-    kind: varchar('kind', { length: 20 }).notNull(),
+    kind: varchar('kind', { length: 20 }).$type<'publish' | 'rollback'>().notNull(),
     activatedBy: varchar('activated_by', { length: 255 }).notNull(),
     activatedAt: timestamp('activated_at', { withTimezone: true }).notNull(),
     deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
-    deactivationReason: varchar('deactivation_reason', { length: 20 }),
+    deactivationReason: varchar('deactivation_reason', { length: 20 }).$type<
+      'disabled' | 'archived' | 'replaced'
+    >(),
   },
   (t) => [
     uniqueIndex('portal_publication_activations_portal_sequence_unique').on(
@@ -273,7 +275,16 @@ export const portalPendingContentChanges = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     propertyId: uuid('property_id').notNull(),
     portalId: uuid('portal_id').notNull(),
-    changeKind: varchar('change_kind', { length: 40 }).notNull(),
+    changeKind: varchar('change_kind', { length: 40 })
+      .$type<
+        | 'portal_configuration'
+        | 'portal_links'
+        | 'property_brand_profile'
+        | 'property_brand_content'
+        | 'portal_localized_override'
+        | 'approved_destination'
+      >()
+      .notNull(),
     changeKey: varchar('change_key', { length: 160 }).notNull().default('all'),
     sourceVersion: varchar('source_version', { length: 160 }).notNull(),
     changedAt: timestamp('changed_at', { withTimezone: true }).notNull(),
