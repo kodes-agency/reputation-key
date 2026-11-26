@@ -17,14 +17,7 @@ import type {
   ReviewSourceTransitionAuthority,
 } from '#/contexts/reputation/public-api'
 import { inboxItemId } from '#/shared/domain/ids'
-import type { InboxRepository } from './inbox/inbox-repository.port.server'
-import type { InboxNoteRepository } from './inbox/inbox-note-repository.port.server'
-import type { InboxViewRepository } from './inbox/inbox-view-repository.port.server'
 import type { InboxCommandStore } from './inbox/command-store.port.server'
-import type { ReviewHandlingCycleStore } from './inbox/review-handling-cycle-store.port.server'
-import type { FeedbackHandlingStore } from './inbox/feedback-handling-store.port.server'
-import type { ResponseTargetStore } from './response-targets/store.port.server'
-import type { ResponseTargetPolicyStore } from './response-targets/policy.store.port.server'
 import type { RestatedRevisionTargetExclusions } from './response-targets/restated-revision-target-exclusion-store.port.server'
 import type { ReviewLookupPort } from './inbox/review-lookup.port.server'
 import type { AiReviewInsightsPort } from './inbox/ai-review-insights.port.server'
@@ -114,8 +107,7 @@ export type InboxContextApi = Readonly<{
   worker: Readonly<{
     registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
   }>
-  /** ARC-03-T12: the named member-authority capability. Replaces the root's
-   * `inbox.internal.commandStore` reach-through. */
+  /** The named member-authority capability. */
   assignments: Pick<InboxCommandStore, 'releaseIneligibleAssignmentsForUser'>
   /** The scheduled reminder release Inbox contributes to the worker. */
   runtime: Readonly<{
@@ -123,21 +115,6 @@ export type InboxContextApi = Readonly<{
       name: string
       handler: ReturnType<typeof createReleaseResponseTargetRemindersHandler>
     }>
-  }>
-  internal: Readonly<{
-    repos: Readonly<{
-      inboxRepo: InboxRepository
-      inboxNoteRepo: InboxNoteRepository
-      inboxViewRepo: InboxViewRepository
-      staffPublicApi: StaffPublicApi
-    }>
-    /** BQC-3.4: atomic state+outbox command store — also drives the durable consumers. */
-    commandStore: InboxCommandStore
-    handlingCycleStore: ReviewHandlingCycleStore
-    feedbackHandlingStore: FeedbackHandlingStore
-    responseTargetStore: ResponseTargetStore
-    responseTargetPolicyStore: ResponseTargetPolicyStore
-    useCases: ReturnType<typeof wireUseCases>
   }>
 }>
 
@@ -265,19 +242,5 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
         }),
       }),
     }),
-    internal: {
-      repos: {
-        inboxRepo,
-        inboxNoteRepo,
-        inboxViewRepo,
-        staffPublicApi: input.staffPublicApi,
-      },
-      commandStore,
-      handlingCycleStore,
-      feedbackHandlingStore,
-      responseTargetStore,
-      responseTargetPolicyStore,
-      useCases,
-    },
   }
 }
