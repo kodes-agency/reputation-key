@@ -5,6 +5,7 @@
 // The one quiet line under each section name in the editor's list — what a
 // manager needs to know about a section without opening it. Pure and separate
 // from the navigation so the words are pinned by a test, not by JSX.
+import { plural } from '#/shared/format/format'
 import {
   hasPropertyWording,
   PROPERTY_LOOK_SOURCES,
@@ -47,9 +48,6 @@ export type PortalEditorSectionSummary = Readonly<{
   /** Something the section needs, shown beside the line in the warning colour. */
   attention?: string
 }>
-
-const plural = (count: number, one: string, many: string) =>
-  `${count} ${count === 1 ? one : many}`
 
 // A hidden tile is named here as it is in the links list, so a manager who sees
 // "1 hidden from guests" here finds the same words once the section opens.

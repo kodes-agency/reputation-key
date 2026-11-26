@@ -11,6 +11,7 @@
 // Pure: the page draws the pieces. A blocked check is one the server would
 // refuse the publication on, so every blocked line says what to do about it; a
 // warning says what guests would read instead and that publishing can go on.
+import { plural } from '#/shared/format/format'
 import type {
   MissingPortalText,
   ReviewCheck,
@@ -94,9 +95,6 @@ const linkLabelOf = (
   key: string,
   missing: ReadonlyArray<MissingPortalText>,
 ): string | null => missing.find((text) => text.key === key)?.linkLabel ?? null
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`
 
 /** "1 label missing", "2 texts missing": labels only when every text is a link label. */
 function countMissing(keys: readonly string[]): string {
