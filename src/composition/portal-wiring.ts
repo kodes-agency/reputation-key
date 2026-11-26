@@ -24,7 +24,7 @@ export function wirePortal(
     propertyApi: property.publicApi,
     staffPublicApi: identity.publicApi.people,
     identityManagerFacts: identity.publicApi.managerFacts,
-    baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
+    baseUrl: env.BETTER_AUTH_URL,
     printCodes: {
       printOrigin: env.PORTAL_PRINT_ORIGIN,
     },

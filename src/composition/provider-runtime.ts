@@ -1,19 +1,8 @@
 import type { Pool } from 'pg'
 import type { Env } from '#/shared/config/env'
-import type {
-  GoogleOAuthPort,
-  GoogleOAuthProviderCallAuthorizer,
-} from '#/contexts/integration/connections/google-oauth.port.server'
+import type { GoogleOAuthPort } from '#/contexts/integration/connections/google-oauth.port.server'
 import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/provider/google-client.port.server'
-import type { GoogleImportReferenceStore } from '#/contexts/integration/imports/durable-import-reference-store.port.server'
-import type { GoogleImportContentAuthorizer } from '#/contexts/integration/imports/google-import-command-authorizer.server'
-import type { GoogleReviewCursorStore } from '#/contexts/integration/review-sync/google-review-cursor-store.server'
-import type { PerformanceContentAuthorizer } from '#/contexts/integration/performance/google-performance-authorizer.server'
-import type { GoogleReviewSyncContentAuthorizer } from '#/contexts/integration/review-sync/google-review-sync-authorizer.server'
-import type { GoogleReplyPublicationContentAuthorizer } from '#/contexts/integration/review-sync/google-reply-publication-authorizer.server'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { AiInferencePort } from '#/contexts/ai/execution/ai-inprocess.port.server'
 import type { AiSubjectHmacPort } from '#/contexts/ai/analysis/ai-subject-hmac.port.server'
 import { createAiInProcessInference } from '#/contexts/ai/execution/ai-inprocess.adapter.server'
@@ -34,17 +23,6 @@ import type { AiGatewayCaller } from '#/shared/ai-gateway/ai-gateway-transport-c
 export type ProviderOverrides = Readonly<{
   googleOAuth?: GoogleOAuthPort
   googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
-  authorizeGoogleOAuthProviderCall?: GoogleOAuthProviderCallAuthorizer
-  googleImportReferences?: GoogleImportReferenceStore
-  googleReviewCursorStore?: GoogleReviewCursorStore
-  authorizeGoogleImportContent?: GoogleImportContentAuthorizer
-  authorizeGooglePerformanceContent?: PerformanceContentAuthorizer
-  authorizeGoogleReviewSyncContent?: GoogleReviewSyncContentAuthorizer
-  authorizeGoogleReplyPublicationContent?: GoogleReplyPublicationContentAuthorizer
-  googlePerformancePrincipalKeys?: VersionedHmacKeyring
-  providerAuthorizationLeases?: ProviderAuthorizationLeaseService
-  aiInference?: AiInferencePort
-  aiSubjectHmac?: AiSubjectHmacPort
   storage?: StoragePort
 }>
 
@@ -179,8 +157,6 @@ export function createAiRuntimeProviders(
     /** The application's own pool — the admission authority runs on it now. */
     pool: Pool
     clock: () => Date
-    inferenceOverride?: AiInferencePort
-    subjectHmacOverride?: AiSubjectHmacPort
   }>,
 ): AiRuntimeProviders {
   const keyInventory = resolveAiGatewayRuntimeKeyInventory({
@@ -196,8 +172,8 @@ export function createAiRuntimeProviders(
   // of those six described how to reach a sidecar that no longer exists, so the
   // signal is now the one value a provider call cannot be made without.
   const caller: AiGatewayCaller = input.enableJobs ? 'worker' : 'web'
-  let inference = input.inferenceOverride
-  if (!inference && input.env.OPENAI_API_KEY !== undefined) {
+  let inference: AiInferencePort | undefined
+  if (input.env.OPENAI_API_KEY !== undefined) {
     const runtime = createAiEgressRuntime({
       env: input.env,
       pool: input.pool,
@@ -223,11 +199,9 @@ export function createAiRuntimeProviders(
     throw new Error('AI provenance public keyring is unavailable')
   }
 
-  const subjectHmac =
-    input.subjectHmacOverride ??
-    (input.env.AI_SUBJECT_HMAC_KEYS
-      ? createAiSubjectHmacAdapter(input.env.AI_SUBJECT_HMAC_KEYS)
-      : undefined)
+  const subjectHmac = input.env.AI_SUBJECT_HMAC_KEYS
+    ? createAiSubjectHmacAdapter(input.env.AI_SUBJECT_HMAC_KEYS)
+    : undefined
   if (input.enableJobs && inference !== undefined && subjectHmac === undefined) {
     throw new Error('AI worker subject HMAC authority is unavailable')
   }
