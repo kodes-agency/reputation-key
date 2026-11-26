@@ -14,7 +14,7 @@
 
 import type { PropertyResponsibilityRuntime } from '#/contexts/property/responsibility/property-responsibility-runtime.server'
 import type { PortalResponsibilityRuntime } from '#/contexts/portal/responsibility/portal-responsibility-runtime.server'
-import type { InboxAssignmentRuntime } from '#/contexts/reputation/inbox/inbox-assignment-runtime.server'
+import type { InboxContextApi } from '#/contexts/reputation/build-inbox'
 import type { Clock } from '#/shared/domain/clock'
 import { organizationId, userId } from '#/shared/domain/ids'
 import {
@@ -35,7 +35,7 @@ export type MemberAuthorityLifecycleDeps = Readonly<{
   clock: Clock
   propertyResponsibility: PropertyResponsibilityRuntime
   portalResponsibility: PortalResponsibilityRuntime
-  inboxAssignments: InboxAssignmentRuntime
+  inboxAssignments: InboxContextApi['assignments']
   eligibility: ResponsibleManagerEligibilityDeps
 }>
 

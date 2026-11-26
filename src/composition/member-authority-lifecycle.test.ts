@@ -10,7 +10,7 @@ import type { Clock } from '#/shared/domain/clock'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import type { PropertyResponsibilityRuntime } from '#/contexts/property/responsibility/property-responsibility-runtime.server'
 import type { PortalResponsibilityRuntime } from '#/contexts/portal/responsibility/portal-responsibility-runtime.server'
-import type { InboxAssignmentRuntime } from '#/contexts/reputation/inbox/inbox-assignment-runtime.server'
+import type { InboxContextApi } from '#/contexts/reputation/build-inbox'
 import type { PropertyResponsibleManager } from '#/contexts/property/domain/property-responsible-manager'
 import type { PortalResponsibleManager } from '#/contexts/portal/domain/portal-responsible-manager'
 import {
@@ -69,7 +69,7 @@ function createFakes(
   } as unknown as PortalResponsibilityRuntime
   const inboxAssignments = {
     releaseIneligibleAssignmentsForUser: vi.fn(async () => ({ released: 1 })),
-  } as unknown as InboxAssignmentRuntime
+  } as unknown as InboxContextApi['assignments']
   const eligible = new Set(seed.eligibleProperties ?? [])
   const deps: MemberAuthorityLifecycleDeps = {
     clock,
