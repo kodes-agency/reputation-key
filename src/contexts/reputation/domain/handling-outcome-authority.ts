@@ -18,7 +18,7 @@
 
 import { err, ok, type Result } from '#/shared/domain'
 import { inboxError, type InboxError } from './inbox-errors'
-import type { HandlingCycleCloseReason, HandlingCycleHead } from './inbox-types'
+import type { HandlingCycleHead } from './inbox-types'
 
 /**
  * Closures caused by the source ceasing to be available: a guest withdrawal or
@@ -33,45 +33,6 @@ export const SOURCE_UNAVAILABLE_CLOSE_REASONS = [
   'guest_withdrawn',
   'source_ineligible',
 ] as const
-
-export type SourceUnavailableCloseReason =
-  (typeof SOURCE_UNAVAILABLE_CLOSE_REASONS)[number]
-
-export const isSourceUnavailableCloseReason = (
-  value: string,
-): value is SourceUnavailableCloseReason =>
-  SOURCE_UNAVAILABLE_CLOSE_REASONS.some((candidate) => candidate === value)
-
-/** The exactly-one closure that a manager authored. */
-const MANAGER_HANDLING_CLOSE_REASON: HandlingCycleCloseReason = 'private_feedback_handled'
-
-const KNOWN_CLOSE_REASONS: ReadonlyArray<HandlingCycleCloseReason> = [
-  'confirmed_on_google',
-  'external_reply_observed',
-  'guest_withdrawn',
-  'private_feedback_handled',
-  'source_ineligible',
-  'superseded_by_source_revision',
-]
-
-export type ManagerHandlingAttribution =
-  'manager_handling' | 'not_manager_handling' | 'unattributable'
-
-/**
- * How a recorded closure may be presented. `unattributable` exists so a reason
- * this build does not know about is reported as unknown instead of silently
- * defaulting into either bucket — the same fail-closed stance the legacy
- * classifier takes with `ambiguous`.
- */
-export function managerHandlingAttributionFor(
-  closeReason: string,
-): ManagerHandlingAttribution {
-  if (closeReason === MANAGER_HANDLING_CLOSE_REASON) return 'manager_handling'
-  if (KNOWN_CLOSE_REASONS.some((candidate) => candidate === closeReason)) {
-    return 'not_manager_handling'
-  }
-  return 'unattributable'
-}
 
 export type ManagerHandlingRequest = Readonly<{
   current: HandlingCycleHead

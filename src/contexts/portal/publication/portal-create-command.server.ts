@@ -27,7 +27,10 @@ import { portalError } from '../domain/errors'
 import { portalToRow } from './portal-mapper.server'
 import { assertCommittedRevision } from './portal-command-guards.server'
 import { assertCreateCommand } from './portal-create-guards.server'
-import { joinPortalGroupInTransaction } from './portal-group-commands.server'
+import {
+  joinPortalGroupInTransaction,
+  membershipJoinOf,
+} from './portal-group-commands.server'
 import {
   insertCopiedContent,
   refusingGoneLookImage,
@@ -73,18 +76,10 @@ async function insertResponsibleManagers(
 async function joinGroup(tx: Tx, command: CreatePortalCommand): Promise<void> {
   const membership = command.groupMembership
   if (!membership) return
-  const { portal } = command
-  await joinPortalGroupInTransaction(tx, {
-    organizationId: command.organizationId,
-    propertyId: portal.propertyId,
-    portalGroupId: membership.portalGroupId,
-    portalId: portal.id,
-    expectedUpdatedAt: membership.expectedGroupUpdatedAt,
-    revision: membership.revision,
-    occurredAt: portal.createdAt,
-    changedBy: creatorOf(command),
-    event: membership.event,
-  })
+  await joinPortalGroupInTransaction(
+    tx,
+    membershipJoinOf(command, membership, creatorOf(command)),
+  )
 }
 
 async function insertInitialHealth(tx: Tx, command: CreatePortalCommand): Promise<void> {

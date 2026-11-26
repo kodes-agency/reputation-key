@@ -1,12 +1,7 @@
 // The Portal Group reads other contexts may make, built over the group repository.
 
 import type { PortalGroupRepository } from './portal-group-repository.port.server'
-import type {
-  OrganizationId,
-  PortalGroupId,
-  PortalId,
-  PropertyId,
-} from '#/shared/domain/ids'
+import type { OrganizationId, PortalGroupId, PortalId } from '#/shared/domain/ids'
 
 export const createPortalGroupPublicApi = (
   portalGroupRepo: PortalGroupRepository,
@@ -21,14 +16,6 @@ export const createPortalGroupPublicApi = (
     portalGroupRepo.getGroupPortalIds(orgId, groupId),
   findGroupIdsByPortalIds: (orgId: OrganizationId, portalIds: ReadonlyArray<PortalId>) =>
     portalGroupRepo.findGroupIdsByPortalIds(orgId, portalIds),
-  portalGroupBelongsToProperty: async (
-    orgId: OrganizationId,
-    pid: PropertyId,
-    groupId: PortalGroupId,
-  ) => {
-    const group = await portalGroupRepo.findById(orgId, groupId)
-    return group?.propertyId === pid
-  },
   getGroupInfo: async (orgId: OrganizationId, groupId: PortalGroupId) => {
     const group = await portalGroupRepo.findById(orgId, groupId)
     if (!group) return null

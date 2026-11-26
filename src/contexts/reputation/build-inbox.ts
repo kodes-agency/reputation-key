@@ -12,10 +12,8 @@ import { registerInboxMemberOffboardingConsumers } from './inbox/member-offboard
 import type { ConsumerRegistry } from '#/shared/outbox'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import type {
-  ReviewReplyObservationAuthority,
-  ReviewSourceTransitionAuthority,
-} from '#/contexts/reputation/public-api'
+import type { ReviewReplyObservationAuthority } from './reviews/reply-observation-authority.port.server'
+import type { ReviewSourceTransitionAuthority } from './reviews/source-transition-authority.port.server'
 import { inboxItemId } from '#/shared/domain/ids'
 import type { InboxCommandStore } from './inbox/command-store.port.server'
 import type { RestatedRevisionTargetExclusions } from './response-targets/restated-revision-target-exclusion-store.port.server'
@@ -53,10 +51,8 @@ import { createFeedbackLookupAdapter } from './inbox/feedback-lookup.adapter.ser
 import { createPropertyLookupAdapter } from './inbox/property-lookup.adapter.server'
 import { createReplyLookupAdapter } from './inbox/reply-lookup.adapter.server'
 import { createReviewSourceLookupAdapter } from './inbox/review-source-lookup.adapter.server'
-import type {
-  ReviewGoogleReviewCheck,
-  ReviewResponseTargetAuthority,
-} from '#/contexts/reputation/public-api'
+import type { CheckReviewOnGoogle as ReviewGoogleReviewCheck } from './sync/check-review-on-google.server'
+import type { ReviewResponseTargetAuthority } from './reviews/response-target-authority.port.server'
 import { createGoogleCheckRateLimitAdapter } from './inbox/google-check-rate-limit.adapter.server'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { createInboxActorDirectoryAdapter } from './inbox/inbox-actor-directory.adapter.server'

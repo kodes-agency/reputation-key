@@ -9,7 +9,6 @@ const portalApi = {
 }
 const portalGroupApi = {
   getGroupPortalIds: vi.fn(),
-  portalGroupBelongsToProperty: vi.fn(),
   getGroupInfo: vi.fn(),
 }
 const reader = (enabled = false) =>
@@ -27,7 +26,11 @@ describe('Goal Program subject reader', () => {
 
   it('delegates timezone and Portal Group ownership through tenant-bound APIs', async () => {
     propertyApi.getPropertyTimezone.mockResolvedValue('Europe/Sofia')
-    portalGroupApi.portalGroupBelongsToProperty.mockResolvedValue(true)
+    portalGroupApi.getGroupInfo.mockResolvedValue({
+      id: 'group-1',
+      propertyId: 'property-1',
+      name: 'North',
+    })
 
     await expect(reader().getTimezone('org-1', 'property-1')).resolves.toBe(
       'Europe/Sofia',
@@ -38,11 +41,7 @@ describe('Goal Program subject reader', () => {
         portalGroupId: 'group-1',
       }),
     ).resolves.toBe(true)
-    expect(portalGroupApi.portalGroupBelongsToProperty).toHaveBeenCalledWith(
-      'org-1',
-      'property-1',
-      'group-1',
-    )
+    expect(portalGroupApi.getGroupInfo).toHaveBeenCalledWith('org-1', 'group-1')
   })
 
   it('accepts a Portal only when both Organization and Property match', async () => {

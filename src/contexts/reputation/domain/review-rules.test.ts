@@ -3,13 +3,13 @@
 import { describe, it, expect } from 'vitest'
 import {
   computeReviewContentHash,
-  canTransitionReply,
   REPLY_TEMPLATE_SLOT_TOKENS,
   replyTextProblemMessage,
   unfilledReplySlots,
   unknownReplyTemplateSlots,
   unfilledReplySlotsMessage,
 } from './review-rules'
+import { canTransitionReply } from './reply-workflow-oracle.test-fixtures'
 import { replyCommandMayStart } from './reply-command-preconditions'
 import type { ReplyStatus } from './review-types'
 

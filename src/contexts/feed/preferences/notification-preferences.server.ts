@@ -32,7 +32,6 @@ import {
   type CategoryPreferenceValues,
 } from '../domain/notification-preference-resolution'
 import { notificationError } from '../domain/notification-errors'
-import { isPreferenceDisableable } from '../domain/notification-policy'
 
 type StoredPreferenceRow = typeof notificationPreferences.$inferSelect
 type PreferenceRow = StoredPreferenceRow & { propertyId: string }
@@ -57,9 +56,7 @@ const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
     propertyId: toPropertyId(row.propertyId),
     category,
     channel,
-    // Expand-phase compatibility: stale false rows cannot make a required
-    // channel appear disabled while the backfill/constraint rolls out.
-    enabled: isPreferenceDisableable(category, channel) ? row.enabled : true,
+    enabled: row.enabled,
     cadence: row.cadence as NotificationCadence,
     maxRating: maxRatingOf(row.maxRating),
     createdAt: row.createdAt,
@@ -77,7 +74,7 @@ const categoryDefaultFromRow = (
     organizationId: toOrgId(row.organizationId),
     category,
     channel,
-    enabled: isPreferenceDisableable(category, channel) ? row.enabled : true,
+    enabled: row.enabled,
     cadence: row.cadence as NotificationCadence,
     maxRating: maxRatingOf(row.maxRating),
     createdAt: row.createdAt,

@@ -17,7 +17,7 @@ import { generateKeyPairSync } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { purgeAiDraftsForProperty } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
 import {
   createAiReplyAdoptionSeeder,
   DAY_MS,
@@ -114,7 +114,7 @@ const {
 
 const purgeProperty = (seeded: Pick<SeededReply, 'property'>): Promise<void> =>
   db.transaction((tx) =>
-    purgeAiDraftsForProperty(
+    purgeAiDraftsForAuthorization(
       tx,
       { organizationId: ORG, propertyId: seeded.property },
       replyScopeEffects,

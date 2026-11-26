@@ -15,7 +15,7 @@ import {
   type AlertAuxReads,
 } from './alert-definitions'
 import { evaluateAlerts } from './alert-evaluation'
-import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
+import { SNAPSHOT_SECTIONS } from '#/shared/observability/snapshot-sections'
 
 import { AUX, evaluateOne, healthy } from './alert-definitions.test-fixtures'
 
@@ -141,7 +141,7 @@ describe('blindedBy registry contract', () => {
     const { held } = evaluateAlerts(s, AUX, new Set(), new Set())
 
     const unheld = ALERT_DEFINITIONS.filter(
-      (def) => def.implemented && !held.includes(def.name),
+      (def) => def.evaluate !== null && !held.includes(def.name),
     ).map((def) => def.name)
     expect(unheld.sort()).toEqual(Object.keys(READS_NO_HEALTH_SIGNAL).sort())
   })

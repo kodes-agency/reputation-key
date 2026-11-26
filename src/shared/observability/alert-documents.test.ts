@@ -34,9 +34,9 @@ function documentedAlerts(tableHeader: RegExp): readonly DocumentedAlert[] {
 }
 
 const registered = (implemented: boolean): readonly DocumentedAlert[] =>
-  ALERT_DEFINITIONS.filter((definition) => definition.implemented === implemented).map(
-    ({ name, severity, runbook }) => ({ name, severity, runbook }),
-  )
+  ALERT_DEFINITIONS.filter(
+    (definition) => (definition.evaluate !== null) === implemented,
+  ).map(({ name, severity, runbook }) => ({ name, severity, runbook }))
 
 const byName = (alerts: readonly DocumentedAlert[]): readonly DocumentedAlert[] =>
   [...alerts].sort((left, right) => left.name.localeCompare(right.name))
@@ -121,7 +121,10 @@ describe('the beta contract on how a stop condition is noticed', () => {
     ) ?? ''
   const cited = [...passage.matchAll(ALERT_NAME)].map((match) => match[1] ?? '')
   const implemented = new Map(
-    ALERT_DEFINITIONS.map((definition) => [definition.name, definition.implemented]),
+    ALERT_DEFINITIONS.map((definition) => [
+      definition.name,
+      definition.evaluate !== null,
+    ]),
   )
 
   it('names only alerts the registry defines', () => {

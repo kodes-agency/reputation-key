@@ -40,7 +40,7 @@ import {
   type AlertFetchFn,
 } from '#/shared/observability/alert-dispatcher'
 import { REVIEW_ANALYSIS_STALLED_ALERT_MS } from '#/shared/observability/alert-definitions'
-import { isBannedLogKey } from '#/shared/observability/metrics-schema'
+import { isBannedLogKey } from '#/shared/observability/log-field-policy.test-fixtures'
 import type { AlertStateStore } from '#/shared/health/alert-state'
 import type { RedisHeartbeatPort } from '#/shared/health/worker-heartbeat'
 import { createHealthCheckHandler } from '#/shared/jobs/health-check.job'

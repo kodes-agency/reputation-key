@@ -2,8 +2,6 @@ import { replyScopeEffects } from '#/contexts/reputation/public-api'
 import {
   purgeAiDraftsForAuthorization,
   purgeAiDraftsForControl,
-  purgeAiDraftsForOrganization,
-  purgeAiDraftsForProperty,
   purgeAiDraftsForReview,
 } from '#/shared/db/ai/ai-draft-purge'
 import { carryDraftMeasurement } from '#/shared/db/ai/draft-measurement-lineage'
@@ -300,41 +298,33 @@ it.each(['global', 'provider_deployment_profile', 'capability'] as const)(
         replyScopeEffects,
       ),
     )
-    await getDb().transaction((tx) =>
-      purgeAiDraftsForOrganization(tx, WORKFLOW_ORG, replyScopeEffects),
-    )
     expect(await currentLink()).toBe(id)
     expect((await measurements())[0].id).toBe(id)
   },
 )
 
-it.each(['authorization', 'property'] as const)(
-  'erases measurements and links for %s withdrawal',
-  async (scope) => {
-    await harness.commands.adoptAiSuggestion(DRAFT)
-    const reply = await harness.commands.draft(EDIT)
-    await getDb().transaction((tx) =>
-      (scope === 'authorization'
-        ? purgeAiDraftsForAuthorization
-        : purgeAiDraftsForProperty)(
-        tx,
-        {
-          organizationId: WORKFLOW_ORG,
-          propertyId: WORKFLOW_PROPERTY,
-        },
-        replyScopeEffects,
-      ),
-    )
-    expect(await measurements()).toEqual([])
-    expect(
-      (
-        await pool.query('SELECT * FROM ai_draft_measurement_links WHERE reply_id = $1', [
-          reply.id,
-        ])
-      ).rows,
-    ).toEqual([])
-  },
-)
+it('erases measurements and links for authorization withdrawal', async () => {
+  await harness.commands.adoptAiSuggestion(DRAFT)
+  const reply = await harness.commands.draft(EDIT)
+  await getDb().transaction((tx) =>
+    purgeAiDraftsForAuthorization(
+      tx,
+      {
+        organizationId: WORKFLOW_ORG,
+        propertyId: WORKFLOW_PROPERTY,
+      },
+      replyScopeEffects,
+    ),
+  )
+  expect(await measurements()).toEqual([])
+  expect(
+    (
+      await pool.query('SELECT * FROM ai_draft_measurement_links WHERE reply_id = $1', [
+        reply.id,
+      ])
+    ).rows,
+  ).toEqual([])
+})
 
 it('skips a busy tenant measurement lock and does not contend with another organization', async () => {
   await harness.commands.adoptAiSuggestion(DRAFT)

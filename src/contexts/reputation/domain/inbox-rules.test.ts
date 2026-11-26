@@ -1,12 +1,7 @@
 // Inbox context — domain rules tests (ADR 0055: open/closed 2-state machine)
 
 import { describe, it, expect } from 'vitest'
-import {
-  canTransition,
-  isAnsweringGoogleReply,
-  validateTransition,
-  timestampFieldsForStatus,
-} from './inbox-rules'
+import { canTransition, isAnsweringGoogleReply, validateTransition } from './inbox-rules'
 import { isInboxError } from './inbox-errors'
 import type { InboxStatus } from './inbox-types'
 
@@ -78,22 +73,6 @@ describe('validateTransition', () => {
     const result = validateTransition('open', 'open')
     expect(result.isErr()).toBe(true)
     expect(isInboxError(result._unsafeUnwrapErr())).toBe(true)
-  })
-})
-
-// ─── timestampFieldsForStatus ───────────────────────────────────────
-
-describe('timestampFieldsForStatus', () => {
-  const NOW = new Date('2026-08-29T00:00:00.000Z')
-
-  it('stamps closedAt when an item closes', () => {
-    expect(timestampFieldsForStatus('closed', NOW)).toEqual({ closedAt: NOW })
-  })
-
-  it('CLEARS closedAt when an item reopens, rather than leaving the old one', () => {
-    // ADR 0055: one field, not four. Reopening has to null it — a stale
-    // closedAt on an open item is what makes an SLA report lie.
-    expect(timestampFieldsForStatus('open', NOW)).toEqual({ closedAt: null })
   })
 })
 
