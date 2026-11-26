@@ -33,7 +33,7 @@ import {
   assignmentFor,
   assertRatingSubjectsAllowed,
   GoalProgramError,
-  isMetricSourceInactive,
+  assertMetricSourceReadable,
   noteOf,
   resolveMetricVersion,
   type GoalActor,
@@ -261,7 +261,7 @@ async function followingRevision(
 /**
  * The governed version a new version of the goal would be read under, or null
  * when the measure cannot carry one right now: it is no longer approved, or
- * its source is not active, cannot be read or is quarantined. Each of these
+ * its source cannot be read or is quarantined. Each of these
  * refuses a revision of a goal that has started, so each refuses this one.
  */
 async function usableMeasure(
@@ -276,8 +276,8 @@ async function usableMeasure(
 ): Promise<GovernedMetricVersion | null> {
   try {
     const governed = await resolveMetricVersion(deps, query.metric)
-    const sourceInactive = await isMetricSourceInactive(deps, { ...query, governed })
-    return sourceInactive ? null : governed
+    await assertMetricSourceReadable(deps, { ...query, governed })
+    return governed
   } catch (error) {
     if (error instanceof GoalProgramError && error.code === 'metric_unavailable') {
       return null
