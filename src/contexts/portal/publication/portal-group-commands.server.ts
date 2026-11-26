@@ -9,10 +9,12 @@ import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import { unbrand } from '#/shared/domain/ids'
+import { unbrand, type UserId } from '#/shared/domain/ids'
 import type {
   AddPortalToGroupCommand,
+  CreatePortalCommand,
   CreatePortalGroupCommand,
+  CreatePortalGroupMembership,
   DeletePortalGroupCommand,
   MovePortalToGroupCommand,
   PortalCommandStore,
@@ -180,12 +182,31 @@ function assertMoveCommand(command: MovePortalToGroupCommand): void {
   }
 }
 
+/** The membership a new Portal starts with, as the command that puts it in its group. */
+export function membershipJoinOf(
+  command: CreatePortalCommand,
+  membership: CreatePortalGroupMembership,
+  changedBy: UserId,
+): AddPortalToGroupCommand {
+  const { portal } = command
+  return {
+    organizationId: command.organizationId,
+    propertyId: portal.propertyId,
+    portalGroupId: membership.portalGroupId,
+    portalId: portal.id,
+    expectedUpdatedAt: membership.expectedGroupUpdatedAt,
+    revision: membership.revision,
+    occurredAt: portal.createdAt,
+    changedBy,
+    event: membership.event,
+  }
+}
+
 /**
  * Put a Portal in a group inside a command transaction: fence the group, check
  * the Portal is an active one of the same Property and not already grouped,
  * write the effective-dated membership, the group history entry and the fact.
- * Shared by the membership command and by Portal creation (the new Portal joins
- * its group in the same commit), so both leave the same rows.
+ * Used by Portal creation: the new Portal joins its group in the same commit.
  */
 export async function joinPortalGroupInTransaction(
   tx: Tx,

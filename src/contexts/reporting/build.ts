@@ -165,10 +165,9 @@ function buildMetricModule(input: ReportingContextBuildInput) {
         case 'property':
           return subject.propertyId === propertyId
         case 'portal_group':
-          return input.portalGroupApi.portalGroupBelongsToProperty(
-            orgId,
-            propertyId,
-            subject.portalGroupId,
+          return (
+            (await input.portalGroupApi.getGroupInfo(orgId, subject.portalGroupId))
+              ?.propertyId === propertyId
           )
         case 'portal': {
           const context = await input.portalApi.resolvePortalContext(subject.portalId)
