@@ -7,6 +7,7 @@
 // button that sets it is not a leap of faith.
 
 import { ratingThresholdWords } from '#/components/forms/rating-threshold'
+import { findCategoryDefault } from './notification-preference-saves'
 import {
   resolveCategoryPreference,
   type ConfigurableNotificationCategory,
@@ -24,9 +25,7 @@ const defaultFor = (
   category: ConfigurableNotificationCategory,
   channel: NotificationChannel,
 ) => {
-  const stored = defaults.find(
-    (row) => row.category === category && row.channel === channel,
-  )
+  const stored = findCategoryDefault(defaults, category, channel)
   return stored === undefined
     ? null
     : { enabled: stored.enabled, cadence: stored.cadence, maxRating: stored.maxRating }
