@@ -363,7 +363,6 @@ function snapshotRepository(run: ReviewProviderSnapshotRun) {
     finishConfirmationScan: unexpected(),
     failRun: vi.fn(async () => ({ ...run, state: 'failed' as const })),
     applyDeletionBatch: unexpected(),
-    expireRawSourceBatch: unexpected(),
     sweepExpiredTombstones: unexpected(),
   } satisfies ReviewProviderSnapshotRepository
 }

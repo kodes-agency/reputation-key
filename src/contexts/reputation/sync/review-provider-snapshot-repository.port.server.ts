@@ -368,19 +368,6 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     }>
   >
 
-  /**
-   * Legacy raw-expiry compatibility report. It delegates to the checkpointed
-   * Review lifecycle authority and returns zero transitions while apply is
-   * quarantined. Retained only for stale payload/type compatibility.
-   */
-  expireRawSourceBatch(
-    input: Readonly<{
-      beforeOrAt: Date
-      afterReviewId: ReviewId | null
-      limit: number
-    }>,
-  ): Promise<Readonly<{ transitioned: number; nextReviewId: ReviewId | null }>>
-
   sweepExpiredTombstones(
     input: Readonly<{
       beforeOrAt: Date
