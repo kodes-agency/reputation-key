@@ -1,6 +1,6 @@
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
-import { goalSubjectIdentity, type GoalSubject } from './goal-subject'
+import type { GoalSubject } from './goal-subject'
 
 export { goalSubjectIdentity, type GoalSubject } from './goal-subject'
 // Kept in goal-start.ts, out of this module: the dialogs that change a goal run
@@ -51,13 +51,6 @@ export function sameGoalEvaluation(
     left.reason === right.reason
   )
 }
-
-export type GoalAssignmentWindow = Readonly<{
-  subject: GoalSubject
-  metric: GoalMetric
-  effectiveFrom: Date
-  effectiveTo: Date | null
-}>
 
 const RATING_AVERAGE_MINIMUM_SAMPLE = 10
 export const MAX_GOAL_ASSIGNMENT_SELECTIONS = 250
@@ -196,21 +189,6 @@ export function canTransitionGoalProgram(
   return from === to || PROGRAM_TRANSITIONS[from].includes(to)
 }
 
-const RESULT_TRANSITIONS: Readonly<
-  Record<GoalMonthlyResultStatus, readonly GoalMonthlyResultStatus[]>
-> = {
-  open: ['reconciling'],
-  reconciling: ['closed'],
-  closed: [],
-}
-
-export function canTransitionGoalMonthlyResult(
-  from: GoalMonthlyResultStatus,
-  to: GoalMonthlyResultStatus,
-): boolean {
-  return from === to || RESULT_TRANSITIONS[from].includes(to)
-}
-
 export function parseGoalSubject(
   kind: string,
   subjectId: string,
@@ -223,31 +201,6 @@ export function parseGoalSubject(
   if (kind === 'portal_group') return { kind, portalGroupId: subjectId }
   if (kind === 'portal') return { kind, portalId: subjectId }
   return null
-}
-
-/** Half-open effective windows conflict only for the same subject and metric. */
-export function goalAssignmentsOverlap(
-  left: GoalAssignmentWindow,
-  right: GoalAssignmentWindow,
-): boolean {
-  if (
-    left.metric !== right.metric ||
-    goalSubjectIdentity(left.subject) !== goalSubjectIdentity(right.subject)
-  ) {
-    return false
-  }
-  const leftEnd = left.effectiveTo?.getTime() ?? Number.POSITIVE_INFINITY
-  const rightEnd = right.effectiveTo?.getTime() ?? Number.POSITIVE_INFINITY
-  return (
-    left.effectiveFrom.getTime() < rightEnd && right.effectiveFrom.getTime() < leftEnd
-  )
-}
-
-export function goalAssignmentMonthlyKey(
-  assignment: Pick<GoalAssignmentWindow, 'subject' | 'metric'>,
-  periodStart: Date,
-): string {
-  return `${goalSubjectIdentity(assignment.subject)}:${assignment.metric}:${periodStart.toISOString()}`
 }
 
 export function isGoalResultReadyToClose(

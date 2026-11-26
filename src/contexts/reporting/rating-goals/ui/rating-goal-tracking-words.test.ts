@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   goalLineText,
-  headlineText,
+  headlineOf,
   reviewCountText,
   soonText,
   thisWeekOf,
@@ -19,6 +19,15 @@ import {
   CARD_LAGS_MIDDLE,
 } from './rating-goal-tracking.stories.fixtures'
 import { CARD_KEEP } from './rating-goal.stories.fixtures'
+
+/** The headline as one sentence, as a reader hears it. */
+const headlineText = (card: Parameters<typeof headlineOf>[0]): string | null => {
+  const headline = headlineOf(card)
+  if (headline === null) return null
+  return headline.kind === 'soon'
+    ? headline.text
+    : `${headline.count} ${headline.words} ${headline.target}`
+}
 
 describe('the headline', () => {
   it('counts the new reviews to the next number Google can show', () => {
