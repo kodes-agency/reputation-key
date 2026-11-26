@@ -597,9 +597,7 @@ export function createGenerateReplySuggestion(
       return {
         status: 'ready',
         profileVersion: response.result.profileVersion,
-        ...(response.result.profileVersion === REPLY_DRAFTING_V2_VERSIONS.profile
-          ? { mainPoint: response.result.mainPoint, case: response.result.case }
-          : {}),
+        case: response.result.case,
         ...deliveredReplyFrame(replyV2Frame, response.result.replyText),
         replyText: response.result.replyText,
         provenanceToken: response.result.provenanceToken,

@@ -14,7 +14,6 @@ const ready: GenerateReplySuggestionResult = {
   expiresAtEpochMillis: 5000,
   baseReplyStateRevision: 1,
   concreteLanguageTag: 'en-Latn',
-  mainPoint: [1],
 }
 
 describe('raw NDJSON reply response', () => {

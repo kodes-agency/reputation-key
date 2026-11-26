@@ -239,7 +239,7 @@ const onLoadTemplate = fn(async (templateId: string) => ({
 }))
 const onGenerateSuggestion = fn(async (): Promise<ReplySuggestionResult> => ({
   status: 'ready',
-  profileVersion: 'reply-draft-v3',
+  profileVersion: 'reply-draft-v4',
   replyText: SUGGESTED_TEXT,
   provenanceToken: 'storybook-provenance-token',
   expiresAtEpochMillis: Date.now() + 60_000,
@@ -274,7 +274,7 @@ const onGenerateByTarget = fn(
     const inReviewLanguage = target.kind === 'review_language'
     return {
       status: 'ready',
-      profileVersion: 'reply-draft-v3',
+      profileVersion: 'reply-draft-v4',
       replyText: inReviewLanguage ? TR_AI_TEXT : BG_AI_TEXT,
       provenanceToken: 'storybook-provenance-token',
       expiresAtEpochMillis: Date.now() + 60_000,

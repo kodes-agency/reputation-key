@@ -168,7 +168,7 @@ const NEVER_REPLIED_STATE_REVISION = 0
 
 const READY: GenerateReplySuggestionResult = {
   status: 'ready',
-  profileVersion: 'reply-draft-v3',
+  profileVersion: 'reply-draft-v4',
   replyText: 'Thank you for the detailed feedback.',
   provenanceToken: 'provenance-token-1',
   expiresAtEpochMillis: 0,
