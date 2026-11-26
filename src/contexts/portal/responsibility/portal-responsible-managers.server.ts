@@ -2,15 +2,15 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { strictlyAfter } from '#/shared/domain/clock'
 import { portalId } from '#/shared/domain/ids'
 import {
-  MANAGER_BECAME_INELIGIBLE_END_REASON,
   listEligibleResponsibleManagers,
   listIneligibleResponsibleManagers,
+  MANAGER_BECAME_INELIGIBLE_END_REASON,
 } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
 import type { PortalResponsibleManagerRepository } from './portal-responsible-manager-repository.port.server'
 import {
-  type PortalManagerEligibilityDeps,
   policyDeps,
+  type PortalManagerEligibilityDeps,
 } from './portal-manager-eligibility.server'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
 import type { Portal } from '../domain/types'

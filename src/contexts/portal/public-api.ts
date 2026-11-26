@@ -344,11 +344,6 @@ export type PortalGroupPublicApi = Readonly<{
     orgId: OrganizationId,
     portalIds: ReadonlyArray<PortalId>,
   ) => Promise<ReadonlyArray<PortalGroupId>>
-  portalGroupBelongsToProperty: (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-    groupId: PortalGroupId,
-  ) => Promise<boolean>
   /**
    * A group's minimal facts by id; null when the organization has no such
    * group or it is archived. The caller compares the Property.

@@ -34,22 +34,6 @@ describe('createPortalGroupPublicApi', () => {
     expect(await api.findGroupForPortal(org, portal, new Date(0))).toBeNull()
   })
 
-  it('says whether a group belongs to the given Property', async () => {
-    const findById = vi.fn(async () => ({ id: group, propertyId: prop }))
-    const api = build({ findById } as never)
-
-    expect(await api.portalGroupBelongsToProperty(org, prop, group)).toBe(true)
-    expect(await api.portalGroupBelongsToProperty(org, propertyId('other'), group)).toBe(
-      false,
-    )
-  })
-
-  it('says a missing group belongs to no Property', async () => {
-    const api = build({ findById: vi.fn(async () => null) } as never)
-
-    expect(await api.portalGroupBelongsToProperty(org, prop, group)).toBe(false)
-  })
-
   it('reads a group by id as its minimal facts, within the organization', async () => {
     const findById = vi.fn(async () => ({
       id: group,
