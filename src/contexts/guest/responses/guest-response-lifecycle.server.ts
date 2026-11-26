@@ -6,9 +6,10 @@ import {
   correctResponse,
   createResponse,
   deleteResponse,
-  DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS,
+  CORRECTION_WINDOW_MS,
+  FEEDBACK_WITHDRAWAL_WINDOW_MS,
   DEFAULT_RESPONSE_SESSION_WINDOW_MS,
-  DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS,
+  RESPONSE_WITHDRAWAL_WINDOW_MS,
   submitPrivateFeedback,
   submitResponse,
   withdrawPrivateFeedback,
@@ -67,9 +68,6 @@ export class GuestResponseLifecycleError extends Error {
 }
 
 /** Exported for the server boundary, which mirrors a submitted view's shape. */
-export const CORRECTION_WINDOW_MS = 60 * 60 * 1000
-const FEEDBACK_WITHDRAWAL_WINDOW_MS = DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS
-export const RESPONSE_WITHDRAWAL_WINDOW_MS = DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS
 
 function factRetentionDeadline(from: Date): Date {
   const deadline = new Date(from)
@@ -413,9 +411,7 @@ export function guestResponseLifecycle(
       if (current.feedbackWithdrawnAt !== null) return toView(current, deps.clock())
       requireKnownFactLineage(current)
       const now = deps.clock()
-      const withdrawn = unwrap(
-        withdrawPrivateFeedback(current, now, FEEDBACK_WITHDRAWAL_WINDOW_MS),
-      )
+      const withdrawn = unwrap(withdrawPrivateFeedback(current, now))
       const fact = guestFeedbackRetracted({
         feedbackId: feedbackId(withdrawn.id),
         organizationId: organizationId(withdrawn.organizationId),
@@ -446,9 +442,7 @@ export function guestResponseLifecycle(
       const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
       requireKnownFactLineage(current)
-      const corrected = unwrap(
-        correctResponse(current, input, deps.clock(), CORRECTION_WINDOW_MS),
-      )
+      const corrected = unwrap(correctResponse(current, input, deps.clock()))
       if (
         (await deps.commandStore.commitCorrected(
           current,
@@ -469,9 +463,7 @@ export function guestResponseLifecycle(
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
       if (current.status === 'deleted') return toView(current, deps.clock())
       requireKnownFactLineage(current)
-      const deleted = unwrap(
-        withdrawResponse(current, deps.clock(), RESPONSE_WITHDRAWAL_WINDOW_MS),
-      )
+      const deleted = unwrap(withdrawResponse(current, deps.clock()))
       const committed = await deps.commandStore.commitWithdrawn(
         deleted,
         withdrawalFacts(current),

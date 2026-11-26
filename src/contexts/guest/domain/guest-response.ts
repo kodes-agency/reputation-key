@@ -109,9 +109,9 @@ export type ResponseError =
 export const MAX_TEXT_LENGTH = MAX_PRIVATE_FEEDBACK_LENGTH
 export const MAX_RATING = 5
 export const MIN_RATING = 1
-const DEFAULT_CORRECTION_WINDOW_MS = 60 * 60 * 1000 // 1 hour
-export const DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS = 24 * 60 * 60 * 1000
-export const DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS = 24 * 60 * 60 * 1000
+export const CORRECTION_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+export const FEEDBACK_WITHDRAWAL_WINDOW_MS = 24 * 60 * 60 * 1000
+export const RESPONSE_WITHDRAWAL_WINDOW_MS = 24 * 60 * 60 * 1000
 export const DEFAULT_RESPONSE_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000
 export const PRIVATE_FEEDBACK_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
 
@@ -219,7 +219,6 @@ export function submitPrivateFeedback(
 export function withdrawPrivateFeedback(
   response: GuestResponse,
   now: Date,
-  withdrawalWindowMs: number = DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS,
 ): GuestResponse | ResponseError {
   if (response.status === 'deleted') return { code: 'already_deleted' }
   if (
@@ -229,7 +228,10 @@ export function withdrawPrivateFeedback(
   ) {
     return { code: 'feedback_not_found' }
   }
-  if (now.getTime() - response.feedbackSubmittedAt.getTime() > withdrawalWindowMs) {
+  if (
+    now.getTime() - response.feedbackSubmittedAt.getTime() >
+    FEEDBACK_WITHDRAWAL_WINDOW_MS
+  ) {
     return { code: 'feedback_withdrawal_expired' }
   }
   return {
@@ -245,11 +247,10 @@ export function withdrawPrivateFeedback(
 export function withdrawResponse(
   response: GuestResponse,
   now: Date,
-  withdrawalWindowMs: number = DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS,
 ): GuestResponse | ResponseError {
   if (response.status === 'deleted') return { code: 'already_deleted' }
   if (response.submittedAt === null) return { code: 'response_not_submitted' }
-  if (now.getTime() - response.submittedAt.getTime() > withdrawalWindowMs) {
+  if (now.getTime() - response.submittedAt.getTime() > RESPONSE_WITHDRAWAL_WINDOW_MS) {
     return { code: 'response_withdrawal_expired' }
   }
   return deleteResponse(response, now)
@@ -293,7 +294,6 @@ export function correctResponse(
   response: GuestResponse,
   params: Readonly<{ rating: number }>,
   now: Date,
-  correctionWindowMs: number = DEFAULT_CORRECTION_WINDOW_MS,
 ): GuestResponse | ResponseError {
   if (response.status === 'deleted') {
     return { code: 'already_deleted' }
@@ -306,7 +306,7 @@ export function correctResponse(
   // Check correction window
   if (response.submittedAt) {
     const elapsed = now.getTime() - response.submittedAt.getTime()
-    if (elapsed > correctionWindowMs) {
+    if (elapsed > CORRECTION_WINDOW_MS) {
       return { code: 'correction_window_expired' }
     }
   }
