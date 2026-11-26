@@ -1,10 +1,10 @@
 // The Portals overview as one table with one `<tbody>` per group. Below a 56 rem
 // container each row is a card and the header row is not shown; from 56 rem it
 // is a table (see `portal-overview-table-row.tsx`). Groups fold away; the fold is the
-// reader's own, kept here rather than in the URL.
+// reader's own, kept by the page rather than in the URL.
 import { StaffAccountsProvider } from '#/contexts/identity/staff/ui/accounts/staff-accounts-provider'
 import { sectionExpanded } from './portal-staff-sections'
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { DataTable, DataTableBody } from '#/components/ui/data-table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
 import type { PortalOverviewResultsState } from './portal-overview-results'
@@ -20,8 +20,8 @@ import type { PortalOverviewItem, PortalOverviewSection } from './portal-overvie
 
 type Props = PortalArchiveMutations &
   Readonly<{
-    folded?: Readonly<Record<string, boolean>>
-    onToggleSection?: (section: PortalOverviewSection) => void
+    folded: Readonly<Record<string, boolean>>
+    onToggleSection: (section: PortalOverviewSection) => void
     sections: readonly PortalOverviewSection[]
     propertyId: string
     propertyName: string
@@ -42,7 +42,7 @@ type Props = PortalArchiveMutations &
 
 export function PortalOverviewTable({
   sections,
-  folded: controlledFolded,
+  folded,
   onToggleSection,
   propertyId,
   propertyName,
@@ -57,16 +57,6 @@ export function PortalOverviewTable({
   showGroup,
   density = 'regular',
 }: Props) {
-  const [localFolded, setFolded] = useState<Readonly<Record<string, boolean>>>({})
-  const folded = controlledFolded ?? localFolded
-  const toggle = (section: PortalOverviewSection) =>
-    onToggleSection
-      ? onToggleSection(section)
-      : setFolded((current) => ({
-          ...current,
-          [section.key]: sectionExpanded(section, current[section.key]),
-        }))
-
   return (
     <StaffAccountsProvider propertyId={propertyId}>
       <OverviewDensityProvider value={density}>
@@ -84,7 +74,7 @@ export function PortalOverviewTable({
                 propertyId={propertyId}
                 results={results}
                 expanded={sectionExpanded(section, folded[section.key])}
-                onToggle={() => toggle(section)}
+                onToggle={() => onToggleSection(section)}
                 groupActions={groupActions}
                 rowMenuExtra={rowMenuExtra}
                 showGroup={showGroup}
