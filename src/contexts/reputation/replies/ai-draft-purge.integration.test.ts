@@ -29,9 +29,7 @@ import { getDb } from '#/shared/db'
 import {
   purgeAiDraftsForAuthorization,
   purgeAiDraftsForControl,
-  purgeAiDraftsForOrganization,
   purgeAiDraftsForProfile,
-  purgeAiDraftsForProperty,
   purgeAiDraftsForReview,
 } from '#/shared/db/ai/ai-draft-purge'
 import { properties } from '#/shared/db/schema'
@@ -136,7 +134,7 @@ const {
 
 const purgeProperty = (seeded: Pick<SeededReply, 'property'>): Promise<void> =>
   db.transaction((tx) =>
-    purgeAiDraftsForProperty(
+    purgeAiDraftsForAuthorization(
       tx,
       { organizationId: ORG, propertyId: seeded.property },
       replyScopeEffects,
@@ -192,20 +190,12 @@ const scope = (seeded: SeededReply) => ({
 
 const PURGE_ENTRY_POINTS: ReadonlyArray<readonly [string, PurgeEntryPoint]> = [
   [
-    'a Property change',
-    (tx, s) => purgeAiDraftsForProperty(tx, scope(s), replyScopeEffects),
-  ],
-  [
     'a processing-profile change',
     (tx, s) => purgeAiDraftsForProfile(tx, scope(s), replyScopeEffects),
   ],
   [
     'an AI Authorization change',
     (tx, s) => purgeAiDraftsForAuthorization(tx, scope(s), replyScopeEffects),
-  ],
-  [
-    'an Organization closing',
-    (tx) => purgeAiDraftsForOrganization(tx, ORG, replyScopeEffects),
   ],
   [
     'a Review change',
