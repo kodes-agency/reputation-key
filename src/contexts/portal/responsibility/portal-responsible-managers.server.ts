@@ -1,14 +1,15 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { strictlyAfter } from '#/shared/domain/clock'
 import { portalId } from '#/shared/domain/ids'
-import { MANAGER_BECAME_INELIGIBLE_END_REASON } from '#/shared/responsible-manager/responsible-manager-eligibility'
+import {
+  MANAGER_BECAME_INELIGIBLE_END_REASON,
+  listEligibleResponsibleManagers,
+  listIneligibleResponsibleManagers,
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
 import type { PortalResponsibleManagerRepository } from './portal-responsible-manager-repository.port.server'
 import type { PortalManagerEligibilityDeps } from './portal-manager-eligibility.server'
-import {
-  listEligiblePortalManagers,
-  listIneligiblePortalManagers,
-} from './portal-manager-eligibility.server'
+import { policyDeps } from './portal-manager-eligibility.server'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
 import type { Portal } from '../domain/types'
 import { portalError } from '../domain/errors'
@@ -29,7 +30,11 @@ export const listPortalResponsibleManagers =
     })
     const [assignments, eligibleManagers] = await Promise.all([
       deps.managerRepo.listActive(ctx.organizationId, portal.id),
-      listEligiblePortalManagers(deps, ctx.organizationId, portal.propertyId),
+      listEligibleResponsibleManagers(
+        policyDeps(deps),
+        ctx.organizationId,
+        portal.propertyId,
+      ),
     ])
     return {
       assignments,
@@ -68,8 +73,8 @@ async function releaseAssignedNoLongerEligible(
   managerUserIds: readonly string[],
   assignedAt: Date,
 ): Promise<readonly string[]> {
-  const lost = await listIneligiblePortalManagers(
-    deps,
+  const lost = await listIneligibleResponsibleManagers(
+    policyDeps(deps),
     portal.organizationId,
     portal.propertyId,
     managerUserIds,
@@ -114,8 +119,8 @@ export const updatePortalResponsibleManagers =
         'responsible manager selection contains duplicates',
       )
     }
-    const ineligible = await listIneligiblePortalManagers(
-      deps,
+    const ineligible = await listIneligibleResponsibleManagers(
+      policyDeps(deps),
       ctx.organizationId,
       portal.propertyId,
       managerUserIds,

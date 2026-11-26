@@ -26,7 +26,6 @@
   "src/contexts/identity/organization/update-organization.test.ts": 1,
   "src/contexts/identity/rights/organization-export-contract.test.ts": 1,
   "src/contexts/identity/staff/primary-staff-attribution.server.ts": 20,
-  "src/contexts/identity/staff/staff-participation-repository.integration.test.ts": 2,
   "src/contexts/integration/connections/oauth-callback-abuse-gate.test.ts": 2,
   "src/contexts/portal/addresses/portal-token-codec.server.ts": 1,
   "src/contexts/portal/groups/list-portal-groups.test.ts": 2,

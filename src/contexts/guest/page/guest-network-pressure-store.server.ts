@@ -1,16 +1,37 @@
 import { and, count, eq, gt, min, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { guestNetworkPressureRecords } from '#/shared/db/schema/guest.schema'
-import type { GuestNetworkPressureStore } from './guest-network-pressure-store.port.server'
 import {
+  type GuestNetworkPressureAction,
   GUEST_NETWORK_PRESSURE_RETENTION_MS,
   createGuestNetworkPressureRecord,
 } from '../domain/networkPressure'
 import { trace } from '#/shared/observability/trace'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
+export type GuestNetworkPressureConsumeInput = Readonly<{
+  organizationId: string
+  propertyId: string
+  portalId: string
+  pseudonym: string
+  action: GuestNetworkPressureAction
+  maxRequests: number
+  windowSeconds: number
+}>
+
+export type GuestNetworkPressureDecision = Readonly<{
+  allowed: boolean
+  remaining: number
+  resetAt: Date
+}>
+
+export type GuestNetworkPressureStore = Readonly<{
+  consume(input: GuestNetworkPressureConsumeInput): Promise<GuestNetworkPressureDecision>
+}>
+
 export const createGuestNetworkPressureStore = (
   db: Database,
+  clock: () => Date,
   idGen: () => string,
 ): GuestNetworkPressureStore => {
   return {
@@ -27,8 +48,9 @@ export const createGuestNetworkPressureStore = (
           throw new Error('Guest network pressure window must fit the retention period')
         }
 
+        const observedAt = clock()
         const windowMs = input.windowSeconds * 1000
-        const cutoff = new Date(input.observedAt.getTime() - windowMs)
+        const cutoff = new Date(observedAt.getTime() - windowMs)
         return db.transaction(async (tx) => {
           const anchor = [
             'guest-network-pressure-v1',
@@ -56,11 +78,11 @@ export const createGuestNetworkPressureStore = (
                 eq(guestNetworkPressureRecords.pseudonym, input.pseudonym),
                 eq(guestNetworkPressureRecords.action, input.action),
                 gt(guestNetworkPressureRecords.observedAt, cutoff),
-                gt(guestNetworkPressureRecords.expiresAt, input.observedAt),
+                gt(guestNetworkPressureRecords.expiresAt, observedAt),
               ),
             )
           const total = pressure?.total ?? 0
-          const oldestObservedAt = pressure?.oldestObservedAt ?? input.observedAt
+          const oldestObservedAt = pressure?.oldestObservedAt ?? observedAt
           const resetAt = new Date(oldestObservedAt.getTime() + windowMs)
 
           if (total >= input.maxRequests) {
@@ -74,7 +96,7 @@ export const createGuestNetworkPressureStore = (
             portalId: portalId(input.portalId),
             pseudonym: input.pseudonym,
             action: input.action,
-            observedAt: input.observedAt,
+            observedAt,
           })
           if (record.isErr()) throw record.error
           await tx.insert(guestNetworkPressureRecords).values(record.value)

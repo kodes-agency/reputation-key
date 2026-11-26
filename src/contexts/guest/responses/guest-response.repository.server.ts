@@ -19,10 +19,23 @@ import {
   guestResponseSessionBindings,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
-import type { GuestResponseRepository } from './guest-response.repository.port.server'
+import type {
+  GuestResponsePeriodScope,
+  GuestResponseRepository,
+} from './guest-response.repository.port.server'
 import { guestResponseFromRow } from './guest-response-mapper.server'
 import type { Clock } from '#/shared/domain/clock'
 import { guestResponseId } from '#/shared/domain/ids'
+
+const assertValidPeriod = (period: GuestResponsePeriodScope, message: string): void => {
+  if (
+    Number.isNaN(period.startAt.getTime()) ||
+    Number.isNaN(period.endAt.getTime()) ||
+    period.startAt >= period.endAt
+  ) {
+    throw new Error(message)
+  }
+}
 
 export const createGuestResponseRepository = (
   db: Database,
@@ -220,7 +233,9 @@ export const createGuestResponseRepository = (
       return rows.map((row) => guestResponseId(row.id))
     },
 
-    summarizePortalIntegrity: async (scope, startAt, endAt) => {
+    getPortalResponseIntegritySummary: async (input) => {
+      assertValidPeriod(input, 'Guest response integrity summary period is invalid')
+      const { startAt, endAt } = input
       const ratingBusinessAt = sql<Date>`COALESCE(
         ${guestResponses.correctedAt}, ${guestResponses.submittedAt}
       )`
@@ -232,9 +247,9 @@ export const createGuestResponseRepository = (
         .from(guestResponses)
         .where(
           and(
-            eq(guestResponses.organizationId, scope.organizationId),
-            eq(guestResponses.propertyId, scope.propertyId),
-            eq(guestResponses.portalId, scope.portalId),
+            eq(guestResponses.organizationId, input.organizationId),
+            eq(guestResponses.propertyId, input.propertyId),
+            eq(guestResponses.portalId, input.portalId),
             eq(guestResponses.responseConsent, true),
             isNotNull(guestResponses.rating),
             isNotNull(guestResponses.submittedAt),
@@ -269,7 +284,9 @@ export const createGuestResponseRepository = (
       return summary
     },
 
-    summarizePortalRatingLanguages: async (scope, startAt, endAt) => {
+    getPortalRatingLanguages: async (input) => {
+      assertValidPeriod(input, 'Guest rating languages period is invalid')
+      const { startAt, endAt } = input
       // The same business time and eligibility as the integrity summary, for
       // the accepted outcome only: the ratings the Results measures count.
       const ratingBusinessAt = sql<Date>`COALESCE(
@@ -293,9 +310,9 @@ export const createGuestResponseRepository = (
         )
         .where(
           and(
-            eq(guestResponses.organizationId, scope.organizationId),
-            eq(guestResponses.propertyId, scope.propertyId),
-            eq(guestResponses.portalId, scope.portalId),
+            eq(guestResponses.organizationId, input.organizationId),
+            eq(guestResponses.propertyId, input.propertyId),
+            eq(guestResponses.portalId, input.portalId),
             eq(guestResponses.integrityOutcome, 'accepted'),
             eq(guestResponses.responseConsent, true),
             isNotNull(guestResponses.rating),

@@ -763,7 +763,7 @@ describe('AI consumer authorization', () => {
       registration!.module,
       envelope,
     )
-    return outcome.decision.reason
+    return outcome.reason
   }
 
   /** The same, under one switch turned off. */

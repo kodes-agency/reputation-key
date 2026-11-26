@@ -93,7 +93,7 @@ async function invokeConsumer(
       consumer.module,
       event,
     )
-    if (gate.kind === 'deny_terminal') {
+    if (!gate.allowed) {
       // BQC-3.6: record the terminal denial as an 'obsolete' receipt
       // ("processed without effect" — the receipts CHECK constraint admits
       // applied/duplicate/obsolete; no migration needed). Redelivery then
@@ -103,7 +103,7 @@ async function invokeConsumer(
         {
           correlationId,
           consumerName: consumer.consumerName,
-          reason: gate.decision.reason,
+          reason: gate.reason,
         },
         'delayed execution denied — terminal (consumer skipped, obsolete receipt written)',
       )

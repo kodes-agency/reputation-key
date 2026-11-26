@@ -65,8 +65,8 @@ describe('publish-reply through the delayed execution gate (§6: revocation/susp
       'worker',
     )
 
-    expect(outcome.kind).toBe('deny_terminal')
-    expect(outcome.decision.reason).toBe('org_suspended')
+    expect(outcome.allowed).toBe(false)
+    expect(outcome.reason).toBe('org_suspended')
   })
 
   it('property.publish_reply killed after enqueue → deny_terminal (capability_disabled): a stale allow never overrides', async () => {
@@ -81,8 +81,8 @@ describe('publish-reply through the delayed execution gate (§6: revocation/susp
       'worker',
     )
 
-    expect(outcome.kind).toBe('deny_terminal')
-    expect(outcome.decision.reason).toBe('capability_disabled')
+    expect(outcome.allowed).toBe(false)
+    expect(outcome.reason).toBe('capability_disabled')
   })
 
   it('current policy still allows → allow (external effect requires the fresh read)', async () => {
@@ -95,7 +95,7 @@ describe('publish-reply through the delayed execution gate (§6: revocation/susp
       'worker',
     )
 
-    expect(outcome.kind).toBe('allow')
-    expect(outcome.decision.freshRead).toBe(true)
+    expect(outcome.allowed).toBe(true)
+    expect(outcome.freshRead).toBe(true)
   })
 })
