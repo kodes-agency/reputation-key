@@ -269,6 +269,7 @@ function reviewWorkerConsumers() {
     snapshotRunIdGen: () => crypto.randomUUID(),
     googleReviewApi: {} as never,
     googleConnectionStatus: { findStatus: async () => null },
+    targetedReviewReferences: { resolve: async () => ({ status: 'obsolete' }) },
     jobQueue: { add: vi.fn() } as unknown as Queue,
     workerRuntime: {
       pool: {} as never,
