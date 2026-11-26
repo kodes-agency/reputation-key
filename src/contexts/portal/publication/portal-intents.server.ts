@@ -193,8 +193,7 @@ export const publishPortal =
       ctx,
       existing,
       { publicationState },
-      destination,
-      input.reviewedDigest,
+      { destination, reviewedDigest: input.reviewedDigest },
     )
   }
 

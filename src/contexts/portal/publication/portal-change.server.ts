@@ -35,6 +35,7 @@ import type { VerifiedPublicationDestination } from '../domain/portal-publicatio
 import type { PortalPublicationSource } from '../domain/portal-publication-source'
 import {
   buildPortalPublicationSnapshot,
+  newActivation,
   reviewedPublicationDigest,
 } from './portal-publication-snapshot.server'
 import { assertPortalHasOwnerAndAddress } from './portal-publication-readiness.server'
@@ -114,21 +115,23 @@ function applyPatchToPublicationSource(
   }
 }
 
+/**
+ * What a go-live pins: the verified destination, and the digest the draft was
+ * reviewed at when the caller names one.
+ */
+export type GoLive = Readonly<{
+  destination: VerifiedPublicationDestination
+  reviewedDigest?: string
+}>
+
 async function buildGoLive(
   deps: PortalIntentDeps,
   existing: Portal,
   patch: PortalPatch,
-  destination: VerifiedPublicationDestination | null,
+  { destination, reviewedDigest }: GoLive,
   ctx: AuthContext,
   at: Date,
-  reviewedDigest: string | undefined,
 ): Promise<PortalPublicationMutation> {
-  if (!destination) {
-    throw portalError(
-      'publication_snapshot_unavailable',
-      'A verified destination must be pinned to the publication snapshot',
-    )
-  }
   await assertPortalHasOwnerAndAddress(deps, ctx, existing, at)
   const [workingCopyWithLook, cursor] = await Promise.all([
     deps.publicationRepo.loadWorkingCopyWithLook(ctx.organizationId, existing.id),
@@ -172,7 +175,7 @@ async function buildGoLive(
   return {
     kind: 'publish',
     snapshot,
-    activation: {
+    activation: newActivation({
       id: deps.idGen(),
       organizationId: snapshot.organizationId,
       propertyId: snapshot.propertyId,
@@ -182,9 +185,7 @@ async function buildGoLive(
       kind: 'publish',
       activatedBy: unbrand(ctx.userId),
       activatedAt: at,
-      deactivatedAt: null,
-      deactivationReason: null,
-    },
+    }),
   }
 }
 
@@ -223,18 +224,16 @@ function lifecycleEventFor(
 
 /**
  * Writes `changes` over the Portal as one command. Nothing is written, and the
- * Portal comes back as it was, when nothing differs. `destination` is the
- * verified destination a go-live pins; only a go-live needs it. A go-live that
- * names the `reviewedDigest` it was reviewed at is refused when the draft has
- * changed since.
+ * Portal comes back as it was, when nothing differs. `goLive` is what a go-live
+ * pins; only a go-live carries it. A go-live that names the `reviewedDigest` it
+ * was reviewed at is refused when the draft has changed since.
  */
 export async function commitPortalChange(
   deps: PortalIntentDeps,
   ctx: AuthContext,
   existing: Portal,
   changes: Partial<PortalPatch>,
-  destination: VerifiedPublicationDestination | null = null,
-  reviewedDigest?: string,
+  goLive?: GoLive,
 ): Promise<Portal> {
   const patch = patchOf(existing, changes)
   if (!hasPortalChanges(existing, patch)) return existing
@@ -243,16 +242,8 @@ export async function commitPortalChange(
   const revision = nextPortalCommandAt(occurredAt, existing.updatedAt)
   const wasPublished = existing.publicationState === 'published'
   const publication: PortalPublicationMutation | undefined =
-    !wasPublished && patch.publicationState === 'published'
-      ? await buildGoLive(
-          deps,
-          existing,
-          patch,
-          destination,
-          ctx,
-          occurredAt,
-          reviewedDigest,
-        )
+    goLive && !wasPublished && patch.publicationState === 'published'
+      ? await buildGoLive(deps, existing, patch, goLive, ctx, occurredAt)
       : wasPublished &&
           (patch.publicationState === 'disabled' || patch.publicationState === 'archived')
         ? { kind: 'deactivate', reason: patch.publicationState, at: occurredAt }

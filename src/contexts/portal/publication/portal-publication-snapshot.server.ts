@@ -10,6 +10,7 @@ import {
   LEGACY_V1_LANGUAGE_PACK,
   type ImmersivePortalPublicationConfiguration,
   type LocalizedPortalPublicationConfiguration,
+  type PortalPublicationActivation,
   type PortalPublicationConfiguration,
   type PortalPublicationSnapshot,
   type VerifiedPublicationDestination,
@@ -185,6 +186,23 @@ export function reviewedPublicationDigest(
   return digestPortalPublicationConfiguration(
     buildPublicationConfiguration(source, destination),
   )
+}
+
+/** A live activation of `snapshotId`, as every go-live, republish and rollback writes it. */
+export function newActivation<Kind extends PortalPublicationActivation['kind']>(
+  input: Pick<
+    PortalPublicationActivation,
+    | 'id'
+    | 'organizationId'
+    | 'propertyId'
+    | 'portalId'
+    | 'snapshotId'
+    | 'activationSequence'
+    | 'activatedBy'
+    | 'activatedAt'
+  > & { kind: Kind },
+): PortalPublicationActivation & { kind: Kind } {
+  return { ...input, deactivatedAt: null, deactivationReason: null }
 }
 
 /**

@@ -10,17 +10,15 @@ import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
 // Portal state, responsibility/token side effects, and every required durable
 // lifecycle fact commit together in one PostgreSQL transaction.
 
-import { and, eq, isNull, or } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalHealthIntervals,
-  portalTokens,
   portalPublicationActivations,
   portalPublicationSnapshots,
 } from '#/shared/db/schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { lockPortalPublicationProperty } from './portal-publication-serialization.server'
-import { resolvePortalPendingContentChanges } from './portal-pending-content-changes.server'
 import {
   readPortalSettings,
   recordPortalSettingsChange,
@@ -36,7 +34,6 @@ import type {
 } from './portal-command-store-port.server'
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
-import { verifyPortalPublicationSnapshot } from './portal-publication-snapshot.server'
 import {
   assertRevisionAdvances,
   casPortalRow,
@@ -46,17 +43,19 @@ import {
 import { createPortalGroupCommands } from './portal-group-commands.server'
 import { createPortalLinkCommands } from './portal-link-commands.server'
 import { assertLocaleSetFact, watchPrimaryLocaleChange } from './portal-locale-set.server'
-import { createPortalTokenCommands } from './portal-token-commands.server'
 import {
+  createPortalTokenCommands,
+  revokeLiveTokens,
+} from './portal-token-commands.server'
+import {
+  activationMatchesSnapshotScope,
   activationToRow,
-  assertSnapshotMatchesCommittedWorkingCopy,
   closeActivePublication,
   createPortalPublicationCommands,
-  snapshotToRow,
+  writeActivatedSnapshot,
 } from './portal-publication-commands.server'
 import { createPortalCreateCommand } from './portal-create-command.server'
 import { createPersonalPortalContentCommand } from '../personal-portals/portal-personal-content-command.server'
-import { NO_SEALED_ADDRESS } from '../addresses/portal-sealed-address-columns.server'
 
 type PortalSetValues = {
   name?: string
@@ -126,19 +125,7 @@ function assertPublishActivation(
   if (
     transition.previous === 'published' ||
     transition.next !== 'published' ||
-    snapshot.organizationId !== unbrand(command.organizationId) ||
-    snapshot.propertyId !== unbrand(command.propertyId) ||
-    snapshot.portalId !== unbrand(command.portalId) ||
-    activation.organizationId !== snapshot.organizationId ||
-    activation.propertyId !== snapshot.propertyId ||
-    activation.portalId !== snapshot.portalId ||
-    activation.snapshotId !== snapshot.id ||
-    activation.deactivatedAt !== null ||
-    activation.deactivationReason !== null ||
-    activation.activatedBy !== snapshot.createdBy ||
-    !verifyPortalPublicationSnapshot(snapshot) ||
-    !sameInstant(snapshot.createdAt, command.occurredAt) ||
-    !sameInstant(activation.activatedAt, command.occurredAt)
+    !activationMatchesSnapshotScope(command, snapshot, activation)
   ) {
     throw portalError(
       'publication_snapshot_unavailable',
@@ -467,34 +454,10 @@ export const createAtomicPortalCommandStore = (
             // The Portal row is already locked (above), which holds its
             // links, categories and link texts still: their writers take the
             // same row first. The comparison reads the rows under it.
-            await assertSnapshotMatchesCommittedWorkingCopy(
-              tx,
-              command,
-              command.publication.snapshot,
-            )
-            const unexpectedlyActive = await closeActivePublication(
-              tx,
-              command,
-              'replaced',
-            )
-            if (unexpectedlyActive !== 0) {
-              throw portalError(
-                'revision_conflict',
+            await writeActivatedSnapshot(tx, command, command.publication, {
+              expectedClosed: 0,
+              conflictMessage:
                 'A non-published Portal unexpectedly retained an active publication',
-              )
-            }
-            await tx
-              .insert(portalPublicationSnapshots)
-              .values(snapshotToRow(command.publication.snapshot))
-            await tx
-              .insert(portalPublicationActivations)
-              .values(activationToRow(command.publication.activation))
-            await resolvePortalPendingContentChanges(tx, {
-              organizationId: unbrand(command.organizationId),
-              propertyId: unbrand(command.propertyId),
-              portalId: unbrand(command.portalId),
-              snapshotId: command.publication.snapshot.id,
-              resolvedAt: command.occurredAt,
             })
           } else if (command.publication?.kind === 'rollback') {
             const [target] = await tx
@@ -597,30 +560,7 @@ export const createAtomicPortalCommandStore = (
             },
           )
 
-          // fallow-ignore-next-line code-duplication
-          const revokedRows = await tx
-            .update(portalTokens)
-            .set({
-              status: 'revoked',
-              revokedAt: command.occurredAt,
-              retiredAt: command.occurredAt,
-              revokedBy: unbrand(command.revokedBy),
-              revokedReason: command.reason.trim(),
-              gracePeriodEnds: null,
-              ...NO_SEALED_ADDRESS,
-            })
-            .where(
-              and(
-                eq(portalTokens.organizationId, unbrand(command.organizationId)),
-                eq(portalTokens.propertyId, unbrand(command.propertyId)),
-                eq(portalTokens.portalId, unbrand(command.portalId)),
-                or(
-                  eq(portalTokens.status, 'active'),
-                  eq(portalTokens.status, 'rotating'),
-                ),
-              ),
-            )
-            .returning({ id: portalTokens.id })
+          const revokedRows = await revokeLiveTokens(tx, command)
 
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,

@@ -31,7 +31,10 @@ import {
   findVerifiedGoogleReviewDestination,
   requireVerifiedGoogleReviewDestination,
 } from './portal-publication-readiness.server'
-import { buildPortalPublicationSnapshot } from './portal-publication-snapshot.server'
+import {
+  buildPortalPublicationSnapshot,
+  newActivation,
+} from './portal-publication-snapshot.server'
 import { nextPortalCommandAt } from './portal-command-version.server'
 import {
   destinationMatchesSnapshot,
@@ -72,18 +75,17 @@ export type PublishPortalsChangesResult = ReadonlyArray<
 >
 
 /**
- * Authorise, load, decide whether anything is pending, ask the readiness gates,
- * and build the command that replaces the live version. Returns the live
- * version when nothing is pending.
+ * With `reviewedDigest` (what the review showed), the draft must still say
+ * exactly that: otherwise nothing is written and the manager reviews again.
+ * Callers that just wrote the draft themselves publish without it. Returns the
+ * live version, writing nothing, when nothing is pending.
  */
-const planPortalRepublish =
+export const publishPortalChanges =
   (deps: PublishPortalChangesDeps) =>
   async (
-    input: Readonly<{ portalId: string }>,
+    input: Readonly<{ portalId: string; reviewedDigest?: string }>,
     ctx: AuthContext,
-  ): Promise<
-    Readonly<{ unchangedVersion: number }> | Readonly<{ command: RepublishPortalCommand }>
-  > => {
+  ): Promise<PublishPortalChangesResult> => {
     const pid = toPortalId(input.portalId)
     const portal = await loadPortalOrThrow(deps, ctx, pid, {
       permission: 'portal.update',
@@ -143,7 +145,7 @@ const planPortalRepublish =
       !destinationMoved &&
       workingCopyMatchesSnapshot(workingCopy, live)
     ) {
-      return { unchangedVersion: live.version }
+      return { outcome: 'unchanged', version: live.version }
     }
 
     await assertPropertyAllowsPublication(deps, ctx.organizationId, portal)
@@ -163,72 +165,50 @@ const planPortalRepublish =
       createdAt: occurredAt,
     })
     const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
-    return {
-      command: {
+    const command: RepublishPortalCommand = {
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: pid,
+      actorUserId: ctx.userId,
+      expectedUpdatedAt: portal.updatedAt,
+      revision,
+      occurredAt,
+      snapshot,
+      activation: newActivation({
+        id: deps.idGen(),
+        organizationId: snapshot.organizationId,
+        propertyId: snapshot.propertyId,
+        portalId: snapshot.portalId,
+        snapshotId: snapshot.id,
+        activationSequence: cursor.nextActivationSequence,
+        kind: 'publish',
+        activatedBy: unbrand(ctx.userId),
+        activatedAt: occurredAt,
+      }),
+      lifecycleEvent: portalPublicationPublished({
         organizationId: ctx.organizationId,
         propertyId: portal.propertyId,
         portalId: pid,
-        actorUserId: ctx.userId,
-        expectedUpdatedAt: portal.updatedAt,
-        revision,
+        publicationSnapshotId: snapshot.id,
+        publicationVersion: snapshot.version,
+        publicationDigest: snapshot.configurationDigest,
+        userId: ctx.userId,
+        sourceAggregateVersion: revision.toISOString(),
         occurredAt,
-        snapshot,
-        activation: {
-          id: deps.idGen(),
-          organizationId: snapshot.organizationId,
-          propertyId: snapshot.propertyId,
-          portalId: snapshot.portalId,
-          snapshotId: snapshot.id,
-          activationSequence: cursor.nextActivationSequence,
-          kind: 'publish',
-          activatedBy: unbrand(ctx.userId),
-          activatedAt: occurredAt,
-          deactivatedAt: null,
-          deactivationReason: null,
-        },
-        lifecycleEvent: portalPublicationPublished({
-          organizationId: ctx.organizationId,
-          propertyId: portal.propertyId,
-          portalId: pid,
-          publicationSnapshotId: snapshot.id,
-          publicationVersion: snapshot.version,
-          publicationDigest: snapshot.configurationDigest,
-          userId: ctx.userId,
-          sourceAggregateVersion: revision.toISOString(),
-          occurredAt,
-        }),
-        event: portalUpdated({
-          portalId: pid,
-          organizationId: ctx.organizationId,
-          propertyId: portal.propertyId,
-          previousPublicationState: 'published',
-          publicationState: 'published',
-          sourceAggregateVersion: revision.toISOString(),
-          occurredAt,
-        }),
-      },
+      }),
+      event: portalUpdated({
+        portalId: pid,
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        previousPublicationState: 'published',
+        publicationState: 'published',
+        sourceAggregateVersion: revision.toISOString(),
+        occurredAt,
+      }),
     }
-  }
-
-/**
- * With `reviewedDigest` (what the review showed), the draft must still say
- * exactly that: otherwise nothing is written and the manager reviews again.
- * Callers that just wrote the draft themselves publish without it.
- */
-export const publishPortalChanges =
-  (deps: PublishPortalChangesDeps) =>
-  async (
-    input: Readonly<{ portalId: string; reviewedDigest?: string }>,
-    ctx: AuthContext,
-  ): Promise<PublishPortalChangesResult> => {
-    const plan = await planPortalRepublish(deps)(input, ctx)
-    if ('unchangedVersion' in plan) {
-      return { outcome: 'unchanged', version: plan.unchangedVersion }
-    }
-    const { command } = plan
     if (
       input.reviewedDigest !== undefined &&
-      input.reviewedDigest !== command.snapshot.configurationDigest
+      input.reviewedDigest !== snapshot.configurationDigest
     ) {
       throw portalError(
         'revision_conflict',
