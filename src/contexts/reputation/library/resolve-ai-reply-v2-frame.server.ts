@@ -37,7 +37,7 @@ export async function resolveAiReplyV2Frame(
 ) {
   const resolved = await readAiReplyVoiceSnapshot(deps, input)
   if (resolved === null) return null
-  const { snapshot, review, voice, languageGroup } = resolved
+  const { review, voice, languageGroup, frameInput } = resolved
   const band = replyBand(review.rating, Boolean(review.text?.trim()))
   const locale = voice.localized[languageGroup]
   const reservation = await deps.repository.reserveAiFrame({
@@ -56,17 +56,7 @@ export async function resolveAiReplyV2Frame(
   })
   if (!reservation) return null
   try {
-    return buildAiReplyV2Frame(
-      {
-        voice,
-        languageGroup,
-        rating: review.rating,
-        hasText: Boolean(review.text?.trim()),
-        reviewerDisplayName: review.reviewerName,
-        propertyDisplayName: snapshot.propertyName,
-      },
-      reservation,
-    )
+    return buildAiReplyV2Frame(frameInput, reservation)
   } catch (error) {
     if (isReplyRenderError(error)) return null
     throw error
@@ -90,20 +80,13 @@ export async function resolveSavedReplyFrame(
 ): Promise<Readonly<{ prefix: string; suffix: string }> | null> {
   const resolved = await readAiReplyVoiceSnapshot(deps, input)
   if (!resolved) return null
-  const { snapshot, review, voice, languageGroup } = resolved
+  const { voice, languageGroup, frameInput } = resolved
   if (digestResolvedReplyVoice(voice, languageGroup) !== input.voiceDigest) return null
   try {
-    const frame = buildAiReplyV2Frame(
-      {
-        voice,
-        languageGroup,
-        rating: review.rating,
-        hasText: Boolean(review.text?.trim()),
-        reviewerDisplayName: review.reviewerName,
-        propertyDisplayName: snapshot.propertyName,
-      },
-      { choices: input.choices, closingOrder: [input.choices.closing] },
-    )
+    const frame = buildAiReplyV2Frame(frameInput, {
+      choices: input.choices,
+      closingOrder: [input.choices.closing],
+    })
     const candidate = frame.candidates[0]
     return candidate &&
       input.text.startsWith(candidate.prefix) &&

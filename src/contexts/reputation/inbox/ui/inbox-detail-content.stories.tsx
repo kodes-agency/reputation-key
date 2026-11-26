@@ -1153,7 +1153,7 @@ const rejectedReply: NonNullable<InboxItemDetailResult['reply']> = {
   stateRevision: 3,
 }
 
-/** What `reply-commit.server.ts` answers a confirmation whose reply has moved on. */
+/** What the reply commands answer a confirmation whose reply has moved on. */
 const REPLY_MOVED_ON = 'Reply status changed concurrently'
 
 /** What the pane is given at one moment: the open item, and its detail as read. */

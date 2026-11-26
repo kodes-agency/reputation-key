@@ -3,7 +3,6 @@ import { describe, it, expect } from 'vitest'
 import {
   propertyArchived,
   propertyCreated,
-  propertyDeleted,
   propertyGoogleBindingChanged,
   propertyRestored,
   propertyUpdated,
@@ -42,15 +41,6 @@ describe('property events', () => {
       occurredAt: NOW,
     })
     expect(event._tag).toBe('property.updated')
-  })
-
-  it('propertyDeleted works', () => {
-    const event = propertyDeleted({
-      propertyId: PROP_ID,
-      organizationId: ORG_ID,
-      occurredAt: NOW,
-    })
-    expect(event._tag).toBe('property.deleted')
   })
 
   it('emits identifier-only Google binding changes and validates the epoch', () => {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  GOOGLE_DISPLAY_ROUNDING,
   displayedTenths,
   exactAverage,
   ratio,
@@ -20,8 +19,7 @@ const EXAMPLE = {
 }
 
 describe('the number Google shows', () => {
-  it('rounds half up to one decimal under the named rule', () => {
-    expect(GOOGLE_DISPLAY_ROUNDING).toBe('half_up')
+  it('rounds half up to one decimal', () => {
     expect(displayedTenths(4.45)).toBe(45)
     expect(displayedTenths(4.449)).toBe(44)
     expect(displayedTenths(4.31)).toBe(43)

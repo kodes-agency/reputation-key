@@ -111,7 +111,7 @@ async function main(): Promise<void> {
         inspectGoogleImportLifecycle: () =>
           container.integrationMaintenanceRuntime.imports.inspectBacklog(),
         sweepGoogleImportLifecycle: async () => {
-          await container.integrationMaintenanceRuntime.imports.sweep()
+          await container.integrationWorkerRuntime.sweepImportLifecycle()
         },
         inspectRetentionBacklog: async () => {
           const now = container.clock()

@@ -35,7 +35,7 @@ describe('buildInboxContext', () => {
     })
   }
 
-  it('separates request, lifecycle, maintenance, and worker capabilities', () => {
+  it('separates request, maintenance, and worker capabilities', () => {
     const context = build()
 
     // Export and erasure run through the rights request executors, never from
@@ -44,7 +44,6 @@ describe('buildInboxContext', () => {
       // Named member-authority and scheduled-release capabilities.
       'assignments',
       'internal',
-      'lifecycle',
       'maintenance',
       'publicApi',
       'runtime',
@@ -54,7 +53,6 @@ describe('buildInboxContext', () => {
     expect(Object.keys(context.publicApi)).not.toContain('organizationLifecycle')
     // No raw item creation: the durable source consumers create Inbox Items,
     // under their receipts and after their source checks (Invariant 1).
-    expect(Object.keys(context.lifecycle).sort()).toEqual(['getInboxResponseTarget'])
     expect(Object.keys(context.internal.useCases)).not.toContain('createInboxItem')
     expect(Object.keys(context.internal.useCases)).not.toContain(
       'startReviewHandlingCycle',
@@ -64,16 +62,12 @@ describe('buildInboxContext', () => {
       'responseTargetExclusions',
     ])
     expect(Object.keys(context.worker)).toEqual(['registerOutboxConsumers'])
-    expect(Object.isFrozen(context.lifecycle)).toBe(true)
     expect(Object.isFrozen(context.maintenance)).toBe(true)
   })
 
   it('binds each named capability to the one Inbox-owned implementation', () => {
     const context = build()
 
-    expect(context.lifecycle.getInboxResponseTarget).toBe(
-      context.internal.useCases.getInboxResponseTarget,
-    )
     expect(context.maintenance.rebuildInboxProjection).toBe(
       context.internal.useCases.rebuildInboxProjection,
     )

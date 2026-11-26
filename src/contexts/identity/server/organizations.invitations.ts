@@ -91,7 +91,7 @@ export const resendInvitation = createServerFn({ method: 'POST' })
           keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
         })
         // Renews the same invitation, then mails it: { expiresAt, emailSent }.
-        return await identityPublicApi.requests.resendInvitation(data, actor)
+        return identityPublicApi.requests.resendInvitation(data, actor)
       },
     ),
   )

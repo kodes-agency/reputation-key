@@ -1,3 +1,4 @@
+import { reviewContentJoin } from './review-content-join'
 import { reviewSourceContents } from './schema/review-source-content.schema'
 // Push health and reconciliation age (ADR 0055), computed on read.
 // Lives in shared/db beside the other operational reads that name Drizzle tables.
@@ -244,14 +245,7 @@ async function readPolledSightings(db: Database): Promise<LedgerSighting[]> {
       ),
     )
 
-    .leftJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
+    .leftJoin(reviewSourceContents, reviewContentJoin)
     .where(
       and(
         propertyIsSyncable,

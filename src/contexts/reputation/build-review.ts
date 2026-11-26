@@ -15,10 +15,6 @@ import type {
   GoogleConnectionStatusPort,
   GoogleReviewApiPort,
 } from './sync/google-review-api.port.server'
-import type {
-  PropertyPublicationScopePort,
-  ReviewPropertyPublicationLifecycle,
-} from './replies/property-publication-scope.port.server'
 import type { ReviewLookups } from './reviews/review-repository.port.server'
 import type { ReplyLookups } from './replies/reply-repository.port.server'
 import type { FindAmbiguousPublicationReconciliationCandidates } from './publication/publication-reconciliation-candidate-repository.port.server'
@@ -32,7 +28,6 @@ import type {
 import type { TargetedGoogleReviewReferenceResolver } from './sync/targeted-google-review-reference.port.server'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
-  PropertyLifecycleState,
   PropertyGoogleReadScopePublicApi,
   PropertyPublicationScopePublicApi,
   PropertySourceEpochPublicApi,
@@ -250,23 +245,6 @@ export type ReviewContextApi = Readonly<{
   }>
 }>
 
-/** Review's publication vocabulary for a Property lifecycle state. */
-function reviewPublicationLifecycle(
-  state: PropertyLifecycleState,
-): ReviewPropertyPublicationLifecycle {
-  switch (state) {
-    case 'active':
-    case 'suspended':
-    case 'archived':
-      return state
-    case 'disconnecting':
-    case 'purge_pending':
-    case 'purging':
-    case 'purged':
-      return 'removing'
-  }
-}
-
 export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContextApi => {
   const reviewRepo = createReviewRepository(
     input.db,
@@ -325,20 +303,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         await input.propertyApi.getGoogleReadScope(orgId, pid),
       ),
   }
-  // Reply commands refuse up front what the provider authorizer would refuse,
-  // in Review's words for the Property's lifecycle.
-  const propertyPublicationScope: PropertyPublicationScopePort = {
-    getPublicationScope: async (orgId, pid) => {
-      const scope = await input.propertyApi.getPublicationScope(orgId, pid)
-      return scope
-        ? {
-            lifecycle: reviewPublicationLifecycle(scope.lifecycleState),
-            sourceEpoch: scope.sourceEpoch,
-          }
-        : null
-    },
-  }
-
   // Atomic reply state and outbox writes for the reply command family.
   const replyCommandStore = createAtomicReplyCommandStore(
     input.db,
@@ -370,7 +334,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     replyLibrary: replyLibraryRepo,
     dispatchEvidence,
     googleReplyObservationStore,
-    propertyPublicationScope,
+    propertyPublicationScope: input.propertyApi,
     clock: input.clock,
     idGen: () => replyId(input.idGen()),
     staffPublicApi: input.staffPublicApi,
@@ -489,14 +453,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     }),
   }
 
-  const aiReviewSource = createAiReviewSource({
-    findById: reviewRepo.findById,
-    readForAi: reviewRepo.readForAi,
-    readTrendPopulation: reviewRepo.readTrendPopulation,
-    assertCurrentForAi: reviewRepo.assertCurrentForAi,
-    readReplyStateRevision: reviewRepo.readReplyStateRevision,
-    hasCurrentReplyForAi: reviewRepo.hasCurrentReplyForAi,
-  })
+  const aiReviewSource = createAiReviewSource(reviewRepo)
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) =>
     registerReplyPublicationConsumers(consumerRegistry, {
       replyRepo,

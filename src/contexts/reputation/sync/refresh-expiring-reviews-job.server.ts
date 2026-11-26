@@ -37,7 +37,7 @@ import type {
   ReviewRefreshRunRepository,
   RefreshRunCursor,
 } from './review-refresh-run-repository.port.server'
-import { contentRefreshDueThreshold } from '../content/source-content-lifecycle.server'
+import { contentRefreshDueThreshold } from '#/shared/domain/source-content-policy'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 

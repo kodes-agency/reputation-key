@@ -9,13 +9,13 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import type {
   BackupErasureLedgerContext,
   BackupErasureLedgerEntry,
   BackupErasureReplayer,
 } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
-import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import type { Tx } from '#/shared/outbox/commit'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type {
@@ -315,7 +315,7 @@ async function assertReadyToPurge(
  * The reason a purge would be refused, or null. It runs the same readiness
  * checks as the purge and then rolls back, so nothing is left changed.
  */
-async function purgeRefusal(
+function purgeRefusal(
   db: Database,
   organization: string,
   at: Date,
