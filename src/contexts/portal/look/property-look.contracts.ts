@@ -5,7 +5,7 @@ import { BACKGROUND_MODES } from '../domain/property-look'
 
 const propertyIdSchema = z.string().min(1, 'Property ID is required')
 
-const colourSchema = z
+export const colourSchema = z
   .string()
   .regex(/^#[0-9a-f]{6}$/iu, 'Choose a valid six-digit colour')
 
@@ -30,7 +30,7 @@ export const propertyDefaultLocalesInputSchema = z.object({
 })
 
 const assetIdSchema = z.uuid('Choose an uploaded image')
-const focalSchema = z.number().min(0).max(1)
+export const focalSchema = z.number().min(0).max(1)
 
 /**
  * Put an uploaded photograph on the look, move where it is anchored, or take it

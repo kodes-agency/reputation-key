@@ -31,6 +31,24 @@ describe('portalLookColoursInputSchema', () => {
     ).toBe(false)
   })
 
+  it.each(['#12345', '12345a'])('refuses %j as a background colour', (colour) => {
+    expect(
+      portalLookColoursInputSchema.safeParse({
+        ...TARGET,
+        colours: { mode: 'own', backgroundColour: colour },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('refuses a background mode that is neither automatic nor manual', () => {
+    expect(
+      portalLookColoursInputSchema.safeParse({
+        ...TARGET,
+        colours: { mode: 'own', backgroundMode: 'gradient' },
+      }).success,
+    ).toBe(false)
+  })
+
   it('refuses a mode it does not know and a save with no portal', () => {
     expect(
       portalLookColoursInputSchema.safeParse({ ...TARGET, colours: { mode: 'mine' } })
