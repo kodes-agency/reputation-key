@@ -10,6 +10,7 @@ import {
   type MerchantAiSnapshot,
   type MerchantAiState,
 } from '../domain/merchant-ai-authorization'
+import { MERCHANT_AI_GRANT_POLICY } from './merchant-ai-notice.contracts'
 import type { MerchantAiDecisionDeferralReader } from './merchant-ai-decision-deferral.server'
 
 export {
@@ -182,12 +183,6 @@ export type MerchantAiAuthorizationDeps = Readonly<{
   clock: () => Date
   /** Mints a consent ceremony id. */
   idGen: () => string
-  noticeVersion: string
-  noticeDigest: string
-  sourcePolicyId: string
-  routingPolicyVersion: number
-  providerDeploymentProfileVersion: MerchantAiProviderDeploymentProfile
-  redactionProfileFamily: string
 }>
 
 export type MerchantAiReadInput = Readonly<{
@@ -253,7 +248,6 @@ function zeroCapabilityEpochs() {
 }
 
 function defaultSnapshot(
-  deps: MerchantAiAuthorizationDeps,
   input: Pick<MerchantAiReadInput, 'organizationId' | 'propertyId'>,
 ): MerchantAiSnapshot {
   return {
@@ -267,13 +261,8 @@ function defaultSnapshot(
     authorizedSourceEpoch: 0,
     analysisStartSequence: 0,
     stateVersion: 0,
-    noticeVersion: deps.noticeVersion,
-    noticeDigest: deps.noticeDigest,
-    sourcePolicyId: deps.sourcePolicyId,
-    routingPolicyVersion: deps.routingPolicyVersion,
+    ...MERCHANT_AI_GRANT_POLICY,
     processingRegion: 'global',
-    providerDeploymentProfileVersion: deps.providerDeploymentProfileVersion,
-    redactionProfileFamily: deps.redactionProfileFamily,
   }
 }
 
@@ -392,13 +381,10 @@ function validateCommand(input: MerchantAiCommandInput): void {
   validateIdempotencyAndReason(input)
 }
 
-function requireCurrentNotice(
-  deps: MerchantAiAuthorizationDeps,
-  acknowledgement: MerchantAiNoticeAcknowledgement,
-): void {
+function requireCurrentNotice(acknowledgement: MerchantAiNoticeAcknowledgement): void {
   if (
-    acknowledgement.noticeVersion !== deps.noticeVersion ||
-    acknowledgement.noticeDigest !== deps.noticeDigest
+    acknowledgement.noticeVersion !== MERCHANT_AI_GRANT_POLICY.noticeVersion ||
+    acknowledgement.noticeDigest !== MERCHANT_AI_GRANT_POLICY.noticeDigest
   ) {
     throw new MerchantAiAuthorizationError(
       'notice_mismatch',
@@ -470,7 +456,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
   ): Promise<MerchantAiSnapshot> {
     validateCommand(input)
     if (capabilities.length > 0) resolveAiRuntimeCapabilitySet(capabilities)
-    if (acknowledgement !== null) requireCurrentNotice(deps, acknowledgement)
+    if (acknowledgement !== null) requireCurrentNotice(acknowledgement)
     const now = deps.clock()
     await requireManagement(input, now)
     await authorizeCapabilities(input, capabilities, now)
@@ -484,12 +470,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
       state,
       capabilities,
       reasonCode: input.reasonCode,
-      noticeVersion: deps.noticeVersion,
-      noticeDigest: deps.noticeDigest,
-      sourcePolicyId: deps.sourcePolicyId,
-      routingPolicyVersion: deps.routingPolicyVersion,
-      providerDeploymentProfileVersion: deps.providerDeploymentProfileVersion,
-      redactionProfileFamily: deps.redactionProfileFamily,
+      ...MERCHANT_AI_GRANT_POLICY,
       now,
       ceremonyId: deps.idGen(),
     })
@@ -514,8 +495,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
         )
       }
       const scope = { organizationId: input.organizationId, propertyId: input.propertyId }
-      const snapshot =
-        (await deps.store.getSnapshot(scope)) ?? defaultSnapshot(deps, scope)
+      const snapshot = (await deps.store.getSnapshot(scope)) ?? defaultSnapshot(scope)
       // Read after the head: an enable committing in between deletes the
       // deferral, so the pair may be stale together but never shows an enabled
       // head beside a standing deferral. An enabled head carries none.
@@ -561,7 +541,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
       const propertyIds = validateCeremonyCommand(input)
       const capabilities = requireCapabilities(input.capabilities)
       resolveAiRuntimeCapabilitySet(capabilities)
-      requireCurrentNotice(deps, input.acknowledgement)
+      requireCurrentNotice(input.acknowledgement)
       const now = deps.clock()
       if (
         !(await deps.isCurrentAccountAdmin({
@@ -590,12 +570,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
         capabilities,
         idempotencyKey: input.idempotencyKey,
         reasonCode: input.reasonCode,
-        noticeVersion: deps.noticeVersion,
-        noticeDigest: deps.noticeDigest,
-        sourcePolicyId: deps.sourcePolicyId,
-        routingPolicyVersion: deps.routingPolicyVersion,
-        providerDeploymentProfileVersion: deps.providerDeploymentProfileVersion,
-        redactionProfileFamily: deps.redactionProfileFamily,
+        ...MERCHANT_AI_GRANT_POLICY,
         now,
         ceremonyId: deps.idGen(),
       })

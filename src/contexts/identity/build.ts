@@ -39,12 +39,7 @@ import { reclaimPendingIdentityUploads } from './images/reclaim-pending-identity
 import type { StoragePort } from '#/contexts/portal/public-api'
 import { staffFailureDiagnostic } from './staff/staff-failure-diagnostic.server'
 import {
-  MERCHANT_AI_NOTICE,
-  MERCHANT_AI_NOTICE_DIGEST,
-  MERCHANT_AI_NOTICE_VERSION,
-  MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
-  MERCHANT_AI_REDACTION_PROFILE_FAMILY,
-  MERCHANT_AI_SOURCE_POLICY_ID,
+  MERCHANT_AI_GRANT_POLICY,
   isMerchantAiNoticeInForceForCapabilities,
 } from './consent/merchant-ai-notice.contracts'
 import { acceptInvitation } from './members/accept-invitation.server'
@@ -327,13 +322,6 @@ function buildStaffAccounts(
   })
 }
 
-const MERCHANT_AI_GRANT_POLICY = {
-  sourcePolicyId: MERCHANT_AI_SOURCE_POLICY_ID,
-  routingPolicyVersion: 1,
-  providerDeploymentProfileVersion: MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
-  redactionProfileFamily: MERCHANT_AI_REDACTION_PROFILE_FAMILY,
-} as const
-
 /**
  * Merchant AI: authorization, decision deferral, the overview read, notice
  * updates and the standing renewal job, over one shared management check.
@@ -373,9 +361,6 @@ function buildMerchantAi(
     isCurrentAccountAdmin: isAccountAdmin,
     clock,
     idGen,
-    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-    ...MERCHANT_AI_GRANT_POLICY,
   })
   const deferral = createMerchantAiDecisionDeferral({
     store: decisionDeferrals,
@@ -423,16 +408,12 @@ function buildMerchantAi(
         db,
         idGen,
         replyEffects: deps.replyEffects,
-        policy: {
-          noticeVersion: MERCHANT_AI_NOTICE.version,
-          noticeDigest: MERCHANT_AI_NOTICE.digest,
-          ...MERCHANT_AI_GRANT_POLICY,
-        },
+        policy: MERCHANT_AI_GRANT_POLICY,
         authorize: async (input) => merchantAiRenewalDecision(input),
       }),
       target: {
-        noticeVersion: MERCHANT_AI_NOTICE.version,
-        noticeDigest: MERCHANT_AI_NOTICE.digest,
+        noticeVersion: MERCHANT_AI_GRANT_POLICY.noticeVersion,
+        noticeDigest: MERCHANT_AI_GRANT_POLICY.noticeDigest,
       },
       captureUnexpected: (error) =>
         captureObservabilityException(error, {

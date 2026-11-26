@@ -135,8 +135,6 @@ function services() {
       isCurrentAccountAdmin: async () => true,
       clock,
       idGen: randomUUID,
-      ...SERVED_NOTICE,
-      ...POLICY,
     }),
     deferral: createMerchantAiDecisionDeferral({
       store: decisionDeferrals,
