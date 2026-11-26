@@ -56,7 +56,6 @@ const property = buildPropertyContext({
       ]
     },
   },
-  logger: { info: () => {}, warn: () => {} },
 })
 
 const admin = buildTestAuthContext({

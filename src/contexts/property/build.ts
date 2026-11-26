@@ -16,7 +16,6 @@ import type {
   PropertyId,
   UserId,
 } from '#/shared/domain/ids'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import { updateProperty } from './profile/update-property.server'
 import { listProperties } from './profile/list-properties.server'
 import { getProperty } from './profile/get-property.server'
@@ -51,7 +50,6 @@ type PropertyContextDeps = Readonly<{
   clock: () => Date
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
-  logger: Pick<LoggerPort, 'info' | 'warn'>
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
@@ -64,24 +62,27 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     identityPublicApi: deps.identityManagerFacts,
     staffPublicApi: deps.staffPublicApi,
   }
+  const eligibleManagerIds = async (orgId: OrganizationId, pid: PropertyId) => {
+    const assignments = await responsibleManagerRepo.listActive(orgId, pid)
+    const eligible = await Promise.all(
+      assignments.map(async (assignment) =>
+        (await isEligibleResponsibleManager(
+          managerEligibilityPolicy(managerEligibility),
+          orgId,
+          pid,
+          assignment.userId,
+        ))
+          ? assignment.userId
+          : null,
+      ),
+    )
+    return eligible.filter((userId): userId is UserId => userId !== null)
+  }
   const lifecycleReadiness = {
     hasEligibleResponsibleManager: async (
       organizationId: OrganizationId,
       pid: PropertyId,
-    ) => {
-      const assignments = await responsibleManagerRepo.listActive(organizationId, pid)
-      const eligibility = await Promise.all(
-        assignments.map((assignment) =>
-          isEligibleResponsibleManager(
-            managerEligibilityPolicy(managerEligibility),
-            organizationId,
-            pid,
-            assignment.userId,
-          ),
-        ),
-      )
-      return eligibility.some(Boolean)
-    },
+    ) => (await eligibleManagerIds(organizationId, pid)).length > 0,
   } as const
 
   const useCases = {
@@ -227,24 +228,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         .sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
       return anchor?.id ?? null
     },
-    getResponsibleManagerUserIds: async (orgId: OrganizationId, pid: PropertyId) => {
-      const assignments = await responsibleManagerRepo.listActive(orgId, pid)
-      const eligible = await Promise.all(
-        assignments.map(async (assignment) =>
-          (await isEligibleResponsibleManager(
-            managerEligibilityPolicy(managerEligibility),
-            orgId,
-            pid,
-            assignment.userId,
-          ))
-            ? assignment.userId
-            : null,
-        ),
-      )
-      return eligible.filter(
-        (userId): userId is import('#/shared/domain/ids').UserId => userId !== null,
-      )
-    },
+    getResponsibleManagerUserIds: eligibleManagerIds,
     isEligibleResponsibleManagerUserId: async (
       orgId: OrganizationId,
       pid: PropertyId,
@@ -297,9 +281,5 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       listActiveForUser: responsibleManagerRepo.listActiveForUser,
       releaseForUser: responsibleManagerRepo.releaseForUser,
     }) satisfies PropertyResponsibilityRuntime,
-    internal: {
-      repos: { responsibleManagerRepo } as const,
-      useCases,
-    },
   } as const
 }
