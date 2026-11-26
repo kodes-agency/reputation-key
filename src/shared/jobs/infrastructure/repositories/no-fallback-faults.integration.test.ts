@@ -62,11 +62,8 @@ import { reconcileWorkItems } from '#/shared/jobs/work-items.server'
 import { createGatedJobHandler } from '#/shared/jobs/delayed-execution-gate'
 import { createJobRegistry } from '#/shared/jobs/registry'
 import { createJobWorker } from '#/shared/jobs/worker'
-import {
-  quarantineExhaustedJob,
-  createRedriveJob,
-  listQuarantinedJobs,
-} from '#/shared/jobs/failure-quarantine'
+import { createRedriveJob, listQuarantinedJobs } from '#/shared/jobs/failure-quarantine'
+import { quarantineExhaustedJob } from '#/shared/jobs/failure-quarantine.test-fixtures'
 import { createHealthChecker } from '#/shared/observability/health-metrics'
 import {
   initDelayedExecutionPolicy,

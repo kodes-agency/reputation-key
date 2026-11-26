@@ -34,11 +34,8 @@ import {
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
 import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
-import {
-  createRedriveJob,
-  listQuarantinedJobs,
-  quarantineExhaustedJob,
-} from '#/shared/jobs/failure-quarantine'
+import { createRedriveJob, listQuarantinedJobs } from '#/shared/jobs/failure-quarantine'
+import { quarantineExhaustedJob } from '#/shared/jobs/failure-quarantine.test-fixtures'
 import {
   runOperatorCommand,
   type OperatorIO,

@@ -13,7 +13,6 @@ import { Job as BullmqJob } from 'bullmq'
 import type { Job, JobProgress, JobsOptions, Queue } from 'bullmq'
 import {
   confirmQuarantineFailure,
-  quarantineExhaustedJob,
   quarantineFinalAttemptJob,
   createRedriveJob,
   findQuarantinedJob,
@@ -21,6 +20,7 @@ import {
   QUARANTINE_QUEUE_NAME,
   type QuarantineEnvelope,
 } from './failure-quarantine'
+import { quarantineExhaustedJob } from './failure-quarantine.test-fixtures'
 import { jobEnqueueOptions } from './job-policy'
 import { JOB_DEFINITIONS } from './job-definitions'
 
