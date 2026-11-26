@@ -290,6 +290,7 @@ async function createAnsweredOnGoogle(
         item,
         anchor,
         permit,
+        deps.clock(),
         borrowReviewTransaction(reviewTx),
       ),
   )
@@ -303,9 +304,8 @@ async function createAnsweredOnGoogle(
 
 /**
  * Pass B, one review: materialize metadata plus an initial cycle, closed when
- * Google already answers the review. A review without a stable material
- * revision, or one the constructor rejects, is reported and skipped rather
- * than guessed at.
+ * Google already answers the review. A review the constructor rejects is
+ * reported and skipped rather than guessed at.
  */
 async function materializeMissingItem(
   deps: RebuildInboxProjectionDeps,
@@ -314,14 +314,6 @@ async function materializeMissingItem(
   truth: ReplyTruth,
   counters: Counters,
 ): Promise<void> {
-  if (src.materialReviewRevision === null) {
-    deps.logger.warn(
-      {},
-      'rebuildInboxProjection: skipping review without a stable material revision',
-    )
-    counters.skipped += 1
-    return
-  }
   const built = buildInboxItem({
     id: deps.idGen(),
     organizationId: input.organizationId,
@@ -372,7 +364,7 @@ async function materializeMissingItem(
   }
   // Idempotent create, NO created/status fact — rebuild is repair, not
   // new information; the durable record is this report.
-  await deps.commandStore.createItem(item, null, {
+  await deps.commandStore.createItem(item, {
     sourceRevision: anchor.materialReviewRevision,
     openedReason: 'review_observed',
     actorType: 'provider',

@@ -29,8 +29,8 @@ import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/revi
 import type { ConsumerEvent } from '#/shared/outbox'
 import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
 import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
-import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import { createMockLogger } from '#/shared/testing/mock-logger'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 export const ORG = organizationId('org-inbox-reply-observation')
 export const PROPERTY = propertyId('b2000000-0000-0000-0000-000000000001')
@@ -80,7 +80,7 @@ const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
 export const logger = createMockLogger()
 
 export const createAtomicInboxCommandStore = (database: Database) =>
-  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OBSERVED_AT)
+  createProductionInboxCommandStore(database, allowAllCommandAuthority)
 export const EVENT_STALE = 'b2000000-0000-0000-0000-000000000104'
 export const EVENT_AHEAD = 'b2000000-0000-0000-0000-000000000105'
 export const EVENT_OLDER = 'b2000000-0000-0000-0000-000000000106'
@@ -218,7 +218,6 @@ export async function seed(
   const item = makeItem()
   await createAtomicInboxCommandStore(getDb()).createItem(
     item,
-    null,
     options.measured
       ? {
           sourceRevision: 1,
@@ -441,10 +440,7 @@ export function consumerDeps(): InboxConsumerDeps {
         getFeedbackSnippetsByIds: async () => new Map(),
         findEligibleFeedbackIds: async () => [],
       } satisfies FeedbackLookupPort,
-      propertyLookup: {
-        getPropertyNameById: async () => null,
-        getPropertyNamesByIds: async () => new Map(),
-      } satisfies PropertyLookupPort,
+      propertyLookup: inertPropertyLookup,
     },
     { clock: () => OBSERVED_AT, logger },
   )
@@ -458,12 +454,6 @@ export function consumerDeps(): InboxConsumerDeps {
       withInboxProjection: async () => ({ status: 'obsolete' as const }),
     },
     sourceTransitionAuthority: createReviewSourceTransitionAuthority(getDb()),
-    reviewLookup,
-    reviewSourceLookup: {
-      getReviewSourceMetaById: async () => null,
-      getReviewSourceMetaByIds: async () => [],
-      listReviewSources: async () => [],
-    },
     inboxRepo,
     idGen: () => ITEM,
     clock: () => OBSERVED_AT,

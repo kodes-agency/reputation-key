@@ -109,7 +109,6 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     )
     await store.createItem(
       makeReviewItem(UNKNOWN_ITEM, UNKNOWN_REVIEW),
-      null,
       reviewOpeningAnchor(makeReviewItem(UNKNOWN_ITEM, UNKNOWN_REVIEW)),
     )
 

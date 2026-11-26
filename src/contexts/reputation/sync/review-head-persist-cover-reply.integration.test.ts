@@ -132,13 +132,9 @@ describe('a reply written on Google, seen by a head check (real PostgreSQL)', ()
     await insertFact({ count: 1, average: 4 })
     clock.at = new Date()
     const allowAll = async () => ({ allowed: true as const })
-    const inboxStore = createAtomicInboxCommandStore(db, allowAll, () => clock.at)
+    const inboxStore = createAtomicInboxCommandStore(db, allowAll)
     const item: InboxItem = { ...buildItem(), sourceId: seen.reviewId as never }
-    await inboxStore.createItem(
-      item,
-      null,
-      reviewOpeningAnchor(item, seen.sourceRevision),
-    )
+    await inboxStore.createItem(item, reviewOpeningAnchor(item, seen.sourceRevision))
 
     const { result } = await headCheck(
       [

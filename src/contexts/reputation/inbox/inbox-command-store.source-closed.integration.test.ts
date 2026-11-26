@@ -43,7 +43,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       commandRevision: Number.MAX_SAFE_INTEGER,
     })
     const store = createAtomicInboxCommandStore(db)
-    await store.createItem(legacy, null, reviewOpeningAnchor(legacy))
+    await store.createItem(legacy, reviewOpeningAnchor(legacy))
     const noteId = '4d000000-0000-0000-0000-000000000099'
     await pool.query(
       `INSERT INTO inbox_notes (
@@ -132,7 +132,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       commandRevision: Number.MAX_SAFE_INTEGER,
     })
     const store = createAtomicInboxCommandStore(db)
-    await store.createItem(legacy, null, reviewOpeningAnchor(legacy))
+    await store.createItem(legacy, reviewOpeningAnchor(legacy))
     const noteId = '4d000000-0000-0000-0000-000000000098'
     await pool.query(
       `INSERT INTO inbox_notes (
@@ -214,7 +214,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       sourceId: FEEDBACK_A,
       platform: null,
     })
-    await store.createItem(item, null, {
+    await store.createItem(item, {
       sourceRevision: 1,
       openedReason: 'feedback_submitted',
       actorType: 'guest',
@@ -308,7 +308,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
           sourceId: FEEDBACK_A,
           platform: null,
         })
-        await store.createItem(item, null, {
+        await store.createItem(item, {
           sourceRevision: 1,
           openedReason: 'feedback_submitted',
           actorType: 'guest',
@@ -364,7 +364,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       sourceId: FEEDBACK_A,
       platform: null,
     })
-    await store.createItem(item, null, {
+    await store.createItem(item, {
       sourceRevision: 1,
       openedReason: 'feedback_submitted',
       actorType: 'guest',
@@ -457,8 +457,8 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         triggerEventId: null,
         openedAt: NOW,
       }
-      await store.createItem(first, null, anchor)
-      await store.createItem(second, null, anchor)
+      await store.createItem(first, anchor)
+      await store.createItem(second, anchor)
 
       const source = guestFeedbackRetracted({
         feedbackId: FEEDBACK_A,

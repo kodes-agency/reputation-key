@@ -85,40 +85,42 @@ export const assignInboxItem =
 
     // Assignment grants no authority. The command store re-evaluates both
     // actor and assignee against Identity + Staff inside the write transaction.
-    if (item.assignedTo === input.assignedToUserId) return item
+    const assignedTo = input.assignedToUserId
+    const previousAssignee = item.assignedTo
 
     // 3. Update assignment + record the fact atomically (assigned, or
     //    unassigned when the item had a previous assignee)
-    const now = deps.clock()
-    const event = input.assignedToUserId
-      ? inboxItemAssigned({
+    if (assignedTo === null) {
+      if (previousAssignee === null) return item
+      return deps.commandStore.assign(
+        item,
+        { assignedTo },
+        inboxItemUnassigned({
           inboxItemId: item.id,
           organizationId: item.organizationId,
           propertyId: item.propertyId,
           userId: ctx.userId,
-          assignedTo: input.assignedToUserId,
-          // A reassignment is news to whoever held it: they were never told.
-          previousAssignee: item.assignedTo,
+          previousAssignee,
           source: 'web',
-          occurredAt: now,
-        })
-      : item.assignedTo
-        ? inboxItemUnassigned({
-            inboxItemId: item.id,
-            organizationId: item.organizationId,
-            propertyId: item.propertyId,
-            userId: ctx.userId,
-            previousAssignee: item.assignedTo,
-            source: 'web',
-            occurredAt: now,
-          })
-        : null
-
+          occurredAt: deps.clock(),
+        }),
+      )
+    }
+    if (assignedTo === previousAssignee) return item
     return deps.commandStore.assign(
       item,
-      { assignedTo: input.assignedToUserId },
-      event,
-      now,
+      { assignedTo },
+      inboxItemAssigned({
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
+        propertyId: item.propertyId,
+        userId: ctx.userId,
+        assignedTo,
+        // A reassignment is news to whoever held it: they were never told.
+        previousAssignee,
+        source: 'web',
+        occurredAt: deps.clock(),
+      }),
     )
   }
 

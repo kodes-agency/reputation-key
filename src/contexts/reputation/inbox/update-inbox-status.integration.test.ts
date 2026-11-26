@@ -133,7 +133,7 @@ const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
     )
   const stored = async () => (await repo.findById(ITEM_ID, ORG_ID))!
   const seed = (...items: InboxItem[]) =>
-    seedInboxScope(pool, ORG_ID, [PROP_1, PROP_OTHER, PROP_ASSIGNED], items, FIXED_TIME)
+    seedInboxScope(pool, ORG_ID, [PROP_1, PROP_OTHER, PROP_ASSIGNED], items)
   return { useCase, seed, stored, commandStore }
 }
 

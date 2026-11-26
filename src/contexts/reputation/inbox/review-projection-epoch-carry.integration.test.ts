@@ -13,6 +13,7 @@ import {
   handleInboxReviewUpdated,
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 /**
  * Archive/Restore, a Google relink and disconnect/reconnect advance the source
@@ -149,31 +150,20 @@ const lookups = {
     getFeedbackSnippetsByIds: async () => new Map(),
     findEligibleFeedbackIds: async () => [],
   },
-  propertyLookup: {
-    getPropertyNameById: async () => null,
-    getPropertyNamesByIds: async () => new Map(),
-  },
+  propertyLookup: inertPropertyLookup,
 }
 
 function deps(): InboxConsumerDeps {
   const database = getDb()
   const clock = () => DELIVERED_AT
   return {
-    commandStore: createAtomicInboxCommandStore(
-      database,
-      async () => ({ allowed: true }),
-      clock,
-    ),
+    commandStore: createAtomicInboxCommandStore(database, async () => ({
+      allowed: true,
+    })),
     handlingCycleStore: createReviewHandlingCycleStore(database),
     replyObservationAuthority: obsolete,
     responseTargetAuthority: createReviewResponseTargetAuthority(database),
     sourceTransitionAuthority: obsolete,
-    reviewLookup: lookups.reviewLookup,
-    reviewSourceLookup: {
-      getReviewSourceMetaById: async () => null,
-      getReviewSourceMetaByIds: async () => [],
-      listReviewSources: async () => [],
-    },
     inboxRepo: createInboxRepository(database, lookups, {
       clock,
       logger: createMockLogger(),

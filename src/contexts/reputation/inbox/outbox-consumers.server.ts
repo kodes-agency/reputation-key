@@ -15,8 +15,6 @@
 
 import { PrerequisiteNotReadyError } from '#/shared/outbox'
 import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
-import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
-import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { InboxRepository } from '#/contexts/reputation/inbox/inbox-repository.port.server'
 import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import type { ReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.port.server'
@@ -40,8 +38,6 @@ export type InboxConsumerDeps = Readonly<{
   replyObservationAuthority: ReviewReplyObservationAuthority
   responseTargetAuthority: ReviewResponseTargetAuthority
   sourceTransitionAuthority: ReviewSourceTransitionAuthority
-  reviewLookup: ReviewLookupPort
-  reviewSourceLookup: ReviewSourceLookupPort
   inboxRepo: InboxRepository
   idGen: () => InboxItemId
   clock: () => Date

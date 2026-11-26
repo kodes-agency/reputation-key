@@ -9,14 +9,8 @@ import type { InboxConsumerDeps } from './outbox-consumers.server'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import type {
-  ReviewLookupPort,
-  ReviewSnippetResult,
-} from '#/contexts/reputation/inbox/review-lookup.port.server'
-import type {
-  ReviewSourceLookupPort,
-  ReviewSourceMeta,
-} from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import type { ReviewSnippetResult } from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { ReviewSourceMeta } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { ApplyReceiptStatus } from '#/contexts/reputation/inbox/command-store.port.server'
 import type { ReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import type { ReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.port.server'
@@ -183,7 +177,7 @@ export const useOutboxConsumersDatabase = (): void => {
 const seedOrganization = () => seedInboxOrganization(pool, ORG, [PROP, PROP2])
 
 const seedItem = async (item: InboxItem): Promise<void> => {
-  await seedInboxItem(pool, getDb(), item, () => NOW)
+  await seedInboxItem(pool, getDb(), item)
   await pool.query(
     `UPDATE inbox_items
         SET first_reply_submitted_at = $2, first_reply_published_at = $3
@@ -306,26 +300,6 @@ export async function makeDeps(overrides: {
     )
     return found.filter((row): row is InboxItem => row !== null)
   }
-
-  const reviewLookup = {
-    getReviewSnippetById: vi.fn(async () =>
-      overrides.snippetResult === undefined ? AVAILABLE_SNIPPET : overrides.snippetResult,
-    ),
-    getReviewSnippetsByIds: vi.fn(async () => new Map()),
-    findEligibleReviewIds: vi.fn(async () => []),
-  } satisfies ReviewLookupPort
-
-  const reviewSourceLookup = {
-    getReviewSourceMetaById: vi.fn(async () =>
-      overrides.sourceMeta === undefined ? SOURCE_META : overrides.sourceMeta,
-    ),
-    getReviewSourceMetaByIds: vi.fn(async () => {
-      const source =
-        overrides.sourceMeta === undefined ? SOURCE_META : overrides.sourceMeta
-      return source ? [source] : []
-    }),
-    listReviewSources: vi.fn(async () => []),
-  } satisfies ReviewSourceLookupPort
 
   const feedbackLookup = {
     getFeedbackSnippetById: vi.fn(async () =>
@@ -482,8 +456,6 @@ export async function makeDeps(overrides: {
     replyObservationAuthority,
     responseTargetAuthority,
     sourceTransitionAuthority,
-    reviewLookup,
-    reviewSourceLookup,
     inboxRepo: repo,
     idGen: () => INBOX,
     clock: () => NOW,

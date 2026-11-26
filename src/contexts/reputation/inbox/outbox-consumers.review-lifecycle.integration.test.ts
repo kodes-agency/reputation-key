@@ -79,7 +79,6 @@ describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.reviewLookup.getReviewSnippetById).not.toHaveBeenCalled()
     // Metadata only — no rating/snippet/reviewerName copied.
     expect(await repo.items()).toHaveLength(1)
     const stored = await repo.first()

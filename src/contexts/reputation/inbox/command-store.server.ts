@@ -32,9 +32,8 @@ export type {
 export const createAtomicInboxCommandStore = (
   db: Database,
   authorizeCommand: InboxCommandAuthority,
-  clock: () => Date,
 ): InboxCommandStore => {
-  const runtime = createCommandRuntime(db, authorizeCommand, clock)
+  const runtime = createCommandRuntime(db, authorizeCommand)
   return {
     ...createAssignmentCommands(runtime),
     ...createStatusCommands(runtime),

@@ -401,7 +401,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     )
     expect(beforeProjection.rows).toEqual([])
 
-    await deps.commandStore.createItem(item, null, reviewOpeningAnchor(item))
+    await deps.commandStore.createItem(item, reviewOpeningAnchor(item))
     await expect(handleInboxReplyObserved(deps, event)).resolves.toEqual({
       status: 'applied',
     })

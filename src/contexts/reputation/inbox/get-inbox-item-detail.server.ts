@@ -44,11 +44,11 @@ export type GetInboxItemDetailDeps = Readonly<{
   repo: InboxRepository
   staffPublicApi: StaffPublicApi
   replyLookup: ReplyLookupPort
-  propertyLookup?: PropertyLookupPort
+  propertyLookup: PropertyLookupPort
   aiInsights?: AiReviewInsightsPort
-  feedbackHandlingStore?: FeedbackHandlingStore
-  responseTargetStore?: ResponseTargetStore
-  clock?: () => Date
+  feedbackHandlingStore: FeedbackHandlingStore
+  responseTargetStore: ResponseTargetStore
+  clock: () => Date
 }>
 
 /** Detail result with the review's reply attached (review items only).
@@ -156,7 +156,6 @@ export const getInboxItemDetail =
     const readFeedbackHandling = async (): Promise<FeedbackHandlingState | null> => {
       if (
         detail.item.sourceType !== 'feedback' ||
-        !deps.feedbackHandlingStore ||
         !canHandleInboxSource(ctx, 'feedback')
       ) {
         return null
@@ -208,20 +207,16 @@ export const getInboxItemDetail =
           )
         : null,
       readFeedbackHandling(),
-      deps.responseTargetStore && deps.clock
-        ? deps.responseTargetStore.getCycleTarget(
-            detail.item.id,
-            ctx.organizationId,
-            deps.clock(),
-          )
-        : null,
-      deps.propertyLookup?.getPropertyReplyLanguageById
-        ? deps.propertyLookup.getPropertyReplyLanguageById(
-            detail.item.propertyId,
-            ctx.organizationId,
-          )
-        : null,
-      isReview && deps.propertyLookup?.getPropertyGoogleReviewsPageById
+      deps.responseTargetStore.getCycleTarget(
+        detail.item.id,
+        ctx.organizationId,
+        deps.clock(),
+      ),
+      deps.propertyLookup.getPropertyReplyLanguageById(
+        detail.item.propertyId,
+        ctx.organizationId,
+      ),
+      isReview
         ? deps.propertyLookup.getPropertyGoogleReviewsPageById(
             detail.item.propertyId,
             ctx.organizationId,

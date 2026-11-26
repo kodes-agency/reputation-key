@@ -71,7 +71,7 @@ let pool: Pool
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
 const commandStore = (database: Database) =>
-  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OPENED_AT)
+  createProductionInboxCommandStore(database, allowAllCommandAuthority)
 
 const makeItem = (): InboxItem => ({
   id: ITEM,
@@ -276,7 +276,7 @@ async function seed(): Promise<InboxItem> {
     [ORG, DURATION_MINUTES, MANAGER, OPENED_AT],
   )
   const item = makeItem()
-  await commandStore(db).createItem(item, null, {
+  await commandStore(db).createItem(item, {
     sourceRevision: 1,
     openedReason: 'feedback_submitted',
     actorType: 'guest',

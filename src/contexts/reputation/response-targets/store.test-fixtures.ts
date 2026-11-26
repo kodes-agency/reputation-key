@@ -50,7 +50,7 @@ export const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
 })
 
 export const commandStore = (database: Database) =>
-  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OPENED_AT)
+  createProductionInboxCommandStore(database, allowAllCommandAuthority)
 
 type CommandStore = ReturnType<typeof commandStore>
 type ReviewAuthority = NonNullable<ReviewCycleTargetAnchor['reviewAuthority']>
@@ -203,7 +203,7 @@ export const openReviewCycle = (
   reviewAuthority: ReviewAuthority,
   openedAt: Date = OPENED_AT,
 ) =>
-  commands.createItem(item, null, {
+  commands.createItem(item, {
     sourceRevision: 1,
     openedReason: 'review_observed',
     actorType: 'provider',
@@ -222,7 +222,7 @@ export async function projectMeasuredReview(
   publishedAt: Date,
 ): Promise<void> {
   await seedReviewSource(sourceId, 'measured', publishedAt)
-  await commandStore(db).createItem(makeReviewItem(id, sourceId), null, {
+  await commandStore(db).createItem(makeReviewItem(id, sourceId), {
     sourceRevision: 1,
     openedReason: 'review_observed',
     actorType: 'provider',
@@ -403,7 +403,7 @@ export async function seedScope(
     )
   }
   const item = makeItem()
-  await commandStore(db).createItem(item, null, {
+  await commandStore(db).createItem(item, {
     sourceRevision: 1,
     openedReason: 'feedback_submitted',
     actorType: 'guest',

@@ -62,28 +62,23 @@ export const createSourceCommands = (
   | 'settleSupersededDelivery'
   | 'recordReceipt'
 > => {
-  const { db, clock } = runtime
+  const { db } = runtime
 
   return {
-    createItem: async (item, event, reviewCycleAnchor, lent) => {
-      return trace('inbox.commandStore.createItem', async () => {
-        return inTransaction(db, lent, async (tx) => {
-          const inserted = await insertItemIdempotent(tx, item, reviewCycleAnchor)
-          if (inserted.created && event) {
-            await insertOutboxRow(tx, event)
-            for (const fact of inserted.openingFacts) await insertOutboxRow(tx, fact)
-          }
-          return inserted
-        })
-      })
+    createItem: async (item, reviewCycleAnchor, lent) => {
+      return trace('inbox.commandStore.createItem', () =>
+        inTransaction(db, lent, (tx) =>
+          insertItemIdempotent(tx, item, reviewCycleAnchor),
+        ),
+      )
     },
 
-    createReviewItemAnsweredOnGoogle: async (item, anchor, observation, lent) => {
+    createReviewItemAnsweredOnGoogle: async (item, anchor, observation, now, lent) => {
       return trace('inbox.commandStore.createReviewItemAnsweredOnGoogle', () =>
         inTransaction(db, lent, (tx) =>
           insertReviewItemAnsweredOnGoogle(
             tx,
-            { item, anchor, observation, now: clock() },
+            { item, anchor, observation, now },
             insertItemIdempotent,
           ),
         ),

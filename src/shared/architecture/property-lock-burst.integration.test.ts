@@ -44,9 +44,8 @@ import {
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
-import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
-import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const ORG = organizationId('org-property-lock-burst')
 const PROPERTY = propertyId('af300000-0000-4000-8000-000000000001')
@@ -88,22 +87,13 @@ const reviewLookup = {
   findEligibleReviewIds: async () => [],
 } satisfies ReviewLookupPort
 
-const reviewSourceLookup = {
-  getReviewSourceMetaById: async () => null,
-  getReviewSourceMetaByIds: async () => [],
-  listReviewSources: async () => [],
-} satisfies ReviewSourceLookupPort
-
 const feedbackLookup = {
   getFeedbackSnippetById: async () => null,
   getFeedbackSnippetsByIds: async () => new Map(),
   findEligibleFeedbackIds: async () => [],
 } satisfies FeedbackLookupPort
 
-const propertyLookup = {
-  getPropertyNameById: async () => null,
-  getPropertyNamesByIds: async () => new Map(),
-} satisfies PropertyLookupPort
+const propertyLookup = inertPropertyLookup
 
 /** SQLSTATE of a pg error, directly or behind Drizzle's query wrapper. */
 function failureCode(error: unknown): string {
@@ -201,17 +191,11 @@ async function createdEvent(review: string): Promise<ConsumerEvent> {
 
 function inboxDeps(db: ReturnType<typeof drizzle>): InboxConsumerDeps {
   return {
-    commandStore: createAtomicInboxCommandStore(
-      db,
-      allowAllCommandAuthority,
-      () => IMPORTED_AT,
-    ),
+    commandStore: createAtomicInboxCommandStore(db, allowAllCommandAuthority),
     handlingCycleStore: createReviewHandlingCycleStore(db),
     replyObservationAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
     responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
-    reviewLookup,
-    reviewSourceLookup,
     inboxRepo: createInboxRepository(
       db,
       { reviewLookup, feedbackLookup, propertyLookup },

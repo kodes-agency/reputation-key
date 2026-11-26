@@ -13,7 +13,6 @@ import {
   PROP_A_2,
   PROP_B,
   USER_A,
-  TEST_NOW,
   db,
   allowAllCommandAuthority,
   stubPorts,
@@ -94,11 +93,7 @@ describe('inbox repository — active Handling Cycle authority', () => {
         snippet: null,
         reviewerName: null,
       })
-      await createAtomicInboxCommandStore(
-        db,
-        allowAllCommandAuthority,
-        () => TEST_NOW,
-      ).createItem(orphan, null)
+      await createAtomicInboxCommandStore(db, allowAllCommandAuthority).createItem(orphan)
 
       await expect(repo.findById(orphan.id, ORG_A)).resolves.toBeNull()
       await expect(repo.findByIds([orphan.id], ORG_A)).resolves.toEqual([])
@@ -190,11 +185,7 @@ describe('inbox repository — active Review item ids', () => {
     })
     await repo.seedItem(elsewhere)
     await repo.seedItem(feedback)
-    await createAtomicInboxCommandStore(
-      db,
-      allowAllCommandAuthority,
-      () => TEST_NOW,
-    ).createItem(orphan, null)
+    await createAtomicInboxCommandStore(db, allowAllCommandAuthority).createItem(orphan)
 
     const itemIds = await repo.findActiveReviewItemIds(ORG_A, PROP_A, [
       reviewId(elsewhere.sourceId),

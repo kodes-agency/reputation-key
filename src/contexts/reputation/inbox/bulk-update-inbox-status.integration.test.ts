@@ -148,7 +148,7 @@ const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
   ) => execute({ reopenReason: 'new_information', ...input }, ctx)
   const seed = async (...items: InboxItem[]) => {
     seeded.push(...items)
-    await seedInboxScope(pool, ORG_ID, [PROP_1, PROP_2], items, FIXED_TIME)
+    await seedInboxScope(pool, ORG_ID, [PROP_1, PROP_2], items)
   }
   const statuses = async (...labels: string[]): Promise<InboxStatus[]> => {
     const rows = await repo.findByIds(labels.map(itemId), ORG_ID)
