@@ -1,30 +1,4 @@
-// Shared domain barrel — re-exports all shared domain utilities
-// Contexts import from here, never from the individual files directly.
+// Shared domain barrel — the Result type and its constructors.
+// Everything else is imported from its own file.
 
-// ── Branded IDs ───────────────────────────────────────────────────
-export type {
-  OrganizationId,
-  UserId,
-  PropertyId,
-  PortalId,
-  TeamId,
-  PortalLinkCategoryId,
-  PortalLinkId,
-  ScanEventId,
-  RatingId,
-  FeedbackId,
-} from './ids'
-
-// ── Core types ────────────────────────────────────────────────────
 export { Result, ok, err } from './result'
-
-export type { TaggedError } from './errors'
-
-export type { AuthContext } from './auth-context'
-
-// ── Roles & permissions ───────────────────────────────────────────
-export type { Role } from './roles'
-export type { Permission } from './permissions'
-
-// ── Logger port ──────────────────────────────────────────────────
-export type { LoggerPort } from './logger.port'

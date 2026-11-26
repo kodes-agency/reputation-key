@@ -61,12 +61,6 @@ export const dashboardRangeSearch = z
   .catch(DASHBOARD_RANGE_DEFAULT)
   .default(DASHBOARD_RANGE_DEFAULT)
 
-/** Day count, or null for the unbounded window. */
-export function dashboardRangeDays(range: DashboardRange): number | null {
-  if (range === 'all') return null
-  return range === '30d' ? 30 : range === '90d' ? 90 : 180
-}
-
 /**
  * Comparison phrase for a delta, or null when there is nothing to compare
  * against. Every bounded range compares with the same length immediately

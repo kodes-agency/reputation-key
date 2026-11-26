@@ -45,7 +45,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { VALID_PERMISSIONS } from './permission-catalogue'
 import { can, canForContext, scopeForPermission } from '#/shared/domain/permissions'
-import { toDomainRoleStrict } from '#/shared/domain/roles'
+import { toDomainRole } from '#/shared/domain/roles'
 import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
 
 const makeHeaders = (extra: Record<string, string> = {}): Headers => {
@@ -158,7 +158,8 @@ describe('versionedEntryIsFresh', () => {
 describe('built-in role authority', () => {
   /** Every permission and scope of `memberRole`, checked against the static role table. */
   function expectBuiltInAuthority(ctx: AuthContext, memberRole: string) {
-    const role = toDomainRoleStrict(memberRole)
+    const role = toDomainRole(memberRole)
+    if (role === null) throw new Error(`Unknown better-auth role: ${memberRole}`)
     const scope = memberRole === 'owner' ? 'organization' : 'assigned-properties'
     expect(ctx.role).toBe(role)
     for (const permission of VALID_PERMISSIONS) {

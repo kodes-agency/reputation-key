@@ -23,13 +23,22 @@ import {
 } from './beta-capabilities'
 import {
   CAPABILITY_FATE,
-  listCapabilitiesBySwitch,
   listCapabilitiesNeedingOrganization,
+  type CapabilityFateRecord,
+  type FeatureSwitch,
 } from '#/shared/governance/capability-fate'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
 const ORG = 'org-00000000-0000-0000-0000-000000000001'
 const OTHER_ORG = 'org-00000000-0000-0000-0000-000000000002'
+
+/** The capabilities one switch turns off. */
+function listCapabilitiesBySwitch(target: FeatureSwitch): readonly Capability[] {
+  return (Object.entries(CAPABILITY_FATE) as Array<[Capability, CapabilityFateRecord]>)
+    .filter(([, record]) => record.featureSwitch === target)
+    .map(([capability]) => capability)
+    .sort()
+}
 
 function install(env: Readonly<Record<string, string | undefined>>): void {
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))

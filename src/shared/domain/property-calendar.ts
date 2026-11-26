@@ -51,10 +51,6 @@ export function propertyWallClockAt(date: Date, timezone: string): PropertyWallC
   }
 }
 
-export function daysInGregorianMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate()
-}
-
 function sameWallClock(left: PropertyWallClock, right: PropertyWallClock): boolean {
   return (
     left.year === right.year &&
