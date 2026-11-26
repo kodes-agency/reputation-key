@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Job } from 'bullmq'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import {
   afterAll,
   afterEach,
@@ -36,7 +36,6 @@ describe('durable work through PostgreSQL', () => {
   let now: Date
   let org: string
   let otherOrg: string
-  let receipt: string
   const db = () => drizzle(lease.pool)
   const request = (overrides: Partial<WorkRequest> = {}): WorkRequest => ({
     organizationId: org,
@@ -61,7 +60,6 @@ describe('durable work through PostgreSQL', () => {
     now = new Date('2026-11-06T10:00:00Z')
     org = randomUUID()
     otherOrg = randomUUID()
-    receipt = randomUUID()
     const shared = createWorkItems(db(), () => now)
     // Other suites share this database and may leave due work behind (an
     // import suite's outbox relay delivers every pending event). Dispatch is
@@ -94,7 +92,6 @@ describe('durable work through PostgreSQL', () => {
     await db()
       .delete(workItems)
       .where(inArray(workItems.organizationId, [org, otherOrg]))
-    await db().execute(sql`DELETE FROM idempotency_receipts WHERE scope = ${receipt}`)
   })
   afterAll(async () => {
     await lease?.release()
@@ -152,16 +149,7 @@ describe('durable work through PostgreSQL', () => {
         if (!scope) throw new Error('Expected durable scope')
         const claim = await store.claim(scope.organizationId, workId, 1_000)
         if (!claim?.leaseToken) throw new Error('Expected dispatch lease')
-        return store.complete(
-          scope.organizationId,
-          claim.id,
-          claim.leaseToken,
-          async (tx) => {
-            await tx.execute(
-              sql`INSERT INTO idempotency_receipts (scope, key) VALUES (${receipt}, 'gated-completion')`,
-            )
-          },
-        )
+        return store.complete(scope.organizationId, claim.id, claim.leaseToken)
       })
       const dispatch = createGatedJobHandler(
         'default',
@@ -184,10 +172,6 @@ describe('durable work through PostgreSQL', () => {
         state: 'succeeded',
         attempts: 1,
       })
-      const effects = await db().execute(
-        sql`SELECT 1 FROM idempotency_receipts WHERE scope = ${receipt} AND key = 'gated-completion'`,
-      )
-      expect(effects.rowCount).toBe(1)
       now = new Date(now.getTime() + 60_000)
       expect(await store.reserveDispatch()).toEqual([])
     },
@@ -207,47 +191,25 @@ describe('durable work through PostgreSQL', () => {
     expect((await store.inspect(org, row.id))?.attempts).toBe(1)
   })
 
-  it('commits one database effect and receipt despite concurrent completion', async () => {
+  it('settles once despite concurrent completion', async () => {
     const row = await claimed()
-    const effect = async (tx: Parameters<Parameters<WorkItems['complete']>[3]>[0]) => {
-      await tx.execute(sql`INSERT INTO idempotency_receipts (scope, key, payload)
-        VALUES (${receipt}, 'counter', '{"count":1}'::jsonb)
-        ON CONFLICT (scope, key) DO UPDATE SET payload = jsonb_build_object('count', (idempotency_receipts.payload->>'count')::integer + 1)`)
-    }
     const results = await Promise.all([
-      store.complete(org, row.id, row.leaseToken, effect),
-      store.complete(org, row.id, row.leaseToken, effect),
+      store.complete(org, row.id, row.leaseToken),
+      store.complete(org, row.id, row.leaseToken),
     ])
     expect(results.sort()).toEqual([false, true])
-    const count = await db().execute<{ count: number }>(
-      sql`SELECT (payload->>'count')::integer AS count FROM idempotency_receipts WHERE scope = ${receipt}`,
-    )
-    expect(count.rows[0]?.count).toBe(1)
     expect((await store.inspect(org, row.id))?.state).toBe('succeeded')
   })
 
-  it('rolls a failed effect back and rejects an expired or superseded lease', async () => {
+  it('rejects completion on an expired or superseded lease', async () => {
     const row = await claimed()
-    await expect(
-      store.complete(org, row.id, row.leaseToken, async (tx) => {
-        await tx.execute(
-          sql`INSERT INTO idempotency_receipts (scope, key) VALUES (${receipt}, 'rollback')`,
-        )
-        throw new Error('effect failed')
-      }),
-    ).rejects.toThrow('effect failed')
-    const result = await db().execute(
-      sql`SELECT 1 FROM idempotency_receipts WHERE scope = ${receipt}`,
-    )
-    expect(result.rowCount).toBe(0)
     now = new Date(now.getTime() + 1_000)
-    const effect = vi.fn()
-    expect(await store.complete(org, row.id, row.leaseToken, effect)).toBe(false)
+    expect(await store.complete(org, row.id, row.leaseToken)).toBe(false)
     await store.reserveDispatch()
     const next = await store.claim(org, row.id, 1_000)
     expect(next?.leaseToken).not.toBe(row.leaseToken)
-    expect(await store.complete(org, row.id, row.leaseToken, effect)).toBe(false)
-    expect(effect).not.toHaveBeenCalled()
+    expect(await store.complete(org, row.id, row.leaseToken)).toBe(false)
+    expect((await store.inspect(org, row.id))?.state).toBe('running')
   })
 
   it('quarantines poison work and retains attempt history on an explicit repair', async () => {
@@ -280,29 +242,6 @@ describe('durable work through PostgreSQL', () => {
         })
       ).id,
     ).toBe(row.id)
-  })
-
-  it('never blindly resends an uncertain write or permits an operator retry', async () => {
-    const row = await claimed({ recovery: 'read_back' })
-    now = new Date(now.getTime() + 1_000)
-    expect(await store.reserveDispatch()).toEqual([])
-    expect((await store.inspect(org, row.id))?.state).toBe('uncertain')
-    expect(
-      await store.operate(org, row.id, 'retry', 'operator', 'Checked'),
-    ).toBeUndefined()
-    expect(await store.resolveUncertain(org, row.id, async () => 'unknown')).toBe(false)
-    expect(await store.resolveUncertain(org, row.id, async () => 'applied')).toBe(true)
-    expect((await store.inspect(org, row.id))?.state).toBe('succeeded')
-    expect(await store.reserveDispatch()).toEqual([])
-  })
-
-  it('resends only after a definitive read-back says the effect was absent', async () => {
-    const row = await claimed({ recovery: 'read_back' })
-    await store.fail(org, row.id, row.leaseToken)
-    expect(await store.resolveUncertain(org, row.id, async () => 'not_applied')).toBe(
-      true,
-    )
-    expect(await store.reserveDispatch()).toMatchObject([{ id: row.id }])
   })
 
   it('does not hide a second tenant behind more than a page of due or locked rows', async () => {
@@ -363,7 +302,7 @@ describe('durable work through PostgreSQL', () => {
     expect(
       await store.operate(otherOrg, row.id, 'discard', 'operator', 'Stop'),
     ).toBeUndefined()
-    await store.complete(org, row.id, row.leaseToken, async () => {})
+    await store.complete(org, row.id, row.leaseToken)
     expect(
       await store.operate(org, row.id, 'retry', 'operator', 'Repeat'),
     ).toBeUndefined()

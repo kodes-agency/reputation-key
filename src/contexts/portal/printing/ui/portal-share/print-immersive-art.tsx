@@ -10,7 +10,7 @@ import { useId, type CSSProperties } from 'react'
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import { parseHexColour } from '#/shared/domain/portal-field-colour'
 import type { PrintArt } from '#/shared/domain/portal-print-art'
-import { printPhotoCrop, type PrintFraming } from '#/shared/domain/portal-print-framing'
+import { printPhotoCrop } from '#/shared/domain/portal-print-framing'
 import type {
   PrintBleed,
   PrintRamp,
@@ -77,7 +77,6 @@ type PhotoProps = Readonly<{
   read: PreviewPhoto
   url: string
   focal: Readonly<{ x: number; y: number }>
-  framing: PrintFraming
   pt: PointsToLength
 }>
 
@@ -105,14 +104,13 @@ function Scrims({
 }
 
 /** The photo: the part of it the file crops, scaled to cover the cover box, under its scrims, shown in its box under its fade. */
-function Photo({ photo, scrims, read, url, focal, framing, pt }: PhotoProps) {
+function Photo({ photo, scrims, read, url, focal, pt }: PhotoProps) {
   const { box, cover } = photo
   const coverWidth = cover.rightPt - cover.leftPt
   const crop = printPhotoCrop(
     read.pixels,
     { widthPt: coverWidth, heightPt: cover.bottomPt - cover.topPt },
     focal,
-    framing,
   )
   const scale = coverWidth / crop.widthPx
   const fades = photo.clear === null ? [photo.fade] : [photo.fade, photo.clear]
@@ -200,7 +198,6 @@ type Props = Readonly<{
   /** The photo as read, with where it lives; null with no photo. */
   photo: Readonly<{ read: PreviewPhoto; url: string }> | null
   look: PortalPrintKitView['look']
-  framing: PrintFraming
   /** On a sheet, how far the art runs past the trim; it is clipped there. Absent: at the trim. */
   bleed?: PrintBleed
   pt: PointsToLength
@@ -227,7 +224,7 @@ function clipOf(bleed: PrintBleed | undefined, pt: PointsToLength) {
   }
 }
 
-export function PrintImmersiveArt({ art, photo, look, framing, bleed, pt }: Props) {
+export function PrintImmersiveArt({ art, photo, look, bleed, pt }: Props) {
   const washes = art.washes.map((wash) => washGradient(wash, pt))
   const clip = clipOf(bleed, pt)
   return (
@@ -246,7 +243,6 @@ export function PrintImmersiveArt({ art, photo, look, framing, bleed, pt }: Prop
             read={photo.read}
             url={photo.url}
             focal={look.heroFocal ?? { x: 0.5, y: 0.5 }}
-            framing={framing}
             pt={pt}
           />
         ) : null}

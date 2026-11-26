@@ -108,7 +108,6 @@ function event(overrides: Partial<ConsumerEvent> = {}): ConsumerEvent {
     occurredAt: NOW.toISOString(),
     recordedAt: NOW.toISOString(),
     correlationId: null,
-    causationId: null,
     sourceAggregateVersion: null,
     ...overrides,
   }

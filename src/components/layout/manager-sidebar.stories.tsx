@@ -28,8 +28,9 @@ import {
 } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Role } from '#/shared/domain/roles'
-import { SidebarProvider, useSidebar } from '#/components/ui/sidebar'
+import { useSidebar } from '#/components/ui/sidebar'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { SidebarStoryProvider } from '../../../.storybook/SidebarStoryProvider'
 import type { getLastVisitCountFn } from '#/contexts/reputation/server/inbox'
 import { ManagerSidebar } from './manager-sidebar'
 
@@ -67,12 +68,12 @@ const meta: Meta<typeof ManagerSidebar> = {
   parameters: { layout: 'fullscreen' },
   decorators: [
     (Story, context) => (
-      <SidebarProvider
-        defaultOpen={context.parameters.sidebarDefaultOpen !== false}
+      <SidebarStoryProvider
+        initiallyOpen={context.parameters.sidebarDefaultOpen !== false}
         style={{ minHeight: '100vh' }}
       >
         <Story />
-      </SidebarProvider>
+      </SidebarStoryProvider>
     ),
   ],
 }

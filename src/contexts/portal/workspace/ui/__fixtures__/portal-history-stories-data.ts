@@ -21,18 +21,7 @@ export const STORY_PENDING_CHANGES = 2
 
 /** The publication history as the History tab reads it, holding `count` changes in the draft. */
 export function storyPublicationHistory(count: number): PortalPublicationHistory {
-  return {
-    current: null,
-    priorActivations: [],
-    hasPendingChanges: count > 0,
-    pendingChanges: Array.from({ length: count }, (_unused, index) => ({
-      kind: 'portal_links' as const,
-      key: `change-${index}`,
-      changedAt: '2026-09-30T06:00:00.000Z',
-      changedBy: null,
-    })),
-    nextCursor: null,
-  }
+  return { liveVersion: null, pendingChangeCount: count, hasPendingChanges: count > 0 }
 }
 
 const elena = { userId: 'user-elena', displayName: 'Elena Petrova' }

@@ -104,9 +104,9 @@ export function PortalWorkspaceHeaderSlot({
   const status = workspaceStatus({
     publicationState: portal.publicationState,
     propertyAvailable: propData.property.lifecycleState === 'active',
-    hasLiveVersion: history.current !== null,
+    hasLiveVersion: history.liveVersion !== null,
     token: tokenStatus,
-    liveVersion: history.current?.version ?? null,
+    liveVersion: history.liveVersion,
     hasPendingChanges: history.hasPendingChanges,
   })
   return (

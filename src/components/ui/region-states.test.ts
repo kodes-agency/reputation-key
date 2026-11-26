@@ -21,7 +21,6 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
   'src/contexts/ai/guest-voice/ui/guest-voice-rating-chart.tsx':
     'a chart bar marking partial calendar coverage, never an empty-state panel',
   'src/components/ui/empty-state.tsx': 'the primitive itself',
-  'src/components/ui/chart.tsx': 'a dashed line style in a chart legend',
   'src/contexts/reporting/portal-results/ui/portal-results-trend.tsx':
     'a chart bar marking a partial week, never an empty-state panel',
   'src/contexts/reputation/inbox/ui/note-message.tsx':
