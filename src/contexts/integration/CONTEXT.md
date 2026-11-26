@@ -193,7 +193,7 @@ Each feature folder holds its own ports, adapters, stores, jobs and consumers:
   the daily reconciliation and its job, the account store, the notification
   authorizer and the topic config.
 - `imports/` — discovery and its authorization; the transaction, replay, lifecycle
-  and processor; the claim reaper and the item, reaper and retired-item jobs; the
+  and processor; the claim reaper and the item and reaper jobs; the
   queue; the durable discovery reference store; the dispatch and
   authorization-invalidation consumers; the binding follow-up and category-refresh
   consumers.
