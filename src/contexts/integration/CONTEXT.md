@@ -158,8 +158,8 @@ that section's rules:
 
 ## Runtime
 
-`build.ts` is wiring only: it calls the feature runtimes below, passes their late-bound
-neighbours to each other and assembles the public groups.
+`build.ts` is wiring only: it calls the feature runtimes below, passes them to each other
+(only the disconnect hooks are late-bound) and assembles the public groups.
 
 - `connections/connections-runtime.server.ts` builds connection storage, the OAuth
   adapter, token encryption, token refresh, the OAuth state and callback gates, and
@@ -168,7 +168,8 @@ neighbours to each other and assembles the public groups.
   because those runtimes are built later.
 - `connections/notifications-runtime.server.ts` builds the governed notification
   executor and adapter and the subscription management, backfill and daily
-  reconciliation. Its authorization authority comes from review sync, late-bound.
+  reconciliation. Its authorization authority comes from the review-sync runtime,
+  which is built first.
 - `connections/ui/` holds the connect button, the account selector and the settings
   connection row with their stories and tests.
 - `imports/import-runtime.server.ts` builds the import lifecycle, item processor,

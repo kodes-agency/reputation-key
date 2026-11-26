@@ -5,7 +5,7 @@ import { getLogger } from '#/shared/observability/logger'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
-import type { IntegrationContextApi } from '#/contexts/integration/build'
+import type { buildIntegrationContext } from '#/contexts/integration/build'
 import type { buildAiRuntime } from './ai-wiring'
 import type { ContextWiringInput } from './runtime'
 
@@ -21,7 +21,7 @@ export function wireReview(
   identity: ReturnType<typeof buildIdentityContext>,
   property: ReturnType<typeof buildPropertyContext>,
   portal: ReturnType<typeof buildPortalContext>,
-  integration: IntegrationContextApi,
+  integration: ReturnType<typeof buildIntegrationContext>,
   aiRuntime: ReturnType<typeof buildAiRuntime>,
 ) {
   const review = buildReviewContext({

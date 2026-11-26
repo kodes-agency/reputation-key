@@ -4,9 +4,9 @@ import type { ProviderAuthorizationLeaseService } from '#/shared/provider-epheme
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { GooglePerformanceDependencyDescriptor } from '#/shared/architecture/google-performance-live-boundary'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/public-api'
-import {
-  createActiveConnectionTokenProvider,
-  type ActiveConnectionTokenProviderDeps,
+import type {
+  ActiveConnectionTokenProvider,
+  ActiveConnectionTokenProviderDeps,
 } from '../connections/active-connection-token-provider.server'
 import { sameAuthorizationVectorExceptCredentialGeneration } from '../provider/google-authorization-vector.server'
 import {
@@ -19,8 +19,9 @@ import { createGooglePerformanceAdapter } from './google-performance.adapter.ser
 import type { ActiveMemberAuthResolver } from '../provider/active-member-auth.adapter.server'
 import type {
   GoogleAuthorizedProviderExecutor,
-  GoogleRefreshingProviderExecutorFactory,
+  GoogleProviderTokenAccess,
 } from '../provider/google-client.port.server'
+import { createSingle401RefreshExecutor } from '../provider/google-client.server'
 
 /**
  * ADR 0050 §10: the live Google Performance path may not depend on a write
@@ -75,12 +76,11 @@ export type GooglePerformanceRuntimeDeps = Readonly<{
   clock: () => Date
   logger: LoggerPort
   connectionRepo: ActiveConnectionTokenProviderDeps['connectionRepo']
-  encryption: ActiveConnectionTokenProviderDeps['encryption']
-  refreshGoogleToken: ActiveConnectionTokenProviderDeps['refreshGoogleToken']
+  tokenProvider: ActiveConnectionTokenProvider
+  providerTokenAccess: GoogleProviderTokenAccess
   resolveActiveMember: ActiveMemberAuthResolver
   propertyBindingApi: PropertyGoogleBindingPublicApi
   executor: GoogleAuthorizedProviderExecutor | undefined
-  withSingle401Refresh: GoogleRefreshingProviderExecutorFactory
   authorizeContent: PerformanceContentAuthorizer | undefined
   principalKeys: VersionedHmacKeyring | undefined
   leases: ProviderAuthorizationLeaseService | undefined
@@ -116,12 +116,7 @@ export const createGooglePerformanceRuntime = (
   if (!executor || !authorizeContent || !principalKeys || !leases) {
     return UNAVAILABLE
   }
-  const tokenProvider = createActiveConnectionTokenProvider({
-    connectionRepo: deps.connectionRepo,
-    encryption: deps.encryption,
-    clock: deps.clock,
-    refreshGoogleToken: deps.refreshGoogleToken,
-  })
+  const { tokenProvider } = deps
   const authorize = createGooglePerformanceAuthorizer({
     resolveActor: resolveActiveMember,
     readBinding: propertyBindingApi.readInternal,
@@ -133,19 +128,9 @@ export const createGooglePerformanceRuntime = (
     clock: deps.clock,
     logger: deps.logger,
   })
-  const providerExecutor = deps.withSingle401Refresh({
+  const providerExecutor = createSingle401RefreshExecutor({
     executor,
-    refreshAccessToken: ({ authorization }) =>
-      tokenProvider.forceRefreshAccessToken(
-        authorization.organizationId,
-        authorization.connectionId,
-        authorization.expectedCredentialGeneration,
-      ),
-    getAccessToken: ({ authorization }) =>
-      tokenProvider.getAccessToken(
-        authorization.organizationId,
-        authorization.connectionId,
-      ),
+    ...deps.providerTokenAccess,
     reauthorize: async ({ authorization }) => {
       if (
         authorization.capability !== 'property.read_gbp_performance' ||
