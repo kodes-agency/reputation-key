@@ -41,10 +41,11 @@ export function command<T, R, E extends CommandError>(
 ): (request: { data: T }) => Promise<R> {
   return commandHandler(options, async ({ data, headers }) => {
     const actor = await resolveTenantContext(headers)
+    const propertyId = options.propertyId?.(data)
     await requireExecutionAllowed({
       actor,
       action: options.action,
-      ...(options.propertyId ? { propertyId: options.propertyId(data) } : {}),
+      ...(propertyId === undefined ? {} : { propertyId }),
     })
     return run({ data, headers, actor })
   })
