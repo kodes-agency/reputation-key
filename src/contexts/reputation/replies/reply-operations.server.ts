@@ -8,14 +8,11 @@ import type { GoogleReplyObservationStore } from '../publication/google-reply-ob
 import type { ReplyPublicationDispatchEvidencePort } from '../publication/reply-publication-dispatch-evidence.port.server'
 import type { AiSuggestedDraftStore } from './ai-suggested-draft-store.port.server'
 import type { ReplyLibraryRepository } from '../library/reply-library-repository.port.server'
-import type {
-  PropertyPublicationScopePort,
-  ReviewPropertyPublicationLifecycle,
-} from './property-publication-scope.port.server'
 import type { ReplyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply, Review } from '../domain/review-types'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { PropertyPublicationScopePublicApi } from '#/contexts/property/public-api'
 import {
   requireAccessibleReview,
   requireReplyManager as requireManager,
@@ -30,10 +27,9 @@ import {
   isTerminalAmbiguity,
 } from '../domain/reply-command-preconditions'
 import { nextPublicationCycle } from '../domain/reply-publication-workflow'
-import { reviewError } from '../domain/review-errors'
+import { reviewError, type ReviewError } from '../domain/review-errors'
 import { replyAuthor } from '../domain/reply-author'
 import { settleIfNeverDispatched } from '../publication/settle-never-dispatched-attempt.server'
-import { replyChangedConcurrently } from './reply-commit.server'
 import {
   reviewReplySubmitted,
   reviewReplyApproved,
@@ -62,7 +58,7 @@ export type ReplyDeps = Readonly<{
   dispatchEvidence: ReplyPublicationDispatchEvidencePort
   googleReplyObservationStore: GoogleReplyObservationStore
   /** Property lifecycle and source epoch, read before any publication write. */
-  propertyPublicationScope: PropertyPublicationScopePort
+  propertyPublicationScope: PropertyPublicationScopePublicApi
   clock: () => Date
   idGen: () => ReplyId
   staffPublicApi: StaffPublicApi
@@ -126,6 +122,10 @@ async function resolvePublicationAuthorizationFence(
   }
 }
 
+/** A guarded store write matched no row: the reply moved after it was read. */
+const replyChangedConcurrently = (): ReviewError =>
+  reviewError('invalid_transition', 'Reply status changed concurrently')
+
 const PROPERTY_REMOVED =
   "This property has been removed, so RepKey won't send its replies to Google. Restore it from the Removed list to publish this reply."
 const ORGANIZATION_CLOSING =
@@ -134,15 +134,6 @@ const PROPERTY_DELETING =
   "This property is being deleted, so RepKey won't send its replies to Google."
 const REVIEW_NOT_RECHECKED =
   "RepKey hasn't checked this review on Google since its property was restored or reconnected. Try again after the next sync."
-
-/** Why a Property outside the workspace publishes nothing, in its own words. */
-const REFUSAL_BY_LIFECYCLE: Readonly<
-  Record<Exclude<ReviewPropertyPublicationLifecycle, 'active'>, string>
-> = {
-  archived: PROPERTY_REMOVED,
-  suspended: ORGANIZATION_CLOSING,
-  removing: PROPERTY_DELETING,
-}
 
 /**
  * Refuse, before any write, a publication Google would never be asked to make.
@@ -163,8 +154,18 @@ async function assertPropertyAcceptsPublication(
     review.propertyId,
   )
   if (!scope) throw reviewError('invalid_transition', PROPERTY_DELETING)
-  if (scope.lifecycle !== 'active') {
-    throw reviewError('invalid_transition', REFUSAL_BY_LIFECYCLE[scope.lifecycle])
+  switch (scope.lifecycleState) {
+    case 'active':
+      break
+    case 'archived':
+      throw reviewError('invalid_transition', PROPERTY_REMOVED)
+    case 'suspended':
+      throw reviewError('invalid_transition', ORGANIZATION_CLOSING)
+    case 'disconnecting':
+    case 'purge_pending':
+    case 'purging':
+    case 'purged':
+      throw reviewError('invalid_transition', PROPERTY_DELETING)
   }
   if (scope.sourceEpoch !== review.sourceEpoch) {
     throw reviewError('invalid_transition', REVIEW_NOT_RECHECKED)
@@ -365,7 +366,6 @@ export const draftReply =
         actorUserId: ctx.userId,
         text: input.text,
         provenanceToken: input.provenanceToken,
-        now,
       })
       if (accepted.status === 'accepted') return accepted.reply
       const code =

@@ -101,7 +101,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       actorUserId: ACTOR_USER_ID,
       text: SUGGESTION,
       provenanceToken: token,
-      now: NOW,
       ...overrides,
     })
 
@@ -238,7 +237,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       actorUserId: ACTOR_USER_ID,
       text,
       provenanceToken: v4Token('private-beta-global-v3'),
-      now: NOW,
     }
     const [previousControl] = await db
       .select()
@@ -449,9 +447,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         operationId: '74000000-0000-4000-8000-000000000005',
         baseReplyStateRevision: 1,
       }),
-      {
-        now: new Date(NOW.getTime() + 1),
-      },
     )
 
     expect(accepted).toMatchObject({
@@ -527,7 +522,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       baseReplyStateRevision: 2,
     })
 
-    await expect(accept(token, { now: new Date(NOW.getTime() + 2) })).resolves.toEqual({
+    await expect(accept(token)).resolves.toEqual({
       status: 'rejected',
       reason: 'invalidated',
     })
@@ -548,7 +543,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     )
 
     brandProfileCurrent = true
-    await expect(accept(token, { now: new Date(NOW.getTime() + 3) })).resolves.toEqual({
+    await expect(accept(token)).resolves.toEqual({
       status: 'rejected',
       reason: 'invalidated',
     })
@@ -561,7 +556,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       operationId: '74000000-0000-4000-8000-000000000008',
       baseReplyStateRevision: 2,
     })
-    const accepted = await accept(token, { now: new Date(NOW.getTime() + 4) })
+    const accepted = await accept(token)
     expect(accepted).toMatchObject({
       status: 'accepted',
       reply: { stateRevision: 3 },
@@ -578,9 +573,10 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
 
     const authorityCallCount = brandAuthorityCalls.length
     brandProfileCurrent = false
-    await expect(
-      accept(token, { now: new Date(NOW.getTime() + 5) }),
-    ).resolves.toMatchObject({ status: 'accepted', reply: { stateRevision: 3 } })
+    await expect(accept(token)).resolves.toMatchObject({
+      status: 'accepted',
+      reply: { stateRevision: 3 },
+    })
     expect(brandAuthorityCalls).toHaveLength(authorityCallCount)
     await expect(
       store.assertCurrentBinding({
