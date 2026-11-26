@@ -2,6 +2,7 @@ import type {
   PortalPublicationActivation,
   PortalPublicationSnapshot,
 } from '../domain/portal-publication-snapshot'
+import type { PortalPageEditKind } from '../domain/portal-page-edit'
 import type { PortalPublicationSource } from '../domain/portal-publication-source'
 import type { PortalLookSources } from '../domain/portal-look'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
@@ -45,13 +46,7 @@ export type PortalCurrentAndLatestActivation = Readonly<{
 }>
 
 export type PortalPendingContentChange = Readonly<{
-  kind:
-    | 'portal_configuration'
-    | 'portal_links'
-    | 'property_brand_profile'
-    | 'property_brand_content'
-    | 'portal_localized_override'
-    | 'approved_destination'
+  kind: PortalPageEditKind
   key: string
   sourceVersion: string
   changedAt: Date
