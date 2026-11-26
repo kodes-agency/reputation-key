@@ -2,16 +2,12 @@ import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Review context — readForAi with the numbered sentences a v3 analysis reads.
 // Real PostgreSQL.
 
-import { createHash } from 'node:crypto'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import {
-  MAX_AI_REVIEW_SENTENCES_V1,
-  canonicalizeRawAiReviewSourcePreviousRevision,
-} from '#/shared/ai-review-source/ai-review-source-contract'
+import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source/ai-review-source-contract'
 import { reviewSentencesMatchText } from '#/shared/analysis/review-analysis-v3-request'
 import { locateReviewSentences } from '#/shared/ai-review-source/review-sentences'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -197,39 +193,6 @@ describe.sequential('reviewRepository.readForAi sentences', () => {
       'He agreed.',
       'Smith left.',
     ])
-  })
-
-  it('cuts a row stored under revision 1 from its raw text, which revision 1 had fused', async () => {
-    const canonical = canonicalizeRawAiReviewSourcePreviousRevision({
-      text: TEXT,
-      rating: 4,
-      languageCode: 'en',
-      reviewedAtEpochMillis: REVIEWED_AT.getTime(),
-      reviewerDisplayName: null,
-    })
-    const repo = await store({
-      provenance: {
-        aiSourceByteLength: canonical.bytes.byteLength,
-        aiSourceDigest: createHash('sha256')
-          .update('ai-source-v1\0', 'utf8')
-          .update(canonical.bytes)
-          .digest('hex'),
-      },
-    })
-    const result = await repo.readForAi(READ_WITH_SENTENCES)
-
-    if (result.status !== 'available') throw new Error('expected an observation')
-    expect(result.observation.text).toBe(
-      'Room was clean.Staff were kind.Breakfast could be better.',
-    )
-    expect(result.observation.sentences?.map(({ number }) => number)).toEqual([1, 2, 3])
-    // Numbered by the raw text, whichever revision the digest names.
-    expect(
-      reviewSentencesMatchText(
-        result.observation.text ?? '',
-        result.observation.sentences ?? [],
-      ),
-    ).toBe(true)
   })
 
   it('answers source_too_large for a text with more sentences than a request carries', async () => {

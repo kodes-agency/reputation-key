@@ -14,10 +14,7 @@ import type {
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import type { ReviewProviderObservationOrigin } from '../reviews/response-target-authority.port.server'
 import type { GoogleReplyObservationStore } from '../publication/google-reply-observation-store.port.server'
-import {
-  findStoredAiReviewSourceProvenance,
-  storedAiReviewSourceProvenance,
-} from '../reviews/ai-review-source.server'
+import { storedAiReviewSourceProvenance } from '../reviews/ai-review-source.server'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { domainError } from '#/shared/domain/errors'
@@ -374,29 +371,12 @@ function buildObservedReview(
 }
 
 /** Whether the AI source the stored row describes is the one this observation
- * brings. A row stored under revision 1 of the source text rules
- * (`AI_SOURCE_TEXT_REVISION`) holds a digest the current rules no longer
- * compute for text with a line break or tab inside it; it still describes the
- * same review, so it takes the refresh path that rewrites the digest quietly. A
- * `review.updated` here would tell the Inbox and the managers' notices that a
- * review changed when nothing did, and would open a new analysis sequence. */
+ * brings. */
 function aiSourceUnchanged(
   existing: Review,
   review: Omit<Review, 'createdAt' | 'updatedAt'>,
 ): boolean {
-  return (
-    existing.aiSourceDigest === review.aiSourceDigest ||
-    findStoredAiReviewSourceProvenance(
-      {
-        text: review.text,
-        rating: review.rating,
-        languageCode: review.languageCode,
-        reviewedAtEpochMillis: review.reviewedAt.getTime(),
-        reviewerDisplayName: review.reviewerName,
-      },
-      { digest: existing.aiSourceDigest, byteLength: existing.aiSourceByteLength },
-    ) !== null
-  )
+  return existing.aiSourceDigest === review.aiSourceDigest
 }
 
 /** Which write path this observation takes: a first sighting, an epoch carry

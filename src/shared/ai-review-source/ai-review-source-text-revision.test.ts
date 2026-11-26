@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   canonicalizeRawAiReviewSource,
-  canonicalizeRawAiReviewSourcePreviousRevision,
   type RawAiReviewSource,
 } from './ai-review-source-contract'
 import {
@@ -71,24 +70,6 @@ describe('ai-source-v1 text revision 2: line breaks and tabs separate words', ()
   it('masks a reviewer name written across a line break', () => {
     expect(textOf('Jane Doe loved it', 'Jane\nDoe')).toBe('[PERSON] loved it')
   })
-
-  it('keeps the previous revision available, deleting breaks as it did', () => {
-    const previous = canonicalizeRawAiReviewSourcePreviousRevision(
-      raw('Room was clean\nStaff were rude'),
-    )
-    expect(previous.text).toBe('Room was cleanStaff were rude')
-  })
-
-  it('changes the digest of text with an interior break and leaves other text alone', () => {
-    const withBreak = raw('Room was clean\nStaff were rude')
-    expect(canonicalizeRawAiReviewSource(withBreak).bytes).not.toEqual(
-      canonicalizeRawAiReviewSourcePreviousRevision(withBreak).bytes,
-    )
-    const plain = raw('Room was clean. Staff were rude.\n')
-    expect(canonicalizeRawAiReviewSource(plain).bytes).toEqual(
-      canonicalizeRawAiReviewSourcePreviousRevision(plain).bytes,
-    )
-  })
 })
 
 describe('ai-source-v1 text revision 2: text the gateway can carry', () => {
@@ -136,14 +117,5 @@ describe('ai-source-v1 text revision 2 with the redactor', () => {
     expect(redactedText(textOf(SHORT_LINES) ?? '')).toBe(
       'Great stay. Staff were kind and the room was spotless. Breakfast could be better. Would return.',
     )
-  })
-
-  it('is what the first revision got wrong: fused sentences read as domain names', () => {
-    const fused =
-      canonicalizeRawAiReviewSourcePreviousRevision(raw(SHORT_LINES)).text ?? ''
-    expect(fused).toBe(
-      'Great stay.Staff were kind and the room was spotless.Breakfast could be better.Would return.',
-    )
-    expect(redactedText(fused)).toContain('[CONTACT]')
   })
 })

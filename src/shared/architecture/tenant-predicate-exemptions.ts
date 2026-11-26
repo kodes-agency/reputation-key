@@ -257,13 +257,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reputation/sync/review-provider-snapshot-repository.server.ts',
-    symbol: 'expireRawSourceBatch',
-    reason:
-      'The bounded compatibility lifecycle read intentionally translates a global review-expiry cursor before delegating to the canonical purge authority.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/reputation/reviews/review-repository.server.ts',
     symbol: 'clockBatchAcrossTenants',
     reason:

@@ -1,14 +1,12 @@
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
-// Review context — what readForAi serves for a row stored before the source
-// text rules gained revision 2 (`AI_SOURCE_TEXT_REVISION`). Real PostgreSQL.
+// Review context — what readForAi serves for a row, by the source text rules
+// of `AI_SOURCE_TEXT_REVISION`. Real PostgreSQL.
 
-import { createHash } from 'node:crypto'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source/ai-review-source-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   computeAiReviewSourceProvenance,
@@ -63,23 +61,6 @@ beforeEach(async () => {
     [PROPERTY, ORG],
   )
 })
-
-function storedUnderRevisionOne() {
-  const canonical = canonicalizeRawAiReviewSourcePreviousRevision({
-    text: TEXT,
-    rating: 4,
-    languageCode: 'en',
-    reviewedAtEpochMillis: REVIEWED_AT.getTime(),
-    reviewerDisplayName: null,
-  })
-  return {
-    aiSourceByteLength: canonical.bytes.byteLength,
-    aiSourceDigest: createHash('sha256')
-      .update('ai-source-v1\0', 'utf8')
-      .update(canonical.bytes)
-      .digest('hex'),
-  }
-}
 
 function storedUnderCurrentRules() {
   const provenance = computeAiReviewSourceProvenance({
@@ -143,18 +124,7 @@ describe.sequential('reviewRepository.readForAi under the source text revisions'
     })
   })
 
-  it('serves a row stored under revision 1 as that revision, so its stored digest still holds', async () => {
-    const repo = await store(storedUnderRevisionOne())
-    const result = await repo.readForAi(READ)
-    expect(result).toMatchObject({
-      status: 'available',
-      observation: {
-        text: 'Room was clean.Staff were kind.Breakfast could be better.',
-      },
-    })
-  })
-
-  it('refuses a row whose stored digest neither revision computes', async () => {
+  it('refuses a row whose stored digest the current rules do not compute', async () => {
     const repo = await store({
       ...storedUnderCurrentRules(),
       aiSourceDigest: 'f'.repeat(64),

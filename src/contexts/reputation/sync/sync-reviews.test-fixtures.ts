@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { vi } from 'vitest'
 import {
   googleConnectionId,
@@ -12,7 +11,6 @@ import type { GoogleReplyObservationStore } from '../publication/google-reply-ob
 import type { ReviewProviderHistoryCutoff } from './review-provider-snapshot-repository.port.server'
 import type { ReviewProviderObservationWriter } from './sync-reviews.port.server'
 import type { GoogleReview, Review } from '../domain/review-types'
-import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source/ai-review-source-contract'
 import { computeAiReviewSourceProvenance } from '../reviews/ai-review-source.server'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -215,24 +213,6 @@ export async function recordedOrigins(
   ) => Readonly<{ _tag: string; observationOrigin?: string }>
   const persisted = await upsertAndRecord.mock.results[0]?.value
   return { stored: call[4], event: eventFor(persisted) }
-}
-
-/** The provenance a Review stored under revision 1 of the source text rules holds. */
-export function revisionOneProvenance(review: GoogleReview) {
-  const canonical = canonicalizeRawAiReviewSourcePreviousRevision({
-    text: review.text,
-    rating: review.rating,
-    languageCode: review.languageCode,
-    reviewedAtEpochMillis: review.reviewedAt.getTime(),
-    reviewerDisplayName: review.reviewerName,
-  })
-  return {
-    byteLength: canonical.bytes.byteLength,
-    digest: createHash('sha256')
-      .update('ai-source-v1\0', 'utf8')
-      .update(canonical.bytes)
-      .digest('hex'),
-  }
 }
 
 /** The first-sighting argument the writer handed the command store. */

@@ -7,28 +7,21 @@ export const MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 = 16_384
 export const MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1 = 65_536
 
 /**
- * The rules that turn raw provider text into canonical text have had two
- * revisions inside `ai-source-v1`. The byte layout (`encodeSource`) and the
- * digest domain (`ai-source-v1\0`) are the same in both, so a review whose text
- * the revisions treat alike keeps its stored digest.
+ * The rules that turn raw provider text into canonical text (revision 2 of
+ * `ai-source-v1`; the byte layout and the digest domain `ai-source-v1\0` are
+ * unchanged since revision 1):
  *
- * 1. Every control and bidirectional-control character is deleted. A line break
- *    or tab between two words fused them (`clean.\nStaff` became `clean.Staff`),
- *    and the redactor then read the fusion as a domain name.
- * 2. A run of line breaks and tabs between two words becomes one space (at the
- *    start or end of the text, or beside a space, it is still deleted), the
- *    other controls and bidi marks are still deleted, the Unicode noncharacters
- *    the gateway refuses become U+FFFD, and the text is normalized again after
- *    the deletions so that it is NFKC-stable (a bidi mark between a letter and
- *    its accent no longer makes the canonicalizer throw).
+ * A run of line breaks and tabs between two words becomes one space (at the
+ * start or end of the text, or beside a space, it is deleted), the other
+ * controls and bidi marks are deleted, the Unicode noncharacters the gateway
+ * refuses become U+FFFD, and the text is normalized again after the deletions
+ * so that it is NFKC-stable (a bidi mark between a letter and its accent no
+ * longer makes the canonicalizer throw).
  *
  * `AI_SOURCE_CANONICALIZER_DIGEST_V1` (`ai-source-profile.ts`) names the
- * revision a binding was made under. Revision 1 stays reproducible only so that
- * a stored `ai_source_digest` written under it can still be recognised until the
- * Review is next observed; see `matchStoredAiReviewSourceProvenance`.
+ * revision a binding was made under.
  */
 export const AI_SOURCE_TEXT_REVISION = 2
-type SourceTextRevision = 1 | typeof AI_SOURCE_TEXT_REVISION
 
 const encoder = new TextEncoder()
 function isControlOrBidi(codePoint: number): boolean {
@@ -174,17 +167,14 @@ function assertScalarString(value: string, field: string): void {
 }
 
 /** Free text: the review and the reviewer's display name. */
-function normalizeRawText(value: string, field: string, revision: SourceTextRevision) {
+function normalizeRawText(value: string, field: string) {
   assertScalarString(value, field)
-  const normalized =
-    revision === 1
-      ? stripControlOrBidi(value.normalize('NFKC'))
-      : separateAndStripControls(value.normalize('NFKC')).normalize('NFKC')
+  const normalized = separateAndStripControls(value.normalize('NFKC')).normalize('NFKC')
   assertScalarString(normalized, field)
   return normalized
 }
 
-/** The language tag: controls are deleted in both revisions. */
+/** The language tag: controls are deleted, never separated. */
 function normalizeRawTag(value: string, field: string): string {
   assertScalarString(value, field)
   const normalized = stripControlOrBidi(value.normalize('NFKC'))
@@ -192,25 +182,18 @@ function normalizeRawTag(value: string, field: string): string {
   return normalized
 }
 
-function validateCanonicalString(
-  value: string,
-  field: string,
-  revision: SourceTextRevision,
-): void {
+function validateCanonicalString(value: string, field: string): void {
   assertScalarString(value, field)
   if (value !== value.normalize('NFKC')) fail(`${field} is not NFKC-normalized`)
   if (containsControlOrBidi(value)) {
     fail(`${field} contains control or bidi characters`)
   }
-  if (revision !== 1 && containsNoncharacter(value)) {
+  if (containsNoncharacter(value)) {
     fail(`${field} contains Unicode noncharacters`)
   }
 }
 
-function validateFields(
-  input: IdentityMinimizedAiReviewSource,
-  revision: SourceTextRevision,
-): void {
+function validateFields(input: IdentityMinimizedAiReviewSource): void {
   if (!Number.isSafeInteger(input.rating) || input.rating < 1 || input.rating > 5) {
     fail('rating must be an integer from 1 through 5')
   }
@@ -220,9 +203,9 @@ function validateFields(
   ) {
     fail('reviewedAtEpochMillis must be a nonnegative safe integer')
   }
-  if (input.text !== null) validateCanonicalString(input.text, 'text', revision)
+  if (input.text !== null) validateCanonicalString(input.text, 'text')
   if (input.languageCode !== null) {
-    validateCanonicalString(input.languageCode, 'languageCode', revision)
+    validateCanonicalString(input.languageCode, 'languageCode')
     if (
       input.languageCode.length === 0 ||
       input.languageCode.length > 35 ||
@@ -414,11 +397,8 @@ function encodeSource(input: IdentityMinimizedAiReviewSource): Uint8Array {
   return bytes
 }
 
-function finalize(
-  input: IdentityMinimizedAiReviewSource,
-  revision: SourceTextRevision,
-): CanonicalAiReviewSource {
-  validateFields(input, revision)
+function finalize(input: IdentityMinimizedAiReviewSource): CanonicalAiReviewSource {
+  validateFields(input)
   if (input.text !== null && FORBIDDEN_CANONICAL_PLACEHOLDER.test(input.text)) {
     fail('identity-minimized text contains a forbidden closed placeholder')
   }
@@ -446,45 +426,31 @@ function assertRawSourceWithinLimits(input: RawAiReviewSource): void {
   }
 }
 
-function canonicalizeRaw(
-  input: RawAiReviewSource,
-  revision: SourceTextRevision,
-): CanonicalAiReviewSource {
-  assertRawSourceWithinLimits(input)
-  const text = input.text === null ? null : normalizeRawText(input.text, 'text', revision)
-  const displayName =
-    input.text === null || input.reviewerDisplayName === null
-      ? null
-      : normalizeRawText(
-          input.reviewerDisplayName,
-          'reviewerDisplayName',
-          revision,
-        ).trim()
-  const languageCode =
-    input.languageCode === null
-      ? null
-      : normalizeRawTag(input.languageCode, 'languageCode')
-  return finalize(
-    {
-      text:
-        text === null || displayName === null || displayName.length === 0
-          ? text === null
-            ? null
-            : escapeRawPlaceholders(text)
-          : minimizeReviewerIdentity(text, displayName),
-      rating: input.rating,
-      languageCode,
-      reviewedAtEpochMillis: input.reviewedAtEpochMillis,
-    },
-    revision,
-  )
-}
-
 /** Review-writer entry point. Identity-minimizes raw provider source before encoding. */
 export function canonicalizeRawAiReviewSource(
   input: RawAiReviewSource,
 ): CanonicalAiReviewSource {
-  return canonicalizeRaw(input, AI_SOURCE_TEXT_REVISION)
+  assertRawSourceWithinLimits(input)
+  const text = input.text === null ? null : normalizeRawText(input.text, 'text')
+  const displayName =
+    input.text === null || input.reviewerDisplayName === null
+      ? null
+      : normalizeRawText(input.reviewerDisplayName, 'reviewerDisplayName').trim()
+  const languageCode =
+    input.languageCode === null
+      ? null
+      : normalizeRawTag(input.languageCode, 'languageCode')
+  return finalize({
+    text:
+      text === null || displayName === null || displayName.length === 0
+        ? text === null
+          ? null
+          : escapeRawPlaceholders(text)
+        : minimizeReviewerIdentity(text, displayName),
+    rating: input.rating,
+    languageCode,
+    reviewedAtEpochMillis: input.reviewedAtEpochMillis,
+  })
 }
 
 /**
@@ -523,22 +489,16 @@ export function canonicalizeRawAiReviewSentences(
   if (pieces.length > MAX_AI_REVIEW_SENTENCES_V1) {
     fail('text holds more sentences than an evidence request carries')
   }
-  const normalized = pieces.map((piece) =>
-    normalizeRawText(piece, 'text', AI_SOURCE_TEXT_REVISION),
-  )
+  const normalized = pieces.map((piece) => normalizeRawText(piece, 'text'))
   const displayName =
     input.reviewerDisplayName === null
       ? null
-      : normalizeRawText(
-          input.reviewerDisplayName,
-          'reviewerDisplayName',
-          AI_SOURCE_TEXT_REVISION,
-        ).trim()
+      : normalizeRawText(input.reviewerDisplayName, 'reviewerDisplayName').trim()
   let byteLength = 0
   const sentences = minimizeReviewerIdentityAcrossSentences(normalized, displayName).map(
     (minimized, index) => {
       const text = minimized.trim()
-      validateCanonicalString(text, 'text', AI_SOURCE_TEXT_REVISION)
+      validateCanonicalString(text, 'text')
       if (FORBIDDEN_CANONICAL_PLACEHOLDER.test(text)) {
         fail('identity-minimized sentence contains a forbidden closed placeholder')
       }
@@ -552,20 +512,9 @@ export function canonicalizeRawAiReviewSentences(
   return Object.freeze(sentences)
 }
 
-/**
- * The canonical source revision 1 made of the same raw input. Only for
- * recognising a digest stored before revision 2 (`ai-review-source.server.ts`); it is
- * never what a model reads or what a new row stores.
- */
-export function canonicalizeRawAiReviewSourcePreviousRevision(
-  input: RawAiReviewSource,
-): CanonicalAiReviewSource {
-  return canonicalizeRaw(input, 1)
-}
-
 /** Gateway entry point. Verifies and encodes already identity-minimized source verbatim. */
 export function encodeCanonicalAiReviewSource(
   input: IdentityMinimizedAiReviewSource,
 ): CanonicalAiReviewSource {
-  return finalize(input, AI_SOURCE_TEXT_REVISION)
+  return finalize(input)
 }
