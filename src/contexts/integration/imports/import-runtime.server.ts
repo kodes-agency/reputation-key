@@ -42,7 +42,7 @@ export type GoogleImportRuntimeDeps = Readonly<{
   providerTokenAccess: GoogleProviderTokenAccess
   references: GoogleImportReferenceStore | undefined
   replayKeys: VersionedHmacKeyring | undefined
-  authorizeContent: GoogleImportContentAuthorizer | undefined
+  authorizeContent: GoogleImportContentAuthorizer
 }>
 
 export type GoogleImportRuntime = Readonly<{
@@ -76,9 +76,7 @@ export const createGoogleImportRuntime = (
     connectionRepo: deps.connectionRepo,
     tokenProvider: deps.tokenProvider,
     decide: decideGoogleImport,
-    authorizeGoogleContent:
-      deps.authorizeContent ??
-      (async () => ({ ok: false as const, code: 'runtime_unavailable' as const })),
+    authorizeGoogleContent: deps.authorizeContent,
     readProperty: binding.readInternal,
     clock: deps.clock,
     // The refusal is otherwise invisible: six checks share the

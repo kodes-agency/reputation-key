@@ -39,10 +39,10 @@ export type DisconnectGoogleAccountDeps = Readonly<{
     connectionId: string,
   ) => Promise<unknown>
   /** Fail-closed import lifecycle fence before provider or connection mutation. */
-  cancelGoogleImportsForConnection?: (
+  cancelGoogleImportsForConnection: (
     organizationId: OrganizationId,
     connectionId: string,
-  ) => Promise<void>
+  ) => Promise<unknown>
   authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer
   disconnectRevokeStore?: GoogleDisconnectRevokeStore
   idGen?: () => string
@@ -203,7 +203,7 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
 
     let revoked: GoogleConnection | null = null
     if (connection.status !== 'disconnected') {
-      await deps.cancelGoogleImportsForConnection?.(ctx.organizationId, connectionId)
+      await deps.cancelGoogleImportsForConnection(ctx.organizationId, connectionId)
       await unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
       // A retry still owes local cleanup, but must never resend provider cleanup.
       revoked = await governedRevoke(connection, connectionId, ctx)

@@ -66,6 +66,7 @@ const setup = () => {
     commandStore: createAtomicIntegrationCommandStore(db, () => FIXED_TIME),
     clock: () => FIXED_TIME,
     logger: createMockLogger(),
+    cancelGoogleImportsForConnection: async () => undefined,
   }
   return {
     useCase: disconnectGoogleAccount(baseDeps),
