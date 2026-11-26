@@ -66,8 +66,7 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
       'worker',
     )
 
-    expect(outcome.kind).toBe('allow')
-    expect(outcome.decision).toMatchObject({
+    expect(outcome).toMatchObject({
       allowed: true,
       reason: 'allowed',
       action: 'system:notification.email_digest',

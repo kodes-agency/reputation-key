@@ -158,6 +158,14 @@ export type ApplyReplyObservedCommand = Readonly<{
   reopenFact: InboxItemStatusChanged
 }>
 
+/** The one operation member-authority reconciliation needs. Assignment is
+ * operational metadata, never an authority: the store re-proves each
+ * requirement inside its own write transaction. */
+export type InboxAssignmentRuntime = Pick<
+  InboxCommandStore,
+  'releaseIneligibleAssignmentsForUser'
+>
+
 export type InboxCommandStore = Readonly<{
   /**
    * Eligibility reconciliation: re-check every currently assigned Property

@@ -15,7 +15,7 @@
 
 import type { PropertyResponsibilityRuntime } from '#/contexts/property/responsibility/property-responsibility-runtime.server'
 import type { PortalResponsibilityRuntime } from '#/contexts/portal/responsibility/portal-responsibility-runtime.server'
-import type { InboxAssignmentRuntime } from '#/contexts/reputation/inbox/inbox-assignment-runtime.server'
+import type { InboxAssignmentRuntime } from '#/contexts/reputation/inbox/command-store.port.server'
 import type { Clock } from '#/shared/domain/clock'
 import { organizationId, userId } from '#/shared/domain/ids'
 import {

@@ -2,7 +2,8 @@ import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/public-a
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { OrganizationId, PortalId } from '#/shared/domain/ids'
 import { userId } from '#/shared/domain/ids'
-import { listEligiblePortalManagers } from '../responsibility/portal-manager-eligibility.server'
+import { policyDeps } from '../responsibility/portal-manager-eligibility.server'
+import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PortalRepository } from './portal-repository.port.server'
 import type { PortalResponsibleManagerRepository } from '../responsibility/portal-responsible-manager-repository.port.server'
 
@@ -30,7 +31,11 @@ export const getPortalContactRequestManagerAuthorityFacts =
 
     const [assignments, eligibleManagers] = await Promise.all([
       deps.managerRepo.listActive(organizationId, portalId),
-      listEligiblePortalManagers(deps, organizationId, portal.propertyId),
+      listEligibleResponsibleManagers(
+        policyDeps(deps),
+        organizationId,
+        portal.propertyId,
+      ),
     ])
     const eligibleIds = new Set(eligibleManagers.map((manager) => manager.userId))
     return {

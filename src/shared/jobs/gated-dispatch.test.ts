@@ -92,7 +92,7 @@ describe('createGatedJobHandler', () => {
     })
   })
 
-  it('skips the handler and resolves a typed denial on deny_terminal', async () => {
+  it('skips the handler and resolves a typed denial when the decision denies', async () => {
     decideMock.mockResolvedValue(decision({ reason: 'org_suspended' }))
     initDelayedExecutionPolicy({ decide: decideMock })
     const registry = createJobRegistry()

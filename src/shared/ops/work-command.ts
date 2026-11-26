@@ -1,4 +1,4 @@
-import type { WorkItems } from '#/shared/jobs/work-items.server'
+import type { WorkItems } from '#/shared/db/work-items.server'
 import type {
   OperatorArgs,
   OperatorCommandSpec,

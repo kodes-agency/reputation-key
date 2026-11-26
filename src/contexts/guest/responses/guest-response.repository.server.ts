@@ -24,6 +24,9 @@ import { guestResponseFromRow } from './guest-response-mapper.server'
 import type { Clock } from '#/shared/domain/clock'
 import { guestResponseId } from '#/shared/domain/ids'
 
+const isHalfOpenPeriod = (startAt: Date, endAt: Date) =>
+  !Number.isNaN(startAt.getTime()) && !Number.isNaN(endAt.getTime()) && startAt < endAt
+
 export const createGuestResponseRepository = (
   db: Database,
   clock: Clock,
@@ -220,7 +223,11 @@ export const createGuestResponseRepository = (
       return rows.map((row) => guestResponseId(row.id))
     },
 
-    summarizePortalIntegrity: async (scope, startAt, endAt) => {
+    getPortalResponseIntegritySummary: async (scope) => {
+      const { startAt, endAt } = scope
+      if (!isHalfOpenPeriod(startAt, endAt)) {
+        throw new Error('Guest response integrity summary period is invalid')
+      }
       const ratingBusinessAt = sql<Date>`COALESCE(
         ${guestResponses.correctedAt}, ${guestResponses.submittedAt}
       )`
@@ -269,7 +276,11 @@ export const createGuestResponseRepository = (
       return summary
     },
 
-    summarizePortalRatingLanguages: async (scope, startAt, endAt) => {
+    getPortalRatingLanguages: async (scope) => {
+      const { startAt, endAt } = scope
+      if (!isHalfOpenPeriod(startAt, endAt)) {
+        throw new Error('Guest rating languages period is invalid')
+      }
       // The same business time and eligibility as the integrity summary, for
       // the accepted outcome only: the ratings the Results measures count.
       const ratingBusinessAt = sql<Date>`COALESCE(

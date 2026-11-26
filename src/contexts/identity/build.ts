@@ -143,7 +143,6 @@ import { createMerchantAiOverviewReader } from './consent/merchant-ai-overview.r
 import { createStandingRenewalStore } from './consent/merchant-ai-standing-renewal.repository.server'
 import { createProductUpdatesStore } from './updates/product-updates.repository.server'
 import { hasActiveGrant } from './members/property-access-grant-repository.server'
-import { createStaffParticipationRepository } from './staff/staff-participation-repository.server'
 import { createStaffAccountStore } from './staff/staff-account-store.server'
 
 type AuthSession = Readonly<{
@@ -424,9 +423,8 @@ function buildMerchantAi(
 
 function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock'>) {
   const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
-  const participationRepo = createStaffParticipationRepository(deps.db)
   const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
-  const listAssignedPortalIds = createAssignedPortalLookup(participationRepo)
+  const listAssignedPortalIds = createAssignedPortalLookup(deps.db)
 
   return Object.freeze({
     getAccessiblePropertyIds: async (

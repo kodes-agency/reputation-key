@@ -276,8 +276,7 @@ describe('capability-gated tenant-cross schedules decide each candidate', () => 
     const admittedUnderACapability = firings
       .filter(
         ({ firing }) =>
-          firing.kind === 'allow' &&
-          capabilityForSystemAction(firing.decision.action) !== 'none',
+          firing.allowed && capabilityForSystemAction(firing.action) !== 'none',
       )
       .map(({ jobName }) => jobName)
 
@@ -295,8 +294,8 @@ describe('capability-gated tenant-cross schedules decide each candidate', () => 
 
       const firing = await gateJob(jobName, {}, `schedule:${jobName}`, 'schedule')
 
-      expect({ kind: firing.kind, reason: firing.decision.reason }).toEqual({
-        kind: 'allow',
+      expect({ allowed: firing.allowed, reason: firing.reason }).toEqual({
+        allowed: true,
         reason: 'allowed',
       })
     },

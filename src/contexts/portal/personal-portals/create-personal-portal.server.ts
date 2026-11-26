@@ -2,7 +2,8 @@ import {
   assertPersonalPropertySource,
   assertPersonalPublicationReady,
 } from './personal-portal-property-source.server'
-import { listEligiblePortalManagers } from '../responsibility/portal-manager-eligibility.server'
+import { policyDeps } from '../responsibility/portal-manager-eligibility.server'
+import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import {
   assertPropertyAllowsPublication,
   loadVerifiedGoogleReviewDestination,
@@ -228,7 +229,11 @@ async function copiedManagerIds(
 ) {
   const [assigned, eligible] = await Promise.all([
     deps.managerRepo.listActive(ctx.organizationId, sourceId),
-    listEligiblePortalManagers(deps, ctx.organizationId, propertyId(pid)),
+    listEligibleResponsibleManagers(
+      policyDeps(deps),
+      ctx.organizationId,
+      propertyId(pid),
+    ),
   ])
   const ids = assigned
     .filter((row) => eligible.some((manager) => manager.userId === row.userId))
