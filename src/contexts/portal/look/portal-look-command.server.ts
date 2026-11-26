@@ -12,6 +12,7 @@ import type { Portal } from '../domain/types'
 import { assertPropertyAccess } from '../publication/assert-property-access.server'
 import type { PortalLookSaved } from '../application/dto/portal-look.dto'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
+import { brandProfileMissing } from './look-media-rules.server'
 import { portalLookSavedOf } from './portal-look-view.server'
 import type { PortalLookRepository } from './portal-look-repository.port.server'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
@@ -72,10 +73,7 @@ export async function savePortalLookChange(
   })
   switch (result.status) {
     case 'brand_profile_missing':
-      throw portalError(
-        'brand_profile_missing',
-        'Set the public display name before changing the look',
-      )
+      throw brandProfileMissing()
     case 'portal_not_found':
       throw portalError('portal_not_found', 'Portal not found for this Property')
     case 'portal_archived':
