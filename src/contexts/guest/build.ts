@@ -37,12 +37,9 @@ import {
   unbrand,
 } from '#/shared/domain/ids'
 import { createFeedbackPortalAttributionLookup } from './responses/feedback-portal-attribution.server'
-import { getPortalResponseIntegritySummary } from './responses/get-portal-response-integrity-summary.server'
-import { getPortalRatingLanguages } from './responses/get-portal-rating-languages.server'
 import { createGuestNetworkPressureStore } from './page/guest-network-pressure-store.server'
 import { createResponseCeilingStore } from './responses/response-ceiling-store.server'
 import { createResponseCeiling } from './responses/response-ceiling.server'
-import { consumeGuestNetworkPressure } from './page/consume-guest-network-pressure.server'
 import {
   createGuestObservationLossMonitor,
   type GuestObservationLossRedisPort,
@@ -105,7 +102,11 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     withdrawalJournal,
   )
   const guestObservationStore = createAtomicGuestObservationStore(deps.db)
-  const guestNetworkPressureStore = createGuestNetworkPressureStore(deps.db, deps.idGen)
+  const guestNetworkPressureStore = createGuestNetworkPressureStore(
+    deps.db,
+    deps.clock,
+    deps.idGen,
+  )
   const responseCeiling = createResponseCeiling({
     store: createResponseCeilingStore(deps.db, deps.sessionSecret),
     clock: deps.clock,
@@ -198,10 +199,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     responseLifecycle,
     responseCeiling,
     guestSessions,
-    consumeGuestNetworkPressure: consumeGuestNetworkPressure({
-      store: guestNetworkPressureStore,
-      clock: deps.clock,
-    }),
+    consumeGuestNetworkPressure: guestNetworkPressureStore.consume,
     reportObservationLoss,
     reportNetworkBudgetExhausted: reportGuestNetworkBudgetExhausted({
       logger: deps.logger,
@@ -217,14 +215,13 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   const integrityPublicApi = {
     getPortalScanPatterns: createPortalScanPatternsReader(deps.db),
     getPortalResponseIntegritySummary:
-      getPortalResponseIntegritySummary(guestResponseRepo),
-    getPortalRatingLanguages: getPortalRatingLanguages(guestResponseRepo),
+      guestResponseRepo.getPortalResponseIntegritySummary,
+    getPortalRatingLanguages: guestResponseRepo.getPortalRatingLanguages,
   }
   const publicApi = {
     /** Public-edge request capabilities, including the session and abuse
      * controls that must stay composed with Guest-owned persistence. */
     requests: Object.freeze(useCases),
-    getPublicPortal: useCases.getPublicPortal,
     ...attributionPublicApi,
     ...integrityPublicApi,
   }
