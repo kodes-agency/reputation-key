@@ -87,7 +87,7 @@ function PortalGroupPageBody(props: PortalGroupPageProps) {
   })
   const visibleRows = has('staff.accounts')
     ? staffRows
-    : visiblePortals(rows).filter((row) => row.kind !== 'personal')
+    : rows.filter((row) => row.kind !== 'personal')
   const inGroup = visibleRows.filter((row) => row.group?.id === group.id)
   const meta = [
     'Group',
