@@ -94,7 +94,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'portalPublicApi',
   'portalWorkerRuntime',
   'propertyPublicApi',
-  'providerEphemeralReadiness',
   'providerEphemeralRedis',
   'rateLimiter',
   'redis',
@@ -107,6 +106,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'reviewPublicApi',
   // The daily retention sweep's Review subject: snapshot runs outside the keep rule.
   'reviewSnapshotRunRetentionSweep',
+  'runtimeObservations',
   // Container-owned release seam. Static policy starts no background work,
   // while queues and future process resources still share one shutdown path.
   'shutdown',

@@ -57,9 +57,14 @@ export function buildContainerCapabilities({
   const { identityPort } = identityPorts
   const { reporting, goalCorrectionPolicy, feed } = readAndNotify
   const { activity, notification } = feed
-  const { providerEphemeralReadiness, providerEphemeralRedis } = googleProviderAuthority
-  const { opsQueues, jobDispatchWorkerRuntime, operationsSnapshot, containerShutdown } =
-    operationalReadout
+  const { providerEphemeralRedis } = googleProviderAuthority
+  const {
+    opsQueues,
+    jobDispatchWorkerRuntime,
+    runtimeObservations,
+    operationsSnapshot,
+    containerShutdown,
+  } = operationalReadout
 
   return {
     db,
@@ -111,6 +116,8 @@ export function buildContainerCapabilities({
     backgroundQueue: infra.backgroundQueue,
     jobRegistry: infra.jobRegistry,
     jobDispatchWorkerRuntime,
+    /** The job Redis connection and observation store the worker records through; null without job Redis. */
+    runtimeObservations,
     /** Shared issued-object capability used by Identity profile assets and
      * Portal media. The name exposes the port's purpose, not its adapter. */
     assetStorage: portal.uploads.storage,
@@ -122,7 +129,6 @@ export function buildContainerCapabilities({
     }),
     /** Operator-only Review repair and lifecycle authority. */
     reviewMaintenanceRuntime: review.maintenance,
-    providerEphemeralReadiness,
     identityPublicApi: identity.publicApi,
     identityWorkerRuntime: identity.worker,
     integrationPublicApi: integration.publicApi,
@@ -173,23 +179,7 @@ export function buildContainerCapabilities({
     // env-level precondition is enforced earlier, at container construction
     // (assertReviewProviderSubjectKeysConfigured).
     refreshReviewProviderSubjectKeys: review.worker.refreshProviderSubjectKeys,
-    registerReviewWorkerJobs: ({
-      reviewDiscoveryIntervalMs,
-      reviewDiscoverySkipRecentlyReconciled,
-      reviewHeadChecks,
-      reviewReconcileWithinMs,
-    }: {
-      reviewDiscoveryIntervalMs: number
-      reviewDiscoverySkipRecentlyReconciled: boolean
-      reviewHeadChecks: 'off' | 'dark' | 'persist'
-      reviewReconcileWithinMs: number
-    }) =>
-      review.worker.registerWorkerJobs({
-        discoveryIntervalMs: reviewDiscoveryIntervalMs,
-        discoverySkipRecentlyReconciled: reviewDiscoverySkipRecentlyReconciled,
-        headChecks: reviewHeadChecks,
-        reconcileWithinMs: reviewReconcileWithinMs,
-      }),
+    registerReviewWorkerJobs: review.worker.registerWorkerJobs,
     /** ARC-03-T7: the durable consumer registry this container owns. */
     consumerRegistry,
     // Worker-only durable consumer registration contributed by owning contexts.

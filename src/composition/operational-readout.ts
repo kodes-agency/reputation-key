@@ -98,24 +98,36 @@ function openOperationsQueues(input: OperationalReadoutInput) {
 type OperationsQueues = ReturnType<typeof openOperationsQueues>
 
 /**
+ * The job Redis connection that holds per-job runtime observations, with the
+ * store over it, or null when there is no job Redis. The worker records boots
+ * and job outcomes through the same store the operations snapshot reads.
+ */
+function openRuntimeObservations(
+  input: OperationalReadoutInput,
+  hooks: ContainerShutdownHook[],
+) {
+  if (!input.redis) return null
+  const redis = createJobRedisConnection()
+  if (!redis) return null
+  hooks.push({ label: 'runtime-observations', release: () => redis.quit() })
+  return Object.freeze({ redis, store: createJobRuntimeObservationStore({ redis }) })
+}
+
+type RuntimeObservations = NonNullable<ReturnType<typeof openRuntimeObservations>>
+
+/**
  * The per-job runtime report, or null when there is no job Redis to read
  * observations from. A report is never synthesized from an absent store.
  */
 function buildJobRuntimeReport(
   input: OperationalReadoutInput,
   opsQueues: OperationsQueues,
-  hooks: ContainerShutdownHook[],
+  observations: RuntimeObservations | null,
 ) {
-  if (!input.redis) return null
-  const runtimeObservationRedis = createJobRedisConnection()
-  if (!runtimeObservationRedis) return null
-  hooks.push({
-    label: 'runtime-observations',
-    release: () => runtimeObservationRedis.quit(),
-  })
+  if (!observations) return null
   return createJobRuntimeReportReader({
     contracts: JOB_OPERATIONAL_CONTRACTS,
-    store: createJobRuntimeObservationStore({ redis: runtimeObservationRedis }),
+    store: observations.store,
     queues: {
       default: input.infra.jobQueue ?? null,
       background: opsQueues.background ?? null,
@@ -188,7 +200,8 @@ export function buildOperationalReadout(input: OperationalReadoutInput) {
     const queue = jobDispatchWorkerRuntime.quarantineQueue
     hooks.push({ label: 'quarantine-barrier', release: () => queue.close() })
   }
-  const jobRuntimeReport = buildJobRuntimeReport(input, opsQueues, hooks)
+  const runtimeObservations = openRuntimeObservations(input, hooks)
+  const jobRuntimeReport = buildJobRuntimeReport(input, opsQueues, runtimeObservations)
   const containerShutdown: ContainerShutdown = createContainerShutdown(
     hooks,
     input.logger,
@@ -197,6 +210,7 @@ export function buildOperationalReadout(input: OperationalReadoutInput) {
   return Object.freeze({
     opsQueues,
     jobDispatchWorkerRuntime,
+    runtimeObservations,
     operationsSnapshot: buildOperationsSnapshot(input, opsQueues, jobRuntimeReport),
     containerShutdown,
   } as const)

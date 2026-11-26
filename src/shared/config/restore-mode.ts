@@ -13,7 +13,7 @@
 //     OFF flows through, NOT a parallel mechanism), so capability-gated
 //     server functions/mutations/external effects are impossible while reads
 //     stay available for verification. The web boot logs the loud line via
-//     server/plugins/restore-mode-guard.ts.
+//     server/plugins/boot-guards.ts.
 //   - WORKER process: REFUSES to boot (assertRestoreModeCompatible) — no
 //     schedules, no BullMQ consumers, no outbox relay, no external effects,
 //     by construction.
