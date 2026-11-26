@@ -195,7 +195,6 @@ function build(setup: Setup = {}) {
     isEnabled: () => setup.enabled ?? true,
     clock: () => clock.now,
     idGen: randomUUID,
-    revealAuditIdGen: randomUUID,
   })
   const sweep = contactRequestRetentionSweep({
     repo: createContactRequestRetentionRepository(db),

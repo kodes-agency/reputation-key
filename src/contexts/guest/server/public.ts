@@ -83,7 +83,6 @@ function lifecycleFailure(error: unknown): never {
   const hidden: Record<string, true> = {
     response_not_found: true,
     response_unavailable: true,
-    media_not_found: true,
   }
   if (hidden[error.code]) return denyWithoutEnumeration()
   throwContextError(

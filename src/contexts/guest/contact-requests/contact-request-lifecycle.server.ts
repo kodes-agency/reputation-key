@@ -46,7 +46,6 @@ export function contactRequestLifecycle(
     isEnabled: () => boolean
     clock: () => Date
     idGen: () => string
-    revealAuditIdGen: () => string
   }>,
 ) {
   const scopeOf = (input: ContactRequestScope): ContactRequestScope => ({
@@ -229,7 +228,7 @@ export function contactRequestLifecycle(
         scope: scopeOf(input),
         contactRequestId: input.contactRequestId,
         authorization: { actorId: ctx.userId, basis, checkedAt: at },
-        auditId: deps.revealAuditIdGen(),
+        auditId: deps.idGen(),
         accessPurpose: input.accessPurpose,
         at,
       })

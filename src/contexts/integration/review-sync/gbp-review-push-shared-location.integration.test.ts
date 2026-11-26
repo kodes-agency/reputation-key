@@ -89,7 +89,6 @@ const property = buildPropertyContext({
     getAssignedPortals: async () => [],
   },
   identityManagerFacts: { listActiveManagers: async () => [] },
-  logger: { info: () => {}, warn: () => {} },
 })
 
 const adminOf = (tenant: Tenant) =>
