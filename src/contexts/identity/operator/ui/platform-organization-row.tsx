@@ -15,6 +15,7 @@ import type {
   PlatformOrganizationView,
 } from '#/contexts/identity/operator/platform-console.contracts'
 import type { Action } from '#/components/hooks/use-action'
+import { formatDate } from '#/shared/format/format'
 import { InviteOrganizationAdminForm } from './invite-organization-admin-form'
 import {
   PlatformAdminInvitations,
@@ -23,7 +24,6 @@ import {
 } from './platform-admin-invitations'
 import {
   canInviteAdmin,
-  formatConsoleDate,
   hasCompetingAdminInvitations,
   organizationFlags,
   type OrganizationFlag,
@@ -122,7 +122,7 @@ export function PlatformOrganizationRow(props: Props) {
           </h3>
           <p className="text-xs text-muted-foreground">
             <code className="font-mono">{organization.slug}</code> · Created{' '}
-            {formatConsoleDate(organization.createdAt)}
+            {formatDate(organization.createdAt) ?? ''}
           </p>
         </div>
         {flags.length > 0 ? (
