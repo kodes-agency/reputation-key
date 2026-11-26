@@ -103,7 +103,6 @@ function snapshotFromRow(row: PermitRow): GoogleAdmissionPermitSnapshot | null {
     maxRequestBytes: policy.maxRequestBytes,
     maxResponseBytes: policy.maxResponseBytes,
     quotaPolicyId: policy.quotaPolicyId,
-    inFlightPolicyId: policy.inFlightPolicyId,
   })
   return Object.freeze({
     permitId: row.id,

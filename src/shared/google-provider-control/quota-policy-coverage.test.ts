@@ -33,14 +33,11 @@ function lookup() {
 
 describe('Google quota policy coverage', () => {
   it.each(GOOGLE_PROVIDER_ROUTE_KEYS)(
-    '%s names quota and in-flight policies that exist for its request class',
+    '%s names a quota policy that exists for its request class',
     (routeKey) => {
       const route = GOOGLE_PROVIDER_ROUTE_POLICIES[routeKey]
 
       expect(QUOTA_POLICIES[route.quotaPolicyId]?.requestClass).toBe(route.requestClass)
-      expect(QUOTA_POLICIES[route.inFlightPolicyId]?.requestClass).toBe(
-        route.requestClass,
-      )
     },
   )
 
@@ -51,7 +48,7 @@ describe('Google quota policy coverage', () => {
       const coordination = lookup()
 
       expect(coordination.quotaForPolicy(route.quotaPolicyId)).not.toBeNull()
-      expect(coordination.inFlightForPolicy(route.inFlightPolicyId)).not.toBeNull()
+      expect(coordination.inFlightForPolicy(route.quotaPolicyId)).not.toBeNull()
     },
   )
 
@@ -65,12 +62,10 @@ describe('Google quota policy coverage', () => {
   it('gives reply publishing its own lane, apart from review reads', () => {
     expect(GOOGLE_PROVIDER_ROUTE_POLICIES['reviews.reply']).toMatchObject({
       quotaPolicyId: 'google-reviews-write-v1',
-      inFlightPolicyId: 'google-reviews-write-v1',
     })
     for (const routeKey of ['reviews.list', 'reviews.get'] as const) {
       expect(GOOGLE_PROVIDER_ROUTE_POLICIES[routeKey]).toMatchObject({
         quotaPolicyId: 'google-reviews-v1',
-        inFlightPolicyId: 'google-reviews-v1',
       })
     }
   })

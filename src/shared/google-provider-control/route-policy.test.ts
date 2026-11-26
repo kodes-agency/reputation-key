@@ -83,7 +83,6 @@ describe('Google provider route policy compilation', () => {
       maxRequestBytes: policy.maxRequestBytes,
       maxResponseBytes: policy.maxResponseBytes,
       quotaPolicyId: policy.quotaPolicyId,
-      inFlightPolicyId: policy.inFlightPolicyId,
     })
     expect(compiled.admission.requestBodyBytes).toBeLessThanOrEqual(
       policy.maxRequestBytes,
