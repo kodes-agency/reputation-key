@@ -78,11 +78,11 @@ export const createGoalProgramSubjectReader = (
     subjectBelongsToProperty: async (organizationId, propertyId, subject) => {
       if (subject.kind === 'property') return subject.propertyId === propertyId
       if (subject.kind === 'portal_group') {
-        return portalGroupApi.portalGroupBelongsToProperty(
+        const group = await portalGroupApi.getGroupInfo(
           toOrganizationId(organizationId),
-          toPropertyId(propertyId),
           toPortalGroupId(subject.portalGroupId),
         )
+        return group?.propertyId === propertyId
       }
       return (await currentPortal(organizationId, propertyId, subject.portalId)) !== null
     },

@@ -26,8 +26,11 @@ import type { Portal, PortalGroup } from '../domain/types'
 import { loadPortalOrThrow } from './load-accessible-portal.server'
 import { nextPortalCommandAt } from './portal-command-version.server'
 import {
-  isEligiblePortalManager,
-  listEligiblePortalManagers,
+  isEligibleResponsibleManager,
+  listEligibleResponsibleManagers,
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
+import {
+  policyDeps,
   type PortalManagerEligibilityDeps,
 } from '../responsibility/portal-manager-eligibility.server'
 import type { PortalCopySource } from './portal-content-copy.server'
@@ -225,8 +228,8 @@ export async function resolveResponsibleManagers(
   requested: readonly string[] | undefined,
 ): Promise<readonly UserId[]> {
   if (requested === undefined) {
-    const creatorIsEligible = await isEligiblePortalManager(
-      deps,
+    const creatorIsEligible = await isEligibleResponsibleManager(
+      policyDeps(deps),
       ctx.organizationId,
       propertyId,
       ctx.userId,
@@ -241,9 +244,13 @@ export async function resolveResponsibleManagers(
   }
   if (requested.length === 0) return []
   const eligible = new Set(
-    (await listEligiblePortalManagers(deps, ctx.organizationId, propertyId)).map(
-      (manager) => manager.userId,
-    ),
+    (
+      await listEligibleResponsibleManagers(
+        policyDeps(deps),
+        ctx.organizationId,
+        propertyId,
+      )
+    ).map((manager) => manager.userId),
   )
   if (requested.some((id) => !eligible.has(id))) {
     throw portalError(

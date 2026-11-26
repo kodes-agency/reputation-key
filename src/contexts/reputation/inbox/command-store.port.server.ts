@@ -353,3 +353,13 @@ export type InboxCommandStore = Readonly<{
     organizationId: OrganizationId,
   ): Promise<void>
 }>
+
+/**
+ * The one operation eligibility reconciliation needs from the command store.
+ * Assignment is operational metadata, never an authority: the store re-proves
+ * each requirement inside its own write transaction.
+ */
+export type InboxAssignmentRuntime = Pick<
+  InboxCommandStore,
+  'releaseIneligibleAssignmentsForUser'
+>

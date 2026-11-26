@@ -10,10 +10,6 @@
 import type { Database } from '#/shared/db'
 import { registerInboxMemberOffboardingConsumers } from './inbox/member-offboarding-outbox-consumers.server'
 import type { ConsumerRegistry } from '#/shared/outbox'
-import {
-  createInboxAssignmentRuntime,
-  type InboxAssignmentRuntime,
-} from './inbox/inbox-assignment-runtime.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
@@ -24,7 +20,10 @@ import { inboxItemId } from '#/shared/domain/ids'
 import type { InboxRepository } from './inbox/inbox-repository.port.server'
 import type { InboxNoteRepository } from './inbox/inbox-note-repository.port.server'
 import type { InboxViewRepository } from './inbox/inbox-view-repository.port.server'
-import type { InboxCommandStore } from './inbox/command-store.port.server'
+import type {
+  InboxAssignmentRuntime,
+  InboxCommandStore,
+} from './inbox/command-store.port.server'
 import type { ReviewHandlingCycleStore } from './inbox/review-handling-cycle-store.port.server'
 import type { FeedbackHandlingStore } from './inbox/feedback-handling-store.port.server'
 import type { ResponseTargetStore } from './response-targets/store.port.server'
@@ -263,7 +262,11 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     lifecycle,
     maintenance,
     worker: Object.freeze({ registerOutboxConsumers }),
-    assignments: createInboxAssignmentRuntime(commandStore),
+    // Eligibility reconciliation gets exactly this one operation, not the store.
+    assignments: Object.freeze<InboxAssignmentRuntime>({
+      releaseIneligibleAssignmentsForUser: (input, tx) =>
+        commandStore.releaseIneligibleAssignmentsForUser(input, tx),
+    }),
     runtime: Object.freeze({
       releaseResponseTargetRemindersJob: Object.freeze({
         name: RELEASE_RESPONSE_TARGET_REMINDERS_JOB,

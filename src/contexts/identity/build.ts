@@ -110,7 +110,6 @@ import { createIdentityAssetReferences } from './images/identity-asset-reference
 import { deliverBetaFeedback } from './feedback/beta-feedback-sentry-delivery.adapter.server'
 import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
 import { findBetaFeedbackReporterContact } from './infrastructure/beta-feedback-reporter'
-import { createAssignedPortalLookup } from './staff/assigned-portal-lookup.server'
 import { createAtomicIdentityCommandStore } from './members/identity-command-store.server'
 import { isAcceptanceAdmitted } from './members/invitation-admission.adapter.server'
 import { createInvitationReadModel } from './members/invitation-read-model.server'
@@ -424,9 +423,8 @@ function buildMerchantAi(
 
 function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock'>) {
   const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
-  const participationRepo = createStaffParticipationRepository(deps.db)
+  const { listAssignedPortalIds } = createStaffParticipationRepository(deps.db)
   const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
-  const listAssignedPortalIds = createAssignedPortalLookup(participationRepo)
 
   return Object.freeze({
     getAccessiblePropertyIds: async (

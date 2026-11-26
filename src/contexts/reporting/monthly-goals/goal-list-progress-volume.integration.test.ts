@@ -232,7 +232,10 @@ describe.sequential('Goal list progress at volume (integration)', () => {
       validateSubject: async (org, property, subject) => {
         if (subject.kind === 'property') return subject.propertyId === property
         if (subject.kind === 'portal_group')
-          return groups.portalGroupBelongsToProperty(org, property, subject.portalGroupId)
+          return (
+            (await groups.getGroupInfo(org, subject.portalGroupId))?.propertyId ===
+            property
+          )
         const context = await portals.resolvePortalContext(subject.portalId)
         return context?.organizationId === org && context.propertyId === property
       },
