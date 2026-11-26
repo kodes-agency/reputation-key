@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, type Mock } from 'vitest'
-import { BANNED_LOG_KEYS } from '#/shared/observability/metrics-schema'
+import { BANNED_LOG_KEYS } from '#/shared/observability/log-field-policy.test-fixtures'
 import {
   connection,
   contentAuthorization,

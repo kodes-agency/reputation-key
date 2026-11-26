@@ -3,7 +3,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { OutboxPayloadError } from '#/shared/outbox/event-adapter'
-import { isBannedLogKey } from '#/shared/observability/metrics-schema'
+import { isBannedLogKey } from '#/shared/observability/log-field-policy.test-fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type {
   ClaimedImportCandidate,

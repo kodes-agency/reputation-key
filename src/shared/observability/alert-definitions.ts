@@ -10,7 +10,7 @@
 // Scope honesty (phase doc: "Every alert must be injected at least once
 // before BQC-8 acceptance"):
 //   - Signals the platform cannot observe about itself are REGISTERED here
-//     with `implemented: false` and `evaluate: null` — web.availability (a
+//     with `evaluate: null` — web.availability (a
 //     self-reported availability probe is circular; the external synthetic
 //     probe that also covers the latency SLO is BQC-8's staging concern),
 //     backup.pitr (platform backup status is not app-readable — BQC-7.8's
@@ -26,7 +26,7 @@
 // exact contract.
 
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
-import type { SnapshotSection } from '#/shared/observability/metrics-schema'
+import type { SnapshotSection } from '#/shared/observability/snapshot-sections'
 import type { AlertFacts } from './alert-facts'
 import type { AlertReading } from './alert-reading'
 import {
@@ -128,11 +128,6 @@ export type AlertDefinition = Readonly<{
   /** Breach threshold in the definition's value units. */
   threshold: number
   /**
-   * false = registered with owner/severity/runbook but the signal source
-   * lands in a later slice (evaluate: null — nothing may dispatch it).
-   */
-  implemented: boolean
-  /**
    * Snapshot sections whose degraded fallback evaluates this alert quiet.
    * While one of them is degraded the reading is unknown, not healthy:
    * evaluateAlerts holds the alert's prior state (a firing alert is neither
@@ -154,7 +149,10 @@ export type AlertDefinition = Readonly<{
    * Alerts that page on their own unavailable read declare none.
    */
   unknownWhen: ((aux: AlertAuxReads) => boolean) | null
-  /** Pure evaluation; null exactly when implemented is false. */
+  /**
+   * Pure evaluation. null = registered with owner/severity/runbook but not
+   * evaluated at app level (nothing may dispatch it).
+   */
   evaluate:
     ((snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertEvent | null) | null
 }>
@@ -330,7 +328,6 @@ function define(
   return {
     ...statics,
     owner: OWNER,
-    implemented: true,
     blindedBy,
     sustained,
     unknownWhen,
@@ -363,7 +360,6 @@ function registered(
   return {
     ...def,
     owner: OWNER,
-    implemented: false,
     blindedBy: [],
     sustained: false,
     unknownWhen: null,
@@ -375,7 +371,8 @@ function registered(
 export function blindedAlerts(degraded: readonly string[]): readonly AlertDefinition[] {
   return ALERT_DEFINITIONS.filter(
     (def) =>
-      def.implemented && def.blindedBy.some((section) => degraded.includes(section)),
+      def.evaluate !== null &&
+      def.blindedBy.some((section) => degraded.includes(section)),
   )
 }
 
@@ -1120,5 +1117,5 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
 
 /** Names of the alerts the health-check job evaluates and tracks state for. */
 export function implementedAlertNames(): readonly string[] {
-  return ALERT_DEFINITIONS.filter((d) => d.implemented).map((d) => d.name)
+  return ALERT_DEFINITIONS.filter((d) => d.evaluate !== null).map((d) => d.name)
 }
