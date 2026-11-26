@@ -75,6 +75,47 @@ export const getInboxItemsDto = z.object({
   sort: z.enum(['newest', 'oldest']).default('newest'),
 })
 
+// 'Other' needs a non-blank explanation; any other reason must not carry one.
+const checkReopenExplanation = (
+  value: {
+    reopenReason?: z.infer<typeof inboxManualReopenReasonSchema>
+    reopenExplanation?: string | null
+  },
+  ctx: z.RefinementCtx,
+): void => {
+  if (value.reopenReason === 'other') {
+    if (!value.reopenExplanation?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['reopenExplanation'],
+        message: 'Add a short explanation for Other',
+      })
+    }
+    return
+  }
+  if (value.reopenExplanation != null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['reopenExplanation'],
+      message: 'An explanation is only used with Other',
+    })
+  }
+}
+
+const bulkItemsSchema = z
+  .array(
+    z.object({
+      inboxItemId: z.uuid(),
+      expectedCommandRevision: commandRevisionSchema,
+    }),
+  )
+  .min(1)
+  .max(INBOX_BULK_LIMIT)
+  .refine(
+    (items) => new Set(items.map((item) => item.inboxItemId)).size === items.length,
+    'Inbox bulk commands cannot contain duplicate items',
+  )
+
 // POST update status (open ⇄ closed — ADR 0055)
 export const updateStatusDto = z
   .object({
@@ -93,64 +134,20 @@ export const updateStatusDto = z
       })
       return
     }
-    if (value.reopenReason === 'other') {
-      if (!value.reopenExplanation?.trim()) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['reopenExplanation'],
-          message: 'Add a short explanation for Other',
-        })
-      }
-      return
-    }
-    if (value.reopenExplanation != null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['reopenExplanation'],
-        message: 'An explanation is only used with Other',
-      })
-    }
+    checkReopenExplanation(value, ctx)
   })
 
 // POST bulk reopen. Bulk Close is deliberately unavailable for the initial
 // beta because it needs per-cycle compatibility preview and revision fencing.
 export const bulkUpdateStatusDto = z
   .object({
-    items: z
-      .array(
-        z.object({
-          inboxItemId: z.uuid(),
-          expectedCommandRevision: commandRevisionSchema,
-        }),
-      )
-      .min(1)
-      .max(INBOX_BULK_LIMIT)
-      .refine(
-        (items) => new Set(items.map((item) => item.inboxItemId)).size === items.length,
-        'Inbox bulk commands cannot contain duplicate items',
-      ),
+    items: bulkItemsSchema,
     status: z.literal('open'),
     reopenReason: inboxManualReopenReasonSchema,
     reopenExplanation: z.string().max(280).nullable().optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.reopenReason === 'other') {
-      if (!value.reopenExplanation?.trim()) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['reopenExplanation'],
-          message: 'Add a short explanation for Other',
-        })
-      }
-      return
-    }
-    if (value.reopenExplanation != null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['reopenExplanation'],
-        message: 'An explanation is only used with Other',
-      })
-    }
+    checkReopenExplanation(value, ctx)
   })
 
 // POST escalate inbox item (set escalation flag)
@@ -185,19 +182,7 @@ export const assignInboxItemDto = z.object({
 
 // POST bounded all-or-nothing assign/reassign/release.
 export const bulkAssignInboxItemsDto = z.object({
-  items: z
-    .array(
-      z.object({
-        inboxItemId: z.uuid(),
-        expectedCommandRevision: commandRevisionSchema,
-      }),
-    )
-    .min(1)
-    .max(INBOX_BULK_LIMIT)
-    .refine(
-      (items) => new Set(items.map((item) => item.inboxItemId)).size === items.length,
-      'Inbox bulk commands cannot contain duplicate items',
-    ),
+  items: bulkItemsSchema,
   assignedToUserId: opaqueUserIdSchema.nullable(),
 })
 

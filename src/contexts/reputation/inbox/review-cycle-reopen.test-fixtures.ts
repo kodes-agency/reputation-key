@@ -12,7 +12,7 @@ import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.serve
 import type { HandlingCycleHead, ManualReopenReason } from '../domain/inbox-types'
 import { inboxItemStatusChanged } from '../domain/inbox-events'
 import { inboxError } from '../domain/inbox-errors'
-import { itemFromRow } from './inbox-command-guards.server'
+import { inboxItemFromRow } from './inbox-mapper.server'
 import { persistedHeadFromItemRow } from './inbox-cycle-head.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { catchUpProjectionRevisions } from './inbox-source-projection.server'
@@ -74,7 +74,7 @@ const reopenManually = async (
     )
     .limit(1)
   if (!itemRow) throw inboxError('not_found', 'Inbox item not found')
-  const item = itemFromRow(itemRow)
+  const item = inboxItemFromRow(itemRow)
   const store = createAtomicInboxCommandStore(db, async () => ({ allowed: true }))
   await store.reopenReviewCycle({
     item,
@@ -123,7 +123,7 @@ const reopenForMaterialRevision = async (
     if (!headRow) throw inboxError('not_found', 'Inbox Handling Cycle head not found')
     const { reviewAuthority } = command.responseTarget
     await catchUpProjectionRevisions(tx, {
-      item: itemFromRow(itemRow),
+      item: inboxItemFromRow(itemRow),
       revisions: [
         {
           authority: 'review.inbox-projection-revision.v1',

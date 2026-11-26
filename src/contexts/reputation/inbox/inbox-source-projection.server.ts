@@ -31,7 +31,6 @@ import {
   insertResponseTargetForHandlingCycle,
 } from '../response-targets/store.server'
 import {
-  itemFromRow,
   lifecycleFactFor,
   projectionTargetAnchor,
   type LifecycleFactMarks,
@@ -41,7 +40,7 @@ import { cycleHeadItemColumns, persistedHeadFromItemRow } from './inbox-cycle-he
 import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head.server'
 import { closeReviewCycleOnGoogleReply } from './review-reply-close.server'
 
-import { inboxItemToInsertRow } from './inbox-mapper.server'
+import { inboxItemFromRow, inboxItemToInsertRow } from './inbox-mapper.server'
 import { assertManualReopenPermitted } from '../domain/handling-outcome-authority'
 import { selectSourceUnavailableCloseReasons } from './handling-cycle-transitions-read.server'
 
@@ -126,7 +125,7 @@ export async function insertItemIdempotent(
     })
     .returning()
   if (inserted[0]) {
-    const insertedItem = itemFromRow(inserted[0])
+    const insertedItem = inboxItemFromRow(inserted[0])
     let openingFacts: ReadonlyArray<DomainEvent> = []
     if (cycleAnchor) {
       const decision = await insertInitialHandlingCycle(tx, insertedItem, cycleAnchor)
@@ -156,10 +155,10 @@ export async function insertItemIdempotent(
     // between our insert and re-select. Surface as a retryable failure.
     throw inboxError('not_found', 'Inbox item insert conflicted but no row is visible')
   }
-  return { item: itemFromRow(existing[0]), created: false, openingFacts: [] }
+  return { item: inboxItemFromRow(existing[0]), created: false, openingFacts: [] }
 }
 
-/** The persisted row, for callers that also need the cycle columns `itemFromRow` drops. */
+/** The persisted row, for callers that also need the cycle columns `inboxItemFromRow` drops. */
 async function tryUpdatePersistedItemRow(
   tx: Tx,
   item: InboxItem,
@@ -193,7 +192,7 @@ export async function tryUpdateItemRow(
   set: Record<string, unknown>,
 ): Promise<InboxItem | null> {
   const row = await tryUpdatePersistedItemRow(tx, item, set)
-  return row ? itemFromRow(row) : null
+  return row ? inboxItemFromRow(row) : null
 }
 
 /** Update one item under its command revision fence. */
@@ -203,7 +202,7 @@ export async function updateItemRow(
   set: Record<string, unknown>,
   notFoundMessage: string,
 ): Promise<InboxItem> {
-  return itemFromRow(await updatePersistedItemRow(tx, item, set, notFoundMessage))
+  return inboxItemFromRow(await updatePersistedItemRow(tx, item, set, notFoundMessage))
 }
 
 /** `updateItemRow` that keeps the persisted row, whose cycle number stamps history. */

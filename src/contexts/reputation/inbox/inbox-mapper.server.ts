@@ -16,7 +16,7 @@ import {
 type InboxItemRow = typeof inboxItems.$inferSelect
 type InboxItemInsertRow = typeof inboxItems.$inferInsert
 
-export const inboxItemFromRow = (row: InboxItemRow): Omit<InboxItem, 'propertyName'> => ({
+export const inboxItemFromRow = (row: InboxItemRow): InboxItem => ({
   id: inboxItemId(row.id),
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
@@ -53,6 +53,7 @@ export const inboxItemFromRow = (row: InboxItemRow): Omit<InboxItem, 'propertyNa
     ? userId(row.managerPrioritySetBy)
     : null,
   managerPrioritySetAt: row.managerPrioritySetAt ?? null,
+  propertyName: null,
 })
 
 export const inboxItemToInsertRow = (

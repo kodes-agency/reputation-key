@@ -27,10 +27,10 @@ import { transitionInsert } from './review-handling-cycle-store.server'
 import { completeGoogleReviewTarget } from '../response-targets/google-review-target-completion.server'
 import {
   assertObservationMatchesItem,
-  itemFromRow,
   lifecycleFactFor,
   type PersistedItem,
 } from './inbox-command-guards.server'
+import { inboxItemFromRow } from './inbox-mapper.server'
 import { cycleHeadItemColumns, persistedHeadFromItemRow } from './inbox-cycle-head.server'
 import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head.server'
 
@@ -167,7 +167,7 @@ export async function closeReviewCycleOnGoogleReply(
     )
   }
   return {
-    item: itemFromRow(updatedItem),
+    item: inboxItemFromRow(updatedItem),
     cycleFact: lifecycleFactFor(decision.value.transition),
   }
 }
