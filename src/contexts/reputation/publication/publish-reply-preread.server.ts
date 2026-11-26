@@ -193,7 +193,7 @@ export async function cancelRequeuedCycleWhenHeadMoved(
     reviewId: claimAttempted.reviewId,
   })
   // The claim's own comparison (reply-command-store.server.ts markPublicationSending).
-  if ((head?.observationRevision ?? 0) === (job.data.baseObservationRevision ?? 0)) return
+  if ((head?.observationRevision ?? 0) === job.data.baseObservationRevision) return
   const cancelled = await cancelPublicationCycle(deps, current, review, 'provider_truth')
   deps.logger.warn(
     { cancelled },

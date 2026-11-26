@@ -148,8 +148,8 @@ in the file). `pnpm check:schema-drift` compares the migrated database with
 `structure.sql` and verifies every applied journal hash. The integration gate
 also migrates a new empty database and requires the same canonical dump.
 
-`pnpm db:generate` is not this loop: it diffs the model against drizzle-kit's
-newest snapshot, and the snapshots in `drizzle/meta/` stop at `0013`, so it would restate every
+One command that looks like this loop is not it. `pnpm db:generate` diffs the model against drizzle-kit's newest snapshot, and
+the snapshots in `drizzle/meta/` stop at `0013`, so it would restate every
 change the hand-written migrations have made since.
 
 Edit `db-constructs.sql` directly for functions, triggers, EXCLUDE constraints,

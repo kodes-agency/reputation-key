@@ -25,19 +25,16 @@
 // invocation (default 100, max 500). A full page reports partial and returns
 // an opaque --resume token. Resuming preserves the original due-through
 // boundary and starts strictly after the prior page. Every row is listed as
-// `not_evaluated`: no provider truth is read. The apply branches below are
-// kept for a provider-enabled operator path; none exists today, and the
-// harness never reaches them.
+// `not_evaluated`: no provider truth is read.
 // Requires DATABASE_URL.
 // Identifier-only output (reply/org ids + outcomes) — content-free.
 
 import { pathToFileURL } from 'node:url'
-import { organizationId, replyId } from '../../src/shared/domain/ids'
+import { replyId } from '../../src/shared/domain/ids'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import type {
   AmbiguousPublicationReconciliationCandidate,
   FindAmbiguousPublicationReconciliationCandidates,
-  ReconcileReplyPublication,
 } from '../../src/contexts/reputation/public-api'
 import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
@@ -49,7 +46,6 @@ const RESUME_VERSION = 1 as const
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 
 export type PublicationSweepCursor = Readonly<{
-  mode: 'dry_run' | 'apply'
   dueThrough: Date
   reconcileDueAt: Date
   id: string
@@ -57,18 +53,16 @@ export type PublicationSweepCursor = Readonly<{
 
 type PublicationSweepDeps = Readonly<{
   findCandidates: FindAmbiguousPublicationReconciliationCandidates
-  reconcile: ReconcileReplyPublication
   clock: () => Date
 }>
 
 type PublicationSweepInput = Readonly<{
   batchSize: number
   resumeToken: string | null
-  dryRun: boolean
 }>
 
 export type PublicationSweepReport = Readonly<{
-  mode: 'dry_run' | 'apply'
+  mode: 'dry_run'
   /** Complete means the frozen due-through keyset was exhausted, not healed. */
   coverage: 'partial' | 'complete'
   coverageScope: 'frozen_due_through_keyset_segment'
@@ -87,9 +81,8 @@ export type PublicationSweepReport = Readonly<{
       replyId: string
       organizationId: string
       reconcileDueAt: string
-      outcome: 'not_evaluated' | 'confirmed_on_google' | 'not_confirmed' | 'failed'
-      /** Typed use-case outcome/error code only; never provider or reply content. */
-      detail: string | null
+      outcome: 'not_evaluated'
+      detail: null
     }>
   >
   nextResumeToken: string | null
@@ -97,7 +90,6 @@ export type PublicationSweepReport = Readonly<{
 
 type ResumePayload = Readonly<{
   v: typeof RESUME_VERSION
-  mode: 'dry_run' | 'apply'
   dueThrough: string
   reconcileDueAt: string
   id: string
@@ -115,7 +107,6 @@ function canonicalDate(value: unknown, field: string): Date {
 export function encodePublicationSweepResume(cursor: PublicationSweepCursor): string {
   const payload: ResumePayload = {
     v: RESUME_VERSION,
-    mode: cursor.mode,
     dueThrough: cursor.dueThrough.toISOString(),
     reconcileDueAt: cursor.reconcileDueAt.toISOString(),
     id: cursor.id,
@@ -137,11 +128,7 @@ export function decodePublicationSweepResume(token: string): PublicationSweepCur
     throw new Error('invalid publication sweep resume token')
   }
   const candidate = payload as Partial<ResumePayload>
-  if (
-    candidate.v !== RESUME_VERSION ||
-    (candidate.mode !== 'dry_run' && candidate.mode !== 'apply') ||
-    !UUID.test(candidate.id ?? '')
-  ) {
+  if (candidate.v !== RESUME_VERSION || !UUID.test(candidate.id ?? '')) {
     throw new Error('invalid publication sweep resume token')
   }
   const dueThrough = canonicalDate(candidate.dueThrough, 'due-through timestamp')
@@ -153,7 +140,6 @@ export function decodePublicationSweepResume(token: string): PublicationSweepCur
     throw new Error('invalid publication sweep resume ordering')
   }
   return {
-    mode: candidate.mode,
     dueThrough,
     reconcileDueAt,
     id: candidate.id as string,
@@ -227,15 +213,10 @@ function assertProgressingBatch(
 
 type PublicationSweepPlan = Readonly<{
   cursor: PublicationSweepCursor | null
-  mode: 'dry_run' | 'apply'
   dueThrough: Date
 }>
 
-/**
- * Resolve the bounded page this invocation may sweep. A resume token freezes
- * both the due-through boundary and the mode, so a page cannot be resumed into
- * a different invocation shape.
- */
+/** Resolve the bounded page this invocation may sweep. A resume token freezes the due-through boundary. */
 function resolveSweepPlan(
   deps: PublicationSweepDeps,
   input: PublicationSweepInput,
@@ -246,81 +227,23 @@ function resolveSweepPlan(
   const cursor = input.resumeToken
     ? decodePublicationSweepResume(input.resumeToken)
     : null
-  const mode = input.dryRun ? 'dry_run' : 'apply'
-  if (cursor && cursor.mode !== mode) {
-    throw new Error('publication sweep resume token mode does not match invocation')
-  }
   const dueThrough = cursor?.dueThrough ?? deps.clock()
   if (Number.isNaN(dueThrough.getTime())) {
     throw new Error('publication sweep clock returned an invalid time')
   }
-  return { cursor, mode, dueThrough }
-}
-
-type PublicationSweepRowOutcome = PublicationSweepReport['rows'][number]['outcome']
-
-type PublicationSweepRowResult = Readonly<{
-  outcome: PublicationSweepRowOutcome
-  detail: string | null
-}>
-
-/**
- * Re-read provider truth for one candidate. A provider-read/infrastructure
- * exception is one failed row, not permission to abandon the page and starve
- * every later keyset row. No raw error is returned because operator output is
- * content-free.
- */
-async function reconcileSweepCandidate(
-  deps: PublicationSweepDeps,
-  candidate: AmbiguousPublicationReconciliationCandidate,
-): Promise<PublicationSweepRowResult> {
-  try {
-    const reconciled = await deps.reconcile({
-      replyId: candidate.replyId,
-      organizationId: candidate.organizationId,
-    })
-    if (reconciled.isErr()) return { outcome: 'failed', detail: reconciled.error.code }
-    if (reconciled.value.outcome === 'confirmed_on_google') {
-      return { outcome: 'confirmed_on_google', detail: null }
-    }
-    return { outcome: 'not_confirmed', detail: reconciled.value.outcome }
-  } catch {
-    return { outcome: 'failed', detail: 'unexpected_error' }
-  }
-}
-
-/** Rows are evaluated strictly in keyset order; a dry run evaluates none. */
-async function evaluateSweepBatch(
-  deps: PublicationSweepDeps,
-  batch: readonly AmbiguousPublicationReconciliationCandidate[],
-  dryRun: boolean,
-): Promise<readonly PublicationSweepRowResult[]> {
-  if (dryRun)
-    return batch.map(() => ({ outcome: 'not_evaluated' as const, detail: null }))
-  const outcomes: PublicationSweepRowResult[] = []
-  for (const candidate of batch) {
-    outcomes.push(await reconcileSweepCandidate(deps, candidate))
-  }
-  return outcomes
-}
-
-function countOutcome(
-  rowOutcomes: readonly PublicationSweepRowResult[],
-  outcome: PublicationSweepRowOutcome,
-): number {
-  return rowOutcomes.filter((row) => row.outcome === outcome).length
+  return { cursor, dueThrough }
 }
 
 /**
- * Reconcile one keyset page. This dependency surface deliberately exposes
- * only the provider-read reconciliation use case; there is no publication
- * command or provider-write port available to the operator sweep.
+ * List one keyset page. This dependency surface deliberately exposes only the
+ * candidate read; no provider read or publication command is available to the
+ * operator sweep, so every row is reported as not evaluated.
  */
 export async function runAmbiguousPublicationSweepPage(
   deps: PublicationSweepDeps,
   input: PublicationSweepInput,
 ): Promise<PublicationSweepReport> {
-  const { cursor, mode, dueThrough } = resolveSweepPlan(deps, input)
+  const { cursor, dueThrough } = resolveSweepPlan(deps, input)
   const batch = await deps.findCandidates({
     dueThrough,
     after: cursor
@@ -330,22 +253,17 @@ export async function runAmbiguousPublicationSweepPage(
   })
   assertProgressingBatch(batch, dueThrough, cursor)
 
-  const rowOutcomes = await evaluateSweepBatch(deps, batch, input.dryRun)
-  const notConfirmed = countOutcome(rowOutcomes, 'not_confirmed')
-  const failed = countOutcome(rowOutcomes, 'failed')
-
   const last = batch.at(-1)
   const nextResumeToken =
     batch.length === input.batchSize && last
       ? encodePublicationSweepResume({
-          mode,
           dueThrough,
           reconcileDueAt: last.reconcileDueAt,
           id: last.replyId,
         })
       : null
   return {
-    mode,
+    mode: 'dry_run',
     coverage: nextResumeToken ? 'partial' : 'complete',
     coverageScope: 'frozen_due_through_keyset_segment',
     outcomeScope: 'current_page',
@@ -354,18 +272,18 @@ export async function runAmbiguousPublicationSweepPage(
       ? { reconcileDueAt: cursor.reconcileDueAt.toISOString(), id: cursor.id }
       : null,
     seen: batch.length,
-    attempted: input.dryRun ? 0 : batch.length,
-    notEvaluated: input.dryRun ? batch.length : 0,
-    confirmedOnGoogle: countOutcome(rowOutcomes, 'confirmed_on_google'),
-    notConfirmed,
-    failed,
-    unresolvedInPage: input.dryRun ? batch.length : notConfirmed + failed,
-    rows: batch.map((candidate, index) => ({
+    attempted: 0,
+    notEvaluated: batch.length,
+    confirmedOnGoogle: 0,
+    notConfirmed: 0,
+    failed: 0,
+    unresolvedInPage: batch.length,
+    rows: batch.map((candidate) => ({
       replyId: candidate.replyId,
       organizationId: candidate.organizationId,
       reconcileDueAt: candidate.reconcileDueAt.toISOString(),
-      outcome: rowOutcomes[index]!.outcome,
-      detail: rowOutcomes[index]!.detail,
+      outcome: 'not_evaluated',
+      detail: null,
     })),
     nextResumeToken,
   }
@@ -404,41 +322,21 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (ctx, _args, io) => {
-      const { container } = ctx
-
       if (singleReplyId) {
-        if (ctx.dryRun) {
-          io.out(
-            `a reconciliation of replyId=${singleReplyId} org=${ctx.organizationId} would re-read the reply on Google`,
-          )
-          return
-        }
-        const reconciled =
-          await container.reviewMaintenanceRuntime.publicationReconciliation.reconcile({
-            replyId: replyId(singleReplyId),
-            organizationId: organizationId(ctx.organizationId as string),
-          })
-        if (reconciled.isErr()) {
-          io.err(`reconcile failed: ${reconciled.error.code}`)
-          return 1
-        }
-        io.out(JSON.stringify({ replyId: singleReplyId, ...reconciled.value }, null, 2))
+        io.out(
+          `a reconciliation of replyId=${singleReplyId} org=${ctx.organizationId} would re-read the reply on Google`,
+        )
         return
       }
 
       const report = await runAmbiguousPublicationSweepPage(
         {
           findCandidates:
-            container.reviewMaintenanceRuntime.publicationReconciliation.findCandidates,
-          reconcile:
-            container.reviewMaintenanceRuntime.publicationReconciliation.reconcile,
+            ctx.container.reviewMaintenanceRuntime.publicationReconciliation
+              .findCandidates,
           clock: () => new Date(),
         },
-        {
-          batchSize: ctx.batchSize as number,
-          resumeToken: resume.resumeToken,
-          dryRun: ctx.dryRun,
-        },
+        { batchSize: ctx.batchSize as number, resumeToken: resume.resumeToken },
       )
       io.out(JSON.stringify(report, null, 2))
       const segmentStart = report.startedAfter
@@ -448,16 +346,11 @@ async function main(): Promise<void> {
         io.out(
           `coverage partial for frozen keyset segment startedAfter=${segmentStart} dueThrough=${report.dueThrough} — continue the same ${report.mode} sweep with --resume ${report.nextResumeToken}`,
         )
-      } else if (ctx.dryRun) {
+      } else {
         io.out(
           `coverage complete for frozen keyset segment startedAfter=${segmentStart} dueThrough=${report.dueThrough} — current page reported ${report.notEvaluated} row(s); no provider truth was evaluated`,
         )
-      } else {
-        io.out(
-          `coverage complete for frozen keyset segment startedAfter=${segmentStart} dueThrough=${report.dueThrough} — current page confirmed=${report.confirmedOnGoogle} notConfirmed=${report.notConfirmed} failed=${report.failed}; coverage does not assert that rows before this segment healed`,
-        )
       }
-      if (report.failed > 0) return 1
     },
     argv,
   )

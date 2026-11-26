@@ -22,14 +22,11 @@
 // Usage:
 //   pnpm ops disconnect-connection <connectionId> --operator <id> --org <id>
 //
-// Requires DATABASE_URL. The apply branch below is kept for a
-// provider-enabled operator path; none exists today, and the harness never
-// reaches it.
+// Requires DATABASE_URL.
 //
 // NOT in this slice: ENCRYPTION_KEY/token-key rotation (re-encrypt-at-rest)
 // stays runbook-manual (runbook §2) — registered for the platform owner.
 
-import { organizationId, userId } from '../../src/shared/domain/ids'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
@@ -55,30 +52,8 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (ctx, _args, io) => {
-      if (ctx.dryRun) {
-        io.out(
-          `a disconnect of connection=${connectionId} org=${ctx.organizationId} would revoke the token, redact the stored secrets and purge caches and content`,
-        )
-        return
-      }
-      const { container } = ctx
-      const connection = await container.integrationPublicApi.connections.disconnect(
-        { connectionId },
-        {
-          userId: userId(ctx.operatorId),
-          organizationId: organizationId(ctx.organizationId as string),
-          role: 'AccountAdmin',
-        },
-      )
       io.out(
-        JSON.stringify(
-          { connectionId, status: connection.status, org: ctx.organizationId },
-          null,
-          2,
-        ),
-      )
-      io.out(
-        'rotation: the property reconnects via Google OAuth to complete credential rotation',
+        `a disconnect of connection=${connectionId} org=${ctx.organizationId} would revoke the token, redact the stored secrets and purge caches and content`,
       )
     },
   )

@@ -13,7 +13,6 @@ import {
 import type { ReviewRepository } from '../reviews/review-repository.port.server'
 import type { Reply } from '../domain/review-types'
 import { isReviewError } from '../domain/review-errors'
-import { buildIdempotencyKey } from '../domain/reply-publication-workflow'
 import type { ReplyDispatchEvidence } from '../publication/reply-publication-dispatch-evidence.port.server'
 import {
   ORG_ID,
@@ -46,19 +45,16 @@ describe('retryPublish', () => {
     expect(result.status).toBe('approved')
     expect(result.publicationState).toBe('authorized')
     expect(result.publicationCycle).toBe(1)
-    expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
-      {
-        replyId: REPLY_ID,
-        organizationId: ORG_ID,
-        publicationCycle: 1,
-        propertyId: PROP_ID,
-        sourceEpoch: 0,
-        materialReviewRevision: 1,
-        baseObservationRevision: 0,
-        initiator: { kind: 'user', id: USER_ID },
-      },
-      { idempotencyKey: buildIdempotencyKey(REPLY_ID, 1) },
-    )
+    expect(deps.queue.addPublishJob).toHaveBeenCalledWith({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+      publicationCycle: 1,
+      propertyId: PROP_ID,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
+      initiator: { kind: 'user', id: USER_ID },
+    })
   })
 
   it('treats provider-confirmed publication as an idempotent retry when reconciliation wins the race', async () => {
@@ -224,7 +220,6 @@ describe('retryPublish', () => {
       expect(deps.queue.addPublishJob).toHaveBeenCalledOnce()
       expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
         expect.objectContaining({ replyId: REPLY_ID, publicationCycle: 2 }),
-        { idempotencyKey: buildIdempotencyKey(REPLY_ID, 2) },
       )
       // Already publish_failed: no second failure fact, one publication intent.
       expect(deps.outbox.facts.map((fact) => fact._tag)).toEqual([
