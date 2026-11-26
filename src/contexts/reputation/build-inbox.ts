@@ -103,8 +103,7 @@ export type InboxContextApi = Readonly<{
   worker: Readonly<{
     registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
   }>
-  /** ARC-03-T12: the named member-authority capability. Replaces the root's
-   * `inbox.internal.commandStore` reach-through. */
+  /** The named member-authority capability. */
   assignments: Pick<InboxCommandStore, 'releaseIneligibleAssignmentsForUser'>
   /** The scheduled reminder release Inbox contributes to the worker. */
   runtime: Readonly<{
