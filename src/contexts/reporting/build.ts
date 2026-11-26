@@ -113,7 +113,10 @@ import {
   type GetPropertyOverview,
 } from './property-overview/get-property-overview.server'
 import { createReadPropertyGoogleNumbers } from './property-overview/read-property-google-numbers.server'
-import { readGoogleNumbers } from './property-overview/google-numbers-read.server'
+import {
+  readGoogleNumbers,
+  type ReadGoogleNumbers,
+} from './property-overview/google-numbers-read.server'
 import {
   getFleetOverview,
   type GetFleetOverview,
@@ -510,11 +513,12 @@ function buildDashboardModule(
   // about its own reader before it reads (application/dashboard-property-access).
   const propertyAccess: DashboardPropertyAccess = (organizationId, userId, orgWide) =>
     input.staffPublicApi.getAccessiblePropertyIds(organizationId, userId, orgWide)
+  const googleNumbers: ReadGoogleNumbers = (organizationId, propertyId, now) =>
+    readGoogleNumbers(googleNumbersDeps, organizationId, propertyId, now)
   const readPropertyGoogleNumbers = createReadPropertyGoogleNumbers({
     propertyAccess,
     clock: input.clock,
-    readGoogleNumbers: (organizationId, propertyId, now) =>
-      readGoogleNumbers(googleNumbersDeps, organizationId, propertyId, now),
+    readGoogleNumbers: googleNumbers,
   })
   const getPortal = getPortalAnalytics({
     retentionActive: SCHEDULED_RETENTION_ACTIVE,
@@ -532,11 +536,9 @@ function buildDashboardModule(
     repo: dashboardRepo,
     propertyAccess,
     attention: attentionSignals,
-    inboxTargets: input.inboxTargets,
-    inboxItems: input.inboxTargets,
+    inbox: input.inboxTargets,
     clock: input.clock,
-    googleNumbers: (organizationId, propertyId, now) =>
-      readGoogleNumbers(googleNumbersDeps, organizationId, propertyId, now),
+    googleNumbers,
   })
   const getFleet: GetFleetOverview = getFleetOverview({
     projection: fleetOverviewProjection,

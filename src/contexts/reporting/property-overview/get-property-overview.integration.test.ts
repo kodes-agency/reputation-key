@@ -79,7 +79,8 @@ describe('getPropertyOverview', () => {
       repo,
       propertyAccess: async () => null,
       attention,
-      inboxTargets: {
+      inbox: {
+        ...NO_INBOX_ITEMS,
         getGoogleReviewTargetCountsByProperty: async (input) => {
           expect(input).toEqual({
             organizationId: organizationId('org-overview'),
@@ -94,7 +95,6 @@ describe('getPropertyOverview', () => {
           ])
         },
       },
-      inboxItems: NO_INBOX_ITEMS,
       clock: () => NOW,
       googleNumbers: async () => null,
     })
@@ -139,8 +139,10 @@ describe('getPropertyOverview', () => {
           attentionWork: 0,
         }),
       },
-      inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
-      inboxItems: NO_INBOX_ITEMS,
+      inbox: {
+        getGoogleReviewTargetCountsByProperty: async () => new Map(),
+        ...NO_INBOX_ITEMS,
+      },
       clock: () => NOW,
       googleNumbers,
     })
@@ -172,8 +174,7 @@ describe('getPropertyOverview', () => {
       repo,
       propertyAccess: grantsElsewhere,
       attention: { getAttentionCounts },
-      inboxTargets: { getGoogleReviewTargetCountsByProperty },
-      inboxItems: NO_INBOX_ITEMS,
+      inbox: { getGoogleReviewTargetCountsByProperty, ...NO_INBOX_ITEMS },
       clock: () => NOW,
       googleNumbers,
     })
@@ -204,8 +205,7 @@ describe('getPropertyOverview', () => {
       repo,
       propertyAccess: grantsHere,
       attention: { getAttentionCounts },
-      inboxTargets: { getGoogleReviewTargetCountsByProperty },
-      inboxItems: NO_INBOX_ITEMS,
+      inbox: { getGoogleReviewTargetCountsByProperty, ...NO_INBOX_ITEMS },
       clock: () => NOW,
       googleNumbers: async () => null,
     })
@@ -238,8 +238,10 @@ describe('getPropertyOverview', () => {
           attentionWork: 9,
         }),
       },
-      inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
-      inboxItems: NO_INBOX_ITEMS,
+      inbox: {
+        getGoogleReviewTargetCountsByProperty: async () => new Map(),
+        ...NO_INBOX_ITEMS,
+      },
       clock: () => NOW,
       googleNumbers: async () => null,
     })
@@ -279,8 +281,10 @@ describe('getPropertyOverview recent reviews', () => {
           attentionWork: 0,
         }),
       },
-      inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
-      inboxItems: { getReviewInboxItemIds },
+      inbox: {
+        getGoogleReviewTargetCountsByProperty: async () => new Map(),
+        getReviewInboxItemIds,
+      },
       clock: () => NOW,
       googleNumbers: async () => null,
     })
