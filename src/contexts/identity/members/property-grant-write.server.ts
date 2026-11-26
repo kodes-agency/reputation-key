@@ -1,6 +1,5 @@
-// The one grant write of the two commands that grant one member a Property on
-// request: the operator grant and the Members access edit. (Invitation
-// provisioning inserts through its own path, and offboarding revokes in bulk.)
+// The one grant write: the operator grant, the Members access edit and
+// invitation provisioning. (Offboarding revokes in bulk.)
 // Called with the per-grant advisory lock held and the Property checked live,
 // it locks the unrevoked row, asks the domain rule what to do with it, and
 // retires a superseded row before the insert so the one-active-grant index
@@ -22,6 +21,8 @@ export type PropertyGrantWrite = Readonly<{
   propertyId: string
   userId: string
   createdBy?: string
+  /** Which surface grants: an invitation records its own source. */
+  source?: 'operator' | 'invitation'
   /** When the grant lapses; `null` grants without an expiry. */
   expiresAt: Date | null
   /** Whether an active grant with another expiry is replaced or kept. */
@@ -55,8 +56,8 @@ export async function writePropertyGrant(
   }
   await grantPropertyAccess(tx, {
     ...key,
-    // A grant from a person is an operator grant, whichever surface made it.
-    source: 'operator',
+    // A grant from a person is an operator grant unless an invitation made it.
+    source: write.source ?? 'operator',
     createdBy: write.createdBy,
     expiresAt: write.expiresAt ?? undefined,
   })

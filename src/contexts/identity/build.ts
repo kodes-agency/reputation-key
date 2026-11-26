@@ -585,10 +585,10 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   })
   const policyAdmin = Object.freeze({
     ...createPolicyAdminOps({
-      explainPolicyDecision: (input) => policyDiagnostic(input),
       commandStore: createPostgresPolicyAdminCommandStore(db),
       reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
     }),
+    explainPolicyDecision: policyDiagnostic,
     // Every AccountAdmin reaches this report, so its permit tally is tenant-bound.
     explainCapabilityRefusal: createCapabilityRefusalExplainer(
       createOrganizationCapabilityRefusalReaders(db),

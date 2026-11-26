@@ -6,39 +6,11 @@
 // server adapter maps it by its code, never by the wording of a message.
 
 import type { PolicyAdminCommandStore } from './policy-admin-command-store.port.server'
-import type { Permission } from '#/shared/domain/permissions'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
 import { identityMemberPropertyAccessChanged } from '../domain/events'
 
-/**
- * Mirror of the PolicyDecisionExplanation in shared/auth/policy-diagnostic
- * (same shape, separate home: shared/auth types are unreachable from
- * application under the boundary rules). Structural typing keeps them
- * interchangeable at the composition seam.
- */
-export type PolicyAdminExplanation = Readonly<{
-  allowed: boolean
-  reason: string
-  action: string
-  capability: string
-  checks: Readonly<{
-    capability: Readonly<{ allowed: boolean; reason: string }>
-    permission: Readonly<{ allowed: boolean }>
-    scope: Readonly<{
-      outcome: 'not_applicable' | 'organization' | 'granted' | 'missing_grant' | 'none'
-    }>
-  }>
-}>
-
 export type PolicyAdminDeps = Readonly<{
-  explainPolicyDecision: (input: {
-    organizationId: string
-    action: Permission
-    propertyId?: string
-    userId: string
-    now: Date
-  }) => Promise<PolicyAdminExplanation>
   commandStore: PolicyAdminCommandStore
   reconcileResponsibleManagerEligibility?: (
     organizationId: string,
@@ -46,24 +18,6 @@ export type PolicyAdminDeps = Readonly<{
     actorId: string,
   ) => Promise<void>
 }>
-
-const MIN_REASON_LENGTH = 3
-const MIN_TICKET_LENGTH = 2
-
-function requireReason(reason: string): void {
-  if (reason.trim().length < MIN_REASON_LENGTH) {
-    throw identityError(
-      'validation_error',
-      `reason is required (min ${MIN_REASON_LENGTH} chars)`,
-    )
-  }
-}
-
-function requireTicket(ticketRef: string): void {
-  if (ticketRef.trim().length < MIN_TICKET_LENGTH) {
-    throw identityError('validation_error', 'ticket/reference is required')
-  }
-}
 
 /** The fact for one Property the operator granted or revoked. */
 function propertyAccessChanged(
@@ -99,8 +53,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       now: Date
     }>,
   ): Promise<void> {
-    requireReason(input.reason)
-    requireTicket(input.ticketRef)
     if (input.expiresAt && input.expiresAt.getTime() <= input.now.getTime()) {
       throw identityError(
         'validation_error',
@@ -128,7 +80,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       now: Date
     }>,
   ): Promise<void> {
-    requireReason(input.reason)
     await deps.commandStore.revokePropertyAccess({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
@@ -146,6 +97,5 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
   return {
     grantPropertyAccessOp,
     revokePropertyAccessOp,
-    explainPolicyDecision: deps.explainPolicyDecision,
   }
 }
