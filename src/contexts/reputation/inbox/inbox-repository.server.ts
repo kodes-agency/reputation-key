@@ -57,17 +57,10 @@ import {
 } from '#/contexts/reputation/inbox/inbox-detail-mapper.server'
 import { trace } from '#/shared/observability/trace'
 
-type InboxItemRow = Parameters<typeof inboxItemFromRow>[0]
-
 export type InboxRepositoryRuntime = Readonly<{
   clock: () => Date
   logger: LoggerPort
 }>
-
-const withDefaults = (row: InboxItemRow): InboxItem => ({
-  ...inboxItemFromRow(row),
-  propertyName: null,
-})
 
 /**
  * Source rows are actionable only while they carry a current Handling Cycle.
@@ -146,7 +139,7 @@ export const createInboxRepository = (
         ),
       )
       .limit(1)
-    return rows[0] ? withDefaults(rows[0]) : null
+    return rows[0] ? inboxItemFromRow(rows[0]) : null
   }
 
   return {
@@ -176,7 +169,7 @@ export const createInboxRepository = (
               inArray(inboxItems.id, [...ids] as string[]),
             ),
           )
-        return rows.map(withDefaults)
+        return rows.map(inboxItemFromRow)
       })
     },
 
@@ -198,7 +191,7 @@ export const createInboxRepository = (
             ),
           )
           .limit(1)
-        return rows[0] ? withDefaults(rows[0]) : null
+        return rows[0] ? inboxItemFromRow(rows[0]) : null
       })
     },
 
@@ -416,7 +409,7 @@ export const createInboxRepository = (
           })
           .where(and(...conditions))
           .returning()
-        return result[0] ? withDefaults(result[0]) : null
+        return result[0] ? inboxItemFromRow(result[0]) : null
       })
     },
 
@@ -450,7 +443,7 @@ export const createInboxRepository = (
           .where(and(...conditions))
           .orderBy(inboxItems.id)
           .limit(opts.limit)
-        return rows.map(withDefaults)
+        return rows.map(inboxItemFromRow)
       })
     },
 

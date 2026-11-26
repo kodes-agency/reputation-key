@@ -51,6 +51,10 @@ describe('inboxItemFromRow', () => {
     expect(String(item.assignedTo)).toBe('user-uuid-001')
   })
 
+  it('leaves the property name for the caller to fill', () => {
+    expect(inboxItemFromRow(sampleRow).propertyName).toBeNull()
+  })
+
   it('maps all fields', () => {
     const item = inboxItemFromRow(sampleRow)
     expect(item.sourceType).toBe('review')

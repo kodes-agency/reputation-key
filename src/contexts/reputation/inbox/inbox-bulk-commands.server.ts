@@ -13,10 +13,10 @@ import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.serve
 import type { InboxItemBulkStatusChanged } from '../domain/inbox-events'
 import {
   bulkAssignmentReason,
-  itemFromRow,
   webActorId,
   type PersistedItem,
 } from './inbox-command-guards.server'
+import { inboxItemFromRow } from './inbox-mapper.server'
 import { cycleHeadItemColumns } from './inbox-cycle-head.server'
 import { resolveBulkReopenAssignee } from './inbox-bulk-reopen-assignee.server'
 import {
@@ -56,7 +56,7 @@ export async function applyBulkAssignmentToItem(
   const { item, currentRow, assignedTo, actorId, bulkId, occurredAt } = input
   const previousAssignee = currentRow.assignedTo ? userId(currentRow.assignedTo) : null
   if (previousAssignee === assignedTo) return { outcome: 'unchanged' }
-  const row = await tryUpdateItemRow(tx, itemFromRow(currentRow), {
+  const row = await tryUpdateItemRow(tx, inboxItemFromRow(currentRow), {
     assignedTo,
     updatedAt: occurredAt,
   })
@@ -169,7 +169,7 @@ export async function reopenLockedBulkItem(
     input.responseTarget,
     { bulkId: input.bulkId },
   )
-  const row = await tryUpdateItemRow(tx, itemFromRow(itemRow), {
+  const row = await tryUpdateItemRow(tx, inboxItemFromRow(itemRow), {
     status: 'open',
     ...cycleHeadItemColumns(decision.value.head),
     closedAt: null,

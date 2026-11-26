@@ -7,11 +7,7 @@ import type { InboxRepository } from './inbox-repository.port.server'
 import type { InboxViewRepository } from './inbox-view-repository.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import { resolveVisiblePropertyIds } from './visible-properties.server'
-import {
-  onceAccessiblePropertyIds,
-  resolveInboxSourceScopes,
-} from './inbox-access.server'
+import { resolveInboxCountScope } from './inbox-count-scope.server'
 
 export type GetLastVisitCountInput = Readonly<Record<string, never>>
 
@@ -29,16 +25,15 @@ export type GetLastVisitCount = (
 export const getLastVisitCount =
   (deps: GetLastVisitCountDeps): GetLastVisitCount =>
   async (_input, ctx) => {
-    // Scope resolved per-permission: 'all' = org-wide (no lookup cost);
-    // 'none' = assigned scope with zero assignments → fail-closed zero.
-    const people = onceAccessiblePropertyIds(deps.staffPublicApi)
-    const visible = await resolveVisiblePropertyIds(people, ctx, 'inbox.read')
-    if (visible === 'none') return 0
-    const propertyIds = visible === 'all' ? undefined : visible
-    const sourceScopes = await resolveInboxSourceScopes(people, ctx, 'read')
-    if (sourceScopes.length === 0) return 0
+    const scope = await resolveInboxCountScope(deps.staffPublicApi, ctx)
+    if (!scope) return 0
 
     const since = await deps.viewRepo.getLastInboxView(ctx.organizationId, ctx.userId)
 
-    return deps.repo.countOpenSince(ctx.organizationId, since, propertyIds, sourceScopes)
+    return deps.repo.countOpenSince(
+      ctx.organizationId,
+      since,
+      scope.propertyIds,
+      scope.sourceScopes,
+    )
   }

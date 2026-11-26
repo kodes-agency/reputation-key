@@ -7,11 +7,11 @@ import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import { inboxError } from '#/contexts/reputation/domain/inbox-errors'
 import { inTransaction } from '#/contexts/reputation/inbox/inbox-command-transaction.server'
 import {
-  itemFromRow,
   sourceCommandPermission,
   validCycleNumber,
   webActorId,
 } from '#/contexts/reputation/inbox/inbox-command-guards.server'
+import { inboxItemFromRow } from '#/contexts/reputation/inbox/inbox-mapper.server'
 import type {
   InboxCommandAuthority,
   InboxCommandAuthorityPrincipal,
@@ -132,7 +132,7 @@ export const createCommandRuntime = (
           authorityRequirements(item, actorPrincipals(item, event)),
         )
         const persisted = await updatePersistedItemRow(tx, item, set, notFoundMessage)
-        const row = itemFromRow(persisted)
+        const row = inboxItemFromRow(persisted)
         if (appendHistory) {
           await appendHistory(tx, row, validCycleNumber(persisted.currentCycleNumber))
         }

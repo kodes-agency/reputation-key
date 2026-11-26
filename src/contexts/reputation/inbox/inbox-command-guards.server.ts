@@ -14,7 +14,6 @@ import {
   type InboxItemCreated,
 } from '../domain/inbox-events'
 import type { DomainEvent } from '#/shared/events/events'
-import { inboxItemFromRow } from './inbox-mapper.server'
 import type { UserId } from '#/shared/domain/ids'
 import type { Permission } from '#/shared/domain/permissions'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
@@ -49,11 +48,6 @@ export const webActorId = (event: DomainEvent | null): string | null => {
 }
 
 export type PersistedItem = typeof inboxItems.$inferSelect
-
-export const itemFromRow = (row: PersistedItem): InboxItem => ({
-  ...inboxItemFromRow(row),
-  propertyName: null,
-})
 
 /**
  * What a transition's command adds to its fact: the bulk reopen it belongs
