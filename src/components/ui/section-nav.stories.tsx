@@ -112,12 +112,14 @@ export const List: Story = {
     'aria-label': 'Account settings',
     items: ACCOUNT,
     current: 'notifications',
-    presentation: 'list',
     groupHeadings: true,
   },
   render: (args) => (
-    <div className="w-72">
-      <SectionNav {...args} />
+    <div style={{ width: '100%', maxWidth: '60rem' }}>
+      <SectionNavLayout frame="inline">
+        <SectionNav {...args} />
+        <p>Section content</p>
+      </SectionNavLayout>
     </div>
   ),
   play: async ({ canvasElement }) => {
@@ -135,7 +137,6 @@ export const List: Story = {
     expect(within(root).getByRole('list', { name: 'Organization' })).toBeVisible()
     // The count follows its label, so the name reads "Members 12".
     expect(within(root).getByRole('link', { name: /^Members.*12$/ })).toBeVisible()
-    expect(root).toHaveAttribute('data-presentation', 'list')
   },
 }
 
@@ -146,10 +147,13 @@ export const ListLight: Story = {
 
 /** The same sections without headings: the Danger zone is still a group apart. */
 export const WithoutHeadings: Story = {
-  args: { presentation: 'list', current: 'danger' },
+  args: { current: 'danger' },
   render: (args) => (
-    <div className="w-72">
-      <SectionNav {...args} />
+    <div style={{ width: '100%', maxWidth: '60rem' }}>
+      <SectionNavLayout frame="inline">
+        <SectionNav {...args} />
+        <p>Section content</p>
+      </SectionNavLayout>
     </div>
   ),
   play: async ({ canvasElement }) => {
@@ -162,13 +166,25 @@ export const WithoutHeadings: Story = {
   },
 }
 
+/** A container below the width where the nav turns into a list. */
+function NarrowNav(args: Parameters<typeof SectionNav>[0]) {
+  return (
+    <div style={{ width: '100%', maxWidth: '20rem' }}>
+      <SectionNavLayout frame="inline">
+        <SectionNav {...args} />
+      </SectionNavLayout>
+    </div>
+  )
+}
+
 /**
  * A strip: one scrolling row for a narrow space. The row keeps the current section
  * in view (the last one here, so it is scrolled to) and fades the side that
  * continues; summaries and headings belong to the list.
  */
 export const StripOpenOnTheLastSection: Story = {
-  args: { presentation: 'strip', current: 'danger' },
+  args: { current: 'danger' },
+  render: (args) => <NarrowNav {...args} />,
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvasElement }) => {
     const root = nav(canvasElement)
@@ -206,7 +222,9 @@ function GrowingStrip(args: Parameters<typeof SectionNav>[0]) {
   ]
   return (
     <div style={{ width: '100%', maxWidth: 340 }}>
-      <SectionNav {...args} items={items} />
+      <SectionNavLayout frame="inline">
+        <SectionNav {...args} items={items} />
+      </SectionNavLayout>
     </div>
   )
 }
@@ -216,7 +234,7 @@ function GrowingStrip(args: Parameters<typeof SectionNav>[0]) {
  * mounted (the first reveal found nothing to scroll), as the view tabs are.
  */
 export const StripRevealsAfterTheRowGrows: Story = {
-  args: { presentation: 'strip', current: 'people' },
+  args: { current: 'people' },
   render: (args) => <GrowingStrip {...args} />,
   play: async ({ canvasElement }) => {
     const root = nav(canvasElement)
@@ -236,7 +254,8 @@ export const StripRevealsAfterTheRowGrows: Story = {
 
 /** When every item fits there is nothing out of reach, so no fade is drawn. */
 export const StripThatFits: Story = {
-  args: { presentation: 'strip', current: 'profile', items: HUB.slice(0, 3) },
+  args: { current: 'profile', items: HUB.slice(0, 3) },
+  render: (args) => <NarrowNav {...args} />,
   play: async ({ canvasElement }) => {
     const scroller = nav(canvasElement).querySelector<HTMLElement>(
       '[data-slot="section-nav-scroller"]',
@@ -258,7 +277,6 @@ export const AutoInANarrowSpace: Story = {
   ),
   play: async ({ canvasElement }) => {
     const root = nav(canvasElement)
-    expect(root).toHaveAttribute('data-presentation', 'auto')
     const scroller = root.querySelector('[data-slot="section-nav-scroller"]')
     expect(getComputedStyle(scroller as Element).flexDirection).toBe('row')
   },
@@ -290,10 +308,13 @@ export const AutoInAWideSpaceLight: Story = {
 
 /** Tab reaches a row; the keyboard focus ring is the shared `focus-ring` utility. */
 export const KeyboardFocus: Story = {
-  args: { presentation: 'list', current: 'profile' },
+  args: { current: 'profile' },
   render: (args) => (
-    <div className="w-72">
-      <SectionNav {...args} />
+    <div style={{ width: '100%', maxWidth: '60rem' }}>
+      <SectionNavLayout frame="inline">
+        <SectionNav {...args} />
+        <p>Section content</p>
+      </SectionNavLayout>
     </div>
   ),
   play: async ({ canvasElement }) => {
