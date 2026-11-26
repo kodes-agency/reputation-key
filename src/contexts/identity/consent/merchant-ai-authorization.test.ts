@@ -4,6 +4,7 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { resolveAiRuntimeCapabilitySet } from '#/shared/merchant-ai-notice/ai-runtime-capability-contract'
+import { MERCHANT_AI_GRANT_POLICY } from './merchant-ai-notice.contracts'
 import { planMerchantAiConsentTransition } from '../domain/merchant-ai-authorization'
 import {
   createMerchantAiAuthorization,
@@ -41,13 +42,8 @@ const BASE_SNAPSHOT: MerchantAiSnapshot = {
   authorizedSourceEpoch: 0,
   analysisStartSequence: 0,
   stateVersion: 0,
-  noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-  noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-  sourcePolicyId: 'google-business-profile-source-policy-v1',
-  routingPolicyVersion: 1,
+  ...MERCHANT_AI_GRANT_POLICY,
   processingRegion: 'global',
-  providerDeploymentProfileVersion: 'private-beta-global-v1',
-  redactionProfileFamily: 'gbp-review-global-v1',
 }
 
 function makeHarness(
@@ -112,12 +108,6 @@ function makeHarness(
     isCurrentAccountAdmin: async () => true,
     clock: () => NOW,
     idGen,
-    noticeVersion: BASE_SNAPSHOT.noticeVersion,
-    noticeDigest: BASE_SNAPSHOT.noticeDigest,
-    sourcePolicyId: BASE_SNAPSHOT.sourcePolicyId,
-    routingPolicyVersion: BASE_SNAPSHOT.routingPolicyVersion,
-    providerDeploymentProfileVersion: BASE_SNAPSHOT.providerDeploymentProfileVersion,
-    redactionProfileFamily: BASE_SNAPSHOT.redactionProfileFamily,
   })
   return {
     service,
@@ -213,7 +203,7 @@ describe('Merchant AI authorization', () => {
         operation: 'enable',
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
         capabilities: OFFERED_CAPABILITIES,
         ceremonyId: 'c0000000-0000-4000-8000-000000000001',
       }),
@@ -472,12 +462,6 @@ function makeCeremonyHarness(initialHeads: Readonly<Record<string, MerchantAiSna
     clock: () => NOW,
     idGen: () =>
       `c1000000-0000-4000-8000-${String(++ceremonySequence).padStart(12, '0')}`,
-    noticeVersion: BASE_SNAPSHOT.noticeVersion,
-    noticeDigest: BASE_SNAPSHOT.noticeDigest,
-    sourcePolicyId: BASE_SNAPSHOT.sourcePolicyId,
-    routingPolicyVersion: BASE_SNAPSHOT.routingPolicyVersion,
-    providerDeploymentProfileVersion: BASE_SNAPSHOT.providerDeploymentProfileVersion,
-    redactionProfileFamily: BASE_SNAPSHOT.redactionProfileFamily,
   })
   return {
     service,
