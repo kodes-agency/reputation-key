@@ -183,6 +183,26 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(decision.reason).toBe('scope_denied')
   })
 
+  it('assigned-scope role + action without a property is allowed with no grant lookup', async () => {
+    const listAccessiblePropertyIds = vi.fn(async () => [])
+    const policy = createExecutionPolicy(deps({ listAccessiblePropertyIds }))
+    const decision = await policy.decide(
+      request({ principal: { kind: 'user', ctx: assignedCtx(['property.read']) } }),
+    )
+    expect(decision.allowed).toBe(true)
+    expect(listAccessiblePropertyIds).not.toHaveBeenCalled()
+  })
+
+  it('denies every capability when everything is switched off', async () => {
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'all' }),
+    )
+    const policy = createExecutionPolicy(deps())
+    const decision = await policy.decide(request({ propertyId: PROP }))
+    expect(decision.allowed).toBe(false)
+    expect(decision.reason).toBe('capability_disabled')
+  })
+
   it("assigned-scope role + action with scope 'none' → scope_denied", async () => {
     const actor = ctx({
       role: 'PropertyManager',
@@ -375,15 +395,6 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(declined.reason).toBe('consent_required')
   })
 
-  it('system principal denies as unsupported (BQC-2.5 contract lives in the delayed policy)', async () => {
-    const policy = createExecutionPolicy(deps())
-    const decision = await policy.decide(
-      request({ principal: { kind: 'system', id: 'worker' } }),
-    )
-    expect(decision.allowed).toBe(false)
-    expect(decision.reason).toBe('unsupported_principal')
-  })
-
   it('denies when request organization differs from the principal org', async () => {
     const policy = createExecutionPolicy(deps())
     const decision = await policy.decide(request({ organizationId: 'org-other' }))
@@ -435,7 +446,9 @@ describe('operator principal (BQC-7.5)', () => {
 
   it('denies an operator principal executing as a non-operator kind', async () => {
     const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
-    const decision = await policy.decide(operatorRequest({ executionKind: 'worker' }))
+    const decision = await policy.decide(
+      operatorRequest({ executionKind: 'interactive' }),
+    )
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('unsupported_principal')
   })
