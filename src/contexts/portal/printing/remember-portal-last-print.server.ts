@@ -60,11 +60,7 @@ export async function rememberLastPrint(
 ): Promise<void> {
   const { choice, look } = print
   // Only an Immersive print uses the photo, so only it keeps one to compare with.
-  const { hero } = look
-  const photo =
-    choice.look === 'immersive' && hero !== null
-      ? { assetId: hero.assetId, focalX: hero.focalX, focalY: hero.focalY }
-      : null
+  const photo = choice.look === 'immersive' ? look.hero : null
   try {
     await deps.lastPrintRepo.record({
       organizationId: print.organizationId,

@@ -159,7 +159,6 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     isEnabled: () => deps.contactRequests.enabled && contactRequestKey !== undefined,
     clock: deps.clock,
     idGen: deps.idGen,
-    revealAuditIdGen: deps.idGen,
   })
   const contactRequestRetention = contactRequestRetentionSweep({
     repo: createContactRequestRetentionRepository(deps.db),
@@ -214,8 +213,9 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   }
   const integrityPublicApi = {
     getPortalScanPatterns: createPortalScanPatternsReader(deps.db),
-    getPortalResponseIntegritySummary: guestResponseRepo.summarizePortalIntegrity,
-    getPortalRatingLanguages: guestResponseRepo.summarizePortalRatingLanguages,
+    getPortalResponseIntegritySummary:
+      guestResponseRepo.getPortalResponseIntegritySummary,
+    getPortalRatingLanguages: guestResponseRepo.getPortalRatingLanguages,
   }
   const publicApi = {
     /** Public-edge request capabilities, including the session and abuse

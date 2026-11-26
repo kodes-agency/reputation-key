@@ -6,7 +6,6 @@ import {
   MIN_PACE_TENTHS_PER_WEEK,
   isValidPaceTenths,
   legacyPacePerWeek,
-  paceRatio,
 } from './rating-goal-pace'
 
 describe('the current pace', () => {
@@ -27,11 +26,6 @@ describe('a pace in tenths of a review a week', () => {
     expect(isValidPaceTenths(9)).toBe(false)
     expect(isValidPaceTenths(3501)).toBe(false)
     expect(isValidPaceTenths(14.5)).toBe(false)
-  })
-
-  it('is a ratio of reviews a week', () => {
-    expect(paceRatio(105)).toEqual(ratio(21, 2))
-    expect(paceRatio(70)).toEqual(ratio(7, 1))
   })
 
   it('mirrors as whole reviews a week, half up and at least one', () => {

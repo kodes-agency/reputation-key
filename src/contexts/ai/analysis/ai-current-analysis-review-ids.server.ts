@@ -1,3 +1,4 @@
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 // Governed live-analysis identifiers for Inbox filters.
 
@@ -116,14 +117,7 @@ export function findCurrentAnalysisReviewIds(
       ),
     )
 
-    .innerJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
+    .innerJoin(reviewSourceContents, reviewContentJoin)
     .innerJoin(
       merchantAiEnablement,
       and(

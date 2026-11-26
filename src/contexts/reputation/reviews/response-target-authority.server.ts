@@ -1,3 +1,4 @@
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import { and, asc, eq, lte } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -114,14 +115,7 @@ function selectInboxProjectionReviewRow(
       reviewedAt: reviewSourceContents.reviewedAt,
     })
     .from(reviews)
-    .leftJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
+    .leftJoin(reviewSourceContents, reviewContentJoin)
     .where(
       and(
         eq(reviews.id, expectation.reviewId),

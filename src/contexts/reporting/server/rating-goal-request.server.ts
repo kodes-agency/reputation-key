@@ -38,7 +38,8 @@ const ratingGoalStatus = (code: RatingGoalErrorCode): number => {
  * Runs one rating goal request: resolves the tenant, binds the Goal request
  * policy (goal.* permissions, goal.use, the Property grant), and maps a
  * RatingGoalError to its HTTP status once. The actor is the request's
- * AuthContext, which the detail's Inbox links need outside the Goal policy.
+ * AuthContext, which a step outside the Goal policy (the detail's Inbox links)
+ * also needs.
  */
 export async function withRatingGoals<T>(
   run: (

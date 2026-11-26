@@ -87,11 +87,11 @@ export type GuestResponseRepository = Readonly<{
     filter: GuestResponseContentFilter,
   ): Promise<ReadonlyArray<GuestResponseId>>
   /** Current integrity outcomes for rating responses in a half-open business period. */
-  summarizePortalIntegrity(
+  getPortalResponseIntegritySummary(
     input: GuestResponsePeriod,
   ): Promise<PortalResponseIntegritySummary>
   /** Private ratings of one Portal over a half-open period, by page language. */
-  summarizePortalRatingLanguages(
+  getPortalRatingLanguages(
     input: GuestResponsePeriod,
   ): Promise<PortalRatingLanguageBreakdown>
 }>

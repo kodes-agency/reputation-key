@@ -246,22 +246,24 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     it(row.name, async () => {
       await seed(...(row.answers ?? []))
 
-      const result = await insertNotification(deps)(row.notice)
+      const { notification: result, email: queued } = await insertNotification(deps)(
+        row.notice,
+      )
 
       if (row.result === null) expect(result).toBeNull()
       else expect(result).toMatchObject(row.result)
       expectRows(await noticeRows(), row.notices)
       expectRows(await emailRows(), row.emails)
-      if (row.enqueued === 'once') expect(deps.onEmailQueued).toHaveBeenCalledOnce()
+      if (row.enqueued === 'once') expect(queued).not.toBeNull()
       if (row.enqueued === 'never')
-        expect(deps.onEmailQueued).not.toHaveBeenCalledWith(
-          expect.objectContaining({ cadence: 'immediate' }),
-        )
+        expect(queued).not.toEqual(expect.objectContaining({ cadence: 'immediate' }))
     })
   }
 
   it('always persists Organization mandatory in-app and immediate email delivery', async () => {
-    const result = await insertNotification(deps)(roleChange('identity-role-event-1'))
+    const { notification: result, email: queued } = await insertNotification(deps)(
+      roleChange('identity-role-event-1'),
+    )
 
     expect(result).toMatchObject({
       propertyId: null,
@@ -275,18 +277,16 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       cadence: 'immediate',
       status: 'pending',
     })
-    expect(deps.onEmailQueued).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: email!.id,
-        organizationId: ORG_ID,
-        propertyId: null,
-        cadence: 'immediate',
-      }),
-    )
+    expect(queued).toMatchObject({
+      id: email!.id,
+      organizationId: ORG_ID,
+      propertyId: null,
+      cadence: 'immediate',
+    })
   })
 
   it('renders copy from the payload instead of storing caller-supplied text', async () => {
-    const result = await insertNotification(deps)(input)
+    const { notification: result } = await insertNotification(deps)(input)
 
     // The handler passed facts only; the stored snapshot is the rendered copy.
     expect(result).toMatchObject({
@@ -301,7 +301,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
   })
 
   it('drops payload keys that are not on the ADR 0046 r.8 allowlist', async () => {
-    const result = await insertNotification(deps)({
+    const { notification: result } = await insertNotification(deps)({
       ...input,
       payload: {
         propertyName: 'Riverside Hotel',
@@ -326,7 +326,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       cadence: 'immediate',
     })
 
-    const result = await insertNotification(deps)(input)
+    const { notification: result, email: queued } = await insertNotification(deps)(input)
 
     const [email] = await emailRows()
     expect(email).toMatchObject({
@@ -337,14 +337,12 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       idempotencyKey: `${result!.id}:email`,
       status: 'pending',
     })
-    expect(deps.onEmailQueued).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: email!.id,
-        organizationId: ORG_ID,
-        propertyId: PROPERTY_ID,
-        cadence: 'immediate',
-      }),
-    )
+    expect(queued).toMatchObject({
+      id: email!.id,
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      cadence: 'immediate',
+    })
   })
 
   it('queues the email with the audience that admitted its recipient', async () => {
@@ -369,9 +367,9 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
   // ── ADR 0046 r.2 ────────────────────────────────────────────────────
 
   it('bumps the existing unread row instead of inserting a second one', async () => {
-    const existing = (await insertNotification(deps)(input))!
+    const existing = (await insertNotification(deps)(input)).notification!
 
-    const result = await insertNotification(deps)({
+    const { notification: result } = await insertNotification(deps)({
       ...input,
       eventId: 'event-2',
       payload: {
@@ -398,7 +396,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
   it('re-renders the coalesced copy so a repeat row does not read like a first one', async () => {
     await insertNotification(deps)(input)
 
-    const result = await insertNotification(deps)(input)
+    const { notification: result } = await insertNotification(deps)(input)
 
     expect(result?.body).toMatch(/ 2 notes added\.$/)
   })
@@ -407,7 +405,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     await insertNotification(deps)(input)
 
     // The second event's lookup failed, so it carries no property name.
-    const result = await insertNotification(deps)({
+    const { notification: result } = await insertNotification(deps)({
       ...input,
       payload: { platform: 'google' },
     })
@@ -448,10 +446,11 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     })
 
   it('emails a repeat mandatory notice that coalesced into the unread row', async () => {
-    const first = (await insertNotification(deps)(roleChange('identity-role-event-1')))!
+    const first = (await insertNotification(deps)(roleChange('identity-role-event-1')))
+      .notification!
     const repeatDeps = buildInsertNotificationDeps(harness.held.db)
 
-    const result = await insertNotification(repeatDeps)(
+    const { notification: result, email: queued } = await insertNotification(repeatDeps)(
       roleChange('identity-role-event-2'),
     )
 
@@ -468,20 +467,18 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       category: 'mandatory',
       cadence: 'immediate',
     })
-    expect(repeatDeps.onEmailQueued).toHaveBeenCalledOnce()
-    expect(repeatDeps.onEmailQueued).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: repeatEmail[0]!.id,
-        organizationId: ORG_ID,
-        propertyId: null,
-      }),
-    )
+    expect(queued).toMatchObject({
+      id: repeatEmail[0]!.id,
+      organizationId: ORG_ID,
+      propertyId: null,
+    })
   })
 
   it('emails a mandatory repeat the database folded into a raced unread row', async () => {
     // Whichever event created the unread row, the other is folded into it by
     // the writer's upsert and is mailed under its own event's key.
-    const raced = (await insertNotification(deps)(roleChange('identity-role-event-2')))!
+    const raced = (await insertNotification(deps)(roleChange('identity-role-event-2')))
+      .notification!
 
     await insertNotification(deps)(roleChange('identity-role-event-1'))
 
@@ -499,10 +496,12 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     await insertNotification(deps)(roleChange('identity-role-event-1'))
     const replayDeps = buildInsertNotificationDeps(harness.held.db)
 
-    await insertNotification(replayDeps)(roleChange('identity-role-event-1'))
+    const { email } = await insertNotification(replayDeps)(
+      roleChange('identity-role-event-1'),
+    )
 
     expect(await emailRows()).toHaveLength(1)
-    expect(replayDeps.onEmailQueued).not.toHaveBeenCalled()
+    expect(email).toBeNull()
   })
 
   it('stores an email-only anchor already read, so it never holds the unread key', async () => {
@@ -519,7 +518,9 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       },
     )
 
-    await expect(insertNotification(deps)(input)).resolves.toBeNull()
+    await expect(insertNotification(deps)(input)).resolves.toMatchObject({
+      notification: null,
+    })
 
     const [anchor] = await noticeRows()
     expect(anchor).toMatchObject({ status: 'read', readAt: null })
@@ -552,7 +553,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       },
     })
 
-    const result = await insertNotification(deps)(goal)
+    const { notification: result } = await insertNotification(deps)(goal)
 
     // The frozen snapshot is the approved copy (P-8), figures included.
     expect(result).toMatchObject({
@@ -571,7 +572,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
         resourceId: 'goal-2',
         eventId: 'event-goal-2',
       }),
-    ).resolves.toBeNull()
+    ).resolves.toMatchObject({ notification: null })
   })
 
   // D3: one row for one piece of work, per reader.
@@ -585,7 +586,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
         { category: 'arrivals', channel: 'in_app', enabled: true },
         { category: 'arrivals', channel: 'email', enabled: true },
       )
-      const row = (await insertNotification(deps)(arrival))!
+      const row = (await insertNotification(deps)(arrival)).notification!
       expect(await emailRows()).toEqual([expect.objectContaining({ status: 'pending' })])
       return row
     }
@@ -630,7 +631,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     })
 
     it('retires the previous holder\'s "Assigned to you" when the item moves on', async () => {
-      const holding = (await insertNotification(deps)(assigned))!
+      const holding = (await insertNotification(deps)(assigned)).notification!
 
       await insertNotification(deps)({
         ...input,
@@ -663,27 +664,31 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
     })
 
     it('stores nothing for a new review while its reader has not turned arrivals on', async () => {
-      await expect(insertNotification(deps)(arrival)).resolves.toBeNull()
+      await expect(insertNotification(deps)(arrival)).resolves.toMatchObject({
+        notification: null,
+      })
 
       expect(await noticeRows()).toHaveLength(0)
 
       await seed({ category: 'arrivals', channel: 'in_app', enabled: true })
       await expect(insertNotification(deps)(arrival)).resolves.toMatchObject({
-        category: 'arrivals',
+        notification: { category: 'arrivals' },
       })
     })
 
     it('files four- and five-star private feedback as an arrival', async () => {
-      await expect(insertNotification(deps)(portalFeedback(5))).resolves.toBeNull()
+      await expect(insertNotification(deps)(portalFeedback(5))).resolves.toMatchObject({
+        notification: null,
+      })
       await seed({ category: 'arrivals', channel: 'in_app', enabled: true })
 
-      const result = await insertNotification(deps)(portalFeedback(5))
+      const { notification: result } = await insertNotification(deps)(portalFeedback(5))
 
       expect(result).toMatchObject({ category: 'arrivals' })
     })
 
     it('keeps private feedback with no rating as Action needed, always in the app', async () => {
-      const result = await insertNotification(deps)(portalFeedback())
+      const { notification: result } = await insertNotification(deps)(portalFeedback())
 
       expect(result).toMatchObject({ category: 'urgent_operational' })
     })
@@ -698,7 +703,7 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
       { category: 'urgent_operational', channel: 'in_app', enabled: true },
     )
 
-    const result = await insertNotification(deps)(
+    const { notification: result, email } = await insertNotification(deps)(
       notice('integration.reauthorization_required', {
         propertyId: null,
         resourceType: 'integration',
@@ -724,6 +729,6 @@ describe.sequential('insertNotification (real PostgreSQL)', () => {
         ),
     ).toHaveLength(1)
     expect(await emailRows()).toHaveLength(0)
-    expect(deps.onEmailQueued).not.toHaveBeenCalled()
+    expect(email).toBeNull()
   })
 })

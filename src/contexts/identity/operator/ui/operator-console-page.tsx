@@ -5,6 +5,7 @@
 // Presentational: the route owns the list and the Actions. The operator holds
 // no role in these Organizations, so nothing here reads tenant permissions.
 
+import { plural } from '#/shared/format/format'
 import { Building2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -46,9 +47,6 @@ type Props = Readonly<{
   /** Ends the session and returns to sign-in, then back here. */
   onSignInAgain: () => void
 }>
-
-const plural = (count: number, one: string, many: string) =>
-  `${count} ${count === 1 ? one : many}`
 
 function ReauthNotice({ onSignInAgain }: Readonly<{ onSignInAgain: () => void }>) {
   return (

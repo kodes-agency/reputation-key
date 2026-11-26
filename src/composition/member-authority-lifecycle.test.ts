@@ -14,7 +14,6 @@ import type { InboxContextApi } from '#/contexts/reputation/build-inbox'
 import type { PropertyResponsibleManager } from '#/contexts/property/domain/property-responsible-manager'
 import type { PortalResponsibleManager } from '#/contexts/portal/domain/portal-responsible-manager'
 import {
-  createDeferredMemberAuthorityLifecycle,
   createMemberAuthorityLifecycle,
   type MemberAuthorityLifecycleDeps,
 } from './member-authority-lifecycle'
@@ -150,29 +149,5 @@ describe('member authority lifecycle seam', () => {
     expect(
       fakes.inboxAssignments.releaseIneligibleAssignmentsForUser,
     ).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('deferred member authority lifecycle binding', () => {
-  it('names the seam when called before the container finished composing', async () => {
-    const deferred = createDeferredMemberAuthorityLifecycle()
-
-    await expect(
-      deferred.port.reconcileResponsibleManagerEligibility(ORG, MEMBER, ACTOR),
-    ).rejects.toThrow('member authority lifecycle seam is not bound yet')
-  })
-
-  it('delegates once bound and refuses a second implementation', async () => {
-    const deferred = createDeferredMemberAuthorityLifecycle()
-    const fakes = createFakes()
-    const implementation = createMemberAuthorityLifecycle(fakes.deps)
-
-    deferred.provide(implementation)
-    await deferred.port.reconcileResponsibleManagerEligibility(ORG, MEMBER, ACTOR)
-
-    expect(
-      fakes.inboxAssignments.releaseIneligibleAssignmentsForUser,
-    ).toHaveBeenCalledTimes(1)
-    expect(() => deferred.provide(implementation)).toThrow('already bound')
   })
 })

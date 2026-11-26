@@ -161,9 +161,9 @@ const scope = (portal: string = PORTAL) => ({
   portalId: portalId(portal),
 })
 
-describe('summarizePortalRatingLanguages (integration)', () => {
+describe('getPortalRatingLanguages (integration)', () => {
   it('counts eligible private ratings by the language of the page the guest saw', async () => {
-    const summary = await repository().summarizePortalRatingLanguages({
+    const summary = await repository().getPortalRatingLanguages({
       ...scope(),
       startAt: START,
       endAt: END,
@@ -181,7 +181,7 @@ describe('summarizePortalRatingLanguages (integration)', () => {
   })
 
   it('answers for one Portal only', async () => {
-    const summary = await repository().summarizePortalRatingLanguages({
+    const summary = await repository().getPortalRatingLanguages({
       ...scope(SIBLING_PORTAL),
       startAt: START,
       endAt: END,
@@ -195,7 +195,7 @@ describe('summarizePortalRatingLanguages (integration)', () => {
   })
 
   it('never reads another organisation', async () => {
-    const summary = await repository().summarizePortalRatingLanguages({
+    const summary = await repository().getPortalRatingLanguages({
       ...scope(OTHER_PORTAL),
       startAt: START,
       endAt: END,
@@ -205,7 +205,7 @@ describe('summarizePortalRatingLanguages (integration)', () => {
   })
 
   it('has nothing to say about an empty window', async () => {
-    const summary = await repository().summarizePortalRatingLanguages({
+    const summary = await repository().getPortalRatingLanguages({
       ...scope(),
       startAt: new Date('2027-01-01T00:00:00.000Z'),
       endAt: new Date('2027-02-01T00:00:00.000Z'),
@@ -219,7 +219,7 @@ describe('the Portal results reads', () => {
   const period = { startAt: START, endAt: END }
 
   it('reads the languages of one tenant, Property and Portal over the period', async () => {
-    const read = repository().summarizePortalRatingLanguages
+    const read = repository().getPortalRatingLanguages
 
     await expect(read({ ...scope(), ...period })).resolves.toMatchObject({
       total: 5,
@@ -238,7 +238,7 @@ describe('the Portal results reads', () => {
   })
 
   it('counts the period half-open: the start is in, the end is out', async () => {
-    const read = repository().summarizePortalRatingLanguages
+    const read = repository().getPortalRatingLanguages
 
     // Response 10 is submitted exactly at END; response 9 is before START.
     const september = await read({ ...scope(), ...period })
@@ -257,7 +257,7 @@ describe('the Portal results reads', () => {
   })
 
   it('refuses an empty or reversed period', async () => {
-    const read = repository().summarizePortalRatingLanguages
+    const read = repository().getPortalRatingLanguages
 
     await expect(read({ ...scope(), startAt: START, endAt: START })).rejects.toThrow(
       'rating languages period is invalid',
@@ -265,10 +265,13 @@ describe('the Portal results reads', () => {
     await expect(read({ ...scope(), startAt: END, endAt: START })).rejects.toThrow(
       'rating languages period is invalid',
     )
+    await expect(
+      read({ ...scope(), startAt: new Date(Number.NaN), endAt: END }),
+    ).rejects.toThrow('rating languages period is invalid')
   })
 
   it('summarizes the integrity outcomes of one Portal over the period', async () => {
-    const summarize = repository().summarizePortalIntegrity
+    const summarize = repository().getPortalResponseIntegritySummary
 
     await expect(summarize({ ...scope(), ...period })).resolves.toEqual({
       accepted: 5,
@@ -291,7 +294,7 @@ describe('the Portal results reads', () => {
   })
 
   it('refuses an empty or reversed integrity period', async () => {
-    const summarize = repository().summarizePortalIntegrity
+    const summarize = repository().getPortalResponseIntegritySummary
 
     await expect(summarize({ ...scope(), startAt: END, endAt: END })).rejects.toThrow(
       'integrity summary period is invalid',

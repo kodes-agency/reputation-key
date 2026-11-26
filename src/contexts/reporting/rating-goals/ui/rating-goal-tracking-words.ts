@@ -64,15 +64,6 @@ export function headlineOf(card: Card): Headline | null {
   }
 }
 
-/** The headline as one sentence, as a reader hears it. */
-export function headlineText(card: Card): string | null {
-  const headline = headlineOf(card)
-  if (headline === null) return null
-  return headline.kind === 'soon'
-    ? headline.text
-    : `${headline.count} ${headline.words} ${headline.target}`
-}
-
 /** "Google should show 4.4 soon": a tenth on the way that the cache already clears. */
 export const soonText = (
   card: Pick<Card, 'earnedTenths' | 'googleShowsSoon'>,

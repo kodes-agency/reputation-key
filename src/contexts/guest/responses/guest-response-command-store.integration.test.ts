@@ -331,7 +331,7 @@ describe.sequential('atomic Guest response submission', () => {
     `)
 
     await expect(
-      createGuestResponseRepository(db).summarizePortalIntegrity({
+      createGuestResponseRepository(db).getPortalResponseIntegritySummary({
         organizationId: ORG,
         propertyId: PROPERTY,
         portalId: PORTAL,

@@ -53,8 +53,6 @@ export type InsertNotificationInput = Omit<CreateNotificationInput, 'id'>
 export type InsertNotificationDeps = Readonly<{
   /** The database client, or the transaction the notice is written on. */
   db: NotificationDb
-  /** Told of each email-queue row written, so the caller can hand it on after commit. */
-  onEmailQueued: (email: NotificationEmail) => void
   clock: () => Date
   idGen: () => NotificationId
   emailIdGen: () => NotificationEmailId
@@ -297,7 +295,7 @@ const enqueueEmailEntry = async (
    * unsubscribe link read.
    */
   category: DomainNotification['category'] = notification.category,
-): Promise<void> => {
+): Promise<NotificationEmail | null> => {
   const emailResult = createNotificationEmail(
     {
       id: deps.emailIdGen(),
@@ -317,11 +315,10 @@ const enqueueEmailEntry = async (
   )
   if (emailResult.isErr()) {
     deps.logger.warn({ error: emailResult.error }, 'Failed to create email queue entry')
-    return
+    return null
   }
 
-  const queued = await insertNotificationEmail(deps.db, emailResult.value)
-  deps.onEmailQueued(queued)
+  return insertNotificationEmail(deps.db, emailResult.value)
 }
 
 /**
@@ -471,10 +468,11 @@ const afterFoldIntoWaitingRow = async (
   coalesced: DomainNotification,
   channels: Channels,
   audience: NotificationAudience | null,
-): Promise<void> => {
+): Promise<NotificationEmail | null> => {
   const mailsRepeat = channels.emailEnabled && isMandatoryRepeat(coalesced, input)
+  let email: NotificationEmail | null = null
   if (mailsRepeat) {
-    await enqueueEmailEntry(
+    email = await enqueueEmailEntry(
       deps,
       coalesced,
       channels.emailCadence,
@@ -494,7 +492,15 @@ const afterFoldIntoWaitingRow = async (
     },
     input.eventId,
   )
+  return email
 }
+
+/** What a write produced: the in-app row, if shown, and the email-queue row it queued. */
+export type InsertNotificationResult = Readonly<{
+  notification: DomainNotification | null
+  /** The queued email, so the caller can hand it on after commit. */
+  email: NotificationEmail | null
+}>
 
 // ── Use case ────────────────────────────────────────────────────────
 
@@ -504,7 +510,7 @@ export const insertNotification =
     input: InsertNotificationInput,
     /** Why the recipient was admitted; stored with any queued email. */
     audience: NotificationAudience | null = null,
-  ): Promise<DomainNotification | null> => {
+  ): Promise<InsertNotificationResult> => {
     const { logger } = deps
 
     // 0. A rated notice may be a Low ratings one for this reader, decided
@@ -527,7 +533,7 @@ export const insertNotification =
         { type: input.type },
         'Notification skipped — both in-app and email disabled by preference',
       )
-      return null
+      return { notification: null, email: null }
     }
 
     // 2b. A rated repeat that changed category replaces the waiting row
@@ -544,21 +550,27 @@ export const insertNotification =
       channels.inAppEnabled ? result.value : asEmailOnlyAnchor(result.value),
     )
     if (channels.inAppEnabled && inserted.coalescedCount > result.value.coalescedCount) {
-      await afterFoldIntoWaitingRow(deps, input, inserted, channels, audience)
-      return inserted
+      const email = await afterFoldIntoWaitingRow(
+        deps,
+        input,
+        inserted,
+        channels,
+        audience,
+      )
+      return { notification: inserted, email }
     }
 
     // 4. Enqueue the email-queue entry when the email channel is on
-    if (channels.emailEnabled) {
-      await enqueueEmailEntry(
-        deps,
-        inserted,
-        channels.emailCadence,
-        emailKeyFor(inserted, input),
-        audience,
-        channels.emailCategory,
-      )
-    }
+    const email = channels.emailEnabled
+      ? await enqueueEmailEntry(
+          deps,
+          inserted,
+          channels.emailCadence,
+          emailKeyFor(inserted, input),
+          audience,
+          channels.emailCategory,
+        )
+      : null
 
     // 4b. This notice takes over the reader's own earlier ones about the item.
     await settleSupersededForReader(
@@ -576,10 +588,10 @@ export const insertNotification =
       logger.info(
         'Notification persisted for email only — not returned for in-app display',
       )
-      return null
+      return { notification: null, email }
     }
 
-    return inserted
+    return { notification: inserted, email }
   }
 
 export type InsertNotification = typeof insertNotification

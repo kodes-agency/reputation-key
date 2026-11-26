@@ -1,9 +1,9 @@
+import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
+import { policyDeps } from '../responsibility/portal-manager-eligibility.server'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/public-api'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { OrganizationId, PortalId } from '#/shared/domain/ids'
 import { userId } from '#/shared/domain/ids'
-import { policyDeps } from '../responsibility/portal-manager-eligibility.server'
-import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PortalRepository } from './portal-repository.port.server'
 import type { PortalResponsibleManagerRepository } from '../responsibility/portal-responsible-manager-repository.port.server'
 

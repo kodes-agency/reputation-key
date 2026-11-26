@@ -10,7 +10,7 @@
 // role and run again as a manager. The redaction does depend on it: both
 // interactive roles of the beta may manage replies, so no session can ask for
 // the redacted read, and that one case stays parked. The rule itself is held by
-// get-dashboard-data.test.ts ("hides reply state from a reader who may not
+// read-dashboard.integration.test.ts ("hides reply state from a reader who may not
 // manage replies").
 //
 // Landscape: a dedicated property A (the scoped login has an operator grant to

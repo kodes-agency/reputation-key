@@ -18,7 +18,10 @@
 
 import { randomUUID } from 'crypto'
 import { Pool } from 'pg'
-import { assertNotConfiguredDatabase } from './configured-database-fence'
+import {
+  assertNotConfiguredDatabase,
+  isLocalhostAlias,
+} from './configured-database-fence'
 import { TestEnvironmentError } from './test-environment-error'
 
 const LEASE_TABLE = '_test_lease'
@@ -36,9 +39,6 @@ export const DENYLIST_HOST_PATTERNS = [
 
 /** Database name patterns that indicate a non-disposable environment. */
 const DENYLIST_DB_PATTERNS = ['prod', 'staging', 'beta', 'live']
-
-/** Hosts that are always local — destructive tests are safe against them. */
-const LOCAL_TEST_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
 
 export type TestLease = Readonly<{
   /** Unique random marker stored in the _test_lease table. */
@@ -115,7 +115,7 @@ export function checkEnvironment(): void {
  * denylist above still applies even then). An empty host = unix socket = local.
  */
 export function checkLocalTestHost(host: string): void {
-  if (host === '' || LOCAL_TEST_HOSTS.has(host)) return
+  if (isLocalhostAlias(host)) return
   if (process.env.ALLOW_REMOTE_TEST_DB === '1') return
   throw new TestEnvironmentError(
     'remote_host_refused',

@@ -12,6 +12,7 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import type {
   BackupErasureLedgerEntry,
   BackupErasureReplayer,
@@ -33,10 +34,6 @@ import {
 } from './activity-organization-erasure.server'
 
 const CONTEXT = 'activity'
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
-}
 
 function propertyOf(plan: { scope: string; propertyId?: string }): string | null {
   if (plan.scope !== 'property') return null
@@ -68,24 +65,6 @@ async function assertReady(
 ): Promise<void> {
   if (property === null) assertOrganizationHeld(organization)
   await assertNoLegalHold(tx, organization)
-}
-
-class RefusalProbeRolledBack extends Error {}
-
-async function refusalOf(
-  db: Database,
-  organization: string,
-  property: string | null,
-): Promise<string | null> {
-  try {
-    await db.transaction(async (tx) => {
-      await assertReady(tx, organization, property)
-      throw new RefusalProbeRolledBack()
-    })
-    return null
-  } catch (error) {
-    return error instanceof RefusalProbeRolledBack ? null : errorMessage(error)
-  }
 }
 
 async function erasePropertyRows(
@@ -253,7 +232,9 @@ export function createActivityRightsExecutor(
         return { ok: false, error: `no ${CONTEXT} erasure for ${plan.scope}` }
       }
       if (!pseudonymSecret) return { ok: false, error: AUDIT_PSEUDONYM_SECRET_MISSING }
-      const refusal = await refusalOf(db, plan.organizationId, propertyOf(plan))
+      const refusal = await refusalOf(db, (tx) =>
+        assertReady(tx, plan.organizationId, propertyOf(plan)),
+      )
       return refusal ? { ok: false, error: refusal } : { ok: true }
     },
     report: (plan) => reportCounts(db, plan.organizationId, propertyOf(plan)),

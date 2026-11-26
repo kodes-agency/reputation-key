@@ -23,10 +23,10 @@ import {
   DataTableRow,
 } from '#/components/ui/data-table'
 import type { Action } from '#/components/hooks/use-action'
+import { formatDayMonthYear } from '#/shared/format/format'
 import type { OrganizationInvitation } from '#/contexts/identity/members/invitation.contracts'
 import { INVITATION_STATUS } from './invitation-status'
 import { InvitationRowActions } from './invitation-row-actions'
-import { formatInvitationDay } from './invitation-day'
 import { PropertyNames } from './property-names'
 
 export type InvitationRow = OrganizationInvitation
@@ -62,12 +62,12 @@ function ExpiryCell({ invitation }: Readonly<{ invitation: InvitationRow }>) {
       <div className="flex flex-col items-start gap-1">
         <StatusBadge status={invitation.status} map={INVITATION_STATUS} />
         <span className="text-xs text-muted-foreground">
-          {formatInvitationDay(invitation.expiresAt)}
+          {formatDayMonthYear(invitation.expiresAt)}
         </span>
       </div>
     )
   }
-  return <span>{formatInvitationDay(invitation.expiresAt)}</span>
+  return <span>{formatDayMonthYear(invitation.expiresAt)}</span>
 }
 
 export function InvitationTable({ invitations, resendAction, cancelAction }: Props) {
@@ -107,7 +107,7 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
               >
                 {inv.inviterName ?? 'Unknown'}
               </DataTableCell>
-              <DataTableCell>{formatInvitationDay(inv.createdAt)}</DataTableCell>
+              <DataTableCell>{formatDayMonthYear(inv.createdAt)}</DataTableCell>
               <DataTableCell>
                 <ExpiryCell invitation={inv} />
               </DataTableCell>

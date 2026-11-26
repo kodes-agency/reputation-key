@@ -17,7 +17,7 @@
 import { createJobQueue } from '../../src/shared/jobs/queue'
 import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
-import { exitIfHelp } from './command-help'
+import { exitIfHelp, exitWithUsage } from './command-help'
 import { runDatabaseOperatorCommand } from './operator-command'
 
 const TARGETS = {
@@ -28,15 +28,10 @@ type Target = keyof typeof TARGETS
 
 const USAGE = `pnpm ops refresh <${Object.keys(TARGETS).join('|')}> --operator <id> [--reason <text> --apply]`
 
-function usage(): never {
-  console.error(`Usage: ${USAGE}`)
-  process.exit(1)
-}
-
 async function main(): Promise<void> {
   exitIfHelp(process.argv.slice(2), USAGE)
   const [target] = positionalArgs(process.argv.slice(2))
-  if (!target || !(target in TARGETS)) usage()
+  if (!target || !(target in TARGETS)) exitWithUsage(USAGE)
   const { jobName, capability } = TARGETS[target as Target]
 
   const result = await runDatabaseOperatorCommand(
