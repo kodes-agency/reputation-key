@@ -46,10 +46,7 @@ import {
 import { buildOperationalReadout } from './composition/operational-readout'
 import { declareRequestProcess } from '#/shared/db/tenant-scope.server'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
-import {
-  createDeferredMemberAuthorityLifecycle,
-  createMemberAuthorityLifecycle,
-} from './composition/member-authority-lifecycle'
+import { createMemberAuthorityLifecycle } from './composition/member-authority-lifecycle'
 import type { CreateContainerOptions } from './composition/container-options'
 
 export {
@@ -65,12 +62,6 @@ function buildContainer(
   const runtime = createCompositionRuntime(options)
   const { db, clock, logger, env, redis, providerEndpoints, infra, enableJobs } = runtime
   const identityPorts = buildIdentityPorts(runtime)
-  // ARC-03-T9: the Identity/Property/Portal/Inbox member-authority seam.
-  // Identity is upstream of the three contexts holding the authorities it
-  // releases, so the Identity-owned port is handed over now and its
-  // implementation is bound once, by name, after those contexts exist.
-  // Requests cannot reach the callback until the container finished composing.
-  const memberAuthorityLifecycle = createDeferredMemberAuthorityLifecycle()
 
   // PRE17A A4: Create outbox repository and register event schemas.
   // The dispatcher validates stored facts before invoking their consumers.
@@ -88,7 +79,8 @@ function buildContainer(
   const identity = wireIdentity(
     input,
     identityPorts,
-    memberAuthorityLifecycle,
+    (orgId, memberId, actorId) =>
+      memberAuthority.reconcileResponsibleManagerEligibility(orgId, memberId, actorId),
     () => property,
     () => portal,
   )
@@ -121,21 +113,20 @@ function buildContainer(
   const review = wireReview(input, identity, property, portal, integration, aiRuntime)
   const ai = wireAi(input, identity, property, portal, review, aiRuntime)
   const inbox = wireInbox(input, identity, property, guest, review, ai)
-  // ARC-03-T9: the member-authority seam's ONE implementation, bound now that
-  // Property, Portal and Inbox exist. It consumes named context capabilities,
-  // never repositories, and Identity received its port long before this line.
-  memberAuthorityLifecycle.provide(
-    createMemberAuthorityLifecycle({
-      clock,
-      propertyResponsibility: property.responsibility,
-      portalResponsibility: portal.responsibility,
-      inboxAssignments: inbox.assignments,
-      eligibility: {
-        listActiveManagers: identity.publicApi.managerFacts.listActiveManagers,
-        getAccessiblePropertyIds: identity.publicApi.people.getAccessiblePropertyIds,
-      },
-    }),
-  )
+  // The Identity/Property/Portal/Inbox member-authority seam. Identity is
+  // upstream of the three contexts holding the authorities it releases, so it
+  // received a closure over this const long before this line. Requests cannot
+  // reach the callback until the container finished composing.
+  const memberAuthority = createMemberAuthorityLifecycle({
+    clock,
+    propertyResponsibility: property.responsibility,
+    portalResponsibility: portal.responsibility,
+    inboxAssignments: inbox.assignments,
+    eligibility: {
+      listActiveManagers: identity.publicApi.managerFacts.listActiveManagers,
+      getAccessiblePropertyIds: identity.publicApi.people.getAccessiblePropertyIds,
+    },
+  })
 
   // ARC-03-T10: downstream Reporting and Feed are composed as one named
   // group after their upstream dependencies.
