@@ -26,14 +26,6 @@ const NOTICE_2026_10_17 = {
 }
 
 describe('AI runtime capability contract', () => {
-  it('selects review analysis v3', () => {
-    const selected = AI_RUNTIME_CAPABILITIES_V1.find(
-      (entry) => entry.capability === 'review_analysis',
-    )
-
-    expect(selected?.operationProfileVersion).toBe('review-analysis-v3')
-  })
-
   it('keeps historical capability vocabulary while serving only active capabilities', () => {
     expect(CURRENT_MERCHANT_AI_CAPABILITIES).toEqual([
       'review_analysis',

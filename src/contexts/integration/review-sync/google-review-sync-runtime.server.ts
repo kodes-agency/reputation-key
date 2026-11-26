@@ -31,7 +31,6 @@ import { createGoogleReviewPushTargetResolver } from './google-review-push-targe
 import {
   createGoogleReviewCursorStore,
   createUnavailableGoogleReviewCursorStore,
-  type GoogleReviewCursorStore,
 } from './google-review-cursor-store.server'
 
 export type GoogleReviewSyncRuntimeDeps = Readonly<{
@@ -47,7 +46,6 @@ export type GoogleReviewSyncRuntimeDeps = Readonly<{
   executor: GoogleAuthorizedProviderExecutor | undefined
   authorizeReviewSyncContent: GoogleReviewSyncContentAuthorizer
   authorizeReplyPublicationContent: GoogleReplyPublicationContentAuthorizer
-  cursorStore: GoogleReviewCursorStore | undefined
   providerEphemeralStore: ProviderEphemeralStore | undefined
   opaqueReferenceKeys: VersionedHmacKeyring | undefined
   pushReferences: GoogleReviewPushReferenceStore
@@ -110,14 +108,13 @@ export const createGoogleReviewSyncRuntime = (
 ): GoogleReviewSyncRuntime => {
   const binding = deps.propertyBindingApi
   const cursorStore =
-    deps.cursorStore ??
-    (deps.providerEphemeralStore && deps.opaqueReferenceKeys
+    deps.providerEphemeralStore && deps.opaqueReferenceKeys
       ? createGoogleReviewCursorStore({
           store: deps.providerEphemeralStore,
           keys: deps.opaqueReferenceKeys,
           nowMs: () => deps.clock().getTime(),
         })
-      : createUnavailableGoogleReviewCursorStore())
+      : createUnavailableGoogleReviewCursorStore()
 
   const reviewSyncAuthorizer = createGoogleReviewSyncAuthorizer({
     readBinding: binding.readInternal,

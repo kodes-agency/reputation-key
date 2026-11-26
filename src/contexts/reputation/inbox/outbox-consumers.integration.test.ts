@@ -1,11 +1,9 @@
 // Durable inbox consumers for reply lifecycle events: the first-reply
-// milestone, the compatibility receipt for published replies, and the
-// provider-observation authority that closes and stamps Inbox items.
+// milestone and the provider-observation authority that closes and stamps Inbox items.
 
 import { describe, it, expect, vi } from 'vitest'
 import {
   handleInboxReplyObserved,
-  handleInboxReplyPublished,
   handleInboxReplySubmitted,
 } from './outbox-consumers.server'
 import {
@@ -28,7 +26,6 @@ vi.mock('#/shared/observability/logger', () => ({
 useOutboxConsumersDatabase()
 
 const SUBMITTED_RECEIPT = 'inbox.on-reply-submitted'
-const PUBLISHED_RECEIPT = 'inbox.on-reply-published'
 const OBSERVED_RECEIPT = 'inbox.on-reply-observed'
 
 describe('handleInboxReplySubmitted (first-reply milestone)', () => {
@@ -111,70 +108,6 @@ describe('handleInboxReplySubmitted (first-reply milestone)', () => {
       status: 'applied',
     })
     await expectReceipt(SUBMITTED_RECEIPT, 'applied')
-  })
-})
-
-describe('handleInboxReplyPublished (compatibility receipt only)', () => {
-  it('does not let an internal workflow fact close the Inbox item', async () => {
-    const { deps, repo, events, expectReceipt } = await makeDeps({})
-    const result = await handleInboxReplyPublished(
-      deps,
-      reviewEvent('review.reply.published', { occurredAt: NOW.toISOString() }),
-    )
-
-    expect(result).toEqual({ status: 'applied' })
-    const stored = await repo.first()
-    expect(stored.status).toBe('open')
-    expect(stored.closedAt).toBeNull()
-    expect(stored.firstReplyPublishedAt).toBeNull()
-    expect(await events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
-    await expectReceipt(PUBLISHED_RECEIPT, 'applied')
-  })
-
-  it('does not backfill a milestone without current provider observation', async () => {
-    const { deps, repo, events, receipts } = await makeDeps({
-      item: makeItem({ status: 'closed', closedAt: NOW }),
-    })
-    const result = await handleInboxReplyPublished(
-      deps,
-      reviewEvent('review.reply.published'),
-    )
-
-    expect(result).toEqual({ status: 'applied' })
-    expect((await repo.first()).firstReplyPublishedAt).toBeNull()
-    expect(await events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
-    expect(await receipts()).toHaveLength(1)
-  })
-
-  it('already closed and stamped: receipt only', async () => {
-    const stamped = new Date('2026-06-12')
-    const { deps, repo, events, expectReceipt } = await makeDeps({
-      item: makeItem({
-        status: 'closed',
-        closedAt: stamped,
-        firstReplyPublishedAt: stamped,
-      }),
-    })
-    const result = await handleInboxReplyPublished(
-      deps,
-      reviewEvent('review.reply.published'),
-    )
-
-    expect(result).toEqual({ status: 'applied' })
-    expect((await repo.first()).firstReplyPublishedAt).toEqual(stamped)
-    expect(await events.facts()).toHaveLength(0)
-    await expectReceipt(PUBLISHED_RECEIPT, 'applied')
-  })
-
-  it('missing item: applied no-op with a receipt', async () => {
-    const { deps, expectReceipt } = await makeDeps({ item: null })
-    const result = await handleInboxReplyPublished(
-      deps,
-      reviewEvent('review.reply.published'),
-    )
-
-    expect(result).toEqual({ status: 'applied' })
-    await expectReceipt(PUBLISHED_RECEIPT, 'applied')
   })
 })
 

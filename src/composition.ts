@@ -154,7 +154,6 @@ function buildContainer(
     identity,
     integration,
     inbox,
-    reviewServingStats: review.lookups.servingStats,
     ...notificationEmailAddressKeys(env),
   })
   const { reporting, feed } = readAndNotify

@@ -45,10 +45,8 @@ export type InboxConsumerDeps = Readonly<{
 }>
 
 const ON_REVIEW_CREATED = 'inbox.on-review-created'
-const ON_REVIEW_EXPIRED = 'inbox.on-review-expired'
 const ON_REVIEW_UPDATED = 'inbox.on-review-updated'
 const ON_REVIEW_SOURCE_TRANSITIONED = 'inbox.on-review-source-transitioned'
-const ON_REPLY_PUBLISHED = 'inbox.on-reply-published'
 const ON_REPLY_OBSERVED = 'inbox.on-reply-observed'
 const ON_REPLY_SUBMITTED = 'inbox.on-reply-submitted'
 
@@ -193,49 +191,6 @@ export async function handleInboxReviewCreated(
   return handleInboxReviewProjection(deps, event, 'created', ON_REVIEW_CREATED)
 }
 
-/** Close open inbox item when source review expires. */
-export async function handleInboxReviewExpired(
-  deps: InboxConsumerDeps,
-  event: ConsumerEvent,
-): Promise<ConsumerResult> {
-  const payload = asReviewIdPayload(event.payload)
-  const orgId = organizationId(payload.organizationId)
-  const rId = reviewId(payload.reviewId)
-  const sourceId = unbrand(rId)
-  const now = deps.clock()
-
-  const item = await deps.inboxRepo.findBySource('review', sourceId, orgId)
-  if (!item) {
-    await deps.commandStore.recordReceipt(event.eventId, ON_REVIEW_EXPIRED, 'applied')
-    return { status: 'applied' }
-  }
-
-  // Legacy review.expired delivery converges on the same content-free Inbox
-  // command as review.source_transitioned. This matters for restored/pending
-  // old events: an already-closed item must still lose provider-controlled
-  // projection values rather than taking the former receipt-only shortcut.
-  await deps.commandStore.applyReviewSourceTransitionedOnce({
-    eventId: event.eventId,
-    consumerName: ON_REVIEW_EXPIRED,
-    item,
-    transitionedAt: now,
-    // This compatibility envelope has no source epoch/revision. It may be
-    // arbitrarily delayed past re-observation, so it may erase forbidden
-    // legacy projection copies but can never decide current workflow status.
-    closeIfOpen: false,
-    closeReason: 'source_ineligible',
-    closeFact: inboxItemStatusChanged({
-      inboxItemId: item.id,
-      organizationId: item.organizationId,
-      propertyId: item.propertyId,
-      oldStatus: 'open',
-      newStatus: 'closed',
-      occurredAt: now,
-    }),
-  })
-  return { status: 'applied' }
-}
-
 /**
  * Content-free handoff. Review owns the source lifecycle and records an
  * identifier-only transition. Inbox owns its stable projection, so it closes
@@ -294,8 +249,6 @@ export async function handleInboxReviewSourceTransitioned(
           consumerName: ON_REVIEW_SOURCE_TRANSITIONED,
           item,
           transitionedAt,
-          closeIfOpen: true,
-          closeReason: 'source_ineligible',
           closeFact: inboxItemStatusChanged({
             inboxItemId: item.id,
             organizationId: item.organizationId,
@@ -330,20 +283,6 @@ export async function handleInboxReviewUpdated(
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {
   return handleInboxReviewProjection(deps, event, 'updated', ON_REVIEW_UPDATED)
-}
-
-/** Compatibility consumer for the internal publication lifecycle fact.
- * It records delivery only; exact current observed Google truth exclusively
- * owns Inbox close/reopen transitions. */
-export async function handleInboxReplyPublished(
-  deps: InboxConsumerDeps,
-  event: ConsumerEvent,
-): Promise<ConsumerResult> {
-  // Compatibility receipt only. `review.reply.published` is an internal
-  // workflow fact and can no longer prove provider state; only the exact
-  // current `review.reply.observed` head may mutate Inbox status.
-  await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_PUBLISHED, 'applied')
-  return { status: 'applied' }
 }
 
 /**
@@ -515,13 +454,6 @@ export function registerInboxConsumers(
   })
 
   registerConsumer({
-    eventType: 'review.expired',
-    consumerName: 'inbox.on-review-expired',
-    module: 'inbox.outbox-consumers',
-    handler: (event) => handleInboxReviewExpired(deps, event),
-  })
-
-  registerConsumer({
     eventType: 'review.updated',
     consumerName: 'inbox.on-review-updated',
     module: 'inbox.outbox-consumers',
@@ -533,13 +465,6 @@ export function registerInboxConsumers(
     consumerName: 'inbox.on-review-source-transitioned',
     module: 'inbox.outbox-consumers',
     handler: (event) => handleInboxReviewSourceTransitioned(deps, event),
-  })
-
-  registerConsumer({
-    eventType: 'review.reply.published',
-    consumerName: 'inbox.on-reply-published',
-    module: 'inbox.outbox-consumers',
-    handler: (event) => handleInboxReplyPublished(deps, event),
   })
 
   registerConsumer({
@@ -556,5 +481,5 @@ export function registerInboxConsumers(
     handler: (event) => handleInboxReplySubmitted(deps, event),
   })
 
-  deps.logger.info('Inbox consumers registered with outbox dispatcher (7 consumers)')
+  deps.logger.info('Inbox consumers registered with outbox dispatcher (5 consumers)')
 }

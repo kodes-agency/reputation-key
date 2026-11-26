@@ -205,8 +205,6 @@ async function closeAsSourceIneligible(item: InboxItem, eventId: string): Promis
     consumerName: 'inbox.on-review-source-transitioned',
     item,
     transitionedAt: NOW,
-    closeIfOpen: true,
-    closeReason: 'source_ineligible',
     closeFact: inboxItemStatusChanged({
       inboxItemId: item.id,
       organizationId: item.organizationId,

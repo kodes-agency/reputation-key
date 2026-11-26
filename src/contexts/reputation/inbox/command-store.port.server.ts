@@ -9,7 +9,6 @@ import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import type {
   HandlingCycleActorType,
-  HandlingCycleCloseReason,
   InboxItem,
   InboxNote,
   InboxPriority,
@@ -146,9 +145,6 @@ export type ApplyReviewSourceTransitionedCommand = Readonly<{
   consumerName: string
   item: InboxItem
   transitionedAt: Date
-  /** Exact-current source transitions close; unversioned legacy expiry closes nothing. */
-  closeIfOpen: boolean
-  closeReason?: HandlingCycleCloseReason
   closeFact: InboxItemStatusChanged
 }>
 

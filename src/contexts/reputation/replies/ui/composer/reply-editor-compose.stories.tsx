@@ -41,7 +41,7 @@ const FALLBACK_REPLY =
   'Thank you for sharing your feedback. We appreciate the opportunity to listen.'
 const readySuggestion = (): Extract<ReplySuggestionResult, { status: 'ready' }> => ({
   status: 'ready',
-  profileVersion: 'reply-draft-v3',
+  profileVersion: 'reply-draft-v4',
   replyText: SUGGESTED_REPLY,
   provenanceToken: 'test-provenance-token',
   expiresAtEpochMillis: Date.now() + 60_000,

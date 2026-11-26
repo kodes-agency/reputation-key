@@ -10,9 +10,9 @@ import {
 } from '#/components/ui/card'
 import { Field, FieldLabel } from '#/components/ui/field'
 import {
-  NOTIFICATION_SETTINGS_CATEGORIES,
   type ConfigurableNotificationCategory,
   type EffectiveNotificationSettings,
+  NOTIFICATION_SETTINGS_CATEGORIES,
   type NotificationChannel,
   type PersonalDeliveryWindow,
 } from '#/contexts/feed/public-api'

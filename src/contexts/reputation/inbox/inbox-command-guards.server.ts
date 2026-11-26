@@ -5,11 +5,7 @@
 // inbox-command-store.ts imports from this module; this module must never
 // import back from it (that would be a circular dependency).
 
-import type {
-  HandlingCycleHead,
-  HandlingCycleTransition,
-  InboxItem,
-} from '../domain/inbox-types'
+import type { HandlingCycleTransition, InboxItem } from '../domain/inbox-types'
 import { inboxError } from '../domain/inbox-errors'
 import {
   inboxHandlingCycleClosed,
@@ -19,17 +15,9 @@ import {
 } from '../domain/inbox-events'
 import type { DomainEvent } from '#/shared/events/events'
 import { inboxItemFromRow } from './inbox-mapper.server'
-import {
-  feedbackId,
-  inboxItemId,
-  organizationId,
-  propertyId,
-  reviewId,
-  type UserId,
-} from '#/shared/domain/ids'
+import type { UserId } from '#/shared/domain/ids'
 import type { Permission } from '#/shared/domain/permissions'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
-import type { PersistedHead } from './inbox-cycle-head.server'
 import type { ApplyReviewProjectionCommand } from './command-store.port.server'
 import type { ReviewCurrentReplyObservationPermit } from '#/contexts/reputation/reviews/reply-observation-authority.port.server'
 import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.server'
@@ -65,21 +53,6 @@ export type PersistedItem = typeof inboxItems.$inferSelect
 export const itemFromRow = (row: PersistedItem): InboxItem => ({
   ...inboxItemFromRow(row),
   propertyName: null,
-})
-
-export type { PersistedHead }
-
-export const handlingCycleHeadFromRow = (row: PersistedHead): HandlingCycleHead => ({
-  inboxItemId: inboxItemId(row.inboxItemId),
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  sourceType: row.sourceType,
-  sourceId:
-    row.sourceType === 'review' ? reviewId(row.sourceId) : feedbackId(row.sourceId),
-  currentCycleNumber: row.currentCycleNumber,
-  currentSourceRevision: row.currentSourceRevision,
-  stateRevision: row.stateRevision,
-  status: row.status,
 })
 
 /**
@@ -305,9 +278,8 @@ export function assertObservationMatchesItem(
 export function matchesLockedBulkAssignState(
   item: InboxItem,
   row: PersistedItem | undefined,
-  head: PersistedHead | undefined,
 ): boolean {
-  if (row === undefined || head === undefined) return false
+  if (row === undefined || row.currentCycleNumber === null) return false
   return (
     row.organizationId === item.organizationId &&
     row.propertyId === item.propertyId &&
@@ -315,12 +287,7 @@ export function matchesLockedBulkAssignState(
     row.sourceId === item.sourceId &&
     row.status === item.status &&
     row.assignedTo === item.assignedTo &&
-    row.commandRevision === item.commandRevision &&
-    head.organizationId === item.organizationId &&
-    head.propertyId === item.propertyId &&
-    head.sourceType === item.sourceType &&
-    head.sourceId === item.sourceId &&
-    head.status === item.status
+    row.commandRevision === item.commandRevision
   )
 }
 
@@ -342,7 +309,6 @@ export function bulkAssignmentReason(
 export function matchesLockedBulkReopenState(
   item: InboxItem,
   itemRow: PersistedItem,
-  headRow: PersistedHead,
 ): boolean {
   return (
     itemRow.organizationId === item.organizationId &&
@@ -350,13 +316,7 @@ export function matchesLockedBulkReopenState(
     itemRow.sourceType === item.sourceType &&
     itemRow.sourceId === item.sourceId &&
     itemRow.commandRevision === item.commandRevision &&
-    itemRow.status === 'closed' &&
-    headRow.organizationId === item.organizationId &&
-    headRow.propertyId === item.propertyId &&
-    headRow.sourceType === item.sourceType &&
-    headRow.sourceId === item.sourceId &&
-    headRow.status === 'closed' &&
-    itemRow.status === headRow.status
+    itemRow.status === 'closed'
   )
 }
 

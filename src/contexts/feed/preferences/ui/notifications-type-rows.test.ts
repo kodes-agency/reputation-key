@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { NOTIFICATION_SETTINGS_CATEGORIES } from '#/contexts/feed/public-api'
 import { CATEGORY_COPY, categoryInSentence } from './notifications-type-rows'
 
 describe('notification category copy', () => {
@@ -39,10 +38,5 @@ describe('notification category copy', () => {
 
   it('keeps Google a name inside a sentence', () => {
     expect(categoryInSentence('recognition')).toBe('Google rating goal')
-  })
-
-  it('names Urgent reviews in the Action needed row and the Guest voice summary in its own', () => {
-    expect(CATEGORY_COPY.urgent_operational.description).toContain('Urgent reviews')
-    expect(NOTIFICATION_SETTINGS_CATEGORIES).toContain('guest_voice')
   })
 })

@@ -26,7 +26,6 @@ import { cancelPrivateFeedbackTarget } from '#/contexts/reputation/response-targ
 import {
   assertObservationMatchesItem,
   assertReviewProjectionCommand,
-  handlingCycleHeadFromRow,
   lifecycleFactFor,
   projectionTargetAnchor,
 } from '#/contexts/reputation/inbox/inbox-command-guards.server'
@@ -155,7 +154,7 @@ export const createSourceCommands = (
           // same read keeps this path identical under an insert race.
           const { headRow, itemRow } = await lockReviewProjectionRows(tx, inserted.item)
 
-          let current = handlingCycleHeadFromRow(headRow)
+          let current = headRow
           if (
             current.currentSourceRevision >
             command.projection.currentMaterialReviewRevision
@@ -258,7 +257,7 @@ export const createSourceCommands = (
             .limit(1)
           const headRow = lockedItem ? persistedHeadFromItemRow(lockedItem) : null
           if (!headRow) return 'obsolete' as const
-          const current = handlingCycleHeadFromRow(headRow)
+          const current = headRow
           if (
             command.sourceRevision !== undefined &&
             current.currentSourceRevision !== command.sourceRevision
@@ -353,7 +352,7 @@ export const createSourceCommands = (
             .for('update')
             .limit(1)
           const headRow = current ? persistedHeadFromItemRow(current) : null
-          if (command.closeIfOpen && !headRow) {
+          if (!headRow) {
             throw inboxError(
               'not_found',
               'Review source transition is waiting for its Handling Cycle',
@@ -361,8 +360,8 @@ export const createSourceCommands = (
           }
           if (!current) return
 
-          const shouldCloseItem = command.closeIfOpen && current.status === 'open'
-          const shouldCloseCycle = command.closeIfOpen && headRow?.status === 'open'
+          const shouldCloseItem = current.status === 'open'
+          const shouldCloseCycle = headRow?.status === 'open'
           if (!shouldCloseItem && !shouldCloseCycle) return
 
           const cycleFact =

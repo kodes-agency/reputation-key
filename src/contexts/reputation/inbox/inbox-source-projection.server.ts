@@ -31,12 +31,10 @@ import {
   insertResponseTargetForHandlingCycle,
 } from '../response-targets/store.server'
 import {
-  handlingCycleHeadFromRow,
   itemFromRow,
   lifecycleFactFor,
   projectionTargetAnchor,
   type LifecycleFactMarks,
-  type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards.server'
 import { cycleHeadItemColumns, persistedHeadFromItemRow } from './inbox-cycle-head.server'
@@ -252,7 +250,7 @@ export async function updatePersistedItemRow(
 export async function lockReviewProjectionRows(
   tx: Tx,
   item: InboxItem,
-): Promise<Readonly<{ headRow: PersistedHead; itemRow: PersistedItem }>> {
+): Promise<Readonly<{ headRow: HandlingCycleHead; itemRow: PersistedItem }>> {
   const [itemRow] = await tx
     .select()
     .from(inboxItems)
@@ -320,7 +318,7 @@ export async function catchUpProjectionRevisions(
         )
       }
       advanced = true
-      current = handlingCycleHeadFromRow(carried)
+      current = carried
       continue
     }
     const decision = createNextHandlingCycle({
@@ -489,7 +487,7 @@ export async function closeCycleOnObservedReply(
   tx: Tx,
   command: ApplyReplyObservedCommand,
   input: Readonly<{
-    headRow: PersistedHead
+    headRow: HandlingCycleHead
     itemRow: PersistedItem
     observation: ReviewCurrentReplyObservationPermit
   }>,
@@ -511,14 +509,14 @@ export async function reopenCycleOnDeletedReply(
   tx: Tx,
   command: ApplyReplyObservedCommand,
   input: Readonly<{
-    headRow: PersistedHead
+    headRow: HandlingCycleHead
     observation: ReviewCurrentReplyObservationPermit
     reopenReason: 'provider_reply_deleted'
   }>,
 ): Promise<void> {
   const { headRow, observation } = input
   const decision = createNextHandlingCycle({
-    current: handlingCycleHeadFromRow(headRow),
+    current: headRow,
     sourceRevision: observation.materialReviewRevision,
     openedReason: input.reopenReason,
     openedBy: null,
@@ -602,7 +600,7 @@ export async function openNextFeedbackCycleOnResubmission(
   if (!headRow || cycleAnchor.sourceRevision <= headRow.currentSourceRevision) {
     return null
   }
-  const current = handlingCycleHeadFromRow(headRow)
+  const current = headRow
   const decision = createNextHandlingCycle({
     current,
     sourceRevision: cycleAnchor.sourceRevision,
@@ -656,20 +654,19 @@ export async function openNextFeedbackCycleOnResubmission(
 export async function closeCycleForSourceTransition(
   tx: Tx,
   command: ApplyReviewSourceTransitionedCommand,
-  headRow: PersistedHead,
+  headRow: HandlingCycleHead,
 ): Promise<DomainEvent> {
   const { item, transitionedAt } = command
-  const current = handlingCycleHeadFromRow(headRow)
   await cancelResponseTargetForCycle(tx, {
-    inboxItemId: current.inboxItemId,
+    inboxItemId: headRow.inboxItemId,
     cycleNumber: headRow.currentCycleNumber,
-    organizationId: current.organizationId,
+    organizationId: headRow.organizationId,
     cancelledAt: transitionedAt,
     reason: 'source_ineligible',
   })
   const cycleDecision = closeHandlingCycle({
-    current: handlingCycleHeadFromRow(headRow),
-    closeReason: command.closeReason ?? 'source_ineligible',
+    current: headRow,
+    closeReason: 'source_ineligible',
     actorType: 'provider',
     actorUserId: null,
     triggerEventId: command.eventId,

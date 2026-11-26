@@ -36,9 +36,7 @@ export const DURABLE_CONSUMERS: ReadonlyArray<DurableConsumer> = [
       'inbox.outbox-consumers',
       ['review.source_transitioned'],
     ],
-    ['inbox.on-review-expired', 'inbox.outbox-consumers', ['review.expired']],
     ['inbox.on-reply-submitted', 'inbox.outbox-consumers', ['review.reply.submitted']],
-    ['inbox.on-reply-published', 'inbox.outbox-consumers', ['review.reply.published']],
     ['inbox.on-reply-observed', 'inbox.outbox-consumers', ['review.reply.observed']],
   ]),
   ...consumersIn('src/contexts/ai/analysis/outbox-consumers.server.ts', [

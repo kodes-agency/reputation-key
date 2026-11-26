@@ -61,7 +61,6 @@ import { reconcileGoogleProviderRecovery } from './connections/reconcile-google-
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
-import type { GoogleReviewCursorStore } from './review-sync/google-review-cursor-store.server'
 import {
   createUnavailableGoogleReviewPushReferenceStore,
   type GoogleReviewPushReferenceStore,
@@ -134,7 +133,6 @@ type IntegrationContextDeps = Readonly<{
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   providerEphemeralStore?: ProviderEphemeralStore
   googleOpaqueReferenceKeys?: VersionedHmacKeyring
-  googleReviewCursorStore?: GoogleReviewCursorStore
   oauthStateHandles: OAuthStateHandleService
   oauthCallbackAbuseGate: OAuthCallbackAbuseGate
   /** Redis-backed, renewable and generation-fenced refresh coordination. */
@@ -219,7 +217,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     executor: deps.googleAuthorizedProviderExecutor,
     authorizeReviewSyncContent: deps.authorizeGoogleReviewSyncContent,
     authorizeReplyPublicationContent: deps.authorizeGoogleReplyPublicationContent,
-    cursorStore: deps.googleReviewCursorStore,
     providerEphemeralStore: deps.providerEphemeralStore,
     opaqueReferenceKeys: deps.googleOpaqueReferenceKeys,
     pushReferences: googleReviewPushReferences,

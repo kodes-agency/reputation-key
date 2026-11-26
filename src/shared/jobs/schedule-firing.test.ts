@@ -18,16 +18,10 @@ describe('isScheduleFiring', () => {
     ).toBe(true)
   })
 
-  it('recognises a legacy repeat firing by its stable job id', () => {
-    expect(isScheduleFiring(job({ id: 'health-check-recurring' }))).toBe(true)
-    expect(
-      isScheduleFiring(job({ id: '17', opts: { jobId: 'health-check-recurring' } })),
-    ).toBe(true)
-  })
-
   it('treats on-demand work as not a firing, whatever its id', () => {
     expect(isScheduleFiring(job({ id: '1196' }))).toBe(false)
     expect(isScheduleFiring(job({ id: 'ai-trend-schedule-1' }))).toBe(false)
+    expect(isScheduleFiring(job({ id: 'health-check-recurring' }))).toBe(false)
     expect(isScheduleFiring(job({}))).toBe(false)
   })
 })
@@ -42,9 +36,6 @@ describe('executionKindOf', () => {
 
   it('classifies a job read back from a retained BullMQ set the same way', () => {
     expect(executionKindOf({ repeatJobKey: 'health-check-recurring' })).toBe('schedule')
-    expect(executionKindOf({ opts: { jobId: 'health-check-recurring' } })).toBe(
-      'schedule',
-    )
     expect(executionKindOf({})).toBe('worker')
   })
 })
