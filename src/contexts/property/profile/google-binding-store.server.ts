@@ -287,7 +287,6 @@ export const createPropertyGoogleBindingStore = (
       if (existingReceipt) {
         return replayReceipt(existingReceipt, 'relinked', input.propertyId)
       }
-      let event: ReturnType<typeof propertyGoogleBindingChanged> | undefined
       try {
         const result = await trace('property.googleBinding.relink', () =>
           db.transaction(async (tx) => {
@@ -371,7 +370,7 @@ export const createPropertyGoogleBindingStore = (
               profileVersion: nextProfileVersion,
               now: input.now,
             })
-            event = propertyGoogleBindingChanged({
+            const event = propertyGoogleBindingChanged({
               organizationId: input.organizationId,
               propertyId: input.propertyId,
               connectionId: input.connectionId,
@@ -407,7 +406,6 @@ export const createPropertyGoogleBindingStore = (
     },
 
     disconnect: async (input) => {
-      let event: ReturnType<typeof propertyGoogleBindingChanged> | undefined
       const result = await trace('property.googleBinding.disconnect', () =>
         db.transaction(async (tx) => {
           const current = await lockPropertyRow(
@@ -461,7 +459,7 @@ export const createPropertyGoogleBindingStore = (
             },
             replyEffects,
           )
-          event = propertyGoogleBindingChanged({
+          const event = propertyGoogleBindingChanged({
             organizationId: input.organizationId,
             propertyId: input.propertyId,
             connectionId: googleConnectionId(current.googleConnectionId),
