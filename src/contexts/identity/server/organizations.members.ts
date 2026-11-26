@@ -36,7 +36,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
         })
         // `emailSent: false` means the invitation exists but its email did
         // not go out; the Members page says so and offers Resend.
-        return await identityPublicApi.requests.inviteMember(data, actor)
+        return identityPublicApi.requests.inviteMember(data, actor)
       },
     ),
   )

@@ -1,3 +1,4 @@
+import { reviewContentJoin } from './review-content-join'
 import { reviewSourceContents } from './schema/review-source-content.schema'
 // Whether a stored Review can still be refreshed by a sync.
 //
@@ -33,14 +34,7 @@ export function reviewIsSyncable() {
     new QueryBuilder()
       .select({ one: sql`1` })
       .from(properties)
-      .innerJoin(
-        reviewSourceContents,
-        and(
-          eq(reviewSourceContents.reviewId, reviews.id),
-          eq(reviewSourceContents.organizationId, reviews.organizationId),
-          eq(reviewSourceContents.propertyId, reviews.propertyId),
-        ),
-      )
+      .innerJoin(reviewSourceContents, reviewContentJoin)
       .innerJoin(
         googleConnections,
         eq(googleConnections.id, properties.googleConnectionId),

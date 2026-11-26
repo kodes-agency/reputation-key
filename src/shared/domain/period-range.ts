@@ -5,6 +5,12 @@
 // (Date#setHours etc.); tenant-timezone day bucketing is dayKeyInTimezone's
 // job.
 
+import {
+  exactInstantsForWallClock,
+  propertyWallClockAt,
+  type PropertyWallClock,
+} from '#/shared/domain/property-calendar'
+
 export type PeriodPreset =
   | 'today'
   | 'this_week'
@@ -86,59 +92,9 @@ export function dayKeyInTimezone(date: Date, timezone: string): string {
 
 export type CalendarPeriodKind = 'weekly' | 'monthly' | 'quarterly'
 
-type WallClock = Readonly<{
-  year: number
-  month: number
-  day: number
-  hour: number
-  minute: number
-  second: number
-}>
-
-const wallClockFormatters = new Map<string, Intl.DateTimeFormat>()
-
-function wallClockAt(date: Date, timezone: string): WallClock {
-  let formatter = wallClockFormatters.get(timezone)
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      second: 'numeric',
-      hourCycle: 'h23',
-    })
-    wallClockFormatters.set(timezone, formatter)
-  }
-  const parts = formatter.formatToParts(date)
-  const value = (type: Intl.DateTimeFormatPartTypes): number =>
-    Number(parts.find((part) => part.type === type)!.value)
-  return {
-    year: value('year'),
-    month: value('month'),
-    day: value('day'),
-    hour: value('hour') % 24,
-    minute: value('minute'),
-    second: value('second'),
-  }
-}
-
 /** The day of the month (1-31) on the calendar of an IANA timezone. */
 export function localDayOfMonth(date: Date, timezone: string): number {
-  return wallClockAt(date, timezone).day
-}
-
-function sameWallClock(left: WallClock, right: WallClock): boolean {
-  return (
-    left.year === right.year &&
-    left.month === right.month &&
-    left.day === right.day &&
-    left.hour === right.hour &&
-    left.minute === right.minute &&
-    left.second === right.second
-  )
+  return propertyWallClockAt(date, timezone).day
 }
 
 /**
@@ -147,35 +103,9 @@ function sameWallClock(left: WallClock, right: WallClock): boolean {
  * Goal months it accepts that way, so the app must agree with it. A skipped
  * local time still throws rather than guess.
  */
-function wallClockToInstant(target: WallClock, timezone: string): Date {
-  const localEpoch = Date.UTC(
-    target.year,
-    target.month - 1,
-    target.day,
-    target.hour,
-    target.minute,
-    target.second,
-  )
-  const offsets = new Set<number>()
-  for (const hours of [-36, 0, 36]) {
-    const sample = new Date(localEpoch + hours * 3_600_000)
-    const local = wallClockAt(sample, timezone)
-    offsets.add(
-      Date.UTC(
-        local.year,
-        local.month - 1,
-        local.day,
-        local.hour,
-        local.minute,
-        local.second,
-      ) - sample.getTime(),
-    )
-  }
-  const exact = [...offsets]
-    .map((offset) => new Date(localEpoch - offset))
-    .filter((candidate) => sameWallClock(wallClockAt(candidate, timezone), target))
-    .sort((left, right) => right.getTime() - left.getTime())
-  if (exact[0]) return exact[0]
+function wallClockToInstant(target: PropertyWallClock, timezone: string): Date {
+  const latest = exactInstantsForWallClock(target, timezone).at(-1)
+  if (latest) return latest
   throw new RangeError(`Unresolvable calendar boundary in timezone ${timezone}`)
 }
 
@@ -185,7 +115,7 @@ export function calendarPeriodRange(
   timezone: string,
   kind: CalendarPeriodKind,
 ): Readonly<{ start: Date; end: Date }> {
-  const local = wallClockAt(now, timezone)
+  const local = propertyWallClockAt(now, timezone)
   const startDate = new Date(Date.UTC(local.year, local.month - 1, local.day))
   if (kind === 'weekly') {
     const day = startDate.getUTCDay()
@@ -199,13 +129,14 @@ export function calendarPeriodRange(
   const endDate = new Date(startDate)
   if (kind === 'weekly') endDate.setUTCDate(endDate.getUTCDate() + 7)
   else endDate.setUTCMonth(endDate.getUTCMonth() + (kind === 'quarterly' ? 3 : 1))
-  const boundary = (date: Date): WallClock => ({
+  const boundary = (date: Date): PropertyWallClock => ({
     year: date.getUTCFullYear(),
     month: date.getUTCMonth() + 1,
     day: date.getUTCDate(),
     hour: 0,
     minute: 0,
     second: 0,
+    millisecond: 0,
   })
   return {
     start: wallClockToInstant(boundary(startDate), timezone),

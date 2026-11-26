@@ -39,28 +39,9 @@ export type CompiledGoogleProviderRequest = Readonly<{
   admission: GoogleProviderAdmissionMetadata
 }>
 
-export type GoogleProviderRecoveryRule =
-  | 'safe_read_repeat'
-  | 'preserve_then_never_reexchange'
-  | 'renewable_single_flight_generation_cas'
-  | 'one_use_revoke_reconciliation'
-  | 'desired_state_readback'
-  | 'publication_observation'
-
 type GoogleProviderEgressPolicy = Readonly<{
   method: 'GET' | 'POST' | 'PUT' | 'PATCH'
   origin: (typeof GOOGLE_PROVIDER_PRODUCTION_ORIGINS)[number]
-  credential:
-    | 'none'
-    | 'access_token'
-    | 'authorization_code_pkce_client_secret'
-    | 'refresh_token_client_secret'
-    | 'revoke_token'
-  transport: 'authorized_gateway_mtls' | 'direct_fixed_trust_read'
-  repositoryState:
-    'gateway_wired' | 'gateway_wired_durable_recovery' | 'direct_fixed_trust_read'
-  recovery: GoogleProviderRecoveryRule
-  ownerModule: string
 }>
 
 export type GoogleProviderRoutePolicy = GoogleProviderEgressPolicy &
@@ -100,36 +81,18 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'account-management.accounts.list': Object.freeze({
     method: 'GET',
     origin: 'https://mybusinessaccountmanagement.googleapis.com',
-    credential: 'access_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'safe_read_repeat',
-    ownerModule:
-      'src/contexts/integration/imports/google-account-management.adapter.server.ts',
     ...DISCOVERY_POLICY,
     endpointClass: 'account-management' as const,
   }),
   'business-information.locations.list': Object.freeze({
     method: 'GET',
     origin: 'https://mybusinessbusinessinformation.googleapis.com',
-    credential: 'access_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'safe_read_repeat',
-    ownerModule:
-      'src/contexts/integration/imports/google-business-information.adapter.server.ts',
     ...DISCOVERY_POLICY,
     endpointClass: 'business-information' as const,
   }),
   'performance.fetch': Object.freeze({
     method: 'GET',
     origin: 'https://businessprofileperformance.googleapis.com',
-    credential: 'access_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'safe_read_repeat',
-    ownerModule:
-      'src/contexts/integration/performance/google-performance.adapter.server.ts',
     endpointClass: 'performance' as const,
     requestClass: 'performance' as const,
     maxRequestBytes: 0,
@@ -140,11 +103,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'oauth.token.exchange': Object.freeze({
     method: 'POST',
     origin: 'https://oauth2.googleapis.com',
-    credential: 'authorization_code_pkce_client_secret',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired_durable_recovery',
-    recovery: 'preserve_then_never_reexchange',
-    ownerModule: 'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     ...IDENTITY_POLICY,
     endpointClass: 'oauth-token' as const,
     maxResponseBytes: 64 * 1024,
@@ -152,11 +110,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'oauth.token.refresh': Object.freeze({
     method: 'POST',
     origin: 'https://oauth2.googleapis.com',
-    credential: 'refresh_token_client_secret',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'renewable_single_flight_generation_cas',
-    ownerModule: 'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     endpointClass: 'oauth-token' as const,
     requestClass: 'credential_refresh' as const,
     maxRequestBytes: 64 * 1024,
@@ -167,11 +120,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'oauth.jwks': Object.freeze({
     method: 'GET',
     origin: 'https://www.googleapis.com',
-    credential: 'none',
-    transport: 'direct_fixed_trust_read',
-    repositoryState: 'direct_fixed_trust_read',
-    recovery: 'safe_read_repeat',
-    ownerModule: 'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     ...IDENTITY_POLICY,
     endpointClass: 'oauth-jwks' as const,
     maxRequestBytes: 0,
@@ -179,11 +127,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'oauth.revoke': Object.freeze({
     method: 'POST',
     origin: 'https://oauth2.googleapis.com',
-    credential: 'revoke_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired_durable_recovery',
-    recovery: 'one_use_revoke_reconciliation',
-    ownerModule: 'src/contexts/integration/connections/google-oauth.adapter.server.ts',
     endpointClass: 'oauth-revoke' as const,
     requestClass: 'credential_cleanup' as const,
     maxRequestBytes: 64 * 1024,
@@ -194,12 +137,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'notifications.get': Object.freeze({
     method: 'GET',
     origin: 'https://mybusinessnotifications.googleapis.com',
-    credential: 'access_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'safe_read_repeat',
-    ownerModule:
-      'src/contexts/integration/connections/mybusiness-notifications.adapter.server.ts',
     endpointClass: 'notifications' as const,
     requestClass: 'notifications' as const,
     maxRequestBytes: 0,
@@ -210,12 +147,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'notifications.subscribe': Object.freeze({
     method: 'PATCH',
     origin: 'https://mybusinessnotifications.googleapis.com',
-    credential: 'access_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'desired_state_readback',
-    ownerModule:
-      'src/contexts/integration/connections/mybusiness-notifications.adapter.server.ts',
     endpointClass: 'notifications' as const,
     requestClass: 'notifications' as const,
     maxRequestBytes: 64 * 1024,
@@ -226,12 +157,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'notifications.unsubscribe': Object.freeze({
     method: 'PATCH',
     origin: 'https://mybusinessnotifications.googleapis.com',
-    credential: 'access_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'desired_state_readback',
-    ownerModule:
-      'src/contexts/integration/connections/mybusiness-notifications.adapter.server.ts',
     endpointClass: 'notifications' as const,
     requestClass: 'notifications' as const,
     maxRequestBytes: 64 * 1024,
@@ -242,24 +167,12 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'reviews.list': Object.freeze({
     method: 'GET',
     origin: 'https://mybusiness.googleapis.com',
-    credential: 'access_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'safe_read_repeat',
-    ownerModule:
-      'src/contexts/integration/review-sync/google-review-api.adapter.server.ts',
     ...REVIEWS_POLICY,
     maxRequestBytes: 0,
   }),
   'reviews.get': Object.freeze({
     method: 'GET',
     origin: 'https://mybusiness.googleapis.com',
-    credential: 'access_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'safe_read_repeat',
-    ownerModule:
-      'src/contexts/integration/review-sync/google-review-api.adapter.server.ts',
     ...REVIEWS_POLICY,
     maxRequestBytes: 0,
     maxResponseBytes: 64 * 1024,
@@ -267,12 +180,6 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'reviews.reply': Object.freeze({
     method: 'PUT',
     origin: 'https://mybusiness.googleapis.com',
-    credential: 'access_token',
-    transport: 'authorized_gateway_mtls',
-    repositoryState: 'gateway_wired',
-    recovery: 'publication_observation',
-    ownerModule:
-      'src/contexts/integration/review-sync/google-review-api.adapter.server.ts',
     ...REVIEWS_POLICY,
     maxResponseBytes: 64 * 1024,
     // Its own lane: see `google-reviews-write-v1` in quota-coordinator.ts.

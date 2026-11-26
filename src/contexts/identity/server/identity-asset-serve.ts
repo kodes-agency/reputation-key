@@ -14,8 +14,8 @@ import { getContainer } from '#/composition'
 import { StoredObjectTooLargeError } from '#/contexts/portal/public-api'
 import type { StoragePort } from '#/contexts/portal/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { ifNoneMatchMatches } from '#/shared/http/conditional-get'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import {
   MAX_UPLOAD_BYTES,
   parseIdentityAssetKey,

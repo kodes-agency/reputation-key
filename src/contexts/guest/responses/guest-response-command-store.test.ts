@@ -34,11 +34,9 @@ function response(): GuestResponse {
     integrityRevision: 1,
     integrityAssessedAt: NOW,
     rating: 2,
-    category: null,
     text: 'A private note that must never reach the journal.',
     responseConsent: true,
     textConsent: true,
-    mediaConsent: false,
     privateFeedbackThreshold: 3,
     experienceSnapshot: null,
     staffAttribution: null,
@@ -53,7 +51,6 @@ function response(): GuestResponse {
     moderatedAt: null,
     deletedAt: null,
     retentionDeadline: new Date('2028-11-08T11:00:00.000Z'),
-    schemaVersion: 1,
   }
 }
 

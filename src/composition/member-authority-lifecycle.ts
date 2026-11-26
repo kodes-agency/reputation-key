@@ -7,15 +7,14 @@
 // runtime) — never a repository — and provides the callback Identity runs
 // once a role change commits. A removal's releases run from its fact.
 //
-// WHY a deferred binding still exists: Identity is constructed before the three
-// downstream contexts, so the adapter cannot be built at the moment Identity
-// needs the callbacks. The difference from the previous `let x = throwing` pattern
-// is that the deferral is now a named, single-assignment seam whose unresolved
-// state is a documented error rather than a mutable module-order accident.
+// Identity is constructed before the three downstream contexts, so the adapter
+// cannot be built when Identity needs the callback. composition.ts hands Identity
+// a closure over the adapter const built after Inbox, like the Property and
+// Portal getters.
 
 import type { PropertyResponsibilityRuntime } from '#/contexts/property/responsibility/property-responsibility-runtime.server'
 import type { PortalResponsibilityRuntime } from '#/contexts/portal/responsibility/portal-responsibility-runtime.server'
-import type { InboxAssignmentRuntime } from '#/contexts/reputation/inbox/command-store.port.server'
+import type { InboxContextApi } from '#/contexts/reputation/build-inbox'
 import type { Clock } from '#/shared/domain/clock'
 import { organizationId, userId } from '#/shared/domain/ids'
 import {
@@ -24,7 +23,7 @@ import {
   type ResponsibleManagerEligibilityDeps,
 } from '#/shared/responsible-manager/responsible-manager-eligibility'
 
-type MemberAuthorityLifecycle = Readonly<{
+export type MemberAuthorityLifecycle = Readonly<{
   reconcileResponsibleManagerEligibility: (
     organizationId: string,
     userId: string,
@@ -36,7 +35,7 @@ export type MemberAuthorityLifecycleDeps = Readonly<{
   clock: Clock
   propertyResponsibility: PropertyResponsibilityRuntime
   portalResponsibility: PortalResponsibilityRuntime
-  inboxAssignments: InboxAssignmentRuntime
+  inboxAssignments: InboxContextApi['assignments']
   eligibility: ResponsibleManagerEligibilityDeps
 }>
 
@@ -100,50 +99,5 @@ export function createMemberAuthorityLifecycle(
 
   return Object.freeze({
     reconcileResponsibleManagerEligibility,
-  })
-}
-
-/**
- * One-shot deferred binding for a build-order seam.
- *
- * `port` is safe to hand to an upstream context immediately; calling it before
- * `provide` names the seam in the error instead of failing somewhere inside a
- * repository. `provide` refuses a second implementation so a container can
- * never end up with two competing member-authority lifecycles.
- */
-export type DeferredMemberAuthorityLifecycle = Readonly<{
-  port: MemberAuthorityLifecycle
-  provide: (implementation: MemberAuthorityLifecycle) => void
-}>
-
-export function createDeferredMemberAuthorityLifecycle(): DeferredMemberAuthorityLifecycle {
-  const bound: { implementation?: MemberAuthorityLifecycle } = {}
-  const resolve = (): MemberAuthorityLifecycle => {
-    if (!bound.implementation) {
-      throw new Error(
-        '[COMPOSITION] member authority lifecycle seam is not bound yet — the container is still composing',
-      )
-    }
-    return bound.implementation
-  }
-  return Object.freeze({
-    port: Object.freeze({
-      // Async so an unbound seam REJECTS rather than throwing synchronously —
-      // identical to the throwing placeholders this replaced, so every caller's
-      // error handling keeps working.
-      reconcileResponsibleManagerEligibility: async (
-        orgId: string,
-        memberId: string,
-        actorId: string,
-      ) => resolve().reconcileResponsibleManagerEligibility(orgId, memberId, actorId),
-    }),
-    provide: (implementation) => {
-      if (bound.implementation) {
-        throw new Error(
-          '[COMPOSITION] member authority lifecycle seam is already bound in this container',
-        )
-      }
-      bound.implementation = implementation
-    },
   })
 }

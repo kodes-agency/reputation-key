@@ -11,6 +11,13 @@ import { createReadReviewAnalysisEnrollmentReadiness } from './get-enrollment-re
 
 const ORGANIZATION_ID = organizationId('ai-enrollment-readiness')
 const PROPERTY_ID = propertyId('c4eff4df-b7bb-4b7a-88ea-596262f24256')
+const NOT_ENROLLED = {
+  analysing: false,
+  needsAttention: false,
+  verifiedThroughEpochMillis: null,
+}
+const ANALYSING = { ...NOT_ENROLLED, analysing: true }
+const NEEDS_ATTENTION = { ...NOT_ENROLLED, needsAttention: true }
 const LINEAGE_ID = '14e4d3ca-74c4-46ee-bf15-1dfd9435f1e9'
 
 const FENCE = {
@@ -155,7 +162,7 @@ describe('Review Analysis enrollment readiness', () => {
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
       }),
-    ).resolves.toEqual({ status: 'disabled' })
+    ).resolves.toEqual(NOT_ENROLLED)
   })
 
   it('names a missing durable trigger for the current authorization fence', async () => {
@@ -164,7 +171,7 @@ describe('Review Analysis enrollment readiness', () => {
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
       }),
-    ).resolves.toEqual({ status: 'preparing', reason: 'trigger_pending' })
+    ).resolves.toEqual(ANALYSING)
   })
 
   it('keeps a queued trigger visibly blocked while provider execution is dark', async () => {
@@ -173,10 +180,10 @@ describe('Review Analysis enrollment readiness', () => {
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
       }),
-    ).resolves.toEqual({ status: 'preparing', reason: 'runtime_blocked' })
+    ).resolves.toEqual(ANALYSING)
   })
 
-  it('names a complete over-ceiling snapshot and never reports it as runtime work', async () => {
+  it('keeps a complete over-ceiling snapshot analysing without consulting the runtime', async () => {
     await expect(
       read({
         controlsEnabled: false,
@@ -187,12 +194,7 @@ describe('Review Analysis enrollment readiness', () => {
           assistedApprovalRequired: true,
         }),
       })({ organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }),
-    ).resolves.toEqual({
-      status: 'preparing',
-      reason: 'assisted_approval_required',
-      snapshotRevisionCount: 10_001,
-      safetyCeiling: 10_000,
-    })
+    ).resolves.toEqual(ANALYSING)
   })
 
   it('returns the durable exact-revision caught-up evidence', async () => {
@@ -211,18 +213,7 @@ describe('Review Analysis enrollment readiness', () => {
           terminalReason: 'eligible_revision_set_caught_up',
         }),
       })({ organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }),
-    ).resolves.toEqual({
-      status: 'ready',
-      fence: FENCE,
-      snapshotRevisionCount: 1,
-      snapshotRevisionSetDigest: 'b'.repeat(64),
-      snapshotCapturedAtEpochMillis: 5,
-      enrolledRevisionCount: 42,
-      eligibleRevisionCount: 39,
-      caughtUpAnalysisSequence: 71,
-      revisionSetDigest: digest,
-      caughtUpAtEpochMillis: caughtUpAt,
-    })
+    ).resolves.toEqual({ ...NOT_ENROLLED, verifiedThroughEpochMillis: caughtUpAt })
   })
 
   it('proves a zero-review property ready with the canonical empty-set digest', async () => {
@@ -243,18 +234,7 @@ describe('Review Analysis enrollment readiness', () => {
           terminalReason: 'eligible_revision_set_caught_up',
         }),
       })({ organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }),
-    ).resolves.toEqual({
-      status: 'ready',
-      fence: FENCE,
-      snapshotRevisionCount: 0,
-      snapshotRevisionSetDigest: EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
-      snapshotCapturedAtEpochMillis: 5,
-      enrolledRevisionCount: 0,
-      eligibleRevisionCount: 0,
-      caughtUpAnalysisSequence: FENCE.analysisStartSequence,
-      revisionSetDigest: EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
-      caughtUpAtEpochMillis: caughtUpAt,
-    })
+    ).resolves.toEqual({ ...NOT_ENROLLED, verifiedThroughEpochMillis: caughtUpAt })
   })
 
   it.each([
@@ -315,11 +295,32 @@ describe('Review Analysis enrollment readiness', () => {
           ...override,
         }),
       })({ organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }),
-    ).resolves.toEqual({
-      status: 'unavailable',
-      reason: 'enrollment_stalled',
-    })
+    ).resolves.toEqual(NEEDS_ATTENTION)
   })
+
+  it.each(['queued', 'running'] as const)(
+    'reports a %s enrollment as analysing',
+    async (state) => {
+      await expect(
+        read({ currentEvidence: evidence({ state }) })({
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+        }),
+      ).resolves.toEqual(ANALYSING)
+    },
+  )
+
+  it.each(['superseded', 'stalled'] as const)(
+    'reports a %s enrollment as needing attention',
+    async (state) => {
+      await expect(
+        read({ currentEvidence: evidence({ state }) })({
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+        }),
+      ).resolves.toEqual(NEEDS_ATTENTION)
+    },
+  )
 
   it('never treats a previous authorization generation as current readiness', async () => {
     await expect(
@@ -333,6 +334,6 @@ describe('Review Analysis enrollment readiness', () => {
           caughtUpAtEpochMillis: 10,
         }),
       })({ organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }),
-    ).resolves.toEqual({ status: 'preparing', reason: 'trigger_pending' })
+    ).resolves.toEqual(ANALYSING)
   })
 })

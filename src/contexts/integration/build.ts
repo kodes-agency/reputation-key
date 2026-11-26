@@ -349,7 +349,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         resume: connectionCommands.resume,
         disconnect: connectionCommands.disconnect,
         list: connectionCommands.list,
-        findStatus,
       }),
       oauth: Object.freeze({
         getAuthorizationUrl: connections.oauth.authorizationUrl,
@@ -371,7 +370,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       subscribeNotifications: gbpSubscribeBackfill,
       imports: Object.freeze({
         inspectBacklog: googleImportLifecycle.inspectBacklog,
-        sweep: googleImportLifecycle.sweep,
       }),
     }),
     webhook: Object.freeze({ handleNotification: gbpNotificationHandler }),

@@ -6,7 +6,7 @@ import { organizationId, propertyId, reviewId, type ReviewId } from '#/shared/do
 import type { Review } from '../domain/review-types'
 import { reviewCreated } from '../domain/review-events'
 import { createAtomicReviewCommandStore } from '../reviews/review-command-store.server'
-import { eraseReviewSourceContent } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 import { createGoogleReplyObservationStore } from '../publication/google-reply-observation-store.server'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.server'

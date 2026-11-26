@@ -194,7 +194,6 @@ describe('draftReply', () => {
       actorUserId: USER_ID,
       text: 'Suggested reply',
       provenanceToken: 'signed-token',
-      now: NOW,
     })
     expect(deps.replyRepo.createDraft).not.toHaveBeenCalled()
     expect(deps.replyRepo.saveDraft).not.toHaveBeenCalled()

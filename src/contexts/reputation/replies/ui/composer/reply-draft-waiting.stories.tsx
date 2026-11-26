@@ -145,7 +145,6 @@ function Harness({
             onSaveDraft={save}
             onSubmit={submit}
             onListTemplates={async () => ({
-              profile: null,
               groups: [],
               recommendedTemplateId: null,
               recommendedReason: null,

@@ -11,6 +11,7 @@ import {
   contentExpiresAtFromFetch,
   contentRefreshDueThreshold,
   createGoogleSourceContentPolicy,
+  isContentEligibleForRead,
 } from './source-content-policy'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -34,5 +35,17 @@ describe('Google source content policy', () => {
     // The upper bound of the refresh scan, measured from now and not from any
     // one row's fetch: a row is due once its expiry falls inside the window.
     expect(contentRefreshDueThreshold(NOW)).toEqual(new Date(NOW.getTime() + 5 * DAY_MS))
+  })
+})
+
+describe('isContentEligibleForRead', () => {
+  it('serves content only while a fetch clock exists and has not passed', () => {
+    expect(isContentEligibleForRead(new Date(NOW.getTime() + 1), NOW)).toBe(true)
+    expect(isContentEligibleForRead(NOW, NOW)).toBe(false)
+    expect(isContentEligibleForRead(new Date(NOW.getTime() - 1), NOW)).toBe(false)
+  })
+
+  it('fails closed for a row with no clock', () => {
+    expect(isContentEligibleForRead(null, NOW)).toBe(false)
   })
 })

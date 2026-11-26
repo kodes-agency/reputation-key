@@ -123,6 +123,7 @@ import {
 import { createPlatformOrganizationStore } from './operator/platform-organization-store.server'
 import { createPostgresPolicyAdminCommandStore } from './policy/policy-admin-command-store.server'
 import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
+import { createAssignedPortalLookup } from './staff/assigned-portal-lookup.server'
 import { createPrimaryStaffAttributionResolver } from './staff/primary-staff-attribution.server'
 import { createOrganizationCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {
@@ -142,7 +143,6 @@ import { createMerchantAiOverviewReader } from './consent/merchant-ai-overview.r
 import { createStandingRenewalStore } from './consent/merchant-ai-standing-renewal.repository.server'
 import { createProductUpdatesStore } from './updates/product-updates.repository.server'
 import { hasActiveGrant } from './members/property-access-grant-repository.server'
-import { createStaffParticipationRepository } from './staff/staff-participation-repository.server'
 import { createStaffAccountStore } from './staff/staff-account-store.server'
 
 type AuthSession = Readonly<{
@@ -423,8 +423,8 @@ function buildMerchantAi(
 
 function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock'>) {
   const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
-  const { listAssignedPortalIds } = createStaffParticipationRepository(deps.db)
   const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
+  const listAssignedPortalIds = createAssignedPortalLookup(deps.db)
 
   return Object.freeze({
     getAccessiblePropertyIds: async (

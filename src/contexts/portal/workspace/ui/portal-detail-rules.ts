@@ -144,12 +144,12 @@ export function canReviewAndPublish(
 
 /**
  * The header's "N changes not live" note, or null when the saved draft matches
- * what guests see. The count is the read's own list; when the list is empty the
+ * what guests see. The count is the read's own; when it is zero the
  * note still says something is waiting, which is all the flag knows.
  */
 export function describePendingChanges(history: PortalPublicationHistory): string | null {
   if (!history.hasPendingChanges) return null
-  const count = history.pendingChanges.length
+  const count = history.pendingChangeCount
   if (count === 0) return 'Changes not live'
   return count === 1 ? '1 change not live' : `${count} changes not live`
 }
@@ -161,7 +161,7 @@ export function describePendingChanges(history: PortalPublicationHistory): strin
  */
 export function countPendingChanges(history: PortalPublicationHistory): number {
   if (!history.hasPendingChanges) return 0
-  return Math.max(1, history.pendingChanges.length)
+  return Math.max(1, history.pendingChangeCount)
 }
 
 /**

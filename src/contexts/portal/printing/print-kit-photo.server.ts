@@ -1,7 +1,7 @@
 // The pictures of an Immersive print, made ready for the page (design
 // spec §4, §6.1 and §6.2): the photo decoded small to be read (the
 // ground, the kicker, every word's contrast), the photo cropped to cover its
-// box with bleed under the manager's framing, its scrims baked into its pixels
+// box with bleed, its scrims baked into its pixels
 // and its fade (and any clearing) as a soft mask, and the logo read for how
 // light its ink is. Baked, a scrim darkens the photo only and fades with it: it
 // never prints over the bare ground. `sharp` decodes, imported when a
@@ -13,7 +13,7 @@ import {
   printMedianInkLuminance,
 } from '#/shared/domain/portal-print-brand'
 import type { PrintScenePhoto } from '#/shared/domain/portal-print-contrast'
-import { printPhotoCrop, type PrintFraming } from '#/shared/domain/portal-print-framing'
+import { printPhotoCrop } from '#/shared/domain/portal-print-framing'
 import { printScrimAlpha } from '#/shared/domain/portal-print-photo-clear'
 import {
   PRINT_DETAIL_WIDTH_PX,
@@ -35,11 +35,8 @@ const JPEG_QUALITY = 88
 /** EXIF orientations 5 to 8 turn the picture a quarter: its width and height swap. */
 const QUARTER_TURN_ORIENTATION = 5
 
-/** The photo as a face reads it: its sample, its own size as shown upright, its focal point and framing. */
-export async function scenePhoto(
-  photo: PrintKitPhoto,
-  framing: PrintFraming,
-): Promise<PrintScenePhoto> {
+/** The photo as a face reads it: its sample, its own size as shown upright, its focal point. */
+export async function scenePhoto(photo: PrintKitPhoto): Promise<PrintScenePhoto> {
   const sharp = await sharpFactory()
   const meta = await sharp(photo.bytes).metadata()
   const { width = 0, height = 0, orientation = 1 } = meta
@@ -60,7 +57,6 @@ export async function scenePhoto(
     detail: await decode(Math.min(PRINT_DETAIL_WIDTH_PX, turned ? height : width)),
     pixels: { widthPx: turned ? height : width, heightPx: turned ? width : height },
     focal: { x: photo.focalX, y: photo.focalY },
-    framing,
   }
 }
 
@@ -96,7 +92,7 @@ function bakeScrims(
 
 /**
  * The photo as the face draws it: the part that covers the art's cover box
- * under the framing, at up to 300 dpi (never more pixels than the crop has),
+ * at up to 300 dpi (never more pixels than the crop has),
  * darkened by the art's scrims, as a JPEG whose soft mask is the fade times any
  * clearing.
  */
@@ -115,7 +111,6 @@ export async function photoImage(
     scene.pixels,
     { widthPt: coverWidth, heightPt: coverHeight },
     scene.focal,
-    scene.framing,
   )
   const { widthPx, heightPx } = scene.pixels
   const left = clampInt(crop.leftPx, 0, widthPx - 1)

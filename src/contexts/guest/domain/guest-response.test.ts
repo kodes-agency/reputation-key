@@ -368,7 +368,6 @@ describe('GuestResponse', () => {
         expect(result.deletedAt).toEqual(NOW)
         expect(result.rating).toBeNull()
         expect(result.text).toBeNull()
-        expect(result.mediaConsent).toBe(false)
       }
     })
 

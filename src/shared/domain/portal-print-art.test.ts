@@ -4,7 +4,7 @@ import type { PrintFace } from './portal-print'
 import { printArt, type PrintArt } from './portal-print-art'
 import { choosePrintTile } from './portal-print-code'
 import { layoutPrintFace } from './portal-print-face'
-import { printFraming, printFramingOf, printPhotoCrop } from './portal-print-framing'
+import { printPhotoCrop } from './portal-print-framing'
 import type { PrintImmersivePalette } from './portal-print-immersive'
 import { rampAlpha, washAlpha } from './portal-print-layers'
 import { inPt, mmPt } from './portal-print-measures'
@@ -279,7 +279,7 @@ describe('printPhotoCrop', () => {
   const photo = { widthPx: 1200, heightPx: 600 }
   const cover = { widthPt: 300, heightPt: 300 }
 
-  it('covers the box at the focal point at zoom 1', () => {
+  it('covers the box at the focal point', () => {
     expect(printPhotoCrop(photo, cover, { x: 0.5, y: 0.5 })).toEqual({
       leftPx: 300,
       topPx: 0,
@@ -287,33 +287,6 @@ describe('printPhotoCrop', () => {
       heightPx: 600,
     })
     expect(printPhotoCrop(photo, cover, { x: 0, y: 0.5 }).leftPx).toBe(0)
-  })
-
-  it('zooms into the window the anchor names, at a lower resolution', () => {
-    const crop = printPhotoCrop(
-      photo,
-      cover,
-      { x: 0.5, y: 0.5 },
-      printFraming({ zoom: 1.5, anchorX: 0.5, anchorY: 1 }),
-    )
-    expect(crop.widthPx).toBeCloseTo(400)
-    expect(crop.topPx + crop.heightPx).toBeCloseTo(600)
-    expect(crop.leftPx).toBeCloseTo(400)
-  })
-
-  it('holds a framing to its ranges and finds a face’s own', () => {
-    expect(printFraming({ zoom: 3, anchorX: -1, anchorY: Number.NaN })).toEqual({
-      zoom: 1.5,
-      anchorX: 0,
-      anchorY: 0,
-    })
-    const framings = { 'counter-wide': { zoom: 1.35, anchorX: 0, anchorY: 1 } }
-    expect(printFramingOf(framings, { piece: 'counter', orientation: 'wide' }).zoom).toBe(
-      1.35,
-    )
-    expect(
-      printFramingOf(framings, { piece: 'counter', orientation: 'upright' }).zoom,
-    ).toBe(1)
   })
 })
 

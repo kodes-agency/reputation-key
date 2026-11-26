@@ -1,19 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
-  canTransitionGoalMonthlyResult,
   canTransitionGoalProgram,
   evaluateGoalMetric,
   firstFullMonthlyPeriodAtOrAfter,
-  goalAssignmentMonthlyKey,
-  goalAssignmentsOverlap,
   isCompleteMonthlyPeriod,
   isGoalResultReadyToClose,
   minimumSampleForGoalMetric,
   parseGoalSubject,
   validateGoalTarget,
-  type GoalAssignmentWindow,
   type GoalMetric,
-  type GoalSubject,
 } from './goal-program'
 
 describe('canonical Goal Program contract', () => {
@@ -216,13 +211,6 @@ describe('canonical Goal Program contract', () => {
     ] as const)('denies Goal Program %s → %s', (from, to) => {
       expect(canTransitionGoalProgram(from, to)).toBe(false)
     })
-
-    it('requires Open → Reconciling → Closed', () => {
-      expect(canTransitionGoalMonthlyResult('open', 'reconciling')).toBe(true)
-      expect(canTransitionGoalMonthlyResult('reconciling', 'closed')).toBe(true)
-      expect(canTransitionGoalMonthlyResult('open', 'closed')).toBe(false)
-      expect(canTransitionGoalMonthlyResult('closed', 'reconciling')).toBe(false)
-    })
   })
 
   describe('subjects and assignments', () => {
@@ -242,72 +230,6 @@ describe('canonical Goal Program contract', () => {
       expect(parseGoalSubject('person', 'staff-1', 'property-1')).toBeNull()
       expect(parseGoalSubject('team', 'team-1', 'property-1')).toBeNull()
       expect(parseGoalSubject('property', 'property-2', 'property-1')).toBeNull()
-    })
-
-    const assignment = (
-      subject: GoalSubject,
-      metric: GoalMetric,
-      from: string,
-      to: string | null,
-    ): GoalAssignmentWindow => ({
-      subject,
-      metric,
-      effectiveFrom: new Date(from),
-      effectiveTo: to ? new Date(to) : null,
-    })
-
-    it('detects overlapping half-open assignments for one subject and metric', () => {
-      const first = assignment(
-        { kind: 'portal', portalId: 'portal-1' },
-        'qualified_scans',
-        '2026-01-01T00:00:00.000Z',
-        '2026-03-01T00:00:00.000Z',
-      )
-      expect(
-        goalAssignmentsOverlap(
-          first,
-          assignment(
-            { kind: 'portal', portalId: 'portal-1' },
-            'qualified_scans',
-            '2026-02-01T00:00:00.000Z',
-            null,
-          ),
-        ),
-      ).toBe(true)
-      expect(
-        goalAssignmentsOverlap(
-          first,
-          assignment(
-            { kind: 'portal', portalId: 'portal-1' },
-            'qualified_scans',
-            '2026-03-01T00:00:00.000Z',
-            null,
-          ),
-        ),
-      ).toBe(false)
-      expect(
-        goalAssignmentsOverlap(
-          first,
-          assignment(
-            { kind: 'portal', portalId: 'portal-1' },
-            'portal_rating_count',
-            '2026-02-01T00:00:00.000Z',
-            null,
-          ),
-        ),
-      ).toBe(false)
-    })
-
-    it('builds a stable monthly overlap identity', () => {
-      expect(
-        goalAssignmentMonthlyKey(
-          {
-            subject: { kind: 'portal_group', portalGroupId: 'group-1' },
-            metric: 'portal_rating_average',
-          },
-          new Date('2026-04-01T00:00:00.000Z'),
-        ),
-      ).toBe('portal_group:group-1:portal_rating_average:2026-04-01T00:00:00.000Z')
     })
   })
 

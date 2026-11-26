@@ -46,11 +46,8 @@ export default defineConfig({
   // Runs after `webServer` is up (Playwright starts plugins, then global
   // setups) and before any test: the checkout-identity proof.
   globalSetup: './e2e/storybook-metrics/storybook-server.ts',
-  // One story load, its play, every layer its pane can open and its
-  // disclosures. Each of those actions has its own 5 s timeout
-  // (`layer-probe.ts`) and stops 20 s before this one, so a regression is a
-  // printed line rather than this timeout. The margin is for a cold dev
-  // server, which transforms a story file on its first request.
+  // One story load, its play and the pane measurement. The margin is for a
+  // cold dev server, which transforms a story file on its first request.
   timeout: 90_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,

@@ -59,7 +59,6 @@ const switchedOff = contactRequestLifecycle({
   isEnabled: () => false,
   clock: () => new Date('2026-08-26T09:00:00.000Z'),
   idGen: () => 'id',
-  revealAuditIdGen: () => 'audit',
 })
 
 // Withdrawal and expiry stay open while the switch is off: only the response
@@ -72,7 +71,6 @@ const withdrawalOpen = contactRequestLifecycle({
   isEnabled: () => false,
   clock: () => new Date('2026-08-26T09:00:00.000Z'),
   idGen: () => 'id',
-  revealAuditIdGen: () => 'audit',
 })
 
 const SCREEN_AND_ENDPOINT_FILES = [

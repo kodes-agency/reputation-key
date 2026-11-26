@@ -73,7 +73,6 @@ const property = buildPropertyContext({
     getAssignedPortals: async () => [],
   },
   identityManagerFacts: { listActiveManagers },
-  logger: { info: () => {}, warn: () => {} },
 })
 
 const admin = buildTestAuthContext({

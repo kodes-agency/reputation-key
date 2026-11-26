@@ -20,6 +20,3 @@ export type StaffPublicApi = Readonly<{
     ctx: AuthContext,
   ) => Promise<ReadonlyArray<PortalId>>
 }>
-
-export type { StaffParticipation } from '../domain/staff-participation'
-export type { PortalResponsibility } from '../domain/portal-responsibility'

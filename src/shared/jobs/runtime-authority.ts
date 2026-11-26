@@ -10,7 +10,7 @@
  */
 
 export type JobRuntimePosture = 'active' | 'quarantined'
-export type JobRoutingOwnership = 'cell_local' | 'global_control_plane'
+export type JobRoutingOwnership = 'cell_local'
 export type JobOperationalQueue = 'default' | 'background' | 'domain-events'
 
 export type JobOperationalContract = Readonly<{
@@ -127,13 +127,9 @@ function assertJobOperationalContract(contract: JobOperationalContract): void {
   assertNonEmpty(contract.owner, 'owner', contract.jobName)
   assertNonEmpty(contract.processor, 'processor', contract.jobName)
   assertNonEmpty(contract.action, 'action', contract.jobName)
-  assertNonEmpty(contract.runbook, 'runbook', contract.jobName)
   assertNonEmpty(contract.repairCommand, 'repair command', contract.jobName)
   if (contract.posture === 'active' && contract.repairCommand === 'none') {
     throw new Error(`${contract.jobName}: active work requires a repair command`)
-  }
-  if (!isPositiveSafeInteger(contract.maximumQueueAgeMs)) {
-    throw new Error(`${contract.jobName}: maximum queue age must be positive`)
   }
   if (!isPositiveSafeInteger(contract.retryAttempts)) {
     throw new Error(`${contract.jobName}: retry attempts must be positive`)
@@ -143,12 +139,6 @@ function assertJobOperationalContract(contract: JobOperationalContract): void {
   }
   if (!isPositiveSafeInteger(contract.timeoutMs)) {
     throw new Error(`${contract.jobName}: timeout must be positive`)
-  }
-  if (!isPositiveSafeInteger(contract.workerConcurrency)) {
-    throw new Error(`${contract.jobName}: worker concurrency must be positive`)
-  }
-  if (!/^completed:[1-9]\d*,failed:[1-9]\d*$/.test(contract.retention)) {
-    throw new Error(`${contract.jobName}: retention is malformed`)
   }
   if (
     contract.lastSuccessObjectiveMs !== null &&

@@ -29,7 +29,7 @@ export type PortalPrintKitLook = Readonly<{
   fieldColour: string
   /** The photo, with its stored size in pixels: the Share tab tells how sharp it prints from it. */
   hero: ImmersiveHeroReference | null
-  logo: Readonly<{ assetId: string }> | null
+  logo: ImmersiveBrandProfile['logo']
 }>
 
 export type PortalPrintKitContext = Readonly<{
@@ -44,18 +44,6 @@ export type PortalPrintKitContext = Readonly<{
 
 const written = (text: string | null | undefined): text is string =>
   text !== null && text !== undefined && text.trim() !== ''
-
-/** The photo as the print keeps it: what the file crops and what the Share tab measures. */
-const heroOf = (hero: ImmersiveHeroReference | null): PortalPrintKitLook['hero'] =>
-  hero === null
-    ? null
-    : {
-        assetId: hero.assetId,
-        width: hero.width,
-        height: hero.height,
-        focalX: hero.focalX,
-        focalY: hero.focalY,
-      }
 
 /**
  * The title of each language, a language with none written reading the primary
@@ -82,8 +70,8 @@ const lookOf = (brand: ImmersiveBrandProfile): PortalPrintKitLook => ({
   propertyName: brand.displayName,
   accentColour: brand.accentColour,
   fieldColour: brand.fieldColour,
-  hero: heroOf(brand.hero),
-  logo: brand.logo ? { assetId: brand.logo.assetId } : null,
+  hero: brand.hero,
+  logo: brand.logo,
 })
 
 /** The print from what the live Immersive Hub version published. */

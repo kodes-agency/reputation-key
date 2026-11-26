@@ -1,0 +1,137 @@
+// Dashboard context — readDashboard against real PostgreSQL: the Dashboard
+// Repository's Review reads decide what the reader sees. The reader's
+// access to the Property is checked by the callers (see get-property-overview).
+
+import { describe, it, expect } from 'vitest'
+import { organizationId, propertyId } from '#/shared/domain/ids'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
+import { getDb } from '#/shared/db'
+import { createServingStats } from '#/contexts/reputation/reviews/serving-stats.server'
+import {
+  recordedDashboardRepo,
+  seedDashboardProperty,
+  seedDashboardReview,
+} from '../infrastructure/testing/dashboard-fixtures'
+import { readDashboard } from './read-dashboard.server'
+
+const MS_PER_DAY = 86_400_000
+const NOW = new Date('2025-06-15T12:00:00.000Z')
+
+const ORG_A = organizationId('org-dashboard-data-a')
+const ORG_B = organizationId('org-dashboard-data-b')
+// File-unique ids: the dashboard repository test seeds its own rows under the shared ones.
+const PROP_A = propertyId('da5b0a00-0000-0000-0000-000000000001')
+const ADMIN = buildTestAuthContext({ organizationId: ORG_A, role: 'AccountAdmin' })
+
+const { getPool } = setupIntegrationDb({
+  orgA: ORG_A,
+  orgB: ORG_B,
+  tables: ['replies', 'reviews', 'properties'],
+})
+
+const last30Days = () => ({
+  organizationId: ORG_A,
+  propertyId: PROP_A,
+  startDate: new Date(NOW.getTime() - 30 * MS_PER_DAY),
+  endDate: NOW,
+  timeRange: '30d' as const,
+  propertyTimezone: 'UTC',
+})
+
+const seedProperty = () =>
+  seedDashboardProperty(getPool(), { id: PROP_A, organizationId: ORG_A })
+
+const review = (daysBefore: number, rating: number, publishedReplyAfterHours?: number) =>
+  seedDashboardReview(getPool(), {
+    organizationId: ORG_A,
+    propertyId: PROP_A,
+    now: NOW,
+    rating,
+    daysBefore,
+    publishedReplyAfterHours,
+  })
+
+/** Three Reviews in the window (two replied), one in the prior window. */
+const seedActivity = async () => {
+  await seedProperty()
+  await review(1, 5, 6)
+  await review(2, 4, 48)
+  await review(3, 3)
+  await review(40, 2)
+}
+
+describe('readDashboard', () => {
+  it('composes all dashboard sections from the stored Reviews and Replies', async () => {
+    await seedActivity()
+    const { repo, calls } = recordedDashboardRepo(
+      createServingStats({ db: getDb(), clock: () => NOW }),
+    )
+
+    const result = await readDashboard(repo, last30Days(), ADMIN)
+
+    expect(result.kpis.reviews).toEqual({ value: 3, priorValue: 1, trend: 200 })
+    expect(result.ratingDistribution).toEqual(
+      [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars >= 3 ? 1 : 0 })),
+    )
+    expect(result.ratingTrend).toHaveLength(3)
+    expect(result.reviewVolume.map((point) => point.count)).toEqual([1, 1, 1])
+    expect(result.replyPerformance).toEqual({ replyRate: 66.67, avgReplyHours: 27 })
+    expect(result.recentReviews.map((r) => r.rating)).toEqual([5, 4, 3, 2])
+    expect(result.recentReviews.map((r) => r.replyStatus)).toEqual([
+      'published',
+      'published',
+      'none',
+      'none',
+    ])
+
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        'getKPIs',
+        'getRatingDistribution',
+        'getRatingTrend',
+        'getReviewVolume',
+        'getReplyPerformance',
+        'getRecentReviews',
+      ]),
+    )
+  })
+
+  it('does not present all-time KPI self-comparisons as real trends', async () => {
+    await seedActivity()
+    const { repo } = recordedDashboardRepo(
+      createServingStats({ db: getDb(), clock: () => NOW }),
+    )
+
+    const result = await readDashboard(
+      repo,
+      { ...last30Days(), startDate: new Date(0), timeRange: 'all' },
+      ADMIN,
+    )
+
+    expect(result.kpis.reviews.value).toBe(4)
+    expect(result.kpis.reviews.trend).toBeNull()
+    expect(result.kpis.avgRating.comparison).toBeNull()
+  })
+})
+
+describe('readDashboard reply redaction', () => {
+  it('hides reply state from a reader who may not manage replies', async () => {
+    await seedActivity()
+    const { repo } = recordedDashboardRepo(
+      createServingStats({ db: getDb(), clock: () => NOW }),
+    )
+    const readOnly = createScopedAuthContext({
+      organizationId: ORG_A,
+      userId: ADMIN.userId,
+      permissions: [['dashboard.read', 'organization']],
+    })
+
+    const result = await readDashboard(repo, last30Days(), readOnly)
+
+    expect(result.replyPerformance).toEqual({ replyRate: 0, avgReplyHours: null })
+    expect(result.recentReviews.every((r) => r.replyStatus === 'none')).toBe(true)
+    expect(result.kpis.reviews.value).toBe(3)
+  })
+})

@@ -98,7 +98,6 @@ import {
 } from './monthly-goals/goal-program-maintenance-job.server'
 
 import { createDashboardRepository } from './property-overview/dashboard-repository.server'
-import { createMetricStatsAdapter } from './property-overview/metric-stats.adapter.server'
 import { createAttentionSignalsAdapter } from './property-overview/attention-signals.adapter.server'
 import { createFleetOverviewProjectionAdapter } from './property-overview/fleet-overview-projection.adapter.server'
 import type { DashboardPropertyAccess } from './property-overview/dashboard-property-access.server'
@@ -503,10 +502,9 @@ function buildDashboardModule(
     properties: createRatingGoalPropertyFactsReader(input.db),
     google: metricApi,
   }
-  const metricStats = createMetricStatsAdapter(input.db)
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
   const fleetOverviewProjection = createFleetOverviewProjectionAdapter(input.db)
-  const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
+  const dashboardRepo = createDashboardRepository(input.reviewServingStats)
   const propertySetupRepo = createPropertySetupRepository(input.db)
   // Identity's current grants: every Property-scoped dashboard read asks them
   // about its own reader before it reads (application/dashboard-property-access).

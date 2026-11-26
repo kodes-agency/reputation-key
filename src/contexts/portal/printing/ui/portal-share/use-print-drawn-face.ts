@@ -13,7 +13,6 @@ import type { PrintFace } from '#/shared/domain/portal-print'
 import type { PrintTile } from '#/shared/domain/portal-print-code'
 import { printPaperColours } from '#/shared/domain/portal-print-colours'
 import type { PrintFaceLayout } from '#/shared/domain/portal-print-face'
-import type { PrintFraming } from '#/shared/domain/portal-print-framing'
 import type { PrintImmersiveFace } from '#/shared/domain/portal-print-immersive-face'
 import type { PrintBleed } from '#/shared/domain/portal-print-layers'
 import { paperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
@@ -29,8 +28,6 @@ export type PrintDrawnFaceInput = Readonly<{
   blocks: readonly PrintTextBlock[]
   look: PortalPrintKitView['look']
   tile: PrintTile
-  /** How the manager framed the photo for this piece and orientation (Immersive). */
-  framing?: PrintFraming
   /** How far the art runs past the trim, on a sheet; none on its own. */
   bleed?: PrintBleed
 }>
@@ -50,7 +47,7 @@ export type PrintDrawnFace =
     }>
 
 export function usePrintDrawnFace(input: PrintDrawnFaceInput): PrintDrawnFace {
-  const { face, blocks, look, tile, framing, bleed } = input
+  const { face, blocks, look, tile, bleed } = input
   const immersive = face.look === 'immersive'
   const photo = usePreviewPhoto(immersive ? look.heroUrl : null)
   const logo = usePreviewLogo(look.logoUrl)
@@ -79,11 +76,10 @@ export function usePrintDrawnFace(input: PrintDrawnFaceInput): PrintDrawnFace {
         tile,
         logo: logoRead,
         photo: read,
-        framing,
         bleed,
       }),
       photo: read,
       waiting: photo.status === 'reading',
     }
-  }, [immersive, face, blocks, look, tile, logoRead, read, framing, bleed, photo.status])
+  }, [immersive, face, blocks, look, tile, logoRead, read, bleed, photo.status])
 }

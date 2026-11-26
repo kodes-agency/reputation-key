@@ -52,7 +52,7 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
     }
 
     it('files private feedback rated 1 as Low ratings, in the app and by email', async () => {
-      const result = await insertNotification(deps)(feedback(1))
+      const { notification: result } = await insertNotification(deps)(feedback(1))
 
       expect(result).toMatchObject({
         category: 'low_ratings',
@@ -63,7 +63,7 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
     })
 
     it('tells about 3-star feedback in the app only, since email is 2 stars or lower by default', async () => {
-      const result = await insertNotification(deps)(feedback(3))
+      const { notification: result } = await insertNotification(deps)(feedback(3))
 
       expect(result).toMatchObject({ category: 'low_ratings' })
       // Above the email threshold, the reader's New reviews answer stands:
@@ -72,7 +72,9 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
     })
 
     it('files feedback above both thresholds as an arrival, off by default', async () => {
-      await expect(insertNotification(deps)(feedback(4))).resolves.toBeNull()
+      await expect(insertNotification(deps)(feedback(4))).resolves.toMatchObject({
+        notification: null,
+      })
 
       expect(await noticeRows()).toHaveLength(0)
     })
@@ -80,7 +82,7 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
     it("routes a Google review by Review's eligible rating and keeps only the outcome", async () => {
       vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
 
-      const result = await insertNotification(deps)(review)
+      const { notification: result } = await insertNotification(deps)(review)
 
       expect(deps.ratingForRouting).toHaveBeenCalledWith({
         organizationId: ORG_ID,
@@ -103,7 +105,9 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
     it('stores nothing for a Google review above both thresholds, like any new review', async () => {
       vi.mocked(deps.ratingForRouting).mockResolvedValue(4)
 
-      await expect(insertNotification(deps)(review)).resolves.toBeNull()
+      await expect(insertNotification(deps)(review)).resolves.toMatchObject({
+        notification: null,
+      })
 
       expect(await noticeRows()).toHaveLength(0)
     })
@@ -112,7 +116,9 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
       // Past Google's cache window the eligible read answers null.
       vi.mocked(deps.ratingForRouting).mockResolvedValue(null)
 
-      await expect(insertNotification(deps)(review)).resolves.toBeNull()
+      await expect(insertNotification(deps)(review)).resolves.toMatchObject({
+        notification: null,
+      })
 
       expect(await noticeRows()).toHaveLength(0)
     })
@@ -124,7 +130,9 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
       vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
 
       // Not shown in the app, so nothing comes back to display.
-      await expect(insertNotification(deps)(review)).resolves.toBeNull()
+      await expect(insertNotification(deps)(review)).resolves.toMatchObject({
+        notification: null,
+      })
 
       expect(await noticeRows()).toEqual([
         expect.objectContaining({
@@ -148,7 +156,7 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
       )
       vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
 
-      const result = await insertNotification(deps)(review)
+      const { notification: result } = await insertNotification(deps)(review)
 
       expect(result).toMatchObject({ category: 'arrivals' })
       expect(result?.payload).not.toHaveProperty('lowRating')
@@ -164,7 +172,7 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
       )
       vi.mocked(deps.ratingForRouting).mockResolvedValue(3)
 
-      const result = await insertNotification(deps)(review)
+      const { notification: result } = await insertNotification(deps)(review)
 
       expect(result).toMatchObject({ category: 'low_ratings' })
       expect(await emailRows()).toEqual([
@@ -189,14 +197,14 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
           cadence: 'daily',
         })
         vi.mocked(deps.ratingForRouting).mockResolvedValue(4)
-        const waiting = (await insertNotification(deps)(edit('edit-1')))!
+        const waiting = (await insertNotification(deps)(edit('edit-1'))).notification!
         expect(waiting).toMatchObject({ category: 'arrivals' })
         expect(await emailRows()).toEqual([
           expect.objectContaining({ status: 'pending' }),
         ])
         vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
 
-        const result = await insertNotification(deps)(edit('edit-2'))
+        const { notification: result } = await insertNotification(deps)(edit('edit-2'))
 
         expect(result).toMatchObject({
           category: 'low_ratings',
@@ -219,10 +227,10 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
 
       it('folds an edit that stays on the same side of the threshold', async () => {
         vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
-        const waiting = (await insertNotification(deps)(edit('edit-1')))!
+        const waiting = (await insertNotification(deps)(edit('edit-1'))).notification!
         vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
 
-        const result = await insertNotification(deps)(edit('edit-2'))
+        const { notification: result } = await insertNotification(deps)(edit('edit-2'))
 
         expect(result).toMatchObject({
           id: waiting.id,
@@ -241,7 +249,9 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
       )
       vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
 
-      await expect(insertNotification(deps)(review)).resolves.toBeNull()
+      await expect(insertNotification(deps)(review)).resolves.toMatchObject({
+        notification: null,
+      })
     })
 
     it('does not look for a rating on a notice that has none', async () => {
@@ -278,7 +288,7 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
         }) as never)
 
         try {
-          const notice = await insertNotification(deps)({
+          const { notification: notice } = await insertNotification(deps)({
             ...input,
             type,
             payload: {

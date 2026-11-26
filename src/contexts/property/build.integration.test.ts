@@ -76,10 +76,6 @@ const GOOGLE_BINDING_MEMBERS = Object.keys({
 >
 const runtimeDeps = {
   outboxRepo: { insertReceipt: async () => undefined },
-  logger: {
-    info: () => {},
-    warn: () => {},
-  },
 } as const
 
 const ORG_A = organizationId('org-property-build-a')
@@ -140,7 +136,6 @@ describe('PropertyPublicApi', () => {
     // this build, and never reach the request-facing surface.
     expect(Object.keys(context).sort()).toEqual([
       'googleBinding',
-      'internal',
       'publicApi',
       'responsibility',
       'worker',
@@ -149,7 +144,6 @@ describe('PropertyPublicApi', () => {
     expect(Object.keys(context.publicApi)).not.toContain(
       'organizationLifecycleContributor',
     )
-    expect(Object.keys(context.internal).sort()).toEqual(['repos', 'useCases'])
     expect(context.worker.registerOutboxConsumers).toBeTypeOf('function')
     expect(context.publicApi.management).toBeDefined()
   })

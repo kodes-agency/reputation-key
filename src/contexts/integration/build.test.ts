@@ -142,7 +142,6 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
       'oauth',
       'performance',
     ])
-    expect(ctx.worker.sweepImportLifecycle).toBe(ctx.maintenance.imports.sweep)
     expect(Object.keys(ctx.worker).sort()).toEqual([
       'completeImportsForRestore',
       'processImportItem',

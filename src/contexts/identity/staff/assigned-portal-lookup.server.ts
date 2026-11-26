@@ -13,20 +13,17 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 
-export const createStaffParticipationRepository = (db: Database) => ({
-  /**
-   * The Portals a user is the primary responsible for, through their personal
-   * Portal. The user's login link must be current and unambiguous (no other
-   * current link claims the same participant or the same user), and the
-   * participant, participation and responsibility must all be open now.
-   */
-  listAssignedPortalIds: async (
-    organizationId: OrganizationId,
-    userId: UserId,
-    propertyId: PropertyId,
-  ) => {
+/**
+ * The Portals a user is the primary responsible for, through their personal
+ * Portal. The user's login link counts only while it is current and no other
+ * current link claims the same participant or user; the participation counts
+ * only while it is active and started.
+ */
+export const createAssignedPortalLookup =
+  (db: Database) =>
+  async (organizationId: OrganizationId, userId: UserId, propertyId: PropertyId) => {
     const rows = await db
-      .selectDistinct({ portalId: portalResponsibilities.portalId })
+      .select({ portalId: portalResponsibilities.portalId })
       .from(staffParticipations)
       .innerJoin(
         staffParticipants,
@@ -61,8 +58,8 @@ export const createStaffParticipationRepository = (db: Database) => ({
         and(
           eq(portalResponsibilities.organizationId, staffParticipations.organizationId),
           eq(portalResponsibilities.staffParticipationId, staffParticipations.id),
-          eq(portalResponsibilities.portalId, staffParticipations.personalPortalId),
           eq(portalResponsibilities.kind, 'primary'),
+          eq(portalResponsibilities.portalId, staffParticipations.personalPortalId),
           isNull(portalResponsibilities.effectiveTo),
         ),
       )
@@ -78,5 +75,4 @@ export const createStaffParticipationRepository = (db: Database) => ({
         ),
       )
     return rows.map((row) => portalId(row.portalId))
-  },
-})
+  }

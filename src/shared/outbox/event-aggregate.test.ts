@@ -4,7 +4,8 @@ import { inboxResponseTargetPolicyChanged } from '#/contexts/reputation/domain/i
 import { userId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from './event-adapter'
-import { buildConsumerEvent } from './envelope'
+import { getEventDescriptor } from '#/shared/events/registry.server'
+import { resolveEventAggregate } from '#/shared/events/descriptor'
 
 const now = new Date('2026-11-07T12:00:00.000Z')
 const portalUpdated: DomainEvent = {
@@ -25,22 +26,14 @@ describe('declared event aggregates', () => {
     expect(toOutboxEvent(portalUpdated).sourceAggregateId).toBe('portal-1')
   })
 
-  it('delivers the declared Portal type while preserving a stored aggregate id', () => {
+  it('declares the Portal type for a Portal update', () => {
     const row = toOutboxEvent(portalUpdated)
-    const envelope = buildConsumerEvent({
-      id: portalUpdated.eventId,
-      eventType: row.eventType,
-      eventVersion: row.eventVersion ?? 1,
-      payload: row.payload,
-      organizationId: row.organizationId,
-      propertyId: row.propertyId ?? null,
-      sourceContext: row.sourceContext,
-      // Historical rows retain the aggregate id committed by their writer.
-      sourceAggregateId: 'persisted-aggregate',
-      recordedAt: now,
-    })
-    expect(envelope.aggregateType).toBe('portal')
-    expect(envelope.sourceAggregateId).toBe('persisted-aggregate')
+    const aggregate = resolveEventAggregate(
+      getEventDescriptor(row.eventType, row.eventVersion ?? 1),
+      row.payload as object,
+      portalUpdated.eventId,
+    )
+    expect(aggregate).toEqual({ id: 'portal-1', type: 'portal' })
   })
 
   it.each(['organization', 'property'] as const)(
@@ -69,19 +62,12 @@ describe('declared event aggregates', () => {
   ])(
     'retains the aggregate type of historical Inbox creation payload %j',
     (payload, type) => {
-      const envelope = buildConsumerEvent({
-        id: 'event-1',
-        eventType: 'inbox.inbox_item.created',
-        eventVersion: 1,
+      const aggregate = resolveEventAggregate(
+        getEventDescriptor('inbox.inbox_item.created', 1),
         payload,
-        organizationId: 'organization-1',
-        propertyId: null,
-        sourceContext: 'inbox',
-        sourceAggregateId: 'stored-aggregate',
-        recordedAt: now,
-      })
-      expect(envelope.aggregateType).toBe(type)
-      expect(envelope.sourceAggregateId).toBe('stored-aggregate')
+        'event-1',
+      )
+      expect(aggregate.type).toBe(type)
     },
   )
 })

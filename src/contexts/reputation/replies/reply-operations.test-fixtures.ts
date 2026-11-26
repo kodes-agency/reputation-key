@@ -330,7 +330,7 @@ export function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
     },
     propertyPublicationScope: {
       getPublicationScope: vi.fn(async () => ({
-        lifecycle: 'active' as const,
+        lifecycleState: 'active' as const,
         sourceEpoch: 0,
       })),
     },

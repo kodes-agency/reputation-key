@@ -159,7 +159,6 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     isEnabled: () => deps.contactRequests.enabled && contactRequestKey !== undefined,
     clock: deps.clock,
     idGen: deps.idGen,
-    revealAuditIdGen: deps.idGen,
   })
   const contactRequestRetention = contactRequestRetentionSweep({
     repo: createContactRequestRetentionRepository(deps.db),
