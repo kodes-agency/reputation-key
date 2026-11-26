@@ -1,10 +1,6 @@
 // Story data for Review & publish: board 05's portal (two changes since version
 // 5, a German link label missing, four languages) and the variations a manager
 // can meet. Built on the preview fixtures so the phones draw the same page.
-
-// Story data for Review & publish: board 05's portal (two changes since version
-// 5, a German link label missing, four languages) and the variations a manager
-// can meet. Built on the preview fixtures so the phones draw the same page.
 import type {
   PortalReview,
   ReviewCheck,

@@ -1,10 +1,6 @@
 // The sentence for a page edit. The page-edit ledger names the part of the page
 // (`PortalPageEditSubject`) and keeps wording only where wording changed, so a
 // line quotes the guests' own words when it has them and never invents any.
-
-// The sentence for a page edit. The page-edit ledger names the part of the page
-// (`PortalPageEditSubject`) and keeps wording only where wording changed, so a
-// line quotes the guests' own words when it has them and never invents any.
 import type {
   PortalHistoryDetail,
   PortalPageEditSubject,

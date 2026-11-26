@@ -6,15 +6,6 @@
 // that belong to a version under that version's publish line on All (so a
 // version is one line, not a line and thirty edits), and tucks the oldest
 // versions behind one "N earlier versions" line.
-
-// The rows of the History ledger: the merged read, joined with the versions
-// read, shaped for one filter. Pure.
-//
-// The History read says what happened; the versions read says which version an
-// edit went into and what each version added. This joins them, folds the edits
-// that belong to a version under that version's publish line on All (so a
-// version is one line, not a line and thirty edits), and tucks the oldest
-// versions behind one "N earlier versions" line.
 import type {
   PortalHistoryEntry,
   PortalVersionItem,

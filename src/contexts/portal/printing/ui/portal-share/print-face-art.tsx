@@ -8,17 +8,6 @@
 // Inline styles on purpose, as the rest of the print preview's: the first-paint
 // stylesheet is built by scanning `src/` for class names, and a measure this
 // specific would land in every page's.
-
-// A face in the Share tab's preview (design spec §2 to §8), drawn
-// from the layout the PDF draws from (`usePrintDrawnFace`). Paper is plain
-// paper with the words, marks and code on it (`PrintFaceParts`); Immersive
-// paints its photo fade under them (`PrintImmersiveArt`). While the photo
-// decodes, an Immersive face shows its words on the plain ground; a photo the
-// browser cannot read is drawn as the no-photo ground.
-//
-// Inline styles on purpose, as the rest of the print preview's: the first-paint
-// stylesheet is built by scanning `src/` for class names, and a measure this
-// specific would land in every page's.
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { PrintBleed } from '#/shared/domain/portal-print-layers'
 import { PRINT_KIT_PAPER } from '#/shared/domain/portal-print-kit-palette'

@@ -5,14 +5,6 @@
 // parts a portal has of its own, the status line counts only the portals the
 // look still reaches, and the preview lays the draft over the parts the chosen
 // portal follows. Pure, so the wording is pinned by tests.
-
-// Which parts of the Property look reach which portal (ADR 0070). A portal
-// follows the look until an Account Admin gives it its own photo, colours, or name
-// and logo, and each of the three is followed on its own. The Property look page
-// has to say, per portal, what an edit there still reaches: the rail names the
-// parts a portal has of its own, the status line counts only the portals the
-// look still reaches, and the preview lays the draft over the parts the chosen
-// portal follows. Pure, so the wording is pinned by tests.
 import {
   PROPERTY_LOOK_SOURCES,
   facetReachesPortal,

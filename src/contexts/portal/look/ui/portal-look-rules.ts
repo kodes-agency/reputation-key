@@ -3,12 +3,6 @@
 // sends. Pure, so the rules and the wording are pinned by tests. Which surface the
 // section shows is `portal-look-surface.ts`, which the section reads without the
 // editor's code.
-
-// What a portal's own look editor decides without a screen: the words for what the
-// portal follows, the languages and descriptions of its photo, and what each write
-// sends. Pure, so the rules and the wording are pinned by tests. Which surface the
-// section shows is `portal-look-surface.ts`, which the section reads without the
-// editor's code.
 import {
   PROPERTY_LOOK_SOURCES,
   type PortalLookColoursInput,

@@ -4,13 +4,6 @@
 // Pure: the page draws the pieces. A blocked check is one the server would
 // refuse the publication on, so every blocked line says what to do about it; a
 // warning says what guests would read instead and that publishing can go on.
-
-// The checks of Review & publish as sentences. The review read says which gates
-// stand in the way (a blocked check), which findings only deserve a note (a
-// warning) and which passed; this decides the words and where each is fixed.
-// Pure: the page draws the pieces. A blocked check is one the server would
-// refuse the publication on, so every blocked line says what to do about it; a
-// warning says what guests would read instead and that publishing can go on.
 import { plural } from '#/shared/format/format'
 import type {
   MissingPortalText,

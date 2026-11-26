@@ -10,19 +10,6 @@
 //
 // The preview cannot read a logo's alpha either, so its drawing is the whole
 // image, at the picture's own proportions once it has loaded.
-
-// A face in the Share tab's preview, laid out by the function the PDF
-// lays it out with (`layoutPrintFace`): the same planner, the same long-copy
-// step, the same second-language form. The preview cannot measure the guest
-// fonts, so it estimates them: advances from the width tables
-// (`portal-print-kit-text-widths.ts`) and each line's reach above and below its
-// baseline from its characters' (`print-ink-estimates.ts`), both erring
-// large, so a line's ink box is never smaller than the file's. Its faces
-// therefore crowd no less than the file's: the preview takes a long-copy step no
-// later and never sets a line larger.
-//
-// The preview cannot read a logo's alpha either, so its drawing is the whole
-// image, at the picture's own proportions once it has loaded.
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import type { PrintFace } from '#/shared/domain/portal-print'
