@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { getDb } from '#/shared/db'
 import { toPublicPortalLoaderData } from '#/contexts/guest/page/public-portal.contracts'
-import { printKitFileName } from '#/shared/domain/portal-print-kit'
 import { printDocumentTitle, printFileName } from '#/shared/domain/portal-print-how-to'
 import type { Portal } from '../domain/types'
 import type { PortalPublicationSnapshot } from '../domain/portal-publication-snapshot'
@@ -113,10 +112,6 @@ async function expectPersonalPortalNameStaysPrivate(
   )
   const metadata = {
     kitTitle: `${print.portalName} counter card`,
-    kitFile: printKitFileName(print.portalName, 'counter_card', ['en'], {
-      style: 'paper',
-      paper: 'letter',
-    }),
     finalTitle: printDocumentTitle(print.portalName, 'counter'),
     finalFile: printFileName(print.portalName, {
       piece: 'counter',

@@ -8,7 +8,6 @@ import {
   logoNeedsPaperPlate,
   paperLogoPlate,
   paperPrintKitPalette,
-  printKitPalette,
 } from './portal-print-kit-palette'
 
 // The spec's section 3.3: what the design boards compute for the tweak's four accents.
@@ -197,15 +196,7 @@ describe('the contrast floors, for any accent', () => {
   })
 })
 
-describe('printKitPalette', () => {
-  it('hands back the palette of the style asked for', () => {
-    expect(printKitPalette('#EAD6A8', null, 'paper').style).toBe('paper')
-    expect(printKitPalette('#EAD6A8', null, 'immersive').style).toBe('immersive')
-    expect(printKitPalette('#EAD6A8', '#15110D', 'immersive')).toEqual(
-      immersivePrintKitPalette('#EAD6A8', '#15110D'),
-    )
-  })
-
+describe('immersivePrintKitPalette', () => {
   it('uses the look’s field when it has one, and derives one when it has none', () => {
     expect(immersivePrintKitPalette('#EAD6A8', '#15110D').field).toBe('#15110D')
     expect(immersivePrintKitPalette('#EAD6A8', null).field).toBe('#16130E')
