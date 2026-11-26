@@ -20,11 +20,10 @@ import { buildIntegrationContext } from './build'
 import { createGoogleConnectionsRuntime } from './connections/connections-runtime.server'
 import type { GoogleAuthorizedProviderExecutor } from './provider/google-client.port.server'
 import type { GoogleImportReferenceStore } from './imports/durable-import-reference-store.port.server'
-import type { GoogleImportContentAuthorizer } from './imports/google-import-command-authorizer.server'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import type { PerformanceContentAuthorizer } from './performance/google-performance-authorizer.server'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { OAuthStateHandleService } from './application/oauth-state-handle'
+import type { OAuthCallbackAbuseGate } from './connections/oauth-callback-abuse-gate.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import type { ExecutionDecision } from '#/shared/auth/execution-policy'
@@ -62,14 +61,19 @@ const CONFIG = {
   pubsubNotificationTypes: 'NEW_REVIEW',
 }
 
+const refuseContent = async () => ({ ok: false, code: 'runtime_unavailable' }) as const
+
+const inertAbuseGate: OAuthCallbackAbuseGate = Object.freeze({
+  admitPreState: async () => ({ ok: true }) as const,
+  admitResolvedTenant: async () => ({ ok: true }) as const,
+})
+
 function buildDeps(overrides: {
   googleOAuth?: ReturnType<typeof createInMemoryGoogleOAuthPort>
   googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
   googleImportReferences?: GoogleImportReferenceStore
-  authorizeGoogleImportContent?: GoogleImportContentAuthorizer
   propertyBindingApi?: PropertyGoogleBindingPublicApi
   googleImportReplayKeys?: ReturnType<typeof createVersionedHmacKeyring>
-  authorizeGooglePerformanceContent?: PerformanceContentAuthorizer
   googlePerformancePrincipalKeys?: ReturnType<typeof createVersionedHmacKeyring>
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   oauthStateHandles?: OAuthStateHandleService
@@ -90,6 +94,11 @@ function buildDeps(overrides: {
     providerEndpoints: ENDPOINTS,
     config: CONFIG,
     oauthStateHandles: {} as unknown as OAuthStateHandleService,
+    oauthCallbackAbuseGate: inertAbuseGate,
+    authorizeGoogleImportContent: refuseContent,
+    authorizeGoogleReviewSyncContent: refuseContent,
+    authorizeGoogleReplyPublicationContent: refuseContent,
+    authorizeGooglePerformanceContent: refuseContent,
     ...overrides,
   }
 }
@@ -110,7 +119,7 @@ function connectionsDeps(overrides: {
     googleDisconnectRevokeStore: undefined,
     authorizeGoogleOAuthProviderCall: undefined,
     oauthStateHandles: deps.oauthStateHandles,
-    oauthCallbackAbuseGate: undefined,
+    oauthCallbackAbuseGate: deps.oauthCallbackAbuseGate,
     googleRefreshCoordination: undefined,
   }
 }
@@ -167,10 +176,6 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
         googleAuthorizedProviderExecutor:
           {} as unknown as GoogleAuthorizedProviderExecutor,
         googleImportReferences: {} as unknown as GoogleImportReferenceStore,
-        authorizeGoogleImportContent: async () => ({
-          ok: false,
-          code: 'runtime_unavailable',
-        }),
         propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
         googleImportReplayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
@@ -195,10 +200,6 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
         propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
         googleAuthorizedProviderExecutor:
           {} as unknown as GoogleAuthorizedProviderExecutor,
-        authorizeGooglePerformanceContent: async () => ({
-          ok: false,
-          code: 'runtime_unavailable',
-        }),
         googlePerformancePrincipalKeys: createVersionedHmacKeyring(
           `v1:${'22'.repeat(32)}`,
         ),
@@ -210,10 +211,6 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
         propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
         googleAuthorizedProviderExecutor:
           {} as unknown as GoogleAuthorizedProviderExecutor,
-        authorizeGooglePerformanceContent: async () => ({
-          ok: false,
-          code: 'runtime_unavailable',
-        }),
         googlePerformancePrincipalKeys: createVersionedHmacKeyring(
           `v1:${'22'.repeat(32)}`,
         ),
@@ -301,10 +298,6 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
         googleAuthorizedProviderExecutor:
           {} as unknown as GoogleAuthorizedProviderExecutor,
         googleImportReferences: {} as unknown as GoogleImportReferenceStore,
-        authorizeGoogleImportContent: async () => ({
-          ok: false,
-          code: 'runtime_unavailable',
-        }),
         propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
         googleImportReplayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),

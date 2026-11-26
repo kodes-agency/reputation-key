@@ -155,6 +155,7 @@ async function setup() {
     encryption,
     clock,
     logger: createMockLogger(),
+    cancelGoogleImportsForConnection: async () => undefined,
   })
   const refreshAtProvider = vi.fn(async () => {
     throw integrationError('reauthorization_required', 'Synthetic revoked grant')

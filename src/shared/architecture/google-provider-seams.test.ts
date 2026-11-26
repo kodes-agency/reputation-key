@@ -68,7 +68,9 @@ describe('Google provider authority wiring', () => {
     )
     expect(notificationWiring).toContain('createSingle401RefreshExecutor')
     expect(notificationWiring).toContain('createMyBusinessNotificationsAdapter')
-    expect(notificationWiring).toContain('authorization_unavailable')
+    expect(notificationWiring).toContain(
+      'authorizeProviderCall: authority.authorizeProviderCall',
+    )
     expect(notificationWiring).toContain('manageNotifications({')
     expect(notificationWiring).toContain('notifications,')
     expect(notificationWiring).not.toContain('createGoogleAccountManagementAdapter')

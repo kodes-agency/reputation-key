@@ -125,18 +125,18 @@ type IntegrationContextDeps = Readonly<{
   googleDisconnectRevokeStore?: GoogleDisconnectRevokeStore
   authorizeGoogleOAuthProviderCall?: GoogleOAuthProviderCallAuthorizer
   googleImportReferences?: GoogleImportReferenceStore
-  authorizeGoogleImportContent?: GoogleImportContentAuthorizer
-  authorizeGoogleReviewSyncContent?: GoogleReviewSyncContentAuthorizer
-  authorizeGoogleReplyPublicationContent?: GoogleReplyPublicationContentAuthorizer
+  authorizeGoogleImportContent: GoogleImportContentAuthorizer
+  authorizeGoogleReviewSyncContent: GoogleReviewSyncContentAuthorizer
+  authorizeGoogleReplyPublicationContent: GoogleReplyPublicationContentAuthorizer
   googleImportReplayKeys?: VersionedHmacKeyring
-  authorizeGooglePerformanceContent?: PerformanceContentAuthorizer
+  authorizeGooglePerformanceContent: PerformanceContentAuthorizer
   googlePerformancePrincipalKeys?: VersionedHmacKeyring
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   providerEphemeralStore?: ProviderEphemeralStore
   googleOpaqueReferenceKeys?: VersionedHmacKeyring
   googleReviewCursorStore?: GoogleReviewCursorStore
-  oauthStateHandles?: OAuthStateHandleService
-  oauthCallbackAbuseGate?: OAuthCallbackAbuseGate
+  oauthStateHandles: OAuthStateHandleService
+  oauthCallbackAbuseGate: OAuthCallbackAbuseGate
   /** Redis-backed, renewable and generation-fenced refresh coordination. */
   googleRefreshCoordination?: GoogleRefreshCoordination
 }>
@@ -282,9 +282,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     })
   const connectionCommands = connections.commands({
     unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
-    cancelImportsForConnection: async (organizationIdValue, connectionId) => {
-      await googleImportLifecycle.cancelConnection(organizationIdValue, connectionId)
-    },
+    cancelImportsForConnection: googleImportLifecycle.cancelConnection,
   })
 
   const findStatus = async (
