@@ -156,7 +156,7 @@ export const createReviewRepository = (
   },
 
   hasCurrentReplyForAi: (input) => hasCurrentReplyForAi(db, input),
-  readReplyStateRevision: async (organizationId, reviewId) => {
+  readReplyStateRevision: async ({ organizationId, reviewId }) => {
     return trace('review.readReplyStateRevision', async () => {
       const [row] = await db
         .select({ replyStateRevision: reviews.replyStateRevision })

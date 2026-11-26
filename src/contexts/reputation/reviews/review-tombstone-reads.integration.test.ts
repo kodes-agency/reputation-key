@@ -274,14 +274,7 @@ describe.sequential('the callers of those reads', () => {
   })
 
   it('the AI review source reports not_found for an erased Review', async () => {
-    const source = createAiReviewSource({
-      hasCurrentReplyForAi: async () => false,
-      findById: repo.findById,
-      readForAi: repo.readForAi,
-      readTrendPopulation: repo.readTrendPopulation,
-      assertCurrentForAi: repo.assertCurrentForAi,
-      readReplyStateRevision: repo.readReplyStateRevision,
-    })
+    const source = createAiReviewSource(repo)
 
     await expect(
       source.readCurrentSource({ organizationId: ORG, reviewId: LEGACY_TOMBSTONE }),

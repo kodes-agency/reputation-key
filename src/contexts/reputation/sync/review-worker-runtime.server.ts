@@ -124,17 +124,7 @@ export async function registerReviewWorkerJobs(
     acknowledgeImportSync: (data) => acceptGoogleImportSync(input.db, data),
     runTargetedFetch: input.runTargetedFetch,
     propertySourceEpoch: input.propertySourceEpoch,
-    enqueueContinuation: async (data, options) => {
-      await input.reviewQueue.addSyncJob(
-        data,
-        options === undefined
-          ? undefined
-          : {
-              ...(options.delayMs === undefined ? {} : { delayMs: options.delayMs }),
-              ...(options.jobId === undefined ? {} : { jobId: options.jobId }),
-            },
-      )
-    },
+    enqueueContinuation: input.reviewQueue.addSyncJob,
     runHeadCheck: createRunReviewHeadCheck({
       googleReviewApi: input.googleReviewApi,
       repository: createReviewHeadCheckRepository(input.db),

@@ -489,14 +489,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     }),
   }
 
-  const aiReviewSource = createAiReviewSource({
-    findById: reviewRepo.findById,
-    readForAi: reviewRepo.readForAi,
-    readTrendPopulation: reviewRepo.readTrendPopulation,
-    assertCurrentForAi: reviewRepo.assertCurrentForAi,
-    readReplyStateRevision: reviewRepo.readReplyStateRevision,
-    hasCurrentReplyForAi: reviewRepo.hasCurrentReplyForAi,
-  })
+  const aiReviewSource = createAiReviewSource(reviewRepo)
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) =>
     registerReplyPublicationConsumers(consumerRegistry, {
       replyRepo,
