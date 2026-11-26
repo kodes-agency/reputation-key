@@ -110,7 +110,6 @@ import { createIdentityAssetReferences } from './images/identity-asset-reference
 import { deliverBetaFeedback } from './feedback/beta-feedback-sentry-delivery.adapter.server'
 import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
 import { findBetaFeedbackReporterContact } from './infrastructure/beta-feedback-reporter'
-import { createAssignedPortalLookup } from './staff/assigned-portal-lookup.server'
 import { createAtomicIdentityCommandStore } from './members/identity-command-store.server'
 import { isAcceptanceAdmitted } from './members/invitation-admission.adapter.server'
 import { createInvitationReadModel } from './members/invitation-read-model.server'
@@ -124,6 +123,7 @@ import {
 import { createPlatformOrganizationStore } from './operator/platform-organization-store.server'
 import { createPostgresPolicyAdminCommandStore } from './policy/policy-admin-command-store.server'
 import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
+import { createAssignedPortalLookup } from './staff/assigned-portal-lookup.server'
 import { createPrimaryStaffAttributionResolver } from './staff/primary-staff-attribution.server'
 import { createOrganizationCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {

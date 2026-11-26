@@ -4,7 +4,7 @@
 
 import type { DashboardRepository } from './dashboard-repository.port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import type { DashboardData } from '../domain/dashboard-types'
 import { hideReplyWorkflowWithoutAuthority } from '../domain/reply-workflow-redaction'
@@ -17,7 +17,6 @@ import {
 export type ReadDashboardInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
-  portalId: PortalId | null
   startDate: Date
   endDate: Date
   timeRange: TimeRangePreset
@@ -29,15 +28,8 @@ export const readDashboard = async (
   input: ReadDashboardInput,
   ctx: AuthContext,
 ): Promise<DashboardData> => {
-  const {
-    organizationId,
-    propertyId,
-    portalId,
-    startDate,
-    endDate,
-    timeRange,
-    propertyTimezone,
-  } = input
+  const { organizationId, propertyId, startDate, endDate, timeRange, propertyTimezone } =
+    input
   const comparisonPeriod = priorPeriodDates(
     timeRange,
     startDate,
@@ -45,8 +37,7 @@ export const readDashboard = async (
     propertyTimezone,
   )
 
-  // Fire all queries in parallel — engagementFunnel is conditional but still
-  // runs concurrently when portalId is set, avoiding a sequential round-trip.
+  // Fire all queries in parallel.
   const [
     kpis,
     ratingDistribution,
@@ -54,12 +45,10 @@ export const readDashboard = async (
     reviewVolume,
     replyPerformance,
     recentReviews,
-    engagementFunnel,
   ] = await Promise.all([
     repo.getKPIs({
       organizationId,
       propertyId,
-      portalId: portalId ?? undefined,
       startDate,
       endDate,
       comparisonPeriod,
@@ -73,15 +62,6 @@ export const readDashboard = async (
       propertyId,
       limit: DEFAULT_RECENT_REVIEWS_LIMIT,
     }),
-    portalId
-      ? repo.getEngagementFunnel({
-          organizationId,
-          propertyId,
-          portalId,
-          startDate,
-          endDate,
-        })
-      : Promise.resolve(null),
   ])
 
   // §9: reply-derived fields (the reply aggregates and each review's reply
@@ -93,7 +73,6 @@ export const readDashboard = async (
     ratingTrend,
     reviewVolume,
     replyPerformance,
-    engagementFunnel,
     recentReviews,
   })
 }

@@ -257,10 +257,6 @@ export const createAtomicGuestResponseCommandStore = (
             .set({
               status: response.status,
               rating: response.rating,
-              categoryId: response.category,
-              responseConsent: response.responseConsent,
-              textConsent: response.textConsent,
-              mediaConsent: response.mediaConsent,
               correctionCount: response.correctionCount,
               correctedAt: response.correctedAt,
               ratingSourceEventId: sourceLineage.ratingSourceEventId,

@@ -195,14 +195,10 @@ describe('SectionNav', () => {
 
     it('keeps a marker for the strip, where the summary is left out', () => {
       const marker = createElement('i', null, 'needs something')
-      const strip = nav({ items: [{ ...ITEMS[0]!, marker }], presentation: 'strip' })
-      const list = nav({ items: [{ ...ITEMS[0]!, marker }], presentation: 'list' })
-      const auto = nav({ items: [{ ...ITEMS[0]!, marker }] })
+      const html = nav({ items: [{ ...ITEMS[0]!, marker }] })
 
-      expect(strip).toMatch(/data-slot="section-nav-marker" class="[^"]*flex[^"]*"/u)
-      expect(strip).not.toMatch(/data-slot="section-nav-marker" class="[^"]*hidden/u)
-      expect(list).toMatch(/data-slot="section-nav-marker" class="[^"]*\bhidden\b/u)
-      expect(auto).toMatch(/data-slot="section-nav-marker" class="[^"]*@3xl:hidden/u)
+      expect(html).toMatch(/data-slot="section-nav-marker" class="[^"]*flex[^"]*"/u)
+      expect(html).toMatch(/data-slot="section-nav-marker" class="[^"]*@3xl:hidden/u)
       expect(nav()).not.toContain('section-nav-marker')
     })
 
@@ -248,11 +244,10 @@ describe('SectionNav', () => {
     })
   })
 
-  describe('presentation', () => {
+  describe('by container width', () => {
     it('is a strip below the container width and a list from it, by default', () => {
       const html = nav()
 
-      expect(html).toContain('data-presentation="auto"')
       expect(html).toContain('@3xl:flex-col')
       expect(html).toContain('overflow-x-auto')
     })
@@ -262,23 +257,6 @@ describe('SectionNav', () => {
 
       expect(html).toContain('@7xl:flex-col')
       expect(html).not.toContain('@3xl:')
-    })
-
-    it('is always a row when it is a strip, whatever the container', () => {
-      const html = nav({ presentation: 'strip' })
-
-      expect(html).toContain('data-presentation="strip"')
-      expect(html).not.toContain('@')
-      expect(html).toContain('overflow-x-auto')
-    })
-
-    it('is always a column when it is a list, whatever the container', () => {
-      const html = nav({ presentation: 'list' })
-
-      expect(html).toContain('data-presentation="list"')
-      expect(html).not.toContain('@')
-      expect(html).not.toContain('scrollbar-width')
-      expect(html).toMatch(/flex-col gap-5/u)
     })
 
     it('never switches on the viewport', () => {

@@ -6,7 +6,7 @@ import { getContainer } from '#/composition'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { withDashboard } from './dashboard-request.server'
 import { getDashboardDataDto } from '../property-overview/contracts'
-import { propertyId, portalId } from '#/shared/domain/ids'
+import { propertyId } from '#/shared/domain/ids'
 
 import { resolvePropertyPeriod } from './resolve-property-period'
 
@@ -41,7 +41,6 @@ export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
             {
               organizationId: ctx.organizationId,
               propertyId: pid,
-              portalId: data.portalId ? portalId(data.portalId) : null,
               startDate,
               endDate,
               timeRange: data.timeRange,

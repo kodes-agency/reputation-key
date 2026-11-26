@@ -67,7 +67,6 @@
   "src/shared/fonts/app-fonts.test.ts": 4,
   "src/shared/fonts/font-sets.test.ts": 2,
   "src/shared/google-contracts/review-provider-subject-contract.test.ts": 1,
-  "src/shared/google-provider-control/route-policy.test.ts": 1,
   "src/shared/governance/catalogue-derivation.test.ts": 3,
   "src/shared/governance/data-fate-authority.test.ts": 1,
   "src/shared/governance/staff-account-documents.test.ts": 7,

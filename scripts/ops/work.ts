@@ -1,4 +1,4 @@
-import { createWorkItems } from '../../src/shared/jobs/work-items.server'
+import { createWorkItems } from '../../src/shared/db/work-items.server'
 import { runWorkCommand, workCommandSpec } from '../../src/shared/ops/work-command'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'

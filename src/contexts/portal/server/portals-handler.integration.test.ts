@@ -425,11 +425,10 @@ describe('Portal history reads', () => {
       getPortalPublicationHistory({ data: { portalId: live.id } }),
     )
 
-    expect(history).toMatchObject({
-      current: { version: 1, deactivatedAt: null },
-      priorActivations: [],
+    expect(history).toEqual({
+      liveVersion: 1,
+      pendingChangeCount: expect.any(Number),
       hasPendingChanges: expect.any(Boolean),
-      nextCursor: null,
     })
   })
 

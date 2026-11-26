@@ -63,11 +63,9 @@ export interface GuestResponse {
   readonly integrityRevision: number
   readonly integrityAssessedAt: Date
   readonly rating: number | null
-  readonly category: string | null
   readonly text: string | null
   readonly responseConsent: boolean
   readonly textConsent: boolean
-  readonly mediaConsent: boolean
   /** Inclusive Portal threshold captured with the initial private rating. */
   readonly privateFeedbackThreshold: number | null
   /** Null only for pre-snapshot historical responses. New submissions require it. */
@@ -89,7 +87,6 @@ export interface GuestResponse {
   readonly moderatedAt: Date | null
   readonly deletedAt: Date | null
   readonly retentionDeadline: Date
-  readonly schemaVersion: number
 }
 
 export type ResponseError =
@@ -142,11 +139,9 @@ export function createResponse(params: {
     integrityRevision: 1,
     integrityAssessedAt: params.experienceSnapshot.capturedAt,
     rating: null,
-    category: null,
     text: null,
     responseConsent: false,
     textConsent: false,
-    mediaConsent: false,
     privateFeedbackThreshold: params.experienceSnapshot.privateFeedbackThreshold,
     experienceSnapshot: params.experienceSnapshot,
     staffAttribution: params.staffAttribution,
@@ -161,7 +156,6 @@ export function createResponse(params: {
     moderatedAt: null,
     deletedAt: null,
     retentionDeadline: params.retentionDeadline,
-    schemaVersion: 1,
   }
 }
 
@@ -341,11 +335,9 @@ export function deleteResponse(
     ...response,
     status: 'deleted',
     rating: null,
-    category: null,
     text: null,
     responseConsent: false,
     textConsent: false,
-    mediaConsent: false,
     feedbackSubmittedAt: response.feedbackSubmittedAt,
     deletedAt: now,
   }

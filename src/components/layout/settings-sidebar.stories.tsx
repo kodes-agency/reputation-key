@@ -17,8 +17,8 @@
 // outermost; the withRole router's context wins for the subtree.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
-import { SidebarProvider } from '#/components/ui/sidebar'
 import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
+import { SidebarStoryProvider } from '../../../.storybook/SidebarStoryProvider'
 import { SettingsSidebar } from './settings-sidebar'
 
 const meta: Meta<typeof SettingsSidebar> = {
@@ -28,9 +28,9 @@ const meta: Meta<typeof SettingsSidebar> = {
   parameters: { layout: 'fullscreen' },
   decorators: [
     (Story) => (
-      <SidebarProvider style={{ minHeight: '100vh' }}>
+      <SidebarStoryProvider style={{ minHeight: '100vh' }}>
         <Story />
-      </SidebarProvider>
+      </SidebarStoryProvider>
     ),
   ],
 }
@@ -117,9 +117,9 @@ export const CollapsedToIconRail: Story = {
     withRole('AccountAdmin'),
     // The nearest provider wins: this one holds the sidebar collapsed.
     (Story) => (
-      <SidebarProvider open={false} style={{ minHeight: '100vh' }}>
+      <SidebarStoryProvider initiallyOpen={false} style={{ minHeight: '100vh' }}>
         <Story />
-      </SidebarProvider>
+      </SidebarStoryProvider>
     ),
   ],
   play: async ({ canvasElement }) => {

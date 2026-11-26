@@ -15,7 +15,7 @@ import {
   isFactAt,
   sameInstant,
 } from './portal-command-guards.server'
-import { assertMembershipCommand } from './portal-group-commands.server'
+import { assertMembershipCommand, membershipJoinOf } from './portal-group-commands.server'
 
 /** The `portal.created` fact must name exactly the Portal being written. */
 function matchesPortalCreationScope(command: CreatePortalCommand): boolean {
@@ -101,17 +101,7 @@ function assertGroupMembership(command: CreatePortalCommand): void {
     'Portal Group',
   )
   assertMembershipCommand(
-    {
-      organizationId: command.organizationId,
-      propertyId: portal.propertyId,
-      portalGroupId: membership.portalGroupId,
-      portalId: portal.id,
-      expectedUpdatedAt: membership.expectedGroupUpdatedAt,
-      revision: membership.revision,
-      occurredAt: portal.createdAt,
-      changedBy: portal.createdBy,
-      event: membership.event,
-    },
+    membershipJoinOf(command, membership, portal.createdBy),
     'portal_group.portal_added',
   )
 }

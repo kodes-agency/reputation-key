@@ -10,17 +10,14 @@
 //   control        an AI execution control transition (every Organization)
 //   authorization  a Merchant AI Authorization change (one Property)
 //   profile        a processing-profile, archive or Google binding change (one Property)
-//   property       a Property deletion
-//   organization   an Organization closing
 //   review         a new Material Review Revision or source epoch, or erased
 //                  source content (one Review). When a guest edit also stops a
 //                  cycle the worker had claimed, Review calls the purge again
 //                  after that stop, so the Reply it returned to draft is
 //                  emptied in the same transaction.
 //
-// Measurement metadata survives input/control changes and Organization closing.
-// Only consent withdrawal, Property deletion and irreversible Organization purge
-// erase it; operation deletion also cascades its metadata retention.
+// Measurement metadata survives input/control changes. Only consent withdrawal
+// and irreversible Organization purge erase it; operation deletion also cascades its metadata retention.
 //
 // One input changes without a transaction: time. The binding ends when
 // `ai_draft_expires_at` passes (the adoption window,
@@ -132,7 +129,7 @@ const withdraw = async (
  * waiting for a Review a submit already holds.
  * (`reply-draft-races.integration.test.ts` fails when the order is reversed.)
  */
-async function erasePropertyDraftMeasurements(
+export async function purgeAiDraftsForAuthorization(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
   effects: ReplyScopeEffects,
@@ -146,28 +143,12 @@ async function erasePropertyDraftMeasurements(
   )
 }
 
-export function purgeAiDraftsForProperty(
-  tx: AiBudgetTx,
-  input: PropertyDraftScope,
-  effects: ReplyScopeEffects,
-): Promise<void> {
-  return erasePropertyDraftMeasurements(tx, input, effects)
-}
-
 export function purgeAiDraftsForProfile(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
   effects: ReplyScopeEffects,
 ): Promise<void> {
   return withdraw(tx, effects, inProperty(input))
-}
-
-export function purgeAiDraftsForAuthorization(
-  tx: AiBudgetTx,
-  input: PropertyDraftScope,
-  effects: ReplyScopeEffects,
-): Promise<void> {
-  return erasePropertyDraftMeasurements(tx, input, effects)
 }
 
 export async function purgeAiDraftsForControl(
@@ -184,14 +165,6 @@ export async function purgeAiDraftsForControl(
     return
   }
   await withdraw(tx, effects, EVERY_ORGANIZATION)
-}
-
-export async function purgeAiDraftsForOrganization(
-  tx: AiBudgetTx,
-  closingOrganizationId: string,
-  effects: ReplyScopeEffects,
-): Promise<void> {
-  await withdraw(tx, effects, sql`reply.organization_id = ${closingOrganizationId}`)
 }
 
 export async function purgeAiDraftsForReview(

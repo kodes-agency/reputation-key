@@ -133,5 +133,3 @@ export const rotatePortalToken =
       addressRecoverable: minted.addressRecoverable,
     }
   }
-
-export type RotatePortalToken = ReturnType<typeof rotatePortalToken>

@@ -7,7 +7,6 @@
 import type { PrintRenderInput } from './pdfkit-print-renderer.port.server'
 import type { PrintTile } from '#/shared/domain/portal-print-code'
 import type { PrintFaceLayout } from '#/shared/domain/portal-print-face'
-import { printFramingOf } from '#/shared/domain/portal-print-framing'
 import { PRINT_NO_BLEED, type PrintBleed } from '#/shared/domain/portal-print-layers'
 import type { PrintColours } from '#/shared/domain/portal-print-colours'
 import type { PrintImmersivePalette } from '#/shared/domain/portal-print-immersive'
@@ -73,8 +72,7 @@ export async function prepareImmersiveFace(
 ): Promise<PreparedFace & Readonly<{ immersive: PrintImmersiveFace }>> {
   const { input, tile, qr, logo } = common
   const bleed = common.bleed ?? PRINT_NO_BLEED
-  const framing = printFramingOf(input.framings, input.face)
-  const scene = input.photo === null ? null : await scenePhoto(input.photo, framing)
+  const scene = input.photo === null ? null : await scenePhoto(input.photo)
   const immersive = layoutPrintImmersiveFace({
     face: input.face,
     blocks: input.blocks,

@@ -1,7 +1,6 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import type { PrintArt } from '#/shared/domain/portal-print-art'
-import { printFraming } from '#/shared/domain/portal-print-framing'
 import { newDocument } from './print-kit-face.test-fixtures'
 import { grainTile } from './print-kit-art.server'
 import { logoTone, photoImage, scenePhoto } from './print-kit-photo.server'
@@ -106,29 +105,21 @@ describe('rampMask', () => {
 })
 
 describe('scenePhoto', () => {
-  const framing = printFraming()
-
   it('reads the photo small for the ground and wider for each word', async () => {
-    const scene = await scenePhoto(
-      { bytes: await photo(), focalX: 0.5, focalY: 0.5 },
-      framing,
-    )
+    const scene = await scenePhoto({ bytes: await photo(), focalX: 0.5, focalY: 0.5 })
     expect(scene.sample.widthPx).toBe(240)
     expect(scene.detail.widthPx).toBe(960)
     expect(scene.pixels).toEqual({ widthPx: PHOTO_WIDTH, heightPx: PHOTO_HEIGHT })
   })
 
   it('turns the width and height of a photo that is stored on its side', async () => {
-    const scene = await scenePhoto(
-      { bytes: await photo(6), focalX: 0.5, focalY: 0.5 },
-      framing,
-    )
+    const scene = await scenePhoto({ bytes: await photo(6), focalX: 0.5, focalY: 0.5 })
     expect(scene.pixels).toEqual({ widthPx: PHOTO_HEIGHT, heightPx: PHOTO_WIDTH })
   })
 
   it('refuses bytes that are not a picture', async () => {
     await expect(
-      scenePhoto({ bytes: new Uint8Array([1, 2, 3]), focalX: 0.5, focalY: 0.5 }, framing),
+      scenePhoto({ bytes: new Uint8Array([1, 2, 3]), focalX: 0.5, focalY: 0.5 }),
     ).rejects.toThrow(/unsupported image format/)
   })
 })
@@ -154,7 +145,7 @@ describe('photoImage', () => {
 
   it('crops to the cover box at 300 dpi at most', async () => {
     const bytes = await photo()
-    const scene = await scenePhoto({ bytes, focalX: 0.5, focalY: 0.5 }, printFraming())
+    const scene = await scenePhoto({ bytes, focalX: 0.5, focalY: 0.5 })
     const { doc } = newDocument()
     const image = await photoImage(doc, bytes, scene, artWith(shown))
     // 100 pt is 1.39 in: 417 px at 300 dpi, and as tall as the box's shape asks.
@@ -164,7 +155,7 @@ describe('photoImage', () => {
 
   it('never has more pixels than the photo has to give', async () => {
     const bytes = await photo()
-    const scene = await scenePhoto({ bytes, focalX: 0.5, focalY: 0.5 }, printFraming())
+    const scene = await scenePhoto({ bytes, focalX: 0.5, focalY: 0.5 })
     const { doc } = newDocument()
     const wide = { ...shown, cover: { ...BOX, rightPt: 1000, bottomPt: 500 } }
     const image = await photoImage(
@@ -181,7 +172,7 @@ describe('photoImage', () => {
 
   it('is nothing for art with no photo', async () => {
     const bytes = await photo()
-    const scene = await scenePhoto({ bytes, focalX: 0.5, focalY: 0.5 }, printFraming())
+    const scene = await scenePhoto({ bytes, focalX: 0.5, focalY: 0.5 })
     const { doc } = newDocument()
     expect(
       await photoImage(doc, bytes, scene, { ...artWith(shown), photo: null }),

@@ -20,7 +20,6 @@
 // stylesheet is built by scanning `src/` for class names, and a measure this
 // specific would land in every page's.
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
-import { PRINT_DEFAULT_FRAMING } from '#/shared/domain/portal-print-framing'
 import type { PrintBleed } from '#/shared/domain/portal-print-layers'
 import { PRINT_KIT_PAPER } from '#/shared/domain/portal-print-kit-palette'
 import type { PointsToLength } from './print-kit-code-block-layout'
@@ -53,14 +52,7 @@ export function PrintDrawnBackArt({ drawn, look, bleed, pt }: Props) {
       }}
     >
       {art === null ? null : (
-        <PrintImmersiveArt
-          art={art}
-          photo={null}
-          look={look}
-          framing={PRINT_DEFAULT_FRAMING}
-          bleed={bleed}
-          pt={pt}
-        />
+        <PrintImmersiveArt art={art} photo={null} look={look} bleed={bleed} pt={pt} />
       )}
       {layout.plan.parts.map((part, index) => {
         const content = layout.contents[index]

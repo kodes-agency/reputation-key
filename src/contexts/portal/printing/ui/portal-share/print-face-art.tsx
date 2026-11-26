@@ -20,10 +20,6 @@
 // stylesheet is built by scanning `src/` for class names, and a measure this
 // specific would land in every page's.
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
-import {
-  PRINT_DEFAULT_FRAMING,
-  type PrintFraming,
-} from '#/shared/domain/portal-print-framing'
 import type { PrintBleed } from '#/shared/domain/portal-print-layers'
 import { PRINT_KIT_PAPER } from '#/shared/domain/portal-print-kit-palette'
 import type { PointsToLength } from './print-kit-code-block-layout'
@@ -38,21 +34,13 @@ type DrawnProps = Readonly<{
   look: PortalPrintKitView['look']
   /** The code as a picture with its quiet zone drawn in; null while it is made. */
   codeUrl: string | null
-  framing?: PrintFraming
   /** On a sheet, how far the Immersive art runs past the trim. */
   bleed?: PrintBleed
   pt: PointsToLength
 }>
 
 /** A face already laid out, drawn at its trim: what the preview and each sheet cell show. */
-export function PrintDrawnFaceArt({
-  drawn,
-  look,
-  codeUrl,
-  framing,
-  bleed,
-  pt,
-}: DrawnProps) {
+export function PrintDrawnFaceArt({ drawn, look, codeUrl, bleed, pt }: DrawnProps) {
   const paper = drawn.look === 'paper'
   return (
     <div
@@ -75,7 +63,6 @@ export function PrintDrawnFaceArt({
               : { read: drawn.photo, url: look.heroUrl }
           }
           look={look}
-          framing={framing ?? PRINT_DEFAULT_FRAMING}
           bleed={bleed}
           pt={pt}
         />

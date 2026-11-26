@@ -1,28 +1,13 @@
-// ConsumerEvent envelope — shared contract between outbox relay and dispatcher.
-//
-// BQR-2.1: The relay must enqueue the full envelope as BullMQ job data.
-// Enqueueing only the bare validated payload (legacy bug) left
-// event.eventType undefined in the dispatcher, which then discarded every job.
-//
-// BQC-3.7 / ARC-01: the envelope preserves envelope-grade metadata alongside
-// the identifier-only payload: occurred/recorded time, aggregate identity,
-// correlation/causation/command identity and source aggregate version — never
-// content.
-//
-// Job name remains eventType; job ID remains the outbox event UUID (dedup).
+// ConsumerEvent envelope: the in-memory event the dispatcher builds from a
+// stored outbox row and hands to consumers. It carries the identifier-only
+// payload with occurred/recorded time, correlation and command identity and
+// the source aggregate version, never content. Work-ledger rows hold only the
+// outbox event id; the dispatcher reloads the row and builds this per delivery.
 
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
 import { withoutEnvelopeIdentifiers } from './event-adapter'
-import { getEventDescriptor } from '#/shared/events/registry.server'
-import { resolveEventAggregate } from '#/shared/events/descriptor'
 
-const DURABLE_COMMAND_CLASSIFICATION = 'durable_domain_fact_required' as const
-const IDENTIFIER_ONLY_CONTENT_CLASSIFICATION = 'identifier_only' as const
-
-/**
- * Durable job payload delivered on the domain-events queue.
- * Must match what consumers receive from the dispatcher.
- */
+/** What consumers receive from the dispatcher for one outbox event. */
 export type ConsumerEvent = Readonly<{
   eventId: string
   eventType: string
@@ -32,24 +17,6 @@ export type ConsumerEvent = Readonly<{
   propertyId: string | null
   sourceContext: string
   sourceAggregateId: string
-  /**
-   * ARC-01: derived from the persisted identifier payload at relay time.
-   * Always set by buildConsumerEvent; optional in the type so hand-built
-   * test events can omit it.
-   */
-  aggregateType?: string
-  /**
-   * ARC-01: every outbox envelope is the recovery fact for a command whose
-   * downstream effects must survive process loss. Local-only commands never
-   * enter this transport.
-   */
-  commandClassification?: typeof DURABLE_COMMAND_CLASSIFICATION
-  /**
-   * ARC-01 / ADR 0030: durable payloads contain only identifiers and approved
-   * content-free facts. Consumers reload governed content through owning
-   * context ports.
-   */
-  contentClassification?: typeof IDENTIFIER_ONLY_CONTENT_CLASSIFICATION
   /** BQC-3.7: domain-occurrence time (ISO) when the payload carries it. */
   occurredAt?: string
   /**
@@ -65,8 +32,6 @@ export type ConsumerEvent = Readonly<{
    * test events can omit it.
    */
   commandId?: string
-  /** ARC-01: direct cause of this fact. */
-  causationId?: string | null
   /**
    * BQC-3.7: source aggregate version for version fencing. Null for
    * unversioned event families.
@@ -79,25 +44,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Build the BullMQ job data envelope from a claimed outbox row. The payload
- * was allowlist-validated at insert (event-adapter); the dispatcher is the
- * single validation authority at consume time (BQC-3.7 — no relay-side
- * validation).
+ * Build the consumer event from a stored outbox row. The payload was
+ * allowlist-validated at insert (event-adapter); the dispatcher is the single
+ * validation authority at consume time.
  */
 export function buildConsumerEvent(event: UnpublishedEvent): ConsumerEvent {
   const payload = isRecord(event.payload) ? event.payload : {}
   const consumerPayload = withoutEnvelopeIdentifiers(event.payload)
-  const { type: aggregateType } = resolveEventAggregate(
-    getEventDescriptor(event.eventType, event.eventVersion),
-    payload,
-    event.id,
-  )
   // Rows committed before ARC-01 carry neither identifier. Their durable event
   // id is the stable compatibility fallback; new writes supply execution
   // context in the persisted payload.
   const commandId = typeof payload.commandId === 'string' ? payload.commandId : event.id
-  const causationId =
-    typeof payload.causationId === 'string' ? payload.causationId : commandId
   return {
     eventId: event.id,
     eventType: event.eventType,
@@ -107,15 +64,11 @@ export function buildConsumerEvent(event: UnpublishedEvent): ConsumerEvent {
     propertyId: event.propertyId,
     sourceContext: event.sourceContext,
     sourceAggregateId: event.sourceAggregateId,
-    aggregateType,
-    commandClassification: DURABLE_COMMAND_CLASSIFICATION,
-    contentClassification: IDENTIFIER_ONLY_CONTENT_CLASSIFICATION,
     occurredAt: typeof payload.occurredAt === 'string' ? payload.occurredAt : undefined,
     recordedAt: event.recordedAt.toISOString(),
     correlationId:
       typeof payload.correlationId === 'string' ? payload.correlationId : null,
     commandId,
-    causationId,
     sourceAggregateVersion:
       typeof payload.sourceAggregateVersion === 'string' ||
       typeof payload.sourceAggregateVersion === 'number'
