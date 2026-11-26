@@ -2,8 +2,9 @@
 // Error-to-HTTP-status mapping shared across server function modules.
 
 import { match } from 'ts-pattern'
+import type { CommandErrors } from '#/shared/commands/contracts'
 import { HTTP_STATUS } from '#/shared/http/status'
-import type { IntegrationErrorCode } from '../domain/errors'
+import type { IntegrationError, IntegrationErrorCode } from '../domain/errors'
 import { isIntegrationError } from '../domain/errors'
 
 export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
@@ -29,6 +30,12 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
       () => HTTP_STATUS.CONFLICT,
     )
     .exhaustive()
+
+export const integrationCommandErrors: CommandErrors<IntegrationError> = {
+  name: 'IntegrationError',
+  is: isIntegrationError,
+  status: integrationErrorStatus,
+}
 
 /**
  * BQC-7.6: true when an error is the PKCE/state redeem failure. Routes
