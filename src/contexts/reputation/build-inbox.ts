@@ -1,6 +1,6 @@
 // Inbox context — build function (composition root)
 // Per architecture: "Build functions wire ports → adapters, deps → use cases."
-// Returns segregated request, lifecycle, maintenance, and worker capabilities;
+// Returns segregated request, maintenance, and worker capabilities;
 // persistence details remain context-internal.
 //
 // Runtime contribution exposed to the composition root:
@@ -36,7 +36,6 @@ import type {
   ReviewSourceLookupSource,
 } from './inbox/lookup-sources.port.server'
 import type { InboxPublicApi } from './public-api'
-import type { GetInboxResponseTarget } from './response-targets/get-response-targets.server'
 import type { RebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import {
   createReleaseResponseTargetRemindersHandler,
@@ -105,11 +104,6 @@ export type InboxContextBuildInput = Readonly<{
 
 export type InboxContextApi = Readonly<{
   publicApi: InboxPublicApi
-  /** Event and cross-context workflow capabilities. These are deliberately
-   * separate from request handlers and operator repair commands. */
-  lifecycle: Readonly<{
-    getInboxResponseTarget: GetInboxResponseTarget
-  }>
   /** Bounded operator repair capabilities owned by Inbox. */
   maintenance: Readonly<{
     rebuildInboxProjection: RebuildInboxProjection
@@ -216,9 +210,6 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     idGen: input.idGen,
   })
   const publicApi: InboxPublicApi = projectInboxRequestApi(useCases, responseTargetStore)
-  const lifecycle = Object.freeze({
-    getInboxResponseTarget: useCases.getInboxResponseTarget,
-  })
   const maintenance = Object.freeze({
     rebuildInboxProjection: useCases.rebuildInboxProjection,
     responseTargetExclusions: createRestatedRevisionTargetExclusionStore(input.db),
@@ -257,7 +248,6 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
 
   return {
     publicApi,
-    lifecycle,
     maintenance,
     worker: Object.freeze({ registerOutboxConsumers }),
     assignments: Object.freeze({

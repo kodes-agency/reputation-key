@@ -1,4 +1,4 @@
-// Dashboard context — getDashboardData use case against real PostgreSQL: the
+// Dashboard context — the authorized dashboard read against real PostgreSQL: the
 // Dashboard Repository's Review and Metric reads decide what the reader sees.
 
 import { describe, it, expect } from 'vitest'
@@ -15,7 +15,13 @@ import {
   seedDashboardProperty,
   seedDashboardReview,
 } from '../infrastructure/testing/dashboard-fixtures'
-import { getDashboardData } from './get-dashboard-data.server'
+import { readDashboard, type GetDashboardDataInput } from './get-dashboard-data.server'
+import {
+  requireDashboardPropertyAccess,
+  type DashboardPropertyAccess,
+} from './dashboard-property-access.server'
+import type { DashboardRepository } from './dashboard-repository.port.server'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 const MS_PER_DAY = 86_400_000
 const NOW = new Date('2025-06-15T12:00:00.000Z')
@@ -28,6 +34,16 @@ const OTHER_PROPERTY = propertyId('da5b0a00-0000-0000-0000-000000000002')
 const PORTAL_A = portalId('da5b0b00-0000-0000-0000-000000000001')
 const ADMIN = buildTestAuthContext({ organizationId: ORG_A, role: 'AccountAdmin' })
 const organizationWide = async () => null
+
+const getDashboardData =
+  (deps: { repo: DashboardRepository; propertyAccess: DashboardPropertyAccess }) =>
+  async (input: GetDashboardDataInput, ctx: AuthContext) => {
+    await requireDashboardPropertyAccess(deps.propertyAccess, ctx, {
+      organizationId: input.organizationId,
+      propertyIds: [input.propertyId],
+    })
+    return readDashboard(deps.repo, input, ctx)
+  }
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,

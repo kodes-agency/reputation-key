@@ -1,30 +1,20 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
-import {
-  feedbackId,
-  inboxItemId,
-  organizationId,
-  propertyId,
-  userId,
-} from '#/shared/domain/ids'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import {
   clearInboxOrganization,
   createUseCaseDatabase,
-  createUseCaseInboxRepository,
   dropInboxOrganization,
   openFixturePool,
   runScopedId,
-  seedInboxItem,
   seedInboxOrganization,
 } from '../inbox/inbox-database.test-fixtures'
 import { createResponseTargetStore } from './store.server'
 import { createResponseTargetPolicyStore } from './policy.store.server'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import type { InboxItem } from '../domain/inbox-types'
 import {
   getGoogleReviewTargetAnalytics,
-  getInboxResponseTarget,
   getPrivateFeedbackTargetAnalytics,
   getResponseTargetPolicySettings,
 } from './get-response-targets.server'
@@ -34,34 +24,6 @@ const ORG = organizationId('org-response-target-read')
 const USER = userId('user-response-target-read')
 const PROPERTY = propertyId(runScopedId('78000000-0000-4000-8000-000000000001'))
 const OTHER_PROPERTY = propertyId(runScopedId('78000000-0000-4000-8000-000000000002'))
-const ITEM = inboxItemId(runScopedId('78000000-0000-4000-8000-000000000003'))
-
-const feedbackItem: InboxItem = {
-  id: ITEM,
-  organizationId: ORG,
-  propertyId: PROPERTY,
-  sourceType: 'feedback',
-  sourceId: feedbackId(runScopedId('78000000-0000-4000-8000-000000000004')),
-  status: 'open',
-  isEscalated: false,
-  escalatedAt: null,
-  escalatedBy: null,
-  escalationResolvedAt: null,
-  escalationResolvedBy: null,
-  rating: 2,
-  sourceDate: NOW,
-  platform: null,
-  snippet: null,
-  assignedTo: null,
-  reviewerName: null,
-  propertyName: null,
-  closedAt: null,
-  firstReplySubmittedAt: null,
-  firstReplyPublishedAt: null,
-  commandRevision: 1,
-  createdAt: NOW,
-  updatedAt: NOW,
-}
 
 const ctx = createScopedAuthContext({
   organizationId: ORG,
@@ -85,13 +47,10 @@ describe.sequential('Response Target manager reads', () => {
     const targetStore = createResponseTargetStore(db)
     return {
       ...targetStore,
-      getCycleTarget: vi.fn(targetStore.getCycleTarget),
       getPrivateFeedbackAnalytics: vi.fn(targetStore.getPrivateFeedbackAnalytics),
       getGoogleReviewAnalytics: vi.fn(targetStore.getGoogleReviewAnalytics),
     }
   }
-
-  const seedFeedbackItem = () => seedInboxItem(pool, db, feedbackItem)
 
   beforeAll(async () => {
     pool = openFixturePool()
@@ -113,38 +72,6 @@ describe.sequential('Response Target manager reads', () => {
     )
     await dropInboxOrganization(pool, ORG)
     await pool.end()
-  })
-
-  it('reads one target only through current Inbox + source Property access', async () => {
-    const repo = createUseCaseInboxRepository(db, () => NOW)
-    await seedFeedbackItem()
-    const targetStore = store()
-    const execute = getInboxResponseTarget({
-      repo,
-      targetStore,
-      staffPublicApi: peopleApi([PROPERTY]),
-      clock: () => NOW,
-    })
-
-    await execute({ inboxItemId: ITEM }, ctx)
-
-    expect(targetStore.getCycleTarget).toHaveBeenCalledWith(ITEM, ORG, NOW)
-  })
-
-  it('rejects a target outside the manager’s assigned Property', async () => {
-    const repo = createUseCaseInboxRepository(db, () => NOW)
-    await seedFeedbackItem()
-    const targetStore = store()
-
-    await expect(
-      getInboxResponseTarget({
-        repo,
-        targetStore,
-        staffPublicApi: peopleApi([OTHER_PROPERTY] as never),
-        clock: () => NOW,
-      })({ inboxItemId: ITEM }, ctx),
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(targetStore.getCycleTarget).not.toHaveBeenCalled()
   })
 
   it('passes only the feedback-read Property intersection to private analytics', async () => {
