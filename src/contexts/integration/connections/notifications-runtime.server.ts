@@ -39,8 +39,7 @@ export type GoogleNotificationsRuntimeDeps = Readonly<{
   providerTokenAccess: GoogleProviderTokenAccess
   pubsubTopic: string
   pubsubNotificationTypes: string
-  /** Present only when review-sync content authority exists. */
-  authority: NotificationAuthority | undefined
+  authority: NotificationAuthority
 }>
 
 const unavailable = async (): Promise<never> => {
@@ -57,12 +56,7 @@ export function createGoogleNotificationsRuntime(deps: GoogleNotificationsRuntim
     ? createSingle401RefreshExecutor({
         executor: deps.executor,
         ...deps.providerTokenAccess,
-        reauthorize: async (input) => {
-          if (!authority) {
-            throw new Error('Google notification reauthorization is unavailable')
-          }
-          return authority.reauthorize(input)
-        },
+        reauthorize: authority.reauthorize,
       })
     : undefined
   const notifications = executor
@@ -88,10 +82,7 @@ export function createGoogleNotificationsRuntime(deps: GoogleNotificationsRuntim
     accounts,
     nowMs: () => deps.clock().getTime(),
     hasOtherActiveAccountBinding: createGoogleNotificationAccountUsageReader(reads),
-    authorizeProviderCall: async (organizationId, connectionId, accountId) =>
-      authority
-        ? authority.authorizeProviderCall(organizationId, connectionId, accountId)
-        : { ok: false, code: 'authorization_unavailable' },
+    authorizeProviderCall: authority.authorizeProviderCall,
     notifications,
     pubsubTopic: config.pubsubTopic,
     notificationTypes: config.notificationTypes,

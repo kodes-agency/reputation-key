@@ -45,8 +45,8 @@ export type GoogleReviewSyncRuntimeDeps = Readonly<{
   >[0]['findLinkedPropertyIds']
   propertyBindingApi: PropertyGoogleBindingPublicApi
   executor: GoogleAuthorizedProviderExecutor | undefined
-  authorizeReviewSyncContent: GoogleReviewSyncContentAuthorizer | undefined
-  authorizeReplyPublicationContent: GoogleReplyPublicationContentAuthorizer | undefined
+  authorizeReviewSyncContent: GoogleReviewSyncContentAuthorizer
+  authorizeReplyPublicationContent: GoogleReplyPublicationContentAuthorizer
   cursorStore: GoogleReviewCursorStore | undefined
   providerEphemeralStore: ProviderEphemeralStore | undefined
   opaqueReferenceKeys: VersionedHmacKeyring | undefined
@@ -56,22 +56,17 @@ export type GoogleReviewSyncRuntimeDeps = Readonly<{
 export type GoogleReviewSyncRuntime = Readonly<{
   googleReviewApi: GoogleReviewApiPort
   googleReviewPushTargetResolver: TargetedGoogleReviewReferenceResolver
-  /** Present only when review-sync content authority and the binding reader exist. */
-  notification:
-    | Readonly<{
-        authorizeProviderCall: ReturnType<
-          typeof createGoogleNotificationProviderAuthorizer
-        >
-        reauthorize: GoogleProviderReauthorize
-      }>
-    | undefined
+  notification: Readonly<{
+    authorizeProviderCall: ReturnType<typeof createGoogleNotificationProviderAuthorizer>
+    reauthorize: GoogleProviderReauthorize
+  }>
 }>
 
 const buildNotificationAuthority = (
   deps: GoogleReviewSyncRuntimeDeps,
   binding: PropertyGoogleBindingPublicApi,
   reviewSyncAuthorizer: ReturnType<typeof createGoogleReviewSyncAuthorizer>,
-): NonNullable<GoogleReviewSyncRuntime['notification']> => ({
+): GoogleReviewSyncRuntime['notification'] => ({
   authorizeProviderCall: createGoogleNotificationProviderAuthorizer({
     findConnection: deps.connectionRepo.findById,
     findLinkedPropertyIds: deps.findLinkedPropertyIds,
@@ -124,50 +119,38 @@ export const createGoogleReviewSyncRuntime = (
         })
       : createUnavailableGoogleReviewCursorStore())
 
-  const reviewSyncAuthorizer = deps.authorizeReviewSyncContent
-    ? createGoogleReviewSyncAuthorizer({
-        readBinding: binding.readInternal,
-        findConnection: deps.connectionRepo.findById,
-        getAccessToken: deps.getAccessToken,
-        authorizeGoogleContent: deps.authorizeReviewSyncContent,
-        warn: (fields, message) => deps.logger.warn(fields, message),
-      })
-    : null
-  const replyPublicationAuthorizer = deps.authorizeReplyPublicationContent
-    ? createGoogleReplyPublicationAuthorizer({
-        readBinding: binding.readInternal,
-        findConnection: deps.connectionRepo.findById,
-        getAccessToken: deps.getAccessToken,
-        authorizeGoogleContent: deps.authorizeReplyPublicationContent,
-        warn: (fields, message) => deps.logger.warn(fields, message),
-      })
-    : null
+  const reviewSyncAuthorizer = createGoogleReviewSyncAuthorizer({
+    readBinding: binding.readInternal,
+    findConnection: deps.connectionRepo.findById,
+    getAccessToken: deps.getAccessToken,
+    authorizeGoogleContent: deps.authorizeReviewSyncContent,
+    warn: (fields, message) => deps.logger.warn(fields, message),
+  })
+  const replyPublicationAuthorizer = createGoogleReplyPublicationAuthorizer({
+    readBinding: binding.readInternal,
+    findConnection: deps.connectionRepo.findById,
+    getAccessToken: deps.getAccessToken,
+    authorizeGoogleContent: deps.authorizeReplyPublicationContent,
+    warn: (fields, message) => deps.logger.warn(fields, message),
+  })
 
-  const authorizeReviewSyncProviderCall:
-    | Parameters<
-        typeof createGoogleReviewApiAdapter
-      >[0]['authorizeReviewSyncProviderCall']
-    | undefined = reviewSyncAuthorizer
-    ? async (input) => {
-        const authorized = await reviewSyncAuthorizer(input)
-        if (!authorized.ok) {
-          throw Object.assign(
-            new Error(
-              `Google review provider authorization is unavailable: ${authorized.code}`,
-            ),
-            { code: authorized.code },
-          )
-        }
-        return authorized
-      }
-    : undefined
-  const authorizeReplyPublicationProviderCall:
-    | Parameters<
-        typeof createGoogleReviewApiAdapter
-      >[0]['authorizeReplyPublicationProviderCall']
-    | undefined = replyPublicationAuthorizer
-    ? createReplyPublicationProviderCall(replyPublicationAuthorizer)
-    : undefined
+  const authorizeReviewSyncProviderCall: Parameters<
+    typeof createGoogleReviewApiAdapter
+  >[0]['authorizeReviewSyncProviderCall'] = async (input) => {
+    const authorized = await reviewSyncAuthorizer(input)
+    if (!authorized.ok) {
+      throw Object.assign(
+        new Error(
+          `Google review provider authorization is unavailable: ${authorized.code}`,
+        ),
+        { code: authorized.code },
+      )
+    }
+    return authorized
+  }
+  const authorizeReplyPublicationProviderCall = createReplyPublicationProviderCall(
+    replyPublicationAuthorizer,
+  )
 
   const providerExecutor = deps.executor
     ? createSingle401RefreshExecutor({
@@ -178,7 +161,7 @@ export const createGoogleReviewSyncRuntime = (
             throw new Error('Google review provider reauthorization is unavailable')
           }
           const refreshed =
-            authorization.capability === 'property.connect_gbp' && reviewSyncAuthorizer
+            authorization.capability === 'property.connect_gbp'
               ? await reviewSyncAuthorizer({
                   organizationId: authorization.organizationId,
                   propertyId: authorization.propertyId,
@@ -187,8 +170,7 @@ export const createGoogleReviewSyncRuntime = (
                     authorization.authorizationVector.propertySourceEpoch,
                   ),
                 })
-              : authorization.capability === 'property.publish_reply' &&
-                  replyPublicationAuthorizer
+              : authorization.capability === 'property.publish_reply'
                 ? await replyPublicationAuthorizer({
                     organizationId: authorization.organizationId,
                     propertyId: authorization.propertyId,
@@ -246,9 +228,6 @@ export const createGoogleReviewSyncRuntime = (
   return Object.freeze({
     googleReviewApi,
     googleReviewPushTargetResolver,
-    notification:
-      binding && reviewSyncAuthorizer
-        ? buildNotificationAuthority(deps, binding, reviewSyncAuthorizer)
-        : undefined,
+    notification: buildNotificationAuthority(deps, binding, reviewSyncAuthorizer),
   })
 }

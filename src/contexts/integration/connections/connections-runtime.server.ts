@@ -44,8 +44,8 @@ export type GoogleConnectionsRuntimeDeps = Readonly<{
   googleAuthorizedProviderExecutor: GoogleAuthorizedProviderExecutor | undefined
   googleDisconnectRevokeStore: GoogleDisconnectRevokeStore | undefined
   authorizeGoogleOAuthProviderCall: GoogleOAuthProviderCallAuthorizer | undefined
-  oauthStateHandles: OAuthStateHandleService | undefined
-  oauthCallbackAbuseGate: OAuthCallbackAbuseGate | undefined
+  oauthStateHandles: OAuthStateHandleService
+  oauthCallbackAbuseGate: OAuthCallbackAbuseGate
   googleRefreshCoordination: GoogleRefreshCoordination | undefined
 }>
 
@@ -54,8 +54,10 @@ export type GoogleConnectionCommandHooks = Readonly<{
   unsubscribeFromNotifications: Parameters<
     typeof disconnectGoogleAccount
   >[0]['unsubscribeFromNotifications']
-  cancelImportsForConnection:
-    ((organizationId: string, connectionId: string) => Promise<unknown>) | undefined
+  cancelImportsForConnection: (
+    organizationId: string,
+    connectionId: string,
+  ) => Promise<unknown>
 }>
 
 /** Connection storage, credentials, token refresh and the OAuth ingress gates. */
@@ -115,21 +117,7 @@ export function createGoogleConnectionsRuntime(deps: GoogleConnectionsRuntimeDep
       ),
   }
 
-  const callbackAbuseGate: OAuthCallbackAbuseGate =
-    deps.oauthCallbackAbuseGate ??
-    Object.freeze({
-      admitPreState: async () =>
-        deps.config.nodeEnv === 'production'
-          ? ({ ok: false, code: 'quota_unavailable' } as const)
-          : ({ ok: true } as const),
-      admitResolvedTenant: async () =>
-        deps.config.nodeEnv === 'production'
-          ? ({ ok: false, code: 'quota_unavailable' } as const)
-          : ({ ok: true } as const),
-    })
-  if (!deps.oauthStateHandles) {
-    throw new Error('Opaque OAuth state service is required')
-  }
+  const callbackAbuseGate = deps.oauthCallbackAbuseGate
   const oauthStateHandles = deps.oauthStateHandles
   const authorizationUrl = getGoogleAuthUrl({
     clientId: deps.config.googleClientId,
@@ -150,7 +138,6 @@ export function createGoogleConnectionsRuntime(deps: GoogleConnectionsRuntimeDep
       callbackUrl: deps.config.googleCallbackUrl,
       authorizeProviderCall: deps.authorizeGoogleOAuthProviderCall,
     })
-    const cancelImports = hooks.cancelImportsForConnection
     return {
       connect,
       resume: connect.resume,
@@ -165,19 +152,12 @@ export function createGoogleConnectionsRuntime(deps: GoogleConnectionsRuntimeDep
         disconnectRevokeStore,
         idGen: deps.idGen,
         unsubscribeFromNotifications: hooks.unsubscribeFromNotifications,
-        cancelGoogleImportsForConnection: cancelImports
-          ? async (organizationId, connectionId) => {
-              await cancelImports(organizationId, connectionId)
-            }
-          : undefined,
+        cancelGoogleImportsForConnection: hooks.cancelImportsForConnection,
       }),
       list: listGoogleConnections({ connectionRepo }),
       prepareDeparture: prepareGoogleConnectorDeparture({
         store: connectorDepartureStore,
-        cancelGoogleImportsForConnection: async (organizationId, connectionId) => {
-          if (!cancelImports) throw new Error('Google import lifecycle unavailable')
-          return cancelImports(organizationId, connectionId)
-        },
+        cancelGoogleImportsForConnection: hooks.cancelImportsForConnection,
         clock: deps.clock,
       }),
     }

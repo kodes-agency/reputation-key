@@ -234,6 +234,7 @@ describe('Google category publication and public disconnect commands (PostgreSQL
       logger: createMockLogger(),
       clock: () => NOW,
       unsubscribeFromNotifications: unsubscribe,
+      cancelGoogleImportsForConnection: async () => undefined,
     })
     const first = await command({ connectionId: CONNECTION }, admin)
     const before = await db

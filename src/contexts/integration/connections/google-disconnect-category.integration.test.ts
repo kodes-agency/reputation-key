@@ -431,6 +431,7 @@ describe('Google account category cleanup (PostgreSQL)', () => {
       encryption: createTestTokenEncryption(),
       clock: () => NOW,
       logger: createMockLogger(),
+      cancelGoogleImportsForConnection: async () => undefined,
     })
     await expect(
       command(
