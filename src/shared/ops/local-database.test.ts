@@ -1,11 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  assertLocalOnlyDatabase,
-  assertLocalOnlyRedis,
-  isLocalOnlyDatabase,
-} from './local-database'
+import { assertLocalOnlyDatabase, assertLocalOnlyRedis } from './local-database'
 
 const ROOT = resolve(import.meta.dirname, '../../..')
 
@@ -29,17 +25,6 @@ const refusal = (env: Readonly<Record<string, string | undefined>>): string => {
   }
   return 'accepted'
 }
-
-describe('isLocalOnlyDatabase', () => {
-  it('is true for the local stack and false for a deployed database', () => {
-    expect(isLocalOnlyDatabase({ DATABASE_URL: LOCAL_STACK_URL })).toBe(true)
-    expect(isLocalOnlyDatabase({ DATABASE_URL: DEPLOYED_DATABASE_URL })).toBe(false)
-  })
-
-  it('is false when DATABASE_URL is missing', () => {
-    expect(isLocalOnlyDatabase({})).toBe(false)
-  })
-})
 
 describe('assertLocalOnlyDatabase', () => {
   it('accepts the local stack and reports where the script will write', () => {

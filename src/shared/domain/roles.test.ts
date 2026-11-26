@@ -2,8 +2,7 @@
 // Tests for toDomainRole/toBetterAuthRole which live in shared/domain/roles.ts.
 
 import { describe, it, expect } from 'vitest'
-import { toDomainRole, toDomainRoleStrict, toBetterAuthRole, type Role } from './roles'
-import { isDomainError } from './errors'
+import { toDomainRole, toBetterAuthRole, type Role } from './roles'
 import { UnreachableError } from './assert'
 
 describe('toDomainRole', () => {
@@ -34,31 +33,6 @@ describe('toDomainRole', () => {
   it('returns null for empty / whitespace-only roles', () => {
     expect(toDomainRole('')).toBeNull()
     expect(toDomainRole('   ')).toBeNull()
-  })
-})
-
-describe('toDomainRoleStrict', () => {
-  it('maps built-in roles identically to toDomainRole', () => {
-    expect(toDomainRoleStrict('owner')).toBe('AccountAdmin')
-    expect(toDomainRoleStrict('admin')).toBe('PropertyManager')
-    expect(toDomainRoleStrict('member')).toBe('Member')
-  })
-
-  it('throws a typed unknown_role DomainError for non-built-in roles', () => {
-    const cases = ['custom', 'content-manager', 'owner,admin', '']
-    for (const value of cases) {
-      let caught: unknown
-      try {
-        toDomainRoleStrict(value)
-      } catch (e) {
-        caught = e
-      }
-      expect(caught).toBeInstanceOf(Error)
-      expect(isDomainError(caught)).toBe(true)
-      const err = caught as { code: string; context?: Record<string, unknown> }
-      expect(err.code).toBe('unknown_role')
-      expect(err.context?.value).toBe(value)
-    }
   })
 })
 

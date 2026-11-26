@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { composeBetaFeedbackMessage, EMPTY_NARRATIVE } from './beta-feedback-narrative'
+import {
+  composeBetaFeedbackMessage,
+  type BetaFeedbackNarrative,
+} from './beta-feedback-narrative'
+
+const EMPTY_NARRATIVE: BetaFeedbackNarrative = { context: '', observed: '', expected: '' }
 
 describe('beta feedback narrative', () => {
   it('labels each answered section of a bug report', () => {

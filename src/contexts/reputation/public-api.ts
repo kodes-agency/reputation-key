@@ -44,13 +44,6 @@ export {
   createInboxNotificationLookup,
   isCurrentInboxAssignee,
 } from './inbox/notification-lookup.server'
-export type {
-  InboxHandlingCycleHead,
-  InboxItemRow,
-  InboxNotificationLookup,
-  InboxResponseTargetReminderLookup,
-  InboxResponseTargetReminderRow,
-} from './inbox/notification-lookup.server'
 export { historicalOnboardingItem } from './inbox/historical-onboarding-item.server'
 
 // ── Review ───────────────────────────────────────────────────────────
@@ -68,15 +61,6 @@ export type {
   PersistedPublicationState,
   PublicationFailureClass,
 } from './domain/reply-publication-workflow'
-export type { ReplyCommandStore } from './replies/reply-command-store.port.server'
-export type {
-  ConditionalReplyUpdate,
-  ReplyRepository,
-} from './replies/reply-repository.port.server'
-export type {
-  ReplyWriter,
-  UncertainSendSnapshot,
-} from './replies/reply-writer.port.server'
 
 // Event re-exports — cross-context consumers import events from here, not from domain/review-events.
 export type {
@@ -100,7 +84,6 @@ export type {
 export {
   reviewCreated,
   reviewUpdated,
-  reviewExpired,
   reviewReplyPublished,
   reviewReplyPublicationRequested,
 } from './domain/review-events'
@@ -155,33 +138,18 @@ export {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
 } from './content/run-source-content-lifecycle.server'
 export type { ReviewReplyObservationAuthority } from './reviews/reply-observation-authority.port.server'
-export type {
-  ReviewInboxProjectionExpectation,
-  ReviewInboxProjectionRevisionPermit,
-  ReviewResponseTargetAuthority,
-  ReviewResponseTargetAuthorityResult,
-  ReviewResponseTargetExpectation,
-} from './reviews/response-target-authority.port.server'
+export type { ReviewResponseTargetAuthority } from './reviews/response-target-authority.port.server'
 export type { ReviewSourceTransitionAuthority } from './reviews/source-transition-authority.port.server'
 // Inbox reads one review from Google before it releases a Response Target
 // reminder for it; the result is content-free.
-export type {
-  CheckReviewOnGoogle as ReviewGoogleReviewCheck,
-  CheckReviewOnGoogleInput,
-  CheckReviewOnGoogleResult,
-} from './sync/check-review-on-google.server'
+export type { CheckReviewOnGoogle as ReviewGoogleReviewCheck } from './sync/check-review-on-google.server'
 export type {
   AmbiguousPublicationReconciliationCandidate,
   FindAmbiguousPublicationReconciliationCandidates,
 } from './publication/publication-reconciliation-candidate-repository.port.server'
-export type {
-  ReconcileReplyPublication,
-  ReconcileReplyPublicationInput,
-} from './publication/reconcile-reply-publication.server'
 // What "Check Google again" found. The inbox reply actions render these
 // outcomes, so the result shape is part of the public surface.
 export type {
-  CheckReplyPublication,
   ReplyPublicationCheckOutcome,
   ReplyPublicationCheckResult,
 } from './publication/check-reply-publication.server'
@@ -203,14 +171,12 @@ export type {
   GoogleRatingSummary,
   GoogleRatingSummaryRequest,
   GoogleRatingTotals,
-  GoogleRatingWeekHistory,
   GoogleRatingYearTotals,
   GoogleShownNumber,
   ReviewGoogleRatingReads,
 } from './reviews/google-rating-reads.port.server'
 export type {
   AiReviewSourcePort,
-  AiReviewSentence,
   AiReviewSourceReadRequest,
   AiReviewCurrentSource,
   AiTrendPopulationReview,
@@ -228,7 +194,6 @@ export type PrepareGoogleImportSync = (
 export type {
   InboxItem,
   InboxNote,
-  InboxItemDetail,
   InboxStatus,
   SourceType,
   ManualReopenReason,
@@ -251,16 +216,13 @@ export type {
   ResponseTargetPolicyWriteResult,
 } from './response-targets/policy.store.port.server'
 export type { PrivateFeedbackHandlingOutcome } from './domain/feedback-handling'
-export type { EffectiveInboxPriority, InboxPriority } from './domain/inbox-priority'
+export type { InboxPriority } from './domain/inbox-priority'
 export type { InboxRevisionConflictResult } from './domain/inbox-errors'
 
 // The detail result (includes the review reply) — used by the client detail
 // state. See the get-inbox-item-detail use case.
 export type { InboxItemDetailResult } from './inbox/get-inbox-item-detail.server'
-export type {
-  CheckInboxReviewOnGoogleResult,
-  InboxGoogleCheckOutcome,
-} from './inbox/check-inbox-review-on-google.server'
+export type { InboxGoogleCheckOutcome } from './inbox/check-inbox-review-on-google.server'
 export type { InboxNoteView } from './inbox/get-inbox-notes.server'
 export type { InboxError } from './domain/inbox-errors'
 export type { GetInboxItemHistoryResult } from './inbox/get-inbox-item-history.server'
@@ -273,7 +235,6 @@ export type { InboxQueue } from './inbox/inbox-queues.contracts'
 export type { InboxQueueCounts } from './inbox/get-inbox-queue-counts.server'
 export type { InboxPropertyCounts } from './inbox/get-inbox-property-counts.server'
 export type {
-  InboxMentionCorrection,
   InboxMentionV3,
   InboxReviewAnalysis,
   ReviewAnalysisAspect,
@@ -315,12 +276,8 @@ export type {
   InboxItemCreated,
   InboxItemStatusChanged,
   InboxItemEscalated,
-  InboxItemEscalationResolved,
-  InboxItemPriorityChanged,
   InboxItemAssigned,
-  InboxItemUnassigned,
   InboxNoteAdded,
-  InboxItemBulkStatusChanged,
   InboxBulkAssignmentCompleted,
   InboxAssignmentsReleased,
   InboxBulkReopenCompleted,

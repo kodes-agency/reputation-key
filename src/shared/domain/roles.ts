@@ -3,7 +3,6 @@
 // The canonical Role definition and all role-mapping functions live here.
 // Contexts and shared/ modules import from this single source of truth.
 import { assertNever } from './assert'
-import { domainError } from './errors'
 
 /** Our domain roles — mapped from better-auth organization plugin roles. */
 export type Role = 'AccountAdmin' | 'PropertyManager' | 'Member'
@@ -45,26 +44,6 @@ export function toDomainRole(betterAuthRole: string): Role | null {
       return null
   }
 }
-/**
- * Strict variant: map a better-auth role to a domain Role, throwing a typed
- * `unknown_role` DomainError for non-built-in roles.
- *
- * Use at sites that require a `Role` (member/invitation DTOs, role write paths).
- * A null never occurs in correct operation — only the three built-in roles exist
- * (all write paths are blocked or built-in-validated) — so a throw surfaces data
- * corruption or a bypassed write path loudly instead of silently mislabelling.
- * Prefer `toDomainRole` where the caller decides null policy (e.g. middleware).
- */
-export function toDomainRoleStrict(betterAuthRole: string): Role {
-  const role = toDomainRole(betterAuthRole)
-  if (role === null) {
-    throw domainError('unknown_role', `Unknown better-auth role: ${betterAuthRole}`, {
-      value: betterAuthRole,
-    })
-  }
-  return role
-}
-
 /**
  * True when a (possibly multi-role, comma-delimited) better-auth role string grants owner.
  * Owner detection must operate on the RAW role string: a multi-role member like

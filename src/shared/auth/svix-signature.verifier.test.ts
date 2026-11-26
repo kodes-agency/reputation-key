@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  signSvixPayload,
   SVIX_TOLERANCE_SECONDS,
   svixHeaders,
   validateSvixHeaders,
   verifySvixSignature,
   type SvixHeaders,
 } from './svix-signature.verifier'
+import { signSvixPayload } from './svix-signature.test-fixtures'
 
 const SECRET = `whsec_${Buffer.from('resend-webhook-signing-key').toString('base64')}`
 const NOW = new Date('2026-08-21T09:00:00Z')

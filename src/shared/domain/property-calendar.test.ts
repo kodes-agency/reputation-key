@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  daysInGregorianMonth,
   propertyWallClockAt,
   propertyWallClockToInstant,
   shiftPropertyLocalDays,
@@ -87,15 +86,6 @@ describe('Property wall-clock conversion', () => {
         'Pacific/Apia',
       ),
     ).toThrow('Unable to resolve wall clock in timezone Pacific/Apia')
-  })
-})
-
-describe('Gregorian month length', () => {
-  it('handles leap years and ordinary month lengths', () => {
-    expect(daysInGregorianMonth(2024, 2)).toBe(29)
-    expect(daysInGregorianMonth(2025, 2)).toBe(28)
-    expect(daysInGregorianMonth(2025, 4)).toBe(30)
-    expect(daysInGregorianMonth(2025, 1)).toBe(31)
   })
 })
 

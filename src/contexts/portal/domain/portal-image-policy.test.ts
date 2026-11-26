@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 import {
   PORTAL_IMAGE_LIMITS,
   PORTAL_IMAGE_OUTPUT_CONTENT_TYPE,
-  PORTAL_IMAGE_PURPOSES,
   assessEncodedImage,
   assessUpload,
   isAnimatedImage,
@@ -13,6 +12,7 @@ import {
   sniffImageFormat,
   type ImageFacts,
 } from './portal-image-policy'
+import { PORTAL_MEDIA_PURPOSES } from '#/shared/domain/portal-media'
 import { isPortalError } from './errors'
 
 const bytes = (...values: number[]) => Uint8Array.from(values)
@@ -271,7 +271,7 @@ describe('planReencode', () => {
   })
 
   it('gives every purpose a rule', () => {
-    for (const purpose of PORTAL_IMAGE_PURPOSES) {
+    for (const purpose of PORTAL_MEDIA_PURPOSES) {
       const rule = PORTAL_IMAGE_LIMITS.purposes[purpose]
       expect(rule.maxEdge).toBeLessThanOrEqual(16_384)
       expect(rule.minLongEdge).toBeLessThan(rule.maxEdge)

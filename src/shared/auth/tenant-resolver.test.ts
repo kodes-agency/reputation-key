@@ -45,7 +45,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { VALID_PERMISSIONS } from './permission-catalogue'
 import { can, canForContext, scopeForPermission } from '#/shared/domain/permissions'
-import { toDomainRoleStrict } from '#/shared/domain/roles'
+import { toDomainRole } from '#/shared/domain/roles'
 import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
 
 const makeHeaders = (extra: Record<string, string> = {}): Headers => {
@@ -158,9 +158,9 @@ describe('versionedEntryIsFresh', () => {
 describe('built-in role authority', () => {
   /** Every permission and scope of `memberRole`, checked against the static role table. */
   function expectBuiltInAuthority(ctx: AuthContext, memberRole: string) {
-    const role = toDomainRoleStrict(memberRole)
     const scope = memberRole === 'owner' ? 'organization' : 'assigned-properties'
-    expect(ctx.role).toBe(role)
+    expect(ctx.role).toBe(toDomainRole(memberRole))
+    const role = ctx.role
     for (const permission of VALID_PERMISSIONS) {
       const allowed = can(role, permission)
       expect(canForContext(ctx, permission), permission).toBe(allowed)

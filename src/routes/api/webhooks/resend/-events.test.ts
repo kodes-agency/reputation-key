@@ -5,7 +5,7 @@
 // relevant line of this route untested.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { signSvixPayload } from '#/shared/auth/svix-signature.verifier'
+import { signSvixPayload } from '#/shared/auth/svix-signature.test-fixtures'
 import { handleResendWebhookPost } from './events'
 
 const SECRET = `whsec_${Buffer.from('resend-webhook-signing-key').toString('base64')}`

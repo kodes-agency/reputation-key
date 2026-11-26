@@ -15,7 +15,6 @@ import { err, ok } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
 import {
   PORTAL_MEDIA_MAX_UPLOAD_BYTES,
-  PORTAL_MEDIA_PURPOSES,
   PORTAL_MEDIA_SIZE_RULES,
   PORTAL_MEDIA_STORED_CONTENT_TYPE,
   type PortalMediaPurpose,
@@ -23,7 +22,6 @@ import {
 } from '#/shared/domain/portal-media'
 import { portalError, type PortalError } from './errors'
 
-export const PORTAL_IMAGE_PURPOSES = PORTAL_MEDIA_PURPOSES
 export type PortalImagePurpose = PortalMediaPurpose
 
 export type PortalImageFormat = PortalMediaSourceFormat

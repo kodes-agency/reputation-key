@@ -105,16 +105,6 @@ export function assertLocalOnlyDatabase(env: Environment): LocalDatabaseTarget {
   return target
 }
 
-/** Whether every reading says the database is this developer's own. */
-export function isLocalOnlyDatabase(env: Environment): boolean {
-  try {
-    assertLocalOnlyDatabase(env)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
  * Where the driver will connect for a Redis address, or undefined when the
  * address is not one. Constructing a client with `lazyConnect` opens nothing.

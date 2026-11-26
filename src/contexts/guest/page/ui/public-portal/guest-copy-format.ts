@@ -7,11 +7,6 @@ import type {
 
 const PLACEHOLDER = /\{([a-zA-Z]+)\}/g
 
-/** The distinct placeholder names in a template, in order of first use. */
-export function templatePlaceholders(template: string): string[] {
-  return [...new Set([...template.matchAll(PLACEHOLDER)].map((match) => match[1] ?? ''))]
-}
-
 /**
  * Fills the `{placeholder}` slots of a pack text. A missing value throws: a
  * guest must never see a raw `{name}` in place of the property's name.

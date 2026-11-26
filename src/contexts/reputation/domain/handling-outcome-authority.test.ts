@@ -10,7 +10,6 @@ import {
   SOURCE_UNAVAILABLE_CLOSE_REASONS,
   assertManagerHandlingPermitted,
   assertManualReopenPermitted,
-  isSourceUnavailableCloseReason,
   managerHandlingAttributionFor,
 } from './handling-outcome-authority'
 import type { HandlingCycleHead } from './inbox-types'
@@ -33,19 +32,12 @@ const head = (overrides: Partial<HandlingCycleHead> = {}): HandlingCycleHead => 
   ...overrides,
 })
 
-describe('isSourceUnavailableCloseReason', () => {
+describe('SOURCE_UNAVAILABLE_CLOSE_REASONS', () => {
   it('names exactly the retention, redaction and source-unavailable closures', () => {
     expect([...SOURCE_UNAVAILABLE_CLOSE_REASONS]).toEqual([
       'guest_withdrawn',
       'source_ineligible',
     ])
-  })
-
-  it('does not treat a superseding revision or a manager outcome as unavailability', () => {
-    expect(isSourceUnavailableCloseReason('superseded_by_source_revision')).toBe(false)
-    expect(isSourceUnavailableCloseReason('private_feedback_handled')).toBe(false)
-    expect(isSourceUnavailableCloseReason('confirmed_on_google')).toBe(false)
-    expect(isSourceUnavailableCloseReason('external_reply_observed')).toBe(false)
   })
 })
 

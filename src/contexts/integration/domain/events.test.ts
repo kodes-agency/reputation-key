@@ -2,7 +2,7 @@
 // Per architecture: "Events are facts, named in the past tense."
 
 import { describe, it, expect } from 'vitest'
-import { isDomainError } from '#/shared/domain/errors'
+import { isDomainError } from '#/shared/domain/errors.test-fixtures'
 import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,

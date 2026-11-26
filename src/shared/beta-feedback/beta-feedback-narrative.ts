@@ -15,12 +15,6 @@ export type BetaFeedbackNarrative = Readonly<{
   expected: string
 }>
 
-export const EMPTY_NARRATIVE: BetaFeedbackNarrative = Object.freeze({
-  context: '',
-  observed: '',
-  expected: '',
-})
-
 const BUG_SECTIONS: ReadonlyArray<readonly [keyof BetaFeedbackNarrative, string]> = [
   ['context', 'What I was doing'],
   ['observed', 'What happened'],

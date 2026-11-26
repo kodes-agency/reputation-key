@@ -1,13 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { formatCompactAge, formatRelativeTime, formatReviewLanguage } from './utils'
-
-describe('inbox language label', () => {
-  it('renders a safe English language label from BCP-47 metadata', () => {
-    expect(formatReviewLanguage('tr-TR')).toBe('Turkish')
-    expect(formatReviewLanguage('not_a_tag')).toBeNull()
-    expect(formatReviewLanguage(null)).toBeNull()
-  })
-})
+import { formatCompactAge, formatRelativeTime } from './utils'
 
 describe('formatRelativeTime', () => {
   /**

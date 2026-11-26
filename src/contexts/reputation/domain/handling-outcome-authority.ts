@@ -34,14 +34,6 @@ export const SOURCE_UNAVAILABLE_CLOSE_REASONS = [
   'source_ineligible',
 ] as const
 
-export type SourceUnavailableCloseReason =
-  (typeof SOURCE_UNAVAILABLE_CLOSE_REASONS)[number]
-
-export const isSourceUnavailableCloseReason = (
-  value: string,
-): value is SourceUnavailableCloseReason =>
-  SOURCE_UNAVAILABLE_CLOSE_REASONS.some((candidate) => candidate === value)
-
 /** The exactly-one closure that a manager authored. */
 const MANAGER_HANDLING_CLOSE_REASON: HandlingCycleCloseReason = 'private_feedback_handled'
 

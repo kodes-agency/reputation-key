@@ -80,11 +80,6 @@ export type DashboardReadTimeout = Readonly<{
   message: string
 }>
 
-export const isDashboardReadTimeout = (e: unknown): e is DashboardReadTimeout =>
-  typeof e === 'object' &&
-  e !== null &&
-  (e as DashboardReadTimeout)._tag === 'DashboardReadTimeout'
-
 /** PG raises 57014 (query_canceled) when statement_timeout fires. Drizzle
  *  wraps query failures in DrizzleQueryError with the PG error on .cause. */
 function isPgStatementTimeout(err: unknown): boolean {

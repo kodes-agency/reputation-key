@@ -4,10 +4,22 @@ import {
   deriveReviewProviderSubject,
   encodeReviewProviderSubjectScope,
   parseReviewProviderResource,
-  reviewProviderSubjectsEqual,
   type ReviewProviderSubject,
   type ReviewProviderSubjectInput,
 } from './review-provider-subject-contract'
+
+type SubjectDigests = Pick<
+  ReviewProviderSubject,
+  'keyVersion' | 'locatorHmac' | 'verifierHmac'
+>
+
+const reviewProviderSubjectsEqual = (
+  left: SubjectDigests,
+  right: SubjectDigests,
+): boolean =>
+  left.keyVersion === right.keyVersion &&
+  Buffer.from(left.locatorHmac).equals(right.locatorHmac) &&
+  Buffer.from(left.verifierHmac).equals(right.verifierHmac)
 
 type Fixture = Readonly<{
   catalogueVersion: string

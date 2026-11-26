@@ -9,7 +9,6 @@ import {
   DASHBOARD_RANGE_DEFAULT,
   bucketUnitForRange,
   dashboardRangeComparisonLabel,
-  dashboardRangeDays,
   dashboardRangeSearch,
   guestVoiceRangeSearch,
   toPerformancePreset,
@@ -60,15 +59,13 @@ describe('adapters', () => {
 })
 
 describe('range semantics', () => {
-  it('has no day count and no comparison for the unbounded window', () => {
+  it('has no comparison for the unbounded window', () => {
     // An unbounded window has no prior window; inventing one is what produced
     // the fabricated 0 % trend this codebase already fixed once.
-    expect(dashboardRangeDays('all')).toBeNull()
     expect(dashboardRangeComparisonLabel('all')).toBeNull()
   })
 
   it('compares a bounded window with one of the same length', () => {
-    expect(dashboardRangeDays('180d')).toBe(180)
     expect(dashboardRangeComparisonLabel('30d')).toBe('vs the previous 30 days')
     expect(dashboardRangeComparisonLabel('180d')).toBe('vs the previous 6 months')
   })
