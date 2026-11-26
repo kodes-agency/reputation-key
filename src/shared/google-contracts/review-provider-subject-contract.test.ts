@@ -1,13 +1,28 @@
+import { timingSafeEqual } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   deriveReviewProviderSubject,
   encodeReviewProviderSubjectScope,
   parseReviewProviderResource,
-  reviewProviderSubjectsEqual,
   type ReviewProviderSubject,
   type ReviewProviderSubjectInput,
 } from './review-provider-subject-contract'
+
+function reviewProviderSubjectsEqual(
+  left: Pick<ReviewProviderSubject, 'keyVersion' | 'locatorHmac' | 'verifierHmac'>,
+  right: Pick<ReviewProviderSubject, 'keyVersion' | 'locatorHmac' | 'verifierHmac'>,
+): boolean {
+  return (
+    left.keyVersion === right.keyVersion &&
+    left.locatorHmac.byteLength === 32 &&
+    right.locatorHmac.byteLength === 32 &&
+    left.verifierHmac.byteLength === 32 &&
+    right.verifierHmac.byteLength === 32 &&
+    timingSafeEqual(left.locatorHmac, right.locatorHmac) &&
+    timingSafeEqual(left.verifierHmac, right.verifierHmac)
+  )
+}
 
 type Fixture = Readonly<{
   catalogueVersion: string

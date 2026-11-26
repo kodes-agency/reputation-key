@@ -6,14 +6,6 @@ export { GOOGLE_PERFORMANCE_CATALOG_VERSION }
 export const PROPERTY_PERFORMANCE_PRESETS = ['7d', '30d', '90d', '180d'] as const
 export type PropertyPerformancePreset = (typeof PROPERTY_PERFORMANCE_PRESETS)[number]
 
-const PROPERTY_PERFORMANCE_PRESET_SET = new Set<string>(PROPERTY_PERFORMANCE_PRESETS)
-
-export function isPropertyPerformancePreset(
-  value: string,
-): value is PropertyPerformancePreset {
-  return PROPERTY_PERFORMANCE_PRESET_SET.has(value)
-}
-
 export const GOOGLE_PERFORMANCE_ERROR_CODES = [
   'rate_limited',
   'provider_timeout',
@@ -24,14 +16,6 @@ export const GOOGLE_PERFORMANCE_ERROR_CODES = [
   'stale_source',
 ] as const
 export type GooglePerformanceErrorCode = (typeof GOOGLE_PERFORMANCE_ERROR_CODES)[number]
-
-const GOOGLE_PERFORMANCE_ERROR_CODE_SET = new Set<string>(GOOGLE_PERFORMANCE_ERROR_CODES)
-
-export function isGooglePerformanceErrorCode(
-  value: string,
-): value is GooglePerformanceErrorCode {
-  return GOOGLE_PERFORMANCE_ERROR_CODE_SET.has(value)
-}
 
 export type PerformanceAvailability =
   'ready' | 'partial' | 'not_applicable_or_not_returned' | 'no_complete_days'

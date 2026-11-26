@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  lintReplyDraftingV2Body,
-  hasReplyAvoidanceTerm,
-  type LintInput,
-} from '#/shared/reply/lint'
+import { lintReplyDraftingV2Body, type LintInput } from '#/shared/reply/lint'
 import { REPLY_BODY_RULES } from '#/shared/domain/reply-body-lint-policy'
 
 const BASE: LintInput = {
@@ -119,7 +115,7 @@ describe('AI body lint, avoidance terms', () => {
     ['another word', 'петна', 'Чакахте повече от петнадесет минути.', false],
     ['an English plural', 'stain', 'We are sorry about the stains on the sheets.', true],
   ])('reads %s', (_label, term, body, found) => {
-    expect(hasReplyAvoidanceTerm(body, [term])).toBe(found)
+    expect(codes({ body, avoidTerms: [term] }).includes('avoidance')).toBe(found)
   })
 })
 
@@ -294,6 +290,6 @@ describe('AI body lint, content-free findings', () => {
     ['sick$', 'We are sick.', false],
     ['rat$', 'A rat$ was mentioned.', true],
   ])('matches avoidance %s with Unicode word edges', (term, body, expected) => {
-    expect(hasReplyAvoidanceTerm(body, [term])).toBe(expected)
+    expect(codes({ body, avoidTerms: [term] }).includes('avoidance')).toBe(expected)
   })
 })

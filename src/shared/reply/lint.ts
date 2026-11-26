@@ -576,10 +576,6 @@ export function replyBodyFinding(code: ReplyBodyIssueCode): ReplyBodyFinding {
   return { code, severity: REPLY_BODY_RULES[code][0] }
 }
 
-export function hasReplyAvoidanceTerm(body: string, terms: readonly string[]): boolean {
-  return findTerms(body, terms, false).length > 0
-}
-
 export const REPLY_BODY_LINT_VERSION = 'reply-body-lint-v1' as const
 // Include the dictionaries AND the matchers. No source/rejected text enters this digest.
 export const REPLY_BODY_LINT_DIGEST = digestOf('repkey-reply-body-lint-v1\0', {

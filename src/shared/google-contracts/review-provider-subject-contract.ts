@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 
 export const REVIEW_PROVIDER_SUBJECT_CONTRACT_VERSION =
   'review-provider-subject-v1' as const
@@ -138,19 +138,4 @@ export function deriveReviewProviderSubject(
     locatorHmac: hmac(input.key, LOCATOR_DOMAIN, scope),
     verifierHmac: hmac(input.key, VERIFIER_DOMAIN, scope),
   })
-}
-
-export function reviewProviderSubjectsEqual(
-  left: Pick<ReviewProviderSubject, 'keyVersion' | 'locatorHmac' | 'verifierHmac'>,
-  right: Pick<ReviewProviderSubject, 'keyVersion' | 'locatorHmac' | 'verifierHmac'>,
-): boolean {
-  return (
-    left.keyVersion === right.keyVersion &&
-    left.locatorHmac.byteLength === 32 &&
-    right.locatorHmac.byteLength === 32 &&
-    left.verifierHmac.byteLength === 32 &&
-    right.verifierHmac.byteLength === 32 &&
-    timingSafeEqual(left.locatorHmac, right.locatorHmac) &&
-    timingSafeEqual(left.verifierHmac, right.verifierHmac)
-  )
 }
