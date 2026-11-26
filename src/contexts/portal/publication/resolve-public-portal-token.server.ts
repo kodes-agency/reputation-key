@@ -301,7 +301,7 @@ function selectPresentation(
 type ServedContent = Readonly<{
   portal: PublicPortalResult['portal']
   links: PublicPortalResult['links']
-  immersive: PublicImmersiveExperience | null
+  immersive: PublicImmersiveExperience
 }>
 
 async function resolveServedContent(
@@ -317,13 +317,7 @@ async function resolveServedContent(
     resolveApprovedLinks(deps, token, published, now),
     resolveMediaUrls(deps, token, configuration),
   ])
-  const presented = presentImmersivePortal(
-    configuration,
-    selectedLocale,
-    approvedLinks,
-    mediaUrls,
-  )
-  return presented
+  return presentImmersivePortal(configuration, selectedLocale, approvedLinks, mediaUrls)
 }
 
 export const resolvePublicPortalToken =

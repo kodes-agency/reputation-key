@@ -39,8 +39,7 @@ function isUnavailablePosture(error: unknown): boolean {
  * hydration read the same copy and no client request fetches it afterwards. A
  * pack that cannot be loaded fails the whole read, never to another language.
  */
-export type GuestPageData = PublicPortalLoaderData &
-  Readonly<{ pack: GuestPortalCopy | null }>
+export type GuestPageData = PublicPortalLoaderData & Readonly<{ pack: GuestPortalCopy }>
 
 /** The route's own binding of the public read: the server function stays in the route. */
 export type ReadPublicPortal = (input: {
@@ -60,14 +59,12 @@ export const publicPortalQuery = (
         // A dynamic import of the loader's own module, not the guest barrel: the
         // loader belongs to the route's critical chunk, and a static edge to the
         // barrel would put the whole guest page in every page's first paint.
-        const pack = data.immersive
-          ? await (
-              await import('#/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy')
-            ).loadGuestPortalCopy(
-              data.localization.selectedLocale,
-              data.localization.languagePackVersion,
-            )
-          : null
+        const pack = await (
+          await import('#/contexts/guest/page/ui/public-portal/language-packs/load-guest-copy')
+        ).loadGuestPortalCopy(
+          data.localization.selectedLocale,
+          data.localization.languagePackVersion,
+        )
         return { ...data, pack }
       } catch (error) {
         if (isUnavailablePosture(error)) return null
