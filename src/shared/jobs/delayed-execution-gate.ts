@@ -14,10 +14,10 @@
 // were removed in BQC-3.2 (see architecture/delayed-policy-delegation.test).
 //
 // Outcome mapping (phase BQC-3 §3.2 typed runtime outcomes):
-//   allow                        → allow — invoke the work
-//   every deny                   → deny_terminal — typed terminal state, no
-//                                  side effect, no retry. The worker dispatch
-//                                  resolves a GateDeniedResult so the runtime
+//   decision.allowed             → invoke the work
+//   every deny                   → terminal state, no side effect, no retry.
+//                                  The worker dispatch resolves a
+//                                  GateDeniedResult so the runtime
 //                                  observations record a denial, never a
 //                                  success (gate-denial.ts)
 // The policy decides from process-local state, so it never answers "cannot
@@ -92,10 +92,6 @@ export function createJobExecutionEnvelope(
     ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
   }
 }
-
-export type GateOutcome =
-  | Readonly<{ kind: 'allow'; decision: DelayedDecision }>
-  | Readonly<{ kind: 'deny_terminal'; decision: DelayedDecision }>
 
 /**
  * Resolves property scope (e.g. reply → property). Ledger dispatches supply
@@ -181,11 +177,6 @@ async function resolvePropertyId(
   return resolveScope?.(jobName, payload)
 }
 
-function toOutcome(decision: DelayedDecision): GateOutcome {
-  if (decision.allowed) return { kind: 'allow', decision }
-  return { kind: 'deny_terminal', decision }
-}
-
 function rowForJob(jobName: string, executionKind: 'worker' | 'consumer' | 'schedule') {
   if (executionKind === 'schedule') {
     return SCHEDULE_ROW_BY_JOB_NAME.get(jobName) ?? JOB_ROW_BY_NAME.get(jobName)
@@ -203,10 +194,10 @@ export async function gateJob(
   principalId: string,
   executionKind: 'worker' | 'consumer' | 'schedule',
   resolveScope?: ScopeResolver,
-): Promise<GateOutcome> {
+): Promise<DelayedDecision> {
   const payload = isRecord(data) ? data : {}
   const row = rowForJob(jobName, executionKind)
-  const decision = await getDelayedExecutionPolicy().decide({
+  return getDelayedExecutionPolicy().decide({
     principal: { kind: 'system', id: principalId },
     // Unknown rows pass the job name through — decide() denies unknown_action.
     action: row?.action ?? jobName,
@@ -224,7 +215,6 @@ export async function gateJob(
       typeof payload.correlationId === 'string' ? payload.correlationId : undefined,
     now: new Date(),
   })
-  return toOutcome(decision)
 }
 
 export type ScheduledScopeAuthorizer = (
@@ -258,9 +248,9 @@ export async function gateDispatcherConsumer(
   consumerName: string,
   module: string,
   envelope: ConsumerEvent,
-): Promise<GateOutcome> {
+): Promise<DelayedDecision> {
   const row = CONSUMER_ROW_BY_NAME.get(module)
-  const decision = await getDelayedExecutionPolicy().decide({
+  return getDelayedExecutionPolicy().decide({
     principal: { kind: 'system', id: `consumer:${consumerName}` },
     action: row?.action ?? module,
     resourceScope: row?.resourceScope,
@@ -270,7 +260,6 @@ export async function gateDispatcherConsumer(
     correlationId: envelope.eventId,
     now: new Date(),
   })
-  return toOutcome(decision)
 }
 
 // ── Dispatch scope ───────────────────────────────────────────────────
@@ -387,15 +376,15 @@ export function createGatedJobHandler(
       }
     }
     const executionKind = executionKindOf(job)
-    const outcome = await gateJob(
+    const decision = await gateJob(
       job.name,
       policyData,
       executionKind === 'schedule' ? `schedule:${job.name}` : `worker:${queueLabel}`,
       executionKind,
       resolveScope,
     )
-    if (outcome.kind === 'deny_terminal') {
-      return terminalDenial(logger, job.name, outcome.decision, executionKind)
+    if (!decision.allowed) {
+      return terminalDenial(logger, job.name, decision, executionKind)
     }
     const payload = isRecord(policyData) ? policyData : {}
     const row = rowForJob(job.name, executionKind)

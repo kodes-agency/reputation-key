@@ -3,7 +3,8 @@ import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { createStaffParticipationRepository } from './staff-participation-repository.server'
+import { organizationId, propertyId, userId as userIdOf } from '#/shared/domain/ids'
+import { createAssignedPortalLookup } from './assigned-portal-lookup.server'
 
 const ORG_A = 'org-staff-participation-a'
 const ORG_B = 'org-staff-participation-b'
@@ -138,12 +139,12 @@ const BLAIR = {
   name: 'Blair',
 }
 
-describe('staff participation repository', () => {
-  it('resolves a login link only while its effective interval contains now', async () => {
-    const repo = createStaffParticipationRepository(getDb())
-    await insertParticipation(ALEX)
-    const { rows } = await pool.query<{ now: Date }>('SELECT NOW() AS now')
-    const now = new Date(rows[0].now)
+describe('assigned portal lookup', () => {
+  const lookup = () => createAssignedPortalLookup(getDb())
+  const assigned = (userId: string, org: string = ORG_A) =>
+    lookup()(organizationId(org), userIdOf(userId), propertyId(PROPERTY_A))
+
+  const linkAlex = async (now: Date) => {
     const hour = 60 * 60 * 1_000
     await pool.query(
       `INSERT INTO staff_user_links
@@ -159,20 +160,23 @@ describe('staff participation repository', () => {
         new Date(now.getTime() + 2 * hour),
       ],
     )
+  }
 
-    await expect(
-      repo.findActiveByUser(ORG_A, PROPERTY_A, 'current-linked-user'),
-    ).resolves.toMatchObject({
-      id: PARTICIPATION,
-      personalPortalId: null,
-      linkedUserId: 'current-linked-user',
-    })
-    await expect(
-      repo.findActiveByUser(ORG_A, PROPERTY_A, 'future-linked-user'),
-    ).resolves.toBeNull()
-    await expect(
-      repo.findActiveByUser(ORG_B, PROPERTY_A, 'current-linked-user'),
-    ).resolves.toBeNull()
+  it('resolves a login link only while its effective interval contains now', async () => {
+    await insertParticipation(ALEX)
+    await pool.query(
+      `UPDATE staff_participations SET personal_portal_id = $1 WHERE id = $2`,
+      [PORTAL_A, PARTICIPATION],
+    )
+    await insertResponsibility(PARTICIPATION, PORTAL_A, 'primary', START, null)
+    const { rows } = await pool.query<{ now: Date }>('SELECT NOW() AS now')
+    const now = new Date(rows[0].now)
+    const hour = 60 * 60 * 1_000
+    await linkAlex(now)
+
+    await expect(assigned('current-linked-user')).resolves.toEqual([PORTAL_A])
+    await expect(assigned('future-linked-user')).resolves.toEqual([])
+    await expect(assigned('current-linked-user', ORG_B)).resolves.toEqual([])
 
     const ambiguousLink = 'db000000-0000-4000-8000-000000000031'
     await pool.query(
@@ -188,22 +192,19 @@ describe('staff participation repository', () => {
         new Date(now.getTime() + hour),
       ],
     )
-    await expect(
-      repo.findActiveByUser(ORG_A, PROPERTY_A, 'current-linked-user'),
-    ).resolves.toBeNull()
+    await expect(assigned('current-linked-user')).resolves.toEqual([])
     await pool.query('DELETE FROM staff_user_links WHERE id = $1', [ambiguousLink])
 
     await pool.query(`UPDATE staff_participations SET started_at = $1 WHERE id = $2`, [
       new Date(now.getTime() + hour / 2),
       PARTICIPATION,
     ])
-    await expect(
-      repo.findActiveByUser(ORG_A, PROPERTY_A, 'current-linked-user'),
-    ).resolves.toBeNull()
+    await expect(assigned('current-linked-user')).resolves.toEqual([])
     await pool.query(`UPDATE staff_participations SET started_at = $1 WHERE id = $2`, [
       new Date(now.getTime() - hour),
       PARTICIPATION,
     ])
+    await expect(assigned('current-linked-user')).resolves.toEqual([PORTAL_A])
 
     await pool.query(
       `UPDATE staff_participants
@@ -211,23 +212,35 @@ describe('staff participation repository', () => {
        WHERE organization_id = $1 AND id = $2`,
       [ORG_A, PARTICIPANT],
     )
-    await expect(
-      repo.findActiveByUser(ORG_A, PROPERTY_A, 'current-linked-user'),
-    ).resolves.toBeNull()
+    await expect(assigned('current-linked-user')).resolves.toEqual([])
   })
 
-  it('lists only the open responsibilities of one participation, in the same tenant', async () => {
-    const repo = createStaffParticipationRepository(getDb())
+  it('returns only the open primary responsibility for the personal Portal', async () => {
     await insertParticipation(ALEX)
-    await insertResponsibility(PARTICIPATION, PORTAL_A, 'primary', START, null)
-    await insertResponsibility(PARTICIPATION, PORTAL_C, 'supporting', START, CHANGE)
-
-    await expect(repo.listActiveResponsibilities(ORG_A, PARTICIPATION)).resolves.toEqual([
-      expect.objectContaining({ portalId: PORTAL_A, kind: 'primary', effectiveTo: null }),
-    ])
-    await expect(repo.listActiveResponsibilities(ORG_B, PARTICIPATION)).resolves.toEqual(
-      [],
+    await pool.query(
+      `UPDATE staff_participations SET personal_portal_id = $1 WHERE id = $2`,
+      [PORTAL_A, PARTICIPATION],
     )
+    await linkAlex(new Date())
+    await insertResponsibility(PARTICIPATION, PORTAL_A, 'primary', START, null)
+    await insertResponsibility(PARTICIPATION, PORTAL_C, 'supporting', START, null)
+
+    await expect(assigned('current-linked-user')).resolves.toEqual([PORTAL_A])
+
+    await pool.query(
+      `UPDATE portal_responsibilities SET effective_to = $1
+       WHERE portal_id = $2 AND kind = 'primary'`,
+      [CHANGE, PORTAL_A],
+    )
+    await expect(assigned('current-linked-user')).resolves.toEqual([])
+  })
+
+  it('is empty when the participation has no personal Portal', async () => {
+    await insertParticipation(ALEX)
+    await linkAlex(new Date())
+    await insertResponsibility(PARTICIPATION, PORTAL_A, 'primary', START, null)
+
+    await expect(assigned('current-linked-user')).resolves.toEqual([])
   })
 })
 

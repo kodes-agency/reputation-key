@@ -216,7 +216,7 @@ describe('scoped job families are enqueued with the scope the gate decides on', 
         const outcome = await gateJob(jobName, job.data, 'worker:default', 'worker')
 
         expect(
-          { jobName, reason: outcome.decision.reason },
+          { jobName, reason: outcome.reason },
           `${jobName} must be enqueued with organizationId${
             row.resourceScope === 'property' ? ' and propertyId' : ''
           }: the gate reads its scope from the job payload`,

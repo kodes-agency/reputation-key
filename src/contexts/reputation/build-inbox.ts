@@ -261,8 +261,8 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     maintenance,
     worker: Object.freeze({ registerOutboxConsumers }),
     assignments: Object.freeze({
-      releaseIneligibleAssignmentsForUser: (input, tx) =>
-        commandStore.releaseIneligibleAssignmentsForUser(input, tx),
+      releaseIneligibleAssignmentsForUser:
+        commandStore.releaseIneligibleAssignmentsForUser,
     }),
     runtime: Object.freeze({
       releaseResponseTargetRemindersJob: Object.freeze({
