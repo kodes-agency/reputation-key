@@ -25,7 +25,6 @@ import type {
   CancelPublicationsForConnection,
   CancelPublicationsForProperty,
 } from './cancel-publications.server'
-import { buildIdempotencyKey } from '../domain/reply-publication-workflow'
 
 const EVENT_TYPE = 'review.reply.publication_requested' as const
 export const ON_REPLY_PUBLICATION_REQUESTED_CONSUMER =
@@ -95,8 +94,8 @@ export async function handleReplyPublicationRequested(
   deps: ReplyPublicationDeliveryDeps,
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
-  const payload = parsePublicationRequested(event)
   if (event.eventVersion !== 2) return receipt(deps, event.eventId, 'obsolete')
+  const payload = parsePublicationRequested(event)
   const current = await deps.replyRepo.findById(
     replyId(payload.replyId),
     organizationId(payload.organizationId),
@@ -115,21 +114,16 @@ export async function handleReplyPublicationRequested(
     return receipt(deps, event.eventId, 'obsolete')
   }
 
-  await deps.queue.addPublishJob(
-    {
-      replyId: payload.replyId,
-      organizationId: payload.organizationId,
-      publicationCycle: payload.publicationCycle,
-      propertyId: payload.propertyId,
-      sourceEpoch: payload.sourceEpoch,
-      materialReviewRevision: payload.materialReviewRevision,
-      baseObservationRevision: payload.baseObservationRevision,
-      initiator: { kind: 'user', id: userId(payload.userId) },
-    },
-    {
-      idempotencyKey: buildIdempotencyKey(payload.replyId, payload.publicationCycle),
-    },
-  )
+  await deps.queue.addPublishJob({
+    replyId: payload.replyId,
+    organizationId: payload.organizationId,
+    publicationCycle: payload.publicationCycle,
+    propertyId: payload.propertyId,
+    sourceEpoch: payload.sourceEpoch,
+    materialReviewRevision: payload.materialReviewRevision,
+    baseObservationRevision: payload.baseObservationRevision,
+    initiator: { kind: 'user', id: userId(payload.userId) },
+  })
 
   return receipt(deps, event.eventId, 'applied')
 }

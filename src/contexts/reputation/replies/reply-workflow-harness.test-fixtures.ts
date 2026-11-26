@@ -42,6 +42,7 @@ import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { Reply, Review, StarRating } from '../domain/review-types'
 import { reviewReplyPublicationCancelled } from '../domain/review-events'
 import { replyAuthor } from '../domain/reply-author'
+import { buildIdempotencyKey } from '../domain/reply-publication-workflow'
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
 import type {
   GoogleReplyPublicationRequest,
@@ -523,8 +524,8 @@ export async function createReplyWorkflowHarness(
     replyRepo,
     reviewRepo,
     queue: {
-      addPublishJob: async (data, options) => {
-        const id = options?.idempotencyKey ?? `publish-${jobs.length}`
+      addPublishJob: async (data) => {
+        const id = buildIdempotencyKey(data.replyId, data.publicationCycle)
         // BullMQ drops a second add under the same job id.
         if (!jobs.some((job) => job.id === id)) jobs.push({ id, data })
       },

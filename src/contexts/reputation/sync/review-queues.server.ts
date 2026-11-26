@@ -8,6 +8,7 @@ import type {
   TargetedGoogleReviewQueuePort,
 } from './review-queue.port.server'
 import type { ReplyQueuePort } from '../publication/reply-queue.port.server'
+import { buildIdempotencyKey } from '../domain/reply-publication-workflow'
 
 /** The Review context's job producers over one BullMQ queue. */
 export function createReviewQueues(jobQueue: Pick<Queue, 'add'>): Readonly<{
@@ -65,7 +66,7 @@ export function createReviewQueues(jobQueue: Pick<Queue, 'add'>): Readonly<{
   }
 
   const replyQueue: ReplyQueuePort = {
-    addPublishJob: async (data, options) => {
+    addPublishJob: async (data) => {
       const execution = createJobExecutionEnvelope({
         organizationId: data.organizationId,
         propertyId: data.propertyId,
@@ -79,7 +80,7 @@ export function createReviewQueues(jobQueue: Pick<Queue, 'add'>): Readonly<{
         {
           // Saga idempotency key as BullMQ jobId — a duplicate enqueue
           // of the same approval cycle is deduped by the queue.
-          jobId: options?.idempotencyKey,
+          jobId: buildIdempotencyKey(data.replyId, data.publicationCycle),
           removeOnComplete: { count: 100 },
           removeOnFail: { count: 50 },
           // Attempts/backoff+jitter/timeout from the job catalogue

@@ -12,10 +12,7 @@ import {
 import type { ReviewRepository } from '../reviews/review-repository.port.server'
 import type { Reply } from '../domain/review-types'
 import { GOOGLE_REPLY_COMMENT_MAX_BYTES } from '#/shared/google-provider-control/reply-comment'
-import {
-  buildIdempotencyKey,
-  PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
-} from '../domain/reply-publication-workflow'
+import { PUBLICATION_RECOVERY_RECONCILE_DELAY_MS } from '../domain/reply-publication-workflow'
 import { replyId } from '#/shared/domain/ids'
 import {
   ORG_ID,
@@ -64,19 +61,16 @@ describe('approveReply', () => {
       publicationCycle: 1,
     })
     expect(deps.queue.addPublishJob).toHaveBeenCalledOnce()
-    expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
-      {
-        replyId: intent.replyId,
-        organizationId: intent.organizationId,
-        publicationCycle: intent.publicationCycle,
-        propertyId: intent.propertyId,
-        sourceEpoch: intent.sourceEpoch,
-        materialReviewRevision: intent.materialReviewRevision,
-        baseObservationRevision: intent.baseObservationRevision,
-        initiator: { kind: 'user', id: USER_ID },
-      },
-      { idempotencyKey: buildIdempotencyKey(intent.replyId, intent.publicationCycle) },
-    )
+    expect(deps.queue.addPublishJob).toHaveBeenCalledWith({
+      replyId: intent.replyId,
+      organizationId: intent.organizationId,
+      publicationCycle: intent.publicationCycle,
+      propertyId: intent.propertyId,
+      sourceEpoch: intent.sourceEpoch,
+      materialReviewRevision: intent.materialReviewRevision,
+      baseObservationRevision: intent.baseObservationRevision,
+      initiator: { kind: 'user', id: USER_ID },
+    })
 
     const memberDeps = depsWith(pending)
     await expect(
@@ -422,19 +416,16 @@ describe('editPublishedReply', () => {
     expect(fact.organizationId).toBe(ORG_ID)
     expect(fact.userId).toBe(USER_ID)
 
-    expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
-      {
-        replyId: REPLY_ID,
-        organizationId: ORG_ID,
-        publicationCycle: 1,
-        propertyId: PROP_ID,
-        sourceEpoch: 0,
-        materialReviewRevision: 1,
-        baseObservationRevision: 0,
-        initiator: { kind: 'user', id: USER_ID },
-      },
-      { idempotencyKey: buildIdempotencyKey(REPLY_ID, 1) },
-    )
+    expect(deps.queue.addPublishJob).toHaveBeenCalledWith({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+      publicationCycle: 1,
+      propertyId: PROP_ID,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
+      initiator: { kind: 'user', id: USER_ID },
+    })
   })
 
   it('no-ops when the trimmed text is unchanged (no write, no fact, no enqueue)', async () => {
