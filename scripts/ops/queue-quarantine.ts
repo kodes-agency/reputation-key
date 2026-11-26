@@ -18,20 +18,16 @@ import {
   QUARANTINE_QUEUE_NAMES,
 } from '../../src/shared/jobs/queue-quarantine'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
-import { exitIfHelp } from './command-help'
+import { exitIfHelp, exitWithUsage } from './command-help'
 import { runDatabaseOperatorCommand } from './operator-command'
 
 const USAGE = `pnpm ops queue <status|pause|resume> <${QUARANTINE_QUEUE_NAMES.join('|')}> --operator <id> [--reason <text> --apply]`
 
-function usage(): never {
-  console.error(`Usage: ${USAGE}`)
-  process.exit(1)
-}
-
 async function main(): Promise<void> {
   exitIfHelp(process.argv.slice(2), USAGE)
   const [action, name] = positionalArgs(process.argv.slice(2))
-  if (!action || !name || !['status', 'pause', 'resume'].includes(action)) usage()
+  if (!action || !name || !['status', 'pause', 'resume'].includes(action))
+    exitWithUsage(USAGE)
   const mutation = action !== 'status'
 
   const result = await runDatabaseOperatorCommand(

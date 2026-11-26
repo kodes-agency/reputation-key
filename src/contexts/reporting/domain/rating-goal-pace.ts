@@ -35,6 +35,3 @@ export const weeklyPlanCount = (tenthsPerWeek: number): number =>
  */
 export const legacyPacePerWeek = (tenthsPerWeek: number): number =>
   weeklyPlanCount(tenthsPerWeek)
-
-/** A pace in tenths of a review a week as an exact ratio of reviews a week. */
-export const paceRatio = (tenthsPerWeek: number): Ratio => ratio(tenthsPerWeek, 10)

@@ -1,9 +1,9 @@
+import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
+import { policyDeps } from '../responsibility/portal-manager-eligibility.server'
 import {
   assertPersonalPropertySource,
   assertPersonalPublicationReady,
 } from './personal-portal-property-source.server'
-import { policyDeps } from '../responsibility/portal-manager-eligibility.server'
-import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import {
   assertPropertyAllowsPublication,
   loadVerifiedGoogleReviewDestination,

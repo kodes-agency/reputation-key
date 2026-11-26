@@ -8,8 +8,10 @@ import {
 } from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
 import type { PortalResponsibleManagerRepository } from './portal-responsible-manager-repository.port.server'
-import type { PortalManagerEligibilityDeps } from './portal-manager-eligibility.server'
-import { policyDeps } from './portal-manager-eligibility.server'
+import {
+  type PortalManagerEligibilityDeps,
+  policyDeps,
+} from './portal-manager-eligibility.server'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
 import type { Portal } from '../domain/types'
 import { portalError } from '../domain/errors'

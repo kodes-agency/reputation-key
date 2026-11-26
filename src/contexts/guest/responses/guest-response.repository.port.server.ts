@@ -13,7 +13,7 @@ export type GuestResponseScope = Readonly<{
   portalId: PortalId
 }>
 
-export type GuestResponsePeriodScope = GuestResponseScope &
+export type GuestResponsePeriod = GuestResponseScope &
   Readonly<{
     startAt: Date
     endAt: Date
@@ -86,15 +86,12 @@ export type GuestResponseRepository = Readonly<{
     organizationId: OrganizationId,
     filter: GuestResponseContentFilter,
   ): Promise<ReadonlyArray<GuestResponseId>>
-  /**
-   * Current integrity outcomes for rating responses in a half-open business
-   * period. Refuses a period that is not a valid, non-empty range.
-   */
+  /** Current integrity outcomes for rating responses in a half-open business period. */
   getPortalResponseIntegritySummary(
-    input: GuestResponsePeriodScope,
+    input: GuestResponsePeriod,
   ): Promise<PortalResponseIntegritySummary>
   /** Private ratings of one Portal over a half-open period, by page language. */
   getPortalRatingLanguages(
-    input: GuestResponsePeriodScope,
+    input: GuestResponsePeriod,
   ): Promise<PortalRatingLanguageBreakdown>
 }>

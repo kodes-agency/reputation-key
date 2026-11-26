@@ -2,6 +2,7 @@
 // added, what a change does to the language set, and the words the section uses
 // for coverage. Pure, so the wording and the rules are pinned by tests.
 
+import { plural } from '#/shared/format/format'
 import {
   GUEST_LANGUAGE_PACKS,
   GUEST_LOCALES,
@@ -158,9 +159,6 @@ export function languageDisplayName(locale: GuestLocale): {
     chip: adminLanguageCode(locale),
   }
 }
-
-const plural = (count: number, one: string, many: string) =>
-  `${count} ${count === 1 ? one : many}`
 
 export type CoverageDescription = Readonly<{
   tone: 'complete' | 'missing'

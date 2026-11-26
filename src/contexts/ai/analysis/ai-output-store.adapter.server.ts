@@ -1,3 +1,4 @@
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 import {
   authorizedEffectOperationColumns,
   isCurrentAuthorizedEffect,
@@ -441,14 +442,7 @@ export const createAiOutputStoreAdapter = (
             analysisSequence: reviews.analysisSequence,
           })
           .from(reviews)
-          .innerJoin(
-            reviewSourceContents,
-            and(
-              eq(reviewSourceContents.reviewId, reviews.id),
-              eq(reviewSourceContents.organizationId, reviews.organizationId),
-              eq(reviewSourceContents.propertyId, reviews.propertyId),
-            ),
-          )
+          .innerJoin(reviewSourceContents, reviewContentJoin)
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),

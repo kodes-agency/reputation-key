@@ -7,6 +7,7 @@ import {
   CONFIGURED_DATABASE_ENV_KEYS,
   assertNotConfiguredDatabase,
   databaseIdentity,
+  isLocalhostAlias,
   parseConfiguredDatabaseIdentities,
   sameDatabaseIdentity,
 } from './configured-database-fence'
@@ -36,6 +37,16 @@ describe('databaseIdentity', () => {
   it('returns null for a value that is not a database URL', () => {
     expect(databaseIdentity('not a url')).toBeNull()
     expect(databaseIdentity('')).toBeNull()
+  })
+})
+
+describe('isLocalhostAlias', () => {
+  it.each(['localhost', '127.0.0.1', '::1', '[::1]', ''])('accepts %j', (host) => {
+    expect(isLocalhostAlias(host)).toBe(true)
+  })
+
+  it('refuses a remote host', () => {
+    expect(isLocalhostAlias('db.example.com')).toBe(false)
   })
 })
 

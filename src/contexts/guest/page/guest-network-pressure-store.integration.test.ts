@@ -26,7 +26,6 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  now = OBSERVED_AT
   await getPool().query('DELETE FROM retention_runs WHERE subject = $1', [
     'guest_network_pressure_records.expired',
   ])
@@ -47,9 +46,6 @@ beforeEach(async () => {
   )
 })
 
-let now = OBSERVED_AT
-const clock = () => now
-
 const input = (overrides: Record<string, unknown> = {}) => ({
   organizationId: ORG_A,
   propertyId: PROPERTY_A,
@@ -61,9 +57,15 @@ const input = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+let observedAt = OBSERVED_AT
+
+beforeEach(() => {
+  observedAt = OBSERVED_AT
+})
+
 describe.sequential('canonical Guest network-pressure authority (PostgreSQL)', () => {
   it('atomically admits only the configured number of concurrent Portal-scoped actions', async () => {
-    const store = createGuestNetworkPressureStore(getDb(), clock, randomUUID)
+    const store = createGuestNetworkPressureStore(getDb(), () => observedAt, randomUUID)
 
     const outcomes = await Promise.all(
       Array.from({ length: 8 }, () => store.consume(input())),
@@ -85,7 +87,7 @@ describe.sequential('canonical Guest network-pressure authority (PostgreSQL)', (
   })
 
   it('uses a half-open pressure window and never lets another tenant or Portal contribute', async () => {
-    const store = createGuestNetworkPressureStore(getDb(), clock, randomUUID)
+    const store = createGuestNetworkPressureStore(getDb(), () => observedAt, randomUUID)
     await expect(store.consume(input({ maxRequests: 1 }))).resolves.toMatchObject({
       allowed: true,
       remaining: 0,
@@ -100,7 +102,7 @@ describe.sequential('canonical Guest network-pressure authority (PostgreSQL)', (
         }),
       ),
     ).resolves.toMatchObject({ allowed: true })
-    now = new Date('2090-01-01T13:00:00.000Z')
+    observedAt = new Date('2090-01-01T13:00:00.000Z')
     await expect(store.consume(input({ maxRequests: 1 }))).resolves.toMatchObject({
       allowed: true,
     })
@@ -126,7 +128,7 @@ describe.sequential('canonical Guest network-pressure authority (PostgreSQL)', (
   })
 
   it('deletes expired records in bounded, restart-safe runs with content-free evidence', async () => {
-    const store = createGuestNetworkPressureStore(getDb(), clock, randomUUID)
+    const store = createGuestNetworkPressureStore(getDb(), () => observedAt, randomUUID)
     await store.consume(input())
     await store.consume(input({ action: 'private_feedback' }))
 

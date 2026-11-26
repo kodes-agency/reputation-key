@@ -88,12 +88,12 @@ async function invokeConsumer(
     // read or side effect. The consumer's OWN catalogue module decides the
     // policy action — a shared literal would authorize every context under
     // one context's row.
-    const gate = await gateDispatcherConsumer(
+    const decision = await gateDispatcherConsumer(
       consumer.consumerName,
       consumer.module,
       event,
     )
-    if (!gate.allowed) {
+    if (!decision.allowed) {
       // BQC-3.6: record the terminal denial as an 'obsolete' receipt
       // ("processed without effect" — the receipts CHECK constraint admits
       // applied/duplicate/obsolete; no migration needed). Redelivery then
@@ -103,7 +103,7 @@ async function invokeConsumer(
         {
           correlationId,
           consumerName: consumer.consumerName,
-          reason: gate.reason,
+          reason: decision.reason,
         },
         'delayed execution denied — terminal (consumer skipped, obsolete receipt written)',
       )

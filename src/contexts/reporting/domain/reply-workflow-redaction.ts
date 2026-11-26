@@ -1,8 +1,7 @@
 //
 // dashboard.read reaches roles without reply.manage, which may not see reply
-// state. `getDashboardData` passes its reply-derived fields through here for
-// the reader it authorized, so every caller of the read gets the same answer,
-// the Property overview included.
+// state. `readDashboard` passes its reply-derived fields through here, so every
+// caller of the read gets the same answer, the Property overview included.
 
 import type { DashboardData } from './dashboard-types'
 

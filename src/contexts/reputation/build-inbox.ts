@@ -122,7 +122,7 @@ export type InboxContextApi = Readonly<{
   }>
   /** ARC-03-T12: the named member-authority capability. Replaces the root's
    * `inbox.internal.commandStore` reach-through. */
-  assignments: Readonly<Pick<InboxCommandStore, 'releaseIneligibleAssignmentsForUser'>>
+  assignments: Pick<InboxCommandStore, 'releaseIneligibleAssignmentsForUser'>
   /** The scheduled reminder release Inbox contributes to the worker. */
   runtime: Readonly<{
     releaseResponseTargetRemindersJob: Readonly<{
@@ -259,6 +259,9 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     lifecycle,
     maintenance,
     worker: Object.freeze({ registerOutboxConsumers }),
+    // Assignment is operational metadata, never an authority: the command store
+    // re-proves each requirement inside its own write transaction, so this one
+    // operation is all the member-authority seam can reach.
     assignments: Object.freeze({
       releaseIneligibleAssignmentsForUser:
         commandStore.releaseIneligibleAssignmentsForUser,

@@ -11,6 +11,7 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
 import type { Tx } from '#/shared/outbox/commit'
@@ -53,10 +54,6 @@ const AI_RIGHTS_TABLES = Object.freeze({
 })
 
 type CountRow = Record<string, unknown>
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
-}
 
 function count(value: unknown): number {
   return Number((value as string | number | null | undefined) ?? 0)
@@ -107,25 +104,6 @@ async function assertReady(
   await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`))
   if (property === null) assertOrganizationHeld(organization)
   await assertNothingLive(tx, organization, property)
-}
-
-class RefusalProbeRolledBack extends Error {}
-
-/** The reason an erasure would be refused, or null; the probe rolls back. */
-async function refusalOf(
-  db: Database,
-  organization: string,
-  property: string | null,
-): Promise<string | null> {
-  try {
-    await db.transaction(async (tx) => {
-      await assertReady(tx, organization, property)
-      throw new RefusalProbeRolledBack()
-    })
-    return null
-  } catch (error) {
-    return error instanceof RefusalProbeRolledBack ? null : errorMessage(error)
-  }
 }
 
 /** Retires the Property's derivatives as a revoked authorization would. */
@@ -270,7 +248,9 @@ export function createAiRightsExecutor(db: Database, now: () => Date): RightsExe
       if (plan.scope !== 'organization' && plan.scope !== 'property') {
         return { ok: false, error: `no ${CONTEXT} erasure for ${plan.scope}` }
       }
-      const refusal = await refusalOf(db, plan.organizationId, propertyScope(plan))
+      const refusal = await refusalOf(db, (tx) =>
+        assertReady(tx, plan.organizationId, propertyScope(plan)),
+      )
       return refusal ? { ok: false, error: refusal } : { ok: true }
     },
     report: (plan) => reportCounts(db, plan.organizationId, propertyScope(plan)),

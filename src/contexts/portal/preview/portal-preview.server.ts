@@ -385,9 +385,7 @@ function buildPublishedPortalPreview(
       primaryLocale: configuration.guestLocale,
       locales: configuration.localeSet,
       privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
-      skipPrivateRating:
-        configuration.schemaVersion === 3 &&
-        configuration.reviewGateway.skipPrivateRating === true,
+      skipPrivateRating: configuration.reviewGateway.skipPrivateRating === true,
       experiences,
     },
   }

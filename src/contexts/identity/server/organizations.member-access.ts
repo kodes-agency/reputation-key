@@ -3,14 +3,11 @@
 // Per architecture: server/ contains TanStack Start server functions.
 
 import { createServerFn } from '@tanstack/react-start'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext, resetTenantCache } from '#/shared/auth/middleware'
-import { catchUntagged } from '#/shared/auth/server-errors'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import { command } from '#/shared/commands/command.server'
+import { resetTenantCache } from '#/shared/auth/middleware'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
-import { throwIdentityError } from './organizations.errors.server'
+import { identityCommandErrors } from './organizations.errors.server'
 import { setMemberPropertyAccessInputSchema } from '../members/member-access.dto.server'
 
 // ── List member Property access ────────────────────────────────────
@@ -18,24 +15,18 @@ import { setMemberPropertyAccessInputSchema } from '../members/member-access.dto
 // PropertyManagers also read: they never receive other members' grants.
 
 export const listMemberPropertyAccess = createServerFn({ method: 'GET' }).handler(
-  tracedHandler(
-    async () => {
-      const headers = await headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      await requireExecutionAllowed({ actor: ctx, action: 'member.update' })
-
-      try {
-        return await getContainer().identityPublicApi.requests.listMemberPropertyAccess(
-          undefined,
-          ctx,
-        )
-      } catch (e) {
-        if (isIdentityError(e)) throwIdentityError(e)
-        throw catchUntagged(e)
-      }
+  command(
+    {
+      method: 'GET',
+      name: 'identity.listMemberPropertyAccess',
+      action: 'member.update',
+      errors: identityCommandErrors,
     },
-    'GET',
-    'identity.listMemberPropertyAccess',
+    async ({ actor }) =>
+      getContainer().identityPublicApi.requests.listMemberPropertyAccess(
+        undefined,
+        actor,
+      ),
   ),
 )
 
@@ -45,17 +36,19 @@ export const listMemberPropertyAccess = createServerFn({ method: 'GET' }).handle
 export const setMemberPropertyAccess = createServerFn({ method: 'POST' })
   .validator(setMemberPropertyAccessInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'member.update' })
-
+    command(
+      {
+        method: 'POST',
+        name: 'identity.setMemberPropertyAccess',
+        action: 'member.update',
+        errors: identityCommandErrors,
+      },
+      async ({ data, actor }) => {
         try {
           const applied =
             await getContainer().identityPublicApi.requests.setMemberPropertyAccess(
               data,
-              ctx,
+              actor,
             )
           // A grant change alters the member's Property scope; drop cached
           // tenant contexts so no request keeps the stale scope.
@@ -63,15 +56,12 @@ export const setMemberPropertyAccess = createServerFn({ method: 'POST' })
           return applied
         } catch (e) {
           // An Identity refusal changed nothing: the checks run first and the
-          // store's refusals roll back its transaction.
-          if (isIdentityError(e)) throwIdentityError(e)
-          // Anything else may follow a committed change (the responsibility
-          // reconcile runs after the commit), so drop the cached scope too.
-          resetTenantCache()
-          throw catchUntagged(e)
+          // store's refusals roll back its transaction. Anything else may
+          // follow a committed change (the responsibility reconcile runs after
+          // the commit), so drop the cached scope too.
+          if (!isIdentityError(e)) resetTenantCache()
+          throw e
         }
       },
-      'POST',
-      'identity.setMemberPropertyAccess',
     ),
   )

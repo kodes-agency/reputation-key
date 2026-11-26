@@ -14,9 +14,6 @@
 // It never carries the exact average: that comes from the review cache when
 // the cache holds every review Google counts (ADR 0067).
 
-/** Google rounds its one-decimal number half up: 4.45 shows as 4.5. */
-export const GOOGLE_DISPLAY_ROUNDING = 'half_up' as const
-
 /** Where a shown tenth starts below it, in thousandths: 4.5 starts at 4.45. */
 const DISPLAY_THRESHOLD_OFFSET_THOUSANDTHS = 50
 

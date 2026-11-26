@@ -13,10 +13,13 @@
 // handlers never re-check capabilities themselves — direct in-handler checks
 // were removed in BQC-3.2 (see architecture/delayed-policy-delegation.test).
 //
-// Outcome mapping: an allowed decision invokes the work. Every deny is
-// terminal — no side effect, no retry. The worker dispatch resolves a
-// GateDeniedResult so the runtime observations record a denial, never a
-// success (gate-denial.ts).
+// Outcome mapping (phase BQC-3 §3.2 typed runtime outcomes):
+//   allowed                      → invoke the work
+//   every deny                   → terminal state, no side effect, no retry.
+//                                  The worker dispatch resolves a
+//                                  GateDeniedResult so the runtime
+//                                  observations record a denial, never a
+//                                  success (gate-denial.ts)
 // The policy decides from process-local state, so it never answers "cannot
 // read the policy": there is no retryable deny.
 

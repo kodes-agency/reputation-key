@@ -1,3 +1,7 @@
+import {
+  isEligibleResponsibleManager,
+  listEligibleResponsibleManagers,
+} from '#/shared/responsible-manager/responsible-manager-eligibility'
 // Portal context — the lookups behind createPortal: the web address, the group,
 // the Portal being copied and the responsible managers. Each resolves one
 // choice the New portal dialog makes into something the command can commit, or
@@ -29,10 +33,6 @@ import {
   type PortalManagerEligibilityDeps,
   policyDeps,
 } from '../responsibility/portal-manager-eligibility.server'
-import {
-  isEligibleResponsibleManager,
-  listEligibleResponsibleManagers,
-} from '#/shared/responsible-manager/responsible-manager-eligibility'
 import type { PortalCopySource } from './portal-content-copy.server'
 import type { CreatePortalGroupMembership } from './portal-command-store-port.server'
 import type { PortalApprovedDestinationRepository } from '../destinations/portal-approved-destination-repository.port.server'

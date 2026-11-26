@@ -7,6 +7,8 @@
 // never maps it, and a stale id or a refused mute surfaces as an untagged 500.
 
 import { createServerFn } from '@tanstack/react-start'
+import { command } from '#/shared/commands/command.server'
+import type { CommandErrors } from '#/shared/commands/contracts'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer, type Container } from '#/composition'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
@@ -16,7 +18,10 @@ import { HTTP_STATUS } from '#/shared/http/status'
 import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
 import { propertyId as toPropertyId, userId } from '#/shared/domain/ids'
 import { z } from 'zod/v4'
-import { isNotificationError } from '../domain/notification-errors'
+import {
+  isNotificationError,
+  type NotificationError,
+} from '../domain/notification-errors'
 import { NOTIFICATION_LIST_FILTERS } from '../feed/notification-list-filter.contracts'
 import { createNotificationPage } from '../feed/notification-page.contracts'
 import {
@@ -45,6 +50,20 @@ const resolveOptionalTenantContext = async (): Promise<AuthContext | null> => {
       return null
     throw e
   })
+}
+
+/** Row actions answer 404 for a row that is gone; anything else is an unexpected failure. */
+const feedRowErrors: CommandErrors<NotificationError> = {
+  name: 'NotificationError',
+  is: isNotificationError,
+  status: (code) => (code === 'not_found' ? 404 : 500),
+}
+
+/** Preference and mute changes refuse bad input with a 400. */
+const feedSettingErrors: CommandErrors<NotificationError> = {
+  name: 'NotificationError',
+  is: isNotificationError,
+  status: () => 400,
 }
 
 async function runBulkNotificationMutation<T>(
@@ -157,27 +176,19 @@ const markNotificationReadDto = z.object({
 export const markNotificationReadFn = createServerFn({ method: 'POST' })
   .validator(markNotificationReadDto)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
-        try {
-          const { feedPublicApi } = getContainer()
-          return await feedPublicApi.markRead(
-            data.notificationId,
-            ctx.organizationId,
-            ctx.userId,
-          )
-        } catch (e) {
-          if (isNotificationError(e)) {
-            throwContextError('NotificationError', e, e.code === 'not_found' ? 404 : 500)
-          }
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'notification.markRead',
+        action: 'notification.update',
+        errors: feedRowErrors,
       },
-      'POST',
-      'notification.markRead',
+      ({ data, actor }) =>
+        getContainer().feedPublicApi.markRead(
+          data.notificationId,
+          actor.organizationId,
+          actor.userId,
+        ),
     ),
   )
 
@@ -198,27 +209,19 @@ const markNotificationUnreadDto = z.object({
 export const markNotificationUnreadFn = createServerFn({ method: 'POST' })
   .validator(markNotificationUnreadDto)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
-        try {
-          const { feedPublicApi } = getContainer()
-          return await feedPublicApi.markUnread(
-            data.notificationId,
-            ctx.organizationId,
-            ctx.userId,
-          )
-        } catch (e) {
-          if (isNotificationError(e)) {
-            throwContextError('NotificationError', e, e.code === 'not_found' ? 404 : 500)
-          }
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'notification.markUnread',
+        action: 'notification.update',
+        errors: feedRowErrors,
       },
-      'POST',
-      'notification.markUnread',
+      ({ data, actor }) =>
+        getContainer().feedPublicApi.markUnread(
+          data.notificationId,
+          actor.organizationId,
+          actor.userId,
+        ),
     ),
   )
 
@@ -265,27 +268,19 @@ const dismissNotificationDto = z.object({
 export const dismissNotificationFn = createServerFn({ method: 'POST' })
   .validator(dismissNotificationDto)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
-        try {
-          const { feedPublicApi } = getContainer()
-          return await feedPublicApi.dismiss(
-            data.notificationId,
-            ctx.organizationId,
-            ctx.userId,
-          )
-        } catch (e) {
-          if (isNotificationError(e)) {
-            throwContextError('NotificationError', e, e.code === 'not_found' ? 404 : 500)
-          }
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'notification.dismiss',
+        action: 'notification.update',
+        errors: feedRowErrors,
       },
-      'POST',
-      'notification.dismiss',
+      ({ data, actor }) =>
+        getContainer().feedPublicApi.dismiss(
+          data.notificationId,
+          actor.organizationId,
+          actor.userId,
+        ),
     ),
   )
 
@@ -303,27 +298,19 @@ const restoreNotificationDto = z.object({
 export const restoreNotificationFn = createServerFn({ method: 'POST' })
   .validator(restoreNotificationDto)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
-        try {
-          const { feedPublicApi } = getContainer()
-          return await feedPublicApi.restore(
-            data.notificationId,
-            ctx.organizationId,
-            ctx.userId,
-          )
-        } catch (e) {
-          if (isNotificationError(e)) {
-            throwContextError('NotificationError', e, e.code === 'not_found' ? 404 : 500)
-          }
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'notification.restore',
+        action: 'notification.update',
+        errors: feedRowErrors,
       },
-      'POST',
-      'notification.restore',
+      ({ data, actor }) =>
+        getContainer().feedPublicApi.restore(
+          data.notificationId,
+          actor.organizationId,
+          actor.userId,
+        ),
     ),
   )
 
@@ -415,32 +402,22 @@ const resetNotificationPropertyCategoryDto = z.object({
 export const resetNotificationPropertyCategoryFn = createServerFn({ method: 'POST' })
   .validator(resetNotificationPropertyCategoryDto)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'notification.update',
-          propertyId: data.propertyId,
-        })
-        try {
-          const { feedPublicApi } = getContainer()
-          await feedPublicApi.resetPropertyCategory(
-            ctx.userId,
-            ctx.organizationId,
-            data.propertyId,
-            data.category,
-          )
-        } catch (error) {
-          if (isNotificationError(error)) {
-            throwContextError('NotificationError', error, 400)
-          }
-          throw catchUntagged(error)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'notification.resetPropertyCategory',
+        action: 'notification.update',
+        propertyId: (data) => data.propertyId,
+        errors: feedSettingErrors,
       },
-      'POST',
-      'notification.resetPropertyCategory',
+      async ({ data, actor }) => {
+        await getContainer().feedPublicApi.resetPropertyCategory(
+          actor.userId,
+          actor.organizationId,
+          data.propertyId,
+          data.category,
+        )
+      },
     ),
   )
 
@@ -453,33 +430,22 @@ const muteNotificationCategoryDto = z.object({
 export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
   .validator(muteNotificationCategoryDto)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'notification.update',
-          propertyId: data.propertyId,
-        })
-        try {
-          const { feedPublicApi } = getContainer()
-          return await feedPublicApi.mutePreferenceCategory(
-            ctx.userId,
-            ctx.organizationId,
-            data.propertyId,
-            data.category,
-            'in_app',
-          )
-        } catch (error) {
-          if (isNotificationError(error)) {
-            throwContextError('NotificationError', error, 400)
-          }
-          throw catchUntagged(error)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'notification.muteCategory',
+        action: 'notification.update',
+        propertyId: (data) => data.propertyId,
+        errors: feedSettingErrors,
       },
-      'POST',
-      'notification.muteCategory',
+      ({ data, actor }) =>
+        getContainer().feedPublicApi.mutePreferenceCategory(
+          actor.userId,
+          actor.organizationId,
+          data.propertyId,
+          data.category,
+          'in_app',
+        ),
     ),
   )
 
@@ -494,34 +460,24 @@ const undoNotificationCategoryMuteDto = z.object({
 export const undoNotificationCategoryMuteFn = createServerFn({ method: 'POST' })
   .validator(undoNotificationCategoryMuteDto)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'notification.update',
-          propertyId: data.propertyId,
-        })
-        try {
-          const { feedPublicApi } = getContainer()
-          await feedPublicApi.undoMutePreferenceCategory(
-            ctx.userId,
-            ctx.organizationId,
-            data.propertyId,
-            data.category,
-            'in_app',
-            data.previous,
-          )
-        } catch (error) {
-          if (isNotificationError(error)) {
-            throwContextError('NotificationError', error, 400)
-          }
-          throw catchUntagged(error)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'notification.undoMuteCategory',
+        action: 'notification.update',
+        propertyId: (data) => data.propertyId,
+        errors: feedSettingErrors,
       },
-      'POST',
-      'notification.undoMuteCategory',
+      async ({ data, actor }) => {
+        await getContainer().feedPublicApi.undoMutePreferenceCategory(
+          actor.userId,
+          actor.organizationId,
+          data.propertyId,
+          data.category,
+          'in_app',
+          data.previous,
+        )
+      },
     ),
   )
 
@@ -538,29 +494,20 @@ export const undoNotificationCategoryMuteFn = createServerFn({ method: 'POST' })
 export const updateNotificationQuietHoursFn = createServerFn({ method: 'POST' })
   .validator(notificationQuietHoursDto)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'notification.update',
-          ...(data.propertyId === undefined ? {} : { propertyId: data.propertyId }),
-        })
-        try {
-          return await getContainer().feedPublicApi.updateQuietHours(
-            ctx.userId,
-            ctx.organizationId,
-            data,
-          )
-        } catch (error) {
-          if (isNotificationError(error)) {
-            throwContextError('NotificationError', error, 400)
-          }
-          throw catchUntagged(error)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'notification.updateQuietHours',
+        action: 'notification.update',
+        propertyId: (data) => data.propertyId,
+        errors: feedSettingErrors,
       },
-      'POST',
-      'notification.updateQuietHours',
+      ({ data, actor }) =>
+        getContainer().feedPublicApi.updateQuietHours(
+          actor.userId,
+          actor.organizationId,
+          data,
+        ),
     ),
   )
 
