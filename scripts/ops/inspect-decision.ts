@@ -12,24 +12,19 @@
 import { hasPermissionCapability } from '../../src/shared/auth/capability-for-permission'
 import type { Permission } from '../../src/shared/domain/permissions'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
-import { exitIfHelp } from './command-help'
+import { exitIfHelp, exitWithUsage } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
   'pnpm ops inspect policy <permission> <userId> --org <id> [--property <id>] --operator <id>'
 
-function usage(): never {
-  console.error(`Usage: ${USAGE}`)
-  process.exit(1)
-}
-
 async function main(): Promise<void> {
   exitIfHelp(process.argv.slice(2), USAGE)
   const [sub, permission, targetUserId] = positionalArgs(process.argv.slice(2))
-  if (sub !== 'policy' || !permission || !targetUserId) usage()
+  if (sub !== 'policy' || !permission || !targetUserId) exitWithUsage(USAGE)
   if (!hasPermissionCapability(permission)) {
     console.error(`unknown permission '${permission}'`)
-    usage()
+    exitWithUsage(USAGE)
   }
 
   const result = await runOperatorCommand(
