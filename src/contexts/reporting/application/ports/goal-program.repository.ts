@@ -82,9 +82,9 @@ export type GoalAssignmentConflict = Readonly<{
 }>
 
 /**
- * What a Program that has not started is waiting for: its metric source, or
- * only its first month. Stored as the Program's status reason while it is
- * scheduled, and decided from the measure its plan has.
+ * What a Program that has not started is waiting for. Stored as the Program's
+ * status reason while it is scheduled; 'metric_source_not_active' is only
+ * carried by rows written before the source check went.
  */
 export type GoalScheduledStatusReason =
   'metric_source_not_active' | 'awaiting_first_full_month'

@@ -392,11 +392,8 @@ export async function resolveGoalDefinition(
   return { target, timezone, governed, readinessSubject }
 }
 
-/**
- * True when the metric's source is not active yet for the version's first
- * month. A source that is active but unavailable or quarantined refuses it.
- */
-export async function isMetricSourceInactive(
+/** Refuses a metric whose source is unavailable or quarantined for the period. */
+export async function assertMetricSourceReadable(
   deps: GoalProgramDependencies,
   query: Readonly<{
     organizationId: string
@@ -405,7 +402,7 @@ export async function isMetricSourceInactive(
     subject: GoalSubject
     period: Readonly<{ start: Date; end: Date }>
   }>,
-): Promise<boolean> {
+): Promise<void> {
   const readiness = await deps.metrics.queryGoalMetric({
     organizationId: toOrganizationId(query.organizationId),
     propertyId: toPropertyId(query.propertyId),
@@ -414,11 +411,9 @@ export async function isMetricSourceInactive(
     periodStart: query.period.start,
     periodEnd: query.period.end,
   })
-  const sourceInactive = readiness.reason === 'metric_source_not_active'
-  if (!sourceInactive && ['unavailable', 'quarantined'].includes(readiness.state)) {
+  if (['unavailable', 'quarantined'].includes(readiness.state)) {
     throw new GoalProgramError('metric_unavailable')
   }
-  return sourceInactive
 }
 
 export async function assertRatingSubjectsAllowed(

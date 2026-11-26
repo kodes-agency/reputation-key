@@ -1,17 +1,14 @@
 // The Goal Program service on the real repository, against PostgreSQL:
 // revising a goal and changing its status.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { METRIC_VERSION_IDS } from '../readings/contracts'
 import { createGoalProgramRepository } from './goal-program-repository.server'
 import {
   actor,
   ratingsGoal,
-  readiness,
   PROPERTY_ID,
   portalUuid,
   useGoalProgramsScenario,
 } from './goal-program-service.test-fixtures'
-import { type GoalMetricReadPort } from '../application/use-cases/goal-program-shared'
 
 const { db, setup, versionWindows } = useGoalProgramsScenario()
 
@@ -121,24 +118,12 @@ describe('canonical Goal Program service', () => {
     const MID_MARCH = new Date('2026-03-15T12:00:00.000Z')
     const portal = (id: number) => ({ kind: 'portal' as const, portalId: portalUuid(id) })
 
-    /** The next read of a measure finds its source not active yet. */
-    const sourceNotActiveOnce = (metrics: GoalMetricReadPort) =>
-      vi.mocked(metrics.queryGoalMetric).mockResolvedValueOnce(
-        readiness({
-          definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
-          metricKey: 'portal.qualified_scan',
-          reason: 'metric_source_not_active',
-        }),
-      )
-
     /**
      * A scans goal for portal-1. Created on 1 March it is active with March
-     * open; mid-March it waits for April. Planned on a `not_active` source it
-     * is scheduled whenever it is created, and waits for that source.
+     * open; mid-March it waits for April.
      */
-    async function scansGoal(at?: Date, source: 'active' | 'not_active' = 'active') {
+    async function scansGoal(at?: Date) {
       const context = setup(at)
-      if (source === 'not_active') sourceNotActiveOnce(context.metrics)
       const created = await context.service.create(
         {
           propertyId: PROPERTY_ID,
@@ -273,17 +258,11 @@ describe('canonical Goal Program service', () => {
       )
     })
 
-    // The reason says what a scheduled goal waits for, and the page prints
-    // it. An edit before the start can change the measure, so it is decided
-    // again from the measure the goal now has, as it was at creation.
-    it('an edit before the start onto a ready measure says the goal waits for its month', async () => {
-      const { created, revise, revisions, getCreated } = await scansGoal(
-        MID_MARCH,
-        'not_active',
-      )
+    it('an edit before the start says the goal waits for its month', async () => {
+      const { created, revise, revisions, getCreated } = await scansGoal(MID_MARCH)
       expect(created.program).toMatchObject({
         status: 'scheduled',
-        statusReason: 'metric_source_not_active',
+        statusReason: 'awaiting_first_full_month',
       })
 
       const revised = await revise({ metric: 'portal_rating_count', targetValue: 25 })
@@ -294,22 +273,6 @@ describe('canonical Goal Program service', () => {
       })
       expect(revisions()[0]?.[0].scheduledStatusReason).toBe('awaiting_first_full_month')
       expect((await getCreated())?.program.statusReason).toBe('awaiting_first_full_month')
-    })
-
-    it('an edit before the start onto a measure that is not ready says the goal waits for its source', async () => {
-      const { created, metrics, revise, revisions, getCreated } =
-        await scansGoal(MID_MARCH)
-      expect(created.program.statusReason).toBe('awaiting_first_full_month')
-      sourceNotActiveOnce(metrics)
-
-      const revised = await revise()
-
-      expect(revised.program).toMatchObject({
-        status: 'scheduled',
-        statusReason: 'metric_source_not_active',
-      })
-      expect(revisions()[0]?.[0].scheduledStatusReason).toBe('metric_source_not_active')
-      expect((await getCreated())?.program.statusReason).toBe('metric_source_not_active')
     })
 
     it('revising a goal that has started leaves its status reason alone', async () => {
