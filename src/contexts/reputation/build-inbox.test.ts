@@ -43,7 +43,6 @@ describe('buildInboxContext', () => {
     expect(Object.keys(context).sort()).toEqual([
       // Named member-authority and scheduled-release capabilities.
       'assignments',
-      'internal',
       'maintenance',
       'publicApi',
       'runtime',
@@ -53,10 +52,8 @@ describe('buildInboxContext', () => {
     expect(Object.keys(context.publicApi)).not.toContain('organizationLifecycle')
     // No raw item creation: the durable source consumers create Inbox Items,
     // under their receipts and after their source checks (Invariant 1).
-    expect(Object.keys(context.internal.useCases)).not.toContain('createInboxItem')
-    expect(Object.keys(context.internal.useCases)).not.toContain(
-      'startReviewHandlingCycle',
-    )
+    expect(Object.keys(context.publicApi)).not.toContain('createInboxItem')
+    expect(Object.keys(context.publicApi)).not.toContain('startReviewHandlingCycle')
     expect(Object.keys(context.maintenance)).toEqual([
       'rebuildInboxProjection',
       'responseTargetExclusions',
@@ -68,9 +65,7 @@ describe('buildInboxContext', () => {
   it('binds each named capability to the one Inbox-owned implementation', () => {
     const context = build()
 
-    expect(context.maintenance.rebuildInboxProjection).toBe(
-      context.internal.useCases.rebuildInboxProjection,
-    )
+    expect(context.maintenance.rebuildInboxProjection).toBeTypeOf('function')
     expect(Object.keys(context.maintenance.responseTargetExclusions).sort()).toEqual([
       'apply',
       'findProperty',

@@ -32,17 +32,6 @@ export const validateTransition = (
   return ok(to)
 }
 
-/** Returns the timestamp field to stamp when an item enters `status`.
- *  Pure derivation — used by the single-item and bulk status use cases.
- *  Per ADR 0055: only `closedAt` (one field, not four). */
-export const timestampFieldsForStatus = (
-  status: InboxStatus,
-  now: Date,
-): Partial<Record<string, Date | null>> => {
-  if (status === 'closed') return { closedAt: now }
-  return { closedAt: null }
-}
-
 /** What Google shows for a review, as Review's observation head records it. */
 export type GoogleReplyReading = Readonly<{
   state: 'live' | 'absent'

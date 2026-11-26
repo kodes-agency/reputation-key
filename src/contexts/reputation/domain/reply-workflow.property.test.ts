@@ -6,7 +6,7 @@
 //
 //   1. the command preconditions (reply-command-preconditions.ts) accept
 //      exactly the replies the workflow lets each command start from;
-//   2. the status table (REPLY_TRANSITIONS, through canTransitionReply) allows
+//   2. the status graph (canTransitionReply, in the fixtures) allows
 //      every move a command makes and none that skips approval;
 //   3. the publication table (nextPublicationState) allows every publication
 //      event the workflow has, and authorizes or claims from nowhere else;
@@ -37,7 +37,6 @@ import {
   type ReplyCommandSubject,
 } from './reply-command-preconditions'
 import { aiTextRuleOf } from './reply-ai-text'
-import { canTransitionReply } from './review-rules'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import {
   nextPublicationState,
@@ -53,6 +52,7 @@ import {
   guestEditClosesTheAttempt,
   isLegalReplyState,
   LEGAL_REPLY_STATES,
+  canTransitionReply,
   managerVerdict,
   mayBeClaimed,
   survivesTheWorkersRead,

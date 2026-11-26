@@ -1,7 +1,6 @@
 // Review context — domain rules
 
 import { sha256Hex } from '#/shared/domain/sha256'
-import type { ReplyStatus } from './review-types'
 import { reviewError } from './review-errors'
 
 /**
@@ -28,40 +27,6 @@ export function computeReviewContentHash(
   // hydration in the dev server (STD-P2-01 class).
   return sha256Hex(canonical)
 }
-
-/** Valid reply status transitions. Keys are current status, values are allowed next statuses.
- *  The table says which status may follow which. Which COMMAND may make a move,
- *  and from which publication state, is `reply-command-preconditions.ts`: every
- *  reply command checks its own start there before this table is consulted.
- *  `draft → draft` is an explicit self-transition covering in-place edits of an existing draft
- *  (text changes without a status change).
- *  `publish_failed → published` exists ONLY for the reconciliation path
- *  (reconcileReplyPublication): the provider confirms the reply already exists,
- *  healing an ambiguous publish outcome. It never skips approval.
- *  `approved → draft` is deliberately absent. No reply command makes that
- *  move: a publication cancellation does (disconnect/policy, through
- *  `cancelledPublication`), and so does a cycle superseded by provider truth
- *  or a changed Review. While the edge sat in this table a draft save could
- *  take it and rewrite a reply that was being published.
- *  `pending_approval → draft` is absent for the same reason: a guest edit makes
- *  it (`takenBackByGuestEdit`). `publish_failed → draft` has one command: Delete
- *  reply, on a failure that settled as not published, which clears the reply in
- *  its row. A guest edit and a different reply on Google make it too. */
-const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>>> = {
-  draft: ['draft', 'pending_approval'],
-  pending_approval: ['approved', 'rejected'],
-  approved: ['published', 'publish_failed'],
-  // published → approved exists ONLY for the edit-and-republish path
-  // (editPublishedReply): editing a published reply's text re-enters the
-  // durable publication machine; the GBP reply update is an upsert, so
-  // republishing can never duplicate the provider-visible reply.
-  published: ['approved'],
-  rejected: ['draft'],
-  publish_failed: ['approved', 'published', 'draft'],
-}
-
-export const canTransitionReply = (current: ReplyStatus, next: ReplyStatus): boolean =>
-  REPLY_TRANSITIONS[current]?.includes(next) ?? false
 
 /**
  * Mirrors `ReplyCommentProblem` (`shared/google-provider-control/reply-comment.ts`).
