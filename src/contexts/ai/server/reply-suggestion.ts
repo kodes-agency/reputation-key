@@ -1,7 +1,7 @@
 // Register the dark transport in Start's module graph without changing the composer call.
 import './reply-suggestion-stream'
 import { createServerFn } from '@tanstack/react-start'
-import { setResponseHeader } from '@tanstack/react-start/server'
+import { disableResponseCaching } from '#/shared/http/no-store.server'
 import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -10,12 +10,6 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { reviewId } from '#/shared/domain/ids'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-
-function disableAiContentCaching(): void {
-  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
-  setResponseHeader('Pragma', 'no-cache')
-  setResponseHeader('Expires', '0')
-}
 
 const generateReplySuggestionDto = z
   .object({
@@ -40,7 +34,7 @@ export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         const container = getContainer()
         try {
-          disableAiContentCaching()
+          disableResponseCaching()
           const id = reviewId(data.reviewId)
           const current =
             await container.reviewPublicApi.aiReviewSource.readCurrentSource({
