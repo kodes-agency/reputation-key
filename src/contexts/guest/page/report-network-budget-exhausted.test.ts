@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { isBannedLogKey } from '#/shared/observability/metrics-schema'
+import { isBannedLogKey } from '#/shared/observability/log-field-policy.test-fixtures'
 import { reportGuestNetworkBudgetExhausted } from './report-network-budget-exhausted.server'
 
 function recordingLogger() {

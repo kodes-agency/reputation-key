@@ -96,7 +96,7 @@ describe('alert registry contract (BQC-7.4)', () => {
   })
 
   it('implemented definitions have a pure evaluate; the externally-signalled ones do not', () => {
-    const unimplemented = ALERT_DEFINITIONS.filter((d) => !d.implemented).map(
+    const unimplemented = ALERT_DEFINITIONS.filter((d) => d.evaluate === null).map(
       (d) => d.name,
     )
     // Deliberate dispositions, NOT pending work: backup.pitr's signal is the
@@ -111,7 +111,7 @@ describe('alert registry contract (BQC-7.4)', () => {
       'web.availability',
     ])
     for (const def of ALERT_DEFINITIONS) {
-      if (def.implemented) expect(typeof def.evaluate, def.name).toBe('function')
+      if (def.evaluate !== null) expect(typeof def.evaluate, def.name).toBe('function')
       else expect(def.evaluate, def.name).toBeNull()
     }
   })
@@ -527,7 +527,9 @@ const BREACHES: readonly Breach[] = [
 
 describe('per-alert synthetic injection (fire / no-fire)', () => {
   it('every implemented alert has an injection case', () => {
-    const implemented = ALERT_DEFINITIONS.filter((d) => d.implemented).map((d) => d.name)
+    const implemented = ALERT_DEFINITIONS.filter((d) => d.evaluate !== null).map(
+      (d) => d.name,
+    )
     expect(BREACHES.map((b) => b.name).sort()).toEqual(implemented.sort())
   })
 
