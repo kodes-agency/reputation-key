@@ -1,8 +1,8 @@
 // Test-only: the reply workflow, written out by hand.
 //
 // This is the oracle of the reply model tests. It is deliberately NOT built
-// from REPLY_TRANSITIONS, PERSISTED_PUBLICATION_TRANSITIONS or the command
-// preconditions, and it imports nothing from them: a test that asks the
+// from PERSISTED_PUBLICATION_TRANSITIONS or the command preconditions, and it
+// imports nothing from them: a test that asks the
 // production tables what is allowed can only agree with them. Every move below
 // is stated from src/contexts/reputation/CONTEXT.md (Model, Runtime, Manager
 // publication commands, Review invariants 7 to 10) and docs/BETA.md §5 (No
@@ -55,6 +55,39 @@ export type OracleReply = Readonly<{
   text: string
   authorship: OracleAuthorship
 }>
+
+/** Valid reply status transitions. Keys are current status, values are allowed next statuses.
+ *  The table says which status may follow which. Which COMMAND may make a move,
+ *  and from which publication state, is `reply-command-preconditions.ts`.
+ *  `draft → draft` is an explicit self-transition covering in-place edits of an existing draft
+ *  (text changes without a status change).
+ *  `publish_failed → published` exists ONLY for the reconciliation path
+ *  (reconcileReplyPublication): the provider confirms the reply already exists,
+ *  healing an ambiguous publish outcome. It never skips approval.
+ *  `approved → draft` is deliberately absent. No reply command makes that
+ *  move: a publication cancellation does (disconnect/policy, through
+ *  `cancelledPublication`), and so does a cycle superseded by provider truth
+ *  or a changed Review. While the edge sat in this table a draft save could
+ *  take it and rewrite a reply that was being published.
+ *  `pending_approval → draft` is absent for the same reason: a guest edit makes
+ *  it (`takenBackByGuestEdit`). `publish_failed → draft` has one command: Delete
+ *  reply, on a failure that settled as not published, which clears the reply in
+ *  its row. A guest edit and a different reply on Google make it too. */
+const REPLY_TRANSITIONS: Readonly<Record<OracleStatus, ReadonlyArray<OracleStatus>>> = {
+  draft: ['draft', 'pending_approval'],
+  pending_approval: ['approved', 'rejected'],
+  approved: ['published', 'publish_failed'],
+  // published → approved exists ONLY for the edit-and-republish path
+  // (editPublishedReply): editing a published reply's text re-enters the
+  // durable publication machine; the GBP reply update is an upsert, so
+  // republishing can never duplicate the provider-visible reply.
+  published: ['approved'],
+  rejected: ['draft'],
+  publish_failed: ['approved', 'published', 'draft'],
+}
+
+export const canTransitionReply = (current: OracleStatus, next: OracleStatus): boolean =>
+  REPLY_TRANSITIONS[current]?.includes(next) ?? false
 
 /** Null: the review has no internal reply. */
 export type OracleState = OracleReply | null

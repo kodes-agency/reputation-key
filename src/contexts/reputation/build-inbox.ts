@@ -12,19 +12,10 @@ import { registerInboxMemberOffboardingConsumers } from './inbox/member-offboard
 import type { ConsumerRegistry } from '#/shared/outbox'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import type {
-  ReviewReplyObservationAuthority,
-  ReviewSourceTransitionAuthority,
-} from '#/contexts/reputation/public-api'
+import type { ReviewReplyObservationAuthority } from './reviews/reply-observation-authority.port.server'
+import type { ReviewSourceTransitionAuthority } from './reviews/source-transition-authority.port.server'
 import { inboxItemId } from '#/shared/domain/ids'
-import type { InboxRepository } from './inbox/inbox-repository.port.server'
-import type { InboxNoteRepository } from './inbox/inbox-note-repository.port.server'
-import type { InboxViewRepository } from './inbox/inbox-view-repository.port.server'
 import type { InboxCommandStore } from './inbox/command-store.port.server'
-import type { ReviewHandlingCycleStore } from './inbox/review-handling-cycle-store.port.server'
-import type { FeedbackHandlingStore } from './inbox/feedback-handling-store.port.server'
-import type { ResponseTargetStore } from './response-targets/store.port.server'
-import type { ResponseTargetPolicyStore } from './response-targets/policy.store.port.server'
 import type { RestatedRevisionTargetExclusions } from './response-targets/restated-revision-target-exclusion-store.port.server'
 import type { ReviewLookupPort } from './inbox/review-lookup.port.server'
 import type { AiReviewInsightsPort } from './inbox/ai-review-insights.port.server'
@@ -60,10 +51,8 @@ import { createFeedbackLookupAdapter } from './inbox/feedback-lookup.adapter.ser
 import { createPropertyLookupAdapter } from './inbox/property-lookup.adapter.server'
 import { createReplyLookupAdapter } from './inbox/reply-lookup.adapter.server'
 import { createReviewSourceLookupAdapter } from './inbox/review-source-lookup.adapter.server'
-import type {
-  ReviewGoogleReviewCheck,
-  ReviewResponseTargetAuthority,
-} from '#/contexts/reputation/public-api'
+import type { CheckReviewOnGoogle as ReviewGoogleReviewCheck } from './sync/check-review-on-google.server'
+import type { ReviewResponseTargetAuthority } from './reviews/response-target-authority.port.server'
 import { createGoogleCheckRateLimitAdapter } from './inbox/google-check-rate-limit.adapter.server'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { createInboxActorDirectoryAdapter } from './inbox/inbox-actor-directory.adapter.server'
@@ -123,21 +112,6 @@ export type InboxContextApi = Readonly<{
       name: string
       handler: ReturnType<typeof createReleaseResponseTargetRemindersHandler>
     }>
-  }>
-  internal: Readonly<{
-    repos: Readonly<{
-      inboxRepo: InboxRepository
-      inboxNoteRepo: InboxNoteRepository
-      inboxViewRepo: InboxViewRepository
-      staffPublicApi: StaffPublicApi
-    }>
-    /** BQC-3.4: atomic state+outbox command store — also drives the durable consumers. */
-    commandStore: InboxCommandStore
-    handlingCycleStore: ReviewHandlingCycleStore
-    feedbackHandlingStore: FeedbackHandlingStore
-    responseTargetStore: ResponseTargetStore
-    responseTargetPolicyStore: ResponseTargetPolicyStore
-    useCases: ReturnType<typeof wireUseCases>
   }>
 }>
 
@@ -265,19 +239,5 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
         }),
       }),
     }),
-    internal: {
-      repos: {
-        inboxRepo,
-        inboxNoteRepo,
-        inboxViewRepo,
-        staffPublicApi: input.staffPublicApi,
-      },
-      commandStore,
-      handlingCycleStore,
-      feedbackHandlingStore,
-      responseTargetStore,
-      responseTargetPolicyStore,
-      useCases,
-    },
   }
 }

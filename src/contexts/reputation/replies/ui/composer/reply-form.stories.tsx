@@ -289,8 +289,8 @@ export const PublishedBeingEdited: Story = {
 /**
  * A publish failure does NOT share the published editor, whatever target the
  * pane is carrying. `editPublishedReply` refuses any reply that is not
- * `published`, and `REPLY_TRANSITIONS.publish_failed` has no `draft`, so no
- * server path exists today that changes the text of a publish-failed reply —
+ * `published`, so no server path exists today that changes the text of a
+ * publish-failed reply —
  * an editor here could only ever fail to save. Try again, in the thread
  * message, is this state's whole action list.
  *
