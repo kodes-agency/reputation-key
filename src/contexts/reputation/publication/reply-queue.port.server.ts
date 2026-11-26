@@ -6,31 +6,20 @@ export type PublishReplyJobData = JobEnqueueAttribution &
   Readonly<{
     replyId: string
     organizationId: string
-    /**
-     * Monotonic authorization generation. Required for current producers;
-     * optional only so a bounded in-flight job enqueued before the cycle existed can be recognized
-     * as legacy by the worker (legacy rows have cycle 0).
-     */
-    publicationCycle?: number
+    /** Monotonic authorization generation. */
+    publicationCycle: number
     /** Provider/source tuple frozen by manager authorization. */
-    propertyId?: string
-    sourceEpoch?: number
-    materialReviewRevision?: number
-    baseObservationRevision?: number
+    propertyId: string
+    sourceEpoch: number
+    materialReviewRevision: number
+    baseObservationRevision: number
   }>
 
-export type AddPublishJobOptions = Readonly<{
-  /**
-   * Publication idempotency key (reply-{replyId}-v{publicationCycle}) used as
-   * the BullMQ jobId so a duplicate enqueue of the same approval cycle is
-   * deduped instead of running the provider publish twice.
-   */
-  idempotencyKey?: string
-}>
-
+/**
+ * The BullMQ jobId is the publication idempotency key
+ * (reply-{replyId}-v{publicationCycle}), so a duplicate enqueue of the same
+ * approval cycle is deduped instead of running the provider publish twice.
+ */
 export type ReplyQueuePort = Readonly<{
-  addPublishJob: (
-    data: PublishReplyJobData,
-    options?: AddPublishJobOptions,
-  ) => Promise<void>
+  addPublishJob: (data: PublishReplyJobData) => Promise<void>
 }>

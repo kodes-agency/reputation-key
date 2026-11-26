@@ -29,10 +29,7 @@ import {
   assertReplyCommandMayStart,
   isTerminalAmbiguity,
 } from '../domain/reply-command-preconditions'
-import {
-  buildIdempotencyKey,
-  nextPublicationCycle,
-} from '../domain/reply-publication-workflow'
+import { nextPublicationCycle } from '../domain/reply-publication-workflow'
 import { reviewError } from '../domain/review-errors'
 import { replyAuthor } from '../domain/reply-author'
 import { settleIfNeverDispatched } from '../publication/settle-never-dispatched-attempt.server'
@@ -249,25 +246,17 @@ async function authorizeAndEnqueuePublication(
 
   // The queue cannot join the pg transaction. The committed intent is the
   // recovery record; the deterministic reply+cycle key dedupes admission.
-  await deps.queue.addPublishJob(
-    {
-      replyId: outcome.reply.id,
-      organizationId: outcome.reply.organizationId,
-      publicationCycle: outcome.reply.publicationCycle,
-      propertyId: publicationIntent.propertyId,
-      sourceEpoch: publicationIntent.sourceEpoch,
-      materialReviewRevision: publicationIntent.materialReviewRevision,
-      baseObservationRevision: publicationIntent.baseObservationRevision,
-      // Named attribution for operator/user-triggered delayed work.
-      initiator: { kind: 'user', id: ctx.userId },
-    },
-    {
-      idempotencyKey: buildIdempotencyKey(
-        outcome.reply.id,
-        outcome.reply.publicationCycle,
-      ),
-    },
-  )
+  await deps.queue.addPublishJob({
+    replyId: outcome.reply.id,
+    organizationId: outcome.reply.organizationId,
+    publicationCycle: outcome.reply.publicationCycle,
+    propertyId: publicationIntent.propertyId,
+    sourceEpoch: publicationIntent.sourceEpoch,
+    materialReviewRevision: publicationIntent.materialReviewRevision,
+    baseObservationRevision: publicationIntent.baseObservationRevision,
+    // Named attribution for operator/user-triggered delayed work.
+    initiator: { kind: 'user', id: ctx.userId },
+  })
   return outcome.reply
 }
 

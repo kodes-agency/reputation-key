@@ -309,7 +309,7 @@ describe.sequential('replyCommandStore (integration)', () => {
       replyScopeEffects,
     )
     const outboxRepo = createOutboxRepository(db)
-    const queued: Array<Readonly<{ data: unknown; options: unknown }>> = []
+    const queued: unknown[] = []
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({
@@ -373,8 +373,8 @@ describe.sequential('replyCommandStore (integration)', () => {
       {
         replyRepo,
         queue: {
-          addPublishJob: async (data, options) => {
-            queued.push({ data, options })
+          addPublishJob: async (data) => {
+            queued.push(data)
           },
         },
         receipts: outboxRepo,
@@ -385,17 +385,14 @@ describe.sequential('replyCommandStore (integration)', () => {
     expect(result).toEqual({ status: 'applied' })
     expect(queued).toEqual([
       {
-        data: {
-          replyId: REPLY_A,
-          organizationId: ORG_A,
-          propertyId: PROP_A,
-          publicationCycle: 1,
-          sourceEpoch: 0,
-          materialReviewRevision: 1,
-          baseObservationRevision: 0,
-          initiator: { kind: 'user', id: USER_A },
-        },
-        options: { idempotencyKey: `reply-${REPLY_A}-v1` },
+        replyId: REPLY_A,
+        organizationId: ORG_A,
+        propertyId: PROP_A,
+        publicationCycle: 1,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
+        initiator: { kind: 'user', id: USER_A },
       },
     ])
     await expect(

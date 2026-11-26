@@ -101,6 +101,10 @@ describe('Review queues', () => {
       replyId: 'reply-1',
       organizationId: 'org-1',
       propertyId: 'prop-9',
+      publicationCycle: 2,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
     }
 
     await queues.replyQueue.addPublishJob(data)
@@ -113,7 +117,10 @@ describe('Review queues', () => {
         initiator: { kind: 'system', id: 'queue:reply-publish' },
         policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
       },
-      expect.objectContaining({ removeOnComplete: { count: 100 } }),
+      expect.objectContaining({
+        jobId: 'reply-reply-1-v2',
+        removeOnComplete: { count: 100 },
+      }),
     )
   })
 })

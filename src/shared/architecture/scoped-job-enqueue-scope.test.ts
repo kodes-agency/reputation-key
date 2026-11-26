@@ -130,6 +130,9 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
       organizationId: ORGANIZATION,
       propertyId: PROPERTY,
       publicationCycle: 1,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
       initiator: { kind: 'user', id: 'manager-1' },
     })
   }),

@@ -140,20 +140,6 @@ type PublishHandlerDeps = Readonly<{
   staffPublicApi: StaffPublicApi
 }>
 
-/** An authorization fence is current only when the job carries the full
- * provider-source coordinates the authorization was granted against. */
-function hasCurrentAuthorizationFence(data: PublishReplyJobData): boolean {
-  return (
-    typeof data.propertyId === 'string' &&
-    Number.isSafeInteger(data.sourceEpoch) &&
-    data.sourceEpoch! >= 0 &&
-    Number.isSafeInteger(data.materialReviewRevision) &&
-    data.materialReviewRevision! > 0 &&
-    Number.isSafeInteger(data.baseObservationRevision) &&
-    data.baseObservationRevision! >= 0
-  )
-}
-
 type PublishTarget = Readonly<{
   reply: Reply
   review: Review
@@ -186,14 +172,8 @@ async function loadPublishTarget(
   // A durable intent or fast-path job may arrive after a later
   // approval/edit/retry cycle has become current. The explicit monotonic
   // cycle is the fence: stale work stops before it can claim the row or
-  // reach the provider. A missing value is accepted only for a bounded
-  // job enqueued before the cycle existed whose persisted row is still at legacy cycle zero.
-  const requestedCycle = job.data.publicationCycle
-  if (
-    (requestedCycle === undefined && reply.publicationCycle !== 0) ||
-    (requestedCycle !== undefined && requestedCycle !== reply.publicationCycle) ||
-    (reply.publicationCycle > 0 && !hasCurrentAuthorizationFence(job.data))
-  ) {
+  // reach the provider.
+  if (job.data.publicationCycle !== reply.publicationCycle) {
     logger.warn('Publication cycle superseded — skipping stale job')
     return null
   }
@@ -204,10 +184,9 @@ async function loadPublishTarget(
     return null
   }
   if (
-    reply.publicationCycle > 0 &&
-    (job.data.propertyId !== review.propertyId ||
-      job.data.sourceEpoch !== review.sourceEpoch ||
-      job.data.materialReviewRevision !== review.sourceRevision)
+    job.data.propertyId !== review.propertyId ||
+    job.data.sourceEpoch !== review.sourceEpoch ||
+    job.data.materialReviewRevision !== review.sourceRevision
   ) {
     logger.warn('Publication authorization no longer matches the Review source')
     return null
@@ -279,10 +258,10 @@ async function claimFreshPublication(
 
   const claimed = await deps.replyCommandStore.markPublicationSending(toClaim, {
     providerOperationKey: `${String(job.id ?? reply.id)}:${job.attemptsMade + 1}`,
-    propertyId: propertyId(job.data.propertyId ?? review.propertyId),
-    sourceEpoch: job.data.sourceEpoch ?? review.sourceEpoch,
-    materialReviewRevision: job.data.materialReviewRevision ?? review.sourceRevision,
-    baseObservationRevision: job.data.baseObservationRevision ?? 0,
+    propertyId: propertyId(job.data.propertyId),
+    sourceEpoch: job.data.sourceEpoch,
+    materialReviewRevision: job.data.materialReviewRevision,
+    baseObservationRevision: job.data.baseObservationRevision,
   })
   if (!claimed) {
     deps.logger.warn(
@@ -309,7 +288,7 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
       const target = await loadPublishTarget(deps, job, rId, orgId)
       if (!target) return
       const { reply, review, reviewName } = target
-      const jobCycle = job.data.publicationCycle ?? 0
+      const jobCycle = job.data.publicationCycle
 
       // A persisted `sending` row means a previous attempt may have reached
       // Google without its local outcome being committed. A targeted read can
