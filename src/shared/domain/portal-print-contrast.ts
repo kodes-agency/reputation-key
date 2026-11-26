@@ -13,11 +13,7 @@
 
 import { luminanceOfChannels, parseHexColour } from './portal-field-colour'
 import type { PrintArt } from './portal-print-art'
-import {
-  printPhotoCrop,
-  type PrintFocal,
-  type PrintFraming,
-} from './portal-print-framing'
+import { printPhotoCrop, type PrintFocal } from './portal-print-framing'
 import { washAlpha } from './portal-print-layers'
 import { mmPt, type PrintBox } from './portal-print-measures'
 import type { PrintPhotoPixels } from './portal-print-photo'
@@ -29,7 +25,7 @@ import {
   type PrintRgb,
 } from './portal-print-photo-sample'
 
-/** The photo as a face shows it: its sample, its own size, where it is centred and how the manager framed it. */
+/** The photo as a face shows it: its sample, its own size, and where it is centred. */
 export type PrintScenePhoto = Readonly<{
   /** Decoded 240 px wide: what the ground and the kicker are read from (§6.1). */
   sample: PrintPhotoSample
@@ -37,7 +33,6 @@ export type PrintScenePhoto = Readonly<{
   detail: PrintPhotoSample
   pixels: PrintPhotoPixels
   focal: PrintFocal
-  framing: PrintFraming
 }>
 
 /** A point every this far across a word's box is read. */
@@ -72,7 +67,6 @@ function photoReader(art: PrintArt, photo: PrintScenePhoto | null) {
     photo.pixels,
     { widthPt: coverWidth, heightPt: coverHeight },
     photo.focal,
-    photo.framing,
   )
   const { detail } = photo
   const across = detail.widthPx / photo.pixels.widthPx

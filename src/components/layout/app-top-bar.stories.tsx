@@ -11,7 +11,8 @@
 // notification/inbox story uses. No value import from #/contexts/*/server/**.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { SidebarProvider, SidebarInset, useSidebar } from '#/components/ui/sidebar'
+import { useSidebar } from '#/components/ui/sidebar'
+import { SidebarStoryProvider } from '../../../.storybook/SidebarStoryProvider'
 import type { NotificationServerFns } from '#/contexts/feed/feed/ui/types'
 import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
 import {
@@ -74,12 +75,12 @@ const meta: Meta<typeof AppTopBar> = {
   parameters: { layout: 'fullscreen' },
   decorators: [
     (Story) => (
-      <SidebarProvider>
+      <SidebarStoryProvider>
         <SidebarStandIn />
-        <SidebarInset>
+        <main className="relative flex w-full flex-1 flex-col bg-background">
           <Story />
-        </SidebarInset>
-      </SidebarProvider>
+        </main>
+      </SidebarStoryProvider>
     ),
   ],
 }

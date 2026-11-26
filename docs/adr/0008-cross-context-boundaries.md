@@ -16,7 +16,7 @@ The codebase has multiple bounded contexts (identity, staff, property, portal, t
 1. **All cross-context data access goes through `public-api.ts` or dedicated lookup ports.**
    - Each context exposes a `public-api.ts` barrel that re-exports types, event constructors, and port interfaces.
    - Contexts that need data from another context define a port interface in their own `application/ports/` and consume it via dependency injection.
-   - Example: Dashboard defines `ReviewStatsPort` and `MetricStatsPort`; other contexts' adapters implement them.
+   - Example: Dashboard defines `ReviewStatsPort`; another context's adapter implements it.
 
 2. **Infrastructure adapters encapsulate SQL queries.**
    - Cross-context SQL queries are acceptable in the infrastructure layer (`infrastructure/adapters/`), where they are isolated behind port interfaces.

@@ -4,7 +4,6 @@ import { printBlocks } from './portal-print-languages'
 import type { PrintFace } from './portal-print'
 import { choosePrintTile } from './portal-print-code'
 import type { PrintScenePhoto } from './portal-print-contrast'
-import { PRINT_DEFAULT_FRAMING } from './portal-print-framing'
 import {
   layoutPrintImmersiveFace,
   type PrintImmersiveBrand,
@@ -39,7 +38,6 @@ function flat(rgb: readonly [number, number, number]): PrintScenePhoto {
     detail: sample,
     pixels: { widthPx: 1620, heightPx: 1080 },
     focal: { x: 0.5, y: 0.4 },
-    framing: PRINT_DEFAULT_FRAMING,
   }
 }
 

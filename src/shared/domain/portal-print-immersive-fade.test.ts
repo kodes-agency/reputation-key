@@ -4,7 +4,6 @@ import { PRINT_ORIENTATIONS, PRINT_PIECES, type PrintFace } from './portal-print
 import { choosePrintTile } from './portal-print-code'
 import { printScene, type PrintScenePhoto } from './portal-print-contrast'
 import { parseHexColour } from './portal-field-colour'
-import { PRINT_DEFAULT_FRAMING } from './portal-print-framing'
 import { layoutPrintImmersiveFace } from './portal-print-immersive-face'
 import type { PrintTextMeasurer } from './portal-print-text'
 
@@ -44,7 +43,6 @@ function busy(level: number, swing: number): PrintScenePhoto {
     detail: sample,
     pixels: { widthPx: 1600, heightPx: 1067 },
     focal: { x: 0.5, y: 0.5 },
-    framing: PRINT_DEFAULT_FRAMING,
   }
 }
 

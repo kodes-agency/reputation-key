@@ -51,7 +51,6 @@ export function buildPortalHistoryReads(deps: PortalHistoryReadDeps) {
       portalRepo,
       publicationRepo,
       staffPublicApi,
-      actorDirectory,
     }),
     getPortalHistory: getPortalHistory({
       portalRepo,

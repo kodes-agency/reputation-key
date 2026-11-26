@@ -12,7 +12,6 @@
 // as the rest of the preview.
 
 import { useMemo, type ReactNode } from 'react'
-import type { PrintFraming } from '#/shared/domain/portal-print-framing'
 import {
   PRINT_SHEET_MARKS,
   printMarkColour,
@@ -45,7 +44,6 @@ type Props = Readonly<{
   /** The face every cell holds; the sheet gives it its bleed. */
   face: Omit<PrintDrawnFaceInput, 'bleed'>
   codeUrl: string | null
-  framing?: PrintFraming
   /** The code's cream square, which the printed note names. */
   tilePt: number
   /** What the picture is, for a screen reader: "Letter landscape · sheet 1 of 5". */
@@ -123,7 +121,6 @@ export function PrintSheetArt({
   filled,
   face,
   codeUrl,
-  framing,
   tilePt,
   label,
   back = false,
@@ -169,7 +166,6 @@ export function PrintSheetArt({
                 drawn={drawn}
                 look={face.look}
                 codeUrl={codeUrl}
-                framing={framing}
                 bleed={bleed}
                 pt={u}
               />
