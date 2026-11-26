@@ -18,7 +18,6 @@ import {
   relativeLuminance,
   toneOnTone,
 } from './portal-field-colour'
-import type { PrintKitStyle } from './portal-print-kit'
 
 /** The ink of every Paper face and of the code's modules. */
 export const PRINT_KIT_INK = '#121614'
@@ -86,8 +85,6 @@ export type ImmersivePrintKitPalette = BarColours &
     warm: string
     cool: string
   }>
-
-export type PrintKitPalette = PaperPrintKitPalette | ImmersivePrintKitPalette
 
 /** The bar of the code block: its text, and its fill held at 4.5:1 against that text. */
 function barColours(accent: string): BarColours {
@@ -189,30 +186,4 @@ export const IMMERSIVE_LOGO_PLATE = PRINT_KIT_TILE
  */
 export function logoNeedsCreamPlate(luminance: number | null): boolean {
   return luminance !== null && luminance < DARK_LOGO_LUMINANCE
-}
-
-/** The palette of one style, from the property's accent and field. */
-export function printKitPalette(
-  accent: string,
-  field: string | null,
-  style: 'paper',
-): PaperPrintKitPalette
-export function printKitPalette(
-  accent: string,
-  field: string | null,
-  style: 'immersive',
-): ImmersivePrintKitPalette
-export function printKitPalette(
-  accent: string,
-  field: string | null,
-  style: PrintKitStyle,
-): PrintKitPalette
-export function printKitPalette(
-  accent: string,
-  field: string | null,
-  style: PrintKitStyle,
-): PrintKitPalette {
-  return style === 'paper'
-    ? paperPrintKitPalette(accent)
-    : immersivePrintKitPalette(accent, field)
 }
