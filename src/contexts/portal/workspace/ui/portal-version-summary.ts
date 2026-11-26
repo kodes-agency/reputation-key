@@ -4,13 +4,6 @@
 // read: a summary reads a version against the one before it ("Added Deutsch"),
 // a restore reads the version against the one guests see ("Deutsch comes
 // back", "Deutsch goes away").
-
-// What a version added, and what making one live again would change back for
-// guests, in the words a manager reads. Both come from the same list of
-// changes (`diffPublicationContent`); they differ in the direction they are
-// read: a summary reads a version against the one before it ("Added Deutsch"),
-// a restore reads the version against the one guests see ("Deutsch comes
-// back", "Deutsch goes away").
 import type {
   PublicationContentChange,
   PublicationLookFacet,

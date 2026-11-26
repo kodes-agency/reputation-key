@@ -3,12 +3,6 @@
 // diverges from what is saved. The shell reads as a flat description of what is
 // on screen because the answers are derived here — the same split
 // portal-share-state.ts makes for the Share tab.
-
-// Every decision the portal workspace shell makes, with no JSX and no hooks:
-// which tab the URL really asks for, which tabs are offered, what the quiet status line says, and whether the theme draft
-// diverges from what is saved. The shell reads as a flat description of what is
-// on screen because the answers are derived here — the same split
-// portal-share-state.ts makes for the Share tab.
 import type { PortalPublicationHistory } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalPublicationState } from '#/contexts/portal/workspace/ui/shared/types'
 import {

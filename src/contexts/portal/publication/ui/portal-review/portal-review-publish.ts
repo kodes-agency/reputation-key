@@ -2,11 +2,6 @@
 // it: which write a portal's publication is, what the manager is told, and where
 // they go afterwards. Effects are passed in, so the branch choice and the words
 // are pinned without a browser.
-
-// What the review page's Publish button does, apart from the route that wires
-// it: which write a portal's publication is, what the manager is told, and where
-// they go afterwards. Effects are passed in, so the branch choice and the words
-// are pinned without a browser.
 import type { PortalReview } from '#/contexts/portal/application/portal-management-contracts'
 import { describePublishOutcome } from './portal-review-footer'
 

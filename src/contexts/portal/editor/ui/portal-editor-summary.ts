@@ -1,10 +1,6 @@
 // The one quiet line under each section name in the editor's list — what a
 // manager needs to know about a section without opening it. Pure and separate
 // from the navigation so the words are pinned by a test, not by JSX.
-
-// The one quiet line under each section name in the editor's list — what a
-// manager needs to know about a section without opening it. Pure and separate
-// from the navigation so the words are pinned by a test, not by JSX.
 import { plural } from '#/shared/format/format'
 import {
   hasPropertyWording,

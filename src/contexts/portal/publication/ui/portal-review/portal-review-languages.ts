@@ -1,10 +1,6 @@
 // A language row of Review & publish: the language by its own name, how much of
 // its wording is written, and any drafts nobody has checked. The wording of the
 // coverage line is the Languages section's own, so the two pages agree.
-
-// A language row of Review & publish: the language by its own name, how much of
-// its wording is written, and any drafts nobody has checked. The wording of the
-// coverage line is the Languages section's own, so the two pages agree.
 import type { ReviewLanguageRow } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {

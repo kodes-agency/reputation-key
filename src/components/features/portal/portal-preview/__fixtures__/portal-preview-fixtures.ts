@@ -2,11 +2,6 @@
 // with one tile still waiting for approval, a live version, and readers that
 // answer like the server function (the draft, the live version, a version with
 // the earlier design, or a failure).
-
-// Story and test data for the live preview: a draft in English and Bulgarian
-// with one tile still waiting for approval, a live version, and readers that
-// answer like the server function (the draft, the live version, a version with
-// the earlier design, or a failure).
 import type {
   PortalPreview,
   PortalPreviewExperience,

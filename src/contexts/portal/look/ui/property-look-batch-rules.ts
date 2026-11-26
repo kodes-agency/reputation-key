@@ -7,16 +7,6 @@
 // the gates, a blocked check is what the publish use case would refuse on, and
 // a viewer who may not publish sees no tick, so the batch never offers what
 // `publishPortalsChanges` would refuse.
-
-// What the batch "Review & publish" decides without a screen: what can be done
-// with each live portal (from its own review read, the same one the review page
-// asks), how that reads, and how the outcome of a publish reads. Pure, so the
-// wording and the choices are pinned by tests.
-//
-// The rules mirror the server's: a portal with nothing to publish is not asked
-// the gates, a blocked check is what the publish use case would refuse on, and
-// a viewer who may not publish sees no tick, so the batch never offers what
-// `publishPortalsChanges` would refuse.
 import type {
   PortalReview,
   PublishPortalsChangesResult,

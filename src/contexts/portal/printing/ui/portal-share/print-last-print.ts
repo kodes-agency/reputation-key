@@ -2,11 +2,6 @@
 // share-desktop-light, share-desktop-dark and share-phone): when the Portal was
 // last printed and what the print was, and, for an Immersive print, what became
 // of the photo since. Copy only, in one place, so each line is tested as written.
-
-// What the Last printed notice says (design spec §11, the boards
-// share-desktop-light, share-desktop-dark and share-phone): when the Portal was
-// last printed and what the print was, and, for an Immersive print, what became
-// of the photo since. Copy only, in one place, so each line is tested as written.
 import type { PortalPrintKitLastPrint } from '#/contexts/portal/application/portal-management-contracts'
 import {
   formatShortDate,

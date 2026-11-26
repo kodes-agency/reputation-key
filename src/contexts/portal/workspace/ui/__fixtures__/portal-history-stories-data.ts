@@ -1,10 +1,6 @@
 // The Pool & Terrace ledger of board 08, as data for stories: the same entries,
 // versions and restore preview the History tab reads, so a story shows the
 // board's sentences exactly. Not imported by production code.
-
-// The Pool & Terrace ledger of board 08, as data for stories: the same entries,
-// versions and restore preview the History tab reads, so a story shows the
-// board's sentences exactly. Not imported by production code.
 import type {
   PortalHistoryEntry,
   PortalPublicationHistory,
