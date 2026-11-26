@@ -12,6 +12,7 @@
 // single quiet line for it? A Portal that is live and needs nothing gets no
 // line at all. Pure, so the rules are readable, and testable, apart from the
 // table that shows them.
+import { plural } from '#/shared/format/format'
 import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 
 export type PortalAttentionInput = Pick<
@@ -172,9 +173,6 @@ export function portalAttention(input: PortalAttentionInput): PortalAttention {
     }
   }
 }
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`
 
 /** What an older code costs, and what puts it right: replacing means reprinting. */
 const OLDER_CODE_LINE = 'Scans not counted · replace the code (needs reprinting)'
