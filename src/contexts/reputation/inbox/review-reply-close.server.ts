@@ -17,6 +17,7 @@ import type { InboxItem } from '../domain/inbox-types'
 import { inboxError } from '../domain/inbox-errors'
 import { closeHandlingCycle } from '../domain/handling-cycles'
 import { isAnsweringGoogleReply } from '../domain/inbox-rules'
+import type { HandlingCycleHead } from '../domain/inbox-types'
 import type {
   HandlingCycleCreationAnchor,
   ReviewCycleCreationAnchor,
@@ -26,10 +27,8 @@ import { transitionInsert } from './review-handling-cycle-store.server'
 import { completeGoogleReviewTarget } from '../response-targets/google-review-target-completion.server'
 import {
   assertObservationMatchesItem,
-  handlingCycleHeadFromRow,
   itemFromRow,
   lifecycleFactFor,
-  type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards.server'
 import { cycleHeadItemColumns, persistedHeadFromItemRow } from './inbox-cycle-head.server'
@@ -45,7 +44,7 @@ export async function lockReviewRowsForObservation(
   tx: Tx,
   item: InboxItem,
   observation: ReviewCurrentReplyObservationPermit,
-): Promise<Readonly<{ headRow: PersistedHead; itemRow: PersistedItem }>> {
+): Promise<Readonly<{ headRow: HandlingCycleHead; itemRow: PersistedItem }>> {
   const itemRows = await tx
     .select()
     .from(inboxItems)
@@ -71,7 +70,6 @@ export async function lockReviewRowsForObservation(
     if (
       carriedFrom === null ||
       headRow.currentSourceRevision !== carriedFrom ||
-      headRow.currentMaterialReviewRevision !== carriedFrom ||
       observation.materialReviewRevision !== carriedFrom + 1
     ) {
       throw inboxError(
@@ -111,7 +109,7 @@ export async function closeReviewCycleOnGoogleReply(
   tx: Tx,
   input: Readonly<{
     item: InboxItem
-    headRow: PersistedHead
+    headRow: HandlingCycleHead
     itemRow: PersistedItem
     observation: ReviewCurrentReplyObservationPermit
     triggerEventId: string | null
@@ -122,12 +120,12 @@ export async function closeReviewCycleOnGoogleReply(
   const recordedAt = input.recordedAt ?? observation.observedAt
   const { completedAt: repliedOnGoogleAt } = await completeGoogleReviewTarget(
     tx,
-    handlingCycleHeadFromRow(headRow),
+    headRow,
     observation.observedAt,
     observation.providerReplyUpdatedAt,
   )
   const decision = closeHandlingCycle({
-    current: handlingCycleHeadFromRow(headRow),
+    current: headRow,
     closeReason:
       observation.resolution === 'confirmed_on_google'
         ? 'confirmed_on_google'

@@ -24,7 +24,6 @@ import {
   insertResponseTargetForHandlingCycle,
 } from '../response-targets/store.server'
 import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.server'
-import { handlingCycleHeadFromRow } from './inbox-command-guards.server'
 import { cycleHeadItemColumns, persistedHeadFromItemRow } from './inbox-cycle-head.server'
 
 export type InitialHandlingCycleAnchor = Readonly<{
@@ -131,8 +130,7 @@ export const createReviewHandlingCycleStore = (
         .from(inboxItems)
         .where(and(eq(inboxItems.id, itemId), eq(inboxItems.organizationId, orgId)))
         .limit(1)
-      const head = rows[0] ? persistedHeadFromItemRow(rows[0]) : null
-      return head ? handlingCycleHeadFromRow(head) : null
+      return rows[0] ? persistedHeadFromItemRow(rows[0]) : null
     })
   },
 })

@@ -1,6 +1,6 @@
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { userId, type UserId } from '#/shared/domain/ids'
-import type { InboxItem } from '../domain/inbox-types'
+import type { HandlingCycleHead, InboxItem } from '../domain/inbox-types'
 import { inboxError } from '../domain/inbox-errors'
 import {
   inboxItemAssigned,
@@ -13,10 +13,8 @@ import type { ReviewCycleTargetAnchor } from './review-cycle-target-anchor.serve
 import type { InboxItemBulkStatusChanged } from '../domain/inbox-events'
 import {
   bulkAssignmentReason,
-  handlingCycleHeadFromRow,
   itemFromRow,
   webActorId,
-  type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards.server'
 import { cycleHeadItemColumns } from './inbox-cycle-head.server'
@@ -49,7 +47,6 @@ export async function applyBulkAssignmentToItem(
   input: Readonly<{
     item: InboxItem
     currentRow: PersistedItem
-    headRow: PersistedHead | undefined
     assignedTo: UserId | null
     actorId: UserId
     bulkId: string
@@ -99,7 +96,7 @@ export async function applyBulkAssignmentToItem(
       })
   await appendAssignmentHistory(tx, item, {
     resultingCommandRevision: row.commandRevision,
-    handlingCycleNumber: input.headRow?.currentCycleNumber ?? null,
+    handlingCycleNumber: currentRow.currentCycleNumber,
     previousAssignee,
     nextAssignee: assignedTo,
     reason: bulkAssignmentReason(assignedTo, previousAssignee, actorId),
@@ -123,7 +120,7 @@ export async function reopenLockedBulkItem(
     item: InboxItem
     event: InboxItemBulkStatusChanged
     itemRow: PersistedItem
-    headRow: PersistedHead | undefined
+    headRow: HandlingCycleHead
     reason: BulkReopenGovernance['reason']
     explanation: string | null
     bulkId: string
@@ -151,15 +148,9 @@ export async function reopenLockedBulkItem(
     input.assigneeAuthorized,
   )
 
-  if (!headRow) {
-    throw inboxError(
-      'revision_conflict',
-      'Inbox Handling Cycle disappeared during bulk reopen',
-    )
-  }
-  await assertManualReopenHonest(tx, handlingCycleHeadFromRow(headRow))
+  await assertManualReopenHonest(tx, headRow)
   const decision = createNextHandlingCycle({
-    current: handlingCycleHeadFromRow(headRow),
+    current: headRow,
     sourceRevision: headRow.currentSourceRevision,
     openedReason: 'manual_reopen',
     manualReopenReason: input.reason,

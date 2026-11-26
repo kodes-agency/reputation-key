@@ -28,7 +28,6 @@ import { createNextHandlingCycle } from '#/contexts/reputation/domain/handling-c
 import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-store.port.server'
 import {
   assignmentAuthorityKey,
-  handlingCycleHeadFromRow,
   isAuthorityContractChange,
   itemFromRow,
   matchesLockedBulkAssignState,
@@ -414,9 +413,9 @@ export const createAssignmentCommands = (
             itemRow.assignedTo,
             now,
           )
-          await assertManualReopenHonest(tx, handlingCycleHeadFromRow(headRow))
+          await assertManualReopenHonest(tx, headRow)
           const decision = createNextHandlingCycle({
-            current: handlingCycleHeadFromRow(headRow),
+            current: headRow,
             sourceRevision: headRow.currentSourceRevision,
             openedReason: 'manual_reopen',
             manualReopenReason: command.reason,
@@ -536,18 +535,8 @@ export const createAssignmentCommands = (
             .orderBy(inboxItems.id)
             .for('update')
           const rowByItemId = new Map(lockedRows.map((row) => [row.id, row]))
-          const headByItemId = new Map(
-            lockedRows.flatMap((row) => {
-              const head = persistedHeadFromItemRow(row)
-              return head ? [[row.id, head] as const] : []
-            }),
-          )
           const exact = items.every((item) =>
-            matchesLockedBulkAssignState(
-              item,
-              rowByItemId.get(item.id),
-              headByItemId.get(item.id),
-            ),
+            matchesLockedBulkAssignState(item, rowByItemId.get(item.id)),
           )
           if (!exact) {
             return {
@@ -601,7 +590,6 @@ export const createAssignmentCommands = (
             const applied = await applyBulkAssignmentToItem(tx, {
               item,
               currentRow: rowByItemId.get(item.id)!,
-              headRow: headByItemId.get(item.id),
               assignedTo,
               actorId,
               bulkId,

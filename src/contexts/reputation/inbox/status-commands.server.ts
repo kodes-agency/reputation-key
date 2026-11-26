@@ -184,7 +184,7 @@ export const createStatusCommands = (
             const stillExact =
               itemRow !== undefined &&
               headRow !== null &&
-              matchesLockedBulkReopenState(item, itemRow, headRow)
+              matchesLockedBulkReopenState(item, itemRow)
             if (!stillExact) {
               results[originalIndex] = {
                 inboxItemId: item.id,
