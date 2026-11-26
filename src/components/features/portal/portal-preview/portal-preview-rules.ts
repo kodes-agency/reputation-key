@@ -1,8 +1,5 @@
 // What the pane says when it has no page to draw. Pure, so the wording is
 // pinned by a test and not by JSX.
-
-// What the pane says when it has no page to draw. Pure, so the wording is
-// pinned by a test and not by JSX.
 import type {
   PortalPreviewLinkState,
   PortalPreviewUnavailableReason,

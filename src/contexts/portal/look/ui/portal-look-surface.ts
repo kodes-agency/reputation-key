@@ -2,11 +2,6 @@
 // summary) and the words that go with each. Pure, so the rules and the wording are
 // pinned by tests, and light, so the section can decide without the editor's code,
 // which is fetched only when the editor is shown.
-
-// Which surface a portal's Look section shows (the editor, the facts, or today's
-// summary) and the words that go with each. Pure, so the rules and the wording are
-// pinned by tests, and light, so the section can decide without the editor's code,
-// which is fetched only when the editor is shown.
 import type { PortalLookSources } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalReadOnlyReason } from '#/contexts/portal/workspace/ui/shared/portal-edit-access'
 

@@ -2,11 +2,6 @@
 // read, what a draft would write, what is wrong with it, the contrast rows the
 // board prints, which portals the look reaches, and what the status line says.
 // Pure, so the wording and the rules are pinned by tests.
-
-// What the Property look page decides without a screen: how a typed colour is
-// read, what a draft would write, what is wrong with it, the contrast rows the
-// board prints, which portals the look reaches, and what the status line says.
-// Pure, so the wording and the rules are pinned by tests.
 import type { PortalLookSources } from '#/contexts/portal/application/portal-management-contracts'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { isFieldForLightText } from '#/shared/domain/portal-field-colour'

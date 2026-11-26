@@ -1,10 +1,6 @@
 // One History entry as a sentence: who did what, and the detail after the dot.
 // Pure: the view draws the pieces, this decides the words. Page edits have
 // their own module (portal-history-edit-line.ts).
-
-// One History entry as a sentence: who did what, and the detail after the dot.
-// Pure: the view draws the pieces, this decides the words. Page edits have
-// their own module (portal-history-edit-line.ts).
 import type {
   PortalHistoryEntry,
   PortalHistoryDetail,
