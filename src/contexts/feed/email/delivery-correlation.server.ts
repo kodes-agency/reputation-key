@@ -1,8 +1,8 @@
 // The join key for the email delivery pipeline's log trail.
 //
 // `correlationId` is one of exactly two approved correlation fields in log
-// objects (`shared/observability/metrics-schema.ts`: APPROVED_CORRELATION_FIELDS
-// = requestId, correlationId). Every tenant/entity identifier — including
+// objects (`shared/observability/log-field-policy.test-fixtures.ts`:
+// APPROVED_CORRELATION_FIELDS = requestId, correlationId). Every tenant/entity identifier — including
 // `notificationEmailId` and `eventId` — is in BANNED_LOG_KEYS, enforced by the
 // call-site scan in `shared/architecture/observability-schema.test.ts`.
 //

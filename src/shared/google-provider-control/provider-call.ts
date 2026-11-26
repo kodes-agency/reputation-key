@@ -1,53 +1,8 @@
-import { createHash } from 'node:crypto'
 import {
   GOOGLE_RETRY_MAX_MS,
   GOOGLE_RETRY_MIN_MS,
   googleRetryFloorMs,
 } from './retry-floor'
-
-export function hashBoundedRequestBody(
-  body: Uint8Array,
-  maxBytes: number,
-): Readonly<{ sha256: string | null; bytes: number }> {
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || body.byteLength > maxBytes) {
-    throw new Error('provider request body exceeds its admission bound')
-  }
-  return {
-    sha256:
-      body.byteLength === 0 ? null : createHash('sha256').update(body).digest('hex'),
-    bytes: body.byteLength,
-  }
-}
-
-export type ProviderHttpResult<T> = Readonly<{
-  status: number
-  value: T
-}>
-
-/** One initial request plus, only after 401, one authorized refresh and retry. */
-export async function executeWithSingle401Refresh<TToken, TResult>(
-  input: Readonly<{
-    token: TToken
-    deadlineMs: number
-    nowMs: () => number
-    send: (token: TToken, attempt: 1 | 2) => Promise<ProviderHttpResult<TResult>>
-    refreshAfter401: () => Promise<TToken>
-  }>,
-): Promise<ProviderHttpResult<TResult>> {
-  if (input.deadlineMs <= input.nowMs()) {
-    throw new Error('provider request deadline exceeded')
-  }
-  const first = await input.send(input.token, 1)
-  if (first.status !== 401) return first
-  if (input.deadlineMs <= input.nowMs()) {
-    throw new Error('provider request deadline exceeded')
-  }
-  const refreshed = await input.refreshAfter401()
-  if (input.deadlineMs <= input.nowMs()) {
-    throw new Error('provider request deadline exceeded')
-  }
-  return input.send(refreshed, 2)
-}
 
 export function parseGoogleRetryAfterMs(
   value: string | null,
