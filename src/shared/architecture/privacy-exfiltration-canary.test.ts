@@ -12,10 +12,6 @@ import {
   betaFeedbackInputSchema,
   formatBetaFeedbackMessage,
 } from '#/shared/beta-feedback/beta-feedback-contract'
-import {
-  METRIC_DEFINITIONS,
-  labelValueAllowed,
-} from '#/shared/observability/metrics-schema'
 import { scrubSentryEvent } from '#/shared/observability/sentry-event-scrub'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 
@@ -76,25 +72,6 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
         attachments: [{ filename: REVIEW, bytes: SECRET }],
       }),
     )
-  })
-
-  it('keeps metric labels closed to content and tenant field names', () => {
-    const forbiddenLabels = [
-      'organizationId',
-      'propertyId',
-      'userId',
-      'reviewText',
-      'contactEmail',
-      'password',
-    ]
-    for (const definition of METRIC_DEFINITIONS) {
-      for (const [label, specification] of Object.entries(definition.labels)) {
-        expect(forbiddenLabels, definition.name).not.toContain(label)
-        expect(labelValueAllowed(specification, SECRET), definition.name).toBe(false)
-        expect(labelValueAllowed(specification, REVIEW), definition.name).toBe(false)
-        expect(labelValueAllowed(specification, CONTACT), definition.name).toBe(false)
-      }
-    }
   })
 
   it('strips the markers before a domain fact enters the durable outbox', () => {

@@ -47,7 +47,7 @@ export function evaluateAlerts(
   const pending: string[] = []
   const held = new Set(blindedAlerts(snapshot.degraded).map((def) => def.name))
   for (const def of ALERT_DEFINITIONS) {
-    if (!def.implemented || def.evaluate === null) continue
+    if (def.evaluate === null) continue
     const wasFiring = previouslyFiring.has(def.name)
     if (held.has(def.name) || def.unknownWhen?.(aux)) {
       held.add(def.name)

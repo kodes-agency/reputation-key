@@ -1,10 +1,11 @@
 // BQC-7.3 — observability schema gate.
 //
 // Four pins, all derived from the executable policy in
-// observability/metrics-schema.ts:
+// observability/log-field-policy.test-fixtures.ts and
+// architecture/snapshot-leaf-paths.test-fixtures.ts:
 //
 //   (a) SNAPSHOT REGISTRATION — every leaf field path of a REAL assembled
-//       OperationsSnapshot resolves to a registered metric definition (or an
+//       OperationsSnapshot is in the reviewed SNAPSHOT_LEAF_PATHS list (or an
 //       explicit non-metric allowlist entry below: timestamps, static queue
 //       names, the degraded marker list). New snapshot fields fail until
 //       registered — the schema and the snapshot cannot drift apart.
@@ -23,14 +24,14 @@ import { join } from 'node:path'
 import {
   APPROVED_CORRELATION_FIELDS,
   BANNED_LOG_KEYS,
-  METRIC_DEFINITIONS,
+  isBannedLogKey,
+} from '#/shared/observability/log-field-policy.test-fixtures'
+import { SNAPSHOT_SECTIONS } from '#/shared/observability/snapshot-sections'
+import {
   PUBLICATION_STATES,
   QUEUE_NAMES,
-  SNAPSHOT_SECTIONS,
-  isBannedLogKey,
-  labelValueAllowed,
-  registeredSnapshotPaths,
-} from '#/shared/observability/metrics-schema'
+  SNAPSHOT_LEAF_PATHS,
+} from './snapshot-leaf-paths.test-fixtures'
 import { createOperationsSnapshot } from '#/shared/health/operations-snapshot'
 import type { Database } from '#/shared/db'
 import type { OutboxRepository } from '#/shared/outbox'
@@ -329,7 +330,7 @@ function fakeDb(results: unknown[][]): Database {
 /**
  * Snapshot leaf paths that are NOT metrics: timestamps, static queue-name
  * config echoes, queue-row name labels, and the degraded marker list itself.
- * Everything else must be registered in METRIC_DEFINITIONS.
+ * Everything else must be listed in SNAPSHOT_LEAF_PATHS.
  */
 const NON_METRIC_PATHS = new Set([
   'timestamp',
@@ -518,28 +519,27 @@ async function assembleSnapshot() {
 // ── The gate ──
 
 describe('architecture: observability schema (BQC-7.3)', () => {
-  it('(a) every OperationsSnapshot leaf path is registered in the schema', async () => {
+  it('(a) every OperationsSnapshot leaf path is in the reviewed path list', async () => {
     const snapshot = await assembleSnapshot()
-    const registered = registeredSnapshotPaths()
     const unregistered = leafPaths(snapshot).filter(
-      (p) => !registered.has(p) && !NON_METRIC_PATHS.has(p),
+      (p) => !SNAPSHOT_LEAF_PATHS.has(p) && !NON_METRIC_PATHS.has(p),
     )
     expect(
       unregistered,
-      'snapshot fields must be registered in METRIC_DEFINITIONS:\n' +
+      'snapshot fields must be listed in SNAPSHOT_LEAF_PATHS:\n' +
         unregistered.join('\n'),
     ).toEqual([])
   })
 
-  it('(a2) registered snapshot paths have no stale entries', async () => {
+  it('(a2) listed snapshot paths have no stale entries', async () => {
     const snapshot = await assembleSnapshot()
     const leaves = new Set(leafPaths(snapshot))
-    const stale = [...registeredSnapshotPaths()].filter(
+    const stale = [...SNAPSHOT_LEAF_PATHS].filter(
       (p) => !leaves.has(p) && !NON_METRIC_PATHS.has(p),
     )
     expect(
       stale,
-      'schema snapshotPaths that do not resolve to a real snapshot field:\n' +
+      'listed snapshot paths that do not resolve to a real snapshot field:\n' +
         stale.join('\n'),
     ).toEqual([])
   })
@@ -591,20 +591,6 @@ describe('architecture: observability schema (BQC-7.3)', () => {
         (PUBLICATION_STATES as readonly string[]).includes(state),
         `publication state "${state}" outside the closed set`,
       ).toBe(true)
-    }
-    // Registry self-check: every label spec accepts its documented values.
-    for (const def of METRIC_DEFINITIONS) {
-      for (const [label, spec] of Object.entries(def.labels)) {
-        if ('values' in spec) {
-          expect(
-            spec.values.length,
-            `${def.name} label "${label}" must declare a closed value set`,
-          ).toBeGreaterThan(0)
-          for (const v of spec.values) {
-            expect(labelValueAllowed(spec, v)).toBe(true)
-          }
-        }
-      }
     }
   })
 })

@@ -57,12 +57,6 @@ function createMemoryStore(): ProviderEphemeralStore & {
       return true
     },
     read: async (namespace, entryKey) => values.get(key(namespace, entryKey)),
-    consume: async (namespace, entryKey) => {
-      const location = key(namespace, entryKey)
-      const value = values.get(location)
-      values.delete(location)
-      return value
-    },
     consumeIfEquals: async (namespace, entryKey, expectedValue) => {
       const location = key(namespace, entryKey)
       const value = values.get(location)

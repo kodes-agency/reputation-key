@@ -10,7 +10,7 @@ import {
 } from './operations-snapshot'
 import type { Database } from '#/shared/db'
 import type { OutboxRepository } from '#/shared/outbox'
-import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
+import { SNAPSHOT_SECTIONS } from '#/shared/observability/snapshot-sections'
 import { ZERO_SYNC_PUSH_HEALTH } from '#/shared/db/sync-push-health'
 import { getLogger } from '#/shared/observability/logger'
 import * as environment from '#/shared/config/env'

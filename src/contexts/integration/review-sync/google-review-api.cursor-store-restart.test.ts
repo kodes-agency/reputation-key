@@ -103,7 +103,6 @@ function restartableProviderStore(clock: { nowMs: number }) {
     putIfAbsent: (namespace, key, value, ttlSeconds) =>
       current.putIfAbsent(namespace, key, value, ttlSeconds),
     read: (namespace, key) => current.read(namespace, key),
-    consume: (namespace, key) => current.consume(namespace, key),
     consumeIfEquals: (namespace, key, expected) =>
       current.consumeIfEquals(namespace, key, expected),
     replaceIfEquals: (namespace, key, expected, next, ttlSeconds) =>
