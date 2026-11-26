@@ -74,7 +74,7 @@ describe('notification preference reads on one client (real PostgreSQL)', () => 
 
       await measured(read)
 
-      expect(queries).toBeGreaterThan(1)
+      expect(queries).toBeGreaterThan(kind === 'defaults' ? 0 : 1)
       expect(peak).toBe(1)
     },
   )

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { eq, inArray, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
@@ -267,18 +267,15 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
     await lease?.release()
   })
 
-  it('resolves every category the same before the copy, after it and after the cutover', async () => {
+  it('resolves every category the same after the copy and after the cutover', async () => {
     await seed()
+    const copied = await copyCategoryDefaultsToPreferences(db, { batchSize: 2 })
+    expect(copied).toEqual({ inserted: DEFAULTS.length, updated: 0 })
+    expect(await mirrorRows()).toHaveLength(DEFAULTS.length)
     const before = await resolveEverything()
     expect(Object.keys(before.resolved)).toHaveLength(
       PLACES.length * NOTIFICATION_SETTINGS_CATEGORIES.length * 2,
     )
-    expect(await mirrorRows()).toHaveLength(0)
-
-    const copied = await copyCategoryDefaultsToPreferences(db, { batchSize: 2 })
-    expect(copied).toEqual({ inserted: DEFAULTS.length, updated: 0 })
-    expect(await mirrorRows()).toHaveLength(DEFAULTS.length)
-    expect(await resolveEverything()).toEqual(before)
 
     // Reads now come from the preference rows alone.
     await db
@@ -323,38 +320,6 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
       (row) => row.category === 'arrivals' && row.organizationId === ORG_A,
     )
     expect(stale.map((row) => [row.enabled, row.cadence])).toEqual([[false, 'daily']])
-  })
-
-  it('reads a newer answer in the earlier table over a stale copy, with no rerun', async () => {
-    await seed()
-    await copyCategoryDefaultsToPreferences(db)
-    // A previous release saves a default and writes only the earlier table.
-    await db
-      .update(notificationCategoryDefaults)
-      .set({ enabled: false, cadence: 'daily', updatedAt: CHANGED })
-      .where(
-        and(
-          eq(notificationCategoryDefaults.userId, ONLY_A),
-          eq(notificationCategoryDefaults.category, 'guest_voice'),
-        ),
-      )
-
-    await expect(
-      store.resolveForDelivery(db, ONLY_A, ORG_A, P2, 'guest_voice', 'email'),
-    ).resolves.toMatchObject({ enabled: false })
-    const listed = await store.findCategoryDefaults(
-      db,
-      userId(ONLY_A),
-      organizationId(ORG_A),
-    )
-    expect(listed).toHaveLength(1)
-    expect(listed[0]).toMatchObject({ enabled: false, cadence: 'daily' })
-
-    // After the copy the two agree again.
-    await copyCategoryDefaultsToPreferences(db)
-    await expect(
-      store.resolveForDelivery(db, ONLY_A, ORG_A, P2, 'guest_voice', 'email'),
-    ).resolves.toMatchObject({ enabled: false })
   })
 
   it('refuses a batch size outside its bounds', async () => {

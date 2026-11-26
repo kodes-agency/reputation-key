@@ -396,8 +396,8 @@ describe.sequential('personal notification delivery (real PostgreSQL)', () => {
         .insert(notificationPreferences)
         .values({ ...copied, propertyId: PROPERTY, category, channel: 'in_app' })
       await db
-        .insert(notificationCategoryDefaults)
-        .values({ ...copied, category, channel: 'email' })
+        .insert(notificationPreferences)
+        .values({ ...copied, propertyId: null, category, channel: 'email' })
     }
 
     const stored = await store.findByUser(db, USER, ORG)
