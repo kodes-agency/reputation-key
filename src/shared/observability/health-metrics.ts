@@ -1,3 +1,4 @@
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 // Health metrics — operational health for the outbox, queues, and content
 // lifecycle (PRE17C / BQR-1.4).
@@ -16,7 +17,7 @@ import { reviewSourceContents } from '#/shared/db/schema/review-source-content.s
 
 import type { OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
-import { and, eq, sql, type SQL } from 'drizzle-orm'
+import { eq, sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
@@ -860,14 +861,7 @@ async function readReviewContentMetrics(
       `,
     })
     .from(reviews)
-    .innerJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
+    .innerJoin(reviewSourceContents, reviewContentJoin)
     .where(eq(reviews.sourceContentState, 'active'))
 
   const row = result[0]

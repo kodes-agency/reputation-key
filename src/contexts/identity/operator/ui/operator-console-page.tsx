@@ -29,6 +29,7 @@ import type {
 } from './platform-admin-invitations'
 import { isReauthRequired, summarizeOrganizations } from './platform-console-model'
 import { PlatformOrganizationRow } from './platform-organization-row'
+import { plural } from '#/shared/format/format'
 
 export type OperatorConsoleActions = Readonly<{
   provision: ProvisionOrganizationAction
@@ -46,9 +47,6 @@ type Props = Readonly<{
   /** Ends the session and returns to sign-in, then back here. */
   onSignInAgain: () => void
 }>
-
-const plural = (count: number, one: string, many: string) =>
-  `${count} ${count === 1 ? one : many}`
 
 function ReauthNotice({ onSignInAgain }: Readonly<{ onSignInAgain: () => void }>) {
   return (

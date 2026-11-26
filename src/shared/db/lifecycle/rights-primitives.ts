@@ -1,6 +1,7 @@
 // Helpers the review, inbox and Google rights stores share. Each store keeps
 // its own table registries, queries and Property existence check.
 import { sql, type SQL } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
 
 export type RightsRow = Readonly<Record<string, unknown>>
@@ -41,4 +42,29 @@ export async function organizationExists(
     sql`SELECT 1 AS present FROM organization WHERE id = ${organizationId}`,
   )
   return result.rows.length > 0
+}
+
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'unexpected error'
+}
+
+class RefusalProbeRolledBack extends Error {}
+
+/**
+ * The reason `check` refuses, or null. It runs in a transaction that always
+ * rolls back, so nothing the check does stays changed.
+ */
+export async function refusalOf(
+  db: Database,
+  check: (tx: Tx) => Promise<void>,
+): Promise<string | null> {
+  try {
+    await db.transaction(async (tx) => {
+      await check(tx)
+      throw new RefusalProbeRolledBack()
+    })
+    return null
+  } catch (error) {
+    return error instanceof RefusalProbeRolledBack ? null : errorMessage(error)
+  }
 }

@@ -1,3 +1,4 @@
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import { adoptDraftMeasurement } from '#/shared/db/ai/draft-measurement-lineage'
 import { replyAiFrameReservations } from '#/shared/db/schema'
@@ -162,14 +163,7 @@ export const createAiSuggestedDraftStore = (
             replyStateRevision: reviews.replyStateRevision,
           })
           .from(reviews)
-          .leftJoin(
-            reviewSourceContents,
-            and(
-              eq(reviewSourceContents.reviewId, reviews.id),
-              eq(reviewSourceContents.organizationId, reviews.organizationId),
-              eq(reviewSourceContents.propertyId, reviews.propertyId),
-            ),
-          )
+          .leftJoin(reviewSourceContents, reviewContentJoin)
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),
@@ -442,14 +436,7 @@ export const createAiSuggestedDraftStore = (
         const [adoptedReview] = await tx
           .select({ replyStateRevision: reviews.replyStateRevision })
           .from(reviews)
-          .leftJoin(
-            reviewSourceContents,
-            and(
-              eq(reviewSourceContents.reviewId, reviews.id),
-              eq(reviewSourceContents.organizationId, reviews.organizationId),
-              eq(reviewSourceContents.propertyId, reviews.propertyId),
-            ),
-          )
+          .leftJoin(reviewSourceContents, reviewContentJoin)
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),

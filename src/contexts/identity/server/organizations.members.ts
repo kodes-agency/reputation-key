@@ -2,14 +2,10 @@
 // Per architecture: server/ contains TanStack Start server functions.
 
 import { createServerFn } from '@tanstack/react-start'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext, resetTenantCache } from '#/shared/auth/middleware'
-import { catchUntagged } from '#/shared/auth/server-errors'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import { command } from '#/shared/commands/command.server'
+import { resetTenantCache } from '#/shared/auth/middleware'
 import { getContainer } from '#/composition'
-import { isIdentityError } from '../domain/errors'
-import { throwIdentityError } from './organizations.errors.server'
+import { identityCommandErrors } from './organizations.errors.server'
 import {
   inviteMemberInputSchema,
   updateMemberRoleInputSchema,
@@ -23,31 +19,25 @@ import { enforceInvitationSendRateLimit } from './invitation-rate-limit.server'
 export const inviteMember = createServerFn({ method: 'POST' })
   .validator(inviteMemberInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'invitation.create' })
-
-        try {
-          const { identityPublicApi, rateLimiter, identityRequestSecurity } =
-            getContainer()
-          await enforceInvitationSendRateLimit({
-            rateLimiter,
-            actorId: ctx.userId,
-            organizationId: ctx.organizationId,
-            keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
-          })
-          // `emailSent: false` means the invitation exists but its email did
-          // not go out; the Members page says so and offers Resend.
-          return await identityPublicApi.requests.inviteMember(data, ctx)
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.inviteMember',
+        action: 'invitation.create',
+        errors: identityCommandErrors,
       },
-      'POST',
-      'identity.inviteMember',
+      async ({ data, actor }) => {
+        const { identityPublicApi, rateLimiter, identityRequestSecurity } = getContainer()
+        await enforceInvitationSendRateLimit({
+          rateLimiter,
+          actorId: actor.userId,
+          organizationId: actor.organizationId,
+          keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
+        })
+        // `emailSent: false` means the invitation exists but its email did
+        // not go out; the Members page says so and offers Resend.
+        return identityPublicApi.requests.inviteMember(data, actor)
+      },
     ),
   )
 
@@ -57,24 +47,19 @@ export const inviteMember = createServerFn({ method: 'POST' })
 export const updateMemberRole = createServerFn({ method: 'POST' })
   .validator(updateMemberRoleInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'member.update' })
-
-        try {
-          await getContainer().identityPublicApi.requests.updateMemberRole(data, ctx)
-          // Invalidate tenant cache — a role change mutates AuthContext.role,
-          // so the affected member's cached permissions are now stale.
-          resetTenantCache()
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.updateMemberRole',
+        action: 'member.update',
+        errors: identityCommandErrors,
       },
-      'POST',
-      'identity.updateMemberRole',
+      async ({ data, actor }) => {
+        await getContainer().identityPublicApi.requests.updateMemberRole(data, actor)
+        // Invalidate tenant cache — a role change mutates AuthContext.role,
+        // so the affected member's cached permissions are now stale.
+        resetTenantCache()
+      },
     ),
   )
 
@@ -84,23 +69,18 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
 export const removeMember = createServerFn({ method: 'POST' })
   .validator(removeMemberInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'member.delete' })
-
-        try {
-          await getContainer().identityPublicApi.requests.removeMember(data, ctx)
-          // Invalidate tenant cache — removing a member invalidates their cached
-          // AuthContext (they may still hold a stale role for up to the TTL).
-          resetTenantCache()
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.removeMember',
+        action: 'member.delete',
+        errors: identityCommandErrors,
       },
-      'POST',
-      'identity.removeMember',
+      async ({ data, actor }) => {
+        await getContainer().identityPublicApi.requests.removeMember(data, actor)
+        // Invalidate tenant cache — removing a member invalidates their cached
+        // AuthContext (they may still hold a stale role for up to the TTL).
+        resetTenantCache()
+      },
     ),
   )

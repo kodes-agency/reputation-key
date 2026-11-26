@@ -15,6 +15,7 @@ import type {
   MissingPortalText,
   PortalLanguageCoverageRow,
 } from '#/contexts/portal/application/portal-management-contracts'
+import { plural } from '#/shared/format/format'
 
 /** A Portal's languages: the fallback first, then the others in the order they were added. */
 export type PortalLanguageSet = Readonly<{
@@ -158,9 +159,6 @@ export function languageDisplayName(locale: GuestLocale): {
     chip: adminLanguageCode(locale),
   }
 }
-
-const plural = (count: number, one: string, many: string) =>
-  `${count} ${count === 1 ? one : many}`
 
 export type CoverageDescription = Readonly<{
   tone: 'complete' | 'missing'
