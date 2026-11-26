@@ -14,6 +14,7 @@ import { countHiddenLinks } from './link-tree/linktree-approval-rules'
 import type { PortalGroupView } from '#/components/features/portal/portal-group/portal-group-types'
 import type { PortalEditorResources } from './portal-editor-types'
 import type { PortalEditorSection } from './portal-editor-sections'
+import { plural } from '#/shared/format/format'
 
 export type PortalEditorSummaryInput = Readonly<{
   portalName: string
@@ -47,9 +48,6 @@ export type PortalEditorSectionSummary = Readonly<{
   /** Something the section needs, shown beside the line in the warning colour. */
   attention?: string
 }>
-
-const plural = (count: number, one: string, many: string) =>
-  `${count} ${count === 1 ? one : many}`
 
 // A hidden tile is named here as it is in the links list, so a manager who sees
 // "1 hidden from guests" here finds the same words once the section opens.

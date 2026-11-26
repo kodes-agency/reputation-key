@@ -7,6 +7,7 @@
 // Organization's lifecycle hold; the monthly-result guard is switched off only
 // inside that transaction, and a rollback restores it.
 
+import { errorMessage, refusalOfProbe } from '#/shared/db/lifecycle/rights-primitives'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type {
@@ -310,28 +311,17 @@ async function assertReadyToPurge(
   await assertPortalFactsSettled(tx, organization, at, property)
 }
 
-class PurgeProbeRolledBack extends Error {}
-
 /**
  * The reason a purge would be refused, or null. It runs the same readiness
  * checks as the purge and then rolls back, so nothing is left changed.
  */
-async function purgeRefusal(
+const purgeRefusal = (
   db: Database,
   organization: string,
   at: Date,
   property: PropertyFilter,
-): Promise<string | null> {
-  try {
-    await db.transaction(async (tx) => {
-      await assertReadyToPurge(tx, organization, at, property)
-      throw new PurgeProbeRolledBack()
-    })
-    return null
-  } catch (error) {
-    return error instanceof PurgeProbeRolledBack ? null : errorMessage(error)
-  }
-}
+): Promise<string | null> =>
+  refusalOfProbe(db, (tx) => assertReadyToPurge(tx, organization, at, property))
 
 async function purge(
   tx: Tx,
@@ -357,10 +347,6 @@ async function purge(
   )
   const rows = Object.values(deleted).reduce((sum, value) => sum + value, 0)
   return { deleted, evidenceRef: `${CONTEXT}:purge:v1:tenant_rows_deleted:${rows}` }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
 }
 
 const propertyOf = (plan: RightsRequestPlan): PropertyFilter =>

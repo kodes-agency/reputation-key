@@ -3,13 +3,11 @@
 // Never returns { success: false } — always throws on error.
 
 import { createServerFn } from '@tanstack/react-start'
-import { setResponseHeader } from '@tanstack/react-start/server'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { headersFromContext } from '#/shared/auth/headers'
+import { commandHandler } from '#/shared/commands/command.server'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import { googleConnectionId } from '#/shared/domain/ids'
 import {
   listImportAccountsInputSchema,
@@ -31,12 +29,7 @@ import {
   GoogleImportTransactionError,
   type GoogleImportTransactionErrorCode,
 } from '../imports/google-import-transaction.server'
-
-function disableProviderContentCaching(): void {
-  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
-  setResponseHeader('Pragma', 'no-cache')
-  setResponseHeader('Expires', '0')
-}
+import { disableProviderContentCaching } from './provider-content-caching'
 
 function discoveryErrorStatus(code: GoogleImportDiscoveryErrorCode): number {
   switch (code) {
@@ -92,26 +85,33 @@ function transactionErrorStatus(code: GoogleImportTransactionErrorCode): number 
   }
 }
 
-function translateTransactionError(error: unknown): never {
-  if (error instanceof GoogleImportTransactionError) {
-    throwContextError(
-      'GoogleImportTransactionError',
-      error,
-      transactionErrorStatus(error.code),
-    )
-  }
-  throw catchUntagged(error)
+const discoveryErrors = {
+  name: 'GoogleImportDiscoveryError',
+  is: (error: unknown): error is GoogleImportDiscoveryError =>
+    error instanceof GoogleImportDiscoveryError,
+  status: discoveryErrorStatus,
 }
 
-function translateDiscoveryError(error: unknown): never {
-  if (error instanceof GoogleImportDiscoveryError) {
-    throwContextError(
-      'GoogleImportDiscoveryError',
-      error,
-      discoveryErrorStatus(error.code),
-    )
-  }
-  throw catchUntagged(error)
+const transactionErrors = {
+  name: 'GoogleImportTransactionError',
+  is: (error: unknown): error is GoogleImportTransactionError =>
+    error instanceof GoogleImportTransactionError,
+  status: transactionErrorStatus,
+}
+
+/**
+ * Provider content is never cached, and the import is a Property-creating
+ * capability: both come before anything the use case does.
+ */
+async function authorizeImport(headers: Headers): Promise<AuthContext> {
+  disableProviderContentCaching()
+  const ctx = await resolveTenantContext(headers)
+  await requireExecutionAllowed({
+    actor: ctx,
+    action: 'integration.manage',
+    capability: 'property.import_gbp_v2',
+  })
+  return ctx
 }
 
 // ── bounded Google import discovery ────────────────────────────────
@@ -119,210 +119,152 @@ function translateDiscoveryError(error: unknown): never {
 export const listImportAccounts = createServerFn({ method: 'POST' })
   .validator(listImportAccountsInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        disableProviderContentCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'integration.manage',
-          capability: 'property.import_gbp_v2',
-        })
-        try {
-          return await requireGoogleImportDiscovery().listAccounts(
-            {
-              connectionId: googleConnectionId(data.connectionId),
-              ...(data.cursorRef ? { cursorRef: data.cursorRef } : {}),
-            },
-            ctx,
-          )
-        } catch (error) {
-          return translateDiscoveryError(error)
-        }
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'integration.listImportAccounts',
+        errors: discoveryErrors,
       },
-      'POST',
-      'integration.listImportAccounts',
+      async ({ data, headers }) => {
+        const ctx = await authorizeImport(headers)
+        return requireGoogleImportDiscovery().listAccounts(
+          {
+            connectionId: googleConnectionId(data.connectionId),
+            ...(data.cursorRef ? { cursorRef: data.cursorRef } : {}),
+          },
+          ctx,
+        )
+      },
     ),
   )
 
 export const listImportCandidates = createServerFn({ method: 'POST' })
   .validator(listImportCandidatesInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        disableProviderContentCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'integration.manage',
-          capability: 'property.import_gbp_v2',
-        })
-        try {
-          const connectionId = googleConnectionId(data.connectionId)
-          return data.accountRef
-            ? await requireGoogleImportDiscovery().listCandidates(
-                { connectionId, accountRef: data.accountRef },
-                ctx,
-              )
-            : await requireGoogleImportDiscovery().listCandidates(
-                { connectionId, cursorRef: data.cursorRef! },
-                ctx,
-              )
-        } catch (error) {
-          return translateDiscoveryError(error)
-        }
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'integration.listImportCandidates',
+        errors: discoveryErrors,
       },
-      'POST',
-      'integration.listImportCandidates',
+      async ({ data, headers }) => {
+        const ctx = await authorizeImport(headers)
+        const connectionId = googleConnectionId(data.connectionId)
+        return data.accountRef
+          ? await requireGoogleImportDiscovery().listCandidates(
+              { connectionId, accountRef: data.accountRef },
+              ctx,
+            )
+          : await requireGoogleImportDiscovery().listCandidates(
+              { connectionId, cursorRef: data.cursorRef! },
+              ctx,
+            )
+      },
     ),
   )
 
 export const renewImportAuthorizationLease = createServerFn({ method: 'POST' })
   .validator(renewImportAuthorizationLeaseInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        disableProviderContentCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'integration.manage',
-          capability: 'property.import_gbp_v2',
-        })
-        try {
-          return await requireGoogleImportDiscovery().renewAuthorizationLease(
-            {
-              connectionId: googleConnectionId(data.connectionId),
-              leaseRef: data.leaseRef,
-            },
-            ctx,
-          )
-        } catch (error) {
-          return translateDiscoveryError(error)
-        }
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'integration.renewImportAuthorizationLease',
+        errors: discoveryErrors,
       },
-      'POST',
-      'integration.renewImportAuthorizationLease',
+      async ({ data, headers }) => {
+        const ctx = await authorizeImport(headers)
+        return requireGoogleImportDiscovery().renewAuthorizationLease(
+          {
+            connectionId: googleConnectionId(data.connectionId),
+            leaseRef: data.leaseRef,
+          },
+          ctx,
+        )
+      },
     ),
   )
+
 // ── atomic v2 import intent ────────────────────────────────────────
 
 export const startPropertyImportV2 = createServerFn({ method: 'POST' })
   .validator(startPropertyImportInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        disableProviderContentCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'integration.manage',
-          capability: 'property.import_gbp_v2',
-        })
-        try {
-          const result = await requireGoogleImportTransaction().start(data, ctx)
-          return { ...result, requestId: data.requestId }
-        } catch (error) {
-          return translateTransactionError(error)
-        }
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'integration.startPropertyImportV2',
+        errors: transactionErrors,
       },
-      'POST',
-      'integration.startPropertyImportV2',
+      async ({ data, headers }) => {
+        const ctx = await authorizeImport(headers)
+        const result = await requireGoogleImportTransaction().start(data, ctx)
+        return { ...result, requestId: data.requestId }
+      },
     ),
   )
 
 export const recoverPropertyImportV2 = createServerFn({ method: 'POST' })
   .validator(recoverPropertyImportInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        disableProviderContentCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'integration.manage',
-          capability: 'property.import_gbp_v2',
-        })
-        try {
-          const result = await requireGoogleImportTransaction().recover(
-            data.requestId,
-            ctx,
-          )
-          return { ...result, requestId: data.requestId }
-        } catch (error) {
-          return translateTransactionError(error)
-        }
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'integration.recoverPropertyImportV2',
+        errors: transactionErrors,
       },
-      'POST',
-      'integration.recoverPropertyImportV2',
+      async ({ data, headers }) => {
+        const ctx = await authorizeImport(headers)
+        const result = await requireGoogleImportTransaction().recover(data.requestId, ctx)
+        return { ...result, requestId: data.requestId }
+      },
     ),
   )
 
 export const retryPropertyImportItem = createServerFn({ method: 'POST' })
   .validator(retryPropertyImportItemInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        disableProviderContentCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'integration.manage',
-          capability: 'property.import_gbp_v2',
-        })
-        try {
-          return await requireGoogleImportTransaction().retry(data, ctx)
-        } catch (error) {
-          return translateTransactionError(error)
-        }
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'integration.retryPropertyImportItem',
+        errors: transactionErrors,
       },
-      'POST',
-      'integration.retryPropertyImportItem',
+      async ({ data, headers }) => {
+        const ctx = await authorizeImport(headers)
+        return requireGoogleImportTransaction().retry(data, ctx)
+      },
     ),
   )
 
 export const cancelPropertyImportV2 = createServerFn({ method: 'POST' })
   .validator(cancelPropertyImportInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        disableProviderContentCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'integration.manage',
-          capability: 'property.import_gbp_v2',
-        })
-        try {
-          return await requireGoogleImportTransaction().cancel(data.importJobId, ctx)
-        } catch (error) {
-          return translateTransactionError(error)
-        }
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'integration.cancelPropertyImportV2',
+        errors: transactionErrors,
       },
-      'POST',
-      'integration.cancelPropertyImportV2',
+      async ({ data, headers }) => {
+        const ctx = await authorizeImport(headers)
+        return requireGoogleImportTransaction().cancel(data.importJobId, ctx)
+      },
     ),
   )
 
 export const getPropertyImportV2Status = createServerFn({ method: 'GET' })
   .validator(getPropertyImportStatusInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        disableProviderContentCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'integration.manage',
-          capability: 'property.import_gbp_v2',
-        })
-        try {
-          return await requireGoogleImportTransaction().status(data.importJobId, ctx)
-        } catch (error) {
-          return translateTransactionError(error)
-        }
+    commandHandler(
+      {
+        method: 'GET',
+        name: 'integration.getPropertyImportV2Status',
+        errors: transactionErrors,
       },
-      'GET',
-      'integration.getPropertyImportV2Status',
+      async ({ data, headers }) => {
+        const ctx = await authorizeImport(headers)
+        return requireGoogleImportTransaction().status(data.importJobId, ctx)
+      },
     ),
   )

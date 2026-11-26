@@ -23,6 +23,7 @@ import {
   defaultSortDirection,
   type PortalOverviewSearch,
 } from './portal-overview-search-schema'
+import { plural } from '#/shared/format/format'
 
 /** A QR code per room means a Property can hold hundreds of Portals: the list is paged. */
 export const PORTAL_OVERVIEW_PAGE_SIZE = 20
@@ -116,9 +117,6 @@ export function localeChips(
     description: `${chips.length === 1 ? 'Language' : 'Languages'}: ${names}`,
   }
 }
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`
 
 function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names.join('')

@@ -7,6 +7,7 @@
 // repeat each erase after a restore. The Staff purge leaves every login
 // identity row alone: a person may belong to another Organization.
 
+import { errorMessage } from '#/shared/db/lifecycle/rights-primitives'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -39,10 +40,6 @@ const IDENTITY_GRANT_TABLES = Object.freeze([
 ])
 
 const READ_ONLY = { isolationLevel: 'repeatable read', accessMode: 'read only' } as const
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
-}
 
 async function identityReport(
   db: Database,

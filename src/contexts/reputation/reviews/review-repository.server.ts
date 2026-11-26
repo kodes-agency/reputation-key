@@ -64,6 +64,7 @@ import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { persistReviewObservation } from './review-observation-repository.server'
 import { logTrendPopulationReadFailure } from './trend-population-read-failure.server'
 import type { ReviewProviderObservationOrigin } from './response-target-authority.port.server'
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 
 const INSIGHTS_READ_BUDGET_MS = 5_000
 
@@ -99,14 +100,7 @@ const reviewsWithContent = (db: Database) =>
   db
     .select({ review: reviews, content: reviewSourceContents })
     .from(reviews)
-    .innerJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
+    .innerJoin(reviewSourceContents, reviewContentJoin)
 
 type ReviewWithContentRow = Awaited<ReturnType<typeof reviewsWithContent>>[number]
 
@@ -725,14 +719,7 @@ export const createReviewRepository = (
       const rows = await db
         .select({ id: reviews.id })
         .from(reviews)
-        .innerJoin(
-          reviewSourceContents,
-          and(
-            eq(reviewSourceContents.reviewId, reviews.id),
-            eq(reviewSourceContents.organizationId, reviews.organizationId),
-            eq(reviewSourceContents.propertyId, reviews.propertyId),
-          ),
-        )
+        .innerJoin(reviewSourceContents, reviewContentJoin)
         .where(and(...conditions))
       return rows.map((r) => r.id as string)
     })

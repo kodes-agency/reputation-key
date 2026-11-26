@@ -2,14 +2,9 @@
 // Per architecture: server/ contains TanStack Start server functions.
 
 import { createServerFn } from '@tanstack/react-start'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { command } from '#/shared/commands/command.server'
+import { identityCommandErrors } from './organizations.shared'
 import { z } from 'zod/v4'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { catchUntagged } from '#/shared/auth/server-errors'
-import { isIdentityError } from '../domain/errors'
-import { throwIdentityError } from './organizations.errors.server'
 
 // ── Update organization ──────────────────────────────────────────────
 // Updates organization metadata exposed by the beta application.
@@ -35,21 +30,16 @@ export const updateOrganizationInputSchema = z
 export const updateOrganization = createServerFn({ method: 'POST' })
   .validator(updateOrganizationInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'organization.update' })
-
-        try {
-          const { getContainer } = await import('#/composition')
-          await getContainer().identityPublicApi.requests.updateOrganization(data, ctx)
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.updateOrganization',
+        action: 'organization.update',
+        errors: identityCommandErrors,
       },
-      'POST',
-      'identity.updateOrganization',
+      async ({ data, actor: ctx }) => {
+        const { getContainer } = await import('#/composition')
+        await getContainer().identityPublicApi.requests.updateOrganization(data, ctx)
+      },
     ),
   )

@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { setResponseHeader } from '@tanstack/react-start/server'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -10,12 +9,7 @@ import {
   getPropertyGooglePerformanceInputSchema,
   renewPropertyGooglePerformanceLeaseInputSchema,
 } from '../performance/contracts'
-
-function disableProviderContentCaching(): void {
-  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
-  setResponseHeader('Pragma', 'no-cache')
-  setResponseHeader('Expires', '0')
-}
+import { disableProviderContentCaching } from './provider-content-caching'
 
 export const getPropertyGooglePerformance = createServerFn({ method: 'GET' })
   .validator(getPropertyGooglePerformanceInputSchema)

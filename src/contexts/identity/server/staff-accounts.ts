@@ -1,4 +1,5 @@
-import { rethrowStaffAccount } from './staff-account-errors'
+import { rethrowStaffAccount, staffAccountCommandErrors } from './staff-account-errors'
+import { command } from '#/shared/commands/command.server'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
@@ -21,75 +22,48 @@ const participation = z.object({ participationId: z.uuid() }).strict()
 export const checkStaffBatch = createServerFn({ method: 'POST' })
   .validator(z.object({ ...plan, rows: z.array(row).min(1).max(20) }).strict())
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
-        const api = getContainer().identityPublicApi.staffAccounts
-        const propertyId = data.propertyId
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'staff.invite',
-          capability: 'staff.accounts',
-          propertyId,
-        })
-        try {
-          return await api.checkStaffBatch(data, ctx)
-        } catch (error) {
-          rethrowStaffAccount(error)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.checkStaffBatch',
+        action: 'staff.invite',
+        propertyId: (data) => data.propertyId,
+        errors: staffAccountCommandErrors,
       },
-      'POST',
-      'identity.checkStaffBatch',
+      ({ data, actor }) =>
+        getContainer().identityPublicApi.staffAccounts.checkStaffBatch(data, actor),
     ),
   )
 
 export const checkStaffSource = createServerFn({ method: 'POST' })
   .validator(z.object(plan).strict())
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
-        const api = getContainer().identityPublicApi.staffAccounts
-        const propertyId = data.propertyId
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'staff.invite',
-          capability: 'staff.accounts',
-          propertyId,
-        })
-        try {
-          return await api.checkStaffSource(data, ctx)
-        } catch (error) {
-          rethrowStaffAccount(error)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.checkStaffSource',
+        action: 'staff.invite',
+        propertyId: (data) => data.propertyId,
+        errors: staffAccountCommandErrors,
       },
-      'POST',
-      'identity.checkStaffSource',
+      ({ data, actor }) =>
+        getContainer().identityPublicApi.staffAccounts.checkStaffSource(data, actor),
     ),
   )
 
 export const addStaffMember = createServerFn({ method: 'POST' })
   .validator(z.object({ ...plan, ...row.shape, operationId: z.uuid() }).strict())
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
-        const api = getContainer().identityPublicApi.staffAccounts
-        const propertyId = data.propertyId
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'staff.invite',
-          capability: 'staff.accounts',
-          propertyId,
-        })
-        try {
-          return await api.addStaffMember(data, ctx)
-        } catch (error) {
-          rethrowStaffAccount(error)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.addStaffMember',
+        action: 'staff.invite',
+        propertyId: (data) => data.propertyId,
+        errors: staffAccountCommandErrors,
       },
-      'POST',
-      'identity.addStaffMember',
+      ({ data, actor }) =>
+        getContainer().identityPublicApi.staffAccounts.addStaffMember(data, actor),
     ),
   )
 
@@ -247,24 +221,18 @@ export const listStaffMembers = createServerFn({ method: 'GET' })
 export const setColleagueListEnabled = createServerFn({ method: 'POST' })
   .validator(z.object({ propertyId: z.uuid(), enabled: z.boolean() }).strict())
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
-        const api = getContainer().identityPublicApi.staffAccounts
-        const propertyId = data.propertyId
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'staff.settings',
-          capability: 'staff.accounts',
-          propertyId,
-        })
-        try {
-          return await api.setColleagueListEnabled(data, ctx)
-        } catch (error) {
-          rethrowStaffAccount(error)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'identity.setColleagueListEnabled',
+        action: 'staff.settings',
+        propertyId: (data) => data.propertyId,
+        errors: staffAccountCommandErrors,
       },
-      'POST',
-      'identity.setColleagueListEnabled',
+      ({ data, actor }) =>
+        getContainer().identityPublicApi.staffAccounts.setColleagueListEnabled(
+          data,
+          actor,
+        ),
     ),
   )

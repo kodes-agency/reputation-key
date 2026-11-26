@@ -21,6 +21,7 @@ import {
   merchantAiEnablement,
   reviews,
 } from '#/shared/db/schema'
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 
 // Rebuilding changes projection ownership, never the profile recorded on paid
 // operations. A read may follow that projection only for the exact source sequence.
@@ -116,14 +117,7 @@ export function findCurrentAnalysisReviewIds(
       ),
     )
 
-    .innerJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
+    .innerJoin(reviewSourceContents, reviewContentJoin)
     .innerJoin(
       merchantAiEnablement,
       and(

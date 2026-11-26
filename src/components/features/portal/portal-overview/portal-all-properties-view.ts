@@ -26,6 +26,7 @@ import {
   type PortalOverviewItem,
   type PortalOverviewSection,
 } from './portal-overview-view'
+import { plural } from '#/shared/format/format'
 
 export type PortalPropertyInfo = Readonly<{
   id: string
@@ -223,9 +224,6 @@ export function buildAllPropertiesOverview(
     to: start + onPage.size,
   }
 }
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`
 
 /**
  * The page's meta line under its title, as two facts ("All 3 properties in Avela

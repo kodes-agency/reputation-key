@@ -34,6 +34,7 @@ import {
 import { currentness } from './ai-review-analysis-currentness.server'
 import { raiseUrgentAlert } from './ai-urgent-alert.server'
 import { analysisNoticeStillCovers } from './ai-analysis-notice-coverage.server'
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 
 function capabilityFence(value: unknown): Readonly<Record<string, unknown>> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -441,14 +442,7 @@ export const createAiOutputStoreAdapter = (
             analysisSequence: reviews.analysisSequence,
           })
           .from(reviews)
-          .innerJoin(
-            reviewSourceContents,
-            and(
-              eq(reviewSourceContents.reviewId, reviews.id),
-              eq(reviewSourceContents.organizationId, reviews.organizationId),
-              eq(reviewSourceContents.propertyId, reviews.propertyId),
-            ),
-          )
+          .innerJoin(reviewSourceContents, reviewContentJoin)
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),

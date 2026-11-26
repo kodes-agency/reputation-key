@@ -48,6 +48,7 @@ import type {
   ServingRecentReviewRow,
 } from './serving-stats.port.server'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 
 /**
  * THE serving-eligibility predicate (ADR 0031). Kept next to the queries so
@@ -122,14 +123,7 @@ async function queryDailySeries(
       value: aggregate === 'avgRating' ? avg(reviewSourceContents.rating) : count(),
     })
     .from(reviews)
-    .innerJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
+    .innerJoin(reviewSourceContents, reviewContentJoin)
     .innerJoin(
       properties,
       and(
@@ -229,14 +223,7 @@ export const createServingStats = (deps: {
       const rows = await deps.db
         .select({ count: count(), avgRating: avg(reviewSourceContents.rating) })
         .from(reviews)
-        .innerJoin(
-          reviewSourceContents,
-          and(
-            eq(reviewSourceContents.reviewId, reviews.id),
-            eq(reviewSourceContents.organizationId, reviews.organizationId),
-            eq(reviewSourceContents.propertyId, reviews.propertyId),
-          ),
-        )
+        .innerJoin(reviewSourceContents, reviewContentJoin)
         .where(
           servingPeriodWhere(
             organizationId,
@@ -259,14 +246,7 @@ export const createServingStats = (deps: {
       const rows = await deps.db
         .select({ stars: reviewSourceContents.rating, count: count() })
         .from(reviews)
-        .innerJoin(
-          reviewSourceContents,
-          and(
-            eq(reviewSourceContents.reviewId, reviews.id),
-            eq(reviewSourceContents.organizationId, reviews.organizationId),
-            eq(reviewSourceContents.propertyId, reviews.propertyId),
-          ),
-        )
+        .innerJoin(reviewSourceContents, reviewContentJoin)
         .where(
           servingPeriodWhere(
             organizationId,
@@ -338,14 +318,7 @@ export const createServingStats = (deps: {
           ),
         })
         .from(reviews)
-        .innerJoin(
-          reviewSourceContents,
-          and(
-            eq(reviewSourceContents.reviewId, reviews.id),
-            eq(reviewSourceContents.organizationId, reviews.organizationId),
-            eq(reviewSourceContents.propertyId, reviews.propertyId),
-          ),
-        )
+        .innerJoin(reviewSourceContents, reviewContentJoin)
         .leftJoinLateral(repKeyReply, sql`true`)
         .leftJoin(googleReplyObservationHeads, liveGoogleReplyHead(organizationId))
         .leftJoin(googleReplyObservations, headObservation(organizationId))
@@ -415,14 +388,7 @@ export const createServingStats = (deps: {
           `.as('reply_status'),
         })
         .from(reviews)
-        .innerJoin(
-          reviewSourceContents,
-          and(
-            eq(reviewSourceContents.reviewId, reviews.id),
-            eq(reviewSourceContents.organizationId, reviews.organizationId),
-            eq(reviewSourceContents.propertyId, reviews.propertyId),
-          ),
-        )
+        .innerJoin(reviewSourceContents, reviewContentJoin)
         .where(servingRecentWhere(organizationId, propertyId, deps.clock()))
         .orderBy(desc(reviewSourceContents.reviewedAt))
         .limit(limit)

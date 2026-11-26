@@ -24,6 +24,7 @@ import {
   withdrawReviewContribution,
   type Contribution,
 } from './ai-property-aggregate-contributions.server'
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 
 export const createAiPropertyAggregateStoreAdapter = (
   db: Database,
@@ -124,14 +125,7 @@ export const createAiPropertyAggregateStoreAdapter = (
             )::text`,
           })
           .from(reviews)
-          .innerJoin(
-            reviewSourceContents,
-            and(
-              eq(reviewSourceContents.reviewId, reviews.id),
-              eq(reviewSourceContents.organizationId, reviews.organizationId),
-              eq(reviewSourceContents.propertyId, reviews.propertyId),
-            ),
-          )
+          .innerJoin(reviewSourceContents, reviewContentJoin)
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),

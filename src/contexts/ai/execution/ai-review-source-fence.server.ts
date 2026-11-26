@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { reviews, reviewSourceContents } from '#/shared/db/schema'
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
@@ -26,14 +27,7 @@ export async function readCurrentReviewSource(
       replyStateRevision: reviews.replyStateRevision,
     })
     .from(reviews)
-    .innerJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
+    .innerJoin(reviewSourceContents, reviewContentJoin)
     .where(
       and(
         eq(reviews.organizationId, input.organizationId),

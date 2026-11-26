@@ -33,6 +33,7 @@ import {
   PORTAL_EDITOR_SECTION_LABELS,
   type PortalEditorSection,
 } from '#/contexts/portal/editor/ui/portal-editor-sections'
+import { plural } from '#/shared/format/format'
 
 /** Where a blocked check is put right: a section of the Page tab, or the Share tab. */
 export type ReviewFixTarget =
@@ -94,9 +95,6 @@ const linkLabelOf = (
   key: string,
   missing: ReadonlyArray<MissingPortalText>,
 ): string | null => missing.find((text) => text.key === key)?.linkLabel ?? null
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`
 
 /** "1 label missing", "2 texts missing": labels only when every text is a link label. */
 function countMissing(keys: readonly string[]): string {

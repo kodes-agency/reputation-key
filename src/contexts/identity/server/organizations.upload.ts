@@ -2,18 +2,13 @@
 // Per architecture: server/ contains TanStack Start server functions.
 
 import { createServerFn } from '@tanstack/react-start'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { command } from '#/shared/commands/command.server'
+import { identityCommandErrors } from './organizations.shared'
 import { z } from 'zod/v4'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
-import { isIdentityError } from '../domain/errors'
 import { MAX_UPLOAD_BYTES } from '../images/identity-assets.contracts'
 import { retireReplacedIdentityAsset } from '../images/retire-replaced-identity-asset.server'
-import { throwIdentityError } from './organizations.errors.server'
 import { requestOrgLogoUpload as requestOrgLogoUploadUseCase } from '../images/request-org-logo-upload.server'
 import { finalizeOrgLogoUpload as finalizeOrgLogoUploadUseCase } from '../images/finalize-org-logo-upload.server'
 import { requestAvatarUpload as requestAvatarUploadUseCase } from '../images/request-avatar-upload.server'
@@ -29,25 +24,21 @@ const requestOrgLogoUploadSchema = z.object({
 export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
   .validator(requestOrgLogoUploadSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'identity.logo_upload' })
+    command(
+      {
+        method: 'POST',
+        name: 'identity.requestOrgLogoUpload',
+        action: 'identity.logo_upload',
+        errors: identityCommandErrors,
+      },
+      async ({ data, actor: ctx }) => {
         const { assetStorage: storage, idGen } = getContainer()
         const useCase = requestOrgLogoUploadUseCase({
           storage,
           idGen,
         })
-        try {
-          return await useCase(data, ctx)
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+        return useCase(data, ctx)
       },
-      'POST',
-      'identity.requestOrgLogoUpload',
     ),
   )
 
@@ -58,11 +49,14 @@ const finalizeOrgLogoUploadSchema = z.object({
 export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
   .validator(finalizeOrgLogoUploadSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'identity.logo_upload' })
+    command(
+      {
+        method: 'POST',
+        name: 'identity.finalizeOrgLogoUpload',
+        action: 'identity.logo_upload',
+        errors: identityCommandErrors,
+      },
+      async ({ data, actor: ctx, headers }) => {
         const { assetStorage: storage, identityAssetReferences, logger } = getContainer()
         const useCase = finalizeOrgLogoUploadUseCase({
           storage,
@@ -76,15 +70,8 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
             await auth.api.updateOrganization({ headers, body: { data: updateData } })
           },
         })
-        try {
-          return await useCase(data, ctx)
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+        return useCase(data, ctx)
       },
-      'POST',
-      'identity.finalizeOrgLogoUpload',
     ),
   )
 
@@ -101,25 +88,21 @@ const requestAvatarUploadSchema = z.object({
 export const requestAvatarUpload = createServerFn({ method: 'POST' })
   .validator(requestAvatarUploadSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'identity.avatar_upload' })
+    command(
+      {
+        method: 'POST',
+        name: 'identity.requestAvatarUpload',
+        action: 'identity.avatar_upload',
+        errors: identityCommandErrors,
+      },
+      async ({ data, actor: ctx }) => {
         const { assetStorage: storage, idGen } = getContainer()
         const useCase = requestAvatarUploadUseCase({
           storage,
           idGen,
         })
-        try {
-          return await useCase(data, ctx)
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+        return useCase(data, ctx)
       },
-      'POST',
-      'identity.requestAvatarUpload',
     ),
   )
 
@@ -130,21 +113,17 @@ const finalizeAvatarUploadSchema = z.object({
 export const finalizeAvatarUpload = createServerFn({ method: 'POST' })
   .validator(finalizeAvatarUploadSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'identity.avatar_upload' })
+    command(
+      {
+        method: 'POST',
+        name: 'identity.finalizeAvatarUpload',
+        action: 'identity.avatar_upload',
+        errors: identityCommandErrors,
+      },
+      async ({ data, actor: ctx }) => {
         const { assetStorage: storage } = getContainer()
         const useCase = finalizeAvatarUploadUseCase({ storage })
-        try {
-          return await useCase(data, ctx)
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
+        return useCase(data, ctx)
       },
-      'POST',
-      'identity.finalizeAvatarUpload',
     ),
   )

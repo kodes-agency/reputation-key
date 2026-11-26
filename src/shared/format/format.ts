@@ -245,3 +245,8 @@ export function formatNumber(value: number, options: NumberStyle = {}): string {
   }
   return formatter.format(value)
 }
+
+/** "1 review", "2 reviews": the count with its noun, `many` defaulting to `${one}s`. */
+export function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count} ${count === 1 ? one : many}`
+}

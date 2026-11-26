@@ -3,6 +3,8 @@
 // Per architecture: server/ contains TanStack Start server functions.
 
 import { createServerFn } from '@tanstack/react-start'
+import { command } from '#/shared/commands/command.server'
+import { identityCommandErrors } from './organizations.shared'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext, resetTenantCache } from '#/shared/auth/middleware'
@@ -18,24 +20,19 @@ import { setMemberPropertyAccessInputSchema } from '../members/member-access.dto
 // PropertyManagers also read: they never receive other members' grants.
 
 export const listMemberPropertyAccess = createServerFn({ method: 'GET' }).handler(
-  tracedHandler(
-    async () => {
-      const headers = await headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      await requireExecutionAllowed({ actor: ctx, action: 'member.update' })
-
-      try {
-        return await getContainer().identityPublicApi.requests.listMemberPropertyAccess(
-          undefined,
-          ctx,
-        )
-      } catch (e) {
-        if (isIdentityError(e)) throwIdentityError(e)
-        throw catchUntagged(e)
-      }
+  command(
+    {
+      method: 'GET',
+      name: 'identity.listMemberPropertyAccess',
+      action: 'member.update',
+      errors: identityCommandErrors,
     },
-    'GET',
-    'identity.listMemberPropertyAccess',
+    async ({ actor: ctx }) => {
+      return getContainer().identityPublicApi.requests.listMemberPropertyAccess(
+        undefined,
+        ctx,
+      )
+    },
   ),
 )
 

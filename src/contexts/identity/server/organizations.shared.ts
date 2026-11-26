@@ -3,7 +3,12 @@
 
 import { HTTP_STATUS } from '#/shared/http/status'
 import { match } from 'ts-pattern'
-import type { IdentityErrorCode } from '../domain/errors'
+import type { CommandErrors } from '#/shared/commands/contracts'
+import {
+  isIdentityError,
+  type IdentityError,
+  type IdentityErrorCode,
+} from '../domain/errors'
 
 // ── Error → HTTP translation ──────────────────────────────────────
 // Per architecture: "ts-pattern with .exhaustive() ensures new error codes
@@ -31,3 +36,10 @@ export const identityErrorStatus = (code: IdentityErrorCode): number =>
     )
     .with('member_not_found', 'invitation_not_found', () => HTTP_STATUS.NOT_FOUND)
     .exhaustive()
+
+/** The error map every Identity `command()` handler shares. */
+export const identityCommandErrors = {
+  name: 'IdentityError',
+  is: isIdentityError,
+  status: identityErrorStatus,
+} satisfies CommandErrors<IdentityError>

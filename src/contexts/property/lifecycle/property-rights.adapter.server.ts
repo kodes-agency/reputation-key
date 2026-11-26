@@ -12,6 +12,7 @@
 // Property. The Google import items are the Google executor's; the binding on
 // the Property row goes with the tombstone.
 
+import { errorMessage } from '#/shared/db/lifecycle/rights-primitives'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -100,10 +101,6 @@ async function organizationInventory(
     `properties ${Number(row.properties)}`,
     `property_responsible_managers ${Number(row.managers)}`,
   ]
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
 }
 
 export function createPropertyRightsExecutor(

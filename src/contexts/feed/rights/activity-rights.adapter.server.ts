@@ -10,6 +10,7 @@
 // secret the erasure refuses at preflight and a replay refuses its entries, so
 // no audit record is left half pseudonymised.
 
+import { errorMessage, refusalOfProbe } from '#/shared/db/lifecycle/rights-primitives'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type {
@@ -33,10 +34,6 @@ import {
 } from './activity-organization-erasure.server'
 
 const CONTEXT = 'activity'
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
-}
 
 function propertyOf(plan: { scope: string; propertyId?: string }): string | null {
   if (plan.scope !== 'property') return null
@@ -70,23 +67,12 @@ async function assertReady(
   await assertNoLegalHold(tx, organization)
 }
 
-class RefusalProbeRolledBack extends Error {}
-
-async function refusalOf(
+const refusalOf = (
   db: Database,
   organization: string,
   property: string | null,
-): Promise<string | null> {
-  try {
-    await db.transaction(async (tx) => {
-      await assertReady(tx, organization, property)
-      throw new RefusalProbeRolledBack()
-    })
-    return null
-  } catch (error) {
-    return error instanceof RefusalProbeRolledBack ? null : errorMessage(error)
-  }
-}
+): Promise<string | null> =>
+  refusalOfProbe(db, (tx) => assertReady(tx, organization, property))
 
 async function erasePropertyRows(
   tx: Tx,

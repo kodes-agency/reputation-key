@@ -26,6 +26,7 @@ import { replyFromRow } from './reply-mapper.server'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding.server'
 import type { AiReplyVoicePublicApi } from '../library/ai-reply-voice-frame.server'
 import { insertAdoptedAiDraft, updateAdoptedAiDraft } from './row-commands.server'
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 
 // Recorded deployment evidence is historical; each provenance has its own execution.
 const REPLY_ADOPTION_DEPLOYMENT = 'private-beta-global-v3'
@@ -162,14 +163,7 @@ export const createAiSuggestedDraftStore = (
             replyStateRevision: reviews.replyStateRevision,
           })
           .from(reviews)
-          .leftJoin(
-            reviewSourceContents,
-            and(
-              eq(reviewSourceContents.reviewId, reviews.id),
-              eq(reviewSourceContents.organizationId, reviews.organizationId),
-              eq(reviewSourceContents.propertyId, reviews.propertyId),
-            ),
-          )
+          .leftJoin(reviewSourceContents, reviewContentJoin)
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),
@@ -442,14 +436,7 @@ export const createAiSuggestedDraftStore = (
         const [adoptedReview] = await tx
           .select({ replyStateRevision: reviews.replyStateRevision })
           .from(reviews)
-          .leftJoin(
-            reviewSourceContents,
-            and(
-              eq(reviewSourceContents.reviewId, reviews.id),
-              eq(reviewSourceContents.organizationId, reviews.organizationId),
-              eq(reviewSourceContents.propertyId, reviews.propertyId),
-            ),
-          )
+          .leftJoin(reviewSourceContents, reviewContentJoin)
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),

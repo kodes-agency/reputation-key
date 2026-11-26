@@ -19,6 +19,7 @@ import { googleConnections } from './schema/google-connection.schema'
 import { properties } from './schema/property.schema'
 import { reviews } from './schema/review.schema'
 import { propertyIsSyncable } from './syncable-property'
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 
 /**
  * A condition over `reviews`: its Property is syncable through the Review's
@@ -33,14 +34,7 @@ export function reviewIsSyncable() {
     new QueryBuilder()
       .select({ one: sql`1` })
       .from(properties)
-      .innerJoin(
-        reviewSourceContents,
-        and(
-          eq(reviewSourceContents.reviewId, reviews.id),
-          eq(reviewSourceContents.organizationId, reviews.organizationId),
-          eq(reviewSourceContents.propertyId, reviews.propertyId),
-        ),
-      )
+      .innerJoin(reviewSourceContents, reviewContentJoin)
       .innerJoin(
         googleConnections,
         eq(googleConnections.id, properties.googleConnectionId),

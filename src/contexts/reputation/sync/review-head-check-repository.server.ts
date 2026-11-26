@@ -36,6 +36,7 @@ import type {
 } from './review-head-check-repository.port.server'
 import type { HeadComparison, HeadStoredCopy } from '../domain/head-check'
 import { reviewGoogleReputationSnapshotVerified } from '../domain/review-events'
+import { reviewContentJoin } from '#/shared/db/review-content-join'
 
 /** Snapshot run states in which a run still reads or changes the Property's reviews. */
 const ACTIVE_RUN_STATES = ['scanning', 'confirming', 'deleting'] as const
@@ -134,14 +135,7 @@ export const createReviewHeadCheckRepository = (
         replyProviderUpdatedAt: googleReplyObservations.providerUpdatedAt,
       })
       .from(reviews)
-      .innerJoin(
-        reviewSourceContents,
-        and(
-          eq(reviewSourceContents.reviewId, reviews.id),
-          eq(reviewSourceContents.organizationId, reviews.organizationId),
-          eq(reviewSourceContents.propertyId, reviews.propertyId),
-        ),
-      )
+      .innerJoin(reviewSourceContents, reviewContentJoin)
       .leftJoin(
         googleReplyObservationHeads,
         and(
@@ -177,14 +171,7 @@ export const createReviewHeadCheckRepository = (
         average: sql<string | null>`avg(${reviewSourceContents.rating})`,
       })
       .from(reviews)
-      .innerJoin(
-        reviewSourceContents,
-        and(
-          eq(reviewSourceContents.reviewId, reviews.id),
-          eq(reviewSourceContents.organizationId, reviews.organizationId),
-          eq(reviewSourceContents.propertyId, reviews.propertyId),
-        ),
-      )
+      .innerJoin(reviewSourceContents, reviewContentJoin)
       .where(
         and(
           eq(reviews.organizationId, input.organizationId),

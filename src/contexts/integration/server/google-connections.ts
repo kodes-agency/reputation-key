@@ -3,38 +3,34 @@
 // Never returns { success: false } — always throws on error.
 
 import { createServerFn } from '@tanstack/react-start'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import { command } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
 import { disconnectGoogleInputSchema } from '../connections/disconnect-google.contracts'
 import { isIntegrationError } from '../domain/errors'
 import { toGoogleConnectionDto } from '../connections/contracts'
 import { integrationErrorStatus } from './error-helpers'
 
+const integrationErrors = {
+  name: 'IntegrationError',
+  is: isIntegrationError,
+  status: integrationErrorStatus,
+}
+
 // ── listGoogleConnections ───────────────────────────────────────────
 
 export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
-  tracedHandler(
-    async () => {
-      const headers = await headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
-
-      try {
-        const { integrationPublicApi } = getContainer()
-        const connections = await integrationPublicApi.connections.list(ctx)
-        return { connections: connections.map(toGoogleConnectionDto) }
-      } catch (e) {
-        if (isIntegrationError(e))
-          throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-        throw catchUntagged(e)
-      }
+  command(
+    {
+      method: 'GET',
+      name: 'integration.listGoogleConnections',
+      action: 'integration.manage',
+      errors: integrationErrors,
     },
-    'GET',
-    'integration.listGoogleConnections',
+    async ({ actor }) => {
+      const connections =
+        await getContainer().integrationPublicApi.connections.list(actor)
+      return { connections: connections.map(toGoogleConnectionDto) }
+    },
   ),
 )
 
@@ -43,24 +39,18 @@ export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
 export const disconnectGoogle = createServerFn({ method: 'POST' })
   .validator(disconnectGoogleInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
-
-        try {
-          const { integrationPublicApi } = getContainer()
-          const connection = await integrationPublicApi.connections.disconnect(data, ctx)
-          return { connection: toGoogleConnectionDto(connection) }
-        } catch (e) {
-          if (isIntegrationError(e))
-            throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'integration.disconnectGoogle',
+        action: 'integration.manage',
+        errors: integrationErrors,
       },
-      'POST',
-      'integration.disconnectGoogle',
+      async ({ data, actor }) => {
+        const connection =
+          await getContainer().integrationPublicApi.connections.disconnect(data, actor)
+        return { connection: toGoogleConnectionDto(connection) }
+      },
     ),
   )
 

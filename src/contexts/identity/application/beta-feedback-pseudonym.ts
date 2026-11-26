@@ -7,7 +7,7 @@
 // it in server/ forced scripts/ops/triage-beta-feedback.ts to import a
 // browser-facing inbound adapter (ARC-03-T1).
 
-import { createHmac } from 'node:crypto'
+import { keyedPseudonym } from '#/shared/security/keyed-pseudonym'
 
 /**
  * Domain separation label. Every audience derives an unlinkable pseudonym for
@@ -27,8 +27,5 @@ export function betaFeedbackPseudonym(
   audience: BetaFeedbackPseudonymAudience,
   value: string,
 ): string {
-  return createHmac('sha256', secret)
-    .update(`repkey:beta-feedback:${audience}:v1\0`)
-    .update(value)
-    .digest('hex')
+  return keyedPseudonym(secret, `repkey:beta-feedback:${audience}:v1`, value)
 }
