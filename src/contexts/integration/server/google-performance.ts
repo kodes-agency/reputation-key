@@ -1,9 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { setResponseHeader } from '@tanstack/react-start/server'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged } from '#/shared/auth/server-errors'
+import { disableResponseCaching } from '#/shared/http/no-store.server'
 import { propertyId } from '#/shared/domain/ids'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
@@ -11,18 +11,12 @@ import {
   renewPropertyGooglePerformanceLeaseInputSchema,
 } from '../performance/contracts'
 
-function disableProviderContentCaching(): void {
-  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
-  setResponseHeader('Pragma', 'no-cache')
-  setResponseHeader('Expires', '0')
-}
-
 export const getPropertyGooglePerformance = createServerFn({ method: 'GET' })
   .validator(getPropertyGooglePerformanceInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        disableProviderContentCaching()
+        disableResponseCaching()
         const headers = await headersFromContext()
         const actor = await resolveTenantContext(headers)
         const getPerformance = getContainer().integrationPublicApi.performance.get
@@ -56,7 +50,7 @@ export const renewPropertyGooglePerformanceLease = createServerFn({
   .handler(
     tracedHandler(
       async ({ data }) => {
-        disableProviderContentCaching()
+        disableResponseCaching()
         const headers = await headersFromContext()
         const actor = await resolveTenantContext(headers)
         const renewLease = getContainer().integrationPublicApi.performance.renewLease

@@ -8,7 +8,7 @@ import {
   retryPropertyImportItem,
   startPropertyImportV2,
 } from '#/contexts/integration/server/gbp-import'
-import { getGoogleAuthUrl } from '#/contexts/integration/server/google-connections'
+import { getGoogleAuthUrl } from '#/contexts/integration/server/google-auth-url'
 import {
   deferMerchantAiDecisionFn,
   enableMerchantAiForPropertiesFn,
