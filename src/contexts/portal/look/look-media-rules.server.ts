@@ -9,15 +9,45 @@
 // stands), trimmed, at most 160 characters, an empty one meaning none. A focal
 // point given in part has its missing half in the middle.
 
+import type { StaffPublicApi } from '#/contexts/identity/public-api'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
+import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../domain/errors'
 import type { PortalMediaReferenceSlot } from '../domain/portal-media-asset'
 import { normaliseFocalPoint, normaliseHeroAltText } from '../domain/property-look'
 import type { PortalMediaAssetRepository } from '../media/portal-media-asset-repository.port.server'
 import { findReferencableMediaAsset } from '../media/referencable-media-asset.server'
+import { assertPropertyAccess } from '../publication/assert-property-access.server'
 
 const CENTRE = 0.5
+
+/** A Property with no Brand Profile is asked to set its public display name first. */
+export function brandProfileMissing() {
+  return portalError(
+    'brand_profile_missing',
+    'Set the public display name before changing the look',
+  )
+}
+
+/** Who may write the Property-wide look: an Account Admin with update access to that Property. */
+export async function authorizePropertyLookWrite(
+  deps: Readonly<{ staffPublicApi: StaffPublicApi }>,
+  ctx: AuthContext,
+  rawPropertyId: string,
+): Promise<PropertyId> {
+  if (!canForContext(ctx, 'portal.admin')) {
+    throw portalError(
+      'forbidden',
+      'Only an Account Admin can change Property-wide Portal branding',
+    )
+  }
+  const pid = toPropertyId(rawPropertyId)
+  await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
+  return pid
+}
 
 /** The asset a slot may point at, or the refusal a missing image gets. */
 export async function checkedAsset(

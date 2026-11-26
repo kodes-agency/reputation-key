@@ -14,14 +14,14 @@
 // look-colour-rules.server.ts). An accent that is hard to see on its field is not.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { canForContext } from '#/shared/domain/permissions'
-import { propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { LookBackgroundMode } from '#/shared/domain/portal-look-readout'
-import { portalError } from '../domain/errors'
 import { normaliseWordmark } from '../domain/property-look'
-import { assertPropertyAccess } from '../publication/assert-property-access.server'
 import { checkedColours } from './look-colour-rules.server'
+import {
+  authorizePropertyLookWrite,
+  brandProfileMissing,
+} from './look-media-rules.server'
 import type { PortalExperienceRepository } from '../editor/portal-experience-repository.port.server'
 
 type Deps = Readonly<{
@@ -42,14 +42,7 @@ export type SavePropertyLookInput = Readonly<{
 
 export const savePropertyLook =
   (deps: Deps) => async (input: SavePropertyLookInput, ctx: AuthContext) => {
-    if (!canForContext(ctx, 'portal.admin')) {
-      throw portalError(
-        'forbidden',
-        'Only an Account Admin can change Property-wide Portal branding',
-      )
-    }
-    const pid = propertyId(input.propertyId)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
+    const pid = await authorizePropertyLookWrite(deps, ctx, input.propertyId)
     const wordmark =
       input.wordmark === undefined ? undefined : normaliseWordmark(input.wordmark)
     const { accent, background } = checkedColours(input)
@@ -65,11 +58,6 @@ export const savePropertyLook =
       actorUserId: ctx.userId,
       at: deps.clock(),
     })
-    if (!saved) {
-      throw portalError(
-        'brand_profile_missing',
-        'Set the public display name before changing the look',
-      )
-    }
+    if (!saved) throw brandProfileMissing()
     return saved
   }
