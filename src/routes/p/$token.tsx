@@ -151,7 +151,6 @@ function PublicPortalView({
     return result.retryable ? ('retryable' as const) : ('settled' as const)
   }, [recordScan, token, csrfNonce, accessArtifact])
 
-  if (!data.immersive || !data.pack) return <PortalUnavailableInBrowserLanguage />
   return (
     <ImmersivePublicPortal
       token={token}

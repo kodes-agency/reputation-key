@@ -10,7 +10,6 @@ import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   RECORDED_RUNTIME_PROFILE_VERSIONS,
 } from '../domain/merchant-ai-capability'
-import { REVIEW_ANALYSIS_V3_LIVE } from '../analysis/review-analysis-live'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -27,16 +26,12 @@ const NOTICE_2026_10_17 = {
 }
 
 describe('AI runtime capability contract', () => {
-  // Settings offers what only v3 produces while this holds (`REVIEW_ANALYSIS_V3_LIVE`).
-  // Turning the runtime selection back turns the constant back, or this test fails.
-  it('selects review analysis v3 exactly when the product says v3 is on', () => {
+  it('selects review analysis v3', () => {
     const selected = AI_RUNTIME_CAPABILITIES_V1.find(
       (entry) => entry.capability === 'review_analysis',
     )
 
-    expect(selected?.operationProfileVersion === 'review-analysis-v3').toBe(
-      REVIEW_ANALYSIS_V3_LIVE,
-    )
+    expect(selected?.operationProfileVersion).toBe('review-analysis-v3')
   })
 
   it('keeps historical capability vocabulary while serving only active capabilities', () => {

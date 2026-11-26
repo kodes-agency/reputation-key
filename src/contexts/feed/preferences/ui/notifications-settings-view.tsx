@@ -10,6 +10,7 @@ import {
 } from '#/components/ui/card'
 import { Field, FieldLabel } from '#/components/ui/field'
 import {
+  NOTIFICATION_SETTINGS_CATEGORIES,
   type ConfigurableNotificationCategory,
   type EffectiveNotificationSettings,
   type NotificationChannel,
@@ -23,11 +24,7 @@ import {
 } from './email-availability-notice'
 import type { PreferencePatch, PreferenceValues } from './notification-preference-saves'
 import type { SetDifferently } from './notification-apply-everywhere'
-import {
-  CATEGORY_COPY,
-  categoryDescription,
-  settingsCategoriesFor,
-} from './notifications-type-rows'
+import { CATEGORY_COPY } from './notifications-type-rows'
 import {
   NotificationQuietHoursCard,
   type QuietHoursUpdate,
@@ -146,12 +143,12 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
             onRetry={props.retryEmailAvailability}
             retrying={props.emailAvailabilityRetrying}
           />
-          {settingsCategoriesFor().map((category) => (
+          {NOTIFICATION_SETTINGS_CATEGORIES.map((category) => (
             <NotificationsCategoryRow
               key={category}
               category={category}
               label={CATEGORY_COPY[category].label}
-              description={categoryDescription(category)}
+              description={CATEGORY_COPY[category].description}
               inApp={props.preferenceFor(category, 'in_app')}
               email={props.preferenceFor(category, 'email')}
               emailAllowed={emailAllowed}

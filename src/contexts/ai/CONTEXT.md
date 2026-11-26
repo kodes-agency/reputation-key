@@ -356,8 +356,7 @@ reads the same v3 read; a manager-typed cause passes the same name and four-word
 AI cause (`managerCauseRefusal`); the Inbox reads mentions, and an old `?aspect=` link finds
 nothing without an error because a v3 analysis has no aspects; the Priority suggestion is the
 v3 attention; reply drafting reads no analysis topics; Settings offer the Guest voice summary
-and the Urgent reviews wording while `REVIEW_ANALYSIS_V3_LIVE` holds, a constant a test pins to
-the runtime catalogue. The pages and server functions that read the v2 aspect aggregates
+and the Urgent reviews wording. The pages and server functions that read the v2 aspect aggregates
 (`property-insights.ts`, `property-aggregates.ts`) are no longer called by
 any route; they are kept for the cleanup that removes the aspect read model.
 

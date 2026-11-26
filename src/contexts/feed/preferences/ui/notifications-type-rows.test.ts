@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NOTIFICATION_SETTINGS_CATEGORIES } from '#/contexts/feed/public-api'
-import {
-  CATEGORY_COPY,
-  categoryDescription,
-  categoryInSentence,
-  settingsCategoriesFor,
-} from './notifications-type-rows'
+import { CATEGORY_COPY, categoryInSentence } from './notifications-type-rows'
 
 describe('notification category copy', () => {
   // ADR 0046, amended 2026-10-17: "Goals" split into one row per goal, so
@@ -46,39 +41,8 @@ describe('notification category copy', () => {
     expect(categoryInSentence('recognition')).toBe('Google rating goal')
   })
 
-  // S4 (switch-on): what only v3 produces is offered only once v3 is on.
-  describe('once review analysis v3 is on', () => {
-    it('offers every category, the Guest voice summary and the Urgent reviews wording among them', () => {
-      expect(settingsCategoriesFor(true)).toEqual(NOTIFICATION_SETTINGS_CATEGORIES)
-      expect(categoryDescription('urgent_operational', true)).toContain('Urgent reviews')
-      expect(categoryDescription('guest_voice', true)).toBe(
-        CATEGORY_COPY.guest_voice.description,
-      )
-    })
-
-    it('is what Settings offers now', () => {
-      expect(settingsCategoriesFor()).toContain('guest_voice')
-      expect(categoryDescription('urgent_operational')).toContain('Urgent reviews')
-    })
-  })
-
-  describe('while it is not', () => {
-    it('leaves out the Guest voice summary and keeps every other category in order', () => {
-      expect(settingsCategoriesFor(false)).toEqual(
-        NOTIFICATION_SETTINGS_CATEGORIES.filter((category) => category !== 'guest_voice'),
-      )
-    })
-
-    it('does not name Urgent reviews in the Action needed row', () => {
-      const text = categoryDescription('urgent_operational', false)
-      expect(text).not.toContain('Urgent reviews')
-      expect(text).toContain('escalations')
-    })
-
-    it('leaves every other description as it is', () => {
-      expect(categoryDescription('low_ratings', false)).toBe(
-        CATEGORY_COPY.low_ratings.description,
-      )
-    })
+  it('names Urgent reviews in the Action needed row and the Guest voice summary in its own', () => {
+    expect(CATEGORY_COPY.urgent_operational.description).toContain('Urgent reviews')
+    expect(NOTIFICATION_SETTINGS_CATEGORIES).toContain('guest_voice')
   })
 })
