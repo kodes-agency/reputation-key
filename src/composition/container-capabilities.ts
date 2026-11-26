@@ -139,8 +139,6 @@ export function buildContainerCapabilities({
     reviewPublicApi: review.publicApi,
     guestPublicApi: guest.publicApi,
     inboxPublicApi: inbox.publicApi,
-    /** Cross-context Inbox workflow authority; no request or repair surface. */
-    inboxLifecycleRuntime: inbox.lifecycle,
     /** Bounded, operator-only Inbox projection repair authority. */
     inboxMaintenanceRuntime: inbox.maintenance,
     inboxRuntime: inbox.runtime,

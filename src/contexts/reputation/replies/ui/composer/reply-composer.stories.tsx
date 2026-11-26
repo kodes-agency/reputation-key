@@ -225,7 +225,6 @@ const addInboxNote = mockServerFn(async () => ({
 })) as unknown as typeof addInboxNoteFn
 
 const emptyTemplateLibrary = (): ReplyTemplateListResult => ({
-  profile: null,
   groups: [],
   recommendedTemplateId: null,
   recommendedReason: null,
@@ -289,23 +288,11 @@ const onListByTarget = fn(
   async (target: ReplyLanguageTarget): Promise<ReplyTemplateListResult> => {
     const inReviewLanguage = target.kind === 'review_language'
     const template = inReviewLanguage ? TR_TEMPLATE : BG_TEMPLATE
-    const languageTag = inReviewLanguage ? TURKISH : BULGARIAN
     return {
-      profile: null,
       groups: [
         {
           languageGroup: inReviewLanguage ? 'tr-Latn' : 'bg-Cyrl',
-          templates: [
-            {
-              ...template,
-              ref: template.id,
-              layer: 'property',
-              aspect: null,
-              openLabel: null,
-              languageTag,
-              version: 1,
-            },
-          ],
+          templates: [template],
         },
       ],
       recommendedTemplateId: template.id,

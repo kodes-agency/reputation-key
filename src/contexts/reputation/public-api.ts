@@ -41,30 +41,6 @@ import type { SetResponseTargetPolicy } from './response-targets/set-response-ta
 // the scope effects.
 export { replyScopeEffects } from './replies/scope-effects.server'
 export {
-  cancelReplyAtProviderTruth,
-  confirmPublicationAttempt,
-  confirmReplyPublished,
-  deleteOrganizationPublicationAttempts,
-  deleteGoogleSyncMirrors,
-  insertAdoptedAiDraft,
-  insertPublicationAttempt,
-  insertPublicationAuthorization,
-  releaseOrganizationAttemptConfirmations,
-  returnReplyAfterGuestEdit,
-  returnReplyToDraftForSourceChange,
-  supersedeCurrentPublicationAttempt,
-  supersedePublicationAttemptById,
-  updateAdoptedAiDraft,
-} from './replies/row-commands.server'
-
-export {
-  upsertReviewSourceContent,
-  eraseReviewSourceContent,
-  reviewIdentityValues,
-  writeObservedReviewIdentity,
-} from './content/store.server'
-
-export {
   createInboxNotificationLookup,
   isCurrentInboxAssignee,
 } from './inbox/notification-lookup.server'

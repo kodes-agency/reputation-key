@@ -312,12 +312,7 @@ export function createDispatcherHandler(
           ))
         )
           throw new Error('Outbox work lease lost')
-        await workItems.complete(
-          work.organizationId,
-          work.id,
-          work.leaseToken,
-          async () => {},
-        )
+        await workItems.complete(work.organizationId, work.id, work.leaseToken)
       } catch (caught) {
         const error = escalateStalePrerequisiteWait(caught, work.attempts)
         await workItems.renew(

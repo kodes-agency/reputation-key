@@ -37,14 +37,6 @@ export const MAIL_STUB_PORT = 4101
 export const MAIL_STUB_BASE_URL =
   process.env.MAIL_STUB_BASE_URL ?? `http://localhost:${MAIL_STUB_PORT}`
 
-/**
- * BQC-6.7 sandbox env: point the app's Resend client at the stub. Spread into
- * the web + worker process env by the Playwright harness.
- */
-export const MAIL_SANDBOX_ENV = {
-  RESEND_BASE_URL: MAIL_STUB_BASE_URL,
-} as const
-
 export type RecordedSend = Readonly<{
   at: string
   to: string

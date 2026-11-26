@@ -1,8 +1,6 @@
 import { seedReply } from './reply-seed.test-fixtures'
-import {
-  insertPublicationAuthorization,
-  replyScopeEffects,
-} from '#/contexts/reputation/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
+import { insertPublicationAuthorization } from '#/contexts/reputation/replies/row-commands.server'
 // Reply command store integration tests (real Postgres).
 //
 // Crash-boundary proof on the real database:

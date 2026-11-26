@@ -103,16 +103,13 @@ describe('listReplyTemplatesFn', () => {
 
     const result = await listed(admin, review)
 
-    expect(result.profile).toBeNull()
-    expect(result.groups).toEqual([
-      expect.objectContaining({
-        languageGroup: 'en-Latn',
-        templates: expect.arrayContaining([
-          expect.objectContaining({ layer: 'builtin' }),
-        ]),
-      }),
-    ])
-    expect(result.groups[0]!.templates.length).toBeGreaterThan(0)
+    expect(result.groups).toEqual([expect.objectContaining({ languageGroup: 'en-Latn' })])
+    const templates = result.groups[0]!.templates
+    expect(templates.length).toBeGreaterThan(0)
+    for (const template of templates) {
+      expect(Object.keys(template).sort()).toEqual(['id', 'title'])
+    }
+    expect(result.recommendedTemplateId).toBe(templates[0]!.id)
   })
 
   it('lists to a PropertyManager the Property was granted to', async () => {
@@ -173,7 +170,7 @@ describe('loadReplyTemplateFn', () => {
     review: TestReview,
   ) {
     const result = await listed(caller, review)
-    return result.groups[0]!.templates[0]!.ref
+    return result.groups[0]!.templates[0]!.id
   }
 
   it('turns a listed template into the stored draft, carrying its reference and revision', async () => {

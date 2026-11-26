@@ -21,31 +21,9 @@ export type KPIValue = Readonly<{
 export type MetricAvailabilityState =
   'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
 
-export type MetricKPIPeriodEvidence = Readonly<{
-  state: MetricAvailabilityState
-  definitionVersionId: string | null
-  sampleCount: number
-  minimumSample: number | null
-}>
-
-export type MetricKPIValue = Readonly<{
-  /** Null unless the governed current-period source is available. */
-  value: number | null
-  /** Null unless the governed prior-period source is available. */
-  priorValue: number | null
-  /** Present only when both governed periods are available. */
-  trend: number | null
-  evidence: Readonly<{
-    current: MetricKPIPeriodEvidence
-    prior: MetricKPIPeriodEvidence | null
-  }>
-}>
-
 export type KPIs = Readonly<{
   reviews: KPIValue
   avgRating: RatingKPIValue
-  scans: MetricKPIValue
-  feedback: MetricKPIValue
 }>
 
 // ─── Rating Distribution ───
@@ -81,14 +59,6 @@ export type ReplyPerformance = Readonly<{
    * replyRate is above zero.
    */
   avgReplyHours: number | null
-}>
-
-// ─── Engagement Funnel ───
-
-export type EngagementFunnel = Readonly<{
-  scans: number
-  ratings: number
-  reviewLinkClicks: number
 }>
 
 // ─── Recent Reviews ───
@@ -139,7 +109,6 @@ export type DashboardData = Readonly<{
   ratingTrend: RatingTrendPoint[]
   reviewVolume: ReviewVolumePoint[]
   replyPerformance: ReplyPerformance
-  engagementFunnel: EngagementFunnel | null
   recentReviews: RecentReview[]
 }>
 

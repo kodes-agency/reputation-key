@@ -203,7 +203,11 @@ describe('Portal commands across tab switches', () => {
         eligibleManagers: [],
       })
       client.setQueryData(['members'], { members: [] })
-      client.setQueryData(portalKeys.publicationHistory('portal-1'), { current: null })
+      client.setQueryData(portalKeys.publicationHistory('portal-1'), {
+        liveVersion: null,
+        pendingChangeCount: 0,
+        hasPendingChanges: false,
+      })
       const refusal = new Error('Code command refused')
       let reject!: (error: Error) => void
       vi.mocked(command).mockImplementationOnce(

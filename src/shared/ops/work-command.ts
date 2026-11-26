@@ -1,4 +1,4 @@
-import type { WorkItems } from '#/shared/jobs/work-items.server'
+import type { WorkItems } from '#/shared/db/work-items.server'
 import type {
   OperatorArgs,
   OperatorCommandSpec,
@@ -63,7 +63,7 @@ export async function runWorkCommand(
     ctx.reason ?? '',
   )
   if (!changed) {
-    io.err('Work state refuses this action; uncertain effects require owner read-back.')
+    io.err('Work state refuses this action.')
     return 1
   }
   io.out(JSON.stringify({ action, work: changed, correlationId: ctx.correlationId }))

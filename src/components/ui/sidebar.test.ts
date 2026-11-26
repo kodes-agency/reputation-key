@@ -20,18 +20,20 @@ import {
   SidebarTrigger,
 } from './sidebar'
 
-function render(open: boolean, collapsible?: 'offcanvas' | 'icon' | 'none'): string {
+const noop = () => undefined
+
+function render(open: boolean): string {
   return renderToStaticMarkup(
     createElement(
       SidebarProvider,
-      { open },
-      createElement(Sidebar, collapsible === undefined ? null : { collapsible }, 'nav'),
+      { open, onOpenChange: noop },
+      createElement(Sidebar, null, 'nav'),
     ),
   )
 }
 
 describe('Sidebar collapse mode', () => {
-  it('collapses to the icon rail unless a caller says otherwise', () => {
+  it('collapses to the icon rail', () => {
     const html = render(false)
 
     expect(html).toContain('data-state="collapsed"')
@@ -44,10 +46,6 @@ describe('Sidebar collapse mode', () => {
     expect(html).toContain('data-state="expanded"')
     expect(html).toContain('data-collapsible=""')
   })
-
-  it('still lets a caller ask for another mode explicitly', () => {
-    expect(render(false, 'offcanvas')).toContain('data-collapsible="offcanvas"')
-  })
 })
 
 describe('Sidebar rows on a phone', () => {
@@ -56,7 +54,7 @@ describe('Sidebar rows on a phone', () => {
   const rows = renderToStaticMarkup(
     createElement(
       SidebarProvider,
-      null,
+      { open: true, onOpenChange: noop },
       createElement(
         SidebarMenu,
         null,
@@ -97,7 +95,7 @@ describe('Sidebar rows share the focus ring', () => {
   const html = renderToStaticMarkup(
     createElement(
       SidebarProvider,
-      null,
+      { open: true, onOpenChange: noop },
       createElement(
         SidebarMenu,
         null,
@@ -137,7 +135,7 @@ describe('the sidebar look', () => {
   const html = renderToStaticMarkup(
     createElement(
       SidebarProvider,
-      null,
+      { open: true, onOpenChange: noop },
       createElement(
         SidebarMenu,
         null,
@@ -207,7 +205,7 @@ describe('the sidebar trigger', () => {
   const html = renderToStaticMarkup(
     createElement(
       SidebarProvider,
-      { open: false },
+      { open: false, onOpenChange: noop },
       createElement(Sidebar, null, 'nav'),
       createElement(SidebarTrigger),
     ),

@@ -7,7 +7,7 @@ import {
   GOOGLE_REPLY_COMMENT_MAX_BYTES,
   replyCommentByteLength,
 } from '#/shared/google-provider-control/reply-comment'
-import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from './reply-suggestion-contract'
+import type { ReplyTemplateListResultDto as ReplyTemplateListResult } from '#/contexts/reputation/library/contracts'
 import { cn } from '#/shared/class-names/utils'
 import {
   DOCK_FOOT_ROW_CLASS,

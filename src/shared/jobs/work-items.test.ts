@@ -13,7 +13,7 @@ import {
 import { createGatedJobHandler } from './delayed-execution-gate'
 import { createJobRegistry } from './registry'
 import { reconcileWorkItems, startWorkItemReconciler } from './work-items.server'
-import type { WorkItems } from './work-items.server'
+import type { WorkItems } from '#/shared/db/work-items.server'
 
 afterEach(() => {
   resetDelayedExecutionPolicy()

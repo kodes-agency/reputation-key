@@ -476,7 +476,6 @@ export function createAiReplyAdoptionSeeder(config: AiReplyAdoptionFixtureConfig
       actorUserId: SUBMITTER,
       text: SUGGESTION,
       provenanceToken: provenanceToken(operationId, permitId, property, review.id, now),
-      now,
     })
     if (accepted.status !== 'accepted') {
       throw new Error(`AI suggestion was not adopted: ${accepted.reason}`)

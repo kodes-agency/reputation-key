@@ -9,37 +9,24 @@ import type {
 } from './contracts'
 import { isReviewAnalysisRevisionSetEvidence } from './contracts'
 import { resolveAiExecutionStopFence } from '../application/ai-workflow-support'
-import { reviewAnalysisReplayState } from './state'
 
-export type ReviewAnalysisEnrollmentReadiness =
-  | Readonly<{ status: 'disabled' }>
-  | Readonly<{
-      status: 'preparing'
-      reason:
-        'trigger_pending' | 'runtime_blocked' | 'enrollment_queued' | 'enrollment_running'
-    }>
-  | Readonly<{
-      status: 'preparing'
-      reason: 'assisted_approval_required'
-      snapshotRevisionCount: number
-      safetyCeiling: number
-    }>
-  | Readonly<{
-      status: 'unavailable'
-      reason: 'enrollment_superseded' | 'enrollment_stalled'
-    }>
-  | Readonly<{
-      status: 'ready'
-      fence: ReviewAnalysisEnrollmentFence
-      snapshotRevisionCount: number
-      snapshotRevisionSetDigest: string
-      snapshotCapturedAtEpochMillis: number
-      enrolledRevisionCount: number
-      eligibleRevisionCount: number
-      caughtUpAnalysisSequence: number
-      revisionSetDigest: string
-      caughtUpAtEpochMillis: number
-    }>
+/** What the progress read needs: whether enrollment is still working, whether it needs attention, and when it last verified the whole history. */
+export type ReviewAnalysisEnrollmentReadiness = Readonly<{
+  analysing: boolean
+  needsAttention: boolean
+  verifiedThroughEpochMillis: number | null
+}>
+
+const NOT_ENROLLED: ReviewAnalysisEnrollmentReadiness = {
+  analysing: false,
+  needsAttention: false,
+  verifiedThroughEpochMillis: null,
+}
+const ANALYSING: ReviewAnalysisEnrollmentReadiness = { ...NOT_ENROLLED, analysing: true }
+const NEEDS_ATTENTION: ReviewAnalysisEnrollmentReadiness = {
+  ...NOT_ENROLLED,
+  needsAttention: true,
+}
 
 export type ReadReviewAnalysisEnrollmentReadinessDependencies = Readonly<{
   authorization: AiAuthorizationPort
@@ -91,7 +78,7 @@ type CaughtUpFacts = Readonly<{
 
 /**
  * Whether present caught-up evidence is internally consistent enough to be
- * read as `ready`: bounded timestamps in the right order, no run still open,
+ * read as verified: bounded timestamps in the right order, no run still open,
  * the terminal reason this readiness depends on, a sequence at or past the
  * authorization's start, and two well-formed revision-set proofs.
  */
@@ -120,9 +107,9 @@ function caughtUpEvidenceIsSound(
 }
 
 /**
- * Content-free readiness read for operators and dependent coordinators. A
- * completed capped repair run is never consulted: only the durable
- * authorization-scoped enrollment evidence can establish `ready`.
+ * Content-free readiness read for the progress card. A completed capped repair
+ * run is never consulted: only the durable authorization-scoped enrollment
+ * evidence can establish a verified-through time.
  */
 export function createReadReviewAnalysisEnrollmentReadiness(
   dependencies: ReadReviewAnalysisEnrollmentReadinessDependencies,
@@ -135,48 +122,24 @@ export function createReadReviewAnalysisEnrollmentReadiness(
   return async (input) => {
     const authorization =
       await dependencies.authorization.readMerchantAuthorization(input)
-    if (authorization === null) return { status: 'disabled' }
+    if (authorization === null) return NOT_ENROLLED
     const fence = currentFence(authorization)
-    if (fence === null) return { status: 'disabled' }
+    if (fence === null) return NOT_ENROLLED
 
     const evidence = await dependencies.enrollments.readCurrent(input)
-    if (evidence === null || !sameFence(evidence.fence, fence)) {
-      return { status: 'preparing', reason: 'trigger_pending' }
+    if (evidence === null || !sameFence(evidence.fence, fence)) return ANALYSING
+    if (evidence.state === 'superseded' || evidence.state === 'stalled') {
+      return NEEDS_ATTENTION
     }
-    const replayState = reviewAnalysisReplayState(evidence.state)
-    if (replayState === 'needs_attention') {
-      return {
-        status: 'unavailable',
-        reason:
-          evidence.state === 'superseded'
-            ? 'enrollment_superseded'
-            : 'enrollment_stalled',
-      }
-    }
-    if (evidence.state === 'awaiting_assisted_approval') {
-      return {
-        status: 'preparing',
-        reason: 'assisted_approval_required',
-        snapshotRevisionCount: evidence.snapshotRevisionCount,
-        safetyCeiling: evidence.safetyCeiling,
-      }
-    }
+    if (evidence.state === 'awaiting_assisted_approval') return ANALYSING
 
     const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
       providerDeploymentProfileVersion:
         getAiRuntimeCapability('review_analysis').providerDeploymentProfileVersion,
       capability: 'review_analysis',
     })
-    if (stopFence === null) {
-      return { status: 'preparing', reason: 'runtime_blocked' }
-    }
-
-    if (evidence.state === 'queued') {
-      return { status: 'preparing', reason: 'enrollment_queued' }
-    }
-    if (replayState === 'running') {
-      return { status: 'preparing', reason: 'enrollment_running' }
-    }
+    if (stopFence === null) return ANALYSING
+    if (evidence.state === 'queued' || evidence.state === 'running') return ANALYSING
 
     const eligibleRevisionCount = evidence.caughtUpEligibleRevisionCount
     const caughtUpAnalysisSequence = evidence.caughtUpAnalysisSequence
@@ -194,19 +157,8 @@ export function createReadReviewAnalysisEnrollmentReadiness(
         caughtUpAtEpochMillis,
       })
     ) {
-      return { status: 'unavailable', reason: 'enrollment_stalled' }
+      return NEEDS_ATTENTION
     }
-    return {
-      status: 'ready',
-      fence,
-      snapshotRevisionCount: evidence.snapshotRevisionCount,
-      snapshotRevisionSetDigest: evidence.snapshotRevisionSetDigest,
-      snapshotCapturedAtEpochMillis: evidence.snapshotCapturedAtEpochMillis,
-      enrolledRevisionCount: evidence.enrolledRevisionCount,
-      eligibleRevisionCount,
-      caughtUpAnalysisSequence,
-      revisionSetDigest,
-      caughtUpAtEpochMillis,
-    }
+    return { ...NOT_ENROLLED, verifiedThroughEpochMillis: caughtUpAtEpochMillis }
   }
 }

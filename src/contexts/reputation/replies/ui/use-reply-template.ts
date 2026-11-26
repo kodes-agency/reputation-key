@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
-import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from '#/contexts/reputation/replies/ui/composer/reply-suggestion-contract'
+import type { ReplyTemplateListResultDto as ReplyTemplateListResult } from '#/contexts/reputation/library/contracts'
 import type { ReplyLanguageTarget } from '#/contexts/reputation/replies/ui/composer/reply-language-options'
 import type { LoadedReplyTemplateDraft } from '#/contexts/reputation/replies/ui/composer/reply-suggestion-contract'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'

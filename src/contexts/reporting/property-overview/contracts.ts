@@ -9,7 +9,6 @@ export type { TimeRangePreset } from '../portal-results/contracts'
 // GET dashboard data — query params
 export const getDashboardDataDto = z.object({
   propertyId: z.uuid(),
-  portalId: z.uuid().optional(),
   timeRange: timeRangePreset.default('30d'),
 })
 

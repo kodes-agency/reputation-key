@@ -1,7 +1,6 @@
 import type {
   AttentionSignals,
   DashboardData,
-  MetricKPIValue,
   RatingKPIValue,
 } from '#/contexts/reporting/public-api'
 import { inboxItemId, reviewId } from '#/shared/domain/ids'
@@ -14,44 +13,6 @@ export const property = {
   googleBindingState: 'active' as const,
 }
 
-const availableMetricKpi = (
-  value: number,
-  priorValue: number,
-  trend: number | null,
-): MetricKPIValue => ({
-  value,
-  priorValue,
-  trend,
-  evidence: {
-    current: {
-      state: 'ready',
-      definitionVersionId: 'property-story-current',
-      sampleCount: Math.max(value, 1),
-      minimumSample: 1,
-    },
-    prior: {
-      state: 'ready',
-      definitionVersionId: 'property-story-prior',
-      sampleCount: Math.max(priorValue, 1),
-      minimumSample: 1,
-    },
-  },
-})
-
-const noDataMetricKpi: MetricKPIValue = {
-  value: null,
-  priorValue: null,
-  trend: null,
-  evidence: {
-    current: {
-      state: 'insufficient_data',
-      definitionVersionId: null,
-      sampleCount: 0,
-      minimumSample: null,
-    },
-    prior: null,
-  },
-}
 const readyRatingEvidence: RatingKPIValue['evidence'] = {
   definitionVersionId: null,
   state: 'ready',
@@ -83,8 +44,6 @@ export const populatedDashboard: DashboardData = {
       priorSampleCount: 120,
       evidence: readyRatingEvidence,
     },
-    scans: availableMetricKpi(980, 1100, -10.9),
-    feedback: availableMetricKpi(56, 56, 0),
   },
   ratingDistribution: [
     { stars: 5, count: 80 },
@@ -104,7 +63,6 @@ export const populatedDashboard: DashboardData = {
     { date: '2026-07-01', count: 15 },
   ],
   replyPerformance: { replyRate: 78, avgReplyHours: 6.5 },
-  engagementFunnel: { scans: 980, ratings: 142, reviewLinkClicks: 320 },
   recentReviews: [
     {
       id: reviewId('rev-00000000-0000-0000-0000-000000000001'),
@@ -146,14 +104,11 @@ export const noDataDashboard: DashboardData = {
       priorSampleCount: 0,
       evidence: insufficientRatingEvidence,
     },
-    scans: noDataMetricKpi,
-    feedback: noDataMetricKpi,
   },
   ratingDistribution: [],
   ratingTrend: [],
   reviewVolume: [],
   replyPerformance: { replyRate: 0, avgReplyHours: null },
-  engagementFunnel: null,
   recentReviews: [],
 }
 

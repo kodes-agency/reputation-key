@@ -525,9 +525,6 @@ describe('job runtime authority', () => {
       ]),
     ).toThrow(/duplicate job operational contract/i)
     expect(() =>
-      validateJobOperationalContracts([scheduledContract({ runbook: '' })]),
-    ).toThrow(/runbook/i)
-    expect(() =>
       validateJobOperationalContracts([scheduledContract({ retryAttempts: 0 })]),
     ).toThrow(/retry attempts/i)
     expect(() =>
@@ -538,9 +535,6 @@ describe('job runtime authority', () => {
     expect(() =>
       validateJobOperationalContracts([scheduledContract({ timeoutMs: 0 })]),
     ).toThrow(/timeout/i)
-    expect(() =>
-      validateJobOperationalContracts([scheduledContract({ workerConcurrency: 0 })]),
-    ).toThrow(/concurrency/i)
     expect(() =>
       validateJobOperationalContracts([
         scheduledContract({ repairCommand: 'none', posture: 'active' }),

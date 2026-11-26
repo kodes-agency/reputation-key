@@ -37,14 +37,11 @@ export type PortalPublicationActivationRecord = Readonly<{
   snapshot: PortalPublicationSnapshot
 }>
 
-export type PortalPublicationActivationPage = Readonly<{
-  records: ReadonlyArray<PortalPublicationActivationRecord>
-  /** Newest activation in the full scoped history, independent of this page. */
+export type PortalCurrentAndLatestActivation = Readonly<{
+  /** Newest activation in the scoped history. */
   latest: PortalPublicationActivationRecord | null
   /** Open activation, if the Portal is currently Published. */
   current: PortalPublicationActivationRecord | null
-  /** Exclusive activation-sequence cursor for the next page. */
-  nextCursor: number | null
 }>
 
 export type PortalPendingContentChange = Readonly<{
@@ -85,12 +82,11 @@ export type PortalPublicationRepository = Readonly<{
     organizationId: OrganizationId,
     portalId: PortalId,
   ) => Promise<PortalPublicationSnapshot | null>
-  listActivationHistoryPage: (
+  findCurrentAndLatestActivation: (
     organizationId: OrganizationId,
     propertyId: PropertyId,
     portalId: PortalId,
-    page: Readonly<{ beforeSequence: number | null; limit: number }>,
-  ) => Promise<PortalPublicationActivationPage>
+  ) => Promise<PortalCurrentAndLatestActivation>
   /**
    * The versions that went live in `[startAt, endAt)`, oldest first: a fresh
    * publication or a rollback, with the version number and the instant. Bounded,

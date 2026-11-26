@@ -598,13 +598,13 @@ describe('Property publication scope', () => {
 
   const archived = {
     getPublicationScope: vi.fn(async () => ({
-      lifecycle: 'archived' as const,
+      lifecycleState: 'archived' as const,
       sourceEpoch: 1,
     })),
   }
   const restored = {
     getPublicationScope: vi.fn(async () => ({
-      lifecycle: 'active' as const,
+      lifecycleState: 'active' as const,
       sourceEpoch: 2,
     })),
   }
@@ -631,8 +631,11 @@ describe('Property publication scope', () => {
   // Only an archived Property is on the Removed list; the other states say
   // what is actually happening to it, with no remedy the manager lacks.
   it.each([
-    ['suspended while its Organization closes', { lifecycle: 'suspended' }, CLOSING],
-    ['on its way to deletion', { lifecycle: 'removing' }, DELETING],
+    ['suspended while its Organization closes', { lifecycleState: 'suspended' }, CLOSING],
+    ['disconnecting', { lifecycleState: 'disconnecting' }, DELETING],
+    ['waiting to be purged', { lifecycleState: 'purge_pending' }, DELETING],
+    ['being purged', { lifecycleState: 'purging' }, DELETING],
+    ['purged', { lifecycleState: 'purged' }, DELETING],
     ['no longer present', null, DELETING],
   ] as const)(
     'refuses to approve for a Property %s, in its own words',

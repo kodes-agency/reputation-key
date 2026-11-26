@@ -1,7 +1,5 @@
-import {
-  replyScopeEffects,
-  eraseReviewSourceContent,
-} from '#/contexts/reputation/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { sign } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -169,7 +167,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
             reviewId: review,
             baseReplyStateRevision: 0,
           }),
-          now: NOW,
         }),
       ).resolves.toEqual({ status: 'rejected', reason: 'stale' })
 
@@ -212,7 +209,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         actorUserId: ACTOR_USER_ID,
         text: SUGGESTION,
         provenanceToken,
-        now: NOW,
         ...input,
       })
 
