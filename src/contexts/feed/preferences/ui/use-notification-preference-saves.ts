@@ -9,6 +9,8 @@ import type {
 } from '#/contexts/feed/public-api'
 import {
   applyPreferencePatch,
+  findCategoryDefault,
+  findOwnPreference,
   preferenceRowKey,
   type PreferencePatch,
   type PreferenceValues,
@@ -70,13 +72,8 @@ export function useNotificationPreferenceSaves({
     category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
   ): PreferenceValues | undefined =>
-    preferences.find(
-      (preference) =>
-        preference.propertyId === propertyId &&
-        preference.category === category &&
-        preference.channel === channel,
-    ) ??
-    categoryDefaults.find((row) => row.category === category && row.channel === channel)
+    findOwnPreference(preferences, propertyId, category, channel) ??
+    findCategoryDefault(categoryDefaults, category, channel)
 
   const preferenceFor = (
     category: ConfigurableNotificationCategory,

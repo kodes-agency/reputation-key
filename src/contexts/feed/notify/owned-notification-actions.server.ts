@@ -27,15 +27,28 @@ type Dependencies = Readonly<{
 /** The single-notification actions behind the row menu and the bell. */
 export const createOwnedNotificationActions = (input: Dependencies) => {
   /**
-   * The guard every single-notification mutation shares: load the row, prove
-   * it belongs to the caller, then apply the domain transition. Returns the
-   * transition's timestamp, or null when the transition is a no-op so the
-   * caller skips its write. A wrong or foreign id throws `not_found`.
+   * The guard every single-notification mutation shares: load the row and
+   * prove it belongs to the caller. A wrong or foreign id throws `not_found`.
    *
-   * Factored because these three paths MUST NOT drift: an ownership check
-   * present in two of them and missing from the third is a cross-tenant write,
-   * and that is exactly the kind of difference three near-identical inline
-   * copies hide.
+   * Factored because these paths MUST NOT drift: an ownership check present
+   * in some of them and missing from another is a cross-tenant write.
+   */
+  const loadOwned = async (
+    id: string,
+    orgId: string,
+    userId: UserId,
+  ): Promise<Notification> => {
+    const n = await findNotificationById(input.db, id, orgId)
+    if (!n || n.userId !== userId) {
+      throw notificationError('not_found', 'Notification not found or access denied')
+    }
+    return n
+  }
+
+  /**
+   * Loads the owned row and applies the domain transition. Returns the
+   * transition's timestamp, or null when the transition is a no-op so the
+   * caller skips its write.
    */
   const applyOwnedTransition = async (
     id: string,
@@ -46,10 +59,7 @@ export const createOwnedNotificationActions = (input: Dependencies) => {
       clock: () => Date,
     ) => Result<Notification, NotificationError>,
   ): Promise<Date | null> => {
-    const n = await findNotificationById(input.db, id, orgId)
-    if (!n || n.userId !== userId) {
-      throw notificationError('not_found', 'Notification not found or access denied')
-    }
+    const n = await loadOwned(id, orgId, userId)
     const now = input.clock()
     return transition(n, () => now).isErr() ? null : now
   }
@@ -86,10 +96,7 @@ export const createOwnedNotificationActions = (input: Dependencies) => {
      * or foreign id still throws `not_found`.
      */
     restore: async (id: string, orgId: string, userId: UserId) => {
-      const notification = await findNotificationById(input.db, id, orgId)
-      if (!notification || notification.userId !== userId) {
-        throw notificationError('not_found', 'Notification not found or access denied')
-      }
+      const notification = await loadOwned(id, orgId, userId)
       const restored = restoreDismissedNotification(notification, input.clock)
       if (restored.isErr()) return null
       const row = await saveRestoredNotification(
