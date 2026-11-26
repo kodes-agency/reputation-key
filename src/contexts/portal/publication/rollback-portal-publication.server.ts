@@ -13,6 +13,7 @@ import { portalError } from '../domain/errors'
 import { portalPublicationRolledBack, portalUpdated } from '../domain/events'
 import { nextPortalCommandAt } from './portal-command-version.server'
 import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../domain/portal-publication-snapshot'
+import { newActivation } from './portal-publication-snapshot.server'
 
 export type RollbackPortalPublicationDeps = Readonly<{
   portalRepo: PortalRepository
@@ -97,7 +98,7 @@ export const rollbackPortalPublication =
         snapshotId: target.id,
         snapshotVersion: target.version,
         publicationDigest: target.configurationDigest,
-        activation: {
+        activation: newActivation({
           id: deps.idGen(),
           organizationId: unbrand(ctx.organizationId),
           propertyId: unbrand(portal.propertyId),
@@ -107,9 +108,7 @@ export const rollbackPortalPublication =
           kind: 'rollback',
           activatedBy: unbrand(ctx.userId),
           activatedAt: occurredAt,
-          deactivatedAt: null,
-          deactivationReason: null,
-        },
+        }),
       },
       lifecycleEvent: portalPublicationRolledBack({
         organizationId: ctx.organizationId,
