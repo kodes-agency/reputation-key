@@ -1,5 +1,4 @@
 import { plural } from '#/shared/format/format'
-import { visiblePortals } from './visible-portals'
 // fallow-ignore-file code-duplication
 // r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The Portals overview as data: which Portals are listed, in which groups, in
@@ -240,7 +239,7 @@ export function buildPortalOverview(
   const dir = search.dir ?? defaultSortDirection(sort)
   const grouping = (search.groupBy ?? DEFAULT_PORTAL_OVERVIEW_GROUP_BY) === 'group'
 
-  const all = visiblePortals(rows).map((row) => toItem(row, members))
+  const all = rows.map((row) => toItem(row, members))
   const matchesText = searchMatcher(search.q ?? '')
   const matched = all
     .filter((item) => matchesSearch(item, search, matchesText))
