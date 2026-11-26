@@ -18,6 +18,7 @@
 // Both come from one query, because the digest resolves them together per org.
 
 import type { Pool } from 'pg'
+import { activePropertyCondition } from '../notify/active-property.server'
 
 export type NotificationOrganizationScope = Readonly<{
   /** Representative IANA zone, or null when the org has no active property. */
@@ -67,8 +68,7 @@ export const createNotificationOrganizationScopeResolver = (
       `SELECT id::text AS property_id, name, timezone
          FROM properties
         WHERE organization_id = $1
-          AND deleted_at IS NULL
-          AND lifecycle_state = 'active'
+          AND ${activePropertyCondition()}
         ORDER BY created_at ASC
         LIMIT 500`,
       [organizationId],

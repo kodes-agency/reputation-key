@@ -14,6 +14,7 @@
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { activePropertyCondition } from '../notify/active-property.server'
 
 /** Recipients one sweep reads at most. */
 export const DUE_RECIPIENT_SWEEP_CAP = 5_000
@@ -36,8 +37,7 @@ export async function dueRecipientsInVisitOrder(
       SELECT DISTINCT ON (organization_id) organization_id, timezone
         FROM properties
        WHERE organization_id IN (SELECT organization_id FROM due)
-         AND deleted_at IS NULL
-         AND lifecycle_state = 'active'
+         AND ${sql.raw(activePropertyCondition())}
        GROUP BY organization_id, timezone
        ORDER BY organization_id, count(*) DESC, min(created_at) ASC
     )
