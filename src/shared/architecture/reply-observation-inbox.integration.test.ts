@@ -1,9 +1,7 @@
 import { reviewOpeningAnchor } from '#/contexts/reputation/inbox/review-opening-anchor.test-fixtures'
 import { describe, expect, it } from 'vitest'
-import {
-  replyScopeEffects,
-  eraseReviewSourceContent,
-} from '#/contexts/reputation/public-api'
+import { replyScopeEffects } from '#/contexts/reputation/public-api'
+import { eraseReviewSourceContent } from '#/contexts/reputation/content/store.server'
 import { handleInboxReplyObserved } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { getDb } from '#/shared/db'
 import {

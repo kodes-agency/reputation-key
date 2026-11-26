@@ -1,14 +1,12 @@
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { InboxItemId, PropertyId } from '#/shared/domain/ids'
-import type { InboxRepository } from '../inbox/inbox-repository.port.server'
+import type { PropertyId } from '#/shared/domain/ids'
 import type { ResponseTargetStore } from './store.port.server'
 import type { ResponseTargetPolicyStore } from './policy.store.port.server'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import {
   assertInboxSourcePropertyAccessible,
   canReadInboxSource,
-  loadInboxItemOrThrow,
   resolveInboxSourceScopes,
 } from '../inbox/inbox-access.server'
 import { inboxError } from '../domain/inbox-errors'
@@ -18,31 +16,6 @@ type SharedDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   clock: () => Date
 }>
-
-export type GetInboxResponseTargetDeps = SharedDeps & Readonly<{ repo: InboxRepository }>
-export type GetInboxResponseTargetInput = Readonly<{ inboxItemId: InboxItemId }>
-export type GetInboxResponseTarget = ReturnType<typeof getInboxResponseTarget>
-
-export const getInboxResponseTarget = (deps: GetInboxResponseTargetDeps) => {
-  return async (input: GetInboxResponseTargetInput, ctx: AuthContext) => {
-    const item = await loadInboxItemOrThrow(
-      deps.repo,
-      input.inboxItemId,
-      ctx.organizationId,
-    )
-    if (!canReadInboxSource(ctx, item.sourceType)) {
-      throw inboxError('forbidden', 'No permission to read this Response Target')
-    }
-    await assertInboxSourcePropertyAccessible(
-      deps.staffPublicApi,
-      ctx,
-      'read',
-      item.sourceType,
-      item.propertyId,
-    )
-    return deps.targetStore.getCycleTarget(item.id, item.organizationId, deps.clock())
-  }
-}
 
 export type GetPrivateFeedbackTargetAnalytics = ReturnType<
   typeof getPrivateFeedbackTargetAnalytics

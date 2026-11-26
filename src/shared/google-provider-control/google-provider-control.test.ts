@@ -1,11 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createInMemoryGoogleQuotaCoordinator } from './quota-coordinator.test-fixtures'
-import {
-  executeWithSingle401Refresh,
-  googleRetryDelayMs,
-  hashBoundedRequestBody,
-  parseGoogleRetryAfterMs,
-} from './provider-call'
+import { googleRetryDelayMs, parseGoogleRetryAfterMs } from './provider-call'
 
 const fingerprint = (value: string) =>
   value.charCodeAt(0).toString(16).padStart(2, '0').repeat(32)
@@ -41,33 +36,6 @@ describe('Google quota and refresh coordination', () => {
       ok: true,
       remaining: 0,
     })
-  })
-
-  it('retries only one 401 after one refresh', async () => {
-    const send = vi
-      .fn()
-      .mockResolvedValueOnce({ status: 401, value: 'unauthorized' })
-      .mockResolvedValueOnce({ status: 401, value: 'still-unauthorized' })
-    const refresh = vi.fn().mockResolvedValue('token-2')
-    await expect(
-      executeWithSingle401Refresh({
-        token: 'token-1',
-        deadlineMs: 2_000,
-        nowMs: () => 1_000,
-        send,
-        refreshAfter401: refresh,
-      }),
-    ).resolves.toEqual({ status: 401, value: 'still-unauthorized' })
-    expect(send).toHaveBeenCalledTimes(2)
-    expect(refresh).toHaveBeenCalledTimes(1)
-  })
-
-  it('hashes a bounded body without retaining it', () => {
-    expect(hashBoundedRequestBody(new TextEncoder().encode('body'), 4)).toEqual({
-      sha256: '230d8358dc8e8890b4c58deeb62912ee2f20357ae92a5cc861b98e68fe31acb5',
-      bytes: 4,
-    })
-    expect(() => hashBoundedRequestBody(new Uint8Array(5), 4)).toThrow('bound')
   })
 
   it('bounds Retry-After and exponential backoff to five through 300 seconds', () => {
