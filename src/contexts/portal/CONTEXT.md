@@ -598,7 +598,7 @@ the PDF and preview use the same measures and planners, checked with real fonts.
 - The PDF renderer loads lazily so processes that never print need not load fonts.
   Fonts, image readers, QR helpers and shared layout helpers remain shared with
   the preview. The Immersive office and print-shop instructions are served by
-  `src/shared/domain/portal-print-kit-pieces.ts` and drawn by `src/contexts/portal/printing/ui/portal-share/portal-print-kit-how-to.tsx`.
+  `src/shared/domain/portal-print-how-to.ts` and drawn by `src/contexts/portal/printing/ui/portal-share/portal-print-kit-how-to.tsx`.
 
 **Retired rollout switches.** The print kit, print code display and own-look rollout
 switches (`PRINT_KIT_FINAL_ENABLED`, `PORTAL_PRINT_CODES_ENABLED` and

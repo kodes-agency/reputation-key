@@ -258,7 +258,6 @@ describe('changeMonthTarget', () => {
     })
 
     it.each([
-      ['is not active', { state: 'unavailable', reason: 'metric_source_not_active' }],
       ['cannot be read', { state: 'unavailable', reason: null }],
       ['is quarantined', { state: 'quarantined', reason: null }],
     ] as const)(

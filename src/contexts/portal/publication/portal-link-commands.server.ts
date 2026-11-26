@@ -13,7 +13,7 @@ import type { PortalCommandStore } from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { hasRoomForAnotherLink } from '../domain/portal-linktree'
 import { portalPageEditKey } from '../domain/portal-page-edit'
-import { categoryToRow, newLinkToRow } from '../links/portal-link-mapper.server'
+import { categoryToRow, linkToRow } from '../links/portal-link-mapper.server'
 import { fencePortalContent } from './portal-aggregate-fence.server'
 import {
   assertPortalContentCommand,
@@ -73,7 +73,7 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
               recordedAt: command.occurredAt,
             })
           }
-          await tx.insert(portalLinks).values(newLinkToRow(command.link))
+          await tx.insert(portalLinks).values(linkToRow(command.link))
           await syncPrimaryLinkText(
             tx,
             { ...scope, linkId: unbrand(command.link.id) },

@@ -221,11 +221,7 @@ async function activateScheduledProgram(
     periodStart: period.start,
     periodEnd: period.end,
   })
-  if (
-    readiness.reason === 'metric_source_not_active' ||
-    readiness.state === 'unavailable' ||
-    readiness.state === 'quarantined'
-  ) {
+  if (readiness.state === 'unavailable' || readiness.state === 'quarantined') {
     return { kind: 'unavailable' }
   }
   const newResults = openResultsForPeriods(bundle, periods, deps.id, now)

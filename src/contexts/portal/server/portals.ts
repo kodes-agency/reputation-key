@@ -2,7 +2,7 @@
 // Per architecture: thin — resolve auth → validate input → call use case → translate errors → return
 
 import { createServerFn } from '@tanstack/react-start'
-import { setResponseHeader } from '@tanstack/react-start/server'
+import { disableResponseCaching } from '#/shared/http/no-store.server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { commandHandler } from '#/shared/commands/command.server'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
@@ -581,23 +581,12 @@ async function requirePortalScopeOrContextError(
   }
 }
 
-/**
- * The address is a secret: nothing in the path may keep a copy of this response.
- * Issue, replace and "download again" all hand it back (ADR 0069), the QR and NFC
- * addresses included, so each sets this before anything else can fail.
- */
-function disableAddressCaching(): void {
-  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
-  setResponseHeader('Pragma', 'no-cache')
-  setResponseHeader('Expires', '0')
-}
-
 export const issuePortalToken = createServerFn({ method: 'POST' })
   .validator(issuePortalTokenInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        disableAddressCaching()
+        disableResponseCaching()
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requirePortalScopeOrContextError(ctx, data.portalId, 'portal.update')
@@ -623,7 +612,7 @@ export const rotatePortalToken = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        disableAddressCaching()
+        disableResponseCaching()
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requirePortalScopeOrContextError(ctx, data.portalId, 'portal.update')
@@ -653,7 +642,7 @@ export const revealPortalAddress = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        disableAddressCaching()
+        disableResponseCaching()
         const ctx = await resolveTenantContext(await headersFromContext())
         await requirePortalScopeOrContextError(ctx, data.portalId, 'portal.update')
         try {

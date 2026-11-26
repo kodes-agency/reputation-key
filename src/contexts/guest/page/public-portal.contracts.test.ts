@@ -4,6 +4,41 @@ import {
   type PublicPortalData,
 } from './public-portal.contracts'
 
+const immersiveExperience: PublicPortalData['immersive'] = {
+  timeZone: 'Europe/Sofia',
+  brand: {
+    displayName: 'Harbor',
+    wordmark: 'HARBOR',
+    logo: { url: '/media/logo.webp', width: 480, height: 120 },
+    hero: {
+      url: '/media/hero.webp',
+      width: 1600,
+      height: 1000,
+      focalX: 0.4,
+      focalY: 0.6,
+    },
+    accentColour: '#C8A45A',
+    fieldColour: '#14110F',
+  },
+  content: {
+    title: { value: 'Разкажете ни', fallbackFrom: null },
+    shortDescription: { value: 'Вашето мнение.', fallbackFrom: null },
+    heroAlt: { value: 'Harbor at dusk', fallbackFrom: 'en' },
+    linktreeTitle: { value: 'Връзки', fallbackFrom: null },
+  },
+  linktree: { enabled: true },
+  links: [
+    {
+      id: 'link-1',
+      iconKey: 'utensils',
+      imageUrl: null,
+      label: 'Меню',
+      line: null,
+      fallbackFrom: null,
+    },
+  ],
+}
+
 const portal: PublicPortalData = {
   portal: {
     id: 'portal-1',
@@ -46,7 +81,7 @@ const portal: PublicPortalData = {
   },
   organizationId: 'org-secret-id',
   propertyId: 'property-secret-id',
-  immersive: null,
+  immersive: immersiveExperience,
   addressShape: 'long',
 }
 
@@ -58,41 +93,8 @@ const immersivePortal: PublicPortalData = {
     availableLocales: ['en', 'bg'],
     languagePackVersion: 'guest-ui-bg-v2',
   },
-  immersive: {
-    timeZone: 'Europe/Sofia',
-    brand: {
-      displayName: 'Harbor',
-      wordmark: 'HARBOR',
-      logo: { url: '/media/logo.webp', width: 480, height: 120 },
-      hero: {
-        url: '/media/hero.webp',
-        width: 1600,
-        height: 1000,
-        focalX: 0.4,
-        focalY: 0.6,
-      },
-      accentColour: '#C8A45A',
-      fieldColour: '#14110F',
-    },
-    content: {
-      title: { value: 'Разкажете ни', fallbackFrom: null },
-      shortDescription: { value: 'Вашето мнение.', fallbackFrom: null },
-      heroAlt: { value: 'Harbor at dusk', fallbackFrom: 'en' },
-      linktreeTitle: { value: 'Връзки', fallbackFrom: null },
-    },
-    linktree: { enabled: true },
-    links: [
-      {
-        id: 'link-1',
-        iconKey: 'utensils',
-        imageUrl: null,
-        label: 'Меню',
-        line: null,
-        fallbackFrom: null,
-      },
-    ],
-  },
 }
+
 const SERVED_AT = '2026-10-01T12:00:00.000Z'
 const state = () => ({
   guestSession: { csrfNonce: crypto.randomUUID() },
@@ -156,10 +158,6 @@ describe('public Portal loader projection', () => {
     expect(JSON.stringify(projected)).not.toContain('writereview')
   })
 
-  it('serves no Immersive Hub content when the portal carries none', () => {
-    expect(toPublicPortalLoaderData(portal, state()).immersive).toBeNull()
-  })
-
   it('projects the Immersive Hub content for the browser, field by field', () => {
     const projected = toPublicPortalLoaderData(immersivePortal, state())
 
@@ -169,7 +167,6 @@ describe('public Portal loader projection', () => {
 
   it("carries each Portal's own look of one Property: colours, name, photo, its description and the og:image source", () => {
     const { immersive } = immersivePortal
-    if (!immersive) throw new Error('fixture must be immersive')
     // A second Portal of the Harbor Property with a look of its own.
     const spa: PublicPortalData = {
       ...immersivePortal,
@@ -208,12 +205,12 @@ describe('public Portal loader projection', () => {
     const harbor = toPublicPortalLoaderData(withHero, state())
     const own = toPublicPortalLoaderData(spa, state())
 
-    expect(harbor.immersive?.brand).toMatchObject({
+    expect(harbor.immersive.brand).toMatchObject({
       wordmark: 'HARBOR',
       accentColour: '#C8A45A',
       fieldColour: '#14110F',
     })
-    expect(own.immersive?.brand).toMatchObject({
+    expect(own.immersive.brand).toMatchObject({
       displayName: 'Harbor',
       wordmark: 'SPA',
       logo: null,
@@ -221,7 +218,7 @@ describe('public Portal loader projection', () => {
       fieldColour: '#201810',
       hero: { url: '/media/spa-hero.webp', width: 1200, focalX: 0.2 },
     })
-    expect(own.immersive?.content.heroAlt.value).toBe('The spa pool')
+    expect(own.immersive.content.heroAlt.value).toBe('The spa pool')
     // The page head's og:image is the photo the page draws, so each Portal shares its own.
     expect(harbor.portal.heroImageUrl).toBe('/media/hero.webp')
     expect(own.portal.heroImageUrl).toBe('/media/spa-hero.webp')
@@ -229,7 +226,6 @@ describe('public Portal loader projection', () => {
 
   it('drops anything the server result carries beyond the reviewed fields', () => {
     const { immersive } = immersivePortal
-    if (!immersive) throw new Error('fixture must be immersive')
     const leaky = {
       ...immersivePortal,
       immersive: {

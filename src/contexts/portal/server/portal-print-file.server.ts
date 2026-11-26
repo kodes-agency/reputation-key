@@ -1,7 +1,7 @@
 // A print download is uncacheable before any refusal, checks the caller's scope,
 // spends the address rate limit, then makes the file.
 
-import { setResponseHeader } from '@tanstack/react-start/server'
+import { disableResponseCaching } from '#/shared/http/no-store.server'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
@@ -15,13 +15,6 @@ import {
   checkPortalAddressRateLimit,
   checkPortalPrintWordingRateLimit,
 } from './portal-address-rate-limit.server'
-
-/** The file contains the live code's address: nothing in the path may keep a copy. */
-function disableFileCaching(): void {
-  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
-  setResponseHeader('Pragma', 'no-cache')
-  setResponseHeader('Expires', '0')
-}
 
 /**
  * Runs a manager's print action behind the guards every one shares: the tenant
@@ -65,7 +58,7 @@ export function downloadPortalPrintFile(
   authorize: (ctx: AuthContext) => Promise<unknown>,
   make: (ctx: AuthContext) => Promise<PortalPrintKitFile>,
 ): Promise<PortalPrintKitDownload> {
-  disableFileCaching()
+  disableResponseCaching()
   return guardedPortalPrintAction(
     authorize,
     async (ctx) => printKitDownloadOf(await make(ctx)),

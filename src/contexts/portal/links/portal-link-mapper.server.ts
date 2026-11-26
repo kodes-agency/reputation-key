@@ -74,6 +74,11 @@ export const linkFromRow = (row: LinkRow, resolvedUrl?: string | null): PortalLi
   }
 }
 
+/**
+ * The legacy `label` column is no longer written (a link's wording is its
+ * `portal_link_texts` rows), so it holds the empty string the NOT NULL column
+ * needs until it is dropped.
+ */
 export const linkToRow = (link: PortalLink): LinkInsertRow => ({
   id: unbrand(link.id),
   categoryId: unbrand(link.categoryId),
@@ -82,24 +87,13 @@ export const linkToRow = (link: PortalLink): LinkInsertRow => ({
   propertyId: unbrand(link.propertyId),
   destinationId: link.destinationId ? unbrand(link.destinationId) : null,
   legacyDestinationState: link.destinationId ? 'migrated' : link.legacyDestinationState,
-  label: link.label,
+  label: '',
   url: link.destinationId ? null : link.url,
   iconKey: link.iconKey,
   imageAssetId: link.imageAssetId ? unbrand(link.imageAssetId) : null,
   sortKey: link.sortKey,
   createdAt: link.createdAt,
   updatedAt: link.updatedAt,
-})
-
-/**
- * The row of a link being written today. The legacy `label` column is no longer
- * written (a link's wording is its `portal_link_texts` rows), so it holds the
- * empty string the NOT NULL column needs until it is dropped. `linkToRow` stays
- * the faithful mapping, for fixtures that stand for links older than this.
- */
-export const newLinkToRow = (link: PortalLink): LinkInsertRow => ({
-  ...linkToRow(link),
-  label: '',
 })
 
 // ── Link text mapper ───────────────────────────────────────────────

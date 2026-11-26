@@ -4,7 +4,6 @@
   ".storybook/vitest.setup.test.ts": 2,
   "e2e/helpers/server-fn-reachability.test.ts": 1,
   "scripts/evaluation/review-analysis-v3.test.ts": 3,
-  "scripts/local/db-baseline.test.ts": 1,
   "scripts/local/e2e-seed-target.test.ts": 1,
   "scripts/ops/ci-image-digest-map.test.ts": 1,
   "scripts/ops/commands.test.ts": 13,
