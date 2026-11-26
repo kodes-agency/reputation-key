@@ -29,11 +29,11 @@ import type { InboxCommandStore } from '#/contexts/reputation/inbox/command-stor
 import {
   assignmentAuthorityKey,
   isAuthorityContractChange,
-  itemFromRow,
   matchesLockedBulkAssignState,
   sourceCommandPermission,
   webActorId,
 } from '#/contexts/reputation/inbox/inbox-command-guards.server'
+import { inboxItemFromRow } from '#/contexts/reputation/inbox/inbox-mapper.server'
 import {
   appendAssignmentHistory,
   currentAssignmentCycleNumber,
@@ -405,7 +405,7 @@ export const createAssignmentCommands = (
             )
           }
 
-          const currentItem = itemFromRow(itemRow)
+          const currentItem = inboxItemFromRow(itemRow)
           const pendingAssignee = await authorizeReopen(
             tx,
             currentItem,
@@ -494,7 +494,7 @@ export const createAssignmentCommands = (
           if (unassignedFact) {
             await insertAssignmentFact(tx, unassignedFact, updatedItem.commandRevision)
           }
-          return itemFromRow(updatedItem)
+          return inboxItemFromRow(updatedItem)
         })
       })
     },
