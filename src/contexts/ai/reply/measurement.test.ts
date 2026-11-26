@@ -20,7 +20,7 @@ const input: GenerateReplySuggestionInput = {
 }
 const ready: GenerateReplySuggestionResult = {
   status: 'ready',
-  profileVersion: 'reply-draft-v3',
+  profileVersion: 'reply-draft-v4',
   replyText: 'PRIVATE DRAFT',
   provenanceToken: 'PRIVATE TOKEN',
   expiresAtEpochMillis: 100,

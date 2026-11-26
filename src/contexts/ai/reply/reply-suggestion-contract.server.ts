@@ -5,7 +5,6 @@ import type {
   EvaluatedReviewLanguage,
   ReplyTemplateLanguageGroup,
 } from '#/shared/ai-review-language-catalogue'
-import type { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/reply/ai-personalized-reply-profile'
 import type { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import type { ReplyDraftingV2Frame } from '#/shared/reply/reply-drafting-v2-frame'
 import type { AiReviewSourcePort } from '#/contexts/reputation/public-api'
@@ -46,11 +45,8 @@ export type GenerateReplySuggestionResult =
   | Readonly<{
       status: 'ready'
       measurementGenerationId?: string
-      profileVersion:
-        | typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
-        | typeof REPLY_DRAFTING_V2_VERSIONS.profile
+      profileVersion: typeof REPLY_DRAFTING_V2_VERSIONS.profile
       localFrame?: Readonly<{ prefix: string; suffix: string }>
-      mainPoint?: readonly number[]
       case?: string
       replyText: string
       provenanceToken: string

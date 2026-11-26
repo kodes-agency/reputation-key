@@ -26,7 +26,7 @@ import type { DraftMeasurementEvent } from '#/shared/domain/draft-measurement'
 
 const ready = (generationId: string) => ({
   status: 'ready' as const,
-  profileVersion: 'reply-draft-v3' as const,
+  profileVersion: 'reply-draft-v4' as const,
   replyText: 'PRIVATE BASELINE',
   provenanceToken: 'PRIVATE TOKEN',
   expiresAtEpochMillis: 100,
