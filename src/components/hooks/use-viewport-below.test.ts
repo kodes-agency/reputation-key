@@ -30,7 +30,11 @@ function serverRenderBesideSidebar(hint: ViewportHint, open: boolean): string {
     createElement(
       ViewportHintContext.Provider,
       { value: hint },
-      createElement(SidebarProvider, { open }, createElement(Probe)),
+      createElement(
+        SidebarProvider,
+        { open, onOpenChange: () => {} },
+        createElement(Probe),
+      ),
     ),
   ).replaceAll(/<[^>]+>/gu, '')
 }

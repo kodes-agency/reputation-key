@@ -257,7 +257,7 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
     ).resolves.toBeNull()
   })
 
-  it('lists publication and rollback activity only inside the exact property scope', async () => {
+  it('finds the live and the newest activation only inside the exact property scope', async () => {
     const first = snapshot(
       1,
       'First published name',
@@ -314,47 +314,23 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
       ])
 
     const repo = createPortalPublicationRepository(getDb())
-    const history = await repo.listActivationHistoryPage(ORG, PROPERTY, PORTAL, {
-      beforeSequence: null,
-      limit: 2,
-    })
+    const history = await repo.findCurrentAndLatestActivation(ORG, PROPERTY, PORTAL)
 
-    expect(
-      history.records.map(({ activation, snapshot: publication }) => ({
-        sequence: activation.activationSequence,
-        kind: activation.kind,
-        version: publication.version,
-        current: activation.deactivatedAt === null,
-      })),
-    ).toEqual([
-      { sequence: 3, kind: 'rollback', version: 1, current: true },
-      { sequence: 2, kind: 'publish', version: 2, current: false },
-    ])
-    expect(history.current?.activation.activationSequence).toBe(3)
+    expect(history.current).toMatchObject({
+      activation: { activationSequence: 3, kind: 'rollback', deactivatedAt: null },
+      snapshot: { version: 1 },
+    })
     expect(history.latest?.activation.activationSequence).toBe(3)
-    expect(history.nextCursor).toBe(2)
-
-    const secondPage = await repo.listActivationHistoryPage(ORG, PROPERTY, PORTAL, {
-      beforeSequence: history.nextCursor,
-      limit: 2,
-    })
-    expect(secondPage.records).toHaveLength(1)
-    expect(secondPage.records[0]?.activation.activationSequence).toBe(1)
-    expect(secondPage.nextCursor).toBeNull()
     await expect(
-      repo.listActivationHistoryPage(
+      repo.findCurrentAndLatestActivation(
         ORG,
         propertyId('f4d00000-0000-4000-8000-000000000099'),
         PORTAL,
-        { beforeSequence: null, limit: 2 },
       ),
-    ).resolves.toMatchObject({ records: [], latest: null, current: null })
+    ).resolves.toEqual({ latest: null, current: null })
     await expect(
-      repo.listActivationHistoryPage(OTHER_ORG, PROPERTY, PORTAL, {
-        beforeSequence: null,
-        limit: 2,
-      }),
-    ).resolves.toMatchObject({ records: [], latest: null, current: null })
+      repo.findCurrentAndLatestActivation(OTHER_ORG, PROPERTY, PORTAL),
+    ).resolves.toEqual({ latest: null, current: null })
   })
 
   it('lists the versions that went live inside a window, oldest first, in scope only', async () => {

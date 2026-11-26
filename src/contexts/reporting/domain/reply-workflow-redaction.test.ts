@@ -1,24 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { reviewId } from '#/shared/domain/ids'
-import type { DashboardData, MetricKPIValue } from './dashboard-types'
+import type { DashboardData } from './dashboard-types'
 import { hideReplyWorkflowWithoutAuthority } from './reply-workflow-redaction'
 
 const COMPUTED_AT = new Date('2026-09-01T12:00:00.000Z')
-
-function readyMetric(value: number): MetricKPIValue {
-  const evidence = {
-    state: 'ready' as const,
-    definitionVersionId: 'metric-v1',
-    sampleCount: value,
-    minimumSample: 1,
-  }
-  return {
-    value,
-    priorValue: value,
-    trend: 0,
-    evidence: { current: evidence, prior: evidence },
-  }
-}
 
 function dashboardWithReplyWorkflow(): DashboardData {
   return {
@@ -42,14 +27,11 @@ function dashboardWithReplyWorkflow(): DashboardData {
           sampleCount: 12,
         },
       },
-      scans: readyMetric(90),
-      feedback: readyMetric(14),
     },
     ratingDistribution: [{ stars: 5, count: 8 }],
     ratingTrend: [{ date: '2026-09-01', avgRating: 4.4 }],
     reviewVolume: [{ date: '2026-09-01', count: 12 }],
     replyPerformance: { replyRate: 66.67, avgReplyHours: 12 },
-    engagementFunnel: { scans: 90, ratings: 30, reviewLinkClicks: 9 },
     recentReviews: [
       {
         id: reviewId('review-published'),

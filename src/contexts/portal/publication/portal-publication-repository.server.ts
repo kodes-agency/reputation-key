@@ -13,6 +13,7 @@ import {
   notExists,
   or,
   sql,
+  type SQL,
 } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod/v4'
@@ -25,7 +26,6 @@ import {
 } from '#/shared/db/schema/portal-publication.schema'
 import type {
   PortalPublicationActivationRecord,
-  PortalPublicationActivationPage,
   PortalPublicationCursor,
   PortalPublicationRepository,
   PortalPendingContentChange,
@@ -390,17 +390,14 @@ export const createPortalPublicationRepository = (
       return row ? snapshotFromRow(row.snapshot) : null
     }),
 
-  listActivationHistoryPage: async (organizationId, propertyId, portalId, page) =>
-    trace('portalPublication.listActivationHistoryPage', async () => {
-      const limit = Number.isSafeInteger(page.limit)
-        ? Math.min(50, Math.max(1, page.limit))
-        : 20
+  findCurrentAndLatestActivation: async (organizationId, propertyId, portalId) =>
+    trace('portalPublication.findCurrentAndLatestActivation', async () => {
       const scope = [
         eq(portalPublicationActivations.organizationId, unbrand(organizationId)),
         eq(portalPublicationActivations.propertyId, unbrand(propertyId)),
         eq(portalPublicationActivations.portalId, unbrand(portalId)),
       ] as const
-      const selectRecords = () =>
+      const selectNewest = (...extra: ReadonlyArray<SQL | undefined>) =>
         db
           .select({
             activation: portalPublicationActivations,
@@ -425,48 +422,18 @@ export const createPortalPublicationRepository = (
               eq(portalPublicationSnapshots.id, portalPublicationActivations.snapshotId),
             ),
           )
-      const [pageRows, latestRows, currentRows] = await Promise.all([
-        selectRecords()
-          .where(
-            and(
-              ...scope,
-              page.beforeSequence === null
-                ? undefined
-                : lt(
-                    portalPublicationActivations.activationSequence,
-                    page.beforeSequence,
-                  ),
-            ),
-          )
+          .where(and(...scope, ...extra))
           .orderBy(desc(portalPublicationActivations.activationSequence))
-          .limit(limit + 1),
-        selectRecords()
-          .where(and(...scope))
-          .orderBy(desc(portalPublicationActivations.activationSequence))
-          .limit(1),
-        selectRecords()
-          .where(and(...scope, isNull(portalPublicationActivations.deactivatedAt)))
-          .orderBy(desc(portalPublicationActivations.activationSequence))
-          .limit(1),
+          .limit(1)
+      const [latestRows, currentRows] = await Promise.all([
+        selectNewest(),
+        selectNewest(isNull(portalPublicationActivations.deactivatedAt)),
       ])
-      const visibleRows = pageRows.slice(0, limit)
-      const records = visibleRows.flatMap(({ activation, snapshot }) => {
-        const record = activationRecordFromRows(activation, snapshot)
-        return record ? [record] : []
-      })
       const toRecord = (
-        row: (typeof pageRows)[number] | undefined,
+        row: (typeof latestRows)[number] | undefined,
       ): PortalPublicationActivationRecord | null =>
         row ? activationRecordFromRows(row.activation, row.snapshot) : null
-      return {
-        records,
-        latest: toRecord(latestRows[0]),
-        current: toRecord(currentRows[0]),
-        nextCursor:
-          pageRows.length > limit
-            ? (visibleRows.at(-1)?.activation.activationSequence ?? null)
-            : null,
-      } satisfies PortalPublicationActivationPage
+      return { latest: toRecord(latestRows[0]), current: toRecord(currentRows[0]) }
     }),
 
   listActivationsBetween: (organizationId, propertyId, portalId, window) =>

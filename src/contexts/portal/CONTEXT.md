@@ -871,10 +871,9 @@ their Portal exists; a purge removes them first.
 The pending-change fence (`portal_pending_content_changes`) also records who opened
 each row (`changed_by`, migration 0051): the actor `recordPortalContentChange` was
 given, null for the system and for rows from before the column. The first record of a
-revision keeps its person (the row's unique key makes a second record a no-op). The
-publication history read returns it as `pendingChanges[].changedBy`, and
-`activatedBy` beside each activation, both as a person the directory can name or an
-unnamed placeholder.
+revision keeps its person (the row's unique key makes a second record a no-op). No
+read returns it yet; the publication history read gives only the live version and the
+count of pending changes.
 
 Review & publish reads through `getPortalReview` (`portal.read`, writes nothing). It
 asks the questions `publishPortalChanges` asks, in the same words: the Property is

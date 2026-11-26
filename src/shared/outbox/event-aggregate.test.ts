@@ -5,6 +5,8 @@ import { userId } from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from './event-adapter'
 import { buildConsumerEvent } from './envelope'
+import { getEventDescriptor } from '#/shared/events/registry.server'
+import { resolveEventAggregate } from '#/shared/events/descriptor'
 
 const now = new Date('2026-11-07T12:00:00.000Z')
 const portalUpdated: DomainEvent = {
@@ -39,7 +41,13 @@ describe('declared event aggregates', () => {
       sourceAggregateId: 'persisted-aggregate',
       recordedAt: now,
     })
-    expect(envelope.aggregateType).toBe('portal')
+    expect(
+      resolveEventAggregate(
+        getEventDescriptor(row.eventType, row.eventVersion ?? 1),
+        row.payload as object,
+        portalUpdated.eventId,
+      ).type,
+    ).toBe('portal')
     expect(envelope.sourceAggregateId).toBe('persisted-aggregate')
   })
 
@@ -69,19 +77,13 @@ describe('declared event aggregates', () => {
   ])(
     'retains the aggregate type of historical Inbox creation payload %j',
     (payload, type) => {
-      const envelope = buildConsumerEvent({
-        id: 'event-1',
-        eventType: 'inbox.inbox_item.created',
-        eventVersion: 1,
-        payload,
-        organizationId: 'organization-1',
-        propertyId: null,
-        sourceContext: 'inbox',
-        sourceAggregateId: 'stored-aggregate',
-        recordedAt: now,
-      })
-      expect(envelope.aggregateType).toBe(type)
-      expect(envelope.sourceAggregateId).toBe('stored-aggregate')
+      expect(
+        resolveEventAggregate(
+          getEventDescriptor('inbox.inbox_item.created', 1),
+          payload,
+          'event-1',
+        ).type,
+      ).toBe(type)
     },
   )
 })

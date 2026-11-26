@@ -33,12 +33,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './dropdown-menu'
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-} from './sidebar'
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from './sidebar'
+import { StorySidebarProvider } from '../../../.storybook/StorySidebarProvider'
 
 const meta: Meta = {
   title: 'Patterns/Link ink',
@@ -138,7 +134,7 @@ function Surface() {
         </DropdownMenu>
       </div>
 
-      <SidebarProvider className="min-h-0 w-64">
+      <StorySidebarProvider className="min-h-0 w-64">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive>
@@ -157,7 +153,7 @@ function Surface() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-      </SidebarProvider>
+      </StorySidebarProvider>
     </div>
   )
 }

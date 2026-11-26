@@ -11,13 +11,14 @@
 // notification/inbox story uses. No value import from #/contexts/*/server/**.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { SidebarProvider, SidebarInset, useSidebar } from '#/components/ui/sidebar'
+import { useSidebar } from '#/components/ui/sidebar'
 import type { NotificationServerFns } from '#/contexts/feed/feed/ui/types'
 import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
 import {
   productUpdatesStoryClient,
   productUpdatesStoryState,
 } from '../../../.storybook/stubs/product-updates-server'
+import { StorySidebarProvider } from '../../../.storybook/StorySidebarProvider'
 import { AppTopBar } from './app-top-bar'
 
 // Build a notification-fn bundle from a desired unread count. getList returns
@@ -74,12 +75,12 @@ const meta: Meta<typeof AppTopBar> = {
   parameters: { layout: 'fullscreen' },
   decorators: [
     (Story) => (
-      <SidebarProvider>
+      <StorySidebarProvider>
         <SidebarStandIn />
-        <SidebarInset>
+        <main className="relative flex w-full flex-1 flex-col bg-background">
           <Story />
-        </SidebarInset>
-      </SidebarProvider>
+        </main>
+      </StorySidebarProvider>
     ),
   ],
 }

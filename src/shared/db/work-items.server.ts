@@ -138,11 +138,7 @@ export function createWorkItems(db: Database, clock: Clock) {
             eq(workItems.idempotencyKey, input.idempotencyKey),
           ),
         )
-      if (
-        !existing ||
-        existing.subjectId !== input.subjectId ||
-        existing.recovery !== input.recovery
-      ) {
+      if (!existing || existing.subjectId !== input.subjectId) {
         throw new Error('Work idempotency key binding mismatch')
       }
       return existing
@@ -176,44 +172,29 @@ export function createWorkItems(db: Database, clock: Clock) {
         .returning()
       return claimed
     },
-    // Database effects and success share a transaction. The callback must make
-    // no external calls; providers use their own attempt fence and read-back.
-    async complete(
-      organizationId: string,
-      id: string,
-      leaseToken: string,
-      effect: (tx: Tx) => Promise<void>,
-    ) {
-      return db.transaction(async (tx) => {
-        const now = clock()
-        const [owned] = await tx
-          .select()
-          .from(workItems)
-          .where(
-            and(
-              eq(workItems.organizationId, organizationId),
-              eq(workItems.id, id),
-              eq(workItems.state, 'running'),
-              eq(workItems.leaseToken, leaseToken),
-              gt(workItems.leaseExpiresAt, now),
-            ),
-          )
-          .for('update')
-        if (!owned) return false
-        await effect(tx)
-        await tx
-          .update(workItems)
-          .set({
-            state: 'succeeded',
-            leaseToken: null,
-            leaseExpiresAt: null,
-            completedAt: now,
-            updatedAt: now,
-            errorCode: null,
-          })
-          .where(and(eq(workItems.organizationId, organizationId), eq(workItems.id, id)))
-        return true
-      })
+    async complete(organizationId: string, id: string, leaseToken: string) {
+      const now = clock()
+      const [done] = await db
+        .update(workItems)
+        .set({
+          state: 'succeeded',
+          leaseToken: null,
+          leaseExpiresAt: null,
+          completedAt: now,
+          updatedAt: now,
+          errorCode: null,
+        })
+        .where(
+          and(
+            eq(workItems.organizationId, organizationId),
+            eq(workItems.id, id),
+            eq(workItems.state, 'running'),
+            eq(workItems.leaseToken, leaseToken),
+            gt(workItems.leaseExpiresAt, now),
+          ),
+        )
+        .returning({ id: workItems.id })
+      return done !== undefined
     },
     async fail(
       organizationId: string,
@@ -225,8 +206,8 @@ export function createWorkItems(db: Database, clock: Clock) {
       return db
         .update(workItems)
         .set({
-          state: sql`CASE WHEN ${workItems.recovery} = 'read_back' THEN 'uncertain' WHEN ${options.terminal ?? false} OR ${workItems.attempts} >= ${workItems.maxAttempts} THEN 'quarantined' ELSE 'pending' END`,
-          errorCode: sql`CASE WHEN ${workItems.recovery} = 'read_back' THEN 'uncertain_write' WHEN ${workItems.attempts} >= ${workItems.maxAttempts} THEN 'attempts_exhausted' ELSE 'handler_failed' END`,
+          state: sql`CASE WHEN ${options.terminal ?? false} OR ${workItems.attempts} >= ${workItems.maxAttempts} THEN 'quarantined' ELSE 'pending' END`,
+          errorCode: sql`CASE WHEN ${workItems.attempts} >= ${workItems.maxAttempts} THEN 'attempts_exhausted' ELSE 'handler_failed' END`,
           leaseToken: null,
           leaseExpiresAt: null,
           dueAt: options.retryAt ?? new Date(now.getTime() + 60_000),
@@ -243,50 +224,6 @@ export function createWorkItems(db: Database, clock: Clock) {
           ),
         )
         .returning()
-    },
-    async resolveUncertain(
-      organizationId: string,
-      id: string,
-      readBack: (subjectId: string) => Promise<'applied' | 'not_applied' | 'unknown'>,
-    ) {
-      const row = await inspect(organizationId, id)
-      if (!row || row.state !== 'uncertain') return false
-      // Provider I/O stays outside the transaction. A concurrent operator
-      // settlement wins over this observation and cannot be overwritten.
-      const observation = await readBack(row.subjectId)
-      if (observation === 'unknown') return false
-      const now = clock()
-      const [changed] = await db
-        .update(workItems)
-        .set({
-          state:
-            observation === 'applied'
-              ? 'succeeded'
-              : row.attempts >= row.maxAttempts
-                ? 'quarantined'
-                : 'pending',
-          completedAt: observation === 'applied' ? now : null,
-          errorCode:
-            observation === 'applied'
-              ? null
-              : row.attempts >= row.maxAttempts
-                ? 'attempts_exhausted'
-                : null,
-          dueAt: now,
-          dispatchAfter: now,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(workItems.organizationId, organizationId),
-            eq(workItems.id, id),
-            eq(workItems.state, 'uncertain'),
-            eq(workItems.attempts, row.attempts),
-            eq(workItems.updatedAt, row.updatedAt),
-          ),
-        )
-        .returning()
-      return changed !== undefined
     },
     async reserveDispatch(dispatchBefore?: Date) {
       const now = clock()
@@ -314,8 +251,8 @@ export function createWorkItems(db: Database, clock: Clock) {
             WHERE pg_try_advisory_xact_lock(hashtextextended('work-item:' || id::text, 0))
           )
           UPDATE work_items w SET
-            state = CASE WHEN recovery = 'read_back' THEN 'uncertain' WHEN attempts >= max_attempts THEN 'quarantined' ELSE 'pending' END,
-            error_code = CASE WHEN recovery = 'read_back' THEN 'uncertain_write' WHEN attempts >= max_attempts THEN 'attempts_exhausted' ELSE 'lease_expired' END,
+            state = CASE WHEN attempts >= max_attempts THEN 'quarantined' ELSE 'pending' END,
+            error_code = CASE WHEN attempts >= max_attempts THEN 'attempts_exhausted' ELSE 'lease_expired' END,
             lease_token = NULL, lease_expires_at = NULL, updated_at = ${now}, dispatch_after = ${now}
           FROM available e WHERE w.id = e.id`)
         const dispatched = await tx.execute<{
@@ -348,7 +285,7 @@ export function createWorkItems(db: Database, clock: Clock) {
       if (!operatorId.trim() || !reason.trim() || reason.length > 500)
         throw new Error('Operator and bounded reason required')
       const now = clock()
-      // An uncertain effect needs owner read-back, never an operator retry.
+      // An unexpected uncertain row can only be discarded, never retried.
       // Active leases cannot be cancelled underneath a still-running handler.
       const allowed: WorkState[] =
         action === 'retry'

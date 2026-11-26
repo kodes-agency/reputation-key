@@ -41,7 +41,7 @@ import {
   makeInboxItem,
 } from '../../../../../../.storybook/in-memory/inbox-container'
 import { makeInboxFns } from '../../../../../../.storybook/in-memory/inbox-fns'
-import { SidebarInset, SidebarProvider } from '#/components/ui/sidebar'
+import { StorySidebarProvider } from '../../../../../../.storybook/StorySidebarProvider'
 import type { InboxCtx } from './inbox-types'
 import type { InboxPageNav } from './use-inbox-page'
 import type { InboxSearchParams } from './inbox-search-schema'
@@ -120,11 +120,11 @@ const meta: Meta<typeof ShortcutHarness> = {
         {/* No sidebar is drawn here, so the provider holds the icon rail: the room
            the Inbox lays its panes out beside (`use-inbox-compact-layout`). Open,
            it would reserve 256 px for a sidebar that is not on screen. */}
-        <SidebarProvider defaultOpen={false}>
-          <SidebarInset>
+        <StorySidebarProvider defaultOpen={false}>
+          <main className="relative flex w-full flex-1 flex-col bg-background">
             <Story />
-          </SidebarInset>
-        </SidebarProvider>
+          </main>
+        </StorySidebarProvider>
       </div>
     ),
   ],

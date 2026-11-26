@@ -6,8 +6,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createPortalReadsWorld } from '../infrastructure/testing/portal-reads-world'
 import type { PortalPublicationRepository } from '../publication/portal-publication-repository.port.server'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
-import type { PortalActorDirectory } from './portal-actor-directory.port.server'
-import { userId, type PropertyId, type UserId } from '#/shared/domain/ids'
+import type { PropertyId } from '#/shared/domain/ids'
 
 const world = createPortalReadsWorld('pub-history')
 
@@ -52,22 +51,6 @@ function publishedSnapshot(version: number, slug: string) {
   })
 }
 
-/** Names two of the people the fixtures use; anyone else is unknown to the directory. */
-const NAMES: ReadonlyMap<string, string> = new Map([
-  ['manager-1', 'Georgi Ivanov'],
-  ['manager-2', 'Elena Petrova'],
-])
-const actorDirectory: PortalActorDirectory = {
-  resolveDisplayNames: vi.fn(async (_org, ids: readonly UserId[]) => {
-    const found = new Map<UserId, string>()
-    for (const id of ids) {
-      const name = NAMES.get(id)
-      if (name !== undefined) found.set(userId(id), name)
-    }
-    return found
-  }),
-}
-
 const peopleApi = (accessible: readonly PropertyId[] | null = null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
@@ -78,13 +61,14 @@ function setup(
     workingSlug?: string
     accessible?: PropertyId[]
     durablePending?: boolean
+    noCurrent?: boolean
   }>,
 ) {
   const portalRepo = world.portalRepo()
   const versionOne = publishedSnapshot(1, portal.slug)
   const versionTwo = publishedSnapshot(2, 'second-published-address')
-  const listActivationHistoryPage = vi.fn<
-    PortalPublicationRepository['listActivationHistoryPage']
+  const findCurrentAndLatestActivation = vi.fn<
+    PortalPublicationRepository['findCurrentAndLatestActivation']
   >(async () => {
     const records = [
       {
@@ -121,10 +105,8 @@ function setup(
       },
     ] as const
     return {
-      records,
       latest: records[0],
-      current: records[0],
-      nextCursor: 1,
+      current: options?.noCurrent ? null : records[0],
     }
   })
   const publicationRepo = {
@@ -132,7 +114,7 @@ function setup(
       ...source,
       portal: { ...source.portal, slug: options?.workingSlug ?? portal.slug },
     })),
-    listActivationHistoryPage,
+    findCurrentAndLatestActivation,
     listOpenPendingContentChanges: vi.fn(async () =>
       options?.durablePending
         ? [
@@ -159,10 +141,9 @@ function setup(
       portalRepo,
       publicationRepo,
       staffPublicApi: peopleApi(options?.accessible ?? null),
-      actorDirectory,
     }),
     publicationRepo,
-    listActivationHistoryPage,
+    findCurrentAndLatestActivation,
   }
 }
 
@@ -203,11 +184,9 @@ function setupLocalized(options?: Readonly<{ workingDisplayName?: string }>) {
         displayName: options?.workingDisplayName ?? source.look!.displayName,
       },
     })),
-    listActivationHistoryPage: vi.fn(async () => ({
-      records: [record],
+    findCurrentAndLatestActivation: vi.fn(async () => ({
       latest: record,
       current: record,
-      nextCursor: null,
     })),
     listOpenPendingContentChanges: vi.fn(async () => []),
   } as unknown as PortalPublicationRepository
@@ -216,58 +195,35 @@ function setupLocalized(options?: Readonly<{ workingDisplayName?: string }>) {
     portalRepo,
     publicationRepo,
     staffPublicApi: peopleApi(),
-    actorDirectory,
   })
 }
 
 describe('getPortalPublicationHistory', () => {
-  it('returns the live rollback separately from earlier property-scoped activity', async () => {
+  it('reads the live version of a rollback and no pending changes', async () => {
     const harness = setup()
 
     await expect(harness.useCase({ portalId: portal.id }, ctx)).resolves.toEqual({
-      current: {
-        activationSequence: 3,
-        version: 1,
-        kind: 'rollback',
-        activatedBy: { userId: 'manager-2', displayName: 'Elena Petrova' },
-        activatedAt: NOW.toISOString(),
-        deactivatedAt: null,
-        deactivationReason: null,
-      },
-      priorActivations: [
-        {
-          activationSequence: 2,
-          version: 2,
-          kind: 'publish',
-          activatedBy: { userId: 'manager-1', displayName: 'Georgi Ivanov' },
-          activatedAt: new Date(NOW.getTime() - 60_000).toISOString(),
-          deactivatedAt: NOW.toISOString(),
-          deactivationReason: 'replaced',
-        },
-      ],
+      liveVersion: 1,
+      pendingChangeCount: 0,
       hasPendingChanges: false,
-      pendingChanges: [],
-      nextCursor: 1,
     })
-    expect(harness.listActivationHistoryPage).toHaveBeenCalledWith(
+    expect(harness.findCurrentAndLatestActivation).toHaveBeenCalledWith(
       ctx.organizationId,
       portal.propertyId,
       portal.id,
-      { beforeSequence: null, limit: 20 },
     )
   })
 
-  it('passes a bounded exclusive cursor to the repository', async () => {
-    const harness = setup()
+  it('has no live version when only a closed activation is the newest', async () => {
+    const harness = setup({ noCurrent: true })
 
-    await harness.useCase({ portalId: portal.id, cursor: 2, limit: 1 }, ctx)
+    const result = await harness.useCase({ portalId: portal.id }, ctx)
 
-    expect(harness.listActivationHistoryPage).toHaveBeenCalledWith(
-      ctx.organizationId,
-      portal.propertyId,
-      portal.id,
-      { beforeSequence: 2, limit: 1 },
-    )
+    expect(result).toEqual({
+      liveVersion: null,
+      pendingChangeCount: 0,
+      hasPendingChanges: false,
+    })
   })
 
   it('marks saved content as pending when it differs from the live rollback', async () => {
@@ -275,8 +231,7 @@ describe('getPortalPublicationHistory', () => {
 
     const result = await harness.useCase({ portalId: portal.id }, ctx)
 
-    expect(result.hasPendingChanges).toBe(true)
-    expect(result.current).toMatchObject({ version: 1, kind: 'rollback' })
+    expect(result).toMatchObject({ hasPendingChanges: true, liveVersion: 1 })
   })
 
   it('surfaces a durable pending change even when the resolved content still matches', async () => {
@@ -284,46 +239,11 @@ describe('getPortalPublicationHistory', () => {
 
     const result = await harness.useCase({ portalId: portal.id }, ctx)
 
-    expect(result).toMatchObject({
+    expect(result).toEqual({
+      liveVersion: 1,
+      pendingChangeCount: 2,
       hasPendingChanges: true,
-      pendingChanges: [
-        {
-          kind: 'property_brand_content',
-          key: 'bg',
-          changedAt: NOW.toISOString(),
-          changedBy: { userId: 'manager-2', displayName: 'Elena Petrova' },
-        },
-        {
-          kind: 'portal_links',
-          key: 'all',
-          changedAt: NOW.toISOString(),
-          changedBy: null,
-        },
-      ],
     })
-  })
-
-  it('names a publisher the directory cannot name without exposing anything else', async () => {
-    const harness = setup()
-    vi.mocked(actorDirectory.resolveDisplayNames).mockResolvedValueOnce(new Map())
-
-    const result = await harness.useCase({ portalId: portal.id }, ctx)
-
-    expect(result.current?.activatedBy).toEqual({
-      userId: 'manager-2',
-      displayName: null,
-    })
-  })
-
-  it('asks the directory once, for the people behind the page and the open changes', async () => {
-    const harness = setup({ durablePending: true })
-    vi.mocked(actorDirectory.resolveDisplayNames).mockClear()
-
-    await harness.useCase({ portalId: portal.id }, ctx)
-
-    expect(actorDirectory.resolveDisplayNames).toHaveBeenCalledTimes(1)
-    const [, ids] = vi.mocked(actorDirectory.resolveDisplayNames).mock.calls[0] ?? []
-    expect([...(ids ?? [])].sort()).toEqual(['manager-1', 'manager-2'])
   })
 
   it('does not mark an identical localized experience as pending', async () => {
@@ -350,6 +270,6 @@ describe('getPortalPublicationHistory', () => {
       harness.useCase({ portalId: portal.id }, propertyManager),
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(harness.publicationRepo.loadWorkingCopy).not.toHaveBeenCalled()
-    expect(harness.listActivationHistoryPage).not.toHaveBeenCalled()
+    expect(harness.findCurrentAndLatestActivation).not.toHaveBeenCalled()
   })
 })

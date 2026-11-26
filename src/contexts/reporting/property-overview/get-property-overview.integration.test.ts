@@ -20,7 +20,6 @@ const ADMIN = buildTestAuthContext({ organizationId: ORG, role: 'AccountAdmin' }
 const last30Days = {
   organizationId: ORG,
   propertyId: PROPERTY,
-  portalId: null,
   startDate: new Date('2026-07-26T12:00:00.000Z'),
   endDate: NOW,
   timeRange: '30d' as const,
@@ -40,7 +39,7 @@ const ORG_B = organizationId('org-overview-b')
 const { getPool } = setupIntegrationDb({
   orgA: ORG,
   orgB: ORG_B,
-  tables: ['replies', 'reviews', 'metric_readings', 'properties'],
+  tables: ['replies', 'reviews', 'properties'],
 })
 
 const seedProperty = () =>
@@ -59,7 +58,6 @@ const review = (daysBefore: number, rating: number, text?: string) =>
 describe('getPropertyOverview', () => {
   it('reuses the dashboard KPI snapshot when deriving attention signals', async () => {
     const { repo, calls } = recordedDashboardRepo(
-      getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
     await seedProperty()
@@ -117,7 +115,6 @@ describe('getPropertyOverview', () => {
   it('leads the all-time read with Google’s own number and count, and reads them only there', async () => {
     // Arrange
     const { repo } = recordedDashboardRepo(
-      getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
     const google = {
@@ -161,7 +158,6 @@ describe('getPropertyOverview', () => {
 
   it('refuses a manager with no grant on the Property before anything is read', async () => {
     const { repo, calls } = recordedDashboardRepo(
-      getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
     const getAttentionCounts = vi.fn<AttentionSignalsPort['getAttentionCounts']>()
@@ -195,7 +191,6 @@ describe('getPropertyOverview', () => {
   // triage, escalations) is not theirs to read, grant or no grant.
   it('refuses a Member granted the Property before anything is read', async () => {
     const { repo, calls } = recordedDashboardRepo(
-      getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
     const getAttentionCounts = vi.fn<AttentionSignalsPort['getAttentionCounts']>()
@@ -222,7 +217,6 @@ describe('getPropertyOverview', () => {
 
   it('serves a manager granted the Property', async () => {
     const { repo } = recordedDashboardRepo(
-      getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
     const grantsHere = async () => [PROPERTY]
@@ -266,7 +260,6 @@ describe('getPropertyOverview recent reviews', () => {
 
   const overviewWith = (getReviewInboxItemIds: GetReviewInboxItemIds) => {
     const { repo } = recordedDashboardRepo(
-      getDb(),
       createServingStats({ db: getDb(), clock: () => NOW }),
     )
     return getPropertyOverview({

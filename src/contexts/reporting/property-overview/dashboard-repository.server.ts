@@ -1,22 +1,17 @@
-// Compose facade reads without querying Review/Reply/Metric tables directly
+// Compose facade reads without querying Review and Reply tables directly
 // (ADR 0007).
 
 import type { DashboardRepository } from './dashboard-repository.port.server'
 import type { ReviewPeriodStats, ReviewStatsPort } from './review-stats.port.server'
-import type { MetricStatsPort, MetricSumRow } from './metric-stats.port.server'
 import type {
   KPIs,
   RatingDistribution,
   RatingTrendPoint,
   ReviewVolumePoint,
   ReplyPerformance,
-  EngagementFunnel,
   RecentReview,
-  MetricKPIValue,
-  MetricKPIPeriodEvidence,
 } from '../domain/dashboard-types'
 import { toDashboardReplyStatus } from '../domain/dashboard-types'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { reviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
@@ -32,62 +27,15 @@ import {
 function computeKpis(input: {
   currentReviews: ReviewPeriodStats
   priorReviews: ReviewPeriodStats | null
-  currentMetrics: readonly MetricSumRow[]
-  priorMetrics: readonly MetricSumRow[] | null
   currentPeriodEnd: Date
 }): KPIs {
-  const { currentReviews, priorReviews, currentMetrics, priorMetrics } = input
+  const { currentReviews, priorReviews } = input
   const reviewComparisonAvailable = priorReviews !== null
 
   const curReviewCount = currentReviews.count
   const priorReviewCount = priorReviews?.count ?? 0
   const curAvgRating = currentReviews.avgRating
   const priorAvgRating = priorReviews?.avgRating ?? null
-
-  const missingEvidence = (): MetricKPIPeriodEvidence => ({
-    state: 'insufficient_data',
-    definitionVersionId: null,
-    sampleCount: 0,
-    minimumSample: null,
-  })
-  const evidenceFor = (row: MetricSumRow | undefined): MetricKPIPeriodEvidence => {
-    if (!row) return missingEvidence()
-    return {
-      state:
-        row.state === 'available'
-          ? row.total === null
-            ? 'temporarily_unavailable'
-            : 'ready'
-          : row.state === 'insufficient_data'
-            ? 'insufficient_data'
-            : 'temporarily_unavailable',
-      definitionVersionId: row.definitionVersionId,
-      sampleCount: row.sampleCount,
-      minimumSample: row.minimumSample,
-    }
-  }
-  const metricKpi = (metricKey: string): MetricKPIValue => {
-    const current = currentMetrics.find((row) => row.metricKey === metricKey)
-    const prior = priorMetrics?.find((row) => row.metricKey === metricKey)
-    const currentEvidence = evidenceFor(current)
-    const priorEvidence = priorMetrics === null ? null : evidenceFor(prior)
-    const value =
-      currentEvidence.state === 'ready' && current?.total !== null
-        ? (current?.total ?? null)
-        : null
-    const priorValue =
-      priorEvidence?.state === 'ready' && prior?.total !== null
-        ? (prior?.total ?? null)
-        : null
-
-    return {
-      value,
-      priorValue,
-      trend:
-        value !== null && priorValue !== null ? computeTrend(value, priorValue) : null,
-      evidence: { current: currentEvidence, prior: priorEvidence },
-    }
-  }
 
   return {
     reviews: {
@@ -117,14 +65,11 @@ function computeKpis(input: {
         sampleCount: curReviewCount,
       },
     },
-    scans: metricKpi('portal.scan'),
-    feedback: metricKpi('portal.feedback'),
   }
 }
 
 export const createDashboardRepository = (
   reviewStats: ReviewStatsPort,
-  metricStats: MetricStatsPort,
 ): DashboardRepository => ({
   async getRecentReviews(input): Promise<RecentReview[]> {
     return trace('dashboard.getRecentReviews', async () => {
@@ -162,31 +107,9 @@ export const createDashboardRepository = (
           : Promise.resolve(null),
       ])
 
-      // Metric sums for current and prior periods (parallel)
-      // When portalId is set, use portal-scoped queries for scans/feedback
-      const metricQuery = input.portalId
-        ? (orgId: OrganizationId, propId: PropertyId, start: Date, end: Date) =>
-            metricStats.getSumsByPortal(orgId, propId, input.portalId!, start, end)
-        : (orgId: OrganizationId, propId: PropertyId, start: Date, end: Date) =>
-            metricStats.getSumsByPeriod(orgId, propId, start, end)
-
-      const [currentMetrics, priorMetrics] = await Promise.all([
-        metricQuery(organizationId, propertyId, startDate, endDate),
-        comparisonPeriod
-          ? metricQuery(
-              organizationId,
-              propertyId,
-              comparisonPeriod.priorStartDate,
-              comparisonPeriod.priorEndDate,
-            )
-          : Promise.resolve(null),
-      ])
-
       return computeKpis({
         currentReviews,
         priorReviews,
-        currentMetrics,
-        priorMetrics,
         currentPeriodEnd: endDate,
       })
     })
@@ -248,38 +171,6 @@ export const createDashboardRepository = (
       const replyRate = totalReviews > 0 ? (repliedCount / totalReviews) * 100 : 0
 
       return { replyRate: Math.round(replyRate * 100) / 100, avgReplyHours }
-    })
-  },
-  async getEngagementFunnel(input): Promise<EngagementFunnel | null> {
-    return trace('dashboard.getEngagementFunnel', async () => {
-      const { organizationId, propertyId, portalId, startDate, endDate } = input
-
-      // Use COUNT for all funnel steps (not SUM) — portal.rating values are 1-5,
-      // summing them gives total stars, not number of ratings.
-      const rows = await metricStats.getCountsByPortal(
-        organizationId,
-        propertyId,
-        portalId,
-        startDate,
-        endDate,
-      )
-
-      const metricMap = new Map(rows.map((row) => [row.metricKey, row]))
-      const availableCount = (metricKey: string): number | null => {
-        const row = metricMap.get(metricKey)
-        return row?.state === 'available' && row.count !== null ? row.count : null
-      }
-      const scans = availableCount('portal.scan')
-      const ratings = availableCount('portal.rating')
-      const reviewLinkClicks = availableCount('portal.review_link_click')
-
-      if (scans === null || ratings === null || reviewLinkClicks === null) return null
-
-      return {
-        scans,
-        ratings,
-        reviewLinkClicks,
-      }
     })
   },
 })

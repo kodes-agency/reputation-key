@@ -181,41 +181,30 @@ describe('canReviewAndPublish — who is offered the publish step', () => {
 })
 
 describe('describePendingChanges — the "not live" note in the header', () => {
-  const base = {
-    current: null,
-    priorActivations: [],
-    pendingChanges: [],
-    nextCursor: null,
-  } as const
+  const base = { liveVersion: null, pendingChangeCount: 0 } as const
 
   it('says nothing when the draft matches what guests see', () => {
     expect(describePendingChanges({ ...base, hasPendingChanges: false })).toBeNull()
   })
 
-  it('counts the changes when the read lists them', () => {
-    const changed = (key: string) => ({
-      kind: 'portal_links' as const,
-      key,
-      changedAt: '2026-09-30T10:00:00.000Z',
-      changedBy: null,
-    })
+  it('counts the changes when the read counts them', () => {
     expect(
       describePendingChanges({
         ...base,
         hasPendingChanges: true,
-        pendingChanges: [changed('a'), changed('b')],
+        pendingChangeCount: 2,
       }),
     ).toBe('2 changes not live')
     expect(
       describePendingChanges({
         ...base,
         hasPendingChanges: true,
-        pendingChanges: [changed('a')],
+        pendingChangeCount: 1,
       }),
     ).toBe('1 change not live')
   })
 
-  it('still says something is not live when the read lists none', () => {
+  it('still says something is not live when the read counts none', () => {
     expect(describePendingChanges({ ...base, hasPendingChanges: true })).toBe(
       'Changes not live',
     )
@@ -223,38 +212,20 @@ describe('describePendingChanges — the "not live" note in the header', () => {
 })
 
 describe('countPendingChanges — the draft line of the History rail', () => {
-  const base = {
-    current: null,
-    priorActivations: [],
-    pendingChanges: [],
-    nextCursor: null,
-  } as const
-  const changed = (key: string) => ({
-    kind: 'portal_links' as const,
-    key,
-    changedAt: '2026-09-30T10:00:00.000Z',
-    changedBy: null,
-  })
+  const base = { liveVersion: null, pendingChangeCount: 0 } as const
 
   it('is zero when the draft matches what guests see', () => {
     expect(countPendingChanges({ ...base, hasPendingChanges: false })).toBe(0)
   })
 
-  it('is the length of the list the read gives', () => {
+  it('is the count the read gives', () => {
     expect(
-      countPendingChanges({
-        ...base,
-        hasPendingChanges: true,
-        pendingChanges: [changed('a'), changed('b')],
-      }),
+      countPendingChanges({ ...base, hasPendingChanges: true, pendingChangeCount: 2 }),
     ).toBe(2)
   })
 
-  it('is at least one for a draft that differs but lists no change', () => {
+  it('is at least one for a draft that differs but counts no change', () => {
     expect(countPendingChanges({ ...base, hasPendingChanges: true })).toBe(1)
-    expect(
-      countPendingChanges({ ...base, hasPendingChanges: true, pendingChanges: [] }),
-    ).toBe(1)
   })
 })
 

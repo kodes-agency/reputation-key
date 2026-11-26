@@ -38,13 +38,9 @@ describe('buildConsumerEvent', () => {
       propertyId: 'prop-1',
       sourceContext: 'review',
       sourceAggregateId: 'rev-1',
-      aggregateType: 'review',
-      commandClassification: 'durable_domain_fact_required',
-      contentClassification: 'identifier_only',
       recordedAt: RECORDED_AT.toISOString(),
       correlationId: null,
       commandId: 'evt-uuid-001',
-      causationId: 'evt-uuid-001',
       sourceAggregateVersion: null,
     })
   })
@@ -67,11 +63,9 @@ describe('buildConsumerEvent', () => {
       },
     })
 
-    expect(envelope.aggregateType).toBe('review')
     expect(envelope.occurredAt).toBe('2026-07-17T09:59:00.000Z')
     expect(envelope.correlationId).toBe('corr-1')
     expect(envelope.commandId).toBe('command-1')
-    expect(envelope.causationId).toBe('cause-1')
     expect(envelope.sourceAggregateVersion).toBe(7)
     expect(envelope.recordedAt).toBe(RECORDED_AT.toISOString())
   })
@@ -93,25 +87,20 @@ describe('buildConsumerEvent', () => {
     const envelope = buildConsumerEvent({ ...unpublished, payload: 'not-a-record' })
     expect(envelope.payload).toBe('not-a-record')
     expect(envelope.correlationId).toBeNull()
-    expect(envelope.aggregateType).toBe('event')
     expect(envelope.commandId).toBe('evt-uuid-001')
-    expect(envelope.causationId).toBe('evt-uuid-001')
   })
 
-  it('carries aggregate, command and causation identity from the payload', () => {
+  it('carries the command identity from the payload', () => {
     const envelope = buildConsumerEvent({
       ...unpublished,
       payload: {
         reviewId: 'rev-1',
         commandId: 'command-round-trip',
-        causationId: 'cause-round-trip',
       },
     })
 
     expect(envelope).toMatchObject({
-      aggregateType: 'review',
       commandId: 'command-round-trip',
-      causationId: 'cause-round-trip',
     })
   })
 })

@@ -426,10 +426,9 @@ describe('Portal history reads', () => {
     )
 
     expect(history).toMatchObject({
-      current: { version: 1, deactivatedAt: null },
-      priorActivations: [],
+      liveVersion: 1,
+      pendingChangeCount: expect.any(Number),
       hasPendingChanges: expect.any(Boolean),
-      nextCursor: null,
     })
   })
 

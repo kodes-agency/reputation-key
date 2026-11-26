@@ -10,6 +10,7 @@ import {
 } from './event-adapter'
 import { buildConsumerEvent } from './envelope'
 import { getEventDescriptor } from '#/shared/events/registry.server'
+import { resolveEventAggregate } from '#/shared/events/descriptor'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { reviewReplyPublicationRequested } from '#/contexts/reputation/domain/review-events'
 import {
@@ -227,11 +228,15 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
         sourceAggregateId: row.sourceAggregateId,
         recordedAt: row.createdAt ?? NOW,
       })
-      expect(envelope, event._tag).toMatchObject({
-        aggregateType: strictCase.aggregateType,
-        causationId: 'cause-123',
-        commandId: 'command-123',
-      })
+      expect(
+        resolveEventAggregate(
+          getEventDescriptor(row.eventType, row.eventVersion ?? 1),
+          row.payload as object,
+          event.eventId,
+        ).type,
+        event._tag,
+      ).toBe(strictCase.aggregateType)
+      expect(envelope, event._tag).toMatchObject({ commandId: 'command-123' })
       expect(envelope.payload, event._tag).not.toHaveProperty('causationId')
       expect(envelope.payload, event._tag).not.toHaveProperty('commandId')
       expect(

@@ -6,11 +6,9 @@ import { describe, it, expect } from 'vitest'
 import { Pool } from 'pg'
 import { createDashboardRepository } from './dashboard-repository.server'
 import { createServingStats } from '#/contexts/reputation/reviews/serving-stats.server'
-import { createMetricStatsAdapter } from './metric-stats.adapter.server'
 import { getDb, type Database } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '../readings/contracts'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 
 const MS_PER_DAY = 86_400_000
 
@@ -23,14 +21,13 @@ const ORG_A = organizationId('org-aaaaaaaaaaaa')
 const ORG_B = organizationId('org-bbbbbbbbbbbb')
 // Property IDs must be valid UUIDs (Postgres uuid column)
 const PROP_A = propertyId('a0000000-0000-0000-0000-000000000001')
-const PORTAL_A = portalId('b0000000-0000-0000-0000-000000000001')
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
   // Child rows must be removed before their Review parents now that reply
   // history is deliberately retained with a restrictive foreign key.
-  tables: ['replies', 'reviews', 'metric_readings'],
+  tables: ['replies', 'reviews'],
 })
 
 /** Helper: seed a property row (FK dependency for reviews). */
@@ -106,87 +103,6 @@ async function seedReview(
   return id
 }
 
-/** Helper: seed a metric reading row. */
-async function seedMetricReading(
-  pool: Pool,
-  overrides: {
-    orgId?: string
-    propId?: string
-    portalId?: string
-    metricKey: string
-    value: number
-    daysAgo?: number
-  },
-) {
-  const id = crypto.randomUUID()
-  const orgId = overrides.orgId ?? ORG_A
-  const propId = overrides.propId ?? PROP_A
-  const occurredAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * MS_PER_DAY)
-  const metricContract = {
-    'portal.scan': {
-      definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
-      sourcePolicy: 'review_solicitation_analytics_only',
-    },
-    'portal.rating': {
-      definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
-      sourcePolicy: 'first_party_guest_private',
-    },
-    'portal.feedback': {
-      definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
-      sourcePolicy: 'first_party_guest_private',
-    },
-    'portal.review_link_click': {
-      definitionVersionId: METRIC_VERSION_IDS.portalDestinationClickAnalytics,
-      sourcePolicy: 'review_solicitation_analytics_only',
-    },
-  }[overrides.metricKey]
-  if (!metricContract)
-    throw new Error(`Uncatalogued dashboard metric: ${overrides.metricKey}`)
-
-  // event_at is the guest-action time the dashboard window filters on;
-  // recorded_at is ingestion. Production writes both (metric-command-store.ts),
-  // and the fixture has no outbox lag, so they coincide here.
-  await pool.query(
-    `INSERT INTO metric_readings (
-       id, organization_id, property_id, portal_id, metric_key, value,
-       recorded_at, event_at, definition_version_id, source_event_id,
-       source_policy, exact_value, sample_count, attribution_quality,
-       property_local_date, data_quality, retention_class
-     ) VALUES (
-       $1, $2, $3, $4, $5, $6::real,
-       $7, $7, $8, $9,
-       $10, $6::numeric, 1, 'exact',
-       $11, 'exact', 'standard'
-     )`,
-    [
-      id,
-      orgId,
-      propId,
-      overrides.portalId ?? null,
-      overrides.metricKey,
-      overrides.value,
-      occurredAt,
-      metricContract.definitionVersionId,
-      `dashboard-fixture:${id}`,
-      metricContract.sourcePolicy,
-      occurredAt.toISOString().slice(0, 10),
-    ],
-  )
-  return id
-}
-
-/** Helper: seed one reading per entry of daysAgoList, oldest call first. */
-async function seedMetricReadings(
-  pool: Pool,
-  metricKey: string,
-  daysAgoList: number[],
-  extra: { portalId?: string; orgId?: string; propId?: string } = {},
-) {
-  for (const daysAgo of daysAgoList) {
-    await seedMetricReading(pool, { ...extra, metricKey, value: 1, daysAgo })
-  }
-}
-
 /** Helper: seed a reply row on a review. */
 async function seedReply(
   pool: Pool,
@@ -201,120 +117,10 @@ async function seedReply(
 }
 
 const realRepo = () => {
-  const db = getDb()
-  return createDashboardRepository(createReviewStats(db), createMetricStatsAdapter(db))
+  return createDashboardRepository(createReviewStats(getDb()))
 }
 
 describe('dashboardRepository (integration)', () => {
-  describe('governed Metric facade', () => {
-    it('pins source policy and applies only the current append-only correction tip', async () => {
-      const pool = getPool()
-      await seedProperty(pool, PROP_A, ORG_A)
-      const readingId = await seedMetricReading(pool, {
-        metricKey: 'portal.scan',
-        value: 1,
-        daysAgo: 1,
-      })
-      const occurredAt = new Date(Date.now() - MS_PER_DAY)
-
-      await pool.query(
-        `INSERT INTO metric_readings (
-           id, organization_id, property_id, metric_key, value, recorded_at, event_at
-         ) VALUES ($1, $2, $3, 'portal.scan', 100, $4, $4)`,
-        [crypto.randomUUID(), ORG_A, PROP_A, occurredAt],
-      )
-      await pool.query(
-        `INSERT INTO metric_readings (
-           id, organization_id, property_id, metric_key, value,
-           recorded_at, event_at, definition_version_id, source_event_id,
-           source_policy, exact_value, sample_count, attribution_quality,
-           property_local_date, data_quality, retention_class
-         ) VALUES (
-           $1, $2, $3, 'portal.feedback', 50,
-           $4, $4, $5, $6,
-           'review_solicitation_analytics_only', 50, 1, 'exact',
-           $7, 'exact', 'standard'
-         )`,
-        [
-          crypto.randomUUID(),
-          ORG_A,
-          PROP_A,
-          occurredAt,
-          METRIC_VERSION_IDS.portalFeedbackAnalytics,
-          `dashboard-wrong-source:${crypto.randomUUID()}`,
-          occurredAt.toISOString().slice(0, 10),
-        ],
-      )
-
-      try {
-        const firstCorrectionId = crypto.randomUUID()
-        await pool.query(
-          `INSERT INTO metric_corrections (
-             id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
-             replacement_value, event_at
-           ) VALUES ($1, $2, $3, 'replace', 'source correction', 'system',
-                     'dashboard-test', 10, $4)`,
-          [
-            firstCorrectionId,
-            readingId,
-            `dashboard-correction:${crypto.randomUUID()}`,
-            occurredAt,
-          ],
-        )
-        await pool.query(
-          `INSERT INTO metric_corrections (
-             id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
-             exact_delta, event_at, supersedes_correction_id
-           ) VALUES ($1, $2, $3, 'adjust', 'latest correction', 'system',
-                     'dashboard-test', 2, $4, $5)`,
-          [
-            crypto.randomUUID(),
-            readingId,
-            `dashboard-correction:${crypto.randomUUID()}`,
-            occurredAt,
-            firstCorrectionId,
-          ],
-        )
-
-        const rows = await createMetricStatsAdapter(getDb()).getSumsByPeriod(
-          ORG_A,
-          PROP_A,
-          new Date(Date.now() - 7 * MS_PER_DAY),
-          new Date(),
-        )
-
-        expect(rows.find(({ metricKey }) => metricKey === 'portal.scan')).toEqual({
-          metricKey: 'portal.scan',
-          total: 3,
-          state: 'available',
-          definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
-          sampleCount: 1,
-          minimumSample: 1,
-        })
-        expect(rows.find(({ metricKey }) => metricKey === 'portal.feedback')).toEqual({
-          metricKey: 'portal.feedback',
-          total: null,
-          state: 'unavailable',
-          definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
-          sampleCount: 0,
-          minimumSample: 5,
-        })
-        expect(rows.find(({ metricKey }) => metricKey === 'portal.rating')).toEqual({
-          metricKey: 'portal.rating',
-          total: null,
-          state: 'insufficient_data',
-          definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
-          sampleCount: 0,
-          minimumSample: 5,
-        })
-      } finally {
-        await pool.query('DELETE FROM metric_corrections WHERE reading_id = $1', [
-          readingId,
-        ])
-      }
-    })
-  })
-
   describe('getRecentReviews', () => {
     it('returns last N reviews ordered by reviewedAt desc', async () => {
       const pool = getPool()
@@ -452,20 +258,16 @@ describe('dashboardRepository (integration)', () => {
   })
 
   describe('getKPIs', () => {
-    it('returns review count, avg rating, scan count, and feedback count with prior period trend', async () => {
+    it('returns review count and avg rating with prior period trend', async () => {
       const pool = getPool()
       await seedProperty(pool, PROP_A, ORG_A)
 
       // Current period (last 7 days)
       await seedReview(pool, { rating: 5, daysAgo: 1 })
       await seedReview(pool, { rating: 3, daysAgo: 3 })
-      await seedMetricReadings(pool, 'portal.scan', [1, 2, 5])
-      await seedMetricReadings(pool, 'portal.feedback', [2, 4, 1, 3, 5])
 
       // Prior period (7–14 days ago)
       await seedReview(pool, { rating: 4, daysAgo: 10 })
-      await seedMetricReadings(pool, 'portal.scan', [8, 12])
-      await seedMetricReadings(pool, 'portal.feedback', [9, 8, 10, 11, 12])
 
       const repo = realRepo()
       const now = new Date()
@@ -496,26 +298,14 @@ describe('dashboardRepository (integration)', () => {
         state: 'ready',
         sampleCount: 2,
       })
-
-      // Scans: 3 current, 2 prior → +50%
-      expect(result.scans.value).toBe(3)
-      expect(result.scans.priorValue).toBe(2)
-      expect(result.scans.trend).toBe(50)
-
-      // Feedback: both periods meet the immutable five-response minimum.
-      expect(result.feedback.value).toBe(5)
-      expect(result.feedback.priorValue).toBe(5)
-      expect(result.feedback.trend).toBe(0)
     })
 
-    it('does not turn a missing prior Metric period into a zero comparison', async () => {
+    it('does not turn a missing prior review period into a zero comparison', async () => {
       const pool = getPool()
       await seedProperty(pool, PROP_A, ORG_A)
 
       // Only current period data
       await seedReview(pool, { rating: 5, daysAgo: 1 })
-      await seedMetricReadings(pool, 'portal.scan', [1])
-      await seedMetricReadings(pool, 'portal.feedback', [1])
 
       const repo = realRepo()
       const now = new Date()
@@ -539,11 +329,6 @@ describe('dashboardRepository (integration)', () => {
       expect(result.avgRating.comparison).toBeNull()
       expect(result.avgRating.sampleCount).toBe(1)
       expect(result.avgRating.priorSampleCount).toBe(0)
-
-      expect(result.scans.value).toBe(1)
-      expect(result.scans.priorValue).toBeNull()
-      expect(result.scans.trend).toBeNull()
-      expect(result.scans.evidence.prior?.state).toBe('insufficient_data')
     })
   })
 
@@ -675,41 +460,6 @@ describe('dashboardRepository (integration)', () => {
     })
   })
 
-  describe('getEngagementFunnel', () => {
-    it('returns scans, ratings, and review link clicks for a portal', async () => {
-      const pool = getPool()
-      await seedProperty(pool, PROP_A, ORG_A)
-
-      // Seed portal
-      await pool.query(
-        `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug)
-         VALUES ($1, $2, $3, 'property', $4, 'Test Portal', 'test-portal')
-         ON CONFLICT (id) DO NOTHING`,
-        [PORTAL_A, ORG_A, PROP_A, PROP_A],
-      )
-
-      // Seed metric readings for the portal
-      const portal = { portalId: PORTAL_A }
-      await seedMetricReadings(pool, 'portal.scan', [1, 2, 3], portal)
-      await seedMetricReadings(pool, 'portal.rating', [1, 2, 3, 4, 5], portal)
-      await seedMetricReadings(pool, 'portal.review_link_click', [1], portal)
-
-      const repo = realRepo()
-      const result = await repo.getEngagementFunnel({
-        organizationId: ORG_A,
-        propertyId: PROP_A,
-        portalId: PORTAL_A,
-        startDate: new Date(Date.now() - 7 * MS_PER_DAY),
-        endDate: new Date(),
-      })
-
-      expect(result).not.toBeNull()
-      expect(result?.scans).toBe(3)
-      expect(result?.ratings).toBe(5) // portal.rating
-      expect(result?.reviewLinkClicks).toBe(1)
-    })
-  })
-
   describe('tenant isolation', () => {
     it('getRecentReviews cannot see data from another org', async () => {
       const pool = getPool()
@@ -734,14 +484,14 @@ describe('dashboardRepository (integration)', () => {
       expect(result[0].rating).toBe(5) // Only ORG_A's review
     })
 
-    it('getKPIs cannot see metric readings from another org', async () => {
+    it('getKPIs cannot see reviews from another org', async () => {
       const pool = getPool()
       const PROP_B = propertyId('b0000000-0000-0000-0000-000000000001')
       await seedProperty(pool, PROP_A, ORG_A)
       await seedProperty(pool, PROP_B, ORG_B)
 
-      await seedMetricReadings(pool, 'portal.scan', [1], { orgId: ORG_A, propId: PROP_A })
-      await seedMetricReadings(pool, 'portal.scan', [1], { orgId: ORG_B, propId: PROP_B })
+      await seedReview(pool, { propId: PROP_A, orgId: ORG_A, rating: 5, daysAgo: 1 })
+      await seedReview(pool, { propId: PROP_B, orgId: ORG_B, rating: 1, daysAgo: 1 })
 
       const repo = realRepo()
       const now = new Date()
@@ -750,14 +500,11 @@ describe('dashboardRepository (integration)', () => {
         propertyId: PROP_A,
         startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
-        comparisonPeriod: {
-          priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
-          priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
-        },
+        comparisonPeriod: null,
       })
 
-      // Only 1 scan from ORG_A
-      expect(result.scans.value).toBe(1)
+      expect(result.reviews.value).toBe(1)
+      expect(result.avgRating.value).toBe(5)
     })
   })
 })

@@ -350,13 +350,9 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
           hasPersonalPortal={ctx.activeOrganization?.hasPersonalPortal}
         />
         {/*
-          The layout wrapper is a plain div, NOT SidebarInset — the
-          vendored SidebarInset renders <main>, which nested the content <main>
-          below inside it (duplicate main, main-in-main, non-unique landmarks on
-          the e2e axe gate). With a div wrapper the landmarks are textbook:
-          sidebar nav (landmark) + AppTopBar <header> (top-level banner) + one
-          <main>. The inset-variant peer classes from SidebarInset are dead
-          weight here (the app sidebars never use variant="inset").
+          The layout wrapper is a plain div, not a <main>: the content <main> below
+          is the page's one main landmark, beside the sidebar nav and the top bar's
+          <header>.
         */}
         <div
           data-slot="sidebar-inset"

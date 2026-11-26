@@ -2,75 +2,28 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { PortalRepository } from '../publication/portal-repository.port.server'
-import type { PortalActorDirectory } from './portal-actor-directory.port.server'
-import type {
-  PortalPublicationActivationRecord,
-  PortalPublicationRepository,
-} from '../publication/portal-publication-repository.port.server'
+import type { PortalPublicationRepository } from '../publication/portal-publication-repository.port.server'
 import { workingCopyMatchesSnapshot } from '../publication/portal-working-copy-match.server'
 import { loadPortalOrThrow } from '../publication/load-accessible-portal.server'
-import {
-  namedVersionActor,
-  resolveVersionActors,
-  versionActor,
-  type PortalVersionActor,
-} from './portal-version-actors.server'
 import { portalError } from '../domain/errors'
-import { historyPageSize } from '../domain/portal-history'
-
-export type PortalPublicationHistoryItem = Readonly<{
-  activationSequence: number
-  version: number
-  kind: 'publish' | 'rollback'
-  /** Who published or restored this version. A person the directory cannot name has no name. */
-  activatedBy: PortalVersionActor
-  activatedAt: string
-  deactivatedAt: string | null
-  deactivationReason: 'disabled' | 'archived' | 'replaced' | null
-}>
 
 export type PortalPublicationHistory = Readonly<{
-  current: PortalPublicationHistoryItem | null
-  priorActivations: ReadonlyArray<PortalPublicationHistoryItem>
+  /** The version guests see, or null when the Portal is not Published. */
+  liveVersion: number | null
+  pendingChangeCount: number
   hasPendingChanges: boolean
-  pendingChanges: ReadonlyArray<
-    Readonly<{
-      kind: import('../publication/portal-publication-repository.port.server').PortalPendingContentChange['kind']
-      key: string
-      changedAt: string
-      /** Who made the change; null for the system and for a change made before it was recorded. */
-      changedBy: PortalVersionActor | null
-    }>
-  >
-  nextCursor: number | null
 }>
 
 type Deps = Readonly<{
   portalRepo: PortalRepository
   publicationRepo: PortalPublicationRepository
   staffPublicApi: StaffPublicApi
-  actorDirectory: PortalActorDirectory
 }>
-
-function historyItem(
-  record: PortalPublicationActivationRecord,
-  names: ReadonlyMap<string, string>,
-): PortalPublicationHistoryItem {
-  return {
-    activationSequence: record.activation.activationSequence,
-    version: record.snapshot.version,
-    kind: record.activation.kind,
-    activatedBy: namedVersionActor(record.activation.activatedBy, names),
-    activatedAt: record.activation.activatedAt.toISOString(),
-    deactivatedAt: record.activation.deactivatedAt?.toISOString() ?? null,
-    deactivationReason: record.activation.deactivationReason,
-  }
-}
 
 export const getPortalPublicationHistory =
   (deps: Deps) =>
   async (
-    input: Readonly<{ portalId: string; cursor?: number; limit?: number }>,
+    input: Readonly<{ portalId: string }>,
     ctx: AuthContext,
   ): Promise<PortalPublicationHistory> => {
     const pid = portalId(input.portalId)
@@ -78,18 +31,12 @@ export const getPortalPublicationHistory =
       permission: 'portal.read',
       forbiddenMessage: 'Insufficient permissions to view Portal publication history',
     })
-    const limit = historyPageSize(input.limit)
-    const beforeSequence =
-      input.cursor !== undefined && Number.isSafeInteger(input.cursor) && input.cursor > 0
-        ? input.cursor
-        : null
-    const [workingCopy, page, pendingChanges] = await Promise.all([
+    const [workingCopy, activations, pendingChanges] = await Promise.all([
       deps.publicationRepo.loadWorkingCopy(ctx.organizationId, pid),
-      deps.publicationRepo.listActivationHistoryPage(
+      deps.publicationRepo.findCurrentAndLatestActivation(
         ctx.organizationId,
         portal.propertyId,
         pid,
-        { beforeSequence, limit },
       ),
       deps.publicationRepo.listOpenPendingContentChanges(
         ctx.organizationId,
@@ -104,32 +51,13 @@ export const getPortalPublicationHistory =
       )
     }
 
-    const currentRecord = page.current
-    const baseline = page.current ?? page.latest
-    const names = await resolveVersionActors(deps.actorDirectory, ctx.organizationId, [
-      ...(currentRecord ? [currentRecord.activation.activatedBy] : []),
-      ...page.records.map((record) => record.activation.activatedBy),
-      ...pendingChanges.map((change) => change.changedBy),
-    ])
+    const baseline = activations.current ?? activations.latest
     return {
-      current: currentRecord ? historyItem(currentRecord, names) : null,
-      priorActivations: page.records
-        .filter(
-          (record) =>
-            record.activation.activationSequence !==
-            currentRecord?.activation.activationSequence,
-        )
-        .map((record) => historyItem(record, names)),
+      liveVersion: activations.current?.snapshot.version ?? null,
+      pendingChangeCount: pendingChanges.length,
       hasPendingChanges:
         pendingChanges.length > 0 ||
         (baseline ? !workingCopyMatchesSnapshot(workingCopy, baseline.snapshot) : false),
-      pendingChanges: pendingChanges.map((change) => ({
-        kind: change.kind,
-        key: change.key,
-        changedAt: change.changedAt.toISOString(),
-        changedBy: versionActor(change.changedBy, names),
-      })),
-      nextCursor: page.nextCursor,
     }
   }
 
