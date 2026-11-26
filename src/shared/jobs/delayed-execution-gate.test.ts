@@ -257,7 +257,7 @@ describe('gateJob — request building (stubbed policy)', () => {
 })
 
 describe('gateJob — outcome mapping (stubbed policy)', () => {
-  it('maps an allowed decision to allow', async () => {
+  it('returns the policy decision as is', async () => {
     installStub()
     decideMock.mockResolvedValue(ALLOW)
     const outcome = await gateJob('health-check', {}, 'worker:default', 'worker')

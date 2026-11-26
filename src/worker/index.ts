@@ -66,8 +66,8 @@ import {
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { OUTBOX_DELIVERY_KIND } from '#/shared/outbox/dispatch-job-options'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import { createWorkItems } from '#/shared/db/work-items.server'
 import {
-  createWorkItems,
   reconcileWorkItems,
   startWorkItemReconciler,
 } from '#/shared/jobs/work-items.server'
