@@ -17,6 +17,7 @@ import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildIntegrationContext } from './build'
+import { createGoogleConnectionsRuntime } from './connections/connections-runtime.server'
 import type { GoogleAuthorizedProviderExecutor } from './provider/google-client.port.server'
 import type { GoogleImportReferenceStore } from './imports/durable-import-reference-store.port.server'
 import type { GoogleImportContentAuthorizer } from './imports/google-import-command-authorizer.server'
@@ -93,12 +94,32 @@ function buildDeps(overrides: {
   }
 }
 
+function connectionsDeps(overrides: {
+  googleOAuth?: ReturnType<typeof createInMemoryGoogleOAuthPort>
+}) {
+  const deps = buildDeps({})
+  return {
+    db: deps.db,
+    clock: deps.clock,
+    idGen: deps.idGen,
+    logger: deps.logger,
+    config: deps.config,
+    oauthJwksUrl: deps.providerEndpoints.oauthJwksUrl,
+    googleOAuth: overrides.googleOAuth,
+    googleAuthorizedProviderExecutor: undefined,
+    googleDisconnectRevokeStore: undefined,
+    authorizeGoogleOAuthProviderCall: undefined,
+    oauthStateHandles: deps.oauthStateHandles,
+    oauthCallbackAbuseGate: undefined,
+    googleRefreshCoordination: undefined,
+  }
+}
+
 describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
   it('exposes frozen capabilities for requests, maintenance, webhook, and workers', () => {
     const ctx = buildIntegrationContext(buildDeps({}))
 
     expect(Object.keys(ctx).sort()).toEqual([
-      'internal',
       'maintenance',
       'publicApi',
       // ARC-03-T12: the named provider capabilities the Review build consumes.
@@ -112,25 +133,7 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
       'oauth',
       'performance',
     ])
-    expect(ctx.publicApi.connections.connect).toBe(
-      ctx.internal.useCases.connectGoogleAccount,
-    )
-    expect(ctx.publicApi.connections.resume).toBe(
-      ctx.internal.useCases.resumeGoogleAccountConnection,
-    )
-    expect(ctx.publicApi.imports.discover).toBe(
-      ctx.internal.useCases.googleImportDiscovery,
-    )
-    expect(ctx.maintenance.imports.inspectBacklog).toBe(
-      ctx.internal.useCases.inspectGoogleImportLifecycle,
-    )
-    expect(ctx.webhook.handleNotification).toBe(ctx.internal.gbpNotificationHandler)
-    expect(ctx.worker.processImportItem).toBe(
-      ctx.internal.useCases.processGoogleImportItem,
-    )
-    expect(ctx.worker.sweepImportLifecycle).toBe(
-      ctx.internal.useCases.sweepGoogleImportLifecycle,
-    )
+    expect(ctx.worker.sweepImportLifecycle).toBe(ctx.maintenance.imports.sweep)
     expect(Object.keys(ctx.worker).sort()).toEqual([
       'completeImportsForRestore',
       'processImportItem',
@@ -154,8 +157,8 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
 
   it('honors the injected googleOAuth override', () => {
     const googleOAuth = createInMemoryGoogleOAuthPort()
-    const ctx = buildIntegrationContext(buildDeps({ googleOAuth }))
-    expect(ctx.internal.repos.oauthPort).toBe(googleOAuth)
+    const { oauthPort } = createGoogleConnectionsRuntime(connectionsDeps({ googleOAuth }))
+    expect(oauthPort).toBe(googleOAuth)
   })
 
   it('constructs bounded import discovery only with every protected dependency', () => {
@@ -178,12 +181,12 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
       }),
     )
 
-    expect(complete.internal.useCases.googleImportDiscovery).not.toBeNull()
-    expect(transportless.internal.useCases.googleImportDiscovery).toBeNull()
-    expect(complete.internal.useCases.googleImportTransaction).not.toBeNull()
-    expect(transportless.internal.useCases.googleImportTransaction).toBeNull()
-    expect(complete.internal.useCases.processGoogleImportItem).not.toBeNull()
-    expect(transportless.internal.useCases.processGoogleImportItem).not.toBeNull()
+    expect(complete.publicApi.imports.discover).not.toBeNull()
+    expect(transportless.publicApi.imports.discover).toBeNull()
+    expect(complete.publicApi.imports.transact).not.toBeNull()
+    expect(transportless.publicApi.imports.transact).toBeNull()
+    expect(complete.worker.processImportItem).not.toBeNull()
+    expect(transportless.worker.processImportItem).not.toBeNull()
   })
 
   it('constructs live Performance only with every protected dependency', () => {
@@ -217,14 +220,14 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
       }),
     )
 
-    expect(complete.internal.useCases.getPropertyGooglePerformance).not.toBeNull()
-    expect(complete.internal.useCases.renewGooglePerformanceLease).not.toBeNull()
-    expect(missingLease.internal.useCases.getPropertyGooglePerformance).toBeNull()
-    expect(missingLease.internal.useCases.renewGooglePerformanceLease).toBeNull()
+    expect(complete.publicApi.performance.get).not.toBeNull()
+    expect(complete.publicApi.performance.renewLease).not.toBeNull()
+    expect(missingLease.publicApi.performance.get).toBeNull()
+    expect(missingLease.publicApi.performance.renewLease).toBeNull()
   })
 
   it('constructs the OAuth adapter without the in-memory fake helpers', () => {
-    const oauth = buildIntegrationContext(buildDeps({})).internal.repos.oauthPort
+    const { oauthPort: oauth } = createGoogleConnectionsRuntime(connectionsDeps({}))
     expect(typeof oauth.exchangeCode).toBe('function')
     expect(typeof oauth.refreshAccessToken).toBe('function')
     expect('setExchangeResult' in oauth).toBe(false)
@@ -258,10 +261,10 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     const fetch = vi.fn<typeof globalThis.fetch>()
     vi.stubGlobal('fetch', fetch)
     try {
-      const ctx = buildIntegrationContext(buildDeps({}))
-      await expect(
-        ctx.internal.repos.oauthPort.refreshAccessToken('refresh-token'),
-      ).rejects.toMatchObject({ code: 'token_refresh_failed' })
+      const { oauthPort } = createGoogleConnectionsRuntime(connectionsDeps({}))
+      await expect(oauthPort.refreshAccessToken('refresh-token')).rejects.toMatchObject({
+        code: 'token_refresh_failed',
+      })
       expect(fetch).not.toHaveBeenCalled()
     } finally {
       vi.unstubAllGlobals()
@@ -306,7 +309,7 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
         googleImportReplayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     )
-    const discovery = ctx.internal.useCases.googleImportDiscovery
+    const discovery = ctx.publicApi.imports.discover
     expect(discovery).not.toBeNull()
     return { discovery: discovery!, decide }
   }
