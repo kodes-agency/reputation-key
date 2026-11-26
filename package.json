@@ -68,7 +68,6 @@
     "file-length:tighten": "tsx scripts/ci/tighten-file-length-baseline.ts",
     "check:unchecked-indexed-access": "NODE_OPTIONS=--max-old-space-size=6144 tsx scripts/ci/check-unchecked-indexed-access.ts",
     "ops": "tsx scripts/ops/index.ts",
-    "db:baseline": "tsx scripts/db-baseline.ts",
     "db:reset": "tsx scripts/db-reset.ts"
   },
   "dependencies": {
