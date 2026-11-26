@@ -183,16 +183,14 @@ export type InboxCommandStore = Readonly<{
   ): Promise<Readonly<{ released: number }>>
 
   /**
-   * Insert the item + inbox.inbox_item.created fact in one transaction.
-   * Idempotent on the (sourceType, sourceId, organizationId) unique anchor:
-   * a conflicting concurrent insert returns the existing row with
-   * `created: false` and records NO fact. `event` is null only for repair
-   * paths (rebuild) — creation-during-repair is not new information, so no
-   * fact is recorded.
+   * Insert the item and its first cycle in one transaction, recording no
+   * fact: this is the repair (rebuild) insert, and creation-during-repair is
+   * not new information. Idempotent on the (sourceType, sourceId,
+   * organizationId) unique anchor: a conflicting concurrent insert returns
+   * the existing row with `created: false`.
    */
   createItem(
     item: InboxItem,
-    event: InboxItemCreated | null,
     cycleAnchor?: HandlingCycleCreationAnchor,
     tx?: Tx,
   ): Promise<CreateItemResult>
@@ -212,6 +210,7 @@ export type InboxCommandStore = Readonly<{
     item: InboxItem,
     anchor: ReviewCycleCreationAnchor,
     observation: ReviewCurrentReplyObservationPermit,
+    now: Date,
     tx?: Tx,
   ): Promise<CreateItemResult>
 
@@ -250,15 +249,13 @@ export type InboxCommandStore = Readonly<{
 
   /**
    * Assignment update + assigned/unassigned fact in one transaction
-   * (assignedTo null covers the unassign path). `event` is null when
-   * unassigning an item that had no assignee (no fact, mirrors the use
-   * case's behavior).
+   * (assignedTo null covers the unassign path). The fact's `occurredAt` is the
+   * command's instant.
    */
   assign(
     item: InboxItem,
     updates: Readonly<{ assignedTo: UserId | null }>,
-    event: InboxItemAssigned | InboxItemUnassigned | null,
-    now?: Date,
+    event: InboxItemAssigned | InboxItemUnassigned,
     tx?: Tx,
   ): Promise<InboxItem>
 
@@ -267,7 +264,6 @@ export type InboxCommandStore = Readonly<{
     item: InboxItem,
     updates: Readonly<{ escalatedBy: UserId }>,
     event: InboxItemEscalated,
-    now?: Date,
     tx?: Tx,
   ): Promise<InboxItem>
 
@@ -276,7 +272,6 @@ export type InboxCommandStore = Readonly<{
     item: InboxItem,
     updates: Readonly<{ resolvedBy: UserId }>,
     event: InboxItemEscalationResolved,
-    now?: Date,
     tx?: Tx,
   ): Promise<InboxItem>
 
@@ -291,7 +286,6 @@ export type InboxCommandStore = Readonly<{
     item: InboxItem,
     updates: Readonly<{ priority: InboxPriority | null; setBy: UserId }>,
     event: InboxItemPriorityChanged,
-    now?: Date,
     tx?: Tx,
   ): Promise<InboxItem>
 

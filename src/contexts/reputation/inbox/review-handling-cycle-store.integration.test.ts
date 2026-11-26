@@ -33,7 +33,7 @@ const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
 })
 
 const createAtomicInboxCommandStore = (database: Database) =>
-  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OPENED_AT)
+  createProductionInboxCommandStore(database, allowAllCommandAuthority)
 
 const makeItem = (): InboxItem => ({
   id: ITEM_ID,
@@ -115,7 +115,6 @@ async function seedScope(): Promise<void> {
   await insertMaterialRevision(1)
   await createAtomicInboxCommandStore(db).createItem(
     makeItem(),
-    null,
     reviewOpeningAnchor(makeItem()),
   )
 }

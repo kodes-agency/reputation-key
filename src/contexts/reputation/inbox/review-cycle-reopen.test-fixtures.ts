@@ -75,11 +75,7 @@ const reopenManually = async (
     .limit(1)
   if (!itemRow) throw inboxError('not_found', 'Inbox item not found')
   const item = itemFromRow(itemRow)
-  const store = createAtomicInboxCommandStore(
-    db,
-    async () => ({ allowed: true }),
-    () => command.openedAt,
-  )
+  const store = createAtomicInboxCommandStore(db, async () => ({ allowed: true }))
   await store.reopenReviewCycle({
     item,
     expected: {

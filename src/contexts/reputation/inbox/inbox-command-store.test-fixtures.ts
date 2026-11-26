@@ -29,9 +29,9 @@ import type {
   ReviewSnippetResult,
 } from '#/contexts/reputation/inbox/review-lookup.port.server'
 import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
-import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { testReviewRepository } from '#/contexts/reputation/reviews/review-stores.test-fixtures'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 export const ORG_A = organizationId('org-inbox-cmd-aaaa-1111111111111111')
 export const ORG_B = organizationId('org-inbox-cmd-bbbb-2222222222222222')
@@ -54,7 +54,7 @@ export const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
 })
 
 export const createAtomicInboxCommandStore = (db: Database) =>
-  createProductionInboxCommandStore(db, allowAllCommandAuthority, () => NOW)
+  createProductionInboxCommandStore(db, allowAllCommandAuthority)
 
 export let pool: Pool
 export const db = getDb()
@@ -83,10 +83,7 @@ export const stubPorts = {
     getFeedbackSnippetsByIds: async () => new Map(),
     findEligibleFeedbackIds: async () => [],
   } satisfies FeedbackLookupPort,
-  propertyLookup: {
-    getPropertyNameById: async () => null,
-    getPropertyNamesByIds: async () => new Map(),
-  } satisfies PropertyLookupPort,
+  propertyLookup: inertPropertyLookup,
 }
 
 export function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {

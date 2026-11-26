@@ -53,6 +53,5 @@ export const resolveEscalation =
         userId: ctx.userId,
         occurredAt: now,
       }),
-      now,
     )
   }

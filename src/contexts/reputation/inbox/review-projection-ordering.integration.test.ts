@@ -21,9 +21,8 @@ import {
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import type { ReviewLookupPort } from './review-lookup.port.server'
-import type { ReviewSourceLookupPort } from './review-source-lookup.port.server'
 import type { FeedbackLookupPort } from './feedback-lookup.port.server'
-import type { PropertyLookupPort } from './property-lookup.port.server'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const ORG = organizationId('org-inbox-projection-ordering-1')
 const PROPERTY = propertyId('7c000000-0000-4000-8000-000000000001')
@@ -55,22 +54,13 @@ const reviewLookup = {
   findEligibleReviewIds: async () => [],
 } satisfies ReviewLookupPort
 
-const reviewSourceLookup = {
-  getReviewSourceMetaById: async () => null,
-  getReviewSourceMetaByIds: async () => [],
-  listReviewSources: async () => [],
-} satisfies ReviewSourceLookupPort
-
 const feedbackLookup = {
   getFeedbackSnippetById: async () => null,
   getFeedbackSnippetsByIds: async () => new Map(),
   findEligibleFeedbackIds: async () => [],
 } satisfies FeedbackLookupPort
 
-const propertyLookup = {
-  getPropertyNameById: async () => null,
-  getPropertyNamesByIds: async () => new Map(),
-} satisfies PropertyLookupPort
+const propertyLookup = inertPropertyLookup
 
 const event = (
   kind: 'review.created' | 'review.updated',
@@ -242,11 +232,7 @@ function deps(): InboxConsumerDeps {
     { clock: () => DELIVERED_AT, logger: createMockLogger() },
   )
   return {
-    commandStore: createAtomicInboxCommandStore(
-      database,
-      allowAllCommandAuthority,
-      () => DELIVERED_AT,
-    ),
+    commandStore: createAtomicInboxCommandStore(database, allowAllCommandAuthority),
     handlingCycleStore: createReviewHandlingCycleStore(database),
     replyObservationAuthority: {
       withExactCurrent: async () => ({ status: 'obsolete' }),
@@ -255,8 +241,6 @@ function deps(): InboxConsumerDeps {
     sourceTransitionAuthority: {
       withExactCurrent: async () => ({ status: 'obsolete' }),
     },
-    reviewLookup,
-    reviewSourceLookup,
     inboxRepo,
     idGen: () => ITEM,
     clock: () => DELIVERED_AT,

@@ -91,7 +91,7 @@ describe.sequential('Response Target manager reads', () => {
     }
   }
 
-  const seedFeedbackItem = () => seedInboxItem(pool, db, feedbackItem, () => NOW)
+  const seedFeedbackItem = () => seedInboxItem(pool, db, feedbackItem)
 
   beforeAll(async () => {
     pool = openFixturePool()

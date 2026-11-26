@@ -52,14 +52,14 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       assignedTo: USER_A,
     })
     const seedingStore = createAtomicInboxCommandStore(db)
-    await seedingStore.createItem(denied, null, {
+    await seedingStore.createItem(denied, {
       sourceRevision: 1,
       openedReason: 'legacy_backfill',
       actorType: 'system',
       triggerEventId: null,
       openedAt: NOW,
     })
-    await seedingStore.createItem(retained, null, {
+    await seedingStore.createItem(retained, {
       sourceRevision: 1,
       openedReason: 'legacy_backfill',
       actorType: 'system',
@@ -71,7 +71,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         ? { allowed: false as const, reason: 'assignee_assignment_denied' }
         : { allowed: true as const },
     )
-    const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+    const store = createProductionInboxCommandStore(db, authorize)
 
     await expect(
       store.releaseIneligibleAssignmentsForUser({
@@ -118,7 +118,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
           sourceId: feedbackId(`4d000000-0000-0000-0000-0000000000b${index}`),
           assignedTo: USER_A,
         }),
-        null,
         {
           sourceRevision: 1,
           openedReason: 'legacy_backfill',
@@ -131,7 +130,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     const authorize: InboxCommandAuthority = vi.fn(async () => ({
       allowed: true as const,
     }))
-    const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+    const store = createProductionInboxCommandStore(db, authorize)
 
     await expect(
       store.releaseIneligibleAssignmentsForUser({
@@ -160,7 +159,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
             sourceId: feedbackId(feedback),
             assignedTo: USER_A,
           }),
-          null,
           {
             sourceRevision: 1,
             openedReason: 'legacy_backfill',
@@ -175,7 +173,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       createProductionInboxCommandStore(
         db,
         authorize,
-        () => NOW,
       ).releaseIneligibleAssignmentsForUser({
         organizationId: ORG_A,
         userId: USER_A,
@@ -260,7 +257,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
             status,
             closedAt: status === 'closed' ? NOW : null,
           }),
-          null,
           {
             sourceRevision: 1,
             openedReason: 'legacy_backfill',
@@ -357,7 +353,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       sourceId: feedbackId('4d000000-0000-0000-0000-000000000033'),
       assignedTo: USER_A,
     })
-    await createAtomicInboxCommandStore(db).createItem(item, null)
+    await createAtomicInboxCommandStore(db).createItem(item)
     const authorize: InboxCommandAuthority = vi.fn(async () => ({
       allowed: true as const,
     }))
@@ -366,7 +362,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       createProductionInboxCommandStore(
         db,
         authorize,
-        () => NOW,
       ).releaseIneligibleAssignmentsForUser({
         organizationId: ORG_A,
         userId: USER_A,
@@ -397,7 +392,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       await seedReviewRevisionOne()
       const store = createAtomicInboxCommandStore(db)
       let item = makeItem()
-      await store.createItem(item, null, reviewOpeningAnchor(item))
+      await store.createItem(item, reviewOpeningAnchor(item))
       const earlier = new Date(NOW.getTime() - 60_000)
       const decisions = [
         { assignedTo: USER_A, at: NOW },
@@ -422,7 +417,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
                 assignedTo,
                 previousAssignee: item.assignedTo,
               })
-        if (mode === 'single') item = await store.assign(item, { assignedTo }, fact, at)
+        if (mode === 'single') item = await store.assign(item, { assignedTo }, fact)
         else {
           await expect(
             store.bulkAssign({
@@ -475,7 +470,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     )
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
 
     const assigned = await store.assign(
       item,
@@ -489,7 +484,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         source: 'web',
         occurredAt: NOW,
       }),
-      NOW,
     )
 
     const facts = await pool.query(
@@ -523,7 +517,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
 
     const escalated = await store.escalate(
       item,
@@ -535,7 +529,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         userId: USER_A,
         occurredAt: NOW,
       }),
-      NOW,
     )
     const resolvedAt = new Date(NOW.getTime() + 60_000)
     const resolved = await store.resolveEscalation(
@@ -548,7 +541,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         userId: USER_B,
         occurredAt: resolvedAt,
       }),
-      resolvedAt,
     )
 
     // Escalation stays orthogonal to status (ADR 0055).
@@ -610,7 +602,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
 
     const ghost = {
       ...inboxItemEscalated({
@@ -623,9 +615,9 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       _tag: 'inbox.inbox_item.ghost_escalated',
     } as unknown as Parameters<typeof store.escalate>[2]
 
-    await expect(
-      store.escalate(item, { escalatedBy: USER_A }, ghost, NOW),
-    ).rejects.toThrow(/is not registered for the outbox/u)
+    await expect(store.escalate(item, { escalatedBy: USER_A }, ghost)).rejects.toThrow(
+      /is not registered for the outbox/u,
+    )
 
     const history = await pool.query(
       'SELECT 1 FROM inbox_escalation_history WHERE inbox_item_id = $1',

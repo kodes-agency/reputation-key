@@ -94,7 +94,7 @@ describe.sequential('resolveEscalation', () => {
     const repo = createUseCaseInboxRepository(db, () => FIXED_TIME)
     const execute = resolveEscalation({
       repo,
-      commandStore: createUseCaseCommandStore(db, () => FIXED_TIME),
+      commandStore: createUseCaseCommandStore(db),
       clock: () => FIXED_TIME,
       staffPublicApi,
     })
@@ -114,7 +114,7 @@ describe.sequential('resolveEscalation', () => {
         },
         ctx,
       )
-    const seed = (item: InboxItem) => seedInboxItem(pool, db, item, () => FIXED_TIME)
+    const seed = (item: InboxItem) => seedInboxItem(pool, db, item)
     return { useCase, seed }
   }
 

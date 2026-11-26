@@ -54,17 +54,16 @@ export type PropertyLookupSource = Readonly<{
     orgId: OrganizationId,
     propertyIds: ReadonlyArray<PropertyId>,
   ) => Promise<ReadonlyArray<Readonly<{ id: string; name: string | null }>>>
-  /** Optional for legacy source fixtures; the adapter normalizes absence to null. */
-  getPropertyReplyLanguage?: (
+  getPropertyReplyLanguage: (
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<string | null>
   /**
    * The Property's Google review destination as Property holds it. Only a
    * `verified` one may be rendered (Property CONTEXT, invariant 2); the adapter
-   * decides that. Optional for legacy source fixtures, as above.
+   * decides that.
    */
-  getGoogleReviewDestination?: (
+  getGoogleReviewDestination: (
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<Readonly<{ state: string; uri: string | null }> | null>
@@ -139,7 +138,7 @@ export type ReviewSourceRow = Readonly<{
   sourceEpoch: number
   reviewedAt: Date
   contentExpiresAt: Date | null
-  sourceRevision?: number
+  sourceRevision: number
 }>
 
 /** Review-owned review-metadata reads (satisfied by the review repository). */

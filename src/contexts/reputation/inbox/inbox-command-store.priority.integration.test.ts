@@ -75,26 +75,23 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
 
     const set = await store.setPriority(
       item,
       { priority: 'urgent', setBy: USER_A },
       priorityFact(item, 'urgent', null),
-      NOW,
     )
     const changedAt = new Date(NOW.getTime() + 60_000)
     const changed = await store.setPriority(
       set,
       { priority: 'low', setBy: USER_B },
       priorityFact(set, 'low', 'urgent', USER_B, changedAt),
-      changedAt,
     )
     const reset = await store.setPriority(
       changed,
       { priority: null, setBy: USER_A },
       priorityFact(changed, null, 'low'),
-      changedAt,
     )
 
     expect(set).toMatchObject({
@@ -154,7 +151,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
     await store.escalate(
       item,
       { escalatedBy: USER_B },
@@ -165,7 +162,6 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
         userId: USER_B,
         occurredAt: NOW,
       }),
-      NOW,
     )
 
     const refusal: unknown = await store
@@ -173,7 +169,6 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
         item,
         { priority: 'high', setBy: USER_A },
         priorityFact(item, 'high', null),
-        NOW,
       )
       .then(
         () => null,
@@ -192,20 +187,15 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
       asked.push(input.requirements)
       return { allowed: false, reason: 'grant_revoked' }
     }
-    const store = createProductionInboxCommandStore(db, revoked, () => NOW)
+    const store = createProductionInboxCommandStore(db, revoked)
     const item = makeItem()
-    await createAtomicInboxCommandStore(db).createItem(
-      item,
-      null,
-      reviewOpeningAnchor(item),
-    )
+    await createAtomicInboxCommandStore(db).createItem(item, reviewOpeningAnchor(item))
 
     const refusal: unknown = await store
       .setPriority(
         item,
         { priority: 'urgent', setBy: USER_A },
         priorityFact(item, 'urgent', null),
-        NOW,
       )
       .then(
         () => null,
@@ -235,7 +225,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     // An authority that would allow anything: the refusal must not depend on it.
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
     const withoutWebActor = {
       ...priorityFact(item, 'urgent', null),
       source: 'import',
@@ -244,7 +234,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
 
     for (const fact of [withoutWebActor, someoneElse]) {
       const refusal: unknown = await store
-        .setPriority(item, { priority: 'urgent', setBy: USER_A }, fact, NOW)
+        .setPriority(item, { priority: 'urgent', setBy: USER_A }, fact)
         .then(
           () => null,
           (error: unknown) => error,
@@ -264,14 +254,14 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
     const ghost = {
       ...priorityFact(item, 'urgent', null),
       _tag: 'inbox.inbox_item.ghost_priority_changed',
     } as unknown as Parameters<typeof store.setPriority>[2]
 
     await expect(
-      store.setPriority(item, { priority: 'urgent', setBy: USER_A }, ghost, NOW),
+      store.setPriority(item, { priority: 'urgent', setBy: USER_A }, ghost),
     ).rejects.toThrow(/is not registered for the outbox/u)
 
     expect(await priorityHistory(item.id)).toEqual([])
@@ -285,12 +275,11 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
     let current = await store.setPriority(
       item,
       { priority: 'high', setBy: USER_A },
       priorityFact(item, 'high', null),
-      NOW,
     )
 
     current = await store.escalate(
@@ -303,7 +292,6 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
         userId: USER_A,
         occurredAt: NOW,
       }),
-      NOW,
     )
     current = await store.resolveEscalation(
       current,
@@ -315,7 +303,6 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
         userId: USER_A,
         occurredAt: NOW,
       }),
-      NOW,
     )
     current = await store.assign(
       current,
@@ -329,7 +316,6 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
         source: 'web',
         occurredAt: NOW,
       }),
-      NOW,
     )
 
     expect(current).toMatchObject({
@@ -344,7 +330,7 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
-    await store.createItem(item, null, reviewOpeningAnchor(item))
+    await store.createItem(item, reviewOpeningAnchor(item))
 
     await expect(
       pool.query(`UPDATE inbox_items SET manager_priority = 'urgent' WHERE id = $1`, [

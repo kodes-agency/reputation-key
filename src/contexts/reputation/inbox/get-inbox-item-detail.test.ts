@@ -25,6 +25,7 @@ import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { isInboxError } from '../domain/inbox-errors'
+import { inertPropertyLookup } from './inert-property-lookup.test-fixtures'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -33,6 +34,18 @@ const OTHER_ORG_ID = organizationId('org-2')
 const ITEM_ID = inboxItemId('ii-1')
 const PROP_ID = propertyId('prop-1')
 const USER_ID = userId('user-1')
+
+/** The reads a test does not exercise: each answers as an empty Property. */
+const inertDeps = {
+  propertyLookup: inertPropertyLookup,
+  feedbackHandlingStore: {
+    getState: async () => null,
+  } as unknown as FeedbackHandlingStore,
+  responseTargetStore: {
+    getCycleTarget: async () => null,
+  } as unknown as ResponseTargetStore,
+  clock: () => FIXED_TIME,
+}
 
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
@@ -200,7 +213,12 @@ describe('getInboxItemDetail', () => {
     )
     setDetail(makeDetail(makeItem()))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result.item.id).toBe(ITEM_ID)
@@ -216,10 +234,12 @@ describe('getInboxItemDetail', () => {
     const detail = makeDetail(makeItem())
     setDetail(detail)
 
-    await getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })(
-      { inboxItemId: ITEM_ID },
-      ctxFor('AccountAdmin'),
-    )
+    await getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(findDetailById).toHaveBeenCalledWith(
       ITEM_ID,
@@ -240,7 +260,12 @@ describe('getInboxItemDetail', () => {
     const { repo, staffApi, replyLookup, setDetail } = setup()
     setDetail(makeDetail(makeItem(), { reviewRating: 5 }))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result.reviewRating).toBe(5)
@@ -250,7 +275,12 @@ describe('getInboxItemDetail', () => {
     const { repo, staffApi, replyLookup, setDetail } = setup()
     setDetail(makeDetail(makeItem(), { reviewRating: null }))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     // Still an available review — the words arrive, the stars do not.
@@ -263,7 +293,12 @@ describe('getInboxItemDetail', () => {
     const { reviewRating: _omitted, ...withoutRating } = makeDetail(makeItem())
     setDetail(withoutRating)
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     // `reviewRating` is optional on `InboxItemDetail` only so that fixtures
@@ -291,7 +326,12 @@ describe('getInboxItemDetail', () => {
       ),
     )
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase(
       { inboxItemId: ITEM_ID },
       ctxWith('inbox.read', 'feedback.read'),
@@ -315,6 +355,7 @@ describe('getInboxItemDetail', () => {
   const propertyLookup = (page: string | null) => ({
     getPropertyNameById: vi.fn(async () => null),
     getPropertyNamesByIds: vi.fn(async () => new Map()),
+    getPropertyReplyLanguageById: vi.fn(async () => null),
     getPropertyGoogleReviewsPageById: vi.fn(async () => page),
   })
 
@@ -324,6 +365,7 @@ describe('getInboxItemDetail', () => {
     const lookup = propertyLookup(PROPERTY_PAGE)
 
     const useCase = getInboxItemDetail({
+      ...inertDeps,
       repo,
       staffPublicApi: staffApi,
       replyLookup,
@@ -348,6 +390,7 @@ describe('getInboxItemDetail', () => {
     )
 
     const useCase = getInboxItemDetail({
+      ...inertDeps,
       repo,
       staffPublicApi: staffApi,
       replyLookup,
@@ -370,6 +413,7 @@ describe('getInboxItemDetail', () => {
     const lookup = propertyLookup(PROPERTY_PAGE)
 
     const useCase = getInboxItemDetail({
+      ...inertDeps,
       repo,
       staffPublicApi: staffApi,
       replyLookup,
@@ -388,7 +432,12 @@ describe('getInboxItemDetail', () => {
     const { repo, staffApi, replyLookup, setDetail } = setup()
     setDetail(makeDetail(makeItem()))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result.googlePropertyReviewsUrl).toBeNull()
@@ -416,6 +465,7 @@ describe('getInboxItemDetail', () => {
 
     const reader = ctxFor('AccountAdmin')
     const result = await getInboxItemDetail({
+      ...inertDeps,
       repo,
       staffPublicApi: staffApi,
       replyLookup,
@@ -454,7 +504,12 @@ describe('getInboxItemDetail', () => {
     const { repo, staffApi, replyLookup, setDetail } = setup(adminStaffApi, mirror)
     setDetail(makeDetail(makeItem()))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     // The panel receives replies Google shows, so it never renders a compose
@@ -465,7 +520,12 @@ describe('getInboxItemDetail', () => {
 
   it('throws not_found when item does not exist', async () => {
     const { repo, staffApi, replyLookup } = setup()
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
 
     await expect(
       useCase({ inboxItemId: inboxItemId('nonexistent') }, ctxFor('AccountAdmin')),
@@ -477,7 +537,12 @@ describe('getInboxItemDetail', () => {
     const item = makeItem({ organizationId: OTHER_ORG_ID })
     setDetail(makeDetail(item))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
 
     await expect(
       useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin')),
@@ -491,7 +556,12 @@ describe('getInboxItemDetail', () => {
     const item = makeItem()
     setDetail(makeDetail(item))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     await expect(
       useCase({ inboxItemId: ITEM_ID }, ctxFor('Guest' as unknown as Role)),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
@@ -506,7 +576,12 @@ describe('getInboxItemDetail', () => {
     const item = makeItem() // propertyId = PROP_ID ('prop-1')
     setDetail(makeDetail(item))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     await expect(
       useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager')),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
@@ -518,7 +593,12 @@ describe('getInboxItemDetail', () => {
     const item = makeItem()
     setDetail(makeDetail(item))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager'))
 
     expect(result.item.id).toBe(ITEM_ID)
@@ -535,7 +615,12 @@ describe('getInboxItemDetail', () => {
     const { repo, staffApi, replyLookup, replyCalls, setDetail } = setup(scopedApi, reply)
     setDetail(makeDetail(makeItem()))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager'))
 
     expect(result.reply).toEqual(reply)
@@ -548,7 +633,12 @@ describe('getInboxItemDetail', () => {
     const { repo, staffApi, replyLookup, replyCalls, setDetail } = setup(scopedApi, reply)
     setDetail(makeDetail(makeItem()))
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase(
       { inboxItemId: ITEM_ID },
       ctxWith('inbox.read', 'review.read'),
@@ -568,7 +658,12 @@ describe('getInboxItemDetail', () => {
       ),
     )
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result.reply).toBeNull()
@@ -598,6 +693,7 @@ describe('getInboxItemDetail', () => {
     const feedbackHandlingStore = { getState } as unknown as FeedbackHandlingStore
 
     const result = await getInboxItemDetail({
+      ...inertDeps,
       repo,
       staffPublicApi: staffApi,
       replyLookup,
@@ -651,6 +747,7 @@ describe('getInboxItemDetail', () => {
     } as unknown as ResponseTargetStore
 
     const result = await getInboxItemDetail({
+      ...inertDeps,
       repo,
       staffPublicApi: staffApi,
       replyLookup,
@@ -677,6 +774,7 @@ describe('getInboxItemDetail', () => {
     const feedbackHandlingStore = { getState } as unknown as FeedbackHandlingStore
 
     const result = await getInboxItemDetail({
+      ...inertDeps,
       repo,
       staffPublicApi: staffApi,
       replyLookup,
@@ -698,7 +796,12 @@ describe('getInboxItemDetail', () => {
       ),
     )
 
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
 
     await expect(
       useCase({ inboxItemId: ITEM_ID }, ctxWith('inbox.read', 'review.read')),
@@ -719,7 +822,12 @@ describe('getInboxItemDetail', () => {
         }),
       ),
     )
-    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const useCase = getInboxItemDetail({
+      ...inertDeps,
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+    })
 
     await expect(
       useCase(

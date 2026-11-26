@@ -47,7 +47,7 @@ let pool: Pool
 const targets = createResponseTargetStore(db)
 
 const allowAll: InboxCommandAuthority = async () => ({ allowed: true })
-const commandStore = () => createAtomicInboxCommandStore(db, allowAll, () => OPENED_AT)
+const commandStore = () => createAtomicInboxCommandStore(db, allowAll)
 
 type Tenant = Readonly<{
   org: typeof ORG
@@ -171,7 +171,7 @@ async function seedGoogleReviewCycle(t: Tenant = BASE_TENANT): Promise<void> {
      )`,
     [t.review, t.org, t.property, '1'.repeat(64), t.startAt ?? OPENED_AT],
   )
-  await commandStore().createItem(reviewItem(t), null, {
+  await commandStore().createItem(reviewItem(t), {
     sourceRevision: 1,
     openedReason: 'review_observed',
     actorType: 'provider',
@@ -206,7 +206,6 @@ async function seedPrivateFeedbackCycle(): Promise<void> {
       platform: null,
       snippet: 'Private feedback',
     },
-    null,
     {
       sourceRevision: 1,
       openedReason: 'feedback_submitted',

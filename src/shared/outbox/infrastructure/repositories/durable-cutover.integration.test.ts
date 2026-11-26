@@ -82,12 +82,10 @@ import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-look
 import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
-import type {
-  ReviewLookupPort,
-  ReviewSnippetResult,
-} from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { ReviewSnippetResult } from '#/contexts/reputation/inbox/review-lookup.port.server'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
@@ -174,35 +172,6 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
   }
 }
 
-function makeReviewLookup(): ReviewLookupPort {
-  const reviewRepo = createReviewRepository(
-    db,
-    () => new Date(),
-    undefined,
-    replyScopeEffects,
-  )
-  return {
-    getReviewSnippetById: async (id, orgId): Promise<ReviewSnippetResult> => {
-      const row = await reviewRepo.findById(id, orgId)
-      if (!row) return { status: 'not_found' }
-      return {
-        status: 'available',
-        snippet: {
-          reviewerName: row.reviewerName,
-          text: null,
-          translatedText: null,
-          reviewerProfilePhotoUrl: null,
-          googleReviewUrl: null,
-          rating: row.rating,
-          languageCode: row.languageCode,
-        },
-      }
-    },
-    getReviewSnippetsByIds: async () => new Map(),
-    findEligibleReviewIds: async () => [],
-  }
-}
-
 const stubEnrichmentPorts = {
   reviewLookup: {
     getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
@@ -216,10 +185,7 @@ const stubEnrichmentPorts = {
     getFeedbackSnippetsByIds: async () => new Map(),
     findEligibleFeedbackIds: async () => [],
   },
-  propertyLookup: {
-    getPropertyNameById: async () => null,
-    getPropertyNamesByIds: async () => new Map(),
-  },
+  propertyLookup: inertPropertyLookup,
 }
 
 function makeReviewSourceLookup(): ReviewSourceLookupPort {
@@ -349,11 +315,7 @@ async function itemsFor(sourceId: string): Promise<Array<Record<string, unknown>
 }
 
 async function seedOpenItem(source: string, sourceDate: Date): Promise<void> {
-  const store = createAtomicInboxCommandStore(
-    db,
-    allowAllInboxCommandAuthority,
-    () => sourceDate,
-  )
+  const store = createAtomicInboxCommandStore(db, allowAllInboxCommandAuthority)
   const built = buildInboxItem({
     id: idGen(),
     organizationId: ORG,
@@ -366,7 +328,7 @@ async function seedOpenItem(source: string, sourceDate: Date): Promise<void> {
     clock: () => sourceDate,
   })
   if (built.isErr()) throw built.error
-  await store.createItem(built.value, null, reviewOpeningAnchor(built.value))
+  await store.createItem(built.value, reviewOpeningAnchor(built.value))
 }
 
 beforeAll(async () => {
@@ -428,17 +390,11 @@ beforeAll(async () => {
 
   consumerRegistry = createConsumerRegistry()
   registerInboxConsumers(consumerRegistry, {
-    commandStore: createAtomicInboxCommandStore(
-      db,
-      allowAllInboxCommandAuthority,
-      () => consumerNow,
-    ),
+    commandStore: createAtomicInboxCommandStore(db, allowAllInboxCommandAuthority),
     handlingCycleStore: createReviewHandlingCycleStore(db),
     replyObservationAuthority: createReviewReplyObservationAuthority(db),
     responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: createReviewSourceTransitionAuthority(db),
-    reviewLookup: makeReviewLookup(),
-    reviewSourceLookup: makeReviewSourceLookup(),
     inboxRepo: createInboxRepository(db, stubEnrichmentPorts, {
       clock: () => consumerNow,
       logger: noopLogger,
@@ -695,11 +651,7 @@ describe.sequential('outbox delivery end-to-end proof', () => {
         clock: () => REBUILD_AT,
         logger: noopLogger,
       }),
-      commandStore: createAtomicInboxCommandStore(
-        db,
-        allowAllInboxCommandAuthority,
-        () => REBUILD_AT,
-      ),
+      commandStore: createAtomicInboxCommandStore(db, allowAllInboxCommandAuthority),
       reviewSourceLookup: makeReviewSourceLookup(),
       replyLookup: makeReplyLookup(),
       replyObservationAuthority: createReviewReplyObservationAuthority(db),

@@ -24,6 +24,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const ORG_ID = organizationId('org-last-visit-count-test')
 const PROP_1 = propertyId('1c000000-0000-0000-0000-000000000001')
@@ -91,7 +92,7 @@ describe.sequential('getLastVisitCount', () => {
   const db = getDb()
 
   const seed = async (...items: InboxItem[]) => {
-    for (const item of items) await seedInboxItem(pool, db, item, () => TEST_NOW)
+    for (const item of items) await seedInboxItem(pool, db, item)
     return createInboxRepository(
       db,
       {
@@ -105,10 +106,7 @@ describe.sequential('getLastVisitCount', () => {
           getFeedbackSnippetsByIds: async () => new Map(),
           findEligibleFeedbackIds: async () => [],
         },
-        propertyLookup: {
-          getPropertyNameById: async () => null,
-          getPropertyNamesByIds: async () => new Map(),
-        },
+        propertyLookup: inertPropertyLookup,
       },
       { clock: () => TEST_NOW, logger: createMockLogger() },
     )

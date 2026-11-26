@@ -34,7 +34,6 @@ export const createStatusCommands = (
   const {
     db,
     authorizeCommand,
-    clock,
     assertCommandAuthority,
     authorityRequirements,
     actorPrincipals,
@@ -242,8 +241,8 @@ export const createStatusCommands = (
       })
     },
 
-    escalate: (item, updates, event, now, lent) => {
-      const stamp = now ?? clock()
+    escalate: (item, updates, event, lent) => {
+      const stamp = event.occurredAt
       return transition(
         'inbox.commandStore.escalate',
         item,
@@ -257,7 +256,6 @@ export const createStatusCommands = (
         },
         'Inbox item escalation update failed — no row returned',
         event,
-        stamp,
         (tx, row, handlingCycleNumber) =>
           appendEscalationHistory(tx, item, row, handlingCycleNumber, {
             kind: 'escalated',
@@ -268,18 +266,17 @@ export const createStatusCommands = (
       )
     },
 
-    setPriority: async (item, updates, event, now, lent) => {
+    setPriority: async (item, updates, event, lent) => {
       // Fail closed: `transition()` re-authorizes the actor its fact names, and
       // a fact naming no web actor would run no authority check at all.
       guardPriorityCommand(item, updates, event)
-      const stamp = now ?? clock()
+      const stamp = event.occurredAt
       return transition(
         'inbox.commandStore.setPriority',
         item,
         managerPriorityColumns(updates.priority, updates.setBy, stamp),
         'Inbox item priority update failed — no row returned',
         event,
-        stamp,
         (tx, row, handlingCycleNumber) =>
           appendPriorityHistory(tx, item, row, handlingCycleNumber, {
             priority: updates.priority,
@@ -290,8 +287,8 @@ export const createStatusCommands = (
       )
     },
 
-    resolveEscalation: (item, updates, event, now, lent) => {
-      const stamp = now ?? clock()
+    resolveEscalation: (item, updates, event, lent) => {
+      const stamp = event.occurredAt
       return transition(
         'inbox.commandStore.resolveEscalation',
         item,
@@ -303,7 +300,6 @@ export const createStatusCommands = (
         },
         'Inbox item resolve-escalation failed — no row returned',
         event,
-        stamp,
         (tx, row, handlingCycleNumber) =>
           appendEscalationHistory(tx, item, row, handlingCycleNumber, {
             kind: 'resolved',

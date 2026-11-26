@@ -54,7 +54,7 @@ let pool: Pool
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
 const commandStore = (database: Database) =>
-  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OPENED_AT)
+  createProductionInboxCommandStore(database, allowAllCommandAuthority)
 
 const makeItem = (id: InboxItem['id'], sourceId: InboxItem['sourceId']): InboxItem => ({
   id,
@@ -109,7 +109,7 @@ async function openFeedbackCycle(
   sourceId: InboxItem['sourceId'],
 ): Promise<InboxItem> {
   const item = makeItem(id, sourceId)
-  await commandStore(db).createItem(item, null, {
+  await commandStore(db).createItem(item, {
     sourceRevision: 1,
     openedReason: 'feedback_submitted',
     actorType: 'guest',

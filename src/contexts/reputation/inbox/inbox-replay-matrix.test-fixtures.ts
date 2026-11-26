@@ -36,9 +36,8 @@ import {
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { type GuestFeedbackConsumerDeps } from './guest-feedback-outbox-consumers.server'
 import type { ReviewLookupPort } from './review-lookup.port.server'
-import type { ReviewSourceLookupPort } from './review-source-lookup.port.server'
 import type { FeedbackLookupPort } from './feedback-lookup.port.server'
-import type { PropertyLookupPort } from './property-lookup.port.server'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 export const SCOPE = INBOX_REPLAY_SCOPE
 export const AT = INBOX_REPLAY_CLOCK
@@ -60,16 +59,7 @@ const reviewLookup = {
   findEligibleReviewIds: async () => [],
 } satisfies ReviewLookupPort
 
-const reviewSourceLookup = {
-  getReviewSourceMetaById: async () => null,
-  getReviewSourceMetaByIds: async () => [],
-  listReviewSources: async () => [],
-} satisfies ReviewSourceLookupPort
-
-const propertyLookup = {
-  getPropertyNameById: async () => null,
-  getPropertyNamesByIds: async () => new Map(),
-} satisfies PropertyLookupPort
+const propertyLookup = inertPropertyLookup
 
 /** Guest bodies are live-read. `available` flips to false once the source is purged. */
 function createFeedbackLookup(available: () => boolean): FeedbackLookupPort {
@@ -474,11 +464,7 @@ export async function seedSourceEventRows(): Promise<void> {
 const inboxStores = (feedbackLookup: FeedbackLookupPort) => {
   const database: Database = getDb()
   return {
-    commandStore: createAtomicInboxCommandStore(
-      database,
-      allowAllCommandAuthority,
-      () => AT.consumerClock,
-    ),
+    commandStore: createAtomicInboxCommandStore(database, allowAllCommandAuthority),
     inboxRepo: createInboxRepository(
       database,
       { reviewLookup, feedbackLookup, propertyLookup },
@@ -495,8 +481,6 @@ function reviewDeps(): InboxConsumerDeps {
     replyObservationAuthority: createReviewReplyObservationAuthority(database),
     responseTargetAuthority: createReviewResponseTargetAuthority(database),
     sourceTransitionAuthority: createReviewSourceTransitionAuthority(database),
-    reviewLookup,
-    reviewSourceLookup,
     idGen: () => SCOPE.reviewItemId,
     clock: () => AT.consumerClock,
     logger: createMockLogger(),

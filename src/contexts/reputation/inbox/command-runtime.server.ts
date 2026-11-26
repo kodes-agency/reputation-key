@@ -22,7 +22,6 @@ import { updatePersistedItemRow } from '#/contexts/reputation/inbox/inbox-source
 export type CommandRuntime = Readonly<{
   db: Database
   authorizeCommand: InboxCommandAuthority
-  clock: () => Date
   assertCommandAuthority: (
     tx: Tx,
     organizationId: string,
@@ -43,8 +42,7 @@ export type CommandRuntime = Readonly<{
     item: InboxItem,
     set: Record<string, unknown>,
     notFoundMessage: string,
-    event: DomainEvent | null,
-    at: Date,
+    event: DomainEvent,
     appendHistory?: (
       tx: Tx,
       row: InboxItem,
@@ -57,7 +55,6 @@ export type CommandRuntime = Readonly<{
 export const createCommandRuntime = (
   db: Database,
   authorizeCommand: InboxCommandAuthority,
-  clock: () => Date,
 ): CommandRuntime => {
   const assertCommandAuthority = async (
     tx: Tx,
@@ -106,7 +103,7 @@ export const createCommandRuntime = (
   }
 
   /**
-   * Shared runner: single-row update + optional fact, one transaction.
+   * Shared runner: single-row update + fact, one transaction.
    *
    * `appendHistory` runs between the compare-and-swap and the outbox insert so
    * an append-only history row, the projection update and the fact either all
@@ -118,8 +115,7 @@ export const createCommandRuntime = (
     item: InboxItem,
     set: Record<string, unknown>,
     notFoundMessage: string,
-    event: DomainEvent | null,
-    at: Date,
+    event: DomainEvent,
     appendHistory?: (
       tx: Tx,
       row: InboxItem,
@@ -132,7 +128,7 @@ export const createCommandRuntime = (
         await assertCommandAuthority(
           tx,
           item.organizationId,
-          event?.occurredAt ?? at,
+          event.occurredAt,
           authorityRequirements(item, actorPrincipals(item, event)),
         )
         const persisted = await updatePersistedItemRow(tx, item, set, notFoundMessage)
@@ -140,7 +136,7 @@ export const createCommandRuntime = (
         if (appendHistory) {
           await appendHistory(tx, row, validCycleNumber(persisted.currentCycleNumber))
         }
-        if (event) await insertOutboxRow(tx, event)
+        await insertOutboxRow(tx, event)
         return row
       })
     })
@@ -149,7 +145,6 @@ export const createCommandRuntime = (
   return {
     db,
     authorizeCommand,
-    clock,
     assertCommandAuthority,
     authorityRequirements,
     actorPrincipals,

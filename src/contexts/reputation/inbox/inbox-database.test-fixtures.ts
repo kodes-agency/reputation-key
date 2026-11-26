@@ -29,6 +29,7 @@ import {
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createInboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.server'
 import { createReviewHandlingCycleStore } from './review-handling-cycle-store.server'
+import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
@@ -67,12 +68,11 @@ export async function seedInboxItem(
   pool: Pool,
   database: Database,
   item: InboxItem,
-  now: () => Date,
 ): Promise<InboxItem> {
-  const store = createAtomicInboxCommandStore(database, allowAllCommandAuthority, now)
+  const store = createAtomicInboxCommandStore(database, allowAllCommandAuthority)
   if (item.sourceType === 'feedback') {
     return (
-      await store.createItem(item, null, {
+      await store.createItem(item, {
         sourceRevision: 1,
         openedReason: 'feedback_submitted',
         actorType: 'guest',
@@ -88,7 +88,7 @@ export async function seedInboxItem(
     propertyId: item.propertyId,
     sourceDate: item.sourceDate,
   })
-  return (await store.createItem(item, null, reviewOpeningAnchor(item))).item
+  return (await store.createItem(item, reviewOpeningAnchor(item))).item
 }
 
 // ── review sources ──────────────────────────────────────────────────
@@ -236,10 +236,7 @@ const createStubbedInboxRepository = (
         getFeedbackSnippetsByIds: async () => new Map(),
         findEligibleFeedbackIds: async () => [],
       },
-      propertyLookup: {
-        getPropertyNameById: async () => null,
-        getPropertyNamesByIds: async () => new Map(),
-      },
+      propertyLookup: inertPropertyLookup,
       ...(aiInsights ? { aiInsights } : {}),
     },
     { clock, logger },
@@ -250,10 +247,8 @@ export const createUseCaseInboxRepository = (
   clock: () => Date,
 ): InboxRepository => createStubbedInboxRepository(db, clock, silentLogger)
 
-export const createUseCaseCommandStore = (
-  db: Database,
-  clock: () => Date,
-): InboxCommandStore => createAtomicInboxCommandStore(db, allowAllCommandAuthority, clock)
+export const createUseCaseCommandStore = (db: Database): InboxCommandStore =>
+  createAtomicInboxCommandStore(db, allowAllCommandAuthority)
 
 /** Production Inbox repository and stores over the test database. */
 export const createInboxDatabaseStores = (clock: () => Date, logger: LoggerPort) => {
@@ -261,7 +256,7 @@ export const createInboxDatabaseStores = (clock: () => Date, logger: LoggerPort)
   return {
     db,
     repo: createStubbedInboxRepository(db, clock, logger),
-    commandStore: createAtomicInboxCommandStore(db, allowAllCommandAuthority, clock),
+    commandStore: createAtomicInboxCommandStore(db, allowAllCommandAuthority),
     cycleStore: createReviewHandlingCycleStore(db),
   }
 }
@@ -281,10 +276,10 @@ export function createInboxUseCaseDatabase(
   const db = getDb()
   return {
     repo: createStubbedInboxRepository(db, now, silentLogger, aiInsights),
-    commandStore: createAtomicInboxCommandStore(db, allowAllCommandAuthority, now),
+    commandStore: createAtomicInboxCommandStore(db, allowAllCommandAuthority),
     noteRepo: createInboxNoteRepository(db),
     seed: async (...items) => {
-      for (const item of items) await seedInboxItem(pool, db, item, now)
+      for (const item of items) await seedInboxItem(pool, db, item)
     },
   }
 }
@@ -295,11 +290,10 @@ export const seedInboxScope = async (
   organizationId: OrganizationId,
   propertyIds: ReadonlyArray<PropertyId>,
   items: ReadonlyArray<InboxItem>,
-  at: Date,
 ): Promise<void> => {
   const db = getDb()
   await seedInboxOrganization(pool, organizationId, propertyIds)
-  for (const item of items) await seedInboxItem(pool, db, item, () => at)
+  for (const item of items) await seedInboxItem(pool, db, item)
 }
 
 /** The level a manager set, written as the command store writes it. */

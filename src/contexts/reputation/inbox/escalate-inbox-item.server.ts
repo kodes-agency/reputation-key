@@ -55,6 +55,5 @@ export const escalateInboxItem =
         userId: ctx.userId,
         occurredAt: now,
       }),
-      now,
     )
   }
