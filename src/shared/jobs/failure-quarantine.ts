@@ -306,33 +306,9 @@ function quarantineJobIdFor(origin: QuarantineOrigin): string {
 }
 
 /**
- * Move an already-failed job to the dead-letter quarantine queue when its
- * attempt budget is spent. Retained for explicit repair/test paths; the live
- * worker uses `quarantineFinalAttemptJob` before leaving the active set.
- */
-export async function quarantineExhaustedJob(
-  quarantineQueue: QueueAddPort,
-  job: Job,
-  err: unknown,
-): Promise<QuarantineOutcome> {
-  if (!isAttemptsExhausted(job)) return { quarantined: false }
-  if (isScheduleFiring(job)) return SCHEDULE_FIRING_NOT_QUARANTINED
-
-  const envelope = buildQuarantineEnvelope(job, {
-    failedReason: sanitizeFailedReason(err),
-    publicationState: 'confirmed_failed',
-  })
-
-  const quarantineJobId = quarantineJobIdFor(envelope)
-  await quarantineQueue.add(envelope.jobName, envelope, { jobId: quarantineJobId })
-  return { quarantined: true, quarantineJobId }
-}
-
-/**
  * Stage a non-redrivable dead-letter copy before a terminal handler rejection
  * moves the original job out of BullMQ's active set. The worker confirms the
- * copy only after BullMQ emits `failed`; the post-failure helper above remains
- * for repair/tests of already-failed jobs.
+ * copy only after BullMQ emits `failed`.
  */
 export async function quarantineFinalAttemptJob(
   quarantineQueue: QueueAddPort,
