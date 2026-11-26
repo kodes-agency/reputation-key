@@ -125,41 +125,31 @@ export const getPropertyPortalExperience =
       pid,
       propertyExperience.profile,
     )
-    if (!input.portalId) {
-      return {
-        ...propertyExperience,
-        overrides: [],
-        media,
-        canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
-        publicDisplayNameConfirmed,
-        ...(await portalLookSettingsOf(deps, {
-          organizationId: ctx.organizationId,
-          propertyId: pid,
-          portalId: null,
-        })),
-      }
-    }
-    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
-      permission: 'portal.read',
-      forbiddenMessage: 'Insufficient permissions to read Portal guest content',
-    })
-    if (portal.propertyId !== pid) {
+    const portal = input.portalId
+      ? await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+          permission: 'portal.read',
+          forbiddenMessage: 'Insufficient permissions to read Portal guest content',
+        })
+      : null
+    if (portal && portal.propertyId !== pid) {
       throw portalError('portal_not_found', 'Portal not found for this Property')
     }
     return {
       ...propertyExperience,
-      overrides: await deps.experienceRepo.listPortalOverrides(
-        ctx.organizationId,
-        pid,
-        portal.id,
-      ),
+      overrides: portal
+        ? await deps.experienceRepo.listPortalOverrides(
+            ctx.organizationId,
+            pid,
+            portal.id,
+          )
+        : [],
       media,
       canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
       publicDisplayNameConfirmed,
       ...(await portalLookSettingsOf(deps, {
         organizationId: ctx.organizationId,
         propertyId: pid,
-        portalId: portal.id,
+        portalId: portal?.id ?? null,
       })),
     }
   }

@@ -23,37 +23,428 @@ import type {
   OrganizationExportEntry,
 } from '#/contexts/identity/application/ports/organization-export-contributor.port'
 
-type PortalOrganizationExportPayload = Readonly<{
-  version: 'portal-organization-export/v1'
-  requestedAsOf: string
-  snapshotBound: 'repeatable_read_within_15m_of_request'
-  portals: readonly ExportRecord[]
-  portalGroups: readonly ExportRecord[]
-  portalGroupHistory: readonly ExportRecord[]
-  linkCategories: readonly ExportRecord[]
-  links: readonly ExportRecord[]
-  linkTexts: readonly ExportRecord[]
-  mediaAssets: readonly ExportRecord[]
-  approvedDestinations: readonly ExportRecord[]
-  localizedOverrides: readonly ExportRecord[]
-  brandProfiles: readonly ExportRecord[]
-  brandContents: readonly ExportRecord[]
-  portalLookOverrides: readonly ExportRecord[]
-  publicationSnapshots: readonly ExportRecord[]
-  publicationActivations: readonly ExportRecord[]
-  pendingContentChanges: readonly ExportRecord[]
-  pageEdits: readonly ExportRecord[]
-  responsibleManagers: readonly ExportRecord[]
-  accessArtifacts: readonly ExportRecord[]
-  addressDownloads: readonly ExportRecord[]
-  healthIntervals: readonly ExportRecord[]
-  lastPrints: readonly ExportRecord[]
-  printWordings: readonly ExportRecord[]
-  excludedRecordClasses: readonly Readonly<{
-    recordClass: string
-    reasonCode: string
-  }>[]
+type SnapshotTransaction = Parameters<typeof readRows>[0]
+
+/**
+ * One exported collection: its payload key, the record type its CSV rows carry,
+ * the keys that order its records, and the query that reads every column of its
+ * table. The array order is the CSV order and the query order.
+ */
+type ExportCollection = Readonly<{
+  key: string
+  csvType: string
+  sortKeys: readonly string[]
+  read: (snapshot: SnapshotTransaction, organizationId: string) => Promise<ExportRecord[]>
 }>
+
+const COLLECTIONS = [
+  {
+    key: 'portals',
+    csvType: 'portal',
+    sortKeys: ['id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id, entity_type,
+                   entity_id, kind, public_name, name, slug, description, hero_image_url,
+                   theme::text AS theme, private_feedback_threshold, skip_private_rating,
+                   publication_state, created_by, responsible_manager_revision,
+                   ${utc('responsibility_needed_since')} AS responsibility_needed_since,
+                   primary_guest_locale,
+                   additional_guest_locales::text AS additional_guest_locales,
+                   linktree_enabled,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at,
+                   ${utc('deleted_at')} AS deleted_at
+            FROM portals WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'portalGroups',
+    csvType: 'portal_group',
+    sortKeys: ['id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id, name, sort_key,
+                   created_by,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at,
+                   ${utc('deleted_at')} AS deleted_at
+            FROM portal_groups WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'portalGroupHistory',
+    csvType: 'portal_group_history',
+    sortKeys: ['portal_group_id', 'occurred_at', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_group_id::text AS portal_group_id, kind,
+                   portal_id::text AS portal_id,
+                   other_group_id::text AS other_group_id, name, previous_name,
+                   actor_user_id, ${utc('occurred_at')} AS occurred_at,
+                   ${utc('created_at')} AS created_at
+            FROM portal_group_history WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'linkCategories',
+    csvType: 'portal_link_category',
+    sortKeys: ['portal_id', 'sort_key', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, portal_id::text AS portal_id, title, sort_key,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_link_categories WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'links',
+    csvType: 'portal_link',
+    sortKeys: ['portal_id', 'category_id', 'sort_key', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, portal_id::text AS portal_id,
+                   property_id::text AS property_id, category_id::text AS category_id,
+                   label, destination_id::text AS destination_id, url,
+                   legacy_destination_state, icon_key, image_asset_id::text AS image_asset_id,
+                   sort_key,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_links WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'linkTexts',
+    csvType: 'portal_link_text',
+    sortKeys: ['portal_id', 'link_id', 'locale', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, link_id::text AS link_id, locale,
+                   label, line, provenance, version, updated_by,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_link_texts WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'mediaAssets',
+    csvType: 'portal_media_asset',
+    sortKeys: ['property_id', 'created_at', 'id'],
+    // Rows only: the stored objects hold the image itself, not tenant
+    // content a data export carries.
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id, purpose, status,
+                   object_key, content_type, width, height, byte_size, content_sha256,
+                   source_format, source_bytes, created_by,
+                   ${utc('rights_confirmed_at')} AS rights_confirmed_at,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('taken_down_at')} AS taken_down_at,
+                   ${utc('object_deleted_at')} AS object_deleted_at
+            FROM portal_media_assets WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'approvedDestinations',
+    csvType: 'approved_destination',
+    sortKeys: ['property_id', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id, normalized_uri,
+                   hostname, source_type, approval_state, validation_version,
+                   requested_by, approved_by,
+                   ${utc('approved_at')} AS approved_at,
+                   ${utc('disabled_at')} AS disabled_at, disabled_reason,
+                   ${utc('last_validated_at')} AS last_validated_at,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_approved_destinations WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'localizedOverrides',
+    csvType: 'portal_localized_override',
+    sortKeys: ['portal_id', 'locale', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, locale, title, short_description,
+                   hero_image_url, linktree_title, version, updated_by,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_localized_overrides WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'brandProfiles',
+    csvType: 'property_brand_profile',
+    sortKeys: ['property_id', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id, display_name,
+                   logo_url, default_hero_image_url, logo_asset_id::text AS logo_asset_id,
+                   hero_asset_id::text AS hero_asset_id, hero_focal_x, hero_focal_y,
+                   primary_color, background_color, text_color, wordmark, background_mode,
+                   default_guest_locales::text AS default_guest_locales,
+                   look_version, version, updated_by,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM property_portal_brand_profiles
+            WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'brandContents',
+    csvType: 'property_brand_content',
+    sortKeys: ['property_id', 'locale', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id, locale, title,
+                   short_description, hero_alt_text, version, updated_by,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM property_portal_brand_contents
+            WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'portalLookOverrides',
+    csvType: 'portal_look_override',
+    sortKeys: ['portal_id', 'id'],
+    // A Portal's own photo, colours and name and logo (ADR 0070): the customer's
+    // own choices, so every column is exported, the photo's descriptions as the
+    // text Postgres renders them in. The images are named by id; the rows that
+    // hold them are the media assets above.
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, photo_mode,
+                   hero_asset_id::text AS hero_asset_id, hero_focal_x, hero_focal_y,
+                   hero_alt_texts::text AS hero_alt_texts, colours_mode,
+                   primary_color, background_mode, background_color, identity_mode,
+                   wordmark, logo_asset_id::text AS logo_asset_id, look_version,
+                   updated_by,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_look_overrides WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'publicationSnapshots',
+    csvType: 'publication_snapshot',
+    sortKeys: ['portal_id', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, version, configuration_digest,
+                   configuration::text AS configuration, guest_locale,
+                   language_pack_version, locale_set::text AS locale_set,
+                   language_pack_versions::text AS language_pack_versions,
+                   localized_content::text AS localized_content, brand_profile_version,
+                   private_feedback_threshold, contact_request_enabled,
+                   contact_notice_id, contact_notice_version, contact_notice_digest,
+                   contact_notice_locale, contact_request_purpose,
+                   contact_retention_policy_version, destination_uri,
+                   ${utc('destination_retrieved_at')} AS destination_retrieved_at,
+                   destination_source_epoch, destination_profile_version, created_by,
+                   ${utc('created_at')} AS created_at
+            FROM portal_publication_snapshots WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'publicationActivations',
+    csvType: 'publication_activation',
+    sortKeys: ['portal_id', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, snapshot_id::text AS snapshot_id,
+                   activation_sequence, kind, activated_by,
+                   ${utc('activated_at')} AS activated_at,
+                   ${utc('deactivated_at')} AS deactivated_at, deactivation_reason
+            FROM portal_publication_activations
+            WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'pendingContentChanges',
+    csvType: 'pending_content_change',
+    sortKeys: ['portal_id', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, change_kind, change_key,
+                   source_version, ${utc('changed_at')} AS changed_at, changed_by,
+                   resolved_snapshot_id::text AS resolved_snapshot_id,
+                   ${utc('resolved_at')} AS resolved_at
+            FROM portal_pending_content_changes
+            WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'pageEdits',
+    csvType: 'page_edit',
+    sortKeys: ['portal_id', 'occurred_at', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, change_kind, change_key,
+                   previous_text, new_text, edit_count, actor_user_id,
+                   ${utc('occurred_at')} AS occurred_at,
+                   ${utc('created_at')} AS created_at
+            FROM portal_page_edits
+            WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'responsibleManagers',
+    csvType: 'portal_responsible_manager',
+    sortKeys: ['portal_id', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, user_id,
+                   ${utc('effective_from')} AS effective_from,
+                   ${utc('effective_to')} AS effective_to, created_by, end_reason
+            FROM portal_responsible_managers WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'accessArtifacts',
+    csvType: 'access_artifact',
+    sortKeys: ['portal_id', 'id'],
+    // Metadata only: `portal_token_id` is deliberately not selected, because
+    // it is the join key into the address-token secret material. The stored
+    // status is never moved off `published` (retiring an artifact with its
+    // code would end scan counting inside a rotation's grace window), so the
+    // state a reader needs is the code's own: published while the code
+    // resolves, retiring through a rotation's grace window, retired after it,
+    // revoked when the code was stopped.
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT a.id::text AS id, a.property_id::text AS property_id,
+                   a.portal_id::text AS portal_id, a.channel,
+                   CASE
+                     WHEN t.status = 'revoked' THEN 'revoked'
+                     WHEN t.status = 'rotating'
+                          AND t.grace_period_ends > transaction_timestamp() THEN 'retiring'
+                     WHEN t.status = 'rotating' THEN 'retired'
+                     ELSE a.status
+                   END AS status,
+                   ${utc('a.published_at')} AS published_at,
+                   ${utc('COALESCE(a.retired_at, t.retired_at)')} AS retired_at
+            FROM portal_access_artifacts AS a
+            JOIN portal_tokens AS t
+              ON t.organization_id = a.organization_id
+             AND t.property_id = a.property_id
+             AND t.portal_id = a.portal_id
+             AND t.id = a.portal_token_id
+            WHERE a.organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'addressDownloads',
+    csvType: 'address_download',
+    sortKeys: ['portal_id', 'downloaded_at', 'id'],
+    // Who was handed an existing address, and when. `portal_token_id` is left
+    // out for the same reason as above; the sealed address is never selected.
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, downloaded_by, purpose,
+                   ${utc('downloaded_at')} AS downloaded_at
+            FROM portal_address_downloads WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'healthIntervals',
+    csvType: 'health_interval',
+    sortKeys: ['portal_id', 'id'],
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, status, reason, source_version,
+                   ${utc('effective_from')} AS effective_from,
+                   ${utc('effective_to')} AS effective_to,
+                   ${utc('observed_at')} AS observed_at
+            FROM portal_health_intervals WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'lastPrints',
+    csvType: 'last_print',
+    sortKeys: ['portal_id'],
+    // The choices of each Portal's last print (the manager's own words
+    // among them) and the image it used, by id: choices and a day, never an
+    // address or a file. Its key is the Portal's own.
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT portal_id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, piece, orientation, look, paper,
+                   printer, quantity, fill_spares, per_sheet, crop_marks, back_page,
+                   languages::text AS languages, call_to_action,
+                   call_to_action_custom::text AS call_to_action_custom,
+                   photo_asset_id::text AS photo_asset_id, photo_focal_x, photo_focal_y,
+                   ${utc('printed_at')} AS printed_at
+            FROM portal_last_prints WHERE organization_id = ${organizationId}`,
+      ),
+  },
+  {
+    key: 'printWordings',
+    csvType: 'print_wording',
+    sortKeys: ['portal_id'],
+    // The wording each Portal saved for Share to open on, the manager's own
+    // words among them: a wording id and words, never an address, a file or
+    // the person who saved it. Its key is the Portal's own.
+    read: (snapshot, organizationId) =>
+      readRows(
+        snapshot,
+        sql`SELECT portal_id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, call_to_action,
+                   call_to_action_custom::text AS call_to_action_custom,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_print_wordings WHERE organization_id = ${organizationId}`,
+      ),
+  },
+] as const satisfies readonly ExportCollection[]
+
+type CollectionKey = (typeof COLLECTIONS)[number]['key']
+
+type PortalOrganizationExportPayload = Readonly<
+  {
+    version: 'portal-organization-export/v1'
+    requestedAsOf: string
+    snapshotBound: 'repeatable_read_within_15m_of_request'
+    excludedRecordClasses: readonly Readonly<{
+      recordClass: string
+      reasonCode: string
+    }>[]
+  } & Record<CollectionKey, readonly ExportRecord[]>
+>
 
 /**
  * Every deliberate Portal-context exclusion, named so a reviewer can audit the
@@ -117,30 +508,7 @@ const CSV_HEADER = [
 function collectionsOf(
   payload: PortalOrganizationExportPayload,
 ): readonly [string, readonly ExportRecord[]][] {
-  return [
-    ['portal', payload.portals],
-    ['portal_group', payload.portalGroups],
-    ['portal_group_history', payload.portalGroupHistory],
-    ['portal_link_category', payload.linkCategories],
-    ['portal_link', payload.links],
-    ['portal_link_text', payload.linkTexts],
-    ['portal_media_asset', payload.mediaAssets],
-    ['approved_destination', payload.approvedDestinations],
-    ['portal_localized_override', payload.localizedOverrides],
-    ['property_brand_profile', payload.brandProfiles],
-    ['property_brand_content', payload.brandContents],
-    ['portal_look_override', payload.portalLookOverrides],
-    ['publication_snapshot', payload.publicationSnapshots],
-    ['publication_activation', payload.publicationActivations],
-    ['pending_content_change', payload.pendingContentChanges],
-    ['page_edit', payload.pageEdits],
-    ['portal_responsible_manager', payload.responsibleManagers],
-    ['access_artifact', payload.accessArtifacts],
-    ['address_download', payload.addressDownloads],
-    ['health_interval', payload.healthIntervals],
-    ['last_print', payload.lastPrints],
-    ['print_wording', payload.printWordings],
-  ]
+  return COLLECTIONS.map(({ key, csvType }) => [csvType, payload[key]])
 }
 
 function csvEntry(payload: PortalOrganizationExportPayload): OrganizationExportEntry {
@@ -176,305 +544,16 @@ async function readPayload(
     async (snapshot) => {
       await assertSnapshotWindow(snapshot, asOf)
 
-      const portals = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id, entity_type,
-                   entity_id, kind, public_name, name, slug, description, hero_image_url,
-                   theme::text AS theme, private_feedback_threshold, skip_private_rating,
-                   publication_state, created_by, responsible_manager_revision,
-                   ${utc('responsibility_needed_since')} AS responsibility_needed_since,
-                   primary_guest_locale,
-                   additional_guest_locales::text AS additional_guest_locales,
-                   linktree_enabled,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at,
-                   ${utc('deleted_at')} AS deleted_at
-            FROM portals WHERE organization_id = ${organizationId}`,
-      )
-      const portalGroups = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id, name, sort_key,
-                   created_by,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at,
-                   ${utc('deleted_at')} AS deleted_at
-            FROM portal_groups WHERE organization_id = ${organizationId}`,
-      )
-      const portalGroupHistory = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_group_id::text AS portal_group_id, kind,
-                   portal_id::text AS portal_id,
-                   other_group_id::text AS other_group_id, name, previous_name,
-                   actor_user_id, ${utc('occurred_at')} AS occurred_at,
-                   ${utc('created_at')} AS created_at
-            FROM portal_group_history WHERE organization_id = ${organizationId}`,
-      )
-      const linkCategories = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, portal_id::text AS portal_id, title, sort_key,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at
-            FROM portal_link_categories WHERE organization_id = ${organizationId}`,
-      )
-      const links = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, portal_id::text AS portal_id,
-                   property_id::text AS property_id, category_id::text AS category_id,
-                   label, destination_id::text AS destination_id, url,
-                   legacy_destination_state, icon_key, image_asset_id::text AS image_asset_id,
-                   sort_key,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at
-            FROM portal_links WHERE organization_id = ${organizationId}`,
-      )
-      const linkTexts = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, link_id::text AS link_id, locale,
-                   label, line, provenance, version, updated_by,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at
-            FROM portal_link_texts WHERE organization_id = ${organizationId}`,
-      )
-      // Rows only: the stored objects hold the image itself, not tenant
-      // content a data export carries.
-      const mediaAssets = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id, purpose, status,
-                   object_key, content_type, width, height, byte_size, content_sha256,
-                   source_format, source_bytes, created_by,
-                   ${utc('rights_confirmed_at')} AS rights_confirmed_at,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('taken_down_at')} AS taken_down_at,
-                   ${utc('object_deleted_at')} AS object_deleted_at
-            FROM portal_media_assets WHERE organization_id = ${organizationId}`,
-      )
-      const approvedDestinations = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id, normalized_uri,
-                   hostname, source_type, approval_state, validation_version,
-                   requested_by, approved_by,
-                   ${utc('approved_at')} AS approved_at,
-                   ${utc('disabled_at')} AS disabled_at, disabled_reason,
-                   ${utc('last_validated_at')} AS last_validated_at,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at
-            FROM portal_approved_destinations WHERE organization_id = ${organizationId}`,
-      )
-      const localizedOverrides = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, locale, title, short_description,
-                   hero_image_url, linktree_title, version, updated_by,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at
-            FROM portal_localized_overrides WHERE organization_id = ${organizationId}`,
-      )
-      const brandProfiles = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id, display_name,
-                   logo_url, default_hero_image_url, logo_asset_id::text AS logo_asset_id,
-                   hero_asset_id::text AS hero_asset_id, hero_focal_x, hero_focal_y,
-                   primary_color, background_color, text_color, wordmark, background_mode,
-                   default_guest_locales::text AS default_guest_locales,
-                   look_version, version, updated_by,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at
-            FROM property_portal_brand_profiles
-            WHERE organization_id = ${organizationId}`,
-      )
-      const brandContents = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id, locale, title,
-                   short_description, hero_alt_text, version, updated_by,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at
-            FROM property_portal_brand_contents
-            WHERE organization_id = ${organizationId}`,
-      )
-      // A Portal's own photo, colours and name and logo (ADR 0070): the customer's
-      // own choices, so every column is exported, the photo's descriptions as the
-      // text Postgres renders them in. The images are named by id; the rows that
-      // hold them are the media assets above.
-      const portalLookOverrides = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, photo_mode,
-                   hero_asset_id::text AS hero_asset_id, hero_focal_x, hero_focal_y,
-                   hero_alt_texts::text AS hero_alt_texts, colours_mode,
-                   primary_color, background_mode, background_color, identity_mode,
-                   wordmark, logo_asset_id::text AS logo_asset_id, look_version,
-                   updated_by,
-                   ${utc('created_at')} AS created_at,
-                   ${utc('updated_at')} AS updated_at
-            FROM portal_look_overrides WHERE organization_id = ${organizationId}`,
-      )
-      const publicationSnapshots = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, version, configuration_digest,
-                   configuration::text AS configuration, guest_locale,
-                   language_pack_version, locale_set::text AS locale_set,
-                   language_pack_versions::text AS language_pack_versions,
-                   localized_content::text AS localized_content, brand_profile_version,
-                   private_feedback_threshold, contact_request_enabled,
-                   contact_notice_id, contact_notice_version, contact_notice_digest,
-                   contact_notice_locale, contact_request_purpose,
-                   contact_retention_policy_version, destination_uri,
-                   ${utc('destination_retrieved_at')} AS destination_retrieved_at,
-                   destination_source_epoch, destination_profile_version, created_by,
-                   ${utc('created_at')} AS created_at
-            FROM portal_publication_snapshots WHERE organization_id = ${organizationId}`,
-      )
-      const publicationActivations = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, snapshot_id::text AS snapshot_id,
-                   activation_sequence, kind, activated_by,
-                   ${utc('activated_at')} AS activated_at,
-                   ${utc('deactivated_at')} AS deactivated_at, deactivation_reason
-            FROM portal_publication_activations
-            WHERE organization_id = ${organizationId}`,
-      )
-      const pendingContentChanges = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, change_kind, change_key,
-                   source_version, ${utc('changed_at')} AS changed_at, changed_by,
-                   resolved_snapshot_id::text AS resolved_snapshot_id,
-                   ${utc('resolved_at')} AS resolved_at
-            FROM portal_pending_content_changes
-            WHERE organization_id = ${organizationId}`,
-      )
-      const pageEdits = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, change_kind, change_key,
-                   previous_text, new_text, edit_count, actor_user_id,
-                   ${utc('occurred_at')} AS occurred_at,
-                   ${utc('created_at')} AS created_at
-            FROM portal_page_edits
-            WHERE organization_id = ${organizationId}`,
-      )
-      const responsibleManagers = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, user_id,
-                   ${utc('effective_from')} AS effective_from,
-                   ${utc('effective_to')} AS effective_to, created_by, end_reason
-            FROM portal_responsible_managers WHERE organization_id = ${organizationId}`,
-      )
-      // Metadata only: `portal_token_id` is deliberately not selected, because
-      // it is the join key into the address-token secret material. The stored
-      // status is never moved off `published` (retiring an artifact with its
-      // code would end scan counting inside a rotation's grace window), so the
-      // state a reader needs is the code's own: published while the code
-      // resolves, retiring through a rotation's grace window, retired after it,
-      // revoked when the code was stopped.
-      const accessArtifacts = await readRows(
-        snapshot,
-        sql`SELECT a.id::text AS id, a.property_id::text AS property_id,
-                   a.portal_id::text AS portal_id, a.channel,
-                   CASE
-                     WHEN t.status = 'revoked' THEN 'revoked'
-                     WHEN t.status = 'rotating'
-                          AND t.grace_period_ends > transaction_timestamp() THEN 'retiring'
-                     WHEN t.status = 'rotating' THEN 'retired'
-                     ELSE a.status
-                   END AS status,
-                   ${utc('a.published_at')} AS published_at,
-                   ${utc('COALESCE(a.retired_at, t.retired_at)')} AS retired_at
-            FROM portal_access_artifacts AS a
-            JOIN portal_tokens AS t
-              ON t.organization_id = a.organization_id
-             AND t.property_id = a.property_id
-             AND t.portal_id = a.portal_id
-             AND t.id = a.portal_token_id
-            WHERE a.organization_id = ${organizationId}`,
-      )
-      // Who was handed an existing address, and when. `portal_token_id` is left
-      // out for the same reason as above; the sealed address is never selected.
-      const addressDownloads = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, downloaded_by, purpose,
-                   ${utc('downloaded_at')} AS downloaded_at
-            FROM portal_address_downloads WHERE organization_id = ${organizationId}`,
-      )
-      const healthIntervals = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, status, reason, source_version,
-                   ${utc('effective_from')} AS effective_from,
-                   ${utc('effective_to')} AS effective_to,
-                   ${utc('observed_at')} AS observed_at
-            FROM portal_health_intervals WHERE organization_id = ${organizationId}`,
-      )
-      // The choices of each Portal's last print (the manager's own words
-      // among them) and the image it used, by id: choices and a day, never an
-      // address or a file. Its key is the Portal's own.
-      const lastPrints = await readRows(
-        snapshot,
-        sql`SELECT portal_id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, piece, orientation, look, paper,
-                   printer, quantity, fill_spares, per_sheet, crop_marks, back_page,
-                   languages::text AS languages, call_to_action,
-                   call_to_action_custom::text AS call_to_action_custom,
-                   photo_asset_id::text AS photo_asset_id, photo_focal_x, photo_focal_y,
-                   ${utc('printed_at')} AS printed_at
-            FROM portal_last_prints WHERE organization_id = ${organizationId}`,
-      )
-      // The wording each Portal saved for Share to open on, the manager's own
-      // words among them: a wording id and words, never an address, a file or
-      // the person who saved it. Its key is the Portal's own.
-      const printWordings = await readRows(
-        snapshot,
-        sql`SELECT portal_id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, call_to_action,
-                   call_to_action_custom::text AS call_to_action_custom,
-                   ${utc('updated_at')} AS updated_at
-            FROM portal_print_wordings WHERE organization_id = ${organizationId}`,
-      )
+      const collections: Record<string, readonly ExportRecord[]> = {}
+      for (const { key, sortKeys, read } of COLLECTIONS) {
+        collections[key] = sortRecords(await read(snapshot, organizationId), sortKeys)
+      }
 
       return {
         version: 'portal-organization-export/v1' as const,
         requestedAsOf: asOf.toISOString(),
         snapshotBound: 'repeatable_read_within_15m_of_request' as const,
-        portals: sortRecords(portals, ['id']),
-        portalGroups: sortRecords(portalGroups, ['id']),
-        portalGroupHistory: sortRecords(portalGroupHistory, [
-          'portal_group_id',
-          'occurred_at',
-          'id',
-        ]),
-        linkCategories: sortRecords(linkCategories, ['portal_id', 'sort_key', 'id']),
-        links: sortRecords(links, ['portal_id', 'category_id', 'sort_key', 'id']),
-        linkTexts: sortRecords(linkTexts, ['portal_id', 'link_id', 'locale', 'id']),
-        mediaAssets: sortRecords(mediaAssets, ['property_id', 'created_at', 'id']),
-        approvedDestinations: sortRecords(approvedDestinations, ['property_id', 'id']),
-        localizedOverrides: sortRecords(localizedOverrides, [
-          'portal_id',
-          'locale',
-          'id',
-        ]),
-        brandProfiles: sortRecords(brandProfiles, ['property_id', 'id']),
-        brandContents: sortRecords(brandContents, ['property_id', 'locale', 'id']),
-        portalLookOverrides: sortRecords(portalLookOverrides, ['portal_id', 'id']),
-        publicationSnapshots: sortRecords(publicationSnapshots, ['portal_id', 'id']),
-        publicationActivations: sortRecords(publicationActivations, ['portal_id', 'id']),
-        pendingContentChanges: sortRecords(pendingContentChanges, ['portal_id', 'id']),
-        pageEdits: sortRecords(pageEdits, ['portal_id', 'occurred_at', 'id']),
-        responsibleManagers: sortRecords(responsibleManagers, ['portal_id', 'id']),
-        accessArtifacts: sortRecords(accessArtifacts, ['portal_id', 'id']),
-        addressDownloads: sortRecords(addressDownloads, [
-          'portal_id',
-          'downloaded_at',
-          'id',
-        ]),
-        healthIntervals: sortRecords(healthIntervals, ['portal_id', 'id']),
-        lastPrints: sortRecords(lastPrints, ['portal_id']),
-        printWordings: sortRecords(printWordings, ['portal_id']),
+        ...(collections as Record<CollectionKey, readonly ExportRecord[]>),
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
       }
     },
