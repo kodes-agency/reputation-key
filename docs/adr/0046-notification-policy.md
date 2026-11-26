@@ -1615,7 +1615,7 @@ Guest voice 2.0 gives a manager the page's three lines (what to fix first, what 
 love, what changed). The owner decided on 2026-10-29 that they may also arrive by email, on
 Monday mornings, to managers who asked (v3 contract decision 11). It shipped dark with the
 rest of v3 and has been live since the switch-on of 2026-10-30; the preference is offered
-in Settings while review analysis v3 is on (`REVIEW_ANALYSIS_V3_LIVE`).
+in Settings.
 
 1. **One new type, `guest_voice.summary`**, raised by one governed fact,
    `ai.guest_voice_summary.ready`, which the AI context records at most once per Property
