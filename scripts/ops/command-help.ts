@@ -4,3 +4,9 @@ export function exitIfHelp(argv: readonly string[], usage: string): void {
   console.log(`usage: ${usage}`)
   process.exit(0)
 }
+
+/** Prints the usage line to stderr and exits 1, for a missing or malformed argument. */
+export function exitWithUsage(usage: string): never {
+  console.error(`Usage: ${usage}`)
+  process.exit(1)
+}

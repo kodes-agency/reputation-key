@@ -1,3 +1,4 @@
+import { plural } from '#/shared/format/format'
 import { visiblePortals } from './visible-portals'
 // fallow-ignore-file code-duplication
 // r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
@@ -116,9 +117,6 @@ export function localeChips(
     description: `${chips.length === 1 ? 'Language' : 'Languages'}: ${names}`,
   }
 }
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`
 
 function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names.join('')

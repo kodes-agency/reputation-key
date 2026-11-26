@@ -28,20 +28,15 @@
 // stays runbook-manual (runbook §2) — registered for the platform owner.
 
 import { positionalArgs } from '../../src/shared/ops/operator-command'
-import { exitIfHelp } from './command-help'
+import { exitIfHelp, exitWithUsage } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE = 'pnpm ops disconnect-connection <connectionId> --operator <id> --org <id>'
 
-function usage(): never {
-  console.error(`Usage: ${USAGE}`)
-  process.exit(1)
-}
-
 async function main(): Promise<void> {
   exitIfHelp(process.argv.slice(2), USAGE)
   const [connectionId] = positionalArgs(process.argv.slice(2))
-  if (!connectionId) usage()
+  if (!connectionId) exitWithUsage(USAGE)
 
   const result = await runOperatorCommand(
     {

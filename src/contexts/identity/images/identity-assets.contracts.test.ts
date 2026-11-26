@@ -3,7 +3,6 @@ import {
   IDENTITY_ASSET_PUBLIC_PATH,
   identityAssetKeyFromPath,
   identityAssetPath,
-  ifNoneMatchMatches,
   isIdentityAssetKey,
   parseIdentityAssetKey,
 } from './identity-assets.contracts'
@@ -83,20 +82,5 @@ describe('identityAssetKeyFromPath', () => {
     `${IDENTITY_ASSET_PUBLIC_PATH}/avatars/u1/${ASSET}/more`,
   ])('is not one of ours: %j', (address) => {
     expect(identityAssetKeyFromPath(address ?? '')).toBeNull()
-  })
-})
-
-describe('ifNoneMatchMatches', () => {
-  it.each([
-    ['"a"', true],
-    ['W/"a"', true],
-    ['"b", "a"', true],
-    ['*', true],
-    ['"b"', false],
-    ['', false],
-    [null, false],
-    [undefined, false],
-  ])('%j against "a" is %s', (header, expected) => {
-    expect(ifNoneMatchMatches(header, '"a"')).toBe(expected)
   })
 })

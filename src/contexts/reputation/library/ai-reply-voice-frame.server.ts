@@ -78,6 +78,7 @@ export function createAiReplyVoicePublicApi(
           closingOrder: [0],
         })
         const [withClosing] = candidates
+        if (withClosing === undefined) return null
         return { ...frame, prefix: withClosing.prefix, suffix: withClosing.suffix }
       } catch (error) {
         // A voice too long to frame any reply leaves the draft unframed rather than failing it.

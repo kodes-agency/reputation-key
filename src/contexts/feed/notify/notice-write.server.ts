@@ -69,18 +69,14 @@ export async function writeNoticeInTransaction(
   // Drizzle's transaction handle implements the same query surface the
   // adapters need; keep the cast at this infrastructure boundary.
   const transactionDb = tx as unknown as Database
-  let insertedEmail: NotificationEmail | null = null
 
-  await insertNotification({
+  const { email } = await insertNotification({
     db: transactionDb,
-    onEmailQueued: (email) => {
-      insertedEmail = email
-    },
     clock: deps.clock,
     idGen: deps.idGen,
     emailIdGen: deps.emailIdGen,
     logger: deps.logger,
     ratingForRouting: deps.ratingForRouting,
   })(input, audience)
-  return insertedEmail
+  return email
 }

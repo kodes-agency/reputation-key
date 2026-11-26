@@ -42,6 +42,7 @@ import {
   type OAuthStateHandleService,
 } from '#/contexts/integration/application/oauth-state-handle'
 import { createRedisGoogleRefreshCoordination } from '#/contexts/integration/connections/google-refresh-coordination.adapter.server'
+import type { GoogleProviderEndpoints } from '#/contexts/integration/build'
 import type { GoogleOAuthProviderCallAuthorizer } from '#/contexts/integration/connections/google-oauth.port.server'
 import type { GoogleImportContentAuthorizer } from '#/contexts/integration/imports/google-import-command-authorizer.server'
 import type { PerformanceContentAuthorizer } from '#/contexts/integration/performance/google-performance-authorizer.server'
@@ -85,7 +86,7 @@ export type GoogleProviderAuthorityInput = Readonly<{
   mode?: GoogleProviderAuthorityMode
   redis: Redis | undefined
   /** Google's approved provider endpoints, already resolved and overridden. */
-  providerEndpoints: Readonly<Record<'gbpApiBaseUrl' | string, string>>
+  providerEndpoints: GoogleProviderEndpoints
   /**
    * Identity-owned facts consulted by the authorization check. The consumer
    * types pin this seam to the exact query contract.

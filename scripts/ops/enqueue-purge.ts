@@ -37,7 +37,7 @@ import {
   collectReviewSourceContentLifecycleReport,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
 } from '../../src/contexts/reputation/public-api'
-import { exitIfHelp } from './command-help'
+import { exitIfHelp, exitWithUsage } from './command-help'
 import { runDatabaseOperatorCommand } from './operator-command'
 
 const TARGETS = {
@@ -64,15 +64,10 @@ type Target = keyof typeof TARGETS
 
 const USAGE = `pnpm ops purge <${Object.keys(TARGETS).join('|')}> --operator <id> [--reason <text> --apply --yes ops:purge]`
 
-function usage(): never {
-  console.error(`Usage: ${USAGE}`)
-  process.exit(1)
-}
-
 export async function main(): Promise<void> {
   exitIfHelp(process.argv.slice(2), USAGE)
   const [target] = positionalArgs(process.argv.slice(2))
-  if (!target || !(target in TARGETS)) usage()
+  if (!target || !(target in TARGETS)) exitWithUsage(USAGE)
   const { jobName, capability, lifecycleMode } = TARGETS[target as Target]
 
   const result = await runDatabaseOperatorCommand(

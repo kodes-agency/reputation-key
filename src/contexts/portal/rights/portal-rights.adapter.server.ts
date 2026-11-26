@@ -15,6 +15,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
+import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import type { Tx } from '#/shared/outbox/commit'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type {
@@ -56,10 +57,6 @@ function tenantFilter(table: string, scope: PortalRightsScope): SQL {
 
 function count(value: unknown): number {
   return Number((value as string | number | null | undefined) ?? 0)
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
 }
 
 async function countScope(
@@ -125,8 +122,6 @@ async function assertReady(tx: Tx, scope: PortalRightsScope): Promise<void> {
   await assertNothingLive(tx, scope.organizationId)
 }
 
-class ErasureProbeRolledBack extends Error {}
-
 /**
  * The reason an erasure would be refused, or null. It runs the same checks and
  * deletes as the apply and then rolls back, so a row another context still
@@ -136,16 +131,10 @@ async function erasureRefusal(
   db: Database,
   scope: PortalRightsScope,
 ): Promise<string | null> {
-  try {
-    await db.transaction(async (tx) => {
-      await assertReady(tx, scope)
-      await erasePortalScopeInTx(tx, scope)
-      throw new ErasureProbeRolledBack()
-    })
-    return null
-  } catch (error) {
-    return error instanceof ErasureProbeRolledBack ? null : errorMessage(error)
-  }
+  return refusalOf(db, async (tx) => {
+    await assertReady(tx, scope)
+    await erasePortalScopeInTx(tx, scope)
+  })
 }
 
 /** The read-only refusal command preflight gives before any executor applies. */

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { listEligiblePortalManagers } from './portal-manager-eligibility.server'
+import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
+import { policyDeps } from './portal-manager-eligibility.server'
 
 describe('Portal Responsible Manager eligibility', () => {
   it('allows active admins org-wide and requires a current grant for managers', async () => {
-    const eligible = await listEligiblePortalManagers(
-      {
+    const eligible = await listEligibleResponsibleManagers(
+      policyDeps({
         identityPublicApi: {
           listActiveManagers: async () => [
             {
@@ -35,7 +36,7 @@ describe('Portal Responsible Manager eligibility', () => {
             managerId === userId('manager-no-grant') ? [] : [propertyId('property-1')],
           getAssignedPortals: async () => [],
         },
-      },
+      }),
       organizationId('org-1'),
       propertyId('property-1'),
     )
@@ -60,8 +61,8 @@ describe('Portal Responsible Manager eligibility', () => {
   })
 
   it('uses current Property authority rather than the display role for bypass decisions', async () => {
-    const eligible = await listEligiblePortalManagers(
-      {
+    const eligible = await listEligibleResponsibleManagers(
+      policyDeps({
         identityPublicApi: {
           listActiveManagers: async () => [
             {
@@ -75,7 +76,7 @@ describe('Portal Responsible Manager eligibility', () => {
           getAccessiblePropertyIds: async () => [],
           getAssignedPortals: async () => [],
         },
-      },
+      }),
       organizationId('org-1'),
       propertyId('property-1'),
     )

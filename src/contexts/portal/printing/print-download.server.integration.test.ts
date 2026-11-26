@@ -88,7 +88,7 @@ async function setup() {
       focalX: 0.4,
       focalY: 0.6,
     },
-    logo: { assetId: LOGO_ASSET },
+    logo: { assetId: LOGO_ASSET, width: 480, height: 120 },
   }
   const scope = {
     organizationId: ctx.organizationId,

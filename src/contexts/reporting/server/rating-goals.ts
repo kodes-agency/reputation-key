@@ -51,9 +51,9 @@ export const getRatingGoalDetail = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withRatingGoals(async (ratingGoals, policy, actor, ctx) => {
+        withRatingGoals(async (ratingGoals, policy, actor) => {
           const detail = await ratingGoals.detail(policy, data, actor)
-          return detail === null ? null : withInboxItems(detail, data.propertyId, ctx)
+          return detail === null ? null : withInboxItems(detail, data.propertyId, actor)
         }),
       'GET',
       'goal.getRatingGoalDetail',

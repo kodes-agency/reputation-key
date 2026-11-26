@@ -15,6 +15,7 @@ import type {
   BackupErasureReplayer,
 } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
+import { errorMessage, refusalOf } from '#/shared/db/lifecycle/rights-primitives'
 import type { Tx } from '#/shared/outbox/commit'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type {
@@ -310,8 +311,6 @@ async function assertReadyToPurge(
   await assertPortalFactsSettled(tx, organization, at, property)
 }
 
-class PurgeProbeRolledBack extends Error {}
-
 /**
  * The reason a purge would be refused, or null. It runs the same readiness
  * checks as the purge and then rolls back, so nothing is left changed.
@@ -322,15 +321,7 @@ async function purgeRefusal(
   at: Date,
   property: PropertyFilter,
 ): Promise<string | null> {
-  try {
-    await db.transaction(async (tx) => {
-      await assertReadyToPurge(tx, organization, at, property)
-      throw new PurgeProbeRolledBack()
-    })
-    return null
-  } catch (error) {
-    return error instanceof PurgeProbeRolledBack ? null : errorMessage(error)
-  }
+  return refusalOf(db, (tx) => assertReadyToPurge(tx, organization, at, property))
 }
 
 async function purge(
@@ -357,10 +348,6 @@ async function purge(
   )
   const rows = Object.values(deleted).reduce((sum, value) => sum + value, 0)
   return { deleted, evidenceRef: `${CONTEXT}:purge:v1:tenant_rows_deleted:${rows}` }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unexpected error'
 }
 
 const propertyOf = (plan: RightsRequestPlan): PropertyFilter =>

@@ -1,6 +1,5 @@
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/profile/property-repository.server'
-import { getLogger } from '#/shared/observability/logger'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
 import type { ContextWiringInput } from './runtime'
@@ -17,7 +16,6 @@ export function wireProperty(
     clock,
     staffPublicApi: identity.publicApi.people,
     identityManagerFacts: identity.publicApi.managerFacts,
-    logger: getLogger(),
   })
 
   return property
