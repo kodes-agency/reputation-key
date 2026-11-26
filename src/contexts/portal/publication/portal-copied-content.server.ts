@@ -11,7 +11,7 @@ import {
 import type { Tx } from '#/shared/outbox/commit'
 import type { CreatePortalCopiedContent } from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
-import { categoryToRow, newLinkToRow } from '../links/portal-link-mapper.server'
+import { categoryToRow, linkToRow } from '../links/portal-link-mapper.server'
 import { upsertLinkTexts } from '../links/portal-link-texts-store.server'
 import { isForeignKeyViolation } from './portal-unique-violation.server'
 
@@ -86,7 +86,7 @@ export async function insertCopiedContent(
     await tx.insert(portalLinkCategories).values(copy.categories.map(categoryToRow))
   }
   if (copy.links.length === 0) return
-  await tx.insert(portalLinks).values(copy.links.map(newLinkToRow))
+  await tx.insert(portalLinks).values(copy.links.map(linkToRow))
   for (const link of copy.links) {
     await upsertLinkTexts(
       tx,
