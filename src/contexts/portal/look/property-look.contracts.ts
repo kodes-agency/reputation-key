@@ -59,8 +59,3 @@ export const propertyLogoInputSchema = z.object({
   propertyId: propertyIdSchema,
   assetId: assetIdSchema.nullable(),
 })
-
-export type PropertyLookInput = z.infer<typeof propertyLookInputSchema>
-export type PropertyDefaultLocalesInput = z.infer<
-  typeof propertyDefaultLocalesInputSchema
->

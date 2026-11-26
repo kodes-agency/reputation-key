@@ -19,7 +19,7 @@ export function PortalSharePrintSection({
       view={printKit.view}
       countryCode={countryCode}
       isError={printKit.isError}
-      onRetry={printKit.retry}
+      onRetry={printKit.refetch}
       isRetrying={printKit.isRetrying}
       unavailableReason={kit.printUnavailableReason}
     />
