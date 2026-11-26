@@ -22,7 +22,7 @@ export function InvitationSummary({ invitation }: Props) {
         <DescriptionItem term="Invited by">{inviterName}</DescriptionItem>
       ) : null}
       <DescriptionItem term="Role">
-        {role === 'Member' ? 'Staff' : roleLabel(role, 'full')}
+        {role === 'Member' ? 'Staff' : roleLabel(role)}
       </DescriptionItem>
       {role !== 'Member' && (
         <DescriptionItem term="Properties">

@@ -50,7 +50,7 @@ export function RoleChoice({
           >
             <RadioGroupItem value={role} id={id} className="mt-0.5" />
             <Label htmlFor={id} className="flex flex-col items-start gap-1 font-normal">
-              <span className="text-sm font-medium">{roleLabel(role, 'full')}</span>
+              <span className="text-sm font-medium">{roleLabel(role)}</span>
               <span className="text-sm text-muted-foreground">
                 {roleDescription(role)}
               </span>

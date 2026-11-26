@@ -3,7 +3,6 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import type { PlatformOrganizationView } from '#/contexts/identity/operator/platform-console.contracts'
 import {
   canInviteAdmin,
-  formatConsoleDate,
   formatInvitationExpiry,
   hasCompetingAdminInvitations,
   isReauthRequired,
@@ -162,12 +161,6 @@ describe('summarizeOrganizations', () => {
       needAccountAdmin: 0,
       openAdminInvitations: 0,
     })
-  })
-})
-
-describe('formatConsoleDate', () => {
-  it('prints the UTC calendar date so the server and the browser agree', () => {
-    expect(formatConsoleDate('2026-09-30T23:30:00.000Z')).toBe('Sep 30, 2026')
   })
 })
 

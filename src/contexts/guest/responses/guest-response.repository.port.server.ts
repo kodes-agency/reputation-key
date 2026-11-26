@@ -13,6 +13,12 @@ export type GuestResponseScope = Readonly<{
   portalId: PortalId
 }>
 
+export type GuestResponsePeriod = GuestResponseScope &
+  Readonly<{
+    startAt: Date
+    endAt: Date
+  }>
+
 export type GuestResponseSnippet = Readonly<{
   id: GuestResponseId
   comment: string | null
@@ -81,14 +87,11 @@ export type GuestResponseRepository = Readonly<{
     filter: GuestResponseContentFilter,
   ): Promise<ReadonlyArray<GuestResponseId>>
   /** Current integrity outcomes for rating responses in a half-open business period. */
-  summarizePortalIntegrity(
-    scope: GuestResponseScope,
-    startAt: Date,
-    endAt: Date,
+  getPortalResponseIntegritySummary(
+    input: GuestResponsePeriod,
   ): Promise<PortalResponseIntegritySummary>
-  summarizePortalRatingLanguages(
-    scope: GuestResponseScope,
-    startAt: Date,
-    endAt: Date,
+  /** Private ratings of one Portal over a half-open period, by page language. */
+  getPortalRatingLanguages(
+    input: GuestResponsePeriod,
   ): Promise<PortalRatingLanguageBreakdown>
 }>

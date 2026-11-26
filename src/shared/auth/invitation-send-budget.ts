@@ -1,5 +1,5 @@
-import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { keyedPseudonym } from '#/shared/security/keyed-pseudonym'
+import type { RateLimiter } from '#/shared/rate-limit/middleware'
 
 import {
   INVITATION_ACTOR_LIMIT as ACTOR_LIMIT,
