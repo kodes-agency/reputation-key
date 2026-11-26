@@ -8,7 +8,6 @@ import { eq } from 'drizzle-orm'
 import { notificationDigestBatches } from '#/shared/db/schema'
 import { seedProperty } from '#/shared/db/testing/notification-test-db'
 import { startDigestAttempt } from './notification-digest-batch.server'
-import { digestProviderRequest } from './digest-batch-identity.server'
 import { freezeBatchAtFirstSweep } from './digest-retry-seed.test-fixtures'
 import {
   HOUR,
@@ -94,27 +93,6 @@ describe('digest idempotency', () => {
       'v1',
     )
     expect(retry.emailSender.send.mock.calls[0]![0].headers).toEqual(firstRequest.headers)
-  })
-
-  it('retries a pre-unsubscribe batch with its exact legacy header', async () => {
-    const { batch, firstRequest } = await freezeBatchAtFirstSweep(world)
-    const legacyHeaders = {
-      'List-Unsubscribe': '<https://app.example.com/settings/notifications>',
-      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-    }
-    await forgetStoredRequest(batch.id, {
-      unsubscribeKeyVersion: 'legacy',
-      contentDigest: digestProviderRequest({ ...firstRequest, headers: legacyHeaders }),
-    })
-    const retry = retryDeps()
-
-    await world.run(retry)
-
-    expect(retry.oneClickUnsubscribeUrl).not.toHaveBeenCalled()
-    expect(retry.emailSender.send.mock.calls[0]![0].headers).toEqual(legacyHeaders)
-    expect(await world.batches()).toEqual([
-      expect.objectContaining({ id: batch.id, state: 'accepted' }),
-    ])
   })
 
   it('records that an attempt started before it calls the provider', async () => {

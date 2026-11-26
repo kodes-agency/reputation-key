@@ -65,19 +65,7 @@ NOT (
         AND p.organization_id = notifications.organization_id
         AND p.property_id IS NULL
         AND p.category = notifications.category
-        AND p.channel = 'in_app'
-        AND NOT EXISTS (
-          SELECT 1 FROM notification_category_defaults d
-          WHERE d.user_id = p.user_id
-            AND d.organization_id = p.organization_id
-            AND d.category = p.category
-            AND d.channel = p.channel
-            AND d.updated_at > p.updated_at)),
-    (SELECT enabled FROM notification_category_defaults
-      WHERE user_id = notifications.user_id
-        AND organization_id = notifications.organization_id
-        AND category = notifications.category
-        AND channel = 'in_app'),
+        AND p.channel = 'in_app'),
     ${inAppByDefault}
   )
 )

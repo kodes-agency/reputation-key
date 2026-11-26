@@ -67,20 +67,19 @@ async function setDefault(
   enabled: boolean,
 ) {
   await pool.query(
-    `INSERT INTO notification_category_defaults (
-       id, user_id, organization_id, category, channel, enabled, cadence,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, 'daily', NOW(), NOW())`,
+    `INSERT INTO notification_preferences (
+       id, user_id, organization_id, property_id, category, channel, enabled,
+       cadence, created_at, updated_at
+     ) VALUES ($1, $2, $3, NULL, $4, $5, $6, 'daily', NOW(), NOW())`,
     [randomUUID(), USER, ORG, category, channel, enabled],
   )
 }
 
 async function cleanUp() {
   await pool.query('DELETE FROM notifications WHERE organization_id = $1', [ORG])
-  await pool.query(
-    'DELETE FROM notification_category_defaults WHERE organization_id = $1',
-    [ORG],
-  )
+  await pool.query('DELETE FROM notification_preferences WHERE organization_id = $1', [
+    ORG,
+  ])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
 }

@@ -1,25 +1,17 @@
 // In-app visibility against PostgreSQL: an email-only notice is hidden from the
 // feed and the badge while the reader has in-app off for that Property and
 // category. The answer is the Property's own row, else the person's
-// Organization default (a preference row with no Property, else the category
-// defaults table), else the versioned default. The hidden set must be the same
-// before the defaults are copied into preference rows, after the copy, and once
-// the old table is empty.
+// Organization default (a preference row with no Property), else the versioned
+// default.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
-import {
-  notificationCategoryDefaults,
-  notificationPreferences,
-  notifications,
-  properties,
-} from '#/shared/db/schema'
+import { notificationPreferences, notifications, properties } from '#/shared/db/schema'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { copyCategoryDefaultsToPreferences } from '../preferences/copy-category-defaults.server'
 import { readNotificationFeedHead } from './notification-feed.server'
 
 const ORG = organizationId('in-app-vis-org')
@@ -89,18 +81,16 @@ describe.sequential('in-app visibility of notices (real PostgreSQL)', () => {
   const clean = async () => {
     await db.delete(notifications).where(inArray(notifications.userId, USERS))
     await db
-      .delete(notificationCategoryDefaults)
-      .where(inArray(notificationCategoryDefaults.userId, USERS))
-    await db
       .delete(notificationPreferences)
       .where(inArray(notificationPreferences.userId, USERS))
   }
 
   const seed = async () => {
-    await db.insert(notificationCategoryDefaults).values(
+    await db.insert(notificationPreferences).values(
       DEFAULTS.map((row) => ({
         userId: row.user,
         organizationId: row.org,
+        propertyId: null,
         category: row.category,
         channel: 'in_app',
         enabled: row.enabled,
@@ -190,24 +180,11 @@ describe.sequential('in-app visibility of notices (real PostgreSQL)', () => {
     await lease?.release()
   })
 
-  it('hides the notices the reader opted out of with only the old table', async () => {
+  it('hides the notices the reader opted out of', async () => {
     await expectToday()
   })
 
-  it('hides the same notices after the defaults are copied', async () => {
-    await copyCategoryDefaultsToPreferences(db)
-    await expectToday()
-  })
-
-  it('hides the same notices once the old table is empty', async () => {
-    await copyCategoryDefaultsToPreferences(db)
-    await db
-      .delete(notificationCategoryDefaults)
-      .where(inArray(notificationCategoryDefaults.userId, USERS))
-    await expectToday()
-  })
-
-  it('counts the same unread notices in every state', async () => {
+  it('counts the unread notices the feed lists', async () => {
     const unread = async () => {
       const head = await readNotificationFeedHead(db, {
         userId: userId(READER),
@@ -224,21 +201,9 @@ describe.sequential('in-app visibility of notices (real PostgreSQL)', () => {
       .where(inArray(notifications.userId, USERS))
     const before = await unread()
     expect(before).toBe(expectedFor(READER).length)
-    await copyCategoryDefaultsToPreferences(db)
-    expect(await unread()).toBe(before)
-    await db
-      .delete(notificationCategoryDefaults)
-      .where(inArray(notificationCategoryDefaults.userId, USERS))
-    expect(await unread()).toBe(before)
   })
 
-  it('lets the Property override beat the new default row, which beats the old table', async () => {
-    await copyCategoryDefaultsToPreferences(db)
-    // The old table now disagrees with the copied row: the copied row answers.
-    await db
-      .update(notificationCategoryDefaults)
-      .set({ enabled: true })
-      .where(eq(notificationCategoryDefaults.category, 'workflow_collaboration'))
+  it('lets the Property override beat the default row', async () => {
     expect(await listedFor(READER)).toEqual(expectedFor(READER))
 
     // A Property override still wins over a changed default row.
@@ -253,7 +218,6 @@ describe.sequential('in-app visibility of notices (real PostgreSQL)', () => {
   })
 
   it('ignores a default set in another Organization', async () => {
-    await copyCategoryDefaultsToPreferences(db)
     expect(await listedFor(READER)).not.toContain(`${READER}/${P2}/guest_voice`)
   })
 })
