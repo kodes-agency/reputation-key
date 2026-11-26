@@ -215,10 +215,7 @@ const run = async (
   if (!sameBinding(binding, after)) return notCheckable('source_moved')
 
   const resource = parseReviewProviderResource(found.review.reviewName)
-  if (
-    `accounts/${resource.accountId}/locations/${resource.locationId}` !==
-    review.externalLocationId
-  ) {
+  if (resource.locationName !== review.externalLocationId) {
     return { status: 'unavailable', retry: 'never' }
   }
   const deriver = await deps.subjectKeyService.acquireDeriver()

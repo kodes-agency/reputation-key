@@ -143,8 +143,7 @@ async function readPushNotification(
     decoded.fill(0)
   }
   const resource = parseReviewProviderResource(payload.review)
-  const locationName = `accounts/${resource.accountId}/locations/${resource.locationId}`
-  if (payload.location !== locationName) {
+  if (payload.location !== resource.locationName) {
     throw new TypeError('Google review push resource mismatch')
   }
   return {
@@ -152,7 +151,7 @@ async function readPushNotification(
     messageId,
     notificationKind: notificationKind(payload, body.message.attributes),
     locationId: resource.locationId,
-    locationName,
+    locationName: resource.locationName,
     reviewName: resource.name,
   }
 }
