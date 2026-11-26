@@ -76,14 +76,6 @@ export async function getConnectionById(connectionId: string) {
   return rows[0] ?? null
 }
 
-export async function getPropertyBySlug(organizationId: string, slug: string) {
-  const rows = await dbQuery(
-    'SELECT * FROM properties WHERE organization_id = $1 AND slug = $2 AND deleted_at IS NULL',
-    [organizationId, slug],
-  )
-  return rows[0] ?? null
-}
-
 export async function getPropertyByGbpLocationId(
   organizationId: string,
   gbpLocationId: string,

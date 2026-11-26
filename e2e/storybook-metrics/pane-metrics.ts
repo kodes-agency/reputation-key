@@ -65,7 +65,7 @@
 //      menu ran x=5..475 at 320 and a `w-[480px]` reply-due popover 0..480,
 //      with the document's `scrollWidth` still 320.
 
-import { errors, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 /** Tailwind's `md`, and `useIsMobile`'s breakpoint. Below it, `max-md:` applies. */
 export const PHONE_BELOW_PX = 768
@@ -277,8 +277,6 @@ type MeasureArgs = Readonly<{
   pillNames: ReadonlyArray<string>
   primaryNames: ReadonlyArray<string>
   slack: number
-  /** `false` while a probe has a layer open: only the layers are new. */
-  includePane: boolean
   /** See `PaneOptions.hiddenRootBleedIsDecorative`. */
   hiddenRootBleedIsDecorative: boolean
   /** See `PaneOptions.hiddenInputUsesLabel`. */
@@ -739,30 +737,23 @@ function measureInPage(args: MeasureArgs): PaneReport {
       })
 
   const paneName = `the pane (${args.paneSelector})`
-  const include = <T>(measure: () => T[]): T[] => (args.includePane ? measure() : [])
   return {
     paneCount: panes.length,
     viewport,
     documentScrollWidth: document.documentElement.scrollWidth,
     paneBoxes: panes.map(boxOf),
-    targets: include(() => panes.flatMap((pane) => targetsIn(pane, paneKind))),
-    overflows: include(() =>
-      panes.flatMap((pane) =>
-        overflowsIn(pane, paneName, args.hiddenRootBleedIsDecorative),
-      ),
+    targets: panes.flatMap((pane) => targetsIn(pane, paneKind)),
+    overflows: panes.flatMap((pane) =>
+      overflowsIn(pane, paneName, args.hiddenRootBleedIsDecorative),
     ),
-    clips: include(() => panes.flatMap(clippedIn)),
-    textOverflows: include(() => panes.flatMap(textOverflowsIn)),
-    primaries: include(() => panes.flatMap(primariesIn)),
+    clips: panes.flatMap(clippedIn),
+    textOverflows: panes.flatMap(textOverflowsIn),
+    primaries: panes.flatMap(primariesIn),
     layers: topLayers.map(layerIn),
   }
 }
 
-function measureArgs(
-  paneSelector: string,
-  includePane: boolean,
-  options: PaneOptions = {},
-): MeasureArgs {
+function measureArgs(paneSelector: string, options: PaneOptions = {}): MeasureArgs {
   return {
     paneSelector,
     interactiveSelector: INTERACTIVE_SELECTOR,
@@ -772,7 +763,6 @@ function measureArgs(
     pillNames: COLLAPSED_PILL_NAMES,
     primaryNames: COMPOSER_PRIMARY_NAMES,
     slack: POSITION_SLACK_PX,
-    includePane,
     hiddenRootBleedIsDecorative: options.hiddenRootBleedIsDecorative === true,
     hiddenInputUsesLabel: options.hiddenInputUsesLabel === true,
     textMustFitItsBox: options.textMustFitItsBox === true,
@@ -785,76 +775,5 @@ export function measurePane(
   paneSelector: string,
   options: PaneOptions = {},
 ): Promise<PaneReport> {
-  return page.evaluate(measureInPage, measureArgs(paneSelector, true, options))
-}
-
-/** Only the open layers — what a probe just opened over an already measured pane. */
-export async function measureLayers(
-  page: Page,
-  paneSelector: string,
-): Promise<ReadonlyArray<MeasuredLayer>> {
-  const report = await page.evaluate(measureInPage, measureArgs(paneSelector, false))
-  return report.layers
-}
-
-type LayerCountArgs = Readonly<{
-  pane: string
-  layer: string
-  /** Resolve `true` once the count is above this, when given. */
-  above?: number
-  /** Resolve `true` once the count is below this, when given. */
-  below?: number
-}>
-
-/**
- * Runs in the iframe. The same filter `measureInPage` applies — shown, and
- * neither inside the pane nor holding it — so "a layer opened" and "a layer was
- * measured" cannot disagree. Returns the count, or with `above` / `below` a
- * predicate for `page.waitForFunction`.
- */
-function openLayersInPage(args: LayerCountArgs): number | boolean {
-  const panes = [...document.querySelectorAll(args.pane)]
-  const count = [...document.querySelectorAll(args.layer)].filter(
-    (el) =>
-      el.getClientRects().length > 0 &&
-      el.checkVisibility({ visibilityProperty: true }) &&
-      !panes.some((pane) => pane.contains(el) || el.contains(pane)),
-  ).length
-  if (args.above !== undefined) return count > args.above
-  if (args.below !== undefined) return count < args.below
-  return count
-}
-
-/** How many layers are open outside the pane. */
-export async function countOpenLayers(page: Page, paneSelector: string): Promise<number> {
-  const count = await page.evaluate(openLayersInPage, {
-    pane: paneSelector,
-    layer: LAYER_SELECTOR,
-  })
-  return Number(count)
-}
-
-/**
- * Wait, on the DOM, until more than `above` (or fewer than `below`) layers are
- * open. Resolves `false` instead of throwing when `timeoutMs` passes first.
- */
-export async function waitForLayerCount(
-  page: Page,
-  paneSelector: string,
-  bound: Readonly<{ above: number } | { below: number }>,
-  timeoutMs: number,
-): Promise<boolean> {
-  try {
-    await page.waitForFunction(
-      openLayersInPage,
-      { pane: paneSelector, layer: LAYER_SELECTOR, ...bound },
-      { timeout: timeoutMs },
-    )
-    return true
-  } catch (error: unknown) {
-    // Only the timeout is an answer ("it did not open"); a closed page or a
-    // navigation is the harness failing, and must say so.
-    if (error instanceof errors.TimeoutError) return false
-    throw error
-  }
+  return page.evaluate(measureInPage, measureArgs(paneSelector, options))
 }
