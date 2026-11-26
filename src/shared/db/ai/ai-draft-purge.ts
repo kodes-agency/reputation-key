@@ -95,10 +95,7 @@
 // Scope commands and measurement erasure remain in this caller's transaction.
 
 import { sql, type SQL } from 'drizzle-orm'
-import {
-  requireReplyScopeEffects,
-  type ReplyScopeEffects,
-} from '#/shared/db/reply-scope-effects'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { AiBudgetTx } from './ai-budget'
 
 type PropertyDraftScope = Readonly<{
@@ -125,9 +122,9 @@ const inReview = (input: ReviewDraftScope): SQL => sql`
 
 const withdraw = async (
   tx: AiBudgetTx,
-  effects: ReplyScopeEffects | undefined,
+  effects: ReplyScopeEffects,
   scope: SQL,
-): Promise<void> => requireReplyScopeEffects(effects).withdrawAiDrafts(tx, scope)
+): Promise<void> => effects.withdrawAiDrafts(tx, scope)
 
 /**
  * Withdrawing first takes each Review before any measurement is touched, the
@@ -138,7 +135,7 @@ const withdraw = async (
 async function erasePropertyDraftMeasurements(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
-  effects: ReplyScopeEffects | undefined,
+  effects: ReplyScopeEffects,
 ): Promise<void> {
   await withdraw(tx, effects, inProperty(input))
   await tx.execute(
@@ -152,7 +149,7 @@ async function erasePropertyDraftMeasurements(
 export function purgeAiDraftsForProperty(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
-  effects: ReplyScopeEffects | undefined,
+  effects: ReplyScopeEffects,
 ): Promise<void> {
   return erasePropertyDraftMeasurements(tx, input, effects)
 }
@@ -160,7 +157,7 @@ export function purgeAiDraftsForProperty(
 export function purgeAiDraftsForProfile(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
-  effects: ReplyScopeEffects | undefined,
+  effects: ReplyScopeEffects,
 ): Promise<void> {
   return withdraw(tx, effects, inProperty(input))
 }
@@ -168,7 +165,7 @@ export function purgeAiDraftsForProfile(
 export function purgeAiDraftsForAuthorization(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
-  effects: ReplyScopeEffects | undefined,
+  effects: ReplyScopeEffects,
 ): Promise<void> {
   return erasePropertyDraftMeasurements(tx, input, effects)
 }
@@ -177,7 +174,7 @@ export async function purgeAiDraftsForControl(
   tx: AiBudgetTx,
   scopeKind: 'global' | 'provider_deployment_profile' | 'capability',
   scopeValue: string | null,
-  effects: ReplyScopeEffects | undefined,
+  effects: ReplyScopeEffects,
 ): Promise<void> {
   if (
     scopeKind !== 'global' &&
@@ -192,7 +189,7 @@ export async function purgeAiDraftsForControl(
 export async function purgeAiDraftsForOrganization(
   tx: AiBudgetTx,
   closingOrganizationId: string,
-  effects: ReplyScopeEffects | undefined,
+  effects: ReplyScopeEffects,
 ): Promise<void> {
   await withdraw(tx, effects, sql`reply.organization_id = ${closingOrganizationId}`)
 }
@@ -200,7 +197,7 @@ export async function purgeAiDraftsForOrganization(
 export async function purgeAiDraftsForReview(
   tx: AiBudgetTx,
   input: ReviewDraftScope,
-  effects: ReplyScopeEffects | undefined,
+  effects: ReplyScopeEffects,
 ): Promise<void> {
   await withdraw(tx, effects, inReview(input))
 }
@@ -214,7 +211,7 @@ export async function purgeAiDraftsForReview(
 export function purgeExpiredAiDraftsForReview(
   tx: AiBudgetTx,
   input: ReviewDraftScope,
-  effects: ReplyScopeEffects | undefined,
+  effects: ReplyScopeEffects,
 ): Promise<void> {
   return withdraw(
     tx,

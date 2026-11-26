@@ -47,7 +47,11 @@ describe('Review and Inbox rights executors', () => {
 
   it('cover access, organization and property requests', () => {
     for (const make of [createReviewRightsExecutor, createInboxRightsExecutor]) {
-      expect(make({ db }).scopes).toEqual(['access', 'organization', 'property'])
+      expect(make({ db, replyEffects: effects }).scopes).toEqual([
+        'access',
+        'organization',
+        'property',
+      ])
     }
   })
 
@@ -55,7 +59,10 @@ describe('Review and Inbox rights executors', () => {
     stores.readReviewRightsExport.mockResolvedValue({ b: 1, a: 'text' })
     stores.readInboxRightsExport.mockResolvedValue({ notes: [] })
 
-    const [review] = await createReviewRightsExecutor({ db }).exportFiles(plan)
+    const [review] = await createReviewRightsExecutor({
+      db,
+      replyEffects: effects,
+    }).exportFiles(plan)
     const [inbox] = await createInboxRightsExecutor({ db }).exportFiles(plan)
 
     expect(stores.readReviewRightsExport).toHaveBeenCalledWith(db, 'org-asked')
@@ -68,7 +75,11 @@ describe('Review and Inbox rights executors', () => {
   it('report with the supplied clock', async () => {
     stores.readReviewRightsReport.mockResolvedValue(['reviews=1'])
 
-    const lines = await createReviewRightsExecutor({ db, now: () => NOW }).report(plan)
+    const lines = await createReviewRightsExecutor({
+      db,
+      now: () => NOW,
+      replyEffects: effects,
+    }).report(plan)
 
     expect(lines).toEqual(['reviews=1'])
     expect(stores.readReviewRightsReport).toHaveBeenCalledWith(db, 'org-asked', NOW)

@@ -149,8 +149,8 @@ async function clockBatchAcrossTenants(
 export const createReviewRepository = (
   db: Database,
   clock: () => Date,
-  logger?: Pick<LoggerPort, 'warn'>,
-  replyEffects?: ReplyScopeEffects,
+  logger: Pick<LoggerPort, 'warn'> | undefined,
+  replyEffects: ReplyScopeEffects,
 ): ReviewRepository => ({
   findById: async (id: ReviewId, organizationId: OrganizationId) => {
     return trace('review.findById', async () => {
@@ -627,7 +627,7 @@ export const createReviewRepository = (
             ...(observationKey == null ? {} : { observationKey }),
             ...(observationOrigin == null ? {} : { observationOrigin }),
             ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
-            ...(replyEffects == null ? {} : { replyEffects }),
+            replyEffects,
           }),
         )
         return observation.review

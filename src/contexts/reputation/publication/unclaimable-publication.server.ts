@@ -56,7 +56,7 @@ export async function cancelUnclaimablePublication(
   attempt: Pick<PublicationAttemptStart, 'propertyId'>,
   at: Date,
   cause: UnclaimableCause,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<null> {
   const cancellation = cancelledPublication(reply)
   if (!cancellation) return null

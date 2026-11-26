@@ -34,7 +34,7 @@ const responsibleManagersChanged = (
  */
 export const createPropertyLifecycleCommandStore = (
   db: Database,
-  replyEffects?: ReplyScopeEffects,
+  replyEffects: ReplyScopeEffects,
 ): PropertyLifecycleCommandStore => ({
   transitionLifecycle: (command) =>
     trace('property.lifecycle.transition', async () => {

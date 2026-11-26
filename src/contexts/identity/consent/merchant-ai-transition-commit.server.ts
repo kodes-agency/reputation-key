@@ -105,7 +105,7 @@ async function writeTransition(
   tx: Tx,
   record: TransitionRecord,
   current: MerchantAiSnapshot | null,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<MerchantAiSnapshot> {
   const capabilityArray =
     record.capabilities.length === 0
@@ -185,7 +185,7 @@ async function withdrawStaleDrafts(
   tx: Tx,
   record: TransitionRecord,
   current: MerchantAiSnapshot | null,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<void> {
   if (
     standingRenewalKeepsSavedDrafts(record.reasonCode, current, {
@@ -223,7 +223,7 @@ export async function commitGrantTransition(
     requestHash: string
   }>,
   idGen: () => string,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<MerchantAiSnapshot> {
   const { current, runtimeProfiles, authorizedSourceEpoch, requestHash } = facts
   const sourceRebound =
@@ -332,7 +332,7 @@ export async function resetMerchantAiForRestore(
   tx: Tx,
   input: MerchantAiRestoreResetInput,
   idGen: () => string,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<MerchantAiSnapshot> {
   const requestHash = restoreRequestHash(input)
   await tx.execute(

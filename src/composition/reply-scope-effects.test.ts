@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const NO_EFFECTS_MESSAGE = 'Reply scope effects are not provided'
-
 // Each test loads the writer from the module registry it wires from, so the
 // handed-over object is compared with the one that registry holds.
 const loadWriter = async () =>
@@ -112,60 +110,5 @@ describe('Reply scope effects at each entry point', () => {
     createDeclaredCapabilityPostureStores({} as never)
     expect(createAiControlAdapter).toHaveBeenCalledWith({}, await loadWriter())
     vi.doUnmock('#/contexts/ai/infrastructure/adapters/ai-control.adapter')
-  })
-})
-
-describe('Shared purge and restore fencing without effects', () => {
-  const tx = { execute: vi.fn() }
-
-  afterEach(() => {
-    tx.execute.mockReset()
-  })
-
-  it.each([
-    ['property', 'purgeAiDraftsForProperty', { organizationId: 'o', propertyId: 'p' }],
-    [
-      'authorization',
-      'purgeAiDraftsForAuthorization',
-      { organizationId: 'o', propertyId: 'p' },
-    ],
-    ['profile', 'purgeAiDraftsForProfile', { organizationId: 'o', propertyId: 'p' }],
-    ['review', 'purgeAiDraftsForReview', { organizationId: 'o', reviewId: 'r' }],
-    ['expiry', 'purgeExpiredAiDraftsForReview', { organizationId: 'o', reviewId: 'r' }],
-  ] as const)('refuses the %s purge and writes nothing', async (_name, fn, scope) => {
-    const purge = await import('#/shared/db/ai/ai-draft-purge')
-    await expect(
-      (purge[fn] as (...args: unknown[]) => Promise<void>)(tx, scope, undefined),
-    ).rejects.toThrow(NO_EFFECTS_MESSAGE)
-    expect(tx.execute).not.toHaveBeenCalled()
-  })
-
-  it('refuses the organization and control purges and writes nothing', async () => {
-    const purge = await import('#/shared/db/ai/ai-draft-purge')
-    await expect(
-      purge.purgeAiDraftsForOrganization(tx as never, 'o', undefined),
-    ).rejects.toThrow(NO_EFFECTS_MESSAGE)
-    await expect(
-      purge.purgeAiDraftsForControl(tx as never, 'global', null, undefined),
-    ).rejects.toThrow(NO_EFFECTS_MESSAGE)
-    expect(tx.execute).not.toHaveBeenCalled()
-  })
-
-  it('refuses the restore fence before it opens a transaction', async () => {
-    const { applyRecoveryFence } =
-      await import('#/shared/db/recovery/postgres-recovery-fence')
-    const db = { transaction: vi.fn() }
-    await expect(
-      applyRecoveryFence(
-        db as never,
-        {
-          runId: '00000000-0000-4000-8000-000000000001',
-          generation: 1,
-        } as never,
-        async () => ({ items: 0, parents: 0 }),
-        undefined,
-      ),
-    ).rejects.toThrow(NO_EFFECTS_MESSAGE)
-    expect(db.transaction).not.toHaveBeenCalled()
   })
 })

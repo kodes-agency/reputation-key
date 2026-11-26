@@ -385,7 +385,7 @@ export async function transitionMerchantAi(
   tx: Tx,
   request: MerchantAiTransitionRequest,
   idGen: () => string,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<MerchantAiTransitionResult> {
   const target = request.kind === 'command' ? request.command : request.grant
   // A ceremony never revokes, and the lock steps only distinguish a revoke, so
