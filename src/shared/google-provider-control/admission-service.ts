@@ -109,8 +109,7 @@ function sameAdmissionMetadata(
     expected.requestBodyBytes === actual.requestBodyBytes &&
     expected.maxRequestBytes === actual.maxRequestBytes &&
     expected.maxResponseBytes === actual.maxResponseBytes &&
-    expected.quotaPolicyId === actual.quotaPolicyId &&
-    expected.inFlightPolicyId === actual.inFlightPolicyId
+    expected.quotaPolicyId === actual.quotaPolicyId
   )
 }
 
@@ -124,7 +123,6 @@ function validAdmissionMetadata(metadata: GoogleProviderAdmissionMetadata): bool
     metadata.maxRequestBytes === policy.maxRequestBytes &&
     metadata.maxResponseBytes === policy.maxResponseBytes &&
     metadata.quotaPolicyId === policy.quotaPolicyId &&
-    metadata.inFlightPolicyId === policy.inFlightPolicyId &&
     SHA256.test(metadata.requestBindingSha256) &&
     (metadata.credentialBinding === 'none' || SHA256.test(metadata.credentialBinding)) &&
     (metadata.requestBodySha256 === null || SHA256.test(metadata.requestBodySha256)) &&
@@ -368,7 +366,7 @@ export function createGoogleExecutionAdmissionService(
         return { ok: false, code: 'deadline_exceeded', retryAfterMs: 0 }
       }
       const quota = deps.quotaForPolicy(permit.expectedAdmission.quotaPolicyId)
-      const inFlight = deps.inFlightForPolicy(permit.expectedAdmission.inFlightPolicyId)
+      const inFlight = deps.inFlightForPolicy(permit.expectedAdmission.quotaPolicyId)
       if (!quota || !inFlight) {
         return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
       }
