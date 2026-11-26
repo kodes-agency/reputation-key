@@ -97,7 +97,7 @@ const lockPropertyRow = async (
 
 export const createPropertyGoogleBindingStore = (
   db: Database,
-  replyEffects?: ReplyScopeEffects,
+  replyEffects: ReplyScopeEffects,
 ): PropertyGoogleBindingStore => {
   const readReceipt: PropertyGoogleBindingStore['readReceipt'] = async (
     organizationIdValue,

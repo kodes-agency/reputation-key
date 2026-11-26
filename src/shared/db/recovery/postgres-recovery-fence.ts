@@ -1,7 +1,4 @@
-import {
-  requireReplyScopeEffects,
-  type ReplyScopeEffects,
-} from '#/shared/db/reply-scope-effects'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { RecoveryFenceCounts } from '#/shared/db/schema/recovery.schema'
@@ -154,9 +151,8 @@ export async function applyRecoveryFence(
     tx: import('#/shared/outbox/commit').Tx,
     now: Date,
   ) => Promise<{ items: number; parents: number }>,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<RecoveryFenceResult> {
-  const replies = requireReplyScopeEffects(replyEffects)
   validateRecoveryFenceInput(input)
   return db.transaction(async (tx) => {
     await tx.execute(
@@ -257,7 +253,7 @@ export async function applyRecoveryFence(
       WHERE state IN ('prepared', 'retryable')
       RETURNING id
     `)
-    const replyFence = await replies.fenceReplyPublicationsAfterRestore(tx)
+    const replyFence = await replyEffects.fenceReplyPublicationsAfterRestore(tx)
 
     // Restored OAuth tokens may be older than the provider's live generation.
     // No content/reply call is allowed until a fresh OAuth reauthorization.

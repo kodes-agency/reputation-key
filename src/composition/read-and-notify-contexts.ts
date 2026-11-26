@@ -147,7 +147,6 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
   const feed = buildFeedContext({
     activity: {
       db: input.db,
-      outboxRepo: input.outboxRepo,
       clock: input.clock,
       logger: input.logger,
       operationalHistoryIdGen: () =>

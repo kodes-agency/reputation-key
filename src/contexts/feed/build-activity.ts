@@ -2,7 +2,7 @@
 // composition root; `build.ts` merges it with the notification half.
 
 import type { Database } from '#/shared/db'
-import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerRegistry } from '#/shared/outbox'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { registerActivityOutboxConsumers } from './audit/activity-outbox-consumers.server'
 import type { OperationalActionHistoryRecordId } from './domain/operational-action-history'
@@ -15,10 +15,9 @@ import {
 
 export type ActivityBuildInput = Readonly<{
   db: Database
-  outboxRepo?: OutboxRepository
   clock: () => Date
   logger: LoggerPort
-  operationalHistoryAccessAuthority?: OperationalHistoryAccessAuthority
+  operationalHistoryAccessAuthority: OperationalHistoryAccessAuthority
   operationalHistoryIdGen: () => OperationalActionHistoryRecordId
 }>
 
@@ -27,9 +26,7 @@ export const buildActivityFeed = (input: ActivityBuildInput) => {
   const operationalHistoryIdGen = input.operationalHistoryIdGen
   const operationalHistoryAccess = {
     store: operationalHistoryStore,
-    accessAuthority:
-      input.operationalHistoryAccessAuthority ??
-      ({ isCurrentAccountAdmin: async () => false } as const),
+    accessAuthority: input.operationalHistoryAccessAuthority,
     clock: input.clock,
     idGen: operationalHistoryIdGen,
   }

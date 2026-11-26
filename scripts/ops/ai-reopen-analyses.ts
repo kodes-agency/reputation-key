@@ -9,6 +9,7 @@
 // src/shared/ops/ai-reopen-analyses-command.ts — scripts/ is wiring only.
 // Requires DATABASE_URL.
 
+import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
 import { getDb } from '../../src/shared/db'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation/ai-operation-profiles'
 import { resolveAiExecutionStopFence } from '../../src/contexts/ai/application/ai-workflow-support'
@@ -40,11 +41,14 @@ async function main(): Promise<void> {
         propertyId: plan.propertyId,
         store: {
           accepting: async () =>
-            (await resolveAiExecutionStopFence(createAiControlAdapter(db), {
-              providerDeploymentProfileVersion:
-                AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
-              capability: 'review_analysis',
-            })) !== null,
+            (await resolveAiExecutionStopFence(
+              createAiControlAdapter(db, reputationReplyScopeEffects),
+              {
+                providerDeploymentProfileVersion:
+                  AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+                capability: 'review_analysis',
+              },
+            )) !== null,
           list: (input) => listSpentReviewAnalyses(db, input),
           reopen: (input) => reopenSpentReviewAnalyses(db, input),
         },

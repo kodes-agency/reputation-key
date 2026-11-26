@@ -15,10 +15,6 @@ export type ReplyDraftingV2Attempt = Readonly<{
   logicalDeadlineEpochMillis?: number
 }>
 
-function rootReplyDraftingV2Attempt(): ReplyDraftingV2Attempt {
-  return { parentOperationId: null, rewriteOrdinal: 0, rewriteIssues: [] }
-}
-
 export function replyDraftingV2GenerationSeed(
   input: Readonly<{
     organizationId: string
@@ -152,11 +148,4 @@ export async function admitInteractiveDraft(
     await sleep(Math.max(50, claim.retryAfterEpochMillis - nowEpochMillis))
     nowEpochMillis = Math.max(nowEpochMillis + 1, dependencies.nowEpochMillis())
   }
-}
-
-/** The explicit attempt is how a rewrite runs as a child of its parent operation. */
-export function selectedReplyDraftingAttempt(
-  attempt?: ReplyDraftingV2Attempt,
-): ReplyDraftingV2Attempt {
-  return attempt ?? rootReplyDraftingV2Attempt()
 }

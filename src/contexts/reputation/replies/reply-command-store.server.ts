@@ -306,7 +306,7 @@ export const createAtomicReplyCommandStore = (
   db: Database,
   clock: () => Date,
   publicationActorAuthority: ReplyPublicationActorAuthority = missingPublicationActorAuthority,
-  replyEffects?: ReplyScopeEffects,
+  replyEffects: ReplyScopeEffects,
 ): ReplyCommandStore => {
   const writer = createReplyWriter(db, clock)
   const {

@@ -56,6 +56,7 @@ function feedPublicApi() {
       logger,
       operationalHistoryIdGen: () =>
         operationalActionHistoryRecordId('86300000-0000-4000-8000-000000000998'),
+      operationalHistoryAccessAuthority: { isCurrentAccountAdmin: async () => false },
     },
     notification: {
       db: getDb(),

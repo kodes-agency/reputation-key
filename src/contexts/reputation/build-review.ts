@@ -1,7 +1,6 @@
 // Review composition: storage, provider transport, reply wiring and worker contributions.
 
 import { wireReplyUseCases } from './build-reply-use-cases.server'
-import type { ResolveReplyTemplateLanguage } from './library/layered-reply-template-operations.server'
 import { admitGoogleImportSync } from './sync/google-import-sync-acceptance.server'
 import { randomUUID } from 'node:crypto'
 import { reviewError } from './domain/review-errors'
@@ -16,7 +15,6 @@ import type {
   GoogleConnectionStatusPort,
   GoogleReviewApiPort,
 } from './sync/google-review-api.port.server'
-import type { PropertySourceEpochPort } from './sync/property-source-epoch.port.server'
 import type {
   PropertyPublicationScopePort,
   ReviewPropertyPublicationLifecycle,
@@ -139,7 +137,7 @@ export type ReviewContextBuildInput = Readonly<{
   snapshotRunIdGen: () => string
   googleReviewApi: GoogleReviewApiPort
   googleConnectionStatus: GoogleConnectionStatusPort
-  targetedReviewReferences?: TargetedGoogleReviewReferenceResolver
+  targetedReviewReferences: TargetedGoogleReviewReferenceResolver
   jobQueue: Queue | undefined
   /** Root-owned worker infrastructure captured by Review's runtime contribution. */
   workerRuntime: Readonly<{
@@ -164,7 +162,6 @@ export type ReviewContextBuildInput = Readonly<{
     PortalAiReplyBrandProfilePublicApi,
     'isCurrentAiReplyBrandProfile'
   >
-  resolveReplyLanguage?: ResolveReplyTemplateLanguage
   /** Absent in deployed wiring: activation requires reviewed owner evidence. */
   expiryActivation?: ReviewExpiryActivation
 }>
@@ -320,9 +317,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   // Read the source epoch atomically so review synchronization can reject
   // provider results after a relink or disconnect race.
-  const propertySourceEpochLookup: PropertySourceEpochPort = {
-    getSourceEpoch: (orgId, pid) => input.propertyApi.getSourceEpoch(orgId, pid),
-  }
   // A read of one review from Google authorizes against the Property's current
   // binding, which only an active Property with an active Google binding holds.
   const propertyGoogleReadBinding: PropertyGoogleReadBindingPort = {
@@ -425,10 +419,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   })
   const syncActivity = createReviewSyncActivityRecorder(input.db)
   const subjectSightings = createReviewProviderSubjectSightings(input.db, input.logger)
-  const targetedReviewReferences: TargetedGoogleReviewReferenceResolver =
-    input.targetedReviewReferences ?? {
-      resolve: async () => ({ status: 'obsolete' }),
-    }
   const reconcileReplyPublicationUseCase = reconcileReplyPublication({
     replyRepo,
     reviewRepo,
@@ -443,7 +433,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     googleReviewApi: input.googleReviewApi,
     connectionStatus: input.googleConnectionStatus,
     logger: input.logger,
-    propertySourceEpoch: propertySourceEpochLookup,
+    propertySourceEpoch: input.propertyApi,
     observationWriter,
     subjectKeyService: providerSubjectKeys,
     subjectSightings,
@@ -451,7 +441,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const reply = wireReplyUseCases({
     deps: replyDeps,
     library: replyLibraryRepo,
-    resolveReplyLanguage: input.resolveReplyLanguage,
     reconcileReplyPublication: reconcileReplyPublicationUseCase,
     logger: input.logger,
   })
@@ -459,7 +448,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     runReviewProviderSnapshot: runReviewProviderSnapshot({
       repository: snapshotRepository,
       googleReviewApi: input.googleReviewApi,
-      propertySourceEpoch: propertySourceEpochLookup,
+      propertySourceEpoch: input.propertyApi,
       observationWriter,
       subjectKeyService: providerSubjectKeys,
       // Discovery-ladder activity stamps (migration 0071): a page that
@@ -469,9 +458,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       logger: input.logger,
     }),
     runTargetedGoogleReviewFetch: runTargetedGoogleReviewFetch({
-      references: targetedReviewReferences,
+      references: input.targetedReviewReferences,
       googleReviewApi: input.googleReviewApi,
-      propertySourceEpoch: propertySourceEpochLookup,
+      propertySourceEpoch: input.propertyApi,
       observationWriter,
       subjectKeyService: providerSubjectKeys,
       subjectSightings,
@@ -553,7 +542,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       googleReviewApi: input.googleReviewApi,
       googleConnectionStatus: input.googleConnectionStatus,
       staffPublicApi: input.staffPublicApi,
-      propertySourceEpoch: propertySourceEpochLookup,
+      propertySourceEpoch: input.propertyApi,
       runSnapshot: useCases.runReviewProviderSnapshot,
       runTargetedFetch: useCases.runTargetedGoogleReviewFetch,
       readReviewBeforePublish: readReviewBeforePublishUseCase,
@@ -606,7 +595,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         // queued, and so before the import settles.
         addSyncJob: admitReviewSync({
           queue,
-          propertySourceEpoch: propertySourceEpochLookup,
+          propertySourceEpoch: input.propertyApi,
           historyCutoffs: snapshotRepository,
           admitImportSync: (data) => admitGoogleImportSync(input.db, input.idGen, data),
         }),
