@@ -34,7 +34,6 @@ export function wireReplyUseCases(
   input: Readonly<{
     deps: ReplyDeps
     library: ReplyLibraryRepository
-    resolveReplyLanguage?: ResolveReplyTemplateLanguage
     reconcileReplyPublication: ReconcileReplyPublication
     logger: LoggerPort
   }>,
@@ -42,15 +41,10 @@ export function wireReplyUseCases(
   const draftReplyUseCase = draftReply(input.deps)
   let replyLanguageDetector:
     Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>> | undefined
-  const resolveReplyLanguage =
-    input.resolveReplyLanguage ??
-    (async (request: Parameters<ResolveReplyTemplateLanguage>[0]) => {
-      replyLanguageDetector ??= await createCld3ReplyLanguageDetector()
-      return resolveConcreteReplyLanguage({
-        ...request,
-        detector: replyLanguageDetector,
-      })
-    })
+  const resolveReplyLanguage: ResolveReplyTemplateLanguage = async (request) => {
+    replyLanguageDetector ??= await createCld3ReplyLanguageDetector()
+    return resolveConcreteReplyLanguage({ ...request, detector: replyLanguageDetector })
+  }
   const layeredReplyTemplateDeps = {
     repository: input.library,
     reviewRepo: input.deps.reviewRepo,

@@ -40,6 +40,7 @@ function setup() {
     snapshotRunIdGen: () => 'review-build-snapshot-run-id',
     googleReviewApi: {} as never,
     googleConnectionStatus: { findStatus: async () => null },
+    targetedReviewReferences: { resolve: async () => ({ status: 'obsolete' }) },
     jobQueue: jobQueue as unknown as Queue,
     workerRuntime: {
       pool: {} as never,
