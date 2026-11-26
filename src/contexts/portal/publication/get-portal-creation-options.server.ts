@@ -1,3 +1,4 @@
+import { listEligibleResponsibleManagers } from '#/shared/responsible-manager/responsible-manager-eligibility'
 // Portal context — what the New portal dialog needs to know about a Property:
 // the languages a new Portal starts with and who may be made responsible. The
 // groups and the Portals that can be copied come from the reads the Portals
@@ -11,8 +12,8 @@ import { resolveNewPortalLocales } from '../domain/portal-new-locales'
 import { loadPropertyDefaultLocales } from './create-portal-resolvers.server'
 import { assertNewPortalPropertyAccess } from './load-accessible-portal.server'
 import {
-  listEligiblePortalManagers,
   type PortalManagerEligibilityDeps,
+  policyDeps,
 } from '../responsibility/portal-manager-eligibility.server'
 import type { PortalExperienceRepository } from '../editor/portal-experience-repository.port.server'
 
@@ -45,8 +46,8 @@ export const getPortalCreationOptions =
     )
     const [defaults, eligible] = await Promise.all([
       loadPropertyDefaultLocales(deps, ctx, input.propertyId),
-      listEligiblePortalManagers(
-        deps,
+      listEligibleResponsibleManagers(
+        policyDeps(deps),
         ctx.organizationId,
         toPropertyId(input.propertyId),
       ),

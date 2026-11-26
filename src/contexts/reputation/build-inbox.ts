@@ -10,10 +10,7 @@
 import type { Database } from '#/shared/db'
 import { registerInboxMemberOffboardingConsumers } from './inbox/member-offboarding-outbox-consumers.server'
 import type { ConsumerRegistry } from '#/shared/outbox'
-import {
-  createInboxAssignmentRuntime,
-  type InboxAssignmentRuntime,
-} from './inbox/inbox-assignment-runtime.server'
+import { type InboxAssignmentRuntime } from './inbox/inbox-assignment-runtime.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type {
@@ -263,7 +260,10 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     lifecycle,
     maintenance,
     worker: Object.freeze({ registerOutboxConsumers }),
-    assignments: createInboxAssignmentRuntime(commandStore),
+    assignments: Object.freeze({
+      releaseIneligibleAssignmentsForUser: (input, tx) =>
+        commandStore.releaseIneligibleAssignmentsForUser(input, tx),
+    }),
     runtime: Object.freeze({
       releaseResponseTargetRemindersJob: Object.freeze({
         name: RELEASE_RESPONSE_TARGET_REMINDERS_JOB,

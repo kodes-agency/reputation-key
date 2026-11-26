@@ -183,7 +183,7 @@ export const markNotificationReadFn = createServerFn({ method: 'POST' })
         action: 'notification.update',
         errors: feedRowErrors,
       },
-      async ({ data, actor }) =>
+      ({ data, actor }) =>
         getContainer().feedPublicApi.markRead(
           data.notificationId,
           actor.organizationId,
@@ -216,7 +216,7 @@ export const markNotificationUnreadFn = createServerFn({ method: 'POST' })
         action: 'notification.update',
         errors: feedRowErrors,
       },
-      async ({ data, actor }) =>
+      ({ data, actor }) =>
         getContainer().feedPublicApi.markUnread(
           data.notificationId,
           actor.organizationId,
@@ -275,7 +275,7 @@ export const dismissNotificationFn = createServerFn({ method: 'POST' })
         action: 'notification.update',
         errors: feedRowErrors,
       },
-      async ({ data, actor }) =>
+      ({ data, actor }) =>
         getContainer().feedPublicApi.dismiss(
           data.notificationId,
           actor.organizationId,
@@ -305,7 +305,7 @@ export const restoreNotificationFn = createServerFn({ method: 'POST' })
         action: 'notification.update',
         errors: feedRowErrors,
       },
-      async ({ data, actor }) =>
+      ({ data, actor }) =>
         getContainer().feedPublicApi.restore(
           data.notificationId,
           actor.organizationId,
@@ -410,13 +410,14 @@ export const resetNotificationPropertyCategoryFn = createServerFn({ method: 'POS
         propertyId: (data) => data.propertyId,
         errors: feedSettingErrors,
       },
-      async ({ data, actor }) =>
-        getContainer().feedPublicApi.resetPropertyCategory(
+      async ({ data, actor }) => {
+        await getContainer().feedPublicApi.resetPropertyCategory(
           actor.userId,
           actor.organizationId,
           data.propertyId,
           data.category,
-        ),
+        )
+      },
     ),
   )
 
@@ -437,7 +438,7 @@ export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
         propertyId: (data) => data.propertyId,
         errors: feedSettingErrors,
       },
-      async ({ data, actor }) =>
+      ({ data, actor }) =>
         getContainer().feedPublicApi.mutePreferenceCategory(
           actor.userId,
           actor.organizationId,
@@ -467,15 +468,16 @@ export const undoNotificationCategoryMuteFn = createServerFn({ method: 'POST' })
         propertyId: (data) => data.propertyId,
         errors: feedSettingErrors,
       },
-      async ({ data, actor }) =>
-        getContainer().feedPublicApi.undoMutePreferenceCategory(
+      async ({ data, actor }) => {
+        await getContainer().feedPublicApi.undoMutePreferenceCategory(
           actor.userId,
           actor.organizationId,
           data.propertyId,
           data.category,
           'in_app',
           data.previous,
-        ),
+        )
+      },
     ),
   )
 
@@ -500,7 +502,7 @@ export const updateNotificationQuietHoursFn = createServerFn({ method: 'POST' })
         propertyId: (data) => data.propertyId,
         errors: feedSettingErrors,
       },
-      async ({ data, actor }) =>
+      ({ data, actor }) =>
         getContainer().feedPublicApi.updateQuietHours(
           actor.userId,
           actor.organizationId,

@@ -10,12 +10,3 @@ import type { InboxCommandStore } from './command-store.port.server'
 export type InboxAssignmentRuntime = Readonly<{
   releaseIneligibleAssignmentsForUser: InboxCommandStore['releaseIneligibleAssignmentsForUser']
 }>
-
-export function createInboxAssignmentRuntime(
-  commandStore: InboxCommandStore,
-): InboxAssignmentRuntime {
-  return Object.freeze({
-    releaseIneligibleAssignmentsForUser: (input, tx) =>
-      commandStore.releaseIneligibleAssignmentsForUser(input, tx),
-  })
-}
