@@ -3,10 +3,6 @@ import { createServerOnlyFn } from '@tanstack/react-start'
 import { copyAuditLogs, countAuditLogsToCopy } from './audit/copy-audit-logs.server'
 import { queryAuditEvents } from './audit/read.server'
 import { AUDIT_EVENT_RETENTION_RULE } from './audit/retention.server'
-import {
-  copyCategoryDefaultsToPreferences,
-  countCategoryDefaultsToCopy,
-} from './preferences/copy-category-defaults.server'
 import type {
   createNotificationRightsPort,
   NotificationRightsRequest,
@@ -117,12 +113,6 @@ export const writeAuditEvent = createServerOnlyFn(
 )
 export const copyAuditLogsToAuditEvents = createServerOnlyFn(copyAuditLogs)
 export const countAuditLogsToCopyAsEvents = createServerOnlyFn(countAuditLogsToCopy)
-export const copyNotificationCategoryDefaults = createServerOnlyFn(
-  copyCategoryDefaultsToPreferences,
-)
-export const countNotificationCategoryDefaultsToCopy = createServerOnlyFn(
-  countCategoryDefaultsToCopy,
-)
 export const getAuditEventRetentionRule = createServerOnlyFn(
   () => AUDIT_EVENT_RETENTION_RULE,
 )
