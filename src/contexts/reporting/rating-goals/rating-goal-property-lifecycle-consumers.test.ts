@@ -88,7 +88,6 @@ describe('the rating goal Property archive consumer', () => {
       action: 'system:goal.end_archived_property_goal',
       capability: 'none',
       resourceScope: 'property',
-      externalEffect: false,
     })
     expect(capabilityForSystemAction(row!.action)).toBe('none')
   })

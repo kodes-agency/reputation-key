@@ -113,12 +113,10 @@ const repo = createOutboxRepository(db)
 /** The delayed execution policy is not the fault surface under test; allow it
  * so each condition isolates the surviving transport or provider behavior. */
 const POLICY_ALLOW: DelayedDecision = {
-  outcome: 'allow',
   allowed: true,
   reason: 'allowed',
   action: 'system:review.sync',
   policyVersion: 'bqc-4.6-faults',
-  freshRead: true,
 }
 
 let redisLease: RedisTestLease | undefined

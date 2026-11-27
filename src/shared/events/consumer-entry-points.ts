@@ -1,7 +1,7 @@
 // The authorization policy of every registered consumer module, defined once.
 //
 // Each row is the `module` a registerConsumer call names: its action, capability
-// gate, scope and external effect. The entry-point catalogue's consumer rows and
+// gate, and scope. The entry-point catalogue's consumer rows and
 // the delayed execution gate read this table; every durable consumer in
 // ./consumer-definitions.ts names one of these rows.
 
@@ -18,14 +18,12 @@ const consumer = (
   action: SystemAction,
   capability: Capability | 'none',
   resourceScope: ResourceScope,
-  externalEffect = false,
 ): EntryPointRow => ({
   kind: 'consumer',
   name,
   action,
   capability,
   resourceScope,
-  externalEffect,
 })
 
 export const CONSUMER_ENTRY_POINTS: ReadonlyArray<EntryPointRow> = [
@@ -36,7 +34,6 @@ export const CONSUMER_ENTRY_POINTS: ReadonlyArray<EntryPointRow> = [
     'system:integration.refresh_google_categories',
     'none',
     'organization',
-    true,
   ),
   consumer(
     'review.outbox-consumers',
@@ -279,7 +276,6 @@ export const CONSUMER_ENTRY_POINTS: ReadonlyArray<EntryPointRow> = [
     'system:review.sync',
     'property.connect_gbp',
     'property',
-    true,
   ),
   consumer(
     'property.import-retention-release',

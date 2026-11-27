@@ -84,12 +84,10 @@ describe('gate-denied schedule firing (real BullMQ worker)', () => {
     if (!redis || !queue) return
     initDelayedExecutionPolicy({
       decide: async () => ({
-        outcome: 'deny',
         allowed: false,
         reason: 'missing_scope',
         action: 'system:goal.maintain',
         policyVersion: 'gate-denial-it',
-        freshRead: false,
       }),
     })
     const handler = vi.fn(async () => ({ maintained: 1 }))
