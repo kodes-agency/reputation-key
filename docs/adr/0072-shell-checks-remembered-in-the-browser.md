@@ -35,8 +35,8 @@ touches the sign-in boundary.
    (`src/shared/queries/shell-context-cache.ts`, `src/shared/shell-context/`):
    - the session, only when there is one;
    - the active Organization answer, only one that lets the person into the shell;
-   - the capability set, per Property scope;
-   - each controlled-route decision, per capability and Property.
+   - the capability set;
+   - each controlled-route decision, per capability.
 
    The session is the answer to who the person is, so it is the one entry not under a
    user id; every other entry is under the user id of the session that was fresh when
@@ -55,9 +55,7 @@ touches the sign-in boundary.
    remembered, so the next navigation asks again. A 401 from any of the three forgets
    everything.
 4. **The gate remembers its own decision** rather than reading `context.capabilities`.
-   That set is resolved for the Property in the address, a `?propertyId=` included,
-   which an Organization-wide page such as Portals may carry without being scoped to
-   it, and it falls back to the empty set when its read fails, which would refuse a page
+   That set falls back to the empty set when its read fails, which would refuse a page
    the gate would have opened. Only a decision asked with the gate's own input is the
    same decision.
 5. **Forgetting.** `invalidateShellContext(queryClient)` removes every entry and tells

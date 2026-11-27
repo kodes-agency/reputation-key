@@ -32,13 +32,12 @@ export const Route = createFileRoute(
   validateSearch: (
     search: { tab?: PortalDetailTab; section?: PortalEditorSection } & SearchSchemaInput,
   ) => normalizePortalWorkspaceSearch(search),
-  beforeLoad: async ({ context, params }) => {
+  beforeLoad: async ({ context }) => {
     await gateControlledRoute({
       context,
       data: {
         capability: 'portal.read',
         featureLabel: 'Portals',
-        propertyId: params.propertyId,
       },
     })
     const { role } = context

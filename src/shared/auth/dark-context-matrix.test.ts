@@ -79,7 +79,6 @@ describe('switched-off feature containment matrix', () => {
           denyControlledRoute(decision, {
             capability,
             featureLabel: label,
-            propertyId: 'property-controlled-route',
           })
         } catch (err) {
           thrown = err
@@ -97,7 +96,6 @@ describe('switched-off feature containment matrix', () => {
     const data = {
       capability: 'goal.use' as const,
       featureLabel: 'Goals',
-      propertyId: 'p',
     }
 
     expect(() =>

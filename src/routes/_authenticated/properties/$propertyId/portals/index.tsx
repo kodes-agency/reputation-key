@@ -35,13 +35,12 @@ import { invalidateGroupProjections } from '#/contexts/portal/publication/ui/por
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
   staticData: { page: { title: 'Portals', tier: 'dashboard', under: 'property' } },
-  beforeLoad: async ({ context, params }) => {
+  beforeLoad: async ({ context }) => {
     await gateControlledRoute({
       context,
       data: {
         capability: 'portal.read',
         featureLabel: 'Portals',
-        propertyId: params.propertyId,
       },
     })
     const { role } = context

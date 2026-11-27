@@ -47,7 +47,7 @@ The browser remembers those answers for 30 seconds (ADR 0072,
 `gateControlledRoute` (`shared/shell-context/remembered-route-gate.ts`) remembers its
 decision the same way (pass it the route's `context`). The server render always asks
 and writes nothing, because its QueryClient is the request's. Remembered: a positive session, an Organization answer that admits
-the person to the shell, and the capability set per Property scope, all but the
+the person to the shell, and the capability set, all but the
 session under the signed-in user id. Never remembered: a missing session, a refused
 workspace, any failure. A navigation with a fresh session asks the server nothing; a
 stale one asks all three at once, blocking, as before. The decisions above see the
