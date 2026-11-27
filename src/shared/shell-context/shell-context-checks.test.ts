@@ -15,23 +15,15 @@ type Organization = Readonly<{ admitted: boolean; name: string }>
 const ANA: Session = { user: { id: 'user-ana', name: 'Ana' } }
 const BO: Session = { user: { id: 'user-bo', name: 'Bo' } }
 const RIVERSIDE: Organization = { admitted: true, name: 'Riverside Hotels' }
-const PROPERTY_A = '10000000-0000-4000-8000-00000000000a'
-const PROPERTY_B = '10000000-0000-4000-8000-00000000000b'
 const START = new Date('2026-10-28T10:00:00Z').getTime()
 
-const capabilitySetFor = (propertyId: string | null): CapabilitySet => ({
-  ...EMPTY_CAPABILITY_SET,
-  propertyId,
-  allowed: ['goal.use'],
-})
+const CAPABILITY_SET: CapabilitySet = { ...EMPTY_CAPABILITY_SET, allowed: ['goal.use'] }
 
 function serverFns() {
   return {
     session: vi.fn(async (): Promise<Session | null> => ANA),
     organization: vi.fn(async (): Promise<Organization> => RIVERSIDE),
-    capabilities: vi.fn(async (propertyId: string | null) =>
-      capabilitySetFor(propertyId),
-    ),
+    capabilities: vi.fn(async () => CAPABILITY_SET),
     admitsShell: (organization: Organization) => organization.admitted,
   } satisfies ShellCheckFns<Session, Organization>
 }
@@ -46,8 +38,7 @@ const later = (ms: number) => vi.setSystemTime(START + ms)
 describe('readShellChecks', () => {
   let queryClient: QueryClient
   let fns: ReturnType<typeof serverFns>
-  const read = (side: 'server' | 'browser', propertyId: string | null = PROPERTY_A) =>
-    readShellChecks({ queryClient, propertyId, side, fns })
+  const read = (side: 'server' | 'browser') => readShellChecks({ queryClient, side, fns })
   const asked = () => [
     fns.session.mock.calls.length,
     fns.organization.mock.calls.length,
@@ -90,7 +81,7 @@ describe('readShellChecks', () => {
       await expect(read('browser')).resolves.toEqual({
         session: { ok: true, value: ANA },
         organization: { ok: true, value: RIVERSIDE },
-        capabilities: { ok: true, value: capabilitySetFor(PROPERTY_A) },
+        capabilities: { ok: true, value: CAPABILITY_SET },
       })
       expect(asked()).toEqual([1, 1, 1])
     })
@@ -109,17 +100,6 @@ describe('readShellChecks', () => {
 
       await read('browser')
       expect(asked()).toEqual([2, 2, 2])
-    })
-
-    it('asks for the capability set of a Property it has not seen, and only that', async () => {
-      await read('browser', PROPERTY_A)
-
-      await expect(read('browser', PROPERTY_B)).resolves.toMatchObject({
-        capabilities: { ok: true, value: { propertyId: PROPERTY_B } },
-      })
-      expect(asked()).toEqual([1, 1, 2])
-      await read('browser', PROPERTY_A)
-      expect(asked()).toEqual([1, 1, 2])
     })
 
     it('never remembers a missing session', async () => {
@@ -155,25 +135,27 @@ describe('readShellChecks', () => {
 
     it('asks a failed Organization or capability read again, without retrying it', async () => {
       fns.organization.mockRejectedValueOnce(new Error('organization down'))
+      fns.capabilities.mockRejectedValueOnce(new Error('capability down'))
       await read('browser')
       later(1_000)
       fns.capabilities.mockRejectedValueOnce(new Error('capability down'))
-      // Fresh session: a different Property makes the capability set a new question.
-      await expect(read('browser', PROPERTY_B)).resolves.toMatchObject({
+      // Fresh session: neither failed answer was kept, so both are asked again.
+      await expect(read('browser')).resolves.toMatchObject({
         organization: { ok: true, value: RIVERSIDE },
         capabilities: { ok: false },
       })
       expect(asked()).toEqual([1, 2, 2])
 
-      await read('browser', PROPERTY_B)
+      await read('browser')
       expect(asked()).toEqual([1, 2, 3])
     })
 
     it('forgets everything when any check says the session ended', async () => {
       await read('browser')
+      later(30_001)
       fns.capabilities.mockRejectedValueOnce(unauthenticated())
 
-      await expect(read('browser', PROPERTY_B)).resolves.toMatchObject({
+      await expect(read('browser')).resolves.toMatchObject({
         capabilities: { ok: false },
       })
       expect(shellEntries(queryClient)).toEqual([])
@@ -234,11 +216,13 @@ describe('readShellChecks', () => {
       fns.capabilities.mockImplementationOnce(
         () => new Promise<CapabilitySet>((resolve) => (answerOlder = resolve)),
       )
-      const older = read('browser', PROPERTY_A)
+      const older = read('browser')
+      // Forgotten while it is out, so the next check is its own question: its 401
+      // ends the session first.
+      invalidateShellContext(queryClient)
       fns.capabilities.mockRejectedValueOnce(unauthenticated())
-      // Same moment, another Property: its 401 ends the session first.
-      await read('browser', PROPERTY_B)
-      answerOlder(capabilitySetFor(PROPERTY_A))
+      await read('browser')
+      answerOlder(CAPABILITY_SET)
       await older
 
       expect(shellEntries(queryClient)).toEqual([])
@@ -251,7 +235,7 @@ describe('readShellChecks', () => {
         () => new Promise<Organization>((resolve) => (answer = resolve)),
       )
       later(1_000)
-      const reading = read('browser', PROPERTY_B)
+      const reading = read('browser')
       // A profile save while the Organization is being asked for.
       invalidateShellContext(queryClient)
       answer(RIVERSIDE)

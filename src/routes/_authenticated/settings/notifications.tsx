@@ -99,9 +99,8 @@ function NotificationSettingsPropertyScope({
   const setPropertyId = (next: string) => {
     void navigate({ search: { propertyId: next }, replace: true })
   }
-  // `notification.send_email` is non-core and allowlisted per property, so the
-  // answer changes with the selector. Owned here because routes own data in
-  // this codebase; the view stays a pure function of its props.
+  // Owned here because routes own data in this codebase; the view stays a pure
+  // function of its props.
   const emailCapability = useQuery({
     queryKey: notificationKeys.emailCapability(organizationId, propertyId),
     queryFn: () =>
@@ -109,7 +108,6 @@ function NotificationSettingsPropertyScope({
         data: {
           capability: 'notification.send_email',
           featureLabel: 'Email notifications',
-          propertyId,
         },
       }),
     enabled: propertyId !== '',

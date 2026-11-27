@@ -6,7 +6,6 @@ import { checkBetaCapability, type Capability } from './beta-capabilities'
 export type ControlledRouteInput = Readonly<{
   capability: Capability
   featureLabel: string
-  propertyId?: string
 }>
 
 /** Plain-data server boundary used by the client-side route redirect wrapper. */

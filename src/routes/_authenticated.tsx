@@ -21,7 +21,6 @@ import {
 } from '#/shared/auth/capability-set'
 import { readShellChecks } from '#/shared/shell-context/shell-context-checks'
 import { shellCheckSide } from '#/shared/queries/shell-context-cache'
-import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
 import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
 import { pageHead } from '#/components/layout/page-identity'
 import { PAGE_GUTTER } from '#/components/layout/page-shell'
@@ -79,10 +78,8 @@ export type AuthRouteContext = Readonly<{
   role: Role
   authz: ClientAuthz
   /**
-   * Capability posture for the property in scope. Resolved
-   * property-scoped. `beforeLoad` re-runs on every
-   * navigation and remembers one set per Property scope, so switching property
-   * reads that Property's set (asked for when there is no fresh one).
+   * Capability posture for the signed-in Organization. `beforeLoad` re-runs on
+   * every navigation and remembers the set (asked for when there is no fresh one).
    *
    * UI affordance only: it exists so navigation can render an unavailable
    * feature as disabled instead of routing into its unavailable page. It is not a
@@ -142,26 +139,22 @@ export const Route = createFileRoute('/_authenticated')({
     // and none needs another's answer, so they start together:
     //  - the session;
     //  - the active Organization and the person's role;
-    //  - the capability set, property-scoped when a property is in scope, because
-    //    policy allowlists per property.
+    //  - the capability set.
     // In the browser the answers are remembered for 30 seconds under the signed-in
     // person (`shell-context-checks`), so a navigation soon after the last check asks
     // nothing; the server render always asks. The decisions below keep their order:
     // no session sends the person to log in whatever the other two said.
-    const scopedPropertyId = propertyIdFromLocation(location.pathname, location.search)
     const {
       session: sessionResult,
       organization: organizationResult,
       capabilities: capabilityResult,
     } = await readShellChecks({
       queryClient: context.queryClient,
-      propertyId: scopedPropertyId,
       side: shellCheckSide(),
       fns: {
         session: () => getSession(),
         organization: () => getActiveOrganization(),
-        capabilities: (propertyId) =>
-          getCapabilitySet({ data: propertyId ? { propertyId } : {} }),
+        capabilities: () => getCapabilitySet(),
         admitsShell,
       },
     })

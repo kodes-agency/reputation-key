@@ -20,8 +20,8 @@ function rememberedShell(): QueryClient {
   const queryClient = new QueryClient()
   queryClient.setQueryData(shellContextKeys.session(), { user: { id: USER } })
   queryClient.setQueryData(shellContextKeys.organization(USER), { name: 'Riverside' })
-  queryClient.setQueryData(shellContextKeys.capabilities(USER, null), { allowed: [] })
-  queryClient.setQueryData(shellContextKeys.routeGate(USER, 'goal.use', 'p-1'), {
+  queryClient.setQueryData(shellContextKeys.capabilities(USER), { allowed: [] })
+  queryClient.setQueryData(shellContextKeys.routeGate(USER, 'goal.use'), {
     allowed: true,
   })
   queryClient.setQueryData(identityKeys.members(), [])
@@ -47,13 +47,13 @@ describe('shellContextKeys', () => {
     const person = shellContextKeys.person(USER)
     for (const key of [
       shellContextKeys.organization(USER),
-      shellContextKeys.capabilities(USER, 'p-1'),
-      shellContextKeys.routeGate(USER, 'goal.use', null),
+      shellContextKeys.capabilities(USER),
+      shellContextKeys.routeGate(USER, 'goal.use'),
     ]) {
       expect(key.slice(0, person.length)).toEqual(person)
     }
-    expect(shellContextKeys.capabilities(USER, 'p-1')).not.toEqual(
-      shellContextKeys.capabilities('user-2', 'p-1'),
+    expect(shellContextKeys.capabilities(USER)).not.toEqual(
+      shellContextKeys.capabilities('user-2'),
     )
   })
 })

@@ -1,13 +1,10 @@
 // The controlled-route gate a route's `beforeLoad` awaits (ADR 0049, ADR 0072).
 //
 // The server render always asks `checkControlledRoute`. The browser remembers each
-// decision for 30 seconds under the signed-in person, the capability and the
-// Property, so going back to a page soon after it was checked asks nothing. It is a
-// decision of its own, not read from the shell's capability set: that set is resolved
-// for the Property in the address (a `?propertyId=` too, which an Organization-wide
-// page like Portals carries without being scoped to it), and it falls back to the
-// empty set when its read fails, which here would refuse a page the gate would have
-// opened. The boundary is still each page's server functions, which assert the
+// decision for 30 seconds under the signed-in person and the capability, so going back
+// to a page soon after it was checked asks nothing. It is a decision of its own, not
+// read from the shell's capability set: that set falls back to the empty set when its
+// read fails, which here would refuse a page the gate would have opened. The boundary is still each page's server functions, which assert the
 // capability on every call.
 //
 // Here rather than in `shared/auth` because it joins the auth gate to the browser's
@@ -33,11 +30,11 @@ function controlledRouteDecision(
   context: ControlledRouteGateContext,
 ): Promise<CapabilityDecision> {
   if (shellCheckSide() === 'server') return checkControlledRoute({ data })
-  // Keyed by what decides the answer: the person, the capability and the Property.
-  // The label only names the feature in the notice, so it is not part of the key.
+  // Keyed by what decides the answer: the person and the capability. The label only
+  // names the feature in the notice, so it is not part of the key.
   return fetchRemembered(
     context.queryClient,
-    shellContextKeys.routeGate(context.user.id, data.capability, data.propertyId ?? null),
+    shellContextKeys.routeGate(context.user.id, data.capability),
     () => checkControlledRoute({ data }),
   )
 }

@@ -26,13 +26,12 @@ import { usePortalDetailActions } from '../-portal-detail-actions'
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId/review',
 )({
-  beforeLoad: async ({ context, params }) => {
+  beforeLoad: async ({ context }) => {
     await gateControlledRoute({
       context,
       data: {
         capability: 'portal.write',
         featureLabel: 'Portals',
-        propertyId: params.propertyId,
       },
     })
     const { role } = context
