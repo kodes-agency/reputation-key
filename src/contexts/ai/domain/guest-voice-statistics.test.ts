@@ -9,10 +9,10 @@ import {
   evidenceLevel,
   likelyChange,
   probabilityShareHigher,
-  regularizedIncompleteBeta,
   shareText,
   starsWhenMentioned,
 } from './guest-voice-statistics'
+import { regularizedIncompleteBeta } from './guest-voice-statistics.test-fixtures'
 
 describe('regularizedIncompleteBeta', () => {
   it.each([

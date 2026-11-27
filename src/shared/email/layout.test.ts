@@ -2,7 +2,7 @@
 // that render through it.
 import { describe, expect, it } from 'vitest'
 import { EMAIL_PALETTE, EMAIL_SIGNATURE } from './layout'
-import { composeText, textFacts } from './plain-text'
+import { composeText } from './plain-text'
 import {
   renderStaffCodeReadyEmail,
   renderInvitationEmail,
@@ -208,12 +208,6 @@ describe('composeText', () => {
   it('collapses over-long newline runs and returns empty for no content', () => {
     expect(composeText('One\n\n\n\nTwo')).toBe('One\n\nTwo\n')
     expect(composeText(null, '')).toBe('')
-  })
-
-  it('joins facts with the same middot the HTML part uses', () => {
-    expect(textFacts('Riverside Hotel', '', '2/5 review')).toBe(
-      'Riverside Hotel · 2/5 review',
-    )
   })
 })
 

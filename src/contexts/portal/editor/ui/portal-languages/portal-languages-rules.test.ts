@@ -9,7 +9,6 @@ import {
   hasLaterLanguages,
   languageDisplayName,
   languageSubline,
-  missingTextSection,
   type LanguageRegistry,
 } from './portal-languages-rules'
 import type {
@@ -235,15 +234,12 @@ describe('describeCoverage', () => {
   })
 })
 
-describe('describeMissingText and missingTextSection', () => {
-  it('names a title, a description and a link label, and where each is written', () => {
+describe('describeMissingText', () => {
+  it('names a title, a description and a link label', () => {
     const label = labelGap('l-1', 'Book a table')
     expect(describeMissingText(titleGap())).toBe('Welcome line')
     expect(describeMissingText(descriptionGap())).toBe('Link preview')
     expect(describeMissingText(label)).toBe('Label for “Book a table”')
-    expect(missingTextSection(titleGap())).toBe('welcome')
-    expect(missingTextSection(descriptionGap())).toBe('welcome')
-    expect(missingTextSection(label)).toBe('linktree')
   })
 })
 

@@ -57,9 +57,6 @@ export type GoogleLocationBinding = Readonly<{
   sourceEpoch: number
 }>
 
-export const PROPERTY_GOOGLE_BINDING_CHANGED_EVENT =
-  'property.google_binding.changed' as const
-
 export type PropertyGoogleBindingChangedV1 = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId

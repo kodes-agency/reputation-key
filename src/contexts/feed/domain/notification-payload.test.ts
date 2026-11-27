@@ -6,7 +6,6 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  isEmptyNotificationPayload,
   parseNotificationPayload,
   type NotificationPayload,
 } from './notification-payload'
@@ -534,13 +533,6 @@ describe('a site waiting for approval', () => {
 
     expect(parsed.portalName).toHaveLength(120)
     expect(parsed.siteHost).toHaveLength(253)
-  })
-})
-
-describe('isEmptyNotificationPayload', () => {
-  it('is true only when nothing survived parsing', () => {
-    expect(isEmptyNotificationPayload({})).toBe(true)
-    expect(isEmptyNotificationPayload({ guestRating: 4, platform: 'portal' })).toBe(false)
   })
 })
 

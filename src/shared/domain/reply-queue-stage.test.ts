@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
-  REPLY_QUEUE_PUBLICATION_STATES,
-  REPLY_QUEUE_STATUSES,
   isUncertainReplyStillChecked,
   replyQueueStage,
   type ReplyQueueStage,
 } from './reply-queue-stage'
+import {
+  REPLY_QUEUE_PUBLICATION_STATES,
+  REPLY_QUEUE_STATUSES,
+} from './reply-queue-stage.test-fixtures'
 
 const DUE = new Date('2026-09-14T12:15:00.000Z')
 

@@ -5,8 +5,10 @@ import {
   digestPortalPublicationConfiguration,
   verifyPortalPublicationSnapshot,
 } from './portal-publication-snapshot.server'
-import { buildLegacyPortalPublicationSnapshot } from './legacy-snapshot-builder.test-fixtures'
-import { V2_LANGUAGE_PACK_VERSIONS } from '../domain/portal-publication-snapshot'
+import {
+  buildLegacyPortalPublicationSnapshot,
+  V2_LANGUAGE_PACK_VERSIONS,
+} from './legacy-snapshot-builder.test-fixtures'
 import { snapshotMirrorColumns } from './portal-publication-snapshot-mapper.server'
 import {
   GOLDEN_BUILDER_INPUTS,

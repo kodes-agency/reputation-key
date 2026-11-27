@@ -9,9 +9,8 @@ import type { Review } from '../domain/review-types'
 import {
   REPLY_QUEUE_PUBLICATION_STATES,
   REPLY_QUEUE_STATUSES,
-  replyQueueStage,
-  type ReplyQueueStage,
-} from '#/shared/domain/reply-queue-stage'
+} from '#/shared/domain/reply-queue-stage.test-fixtures'
+import { replyQueueStage, type ReplyQueueStage } from '#/shared/domain/reply-queue-stage'
 import { itemMatchesQueue } from '#/contexts/reputation/inbox/ui/page/inbox-queues'
 import type { InboxItem } from '#/contexts/reputation/public-api'
 import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'

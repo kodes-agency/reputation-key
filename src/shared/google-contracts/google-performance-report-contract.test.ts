@@ -9,7 +9,7 @@ describe('Property Google Performance presentation contract', () => {
     expect(PROPERTY_PERFORMANCE_PRESETS).toEqual(['7d', '30d', '90d', '180d'])
   })
 
-  it('freezes safe external error codes and rejects unknown entries', () => {
+  it('freezes safe external error codes', () => {
     expect(GOOGLE_PERFORMANCE_ERROR_CODES).toEqual([
       'rate_limited',
       'provider_timeout',

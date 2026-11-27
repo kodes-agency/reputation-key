@@ -8,7 +8,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOneClickUnsubscribeToken } from '#/contexts/feed/email/one-click-unsubscribe-token.server'
-import { signSvixPayload } from '#/shared/auth/svix-signature.verifier'
+import { signSvixPayload } from '#/shared/auth/svix-signature.test-fixtures'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
 const KEYS = `v1:${'11'.repeat(32)}`

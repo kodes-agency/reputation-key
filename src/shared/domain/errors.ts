@@ -131,6 +131,3 @@ export const domainError = (
   context?: Readonly<Record<string, unknown>>,
 ): Error & DomainError =>
   buildTaggedError('DomainError', code, message, context, {}, domainError)
-
-export const isDomainError = (e: unknown): e is DomainError =>
-  typeof e === 'object' && e !== null && '_tag' in e && e._tag === 'DomainError'

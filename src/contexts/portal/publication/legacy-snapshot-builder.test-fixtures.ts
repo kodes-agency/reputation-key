@@ -25,6 +25,12 @@ import {
   type PublicationEnvelope,
 } from './portal-publication-snapshot.server'
 
+// Historical pin: the language pack registry every v2 snapshot was written with.
+export const V2_LANGUAGE_PACK_VERSIONS = {
+  en: 'guest-ui-en-v1',
+  bg: 'guest-ui-bg-v1',
+} as const
+
 export type LegacyPublicationInput = PublicationEnvelope &
   Readonly<{ source: LegacyPortalPublicationSource }>
 

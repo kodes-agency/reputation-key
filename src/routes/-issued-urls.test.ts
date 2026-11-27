@@ -13,7 +13,7 @@ import {
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPortalTokenCodec } from '#/contexts/portal/addresses/portal-token-codec.server'
-import { signSvixPayload } from '#/shared/auth/svix-signature.verifier'
+import { signSvixPayload } from '#/shared/auth/svix-signature.test-fixtures'
 import { answerPrintHost, printHostPolicy } from '#/shared/security/print-host-redirect'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,

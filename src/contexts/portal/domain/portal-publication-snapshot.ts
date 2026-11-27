@@ -11,10 +11,6 @@ export const PRIMARY_GUEST_LOCALE = 'en' as const
 // pack elsewhere must not change what a v1 or v2 digest covers.
 export const LEGACY_V1_GUEST_LOCALE = 'en' as const
 export const LEGACY_V1_LANGUAGE_PACK = 'guest-ui-en-v1' as const
-export const V2_LANGUAGE_PACK_VERSIONS = {
-  en: 'guest-ui-en-v1',
-  bg: 'guest-ui-bg-v1',
-} as const
 
 export type PortalGuestLocale = GuestLocale
 

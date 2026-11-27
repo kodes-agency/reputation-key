@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { assert, assertLiteral, assertNever, UnreachableError } from './assert'
-import { isDomainError } from './errors'
+import { isDomainError } from './errors.test-fixtures'
 
 describe('assertNever', () => {
   it('throws UnreachableError', () => {

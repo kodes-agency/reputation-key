@@ -106,13 +106,6 @@ export function resolveReplyStages(
   return counts?.replyStages ?? guess
 }
 
-const REPLY_QUEUES: ReadonlySet<InboxQueue> = new Set(['reply', 'approval', 'waiting'])
-
-/** Queues whose membership the item's reply state decides (besides being an open review). */
-export function isReplyStageQueue(queue: InboxQueue): boolean {
-  return REPLY_QUEUES.has(queue)
-}
-
 export function queueKind(queue: InboxQueue): InboxKind | null {
   return QUEUE_KIND[queue]
 }

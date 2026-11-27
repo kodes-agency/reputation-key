@@ -158,10 +158,9 @@ describe('versionedEntryIsFresh', () => {
 describe('built-in role authority', () => {
   /** Every permission and scope of `memberRole`, checked against the static role table. */
   function expectBuiltInAuthority(ctx: AuthContext, memberRole: string) {
-    const role = toDomainRole(memberRole)
-    if (role === null) throw new Error(`Unknown better-auth role: ${memberRole}`)
     const scope = memberRole === 'owner' ? 'organization' : 'assigned-properties'
-    expect(ctx.role).toBe(role)
+    expect(ctx.role).toBe(toDomainRole(memberRole))
+    const role = ctx.role
     for (const permission of VALID_PERMISSIONS) {
       const allowed = can(role, permission)
       expect(canForContext(ctx, permission), permission).toBe(allowed)

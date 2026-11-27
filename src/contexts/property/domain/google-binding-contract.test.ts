@@ -2,21 +2,19 @@ import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/shared/testing/google-provide
 import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_BINDING_STATES,
-  PROPERTY_GOOGLE_BINDING_CHANGED_EVENT,
   isGoogleBindingTupleValid,
   isGoogleResourceSuffix,
 } from './google-binding-contract'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 
 describe('Property Google binding contract', () => {
-  it('freezes the four-state lifecycle and event wire name', () => {
+  it('freezes the four-state lifecycle', () => {
     expect(GOOGLE_BINDING_STATES).toEqual([
       'unbound',
       'account_confirmation_required',
       'active',
       'disconnected',
     ])
-    expect(PROPERTY_GOOGLE_BINDING_CHANGED_EVENT).toBe('property.google_binding.changed')
   })
 
   it('accepts only bare bounded provider suffixes', () => {

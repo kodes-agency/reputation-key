@@ -98,20 +98,3 @@ export const mayUsePermissionOnProperties = (
     propertyIds: ReadonlyArray<PropertyId>
   }>,
 ): Promise<boolean> => mayUsePermissionsOnProperties(lookup, ctx, [permission], scope)
-
-/**
- * Low-level orgWide-based accessibility check. Callers that still resolve scope from a
- * raw role (the input.role use-case pattern, pending the ctx codemod) pass
- * `orgWide = role === 'AccountAdmin'`. Prefer {@link isPropertyAccessibleForPermission}
- * wherever a ctx with scopeByPermission is available, so custom/multi roles resolve.
- */
-export const isPropertyAccessible = async (
-  lookup: PropertyAccessLookup,
-  orgId: OrganizationId,
-  userId: UserId,
-  orgWide: boolean,
-  propertyId: PropertyId,
-): Promise<boolean> => {
-  const accessible = await lookup(orgId, userId, orgWide)
-  return accessible === null || accessible.includes(propertyId)
-}

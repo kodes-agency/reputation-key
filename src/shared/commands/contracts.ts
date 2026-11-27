@@ -1,6 +1,5 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
-import type { PublicDecisionRequest } from '#/shared/auth/execution-policy'
 
 export type CommandError = Readonly<{
   code: string
@@ -29,27 +28,3 @@ export type TenantCommandOptions<T, E extends CommandError> = CommandOptions<E> 
   }>
 
 export type TenantCommandRequest<T> = CommandRequest<T> & Readonly<{ actor: AuthContext }>
-
-export type PublicCommandScope = Readonly<{
-  organizationId: string
-  propertyId?: string
-}>
-
-export type PublicCommandRequest<T, S extends PublicCommandScope> = CommandRequest<T> &
-  Readonly<{ scope: S }>
-
-export type PublicCommandOptions<
-  T,
-  S extends PublicCommandScope,
-  E extends CommandError,
-> = CommandOptions<E> &
-  Readonly<{
-    resolveScope: (request: CommandRequest<T>) => Promise<S>
-    limit: (request: PublicCommandRequest<T, S>) => Promise<void>
-    execution: (
-      request: PublicCommandRequest<T, S>,
-    ) => Omit<
-      PublicDecisionRequest,
-      'organizationId' | 'propertyId' | 'now' | 'correlationId'
-    >
-  }>

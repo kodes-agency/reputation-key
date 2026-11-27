@@ -7,7 +7,6 @@ import type {
 import {
   canUseReplyQueues,
   inboxEmptyCopy,
-  isReplyStageQueue,
   itemMatchesQueue,
   queueItem,
   queueLabel,
@@ -229,15 +228,6 @@ describe('itemMatchesQueue', () => {
 })
 
 describe('reply stages', () => {
-  it('names the queues whose membership a reply state decides', () => {
-    expect(isReplyStageQueue('reply')).toBe(true)
-    expect(isReplyStageQueue('approval')).toBe(true)
-    expect(isReplyStageQueue('waiting')).toBe(true)
-    expect(isReplyStageQueue('replied')).toBe(false)
-    expect(isReplyStageQueue('mine')).toBe(false)
-    expect(isReplyStageQueue('escalated')).toBe(false)
-  })
-
   it('admits no stage to the reply queue once the stages are gone', () => {
     expect(queueReplyStage('reply')).toBe('needs_reply')
     expect(queueReplyStage('reply', false)).toBeNull()

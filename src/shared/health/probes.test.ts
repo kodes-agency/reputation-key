@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { liveProbe, readyProbe, startupProbe, probeHttpStatus } from './probes'
+import { liveProbe, probeBody, probeHttpStatus } from './probes'
 
 const fixedNow = () => new Date('2026-07-16T12:00:00.000Z')
 
@@ -39,7 +39,7 @@ describe('liveness dependency pin', () => {
   })
 })
 
-describe('readyProbe', () => {
+describe('readiness probe body', () => {
   const allUp = {
     container: true,
     keys: true,
@@ -50,7 +50,7 @@ describe('readyProbe', () => {
   }
 
   it('is ok when db, redis, migrations and policy are all healthy', () => {
-    expect(readyProbe(allUp, fixedNow)).toEqual({
+    expect(probeBody(allUp, fixedNow)).toEqual({
       status: 'ok',
       container: true,
       keys: true,
@@ -69,18 +69,18 @@ describe('readyProbe', () => {
     ['migrations', { ...allUp, migrations: false }],
     ['policy', { ...allUp, policy: false }],
   ] as const)('is degraded when %s fails', (field, deps) => {
-    const body = readyProbe(deps, fixedNow)
+    const body = probeBody(deps, fixedNow)
     expect(body.status).toBe('degraded')
     expect(body[field]).toBe(false)
     expect(probeHttpStatus(body.status)).toBe(503)
   })
 })
 
-describe('startupProbe', () => {
+describe('startup probe body', () => {
   const booted = { container: true, keys: true, migrations: true, policy: true }
 
   it('is ok once container, migrations and policy are complete', () => {
-    expect(startupProbe(booted, fixedNow)).toEqual({
+    expect(probeBody(booted, fixedNow)).toEqual({
       status: 'ok',
       container: true,
       keys: true,
@@ -96,7 +96,7 @@ describe('startupProbe', () => {
     ['migrations', { ...booted, migrations: false }],
     ['policy', { ...booted, policy: false }],
   ] as const)('is degraded while %s is incomplete', (field, deps) => {
-    const body = startupProbe(deps, fixedNow)
+    const body = probeBody(deps, fixedNow)
     expect(body.status).toBe('degraded')
     expect(body[field]).toBe(false)
     expect(probeHttpStatus(body.status)).toBe(503)

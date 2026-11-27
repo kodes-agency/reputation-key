@@ -53,16 +53,6 @@ export function probeBody<Deps extends Readonly<Record<string, boolean>>>(
   }
 }
 
-export const readyProbe = (
-  deps: Omit<ReadyProbe, 'status' | 'timestamp'>,
-  now?: () => Date,
-): ReadyProbe => probeBody(deps, now)
-
-export const startupProbe = (
-  deps: Omit<StartupProbe, 'status' | 'timestamp'>,
-  now?: () => Date,
-): StartupProbe => probeBody(deps, now)
-
 export function probeHttpStatus(status: 'ok' | 'degraded'): 200 | 503 {
   return status === 'ok' ? 200 : 503
 }

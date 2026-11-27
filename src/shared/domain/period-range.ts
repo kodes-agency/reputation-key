@@ -1,9 +1,4 @@
-// Shared period presets → concrete [start, end] ranges (BQC-5.9 E3).
-//
-// Single source for the period mapping, so every caller agrees on what
-// 'this_week' (etc.) means. Range math uses SERVER local time
-// (Date#setHours etc.); tenant-timezone day bucketing is dayKeyInTimezone's
-// job.
+// Tenant-timezone day keys and calendar period boundaries.
 
 import {
   exactInstantsForWallClock,

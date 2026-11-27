@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { isDashboardReadTimeout, withStatementTimeout } from './read-facade.server'
+import { withStatementTimeout } from './read-facade.server'
 
 const db = getDb()
 
@@ -15,8 +15,7 @@ describe('withStatementTimeout (integration)', () => {
       await tx.execute(sql`SELECT pg_sleep(0.2)`)
     }).catch((e: unknown) => e)
 
-    expect(isDashboardReadTimeout(err)).toBe(true)
-    if (isDashboardReadTimeout(err)) expect(err.budgetMs).toBe(1)
+    expect(err).toMatchObject({ _tag: 'DashboardReadTimeout', budgetMs: 1 })
   })
 
   it('lets an in-budget read return its rows', async () => {
