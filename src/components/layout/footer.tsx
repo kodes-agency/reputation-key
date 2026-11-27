@@ -9,7 +9,10 @@ export function Footer() {
       <Separator className="mb-10" />
       <div className="page-wrap flex flex-col items-center justify-between gap-4 text-center text-sm text-muted-foreground sm:flex-row sm:text-left">
         <p>&copy; {year} Fortunatus EOOD. All rights reserved.</p>
-        <Link to="/privacy" className="font-medium underline underline-offset-4">
+        <Link
+          to="/privacy"
+          className="inline-flex items-center font-medium underline underline-offset-4 max-md:min-h-(--control-touch)"
+        >
           Privacy notice
         </Link>
       </div>
