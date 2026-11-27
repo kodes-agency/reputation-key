@@ -10,12 +10,13 @@ import { buildPortalPublicationSnapshot } from './portal-publication-snapshot.se
 // a manager can act on.
 vi.mock('#/shared/domain/guest-locale', async (importOriginal) => {
   const original = await importOriginal<typeof import('#/shared/domain/guest-locale')>()
-  const currentGuestLanguagePack = ((locale: never, generation?: 1 | 2) =>
-    locale === 'de' && generation === 2
+  const currentGuestLanguagePack = ((
+    locale: Parameters<typeof original.currentGuestLanguagePack>[0],
+  ) =>
+    locale === 'de'
       ? null
       : original.currentGuestLanguagePack(
           locale,
-          generation as 2,
         )) as typeof original.currentGuestLanguagePack
   return { ...original, currentGuestLanguagePack }
 })
