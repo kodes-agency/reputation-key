@@ -13,6 +13,7 @@ import {
   notExists,
   or,
   sql,
+  type SQL,
 } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod/v4'
@@ -250,6 +251,58 @@ function activationRecordFromRows(
   return snapshot ? { activation: activationFromRow(activationRow), snapshot } : null
 }
 
+/** The newest activation (or newest open one) in `scope`, with its snapshot row. */
+const selectNewestActivation = (
+  db: Database,
+  scope: ReadonlyArray<SQL | undefined>,
+  openOnly: boolean,
+) =>
+  db
+    .select({
+      activation: portalPublicationActivations,
+      snapshot: portalPublicationSnapshots,
+    })
+    .from(portalPublicationActivations)
+    .innerJoin(
+      portalPublicationSnapshots,
+      and(
+        eq(
+          portalPublicationSnapshots.organizationId,
+          portalPublicationActivations.organizationId,
+        ),
+        eq(
+          portalPublicationSnapshots.propertyId,
+          portalPublicationActivations.propertyId,
+        ),
+        eq(portalPublicationSnapshots.portalId, portalPublicationActivations.portalId),
+        eq(portalPublicationSnapshots.id, portalPublicationActivations.snapshotId),
+      ),
+    )
+    .where(
+      and(
+        ...scope,
+        openOnly ? isNull(portalPublicationActivations.deactivatedAt) : undefined,
+      ),
+    )
+    .orderBy(desc(portalPublicationActivations.activationSequence))
+    .limit(1)
+
+const readLiveRecord = async (
+  db: Database,
+  organizationId: string,
+  portalId: string,
+): Promise<PortalPublicationActivationRecord | null> => {
+  const [row] = await selectNewestActivation(
+    db,
+    [
+      eq(portalPublicationActivations.organizationId, unbrand(organizationId)),
+      eq(portalPublicationActivations.portalId, unbrand(portalId)),
+    ],
+    true,
+  )
+  return row ? activationRecordFromRows(row.activation, row.snapshot) : null
+}
+
 const resolvableTokenAsOf = (asOf: Date) =>
   or(
     eq(portalTokens.status, 'active'),
@@ -338,39 +391,15 @@ export const createPortalPublicationRepository = (
       return row ? snapshotFromRow(row) : null
     }),
 
-  findActiveForPortal: async (organizationId, portalId) =>
+  findLiveRecord: (organizationId, portalId) =>
+    trace('portalPublication.findLiveRecord', () =>
+      readLiveRecord(db, organizationId, portalId),
+    ),
+
+  findActiveForPortal: (organizationId, portalId) =>
     trace('portalPublication.findActiveForPortal', async () => {
-      const [row] = await db
-        .select({ snapshot: portalPublicationSnapshots })
-        .from(portalPublicationActivations)
-        .innerJoin(
-          portalPublicationSnapshots,
-          and(
-            eq(
-              portalPublicationSnapshots.organizationId,
-              portalPublicationActivations.organizationId,
-            ),
-            eq(
-              portalPublicationSnapshots.propertyId,
-              portalPublicationActivations.propertyId,
-            ),
-            eq(
-              portalPublicationSnapshots.portalId,
-              portalPublicationActivations.portalId,
-            ),
-            eq(portalPublicationSnapshots.id, portalPublicationActivations.snapshotId),
-          ),
-        )
-        .where(
-          and(
-            eq(portalPublicationActivations.organizationId, unbrand(organizationId)),
-            eq(portalPublicationActivations.portalId, unbrand(portalId)),
-            isNull(portalPublicationActivations.deactivatedAt),
-          ),
-        )
-        .orderBy(desc(portalPublicationActivations.activationSequence))
-        .limit(1)
-      return row ? snapshotFromRow(row.snapshot) : null
+      const record = await readLiveRecord(db, organizationId, portalId)
+      return record?.snapshot ?? null
     }),
 
   findCurrentAndLatestActivation: async (organizationId, propertyId, portalId) =>
@@ -379,43 +408,10 @@ export const createPortalPublicationRepository = (
         eq(portalPublicationActivations.organizationId, unbrand(organizationId)),
         eq(portalPublicationActivations.propertyId, unbrand(propertyId)),
         eq(portalPublicationActivations.portalId, unbrand(portalId)),
-      ] as const
-      const selectNewest = (openOnly: boolean) =>
-        db
-          .select({
-            activation: portalPublicationActivations,
-            snapshot: portalPublicationSnapshots,
-          })
-          .from(portalPublicationActivations)
-          .innerJoin(
-            portalPublicationSnapshots,
-            and(
-              eq(
-                portalPublicationSnapshots.organizationId,
-                portalPublicationActivations.organizationId,
-              ),
-              eq(
-                portalPublicationSnapshots.propertyId,
-                portalPublicationActivations.propertyId,
-              ),
-              eq(
-                portalPublicationSnapshots.portalId,
-                portalPublicationActivations.portalId,
-              ),
-              eq(portalPublicationSnapshots.id, portalPublicationActivations.snapshotId),
-            ),
-          )
-          .where(
-            and(
-              ...scope,
-              openOnly ? isNull(portalPublicationActivations.deactivatedAt) : undefined,
-            ),
-          )
-          .orderBy(desc(portalPublicationActivations.activationSequence))
-          .limit(1)
+      ]
       const [latestRows, currentRows] = await Promise.all([
-        selectNewest(false),
-        selectNewest(true),
+        selectNewestActivation(db, scope, false),
+        selectNewestActivation(db, scope, true),
       ])
       const toRecord = (
         row: (typeof latestRows)[number] | undefined,
