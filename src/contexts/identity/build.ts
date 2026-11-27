@@ -20,14 +20,12 @@ import {
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { createCapabilityRefusalExplainer } from '#/shared/governance/capability-refusal'
 import {
   checkScopedCapability,
   type CapabilityPolicyEnv,
 } from '#/shared/auth/beta-capabilities'
 import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
-import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
 import type { IdentityPort } from './members/auth-identity.port.server'
@@ -129,6 +127,7 @@ import { createOrganizationCapabilityRefusalReaders } from './infrastructure/rep
 import {
   getMemberRole,
   createManagerMembershipRepository,
+  prepareManagerPropertyAuthority,
 } from './members/manager-membership-repository.server'
 import {
   decideCurrentManagerPropertyAuthorities,
@@ -473,16 +472,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
 
   const managerMembershipRepo = createManagerMembershipRepository(
     db,
-    async ({ organizationId: orgId, userId: memberUserId, memberRole }) => {
-      const { context } = await resolveMemberAuthContextWithDatabase(db, {
-        organizationId: orgId,
-        userId: memberUserId,
-        memberRole,
-      })
-      if (!canForContext(context, 'property.read')) return null
-      const scope = scopeForPermission(context, 'property.read')
-      return scope === 'none' ? null : scope
-    },
+    prepareManagerPropertyAuthority(db),
   )
   // Every identity state mutation and its fact commit atomically here.
   const commandStore = createAtomicIdentityCommandStore(db, deps.idGen, (orgId) =>
