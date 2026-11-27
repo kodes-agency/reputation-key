@@ -330,18 +330,22 @@ export const loadReplyTemplate =
         text: replyText,
         expectedReply: input.expectedReply,
         replyLanguageTag: languageGroup,
-        templateLayer: template.layer,
-        templateRef: template.ref,
-        templateRevision: template.revision,
-        templateWordingKey: wording.key,
+        template: {
+          layer: template.layer,
+          ref: template.ref,
+          revision: template.revision,
+          wordingKey: wording.key,
+        },
         ...(rendered === null
           ? {}
           : {
-              voiceDigest: rendered.voiceDigest,
-              voiceChoices: templateFrameChoices(
-                rendered.choices,
-                replyBand(review.rating, Boolean(review.text?.trim())),
-              ),
+              voice: {
+                digest: rendered.voiceDigest,
+                choices: templateFrameChoices(
+                  rendered.choices,
+                  replyBand(review.rating, Boolean(review.text?.trim())),
+                ),
+              },
             }),
       },
       ctx,
