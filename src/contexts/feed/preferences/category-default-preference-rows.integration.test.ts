@@ -13,10 +13,6 @@ import { organizationId, userId } from '#/shared/domain/ids'
 import { NOTIFICATION_SETTINGS_CATEGORIES } from '../domain/notification-delivery-policy'
 import type { NotificationCategoryDefault } from '../domain/notification-types'
 import * as store from './notification-preferences.server'
-import {
-  copyCategoryDefaultsToPreferences,
-  countCategoryDefaultsToCopy,
-} from './copy-category-defaults.server'
 
 const ORG_A = 'pref-rows-org-a'
 const ORG_B = 'pref-rows-org-b'
@@ -168,6 +164,20 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
       })),
     )
     await db.insert(notificationPreferences).values(
+      DEFAULTS.map((row) => ({
+        userId: row.user,
+        organizationId: row.org,
+        propertyId: null,
+        category: row.category,
+        channel: row.channel,
+        enabled: row.enabled,
+        cadence: row.cadence,
+        maxRating: row.maxRating ?? null,
+        createdAt: CREATED,
+        updatedAt: CREATED,
+      })),
+    )
+    await db.insert(notificationPreferences).values(
       OVERRIDES.map((row) => ({
         userId: row.user,
         organizationId: row.org,
@@ -267,65 +277,19 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
     await lease?.release()
   })
 
-  it('resolves every category the same after the copy and after the cutover', async () => {
+  it('resolves every category from the preference rows alone', async () => {
     await seed()
-    const copied = await copyCategoryDefaultsToPreferences(db, { batchSize: 2 })
-    expect(copied).toEqual({ inserted: DEFAULTS.length, updated: 0 })
     expect(await mirrorRows()).toHaveLength(DEFAULTS.length)
     const before = await resolveEverything()
     expect(Object.keys(before.resolved)).toHaveLength(
       PLACES.length * NOTIFICATION_SETTINGS_CATEGORIES.length * 2,
     )
 
-    // Reads now come from the preference rows alone.
+    // Reads come from the preference rows alone.
     await db
       .delete(notificationCategoryDefaults)
       .where(inArray(notificationCategoryDefaults.userId, USERS))
     expect(await resolveEverything()).toEqual(before)
-  })
-
-  it('changes nothing when the copy runs again', async () => {
-    await seed()
-    await copyCategoryDefaultsToPreferences(db)
-    const first = await mirrorRows()
-
-    await expect(countCategoryDefaultsToCopy(db)).resolves.toEqual({
-      missing: 0,
-      differing: 0,
-    })
-    await expect(copyCategoryDefaultsToPreferences(db)).resolves.toEqual({
-      inserted: 0,
-      updated: 0,
-    })
-    expect(await mirrorRows()).toEqual(first)
-  })
-
-  it('brings a copy left behind by an older release up to date', async () => {
-    await seed()
-    await copyCategoryDefaultsToPreferences(db)
-    await db
-      .update(notificationCategoryDefaults)
-      .set({ enabled: false, cadence: 'daily', updatedAt: CHANGED })
-      .where(eq(notificationCategoryDefaults.category, 'arrivals'))
-    await expect(countCategoryDefaultsToCopy(db)).resolves.toEqual({
-      missing: 0,
-      differing: 1,
-    })
-
-    await expect(copyCategoryDefaultsToPreferences(db)).resolves.toEqual({
-      inserted: 0,
-      updated: 1,
-    })
-    const stale = (await mirrorRows()).filter(
-      (row) => row.category === 'arrivals' && row.organizationId === ORG_A,
-    )
-    expect(stale.map((row) => [row.enabled, row.cadence])).toEqual([[false, 'daily']])
-  })
-
-  it('refuses a batch size outside its bounds', async () => {
-    await expect(copyCategoryDefaultsToPreferences(db, { batchSize: 0 })).rejects.toThrow(
-      /batch size/,
-    )
   })
 
   it('lands a save through the settings path in the preference row only', async () => {
@@ -376,7 +340,6 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
 
   it('keeps Organization defaults out of the per-Property rows', async () => {
     await seed()
-    await copyCategoryDefaultsToPreferences(db)
     const own = await store.findByUser(db, userId(BOTH), organizationId(ORG_A))
     expect(own).toHaveLength(2)
     expect(own.every((row) => row.propertyId !== null)).toBe(true)
