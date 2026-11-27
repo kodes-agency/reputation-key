@@ -54,6 +54,26 @@
           "html": "99105a4fa6e352ef"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "account.organization_role_changed": {
@@ -111,6 +131,26 @@
           "html": "55964d793f0927cb"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "account.organization_access_removed": {
@@ -168,6 +208,24 @@
           "html": "2c4b3bfd5ed8e663"
         }
       }
+    },
+    "links": {
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "account.organization_property_access_changed": {
@@ -225,6 +283,24 @@
           "html": "1abe146a4cd3f733"
         }
       }
+    },
+    "links": {
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "account.invitation_accepted": {
@@ -282,6 +358,24 @@
           "html": "820ca506c0c0ade2"
         }
       }
+    },
+    "links": {
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "account.organization_purge_pending": {
@@ -339,6 +433,26 @@
           "html": "ba5c117db650ec15"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "review.created": {
@@ -396,6 +510,24 @@
           "html": "b0ef8e2e522c72dd"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "review.updated": {
@@ -453,6 +585,26 @@
           "html": "6774eecc8c22a43f"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "review.ai_urgent_detected": {
@@ -511,6 +663,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -535,27 +707,7 @@
           "detail": ""
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "feedback.created": {
@@ -613,6 +765,26 @@
           "html": "3f47344a90c290d6"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "reply.pending_approval": {
@@ -670,6 +842,26 @@
           "html": "5218cb3b4e120481"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "reply.approved": {
@@ -728,6 +920,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -752,27 +964,7 @@
           "detail": ""
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "reply.rejected": {
@@ -831,6 +1023,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -855,27 +1067,7 @@
           "summary": "Riverside Hotel · review · waited 1d"
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "reply.published": {
@@ -934,6 +1126,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -958,27 +1170,7 @@
           "detail": ""
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "reply.publish_failed": {
@@ -1036,6 +1228,26 @@
           "html": "f2ba0f796be2fc6e"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "reply.publication_cancelled": {
@@ -1094,6 +1306,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -1118,27 +1350,7 @@
           "summary": "Riverside Hotel · review · returned to draft · waited 1d"
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "inbox.escalated": {
@@ -1196,6 +1408,26 @@
           "html": "642d0887e199794c"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "inbox.escalation_resolved": {
@@ -1253,6 +1485,26 @@
           "html": "941c539bb3d06107"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "inbox.reopened": {
@@ -1310,6 +1562,24 @@
           "html": "da5df0eb40d2c4e8"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "inbox.bulk_reopened": {
@@ -1367,6 +1637,24 @@
           "html": "8ed20177fa33c6bb"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "inbox.response_target_halfway": {
@@ -1424,6 +1712,26 @@
           "html": "aec9d30f67140a0f"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "inbox.response_target_passed": {
@@ -1482,6 +1790,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -1506,27 +1834,7 @@
           "summary": "Riverside Hotel · 2-star feedback · target passed · waited 1d"
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "inbox.assigned": {
@@ -1585,6 +1893,24 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -1609,27 +1935,7 @@
           "detail": ""
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "inbox.bulk_assigned": {
@@ -1687,6 +1993,24 @@
           "html": "5f85bef82b33bc46"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "inbox.assignments_released": {
@@ -1745,6 +2069,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"queue\":\"open\"}",
+      "inbox_item/prop-1": "/inbox {\"queue\":\"open\",\"propertyId\":\"prop-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -1769,27 +2113,7 @@
           "detail": ""
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"queue\":\"open\"}",
-        "inbox_item/prop-1": "/inbox {\"queue\":\"open\",\"propertyId\":\"prop-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "inbox.unassigned": {
@@ -1848,6 +2172,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -1872,27 +2216,7 @@
           "detail": ""
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "inbox.bulk_unassigned": {
@@ -1951,6 +2275,24 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -1975,27 +2317,7 @@
           "detail": ""
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"queue\":\"open\"}",
-        "inbox_item/prop-1": "/inbox {\"queue\":\"open\",\"propertyId\":\"prop-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "inbox_note.added": {
@@ -2054,6 +2376,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -2078,27 +2420,7 @@
           "detail": ""
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "portal.responsibility_needed": {
@@ -2156,6 +2478,26 @@
           "html": "d2476f9c1a05edc8"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "portal.health_attention": {
@@ -2213,6 +2555,26 @@
           "html": "6fe40e5daa1a3684"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "portal.link_approval": {
@@ -2270,6 +2632,24 @@
           "html": "56e56a16b725cbcc"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "property.responsibility_needed": {
@@ -2327,6 +2707,26 @@
           "html": "99316f74f5977c98"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "property.review_import_finished": {
@@ -2385,6 +2785,24 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -2409,27 +2827,7 @@
           "summary": "Riverside Hotel · review import stopped · waited 1d"
         }
       },
-      "repeat": 1,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/inbox {\"queue\":\"open\"}",
-        "property/prop-1": "/inbox {\"queue\":\"open\",\"propertyId\":\"prop-1\"}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 1
     }
   },
   "integration.reauthorization_required": {
@@ -2487,6 +2885,26 @@
           "html": "18f7d6aa28ca5099"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "integration.google_disconnected": {
@@ -2545,6 +2963,24 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -2569,27 +3005,7 @@
           "summary": "Google disconnected · waited 1d"
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "goal.completed": {
@@ -2647,6 +3063,24 @@
           "html": "48975a5744b2302c"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "goal.result_revised": {
@@ -2704,6 +3138,26 @@
           "html": "d4157bc9bebc7786"
         }
       }
+    },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
     }
   },
   "goal.rating_reached": {
@@ -2762,6 +3216,24 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -2786,27 +3258,7 @@
           "detail": ""
         }
       },
-      "repeat": 3,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 3
     }
   },
   "goal.rating_changed": {
@@ -2865,6 +3317,24 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -2889,27 +3359,7 @@
           "summary": "Riverside Hotel · Google rating changed · waited 1d"
         }
       },
-      "repeat": 1,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 1
     }
   },
   "goal.rating_below_pace": {
@@ -2968,6 +3418,24 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -2992,27 +3460,7 @@
           "summary": "Riverside Hotel · below the review pace · waited 1d"
         }
       },
-      "repeat": 1,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 1
     }
   },
   "goal.rating_too_low": {
@@ -3071,6 +3519,24 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -3095,27 +3561,7 @@
           "summary": "Riverside Hotel · new reviews too low · waited 1d"
         }
       },
-      "repeat": 1,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 1
     }
   },
   "goal.rating_keep_dropped": {
@@ -3174,6 +3620,24 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -3198,27 +3662,7 @@
           "detail": ""
         }
       },
-      "repeat": 1,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 1
     }
   },
   "beta_feedback.outcome": {
@@ -3277,6 +3721,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/settings/people {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -3301,27 +3765,7 @@
           "detail": ""
         }
       },
-      "repeat": 1,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/settings/people {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 1
     }
   },
   "guest_voice.summary": {
@@ -3380,6 +3824,26 @@
         }
       }
     },
+    "links": {
+      "organization/null": "/settings/profile {}",
+      "organization/prop-1": "/settings/profile {}",
+      "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
+      "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
+      "reply/null": "/inbox {}",
+      "reply/prop-1": "/inbox {}",
+      "goal/null": "/properties {}",
+      "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
+      "portal/null": "/properties {}",
+      "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
+      "portal_destination/null": "/properties {}",
+      "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
+      "property/null": "/properties {}",
+      "property/prop-1": "/properties/prop-1/guests {}",
+      "integration/null": "/settings/integrations {}",
+      "integration/prop-1": "/settings/integrations {}",
+      "beta_feedback_report/null": "/properties {}",
+      "beta_feedback_report/prop-1": "/properties {}"
+    },
     "inApp": {
       "rendered": {
         "default": {
@@ -3419,27 +3883,7 @@
           "summary": "Riverside Hotel · weekly summary · waited 1d"
         }
       },
-      "repeat": 1,
-      "links": {
-        "organization/null": "/settings/profile {}",
-        "organization/prop-1": "/settings/profile {}",
-        "inbox_item/null": "/inbox {\"itemId\":\"res-1\"}",
-        "inbox_item/prop-1": "/inbox {\"itemId\":\"res-1\"}",
-        "reply/null": "/inbox {}",
-        "reply/prop-1": "/inbox {}",
-        "goal/null": "/properties {}",
-        "goal/prop-1": "/properties/prop-1/goals {\"result\":\"res-1\"}",
-        "portal/null": "/properties {}",
-        "portal/prop-1": "/properties/prop-1/portals/res-1 {\"tab\":\"page\"}",
-        "portal_destination/null": "/properties {}",
-        "portal_destination/prop-1": "/properties/prop-1/portals/5b0c2e0e-6a1d-4f4e-9d52-2d9c8f6a1b11 {\"tab\":\"page\",\"section\":\"linktree\"}",
-        "property/null": "/properties {}",
-        "property/prop-1": "/properties/prop-1/guests {}",
-        "integration/null": "/settings/integrations {}",
-        "integration/prop-1": "/settings/integrations {}",
-        "beta_feedback_report/null": "/properties {}",
-        "beta_feedback_report/prop-1": "/properties {}"
-      }
+      "repeat": 1
     }
   }
 }

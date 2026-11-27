@@ -4,7 +4,9 @@
 // as a subject plus a hash of the text and of the HTML, so one changed byte in any type's
 // email fails this test. In-app wording is not pinned here: notification-templates.copy,
 // .invariants and .test assert it. The exception is IN_APP_PINNED_TYPES, the types those
-// suites do not assert; their in-app copy, repeat count and links stay in the pin.
+// suites do not assert; their in-app copy and repeat count stay in the pin. Links are pinned
+// for every type and resource type except LINK_ASSERTED, the pairs another suite fails on
+// when their link changes.
 //
 // An intended email change makes this fail on purpose. Regenerate the expected output with
 //   PIN_WRITE=1 pnpm exec vitest run --project=unit src/contexts/feed/notification-output.pin.test.ts
@@ -209,9 +211,37 @@ const emailsFor = (rendered: RenderedNotification) => {
   }
 }
 
+/**
+ * Type and resource type pairs whose link another suite asserts: a probe that altered
+ * the path, or the search, of each pair's link failed one of those suites. Every other
+ * pair keeps its link in the pin.
+ */
+const LINK_ASSERTED: ReadonlyArray<string> = [
+  'account.invitation_accepted:organization',
+  'account.organization_access_removed:organization',
+  'account.organization_property_access_changed:organization',
+  'goal.completed:goal',
+  'goal.rating_below_pace:goal',
+  'goal.rating_changed:goal',
+  'goal.rating_keep_dropped:goal',
+  'goal.rating_reached:goal',
+  'goal.rating_too_low:goal',
+  'inbox.assigned:inbox_item',
+  'inbox.bulk_assigned:inbox_item',
+  'inbox.bulk_reopened:inbox_item',
+  'inbox.bulk_unassigned:inbox_item',
+  'inbox.reopened:inbox_item',
+  'integration.google_disconnected:integration',
+  'portal.link_approval:portal_destination',
+  'property.review_import_finished:property',
+  'review.created:inbox_item',
+]
+
 const linksFor = (type: NotificationType) =>
   Object.fromEntries(
-    RESOURCE_TYPES.flatMap((resourceType) =>
+    RESOURCE_TYPES.filter(
+      (resourceType) => !LINK_ASSERTED.includes(`${type}:${resourceType}`),
+    ).flatMap((resourceType) =>
       [null, 'prop-1'].map((propertyId) => {
         const { path, search } = notificationLink(
           resourceType,
@@ -233,10 +263,9 @@ const inAppFor = (type: NotificationType) => ({
     ]),
   ),
   repeat: notificationRepeatCount(type, FULLEST),
-  links: linksFor(type),
 })
 
-/** What one type pins: the email bytes of its fullest variant, plus in-app words where no suite asserts them. */
+/** What one type pins: the email bytes of its fullest variant, its unasserted links, and in-app words where no suite asserts them. */
 const pinFor = (type: NotificationType) => ({
   replyTo: notificationReplyTo(type),
   variant: FULLEST_NAME,
@@ -246,6 +275,7 @@ const pinFor = (type: NotificationType) => ({
       emailsFor(renderNotification(type, FULLEST, context)),
     ]),
   ),
+  links: linksFor(type),
   ...(IN_APP_PINNED_TYPES.includes(type) ? { inApp: inAppFor(type) } : {}),
 })
 
