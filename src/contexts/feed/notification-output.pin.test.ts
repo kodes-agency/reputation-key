@@ -1,8 +1,14 @@
-// Pins every word a notification says in each channel: for every type, the in-app
-// title/body/detail/facts, the link, the repeat count, the immediate email (subject, text and
-// a digest of its text and HTML) and the digest email. The expected output lives in
-// notification-output.pin.json and was produced by the code before the payload and copy
-// modules were restructured; set PIN_WRITE=1 only to regenerate it on purpose.
+// Pins the email bytes of every notification type. For each type it renders the fullest
+// payload variant (the one with the most fields present; see FULLEST below) in three time
+// zone contexts and stores the immediate emails (urgent and mandatory) and the digest email
+// as a subject plus a hash of the text and of the HTML, so one changed byte in any type's
+// email fails this test. In-app wording is not pinned here: notification-templates.copy,
+// .invariants and .test assert it. The exception is IN_APP_PINNED_TYPES, the types those
+// suites do not assert; their in-app copy, repeat count and links stay in the pin.
+//
+// An intended email change makes this fail on purpose. Regenerate the expected output with
+//   PIN_WRITE=1 pnpm exec vitest run --project=unit src/contexts/feed/notification-output.pin.test.ts
+// then format notification-output.pin.json with prettier, and review the diff before you commit.
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
@@ -12,6 +18,7 @@ import {
   notificationReplyTo,
   notificationRepeatCount,
   renderNotification,
+  type RenderedNotification,
 } from './domain/notification-templates'
 import { NOTIFICATION_TYPES, type NotificationType } from './domain/notification-types'
 import type { NotificationPayload } from './domain/notification-payload'
@@ -90,64 +97,6 @@ const FULL: NotificationPayload = {
   ],
 }
 
-const ENUM_VALUES: Readonly<Record<string, readonly unknown[]>> = {
-  platform: ['google', 'portal'],
-  guestRating: [1, 2, 3, 4, 5],
-  actorRole: ['account_admin', 'property_manager', 'staff'],
-  memberRole: ['account_admin', 'property_manager'],
-  publishOutcome: ['not_sent', 'refused', 'unconfirmed'],
-  reportOutcome: ['accepted', 'declined', 'resolved'],
-  reauthorizationCause: ['provider_revoked', 'member_removed', 'account_admin_role_lost'],
-  publishFailureCause: ['google_reauthorization_required'],
-  publicationCancellationCause: [
-    'disconnect',
-    'policy',
-    'source_changed',
-    'provider_truth',
-    'ai_draft_withdrawn',
-  ],
-  reopenReason: [
-    'guest_follow_up_still_needed',
-    'internal_follow_up_still_needed',
-    'new_information',
-    'correcting_handling_status',
-    'other',
-    'provider_reply_deleted',
-    'provider_reply_diverged',
-    'material_revision_changed',
-  ],
-  portalHealthStatus: ['degraded', 'unavailable'],
-  portalHealthReason: [
-    'publication_snapshot_unavailable',
-    'public_address_unavailable',
-    'google_destination_unavailable',
-  ],
-  goalSubjectKind: ['property', 'portal_group', 'portal'],
-  goalOutcome: ['met', 'not_met', 'unavailable'],
-  goalMarker: ['set_in_month', 'target_changed'],
-  goalMeasure: ['qualified_scans', 'portal_rating_count', 'portal_rating_average'],
-  importOutcome: ['completed', 'failed'],
-  importFailureReason: [
-    'google_authorization',
-    'property_source_changed',
-    'location_too_large',
-    'temporary',
-  ],
-  ratingGoalMode: ['climb', 'keep'],
-  ratingPaceWindow: ['last_4_weeks', 'since_set', 'since_pace_change'],
-  guestVoiceKind: ['weekly', 'monthly'],
-  guestVoiceWindow: ['30d', '90d', '180d', '365d'],
-  occurrences: [1, 2, 7],
-  itemCount: [1, 5],
-  waitedHours: [0, 1, 23, 24, 49],
-  leftOrganization: [true, false],
-  hasModerationReason: [true, false],
-  lowRating: [true],
-  otherPortalCount: [0, 1, 4],
-  ratingPaceTenthsPerWeek: [10, 35],
-  ratingPacePerWeek: [1, 3],
-}
-
 const OMITTABLE = Object.keys(FULL) as (keyof NotificationPayload)[]
 
 const withoutKey = (key: keyof NotificationPayload): NotificationPayload => {
@@ -155,22 +104,55 @@ const withoutKey = (key: keyof NotificationPayload): NotificationPayload => {
   return rest
 }
 
-const variants = (): ReadonlyArray<readonly [string, NotificationPayload]> => [
+const CANDIDATES: ReadonlyArray<readonly [string, NotificationPayload]> = [
   ['empty', {}],
   ['full', FULL],
   ...OMITTABLE.map((key) => [`full-without-${key}`, withoutKey(key)] as const),
-  ...Object.entries(ENUM_VALUES).flatMap(([key, values]) =>
-    values.flatMap((value) => [
-      [`full-${key}=${String(value)}`, { ...FULL, [key]: value }] as const,
-      [`empty-${key}=${String(value)}`, { [key]: value }] as const,
-    ]),
-  ),
+]
+
+const presentFields = (payload: NotificationPayload): number =>
+  Object.values(payload).filter((value) => value !== undefined).length
+
+/**
+ * The pinned variant: the candidate with the most payload fields present. A tie goes to
+ * the one listed first, so the choice depends on the list, never on chance.
+ */
+const [FULLEST_NAME, FULLEST] = CANDIDATES.reduce((best, candidate) =>
+  presentFields(candidate[1]) > presentFields(best[1]) ? candidate : best,
+)
+
+/**
+ * Types whose in-app title and body no hand-written suite (copy, invariants, templates)
+ * asserts: a probe that altered each type's rendered title or body failed none of them
+ * for these. They keep their in-app words and links in the pin until a suite covers them.
+ */
+const IN_APP_PINNED_TYPES: ReadonlyArray<NotificationType> = [
+  'review.ai_urgent_detected',
+  'reply.approved',
+  'reply.rejected',
+  'reply.published',
+  'reply.publication_cancelled',
+  'inbox.response_target_passed',
+  'inbox.assigned',
+  'inbox.assignments_released',
+  'inbox.unassigned',
+  'inbox.bulk_unassigned',
+  'inbox_note.added',
+  'property.review_import_finished',
+  'integration.google_disconnected',
+  'goal.rating_reached',
+  'goal.rating_changed',
+  'goal.rating_below_pace',
+  'goal.rating_too_low',
+  'goal.rating_keep_dropped',
+  'beta_feedback.outcome',
+  'guest_voice.summary',
 ]
 
 const CONTEXTS = [
-  undefined,
-  { timeZone: 'Europe/Sofia' },
-  { timeZone: 'America/New_York' },
+  ['default', undefined],
+  ['Europe/Sofia', { timeZone: 'Europe/Sofia' }],
+  ['America/New_York', { timeZone: 'America/New_York' }],
 ] as const
 
 const RESOURCE_TYPES = [
@@ -185,83 +167,90 @@ const RESOURCE_TYPES = [
   'beta_feedback_report',
 ] as const
 
+const ACTION_URL = 'https://app.example.test/inbox?itemId=abc'
+const PREFERENCES_URL = 'https://app.example.test/settings/notifications'
+
 const sha = (value: string): string =>
   createHash('sha256').update(value).digest('hex').slice(0, 16)
 
-const channelsFor = (
-  type: NotificationType,
-  payload: NotificationPayload,
-  tz: number,
-) => {
-  const context = CONTEXTS[tz]
-  const rendered = renderNotification(type, payload, context)
-  const actionUrl = 'https://app.example.test/inbox?itemId=abc'
-  const email = (priority: 'urgent' | 'normal', preferencesUrl: string | null) => {
-    const out = renderNotificationEmail({ rendered, actionUrl, preferencesUrl, priority })
-    return { subject: out.subject, text: sha(out.text), html: sha(out.html) }
-  }
-  const digest = renderDigestEmail({
-    recipientName: 'Sam',
-    dateLabel: 'Tue 3 Mar',
-    preferencesUrl: 'https://app.example.test/settings/notifications',
-    groups: [{ propertyName: 'Riverside Hotel', items: [{ rendered, actionUrl }] }],
-  })
+/** Subject in the clear, text and HTML as hashes: one changed byte changes the hash. */
+const emailBytes = (email: { subject: string; text: string; html: string }) => ({
+  subject: email.subject,
+  text: sha(email.text),
+  html: sha(email.html),
+})
+
+const emailsFor = (rendered: RenderedNotification) => {
+  const immediate = (priority: 'urgent' | 'normal', preferencesUrl: string | null) =>
+    emailBytes(
+      renderNotificationEmail({
+        rendered,
+        actionUrl: ACTION_URL,
+        preferencesUrl,
+        priority,
+      }),
+    )
   return {
-    rendered,
-    repeat: notificationRepeatCount(type, payload),
-    urgent: email('urgent', 'https://app.example.test/settings/notifications'),
-    mandatory: email('normal', null),
-    digest: { subject: digest.subject, text: sha(digest.text), html: sha(digest.html) },
+    urgent: immediate('urgent', PREFERENCES_URL),
+    mandatory: immediate('normal', null),
+    digest: emailBytes(
+      renderDigestEmail({
+        recipientName: 'Sam',
+        dateLabel: 'Tue 3 Mar',
+        preferencesUrl: PREFERENCES_URL,
+        groups: [
+          {
+            propertyName: 'Riverside Hotel',
+            items: [{ rendered, actionUrl: ACTION_URL }],
+          },
+        ],
+      }),
+    ),
   }
 }
 
-const links = (type: NotificationType, payload: NotificationPayload) =>
-  RESOURCE_TYPES.flatMap((resourceType) =>
-    [null, 'prop-1'].map((propertyId) => [
-      `${resourceType}/${propertyId}`,
-      notificationLink(resourceType, 'res-1', propertyId, type, payload),
-    ]),
+const linksFor = (type: NotificationType) =>
+  Object.fromEntries(
+    RESOURCE_TYPES.flatMap((resourceType) =>
+      [null, 'prop-1'].map((propertyId) => {
+        const { path, search } = notificationLink(
+          resourceType,
+          'res-1',
+          propertyId,
+          type,
+          FULLEST,
+        )
+        return [`${resourceType}/${propertyId}`, `${path} ${JSON.stringify(search)}`]
+      }),
+    ),
   )
 
-/** Distinct outputs per type, each with the variants that produce it. */
-const collect = () => {
-  const pin: Record<string, unknown> = {}
-  for (const type of NOTIFICATION_TYPES) {
-    const outputs = new Map<string, { output: unknown; variants: string[] }>()
-    for (const [name, payload] of variants()) {
-      for (let tz = 0; tz < CONTEXTS.length; tz += 1) {
-        const output = channelsFor(type, payload, tz)
-        const key = JSON.stringify(output)
-        const label = `${name}@${tz}`
-        const hit = outputs.get(key)
-        if (hit === undefined) outputs.set(key, { output, variants: [label] })
-        else hit.variants.push(label)
-      }
-    }
-    const linkOutputs = new Map<string, { output: unknown; variants: string[] }>()
-    for (const [name, payload] of variants()) {
-      const output = links(type, payload)
-      const key = JSON.stringify(output)
-      const hit = linkOutputs.get(key)
-      if (hit === undefined) linkOutputs.set(key, { output, variants: [name] })
-      else hit.variants.push(name)
-    }
-    pin[type] = {
-      replyTo: notificationReplyTo(type),
-      copy: [...outputs.values()].map(({ output, variants: names }) => ({
-        output,
-        variantCount: names.length,
-        firstVariants: names.slice(0, 3),
-      })),
-      links: [...linkOutputs.values()].map(({ output, variants: names }) => ({
-        output,
-        variantCount: names.length,
-        firstVariants: names.slice(0, 3),
-      })),
-    }
-  }
-  return pin
-}
+const inAppFor = (type: NotificationType) => ({
+  rendered: Object.fromEntries(
+    CONTEXTS.map(([label, context]) => [
+      label,
+      renderNotification(type, FULLEST, context),
+    ]),
+  ),
+  repeat: notificationRepeatCount(type, FULLEST),
+  links: linksFor(type),
+})
+
+/** What one type pins: the email bytes of its fullest variant, plus in-app words where no suite asserts them. */
+const pinFor = (type: NotificationType) => ({
+  replyTo: notificationReplyTo(type),
+  variant: FULLEST_NAME,
+  email: Object.fromEntries(
+    CONTEXTS.map(([label, context]) => [
+      label,
+      emailsFor(renderNotification(type, FULLEST, context)),
+    ]),
+  ),
+  ...(IN_APP_PINNED_TYPES.includes(type) ? { inApp: inAppFor(type) } : {}),
+})
+
+const collect = () =>
+  Object.fromEntries(NOTIFICATION_TYPES.map((type) => [type, pinFor(type)]))
 
 describe('notification output pin', () => {
   const current = JSON.parse(JSON.stringify(collect())) as Record<string, unknown>
@@ -279,7 +268,14 @@ describe('notification output pin', () => {
     expect(Object.keys(pinned).sort()).toEqual([...NOTIFICATION_TYPES].sort())
   })
 
-  it.each(NOTIFICATION_TYPES)('%s says the same words in every channel', (type) => {
-    expect(current[type]).toEqual(pinned[type])
+  it('pins the candidate with the most payload fields present', () => {
+    expect(FULLEST_NAME).toBe('full')
   })
+
+  it.each(NOTIFICATION_TYPES)(
+    '%s sends the same email bytes in every channel',
+    (type) => {
+      expect(current[type]).toEqual(pinned[type])
+    },
+  )
 })
