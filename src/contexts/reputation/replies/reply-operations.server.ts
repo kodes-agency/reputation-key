@@ -307,12 +307,13 @@ export type DraftReplyInput = Readonly<{
   provenanceToken?: string
   measurementGenerationId?: string | null
   /** Internal-only provenance set by the template loader. */
-  templateLayer?: 'builtin' | 'account' | 'property'
-  templateRef?: string
-  templateRevision?: number
-  templateWordingKey?: string
-  voiceDigest?: string
-  voiceChoices?: NonNullable<Reply['voiceChoices']>
+  template?: Readonly<{
+    layer: 'builtin' | 'account' | 'property'
+    ref: string
+    revision: number
+    wordingKey: string
+  }>
+  voice?: Readonly<{ digest: string; choices: NonNullable<Reply['voiceChoices']> }>
 }>
 
 export const draftReply =
@@ -323,20 +324,6 @@ export const draftReply =
     requireManager(ctx)
 
     assertReplyTextSendable(input.text)
-    const layeredTemplateParts = [
-      input.templateLayer,
-      input.templateRef,
-      input.templateRevision,
-      input.templateWordingKey,
-    ]
-    const suppliedLayeredParts = layeredTemplateParts.filter((part) => part !== undefined)
-    if (
-      (suppliedLayeredParts.length !== 0 &&
-        suppliedLayeredParts.length !== layeredTemplateParts.length) ||
-      (input.templateRevision !== undefined && input.templateRevision < 1)
-    ) {
-      throw reviewError('invalid_input', 'Layered template provenance is incomplete')
-    }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
     const review = await requireAccessibleReview(deps, ctx, input.reviewId)
@@ -401,16 +388,16 @@ export const draftReply =
           ...(input.replyLanguageTag !== undefined
             ? { replyLanguageTag: input.replyLanguageTag }
             : {}),
-          ...(input.templateRef !== undefined
+          ...(input.template
             ? {
-                templateLayer: input.templateLayer,
-                templateRef: input.templateRef,
-                templateRevision: input.templateRevision,
-                templateWordingKey: input.templateWordingKey,
+                templateLayer: input.template.layer,
+                templateRef: input.template.ref,
+                templateRevision: input.template.revision,
+                templateWordingKey: input.template.wordingKey,
               }
             : {}),
-          ...(input.voiceDigest !== undefined
-            ? { voiceDigest: input.voiceDigest, voiceChoices: input.voiceChoices ?? null }
+          ...(input.voice
+            ? { voiceDigest: input.voice.digest, voiceChoices: input.voice.choices }
             : frameChanged && existing.voiceChoices
               ? {
                   voiceChoices: {
@@ -433,12 +420,12 @@ export const draftReply =
       organizationId: ctx.organizationId,
       text: input.text,
       replyLanguageTag: input.replyLanguageTag ?? null,
-      templateLayer: input.templateLayer ?? null,
-      templateRef: input.templateRef ?? null,
-      templateRevision: input.templateRevision ?? null,
-      templateWordingKey: input.templateWordingKey ?? null,
-      voiceDigest: input.voiceDigest ?? null,
-      voiceChoices: input.voiceChoices ?? null,
+      templateLayer: input.template?.layer ?? null,
+      templateRef: input.template?.ref ?? null,
+      templateRevision: input.template?.revision ?? null,
+      templateWordingKey: input.template?.wordingKey ?? null,
+      voiceDigest: input.voice?.digest ?? null,
+      voiceChoices: input.voice?.choices ?? null,
       status: 'draft',
       source: 'internal',
       createdBy: ctx.userId,
