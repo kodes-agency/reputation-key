@@ -5,7 +5,10 @@ import {
 } from '#/shared/reply-library/builtin-library'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { StoredReplyTemplate } from './reply-library-repository.port.server'
-import { resolveReplyLibraryTemplates } from './reply-library-resolver.contracts'
+import {
+  resolveReplyLibraryTemplates,
+  resolveSnapshotTemplates,
+} from './reply-library-resolver.contracts'
 
 const ORG = organizationId('org-1')
 const PROPERTY = propertyId('10000000-0000-4000-8000-000000000001')
@@ -198,5 +201,18 @@ describe('resolveReplyLibraryTemplates', () => {
       status: 'hidden',
       wordings: { 'en-Latn': [{ key: '1', body: 'Account body.' }] },
     })
+  })
+})
+
+describe('resolveSnapshotTemplates', () => {
+  it('resolves a snapshot against the built-in library', () => {
+    const snapshot = {
+      accountTemplates: [stored({})],
+      propertyTemplates: [],
+      visibility: [],
+    }
+    expect(resolveSnapshotTemplates(snapshot)).toEqual(
+      resolveReplyLibraryTemplates({ builtin: BUILTIN_REPLY_LIBRARY, ...snapshot }),
+    )
   })
 })

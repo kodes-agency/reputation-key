@@ -1,4 +1,5 @@
 import {
+  BUILTIN_REPLY_LIBRARY,
   BUILTIN_REPLY_LIBRARY_VERSION_NUMBER,
   type BuiltinReplyLibrary,
 } from '#/shared/reply-library/builtin-library'
@@ -180,4 +181,15 @@ export function resolveReplyLibraryTemplates(
     if (current) resolved.set(visibility.ref, { ...current, status: 'hidden' })
   }
   return [...resolved.values()]
+}
+
+export function resolveSnapshotTemplates(
+  snapshot: Omit<ResolveInput, 'builtin'>,
+): readonly ReplyLibraryTemplateDto[] {
+  return resolveReplyLibraryTemplates({
+    builtin: BUILTIN_REPLY_LIBRARY,
+    accountTemplates: snapshot.accountTemplates,
+    propertyTemplates: snapshot.propertyTemplates,
+    visibility: snapshot.visibility,
+  })
 }
