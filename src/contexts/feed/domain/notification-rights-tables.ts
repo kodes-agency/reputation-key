@@ -6,7 +6,6 @@ export const NOTIFICATION_RIGHTS_TABLES = Object.freeze({
     'notification_email_queue',
     'notifications',
     'notification_preferences',
-    'notification_category_defaults',
     'notification_property_delivery_windows',
     'notification_user_settings',
     'notification_unsubscribe_scopes',

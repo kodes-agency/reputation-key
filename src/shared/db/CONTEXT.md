@@ -310,6 +310,8 @@ these forward-only exceptions explicitly.
 
 `0160` drops `inbox_handling_cycle_heads`, the retired mirror of the Inbox row's Handling Cycle facts; its reader-removal release is #2401 (`be64e5724`). The table held rows when it went, since nothing reads them.
 
+`0161` drops `notification_category_defaults`, the retired copy of each person's category defaults; the Property-less rows of `notification_preferences` carry them. Its reader-removal release is #2569 (`561626a57`), after #2416 stopped the reads and #2435 stopped the writes. The table held no rows on the beta when it went.
+
 `0129` drops the retired account tables, their guard functions and the grant enums.
 `db-constructs.sql` stays a byte-for-byte copy of `0001`, so it still states the
 triggers and functions that went with them; `structure.sql` is the authority for

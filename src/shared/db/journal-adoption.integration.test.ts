@@ -27,6 +27,7 @@ const CONTRACTIONS: ReadonlySet<string> = new Set([
   '0156_ai_operations_drop_handshake_columns',
   '0157_drop_legacy_ratings_feedback',
   '0160_drop_inbox_handling_cycle_heads',
+  '0161_drop_notification_category_defaults',
 ])
 const AUTH_TABLES = [
   'user',

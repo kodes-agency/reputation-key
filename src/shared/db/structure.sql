@@ -5771,30 +5771,6 @@ CREATE TABLE "public"."metric_readings" (
 
 
 --
--- Name: notification_category_defaults; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."notification_category_defaults" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "user_id" character varying(255) NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "category" character varying(40) NOT NULL,
-    "channel" character varying(16) NOT NULL,
-    "enabled" boolean DEFAULT true NOT NULL,
-    "cadence" character varying(16) DEFAULT 'daily'::character varying NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "max_rating" smallint,
-    CONSTRAINT "notification_category_defaults_cadence_valid" CHECK ((("cadence")::"text" = ANY ((ARRAY['immediate'::character varying, 'daily'::character varying])::"text"[]))),
-    CONSTRAINT "notification_category_defaults_channel_valid" CHECK ((("channel")::"text" = ANY ((ARRAY['in_app'::character varying, 'email'::character varying])::"text"[]))),
-    CONSTRAINT "notification_category_defaults_configurable_category_check" CHECK ((("category")::"text" <> 'mandatory'::"text")),
-    CONSTRAINT "notification_category_defaults_max_rating_range" CHECK ((("max_rating" IS NULL) OR (("max_rating" >= 1) AND ("max_rating" <= 4)))),
-    CONSTRAINT "notification_category_defaults_max_rating_scope" CHECK (((("category")::"text" = 'low_ratings'::"text") = ("max_rating" IS NOT NULL))),
-    CONSTRAINT "notification_category_defaults_required_enabled" CHECK (("enabled" OR (NOT ((("category")::"text" = 'urgent_operational'::"text") AND (("channel")::"text" = 'in_app'::"text")))))
-);
-
-
---
 -- Name: notification_digest_batch_members; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8835,14 +8811,6 @@ ALTER TABLE ONLY "public"."metric_readings"
 
 
 --
--- Name: notification_category_defaults notification_category_defaults_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."notification_category_defaults"
-    ADD CONSTRAINT "notification_category_defaults_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: notification_digest_batch_members notification_digest_batch_members_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10917,13 +10885,6 @@ CREATE INDEX "metric_readings_version_event_idx" ON "public"."metric_readings" U
 --
 
 CREATE UNIQUE INDEX "metric_readings_version_source_unique" ON "public"."metric_readings" USING "btree" ("definition_version_id", "source_event_id") WHERE (("definition_version_id" IS NOT NULL) AND ("source_event_id" IS NOT NULL));
-
-
---
--- Name: notification_category_defaults_scope_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "notification_category_defaults_scope_unique" ON "public"."notification_category_defaults" USING "btree" ("user_id", "organization_id", "category", "channel");
 
 
 --

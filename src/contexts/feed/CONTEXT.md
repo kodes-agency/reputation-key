@@ -286,9 +286,10 @@ the person's category default, then the versioned default — and hide a
 Property notice that resolves off. Mandatory, urgent_operational and
 Organization notices are never hidden.
 
-The person's category default is a preference row with no Property. Settings
-saves still also write the earlier `notification_category_defaults` table, but
-nothing reads it any more.
+The person's category default is a preference row with no Property. The earlier
+`notification_category_defaults` table is dropped (migration 0161); the preference
+row is the only home of the answer, and the rights export and erasure no longer
+list the table.
 
 Settings controls and their serialized save hook live in
 `preferences/ui/` (the `notification-*` files and

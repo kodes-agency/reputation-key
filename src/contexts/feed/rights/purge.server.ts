@@ -17,7 +17,6 @@ const ORGANIZATION_STEPS: readonly PurgeStep[] = [
   { table: 'notification_email_queue', predicate: org },
   { table: 'notifications', predicate: org },
   { table: 'notification_preferences', predicate: org },
-  { table: 'notification_category_defaults', predicate: org },
   { table: 'notification_property_delivery_windows', predicate: org },
   { table: 'notification_user_settings', predicate: org },
   { table: 'notification_unsubscribe_scopes', predicate: org },

@@ -3,11 +3,7 @@ import { eq, inArray, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
-import {
-  notificationCategoryDefaults,
-  notificationPreferences,
-  properties,
-} from '#/shared/db/schema'
+import { notificationPreferences, properties } from '#/shared/db/schema'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { NOTIFICATION_SETTINGS_CATEGORIES } from '../domain/notification-delivery-policy'
@@ -142,27 +138,11 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
 
   const clean = async () => {
     await db
-      .delete(notificationCategoryDefaults)
-      .where(inArray(notificationCategoryDefaults.userId, USERS))
-    await db
       .delete(notificationPreferences)
       .where(inArray(notificationPreferences.userId, USERS))
   }
 
   const seed = async () => {
-    await db.insert(notificationCategoryDefaults).values(
-      DEFAULTS.map((row) => ({
-        userId: row.user,
-        organizationId: row.org,
-        category: row.category,
-        channel: row.channel,
-        enabled: row.enabled,
-        cadence: row.cadence,
-        maxRating: row.maxRating ?? null,
-        createdAt: CREATED,
-        updatedAt: CREATED,
-      })),
-    )
     await db.insert(notificationPreferences).values(
       DEFAULTS.map((row) => ({
         userId: row.user,
@@ -284,15 +264,9 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
     expect(Object.keys(before.resolved)).toHaveLength(
       PLACES.length * NOTIFICATION_SETTINGS_CATEGORIES.length * 2,
     )
-
-    // Reads come from the preference rows alone.
-    await db
-      .delete(notificationCategoryDefaults)
-      .where(inArray(notificationCategoryDefaults.userId, USERS))
-    expect(await resolveEverything()).toEqual(before)
   })
 
-  it('lands a save through the settings path in the preference row only', async () => {
+  it('lands a save through the settings path in the preference row', async () => {
     const answer: NotificationCategoryDefault = {
       userId: userId(BOTH),
       organizationId: organizationId(ORG_A),
@@ -311,12 +285,7 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
       P1,
     )
 
-    const earlier = await db
-      .select()
-      .from(notificationCategoryDefaults)
-      .where(eq(notificationCategoryDefaults.userId, BOTH))
     const mirror = await mirrorRows()
-    expect(earlier).toHaveLength(0)
     expect(mirror).toHaveLength(1)
     expect(saved).toMatchObject({
       organizationId: ORG_A,

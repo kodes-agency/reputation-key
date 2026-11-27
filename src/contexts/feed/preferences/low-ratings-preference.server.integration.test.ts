@@ -33,7 +33,6 @@ import {
 
 const ORG = 'org-notification-low-ratings'
 const USER = 'user-notification-low-ratings'
-const OTHER_USER = 'user-notification-low-ratings-other'
 const HARBOUR = '86900000-0000-4000-8000-000000000001'
 const RIVERSIDE = '86900000-0000-4000-8000-000000000002'
 const REVIEW_ITEM = '86900000-0000-4000-8000-000000000011'
@@ -48,10 +47,6 @@ async function cleanUp() {
   await pool.query('DELETE FROM notification_preferences WHERE organization_id = $1', [
     ORG,
   ])
-  await pool.query(
-    'DELETE FROM notification_category_defaults WHERE organization_id = $1',
-    [ORG],
-  )
   await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
@@ -148,8 +143,10 @@ describe.sequential('Low ratings thresholds (real PostgreSQL)', () => {
     })
   })
 
-  // The carry-over statements of migration 0042, run as written, in a
-  // transaction that is rolled back so no other suite sees their rows.
+  // The carry-over statements of migration 0042 that write preference rows, run as
+  // written, in a transaction that is rolled back so no other suite sees their rows.
+  // Its copy into `notification_category_defaults` is left out: migration 0161
+  // dropped that table.
   it('carries each Action needed email choice over to Low ratings at 3 stars or lower', async () => {
     const migration = readFileSync(
       join(process.cwd(), 'drizzle', '0042_notification_low_ratings.sql'),
@@ -158,8 +155,12 @@ describe.sequential('Low ratings thresholds (real PostgreSQL)', () => {
     const carryOver = migration
       .split('--> statement-breakpoint')
       .map((statement) => statement.replace(/^\s*--.*$/gm, '').trim())
-      .filter((statement) => statement.startsWith('INSERT'))
-    expect(carryOver).toHaveLength(2)
+      .filter(
+        (statement) =>
+          statement.startsWith('INSERT') &&
+          !statement.includes('notification_category_defaults'),
+      )
+    expect(carryOver).toHaveLength(1)
 
     const client = await pool.connect()
     try {
@@ -170,12 +171,6 @@ describe.sequential('Low ratings thresholds (real PostgreSQL)', () => {
          VALUES ($1, $2, $3, 'urgent_operational', 'email', false, 'immediate'),
                 ($1, $2, $4, 'urgent_operational', 'email', true, 'daily')`,
         [USER, ORG, HARBOUR, RIVERSIDE],
-      )
-      await client.query(
-        `INSERT INTO notification_category_defaults
-           (user_id, organization_id, category, channel, enabled, cadence)
-         VALUES ($1, $2, 'urgent_operational', 'email', true, 'immediate')`,
-        [OTHER_USER, ORG],
       )
       for (const statement of carryOver) await client.query(statement)
       // Idempotent: a second run keeps what the first wrote.
@@ -189,14 +184,6 @@ describe.sequential('Low ratings thresholds (real PostgreSQL)', () => {
       expect(properties.rows).toEqual([
         { property_id: HARBOUR, enabled: false, cadence: 'immediate', max_rating: 3 },
         { property_id: RIVERSIDE, enabled: true, cadence: 'daily', max_rating: 3 },
-      ])
-      const defaults = await client.query(
-        `SELECT user_id, channel, enabled, max_rating FROM notification_category_defaults
-          WHERE organization_id = $1 AND category = 'low_ratings'`,
-        [ORG],
-      )
-      expect(defaults.rows).toEqual([
-        { user_id: OTHER_USER, channel: 'email', enabled: true, max_rating: 3 },
       ])
     } finally {
       await client.query('ROLLBACK')

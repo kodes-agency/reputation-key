@@ -279,7 +279,7 @@ describe.sequential('insertNotification low ratings (real PostgreSQL)', () => {
           const first = args[0]
           const text =
             typeof first === 'string' ? first : ((first as { text?: string }).text ?? '')
-          if (/notification_(preferences|category_defaults)/.test(text)) reads++
+          if (/notification_preferences/.test(text)) reads++
           active++
           peak = Math.max(peak, active)
           return query(...args).finally(() => {

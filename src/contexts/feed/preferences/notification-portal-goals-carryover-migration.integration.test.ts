@@ -2,7 +2,9 @@
 // "Goals" row stored them: everything under `recognition`. Inside one held
 // transaction, always rolled back, the answers are seeded and 0063 is run on
 // them statement by statement. The migration copies every row in its tables,
-// so each test reads only its own people.
+// so each test reads only its own people. Its copy of the person-level defaults
+// went into `notification_category_defaults`, which migration 0161 dropped, so
+// that statement is left out; the person's default is a preference row now.
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -21,7 +23,10 @@ const STATEMENTS = readFileSync(
 )
   .split('--> statement-breakpoint')
   .map((statement) => statement.trim())
-  .filter((statement) => statement.length > 0)
+  .filter(
+    (statement) =>
+      statement.length > 0 && !statement.includes('notification_category_defaults'),
+  )
 
 const ORG = 'org-notification-0063'
 const USER = 'user-notification-0063'
@@ -71,24 +76,6 @@ async function storePreference(answer: Answer): Promise<void> {
   )
 }
 
-async function storeDefault(answer: Answer): Promise<void> {
-  await held.client.query(
-    `INSERT INTO notification_category_defaults (user_id, organization_id, category,
-       channel, enabled, cadence, max_rating, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
-    [
-      answer.user ?? USER,
-      ORG,
-      answer.category,
-      answer.channel,
-      answer.enabled,
-      answer.cadence ?? 'daily',
-      answer.maxRating ?? null,
-      STORED_AT,
-    ],
-  )
-}
-
 async function keepScope(
   targetKind: 'email' | 'digest',
   targetId: string,
@@ -122,20 +109,6 @@ async function preferences(category?: string): Promise<readonly PreferenceRow[]>
      FROM notification_preferences
      WHERE organization_id = $1 AND ($2::text IS NULL OR category = $2)
      ORDER BY user_id, property_id, category, channel`,
-    [ORG, category ?? null],
-  )
-  return rows
-}
-
-type DefaultRow = Omit<PreferenceRow, 'property_id'>
-
-async function defaults(category?: string): Promise<readonly DefaultRow[]> {
-  const { rows } = await held.client.query<DefaultRow>(
-    `SELECT user_id, category, channel, enabled, cadence, max_rating,
-            created_at = now() AND updated_at = now() AS fresh
-     FROM notification_category_defaults
-     WHERE organization_id = $1 AND ($2::text IS NULL OR category = $2)
-     ORDER BY user_id, category, channel`,
     [ORG, category ?? null],
   )
   return rows
@@ -200,8 +173,6 @@ describe('migration 0063 on "Goals" answers stored before it', () => {
       channel: 'in_app',
       enabled: true,
     })
-    await storeDefault({ category: 'recognition', channel: 'in_app', enabled: true })
-    await storeDefault({ category: 'recognition', channel: 'email', enabled: false })
 
     await runMigration()
 
@@ -240,10 +211,6 @@ describe('migration 0063 on "Goals" answers stored before it', () => {
         cadence: 'daily',
       },
     ])
-    expect(await defaults('portal_goals')).toEqual([
-      { ...copy, user_id: USER, channel: 'email', enabled: false, cadence: 'daily' },
-      { ...copy, user_id: USER, channel: 'in_app', enabled: true, cadence: 'daily' },
-    ])
     // The Google rating goal keeps every answer it had.
     expect((await preferences('recognition')).map((row) => row.fresh)).toEqual([
       false,
@@ -251,22 +218,16 @@ describe('migration 0063 on "Goals" answers stored before it', () => {
       false,
       false,
     ])
-    expect(await defaults('recognition')).toHaveLength(2)
   })
 
   it('keeps a Portal goals answer the person already has', async () => {
     await storePreference({ category: 'recognition', channel: 'in_app', enabled: false })
     await storePreference({ category: 'portal_goals', channel: 'in_app', enabled: true })
-    await storeDefault({ category: 'recognition', channel: 'email', enabled: true })
-    await storeDefault({ category: 'portal_goals', channel: 'email', enabled: false })
 
     await runMigration()
 
     expect(await preferences('portal_goals')).toEqual([
       expect.objectContaining({ channel: 'in_app', enabled: true, fresh: false }),
-    ])
-    expect(await defaults('portal_goals')).toEqual([
-      expect.objectContaining({ channel: 'email', enabled: false, fresh: false }),
     ])
   })
 
@@ -283,18 +244,15 @@ describe('migration 0063 on "Goals" answers stored before it', () => {
       cadence: 'immediate',
       maxRating: 3,
     })
-    await storeDefault({ category: 'arrivals', channel: 'in_app', enabled: true })
     await keepScope('email', WORKFLOW_TARGET, PROPERTY_A, 'workflow_collaboration')
     const before = {
       preferences: await preferences(),
-      defaults: await defaults(),
       scopes: await scopes(),
     }
 
     await runMigration()
 
     expect(await preferences()).toEqual(before.preferences)
-    expect(await defaults()).toEqual(before.defaults)
     expect(await scopes()).toEqual(before.scopes)
   })
 
@@ -358,19 +316,16 @@ describe('migration 0063 on "Goals" answers stored before it', () => {
 
   it('changes nothing the second time it runs', async () => {
     await storePreference({ category: 'recognition', channel: 'in_app', enabled: false })
-    await storeDefault({ category: 'recognition', channel: 'email', enabled: true })
     await keepScope('email', EMAIL_TARGET, PROPERTY_A, 'recognition')
 
     await runMigration()
     const first = {
       preferences: await preferences(),
-      defaults: await defaults(),
       scopes: await scopes(),
     }
     await runMigration()
 
     expect(await preferences()).toEqual(first.preferences)
-    expect(await defaults()).toEqual(first.defaults)
     expect(await scopes()).toEqual(first.scopes)
     expect(first.preferences).toHaveLength(2)
   })

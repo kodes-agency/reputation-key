@@ -435,7 +435,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'notification.schema.ts',
     exportNames: [
-      'notificationCategoryDefaults',
       'notificationDigestBatchMembers',
       'notificationDigestBatches',
       'notificationEmailQueue',
