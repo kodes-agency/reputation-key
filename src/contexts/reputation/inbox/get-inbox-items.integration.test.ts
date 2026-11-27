@@ -3,7 +3,6 @@ import { Pool } from 'pg'
 import { getInboxItems } from './get-inbox-items.server'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   inboxItemId,
   organizationId,
@@ -89,24 +88,20 @@ const setup = (
     findCurrentReviewIdsByAttention: vi.fn(async () => []),
     findCurrentReviewIdsByIssue: vi.fn(async () => issueReviewIds.map(reviewId)),
   } as unknown as AiReviewInsightsPort
-  const repo = createInboxRepository(
-    getDb(),
-    {
-      reviewLookup: {
-        getReviewSnippetById: async () => ({ status: 'not_found' as const }),
-        getReviewSnippetsByIds: async () => new Map(),
-        findEligibleReviewIds: async () => [],
-      },
-      feedbackLookup: {
-        getFeedbackSnippetById: async () => null,
-        getFeedbackSnippetsByIds: async () => new Map(),
-        findEligibleFeedbackIds: async () => [],
-      },
-      propertyLookup: inertPropertyLookup,
-      aiInsights,
+  const repo = createInboxRepository(getDb(), {
+    reviewLookup: {
+      getReviewSnippetById: async () => ({ status: 'not_found' as const }),
+      getReviewSnippetsByIds: async () => new Map(),
+      findEligibleReviewIds: async () => [],
     },
-    { clock: () => FIXED_TIME, logger: createMockLogger() },
-  )
+    feedbackLookup: {
+      getFeedbackSnippetById: async () => null,
+      getFeedbackSnippetsByIds: async () => new Map(),
+      findEligibleFeedbackIds: async () => [],
+    },
+    propertyLookup: inertPropertyLookup,
+    aiInsights,
+  })
   const getReplyStatesByReviewIds = vi.fn(async () => replyStates)
   const replyLookup: ReplyLookupPort = {
     getEffectiveReplyByReviewId: vi.fn(async () => null),

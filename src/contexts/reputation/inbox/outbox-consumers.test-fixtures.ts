@@ -278,7 +278,7 @@ export async function makeDeps(overrides: {
       await advanceHeadRevision(item, overrides.handlingCycleMaterialReviewRevision)
     }
   }
-  const { repo, commandStore } = createInboxDatabaseStores(() => NOW, createMockLogger())
+  const { repo, commandStore } = createInboxDatabaseStores()
   const events = {
     facts: readInboxFacts,
     byTag: async (tag: string) =>

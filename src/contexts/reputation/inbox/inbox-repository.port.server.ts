@@ -130,7 +130,7 @@ export type InboxRepository = Readonly<{
       firstReplySubmittedAt?: Date
       firstReplyPublishedAt?: Date
     }>,
-    now?: Date,
+    now: Date,
   ): Promise<InboxItem | null>
   /** Count `open` items created after `since` (null since = all open). */
   countOpenSince(

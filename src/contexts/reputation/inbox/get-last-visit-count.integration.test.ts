@@ -3,7 +3,6 @@ import { Pool } from 'pg'
 import { getLastVisitCount } from './get-last-visit-count.server'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   dropInboxOrganization,
   seedInboxItem,
@@ -85,31 +84,25 @@ const viewRepo: InboxViewRepository = {
   stampLastInboxView: async () => SINCE,
 }
 
-const TEST_NOW = new Date('2026-08-26T12:00:00.000Z')
-
 describe.sequential('getLastVisitCount', () => {
   let pool: Pool
   const db = getDb()
 
   const seed = async (...items: InboxItem[]) => {
     for (const item of items) await seedInboxItem(pool, db, item)
-    return createInboxRepository(
-      db,
-      {
-        reviewLookup: {
-          getReviewSnippetById: async () => ({ status: 'not_found' }),
-          getReviewSnippetsByIds: async () => new Map(),
-          findEligibleReviewIds: async () => [],
-        },
-        feedbackLookup: {
-          getFeedbackSnippetById: async () => null,
-          getFeedbackSnippetsByIds: async () => new Map(),
-          findEligibleFeedbackIds: async () => [],
-        },
-        propertyLookup: inertPropertyLookup,
+    return createInboxRepository(db, {
+      reviewLookup: {
+        getReviewSnippetById: async () => ({ status: 'not_found' }),
+        getReviewSnippetsByIds: async () => new Map(),
+        findEligibleReviewIds: async () => [],
       },
-      { clock: () => TEST_NOW, logger: createMockLogger() },
-    )
+      feedbackLookup: {
+        getFeedbackSnippetById: async () => null,
+        getFeedbackSnippetsByIds: async () => new Map(),
+        findEligibleFeedbackIds: async () => [],
+      },
+      propertyLookup: inertPropertyLookup,
+    })
   }
 
   const clearItems = () =>

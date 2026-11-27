@@ -96,7 +96,7 @@ describe.sequential('feedback handling commands', () => {
 
   const setup = async (...seeds: InboxItem[]) => {
     for (const seeded of seeds) await seedInboxItem(pool, db, seeded)
-    const repo = createUseCaseInboxRepository(db, () => NOW)
+    const repo = createUseCaseInboxRepository(db)
     const realStore = createFeedbackHandlingStore(db, async () => ({ allowed: true }))
     const store = {
       ...realStore,

@@ -101,11 +101,7 @@ async function setup(
   item: InboxItem = seed(),
   staffPublicApi: StaffPublicApi = allAccess,
 ) {
-  const {
-    repo,
-    commandStore,
-    seed: seedItems,
-  } = createInboxUseCaseDatabase(pool, () => NOW)
+  const { repo, commandStore, seed: seedItems } = createInboxUseCaseDatabase(pool)
   await seedItems(item)
   if (item.managerPriority) {
     await setStoredManagerPriority(

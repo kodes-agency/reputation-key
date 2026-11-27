@@ -164,10 +164,7 @@ function deps(): InboxConsumerDeps {
     replyObservationAuthority: obsolete,
     responseTargetAuthority: createReviewResponseTargetAuthority(database),
     sourceTransitionAuthority: obsolete,
-    inboxRepo: createInboxRepository(database, lookups, {
-      clock,
-      logger: createMockLogger(),
-    }),
+    inboxRepo: createInboxRepository(database, lookups),
     idGen: () => ITEM,
     clock,
     logger: createMockLogger(),

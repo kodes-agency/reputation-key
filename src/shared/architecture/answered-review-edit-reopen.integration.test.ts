@@ -76,7 +76,7 @@ function inboxDeps(): InboxConsumerDeps {
     replyObservationAuthority: createReviewReplyObservationAuthority(db),
     responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
-    inboxRepo: createInboxRepository(db, lookups, { clock, logger }),
+    inboxRepo: createInboxRepository(db, lookups),
     idGen: () => SCOPE.itemId,
     clock,
     logger,

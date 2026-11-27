@@ -196,11 +196,11 @@ function inboxDeps(db: ReturnType<typeof drizzle>): InboxConsumerDeps {
     replyObservationAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
     responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
-    inboxRepo: createInboxRepository(
-      db,
-      { reviewLookup, feedbackLookup, propertyLookup },
-      { clock: () => IMPORTED_AT, logger: createMockLogger() },
-    ),
+    inboxRepo: createInboxRepository(db, {
+      reviewLookup,
+      feedbackLookup,
+      propertyLookup,
+    }),
     idGen: () => inboxItemId(randomUUID()),
     clock: () => IMPORTED_AT,
     logger: createMockLogger(),

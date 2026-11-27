@@ -9,7 +9,6 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   feedbackId,
   inboxItemId,
@@ -32,14 +31,6 @@ import { createReviewHandlingCycleStore } from './review-handling-cycle-store.se
 import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
-
-const silentLogger: LoggerPort = {
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-  debug: () => {},
-  child: () => silentLogger,
-}
 
 export async function seedInboxOrganization(
   pool: Pool,
@@ -219,43 +210,35 @@ export const createUseCaseDatabase = (): Database => getDb()
 /** The production repository over lookups that know nothing of other contexts. */
 const createStubbedInboxRepository = (
   db: Database,
-  clock: () => Date,
-  logger: LoggerPort,
   aiInsights?: AiReviewInsightsPort,
 ): InboxRepository =>
-  createInboxRepository(
-    db,
-    {
-      reviewLookup: {
-        getReviewSnippetById: async () => ({ status: 'not_found' }),
-        getReviewSnippetsByIds: async () => new Map(),
-        findEligibleReviewIds: async () => [],
-      },
-      feedbackLookup: {
-        getFeedbackSnippetById: async () => null,
-        getFeedbackSnippetsByIds: async () => new Map(),
-        findEligibleFeedbackIds: async () => [],
-      },
-      propertyLookup: inertPropertyLookup,
-      ...(aiInsights ? { aiInsights } : {}),
+  createInboxRepository(db, {
+    reviewLookup: {
+      getReviewSnippetById: async () => ({ status: 'not_found' }),
+      getReviewSnippetsByIds: async () => new Map(),
+      findEligibleReviewIds: async () => [],
     },
-    { clock, logger },
-  )
+    feedbackLookup: {
+      getFeedbackSnippetById: async () => null,
+      getFeedbackSnippetsByIds: async () => new Map(),
+      findEligibleFeedbackIds: async () => [],
+    },
+    propertyLookup: inertPropertyLookup,
+    ...(aiInsights ? { aiInsights } : {}),
+  })
 
-export const createUseCaseInboxRepository = (
-  db: Database,
-  clock: () => Date,
-): InboxRepository => createStubbedInboxRepository(db, clock, silentLogger)
+export const createUseCaseInboxRepository = (db: Database): InboxRepository =>
+  createStubbedInboxRepository(db)
 
 export const createUseCaseCommandStore = (db: Database): InboxCommandStore =>
   createAtomicInboxCommandStore(db, allowAllCommandAuthority)
 
 /** Production Inbox repository and stores over the test database. */
-export const createInboxDatabaseStores = (clock: () => Date, logger: LoggerPort) => {
+export const createInboxDatabaseStores = () => {
   const db = getDb()
   return {
     db,
-    repo: createStubbedInboxRepository(db, clock, logger),
+    repo: createStubbedInboxRepository(db),
     commandStore: createAtomicInboxCommandStore(db, allowAllCommandAuthority),
     cycleStore: createReviewHandlingCycleStore(db),
   }
@@ -270,12 +253,11 @@ export type InboxUseCaseDatabase = Readonly<{
 
 export function createInboxUseCaseDatabase(
   pool: Pool,
-  now: () => Date,
   aiInsights?: AiReviewInsightsPort,
 ): InboxUseCaseDatabase {
   const db = getDb()
   return {
-    repo: createStubbedInboxRepository(db, now, silentLogger, aiInsights),
+    repo: createStubbedInboxRepository(db, aiInsights),
     commandStore: createAtomicInboxCommandStore(db, allowAllCommandAuthority),
     noteRepo: createInboxNoteRepository(db),
     seed: async (...items) => {

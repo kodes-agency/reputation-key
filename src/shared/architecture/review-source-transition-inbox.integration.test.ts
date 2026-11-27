@@ -144,15 +144,11 @@ beforeEach(async () => {
 describe.sequential('Review source transition -> Inbox exact-current boundary', () => {
   it('waits for concurrent re-observation, then receipts the stale transition without closing Inbox', async () => {
     const database = getDb()
-    const inboxRepo = createInboxRepository(
-      database,
-      {
-        reviewLookup,
-        feedbackLookup,
-        propertyLookup,
-      },
-      { clock: () => TRANSITIONED_AT, logger },
-    )
+    const inboxRepo = createInboxRepository(database, {
+      reviewLookup,
+      feedbackLookup,
+      propertyLookup,
+    })
     const commandStore = createProductionInboxCommandStore(
       database,
       allowAllCommandAuthority,

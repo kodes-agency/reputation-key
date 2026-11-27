@@ -84,7 +84,6 @@ describe('Inbox selected-item request scope', () => {
     }
     const detailObserver = observe('detail', inboxKeys.detail('item-a'), detail('item-a'))
     observe('notes', inboxKeys.notes('item-a'), [])
-    observe('activity', inboxKeys.activity('item-a'), [])
     observe('list', inboxKeys.list({ status: 'open' }), [])
     observe('counts', inboxKeys.countsFor(), {})
     observe('lastVisit', inboxKeys.lastVisitCount(), 0)
@@ -103,7 +102,6 @@ describe('Inbox selected-item request scope', () => {
     expect(Object.fromEntries(requests)).toEqual({
       detail: 1,
       notes: 1,
-      activity: 1,
       list: 1,
       counts: 1,
       lastVisit: 1,

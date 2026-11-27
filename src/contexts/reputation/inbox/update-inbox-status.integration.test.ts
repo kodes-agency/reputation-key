@@ -1,6 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Pool } from 'pg'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 import { updateInboxStatus } from './update-inbox-status.server'
 import { getEnv } from '#/shared/config/env'
 import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
@@ -71,10 +70,7 @@ const staffApiAllAccess: StaffPublicApi = {
 const pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
 
 const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
-  const { repo, commandStore, cycleStore } = createInboxDatabaseStores(
-    () => FIXED_TIME,
-    createMockLogger(),
-  )
+  const { repo, commandStore, cycleStore } = createInboxDatabaseStores()
   const reviewSourceLookup: ReviewSourceLookupPort = {
     getReviewSourceMetaById: async (id) => ({
       id,
