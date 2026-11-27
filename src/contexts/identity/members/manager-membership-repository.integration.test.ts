@@ -99,7 +99,12 @@ describe('manager membership repository', () => {
   it('reads the permission version once for every manager of the Organization', async () => {
     const suffix = randomUUID()
     const organization = `org-manager-once-${suffix}`
-    const users = [1, 2, 3, 4].map((n) => `manager-once-${n}-${suffix}`)
+    const users = [1, 2, 3, 4].map((n) => `manager-once-${n}-${suffix}`) as [
+      string,
+      string,
+      string,
+      string,
+    ]
     const rollback = new Error('rollback manager once fixture')
     let rows: readonly ManagerMembership[] = []
     let permissionReads = 0
