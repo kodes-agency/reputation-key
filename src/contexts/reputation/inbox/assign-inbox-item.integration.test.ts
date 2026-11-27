@@ -81,7 +81,7 @@ const defaultStaffApi: StaffPublicApi = {
 }
 
 const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
-  const { repo, commandStore, seed } = createInboxUseCaseDatabase(pool, () => FIXED_TIME)
+  const { repo, commandStore, seed } = createInboxUseCaseDatabase(pool)
   const deps = { repo, commandStore, clock: () => FIXED_TIME, staffPublicApi: peopleApi }
   const execute = assignInboxItem(deps)
   type CommandInput = Parameters<typeof execute>[0]

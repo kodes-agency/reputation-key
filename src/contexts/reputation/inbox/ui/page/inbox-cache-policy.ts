@@ -1,11 +1,9 @@
 // InboxCachePolicy — deep module owning the inbox cache-invalidation policy.
 //
 // The inbox hooks/pages no longer know:
-//   - the query-key topology (detail/notes/activity/history are SIBLINGS per
+//   - the query-key topology (detail/notes/history are SIBLINGS per
 //     item, so each is invalidated by name rather than through a prefix)
-//   - the BullMQ activity-lag constant (the activity row is inserted ~2s after
-//     a status change, so activity is re-invalidated on a delay) versus
-//     Handling History, which commits in the command's own transaction and so
+//   - that Handling History commits in the command's own transaction and so
 //     is invalidated immediately
 //   - which folder caches (lists / counts / last-visit-count) go stale when an
 //     item moves between folders
@@ -40,7 +38,7 @@ export type InboxReplyCacheChange = Readonly<{
   reviewId: string
 }>
 
-/** BullMQ inserts the activity row ~2s after a status change — re-invalidate on a lag. */
+/** Delay before re-reading data a background job writes shortly after a command. */
 export const BULLMQ_ACTIVITY_LAG_MS = 2500
 
 /** Poll cadence while a detail reply still has a bounded background owner. */
@@ -267,18 +265,10 @@ function invalidateFolderSummaryCaches(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
 }
 
-/** Re-invalidate the activity query after the BullMQ insert lag. */
-function invalidateActivityAfterLag(qc: QueryClient, id: string): void {
-  setTimeout(
-    () => qc.invalidateQueries({ queryKey: inboxKeys.activity(id) }),
-    BULLMQ_ACTIVITY_LAG_MS,
-  )
-}
-
 /**
  * The Handling History row is written in the SAME transaction as the command
  * that caused it, so by the time a command's `onSuccess` runs the new event is
- * already readable — no lag, unlike the activity feed. The detail thread reads
+ * already readable — no lag. The detail thread reads
  * `history(id)` and nothing else refreshes it: a command's result is
  * write-through patched into `detail(id)`, and the four item reads are
  * siblings rather than descendants of it (`query-keys.ts`), so even a path that
@@ -296,7 +286,7 @@ const DETAIL_ID_INDEX = inboxKeys.detail('').length - 1
  * review, so this is where a reply command's result goes — found by the
  * detail's own `item.sourceId`, the same field the pane reads the command's
  * `reviewId` from (inbox-detail-content.tsx `useReplyActions`). `details()`
- * matches item details only: notes, activity and history are its siblings.
+ * matches item details only: notes and history are its siblings.
  */
 function cachedItemIdsForReview(qc: QueryClient, reviewId: string): string[] {
   return qc
@@ -427,7 +417,6 @@ export const inboxCachePolicy = {
     // still send the revision this command just spent.
     advanceListRowFence(qc, item.id, item.commandRevision)
     invalidateHistory(qc, item.id)
-    invalidateActivityAfterLag(qc, item.id)
     invalidateFolderCaches(qc)
   },
 
@@ -457,7 +446,6 @@ export const inboxCachePolicy = {
     advanceListRowFence(qc, result.item.id, result.item.commandRevision)
     invalidateHistory(qc, result.item.id)
     if (!statusChanged) return
-    invalidateActivityAfterLag(qc, result.item.id)
     invalidateFolderCaches(qc)
   },
 
@@ -544,7 +532,6 @@ export const inboxCachePolicy = {
     )
     advanceListRowFence(qc, id, resultingCommandRevision)
     qc.invalidateQueries({ queryKey: inboxKeys.notes(id) })
-    invalidateActivityAfterLag(qc, id)
   },
 
   /**

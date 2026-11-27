@@ -97,10 +97,7 @@ let seed: ReturnType<typeof createInboxUseCaseDatabase>['seed']
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  ;({ repo, seed } = createInboxUseCaseDatabase(
-    pool,
-    () => new Date('2026-09-02T10:00:00Z'),
-  ))
+  ;({ repo, seed } = createInboxUseCaseDatabase(pool))
   await seedInboxOrganization(pool, ORG_ID, [ELEGANCE, RILA, BLACK_SEA])
 })
 

@@ -98,10 +98,7 @@ function makeRebuild(database: Database = db) {
     replyScopeEffects,
   )
   const replyRepo = createReplyRepository(database, () => NOW)
-  const repo = createInboxRepository(database, noLookups, {
-    clock: () => NOW,
-    logger: noopLogger,
-  })
+  const repo = createInboxRepository(database, noLookups)
   const commandStore = createAtomicInboxCommandStore(database, async () => ({
     allowed: true,
   }))

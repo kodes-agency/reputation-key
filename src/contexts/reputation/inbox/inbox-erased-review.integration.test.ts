@@ -78,15 +78,11 @@ const feedbackLookup: FeedbackLookupPort = {
   findEligibleFeedbackIds: async () => [],
 }
 const propertyLookup: PropertyLookupPort = inertPropertyLookup
-const inboxRepo = createInboxRepository(
-  db,
-  {
-    reviewLookup: createEligibleReads({ reviewRepo, clock: () => NOW }),
-    feedbackLookup,
-    propertyLookup,
-  },
-  { clock: () => NOW, logger },
-)
+const inboxRepo = createInboxRepository(db, {
+  reviewLookup: createEligibleReads({ reviewRepo, clock: () => NOW }),
+  feedbackLookup,
+  propertyLookup,
+})
 const reviewSourceLookup = createReviewSourceLookupAdapter({
   findById: (id, orgId) => reviewRepo.findById(id, orgId),
   findByIds: (ids, orgId) => reviewRepo.findByIds(ids, orgId),

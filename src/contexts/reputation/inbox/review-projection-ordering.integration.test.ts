@@ -226,11 +226,11 @@ async function seedActiveReview(revisions: 1 | 2 | 3 = 3): Promise<void> {
 
 function deps(): InboxConsumerDeps {
   const database = getDb()
-  const inboxRepo = createInboxRepository(
-    database,
-    { reviewLookup, feedbackLookup, propertyLookup },
-    { clock: () => DELIVERED_AT, logger: createMockLogger() },
-  )
+  const inboxRepo = createInboxRepository(database, {
+    reviewLookup,
+    feedbackLookup,
+    propertyLookup,
+  })
   return {
     commandStore: createAtomicInboxCommandStore(database, allowAllCommandAuthority),
     handlingCycleStore: createReviewHandlingCycleStore(database),

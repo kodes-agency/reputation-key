@@ -108,8 +108,6 @@ const staffWithAccess = (
   getAssignedPortals: async () => [],
 })
 
-const NOW = new Date('2026-09-08T12:00:00.000Z')
-
 describe.sequential('getReviewInboxItemIds', () => {
   const db = createUseCaseDatabase()
   let pool: Pool
@@ -127,7 +125,7 @@ describe.sequential('getReviewInboxItemIds', () => {
         sourceId: SECOND_REVIEW_WITH_ITEM,
       }),
     )
-    const repo = createUseCaseInboxRepository(db, () => NOW)
+    const repo = createUseCaseInboxRepository(db)
     const findActiveReviewItemIds = vi.spyOn(repo, 'findActiveReviewItemIds')
     return {
       findActiveReviewItemIds,

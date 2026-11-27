@@ -110,7 +110,7 @@ afterAll(async () => {
 })
 
 async function storedRepo(stored: InboxItem): Promise<InboxRepository> {
-  const { repo, seed } = createInboxUseCaseDatabase(pool, () => NOW)
+  const { repo, seed } = createInboxUseCaseDatabase(pool)
   await seed(stored)
   return repo
 }

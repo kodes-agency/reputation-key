@@ -67,8 +67,6 @@ export const noopLogger: LoggerPort = {
   child: () => noopLogger,
 }
 
-export const repositoryRuntime = { clock: () => NOW, logger: noopLogger }
-
 // Stub enrichment ports — inbox repo owns the SQL, these just answer lookups.
 export const stubPorts = {
   reviewLookup: {

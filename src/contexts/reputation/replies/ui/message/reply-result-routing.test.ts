@@ -8,10 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReplyPublicationCheckResult } from '#/contexts/reputation/public-api'
 import type { InboxItemDetailResult } from '#/contexts/reputation/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import {
-  BULLMQ_ACTIVITY_LAG_MS,
-  inboxCachePolicy,
-} from '../../../inbox/ui/page/inbox-cache-policy'
+import { inboxCachePolicy } from '../../../inbox/ui/page/inbox-cache-policy'
 import { replyCheckMutationOptions } from './reply-check-feedback'
 
 vi.mock('sonner', () => ({
@@ -172,7 +169,6 @@ describe('inboxCachePolicy reply changes', () => {
       reply: replyOf('draft'),
       reviewId: 'review-1',
     })
-    vi.advanceTimersByTime(BULLMQ_ACTIVITY_LAG_MS + 1000)
 
     expect(invalidated).toEqual([])
   })

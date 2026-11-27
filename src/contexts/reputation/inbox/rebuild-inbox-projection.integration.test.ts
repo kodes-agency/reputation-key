@@ -156,7 +156,7 @@ function setup(opts: {
   onGoogle?: ReadonlyArray<GoogleReplyHead>
   permit?: 'current' | 'obsolete'
 }) {
-  const { repo, commandStore } = createInboxDatabaseStores(() => NOW, createMockLogger())
+  const { repo, commandStore } = createInboxDatabaseStores()
   const reviewSourceLookup: ReviewSourceLookupPort = {
     getReviewSourceMetaById: vi.fn(async () => null),
     getReviewSourceMetaByIds: vi.fn(async () => []),

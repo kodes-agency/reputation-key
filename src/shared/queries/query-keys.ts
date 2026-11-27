@@ -21,17 +21,15 @@ export const inboxKeys = {
     [...inboxKeys.counts(), 'by-property', queue] as const,
   lastVisitCount: () => [...inboxKeys.all, 'last-visit-count'] as const,
   // An item's reads are siblings under `all`, keyed by aspect and then by item, so
-  // `details()` matches only item details. Nesting notes, activity and history under
+  // `details()` matches only item details. Nesting notes and history under
   // `detail(id)` would make every detail invalidation (the on-demand analysis poll, the
   // property settings pages) refetch them too. `inbox-cache-policy.ts` refreshes notes
   // and history by name.
   details: () => [...inboxKeys.all, 'detail'] as const,
   detail: (id: string) => [...inboxKeys.details(), id] as const,
   notes: (id: string) => [...inboxKeys.all, 'notes', id] as const,
-  activity: (id: string) => [...inboxKeys.all, 'activity', id] as const,
   // Handling History is written in the SAME transaction as the command that
-  // caused it, unlike the activity feed's ~2.5s BullMQ insert lag, so this key
-  // may be invalidated the instant a command resolves.
+  // caused it, so this key may be invalidated the instant a command resolves.
   history: (id: string) => [...inboxKeys.all, 'history', id] as const,
   responseTargetPolicies: (propertyId?: string) =>
     [...inboxKeys.all, 'response-target-policies', propertyId ?? 'organization'] as const,

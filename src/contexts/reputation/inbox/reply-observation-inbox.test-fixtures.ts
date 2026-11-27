@@ -431,19 +431,15 @@ export function consumerDeps(): InboxConsumerDeps {
     getReviewSnippetsByIds: async () => new Map(),
     findEligibleReviewIds: async () => [],
   } satisfies ReviewLookupPort
-  const inboxRepo = createInboxRepository(
-    getDb(),
-    {
-      reviewLookup,
-      feedbackLookup: {
-        getFeedbackSnippetById: async () => null,
-        getFeedbackSnippetsByIds: async () => new Map(),
-        findEligibleFeedbackIds: async () => [],
-      } satisfies FeedbackLookupPort,
-      propertyLookup: inertPropertyLookup,
-    },
-    { clock: () => OBSERVED_AT, logger },
-  )
+  const inboxRepo = createInboxRepository(getDb(), {
+    reviewLookup,
+    feedbackLookup: {
+      getFeedbackSnippetById: async () => null,
+      getFeedbackSnippetsByIds: async () => new Map(),
+      findEligibleFeedbackIds: async () => [],
+    } satisfies FeedbackLookupPort,
+    propertyLookup: inertPropertyLookup,
+  })
   return {
     commandStore,
     handlingCycleStore: createReviewHandlingCycleStore(getDb()),

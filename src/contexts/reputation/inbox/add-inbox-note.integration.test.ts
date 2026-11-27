@@ -92,7 +92,7 @@ describe.sequential('addInboxNote', () => {
   let pool: Pool
 
   const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
-    const repo = createUseCaseInboxRepository(db, () => FIXED_TIME)
+    const repo = createUseCaseInboxRepository(db)
     const noteRepo = createInboxNoteRepository(db)
     const execute = addInboxNote({
       repo,

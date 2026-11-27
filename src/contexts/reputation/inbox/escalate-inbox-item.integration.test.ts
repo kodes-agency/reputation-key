@@ -91,7 +91,7 @@ describe.sequential('escalateInboxItem', () => {
   let pool: Pool
 
   const setup = (staffPublicApi: StaffPublicApi = allAccess) => {
-    const repo = createUseCaseInboxRepository(db, () => FIXED_TIME)
+    const repo = createUseCaseInboxRepository(db)
     const execute = escalateInboxItem({
       repo,
       commandStore: createUseCaseCommandStore(db),

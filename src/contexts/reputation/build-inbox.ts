@@ -125,19 +125,12 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     sourceTransitionAuthority,
   } = input.sources
 
-  const inboxRepo = createInboxRepository(
-    input.db,
-    {
-      reviewLookup: input.reviewLookup,
-      feedbackLookup,
-      propertyLookup,
-      aiInsights: input.aiInsights,
-    },
-    {
-      clock: input.clock,
-      logger: input.logger,
-    },
-  )
+  const inboxRepo = createInboxRepository(input.db, {
+    reviewLookup: input.reviewLookup,
+    feedbackLookup,
+    propertyLookup,
+    aiInsights: input.aiInsights,
+  })
   const inboxNoteRepo = createInboxNoteRepository(input.db)
   const inboxHistoryRepo = createInboxHistoryRepository(input.db)
   // IBX-01-T6: bounded actor display-name resolution. Inbox owns the read

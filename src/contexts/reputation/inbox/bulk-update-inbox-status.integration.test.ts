@@ -85,10 +85,7 @@ const defaultStaffApi: StaffPublicApi = {
 const pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
 
 const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
-  const { repo, commandStore } = createInboxDatabaseStores(
-    () => FIXED_TIME,
-    createMockLogger(),
-  )
+  const { repo, commandStore } = createInboxDatabaseStores()
   const seeded: InboxItem[] = []
   const reviewSourceLookup: ReviewSourceLookupPort = {
     getReviewSourceMetaById: async () => null,
