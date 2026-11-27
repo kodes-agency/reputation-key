@@ -14,7 +14,3 @@ export class PrerequisiteNotReadyError extends Error {
     this.code = code
   }
 }
-
-export function isPrerequisiteNotReady(err: unknown): err is PrerequisiteNotReadyError {
-  return err instanceof PrerequisiteNotReadyError
-}

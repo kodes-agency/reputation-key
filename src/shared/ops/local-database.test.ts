@@ -27,6 +27,10 @@ const refusal = (env: Readonly<Record<string, string | undefined>>): string => {
 }
 
 describe('assertLocalOnlyDatabase', () => {
+  it('refuses when DATABASE_URL is missing', () => {
+    expect(refusal({})).toContain('DATABASE_URL is not set')
+  })
+
   it('accepts the local stack and reports where the script will write', () => {
     expect(assertLocalOnlyDatabase({ DATABASE_URL: LOCAL_STACK_URL })).toEqual({
       host: '127.0.0.1',

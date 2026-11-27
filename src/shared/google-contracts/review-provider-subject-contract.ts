@@ -23,6 +23,7 @@ export type ReviewProviderResource = Readonly<{
   name: string
   accountId: string
   locationId: string
+  locationName: string
   reviewId: string
 }>
 
@@ -61,6 +62,7 @@ export function parseReviewProviderResource(name: string): ReviewProviderResourc
     name,
     accountId: match[1]!,
     locationId: match[2]!,
+    locationName: `accounts/${match[1]!}/locations/${match[2]!}`,
     reviewId: match[3]!,
   })
 }

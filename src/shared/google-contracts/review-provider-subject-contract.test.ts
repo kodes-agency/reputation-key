@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
@@ -8,18 +9,20 @@ import {
   type ReviewProviderSubjectInput,
 } from './review-provider-subject-contract'
 
-type SubjectDigests = Pick<
-  ReviewProviderSubject,
-  'keyVersion' | 'locatorHmac' | 'verifierHmac'
->
-
-const reviewProviderSubjectsEqual = (
-  left: SubjectDigests,
-  right: SubjectDigests,
-): boolean =>
-  left.keyVersion === right.keyVersion &&
-  Buffer.from(left.locatorHmac).equals(right.locatorHmac) &&
-  Buffer.from(left.verifierHmac).equals(right.verifierHmac)
+function reviewProviderSubjectsEqual(
+  left: Pick<ReviewProviderSubject, 'keyVersion' | 'locatorHmac' | 'verifierHmac'>,
+  right: Pick<ReviewProviderSubject, 'keyVersion' | 'locatorHmac' | 'verifierHmac'>,
+): boolean {
+  return (
+    left.keyVersion === right.keyVersion &&
+    left.locatorHmac.byteLength === 32 &&
+    right.locatorHmac.byteLength === 32 &&
+    left.verifierHmac.byteLength === 32 &&
+    right.verifierHmac.byteLength === 32 &&
+    timingSafeEqual(left.locatorHmac, right.locatorHmac) &&
+    timingSafeEqual(left.verifierHmac, right.verifierHmac)
+  )
+}
 
 type Fixture = Readonly<{
   catalogueVersion: string
@@ -153,6 +156,7 @@ describe('review-provider-subject-v1', () => {
     expect(parseReviewProviderResource(fixture.resourceName)).toEqual({
       name: fixture.resourceName,
       ...fixture.expectedSegments,
+      locationName: `accounts/${fixture.expectedSegments.accountId}/locations/${fixture.expectedSegments.locationId}`,
     })
   })
 

@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 // Portal command store — portal token commands.
 // Split out of portal-command-store.ts (round 4 F3); composed back behind the
 // same PortalCommandStore port by createAtomicPortalCommandStore.
@@ -6,7 +5,7 @@
 import { and, desc, eq, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalAccessArtifacts, portalTokens } from '#/shared/db/schema'
-import { insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 import type {
@@ -210,6 +209,59 @@ function assertRevokeTokenCommand(command: RevokePortalTokensCommand): void {
   }
 }
 
+/** Inserts a new token with its two access artifacts and the facts that say so. */
+async function insertTokenWithArtifacts(
+  tx: Tx,
+  command: IssuePortalTokenCommand | RotatePortalTokenCommand,
+  token: IssuePortalTokenCommand['token'],
+): Promise<void> {
+  await refusingPrintCodeCollision(() =>
+    tx.insert(portalTokens).values(portalTokenToRow(token, command)),
+  )
+  await tx
+    .insert(portalAccessArtifacts)
+    .values(command.accessArtifacts.map(accessArtifactToRow))
+  await insertOutboxRow(tx, command.event, {
+    recordedAt: command.occurredAt,
+  })
+  for (const event of command.accessArtifactEvents) {
+    await insertOutboxRow(tx, event, { recordedAt: command.occurredAt })
+  }
+}
+
+/**
+ * Revokes every live (active or rotating) token of the Portal and says which.
+ * Callers hold the Portal fence first.
+ */
+export async function revokeLiveTokens(
+  tx: Tx,
+  command: Pick<
+    RevokePortalTokensCommand,
+    'organizationId' | 'propertyId' | 'portalId' | 'occurredAt' | 'revokedBy' | 'reason'
+  >,
+): Promise<Array<{ id: string }>> {
+  return tx
+    .update(portalTokens)
+    .set({
+      status: 'revoked',
+      revokedAt: command.occurredAt,
+      retiredAt: command.occurredAt,
+      revokedBy: unbrand(command.revokedBy),
+      revokedReason: command.reason.trim(),
+      gracePeriodEnds: null,
+      ...NO_SEALED_ADDRESS,
+    })
+    .where(
+      and(
+        eq(portalTokens.organizationId, unbrand(command.organizationId)),
+        eq(portalTokens.propertyId, unbrand(command.propertyId)),
+        eq(portalTokens.portalId, unbrand(command.portalId)),
+        or(eq(portalTokens.status, 'active'), eq(portalTokens.status, 'rotating')),
+      ),
+    )
+    .returning({ id: portalTokens.id })
+}
+
 export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore => {
   return {
     issuePortalToken: async (command) =>
@@ -247,18 +299,7 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
               'Portal token version changed during issue',
             )
           }
-          await refusingPrintCodeCollision(() =>
-            tx.insert(portalTokens).values(portalTokenToRow(command.token, command)),
-          )
-          await tx
-            .insert(portalAccessArtifacts)
-            .values(command.accessArtifacts.map(accessArtifactToRow))
-          await insertOutboxRow(tx, command.event, {
-            recordedAt: command.occurredAt,
-          })
-          for (const event of command.accessArtifactEvents) {
-            await insertOutboxRow(tx, event, { recordedAt: command.occurredAt })
-          }
+          await insertTokenWithArtifacts(tx, command, command.token)
         })
       }),
 
@@ -291,18 +332,7 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
           if (!rotated) {
             throw portalError('revision_conflict', 'Portal token changed during rotation')
           }
-          await refusingPrintCodeCollision(() =>
-            tx.insert(portalTokens).values(portalTokenToRow(command.newToken, command)),
-          )
-          await tx
-            .insert(portalAccessArtifacts)
-            .values(command.accessArtifacts.map(accessArtifactToRow))
-          await insertOutboxRow(tx, command.event, {
-            recordedAt: command.occurredAt,
-          })
-          for (const event of command.accessArtifactEvents) {
-            await insertOutboxRow(tx, event, { recordedAt: command.occurredAt })
-          }
+          await insertTokenWithArtifacts(tx, command, command.newToken)
         })
       }),
 
@@ -329,29 +359,7 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
           // All Portal/token commands acquire the aggregate fence before token
           // row locks. Keeping one lock order avoids rotate-vs-revoke deadlocks.
           await fencePortalRevision(tx, command)
-          const rows = await tx
-            .update(portalTokens)
-            .set({
-              status: 'revoked',
-              revokedAt: command.occurredAt,
-              retiredAt: command.occurredAt,
-              revokedBy: unbrand(command.revokedBy),
-              revokedReason: command.reason.trim(),
-              gracePeriodEnds: null,
-              ...NO_SEALED_ADDRESS,
-            })
-            .where(
-              and(
-                eq(portalTokens.organizationId, unbrand(command.organizationId)),
-                eq(portalTokens.propertyId, unbrand(command.propertyId)),
-                eq(portalTokens.portalId, unbrand(command.portalId)),
-                or(
-                  eq(portalTokens.status, 'active'),
-                  eq(portalTokens.status, 'rotating'),
-                ),
-              ),
-            )
-            .returning({ id: portalTokens.id })
+          const rows = await revokeLiveTokens(tx, command)
           if (rows.length === 0) {
             throw portalError('revision_conflict', 'Portal token changed during revoke')
           }

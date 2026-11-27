@@ -54,9 +54,8 @@ type BoundProperty = PropertyLookup & Readonly<{ googleConnectionId: string }>
 
 function exactProviderTarget(input: HandleGbpNotificationInput): ProviderTarget {
   const resource = parseReviewProviderResource(input.reviewName)
-  const canonicalLocation = `accounts/${resource.accountId}/locations/${resource.locationId}`
   if (
-    canonicalLocation !== input.locationName ||
+    resource.locationName !== input.locationName ||
     resource.locationId !== input.locationId
   ) {
     throw new TypeError('Google review push resource mismatch')

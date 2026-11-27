@@ -211,11 +211,3 @@ export function listCapabilitiesNeedingOrganization(): readonly Capability[] {
     .map(([capability]) => capability)
     .sort()
 }
-
-/** The capabilities one switch turns off. */
-export function listCapabilitiesBySwitch(target: FeatureSwitch): readonly Capability[] {
-  return (Object.entries(CAPABILITY_FATE) as Array<[Capability, CapabilityFateRecord]>)
-    .filter(([, record]) => record.featureSwitch === target)
-    .map(([capability]) => capability)
-    .sort()
-}
