@@ -1,10 +1,7 @@
 // Frozen copy evidence for snapshot schemas 1 and 2; no guest page reads it.
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 import { formatDateTime } from '#/shared/format/format-date-time'
-import {
-  currentGuestLanguagePack,
-  guestLocaleFormatTag,
-} from '#/shared/domain/guest-locale'
+import { guestLocaleFormatTag } from '#/shared/domain/guest-locale'
 
 type HistoricalGuestPortalCopy = Readonly<{
   locale: GuestLocale
@@ -252,7 +249,8 @@ export function getHistoricalGuestPortalCopy(
   locale: GuestLocale = 'en',
   version?: GuestLanguagePackVersion,
 ): HistoricalGuestPortalCopy {
-  const resolved = version ?? currentGuestLanguagePack(locale)
+  const resolved =
+    version ?? Object.values(PACKS).find((copy) => copy?.locale === locale)?.version
   if (!resolved) throw new Error(`No guest language pack exists for locale ${locale}`)
   const pack = PACKS[resolved]
   if (!pack) throw new Error(`${resolved} is not a generation 1 guest language pack`)
