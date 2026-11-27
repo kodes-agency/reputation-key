@@ -11,7 +11,6 @@ import {
   parseCanonicalReplyLanguageTag,
   type ReplyTemplateLanguageGroup,
 } from '#/shared/reply-language-catalogue'
-import { BUILTIN_REPLY_LIBRARY } from '#/shared/reply-library/builtin-library'
 import {
   isBuiltinReplyVoiceLanguageGroup,
   type BuiltinReplyVoiceLanguageGroup,
@@ -41,7 +40,7 @@ import type {
 } from './contracts'
 import type { ReplyLibraryRepository } from './reply-library-repository.port.server'
 import type { ReviewRepository } from '../reviews/review-repository.port.server'
-import { resolveReplyLibraryTemplates } from './reply-library-resolver.contracts'
+import { resolveSnapshotTemplates } from './reply-library-resolver.contracts'
 import type { Review } from '../domain/review-types'
 import { reviewError } from '../domain/review-errors'
 import type { DraftReply } from '../replies/reply-operations.server'
@@ -113,17 +112,8 @@ async function targetLanguageGroup(
   return parseCanonicalReplyLanguageTag(propertyDefault)?.templateGroup ?? null
 }
 
-function resolveTemplates(snapshot: Awaited<ReturnType<typeof loadScope>>['snapshot']) {
-  return resolveReplyLibraryTemplates({
-    builtin: BUILTIN_REPLY_LIBRARY,
-    accountTemplates: snapshot.accountTemplates,
-    propertyTemplates: snapshot.propertyTemplates,
-    visibility: snapshot.visibility,
-  })
-}
-
 function matchingTemplates(
-  templates: ReturnType<typeof resolveTemplates>,
+  templates: ReturnType<typeof resolveSnapshotTemplates>,
   review: Review,
   languageGroup: string | null,
 ) {
@@ -173,7 +163,7 @@ export const listReplyTemplates =
       input.targetLanguage,
     )
     const templates = matchingTemplates(
-      resolveTemplates(scope.snapshot),
+      resolveSnapshotTemplates(scope.snapshot),
       review,
       languageGroup,
     )
@@ -235,7 +225,7 @@ export const loadReplyTemplate =
       input.targetLanguage,
     )
     const template = matchingTemplates(
-      resolveTemplates(scope.snapshot),
+      resolveSnapshotTemplates(scope.snapshot),
       review,
       languageGroup,
     ).find(({ ref }) => ref === input.ref)
