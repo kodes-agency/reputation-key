@@ -210,17 +210,13 @@ type MemberAuthorization = Readonly<{
 }>
 
 /**
- * A member's authority: the fixed permissions and data scope of their built-in
- * role, stamped with the organization's current permission_version. A role that
- * is not built in is refused. An unreadable version fails closed (503): a cached
- * context could not be proved fresh, and a delayed worker would act on authority
- * it cannot date.
+ * The fixed permissions and data scope of a built-in role, before the
+ * organization's permission_version is known. A role that is not built in is
+ * refused.
  */
-async function resolveMemberAuthorization(
+function builtInAuthority(
   memberRole: string,
-  orgId: string,
-  database: RoleDefinitionDatabase,
-): Promise<MemberAuthorization> {
+): Omit<MemberAuthorization, 'permissionVersion'> {
   const domainRole = toDomainRole(memberRole)
   if (domainRole === null) {
     // The warn log is the alerting anchor: no Member Role other than the three
@@ -231,16 +227,6 @@ async function resolveMemberAuthorization(
     )
     throwAuthError('forbidden', 'Member role is not supported')
   }
-  let permissionVersion: number
-  try {
-    permissionVersion = await fetchPermissionVersion(database, orgId)
-  } catch (err) {
-    getLogger().error(
-      { err, memberRole },
-      'auth.authorization_unavailable: permission version unreadable; fail-closed',
-    )
-    throwAuthError('authorization_unavailable', 'Authorization resolution failed')
-  }
   const effectivePermissions = builtInPermissionsForRole(memberRole)
   const scope: DataScope = BUILT_IN_ROLE_SCOPE[memberRole] ?? 'none'
   return {
@@ -249,8 +235,44 @@ async function resolveMemberAuthorization(
     scopeByPermission: new Map<Permission, DataScope>(
       [...effectivePermissions].map((p) => [p, scope] as const),
     ),
-    permissionVersion,
   }
+}
+
+/**
+ * The organization's current permission_version. An unreadable version fails
+ * closed (503): a cached context could not be proved fresh, and a delayed worker
+ * would act on authority it cannot date.
+ */
+async function readPermissionVersionOrFailClosed(
+  database: RoleDefinitionDatabase,
+  orgId: string,
+  logFields: Readonly<{ memberRole?: string }>,
+): Promise<number> {
+  try {
+    return await fetchPermissionVersion(database, orgId)
+  } catch (err) {
+    getLogger().error(
+      { err, ...logFields },
+      'auth.authorization_unavailable: permission version unreadable; fail-closed',
+    )
+    throwAuthError('authorization_unavailable', 'Authorization resolution failed')
+  }
+}
+
+/**
+ * A member's authority: the fixed permissions and data scope of their built-in
+ * role, stamped with the organization's current permission_version.
+ */
+async function resolveMemberAuthorization(
+  memberRole: string,
+  orgId: string,
+  database: RoleDefinitionDatabase,
+): Promise<MemberAuthorization> {
+  const authority = builtInAuthority(memberRole)
+  const permissionVersion = await readPermissionVersionOrFailClosed(database, orgId, {
+    memberRole,
+  })
+  return { ...authority, permissionVersion }
 }
 
 function buildAuthContext(
@@ -306,6 +328,34 @@ export async function resolveMemberAuthContextWithDatabase(
     context: buildAuthContext(input.userId, input.organizationId, authorization),
     permissionVersion: authorization.permissionVersion,
   }
+}
+
+/**
+ * Resolve many members of one organization against a single read of its
+ * permission_version. The read happens here, once, and fails closed exactly as
+ * resolveMemberAuthContextWithDatabase does; the returned function then builds
+ * each member's context from that version without touching the database.
+ */
+export async function prepareMemberAuthContextsWithDatabase(
+  database: RoleDefinitionDatabase,
+  input: Readonly<{ organizationId: string }>,
+): Promise<
+  (
+    member: Readonly<{ memberRole: string; userId: string }>,
+  ) => Readonly<{ context: AuthContext; permissionVersion: number }>
+> {
+  const permissionVersion = await readPermissionVersionOrFailClosed(
+    database,
+    input.organizationId,
+    {},
+  )
+  return (member) => ({
+    context: buildAuthContext(member.userId, input.organizationId, {
+      ...builtInAuthority(member.memberRole),
+      permissionVersion,
+    }),
+    permissionVersion,
+  })
 }
 
 // ── The pipeline ───────────────────────────────────────────────
