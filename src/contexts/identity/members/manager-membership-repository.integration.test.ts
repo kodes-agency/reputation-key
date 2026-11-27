@@ -3,7 +3,10 @@ import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db/index'
 import type { ManagerMembership } from './auth-identity.port.server'
-import { createManagerMembershipRepository } from './manager-membership-repository.server'
+import {
+  createManagerMembershipRepository,
+  prepareManagerPropertyAuthority,
+} from './manager-membership-repository.server'
 
 describe('manager membership repository', () => {
   it('maps only exact Better Auth manager roles in the requested tenant', async () => {
@@ -42,8 +45,9 @@ describe('manager membership repository', () => {
 
         rows = await createManagerMembershipRepository(
           tx as unknown as Database,
-          async ({ memberRole }) =>
-            memberRole === 'owner' ? 'organization' : 'assigned-properties',
+          async () =>
+            ({ memberRole }) =>
+              memberRole === 'owner' ? 'organization' : 'assigned-properties',
         ).listActiveManagers(organization)
         throw rollback
       }),
@@ -83,13 +87,149 @@ describe('manager membership repository', () => {
 
         rows = await createManagerMembershipRepository(
           tx as unknown as Database,
-          async () => null,
+          async () => () => null,
         ).listActiveManagers(organization)
         throw rollback
       }),
     ).rejects.toBe(rollback)
 
     expect(rows).toEqual([])
+  })
+
+  it('reads the permission version once for every manager of the Organization', async () => {
+    const suffix = randomUUID()
+    const organization = `org-manager-once-${suffix}`
+    const users = [1, 2, 3, 4].map((n) => `manager-once-${n}-${suffix}`) as [
+      string,
+      string,
+      string,
+      string,
+    ]
+    const rollback = new Error('rollback manager once fixture')
+    let rows: readonly ManagerMembership[] = []
+    let permissionReads = 0
+
+    await expect(
+      getDb().transaction(async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO organization (id, name, slug, "createdAt")
+          VALUES (${organization}, ${organization}, ${organization}, NOW())
+        `)
+        for (const id of users) {
+          await tx.execute(sql`
+            INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+            VALUES (${id}, ${id}, ${`${id}@example.test`}, true, NOW(), NOW())
+          `)
+        }
+        await tx.execute(sql`
+          INSERT INTO member (id, "userId", "organizationId", role, "createdAt") VALUES
+            (${`membership-once-0-${suffix}`}, ${users[0]}, ${organization}, 'owner', NOW()),
+            (${`membership-once-1-${suffix}`}, ${users[1]}, ${organization}, 'admin', NOW()),
+            (${`membership-once-2-${suffix}`}, ${users[2]}, ${organization}, 'admin', NOW()),
+            (${`membership-once-3-${suffix}`}, ${users[3]}, ${organization}, 'admin', NOW())
+        `)
+
+        // The authority reads through this wrapper; the member list reads through tx.
+        const countingDb = {
+          select: (...args: Parameters<typeof tx.select>) => {
+            permissionReads += 1
+            return tx.select(...args)
+          },
+        } as unknown as Database
+        rows = await createManagerMembershipRepository(
+          tx as unknown as Database,
+          prepareManagerPropertyAuthority(countingDb),
+        ).listActiveManagers(organization)
+        throw rollback
+      }),
+    ).rejects.toBe(rollback)
+
+    expect(permissionReads).toBe(1)
+    expect(rows).toHaveLength(4)
+    expect(
+      Object.fromEntries(rows.map((row) => [row.userId, row.propertyAccessScope])),
+    ).toEqual({
+      [users[0]]: 'organization',
+      [users[1]]: 'assigned-properties',
+      [users[2]]: 'assigned-properties',
+      [users[3]]: 'assigned-properties',
+    })
+  })
+
+  it('fails closed with the tenant resolver error when the permission row is unreadable', async () => {
+    const suffix = randomUUID()
+    const organization = `org-manager-unreadable-${suffix}`
+    const owner = `manager-unreadable-${suffix}`
+    const rollback = new Error('rollback manager unreadable fixture')
+    let failure: unknown
+
+    await expect(
+      getDb().transaction(async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO organization (id, name, slug, "createdAt")
+          VALUES (${organization}, ${organization}, ${organization}, NOW())
+        `)
+        await tx.execute(sql`
+          INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+          VALUES (${owner}, ${owner}, ${`${owner}@example.test`}, true, NOW(), NOW())
+        `)
+        await tx.execute(sql`
+          INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
+          VALUES (${`membership-unreadable-${suffix}`}, ${owner}, ${organization}, 'owner', NOW())
+        `)
+
+        const brokenDb = {
+          select: () => {
+            throw new Error('permission row unreadable')
+          },
+        } as unknown as Database
+        failure = await createManagerMembershipRepository(
+          tx as unknown as Database,
+          prepareManagerPropertyAuthority(brokenDb),
+        )
+          .listActiveManagers(organization)
+          .catch((err: unknown) => err)
+        throw rollback
+      }),
+    ).rejects.toBe(rollback)
+
+    expect(failure).toMatchObject({
+      name: 'AuthError',
+      code: 'authorization_unavailable',
+      status: 503,
+      message: 'Authorization resolution failed',
+    })
+  })
+
+  it('does not read the permission row for an Organization without managers', async () => {
+    const suffix = randomUUID()
+    const organization = `org-manager-none-${suffix}`
+    const rollback = new Error('rollback manager none fixture')
+    let rows: readonly ManagerMembership[] = []
+    let permissionReads = 0
+
+    await expect(
+      getDb().transaction(async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO organization (id, name, slug, "createdAt")
+          VALUES (${organization}, ${organization}, ${organization}, NOW())
+        `)
+        const countingDb = {
+          select: (...args: Parameters<typeof tx.select>) => {
+            permissionReads += 1
+            return tx.select(...args)
+          },
+        } as unknown as Database
+        rows = await createManagerMembershipRepository(
+          tx as unknown as Database,
+          prepareManagerPropertyAuthority(countingDb),
+        ).listActiveManagers(organization)
+        throw rollback
+      }),
+    ).rejects.toBe(rollback)
+
+    expect(rows).toEqual([])
+    expect(permissionReads).toBe(0)
   })
 
   it('recognizes only the current AccountAdmin membership in the requested tenant', async () => {
@@ -124,7 +264,7 @@ describe('manager membership repository', () => {
 
         const repository = createManagerMembershipRepository(
           tx as unknown as Database,
-          async () => 'organization',
+          async () => () => 'organization',
         )
         decisions = [
           await repository.isCurrentAccountAdmin({
