@@ -83,40 +83,32 @@ export const GUEST_LOCALE_METADATA: Readonly<Record<GuestLocale, GuestLocaleMeta
  * carry it (1 for schema versions 1 and 2, 2 for version 3).
  *
  * Publishing writes schema version 3 only (round 4, slice 19), so the pack a
- * publication uses is `currentGuestLanguagePack(locale, 2)`: the newest
+ * publication uses is `currentGuestLanguagePack(locale)`: the newest
  * generation 2 pack, or null while the locale has none (it cannot be
- * published). `current` is the generation 1 pack the legacy guest page falls
- * back to for a snapshot that names none; it is frozen with the packs it names
- * and no longer says anything about what a publication uses.
+ * published). The generation 1 packs stay listed so stored snapshots verify.
  */
 export const GUEST_LANGUAGE_PACKS = Object.freeze({
   en: {
-    current: 'guest-ui-en-v1',
     supported: [
       { id: 'guest-ui-en-v1', generation: 1 },
       { id: 'guest-ui-en-v2', generation: 2 },
     ],
   },
   bg: {
-    current: 'guest-ui-bg-v1',
     supported: [
       { id: 'guest-ui-bg-v1', generation: 1 },
       { id: 'guest-ui-bg-v2', generation: 2 },
     ],
   },
   // es, it, fr and de never had a legacy page, so they have a generation 2
-  // pack only: `current`, the generation 1 pack the legacy page falls back to,
-  // stays null for them for good.
-  es: { current: null, supported: [{ id: 'guest-ui-es-v2', generation: 2 }] },
-  it: { current: null, supported: [{ id: 'guest-ui-it-v2', generation: 2 }] },
-  fr: { current: null, supported: [{ id: 'guest-ui-fr-v2', generation: 2 }] },
-  de: { current: null, supported: [{ id: 'guest-ui-de-v2', generation: 2 }] },
+  // pack only.
+  es: { supported: [{ id: 'guest-ui-es-v2', generation: 2 }] },
+  it: { supported: [{ id: 'guest-ui-it-v2', generation: 2 }] },
+  fr: { supported: [{ id: 'guest-ui-fr-v2', generation: 2 }] },
+  de: { supported: [{ id: 'guest-ui-de-v2', generation: 2 }] },
 } as const satisfies Record<
   GuestLocale,
-  {
-    current: string | null
-    supported: readonly { id: string; generation: 1 | 2 }[]
-  }
+  { supported: readonly { id: string; generation: 1 | 2 }[] }
 >)
 
 type SupportedGuestLanguagePack =
@@ -124,11 +116,6 @@ type SupportedGuestLanguagePack =
 
 /** Every pack id ever supported, for any locale. */
 export type GuestLanguagePackVersion = SupportedGuestLanguagePack['id']
-/** The packs schema versions 1 and 2 carry: function-based copy, frozen. */
-export type GuestLanguagePackV1 = Extract<
-  SupportedGuestLanguagePack,
-  { generation: 1 }
->['id']
 /** The packs a schema version 3 snapshot carries: template-based, JSON copy. */
 export type GuestLanguagePackV2 = Extract<
   SupportedGuestLanguagePack,
@@ -217,27 +204,17 @@ export function isSupportedGuestLanguagePack(
 }
 
 /**
- * The newest pack of `locale` in a generation, or null while there is none.
- * Generation 2 is what a new publication writes (and the newest pack a version
- * 3 snapshot may carry); generation 1, the default, is the frozen pack the
- * legacy page falls back to.
+ * The newest generation 2 pack of `locale`, or null while there is none. This
+ * is what a new publication writes and the newest pack a version 3 snapshot may
+ * carry.
  */
 export function currentGuestLanguagePack(
   locale: GuestLocale,
-  generation?: 1,
-): GuestLanguagePackV1 | null
-export function currentGuestLanguagePack(
-  locale: GuestLocale,
-  generation: 2,
-): GuestLanguagePackV2 | null
-export function currentGuestLanguagePack(
-  locale: GuestLocale,
-  generation: 1 | 2 = 1,
-): GuestLanguagePackVersion | null {
-  const { current, supported } = GUEST_LANGUAGE_PACKS[locale]
-  if (generation === 1) return current
-  const packs: readonly { id: GuestLanguagePackVersion; generation: 1 | 2 }[] = supported
-  return packs.filter((pack) => pack.generation === generation).at(-1)?.id ?? null
+): GuestLanguagePackV2 | null {
+  const packs: readonly { id: GuestLanguagePackVersion; generation: 1 | 2 }[] =
+    GUEST_LANGUAGE_PACKS[locale].supported
+  const newest = packs.filter((pack) => pack.generation === 2).at(-1)?.id ?? null
+  return newest as GuestLanguagePackV2 | null
 }
 
 export function guestLocaleFormatTag(locale: GuestLocale): string {

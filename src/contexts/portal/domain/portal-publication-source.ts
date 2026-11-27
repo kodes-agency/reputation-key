@@ -323,7 +323,7 @@ function languagePacksOf(
 ): Partial<Record<GuestLocale, string>> {
   const packs: Partial<Record<GuestLocale, string>> = {}
   for (const locale of source.localeSet) {
-    const pack = currentGuestLanguagePack(locale, 2)
+    const pack = currentGuestLanguagePack(locale)
     if (pack === null) findings.blockers.push({ code: 'language_pack_missing', locale })
     else packs[locale] = pack
   }

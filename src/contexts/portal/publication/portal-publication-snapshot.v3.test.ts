@@ -102,7 +102,7 @@ describe('pack generation is bound to the schema version', () => {
     const { localeSet, languagePackVersions } = immersiveConfiguration()
 
     for (const locale of localeSet) {
-      expect(languagePackVersions[locale]).toBe(currentGuestLanguagePack(locale, 2))
+      expect(languagePackVersions[locale]).toBe(currentGuestLanguagePack(locale))
       expect(isSupportedGuestLanguagePack(locale, languagePackVersions[locale], 2)).toBe(
         true,
       )
