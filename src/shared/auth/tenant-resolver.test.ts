@@ -37,6 +37,7 @@ import {
   resolveTenant,
   resolveMemberAuthContext,
   resolveMemberAuthContextWithDatabase,
+  prepareMemberAuthContextsWithDatabase,
   resetTenantResolutionCache,
   TENANT_CACHE_TTL_MS,
   type TenantCacheEntry,
@@ -250,6 +251,72 @@ describe('built-in role authority', () => {
       })
     },
   )
+})
+
+describe('prepareMemberAuthContextsWithDatabase', () => {
+  const asDatabase = (select: unknown) =>
+    ({ select }) as unknown as Parameters<typeof resolveMemberAuthContextWithDatabase>[0]
+
+  it('reads the permission version once and gives each member the same context as the single resolver', async () => {
+    const select = vi.fn(versionRows(11))
+    const members = [
+      { memberRole: 'owner', userId: 'u1' },
+      { memberRole: 'admin', userId: 'u2' },
+      { memberRole: 'admin', userId: 'u3' },
+      { memberRole: 'member', userId: 'u4' },
+    ]
+
+    const authorize = await prepareMemberAuthContextsWithDatabase(asDatabase(select), {
+      organizationId: 'org-1',
+    })
+    const prepared = members.map(authorize)
+    const single = await Promise.all(
+      members.map((m) =>
+        resolveMemberAuthContextWithDatabase(asDatabase(vi.fn(versionRows(11))), {
+          ...m,
+          organizationId: 'org-1',
+        }),
+      ),
+    )
+
+    expect(select).toHaveBeenCalledOnce()
+    expect(prepared).toEqual(single)
+  })
+
+  it('refuses a role that is not built in without reading again', async () => {
+    const select = vi.fn(versionRows(11))
+    const authorize = await prepareMemberAuthContextsWithDatabase(asDatabase(select), {
+      organizationId: 'org-1',
+    })
+
+    expect(() => authorize({ memberRole: 'owner,admin', userId: 'u1' })).toThrowError(
+      expect.objectContaining({ name: 'AuthError', code: 'forbidden' }),
+    )
+    expect(select).toHaveBeenCalledOnce()
+  })
+
+  it('fails closed with the same 503 as the single resolver when the version is unreadable', async () => {
+    const singleFailure = await resolveMemberAuthContextWithDatabase(
+      asDatabase(vi.fn(versionReadFails)),
+      { memberRole: 'owner', organizationId: 'org-1', userId: 'u1' },
+    ).catch((e: unknown) => e)
+    const preparedFailure = await prepareMemberAuthContextsWithDatabase(
+      asDatabase(vi.fn(versionReadFails)),
+      { organizationId: 'org-1' },
+    ).catch((e: unknown) => e)
+
+    expect(preparedFailure).toMatchObject({
+      name: 'AuthError',
+      code: 'authorization_unavailable',
+      status: 503,
+      message: 'Authorization resolution failed',
+    })
+    expect(preparedFailure).toMatchObject({
+      code: (singleFailure as { code: string }).code,
+      status: (singleFailure as { status: number }).status,
+      message: (singleFailure as Error).message,
+    })
+  })
 })
 
 // ── resolveTenant pipeline ──────────────────────────────────────
