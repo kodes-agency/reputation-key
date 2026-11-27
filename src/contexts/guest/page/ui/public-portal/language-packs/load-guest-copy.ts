@@ -31,7 +31,7 @@ export async function loadGuestPortalCopy(
   version?: unknown,
 ): Promise<GuestPortalCopy> {
   // Only an absent pin means "current": an explicit null is a corrupt snapshot field.
-  const resolved = version === undefined ? currentGuestLanguagePack(locale, 2) : version
+  const resolved = version === undefined ? currentGuestLanguagePack(locale) : version
   if (version === undefined && resolved === null)
     throw new Error(`No guest language pack exists for locale ${locale}`)
   if (!isSupportedGuestLanguagePack(locale, resolved, 2)) throw new Error(MISMATCH)

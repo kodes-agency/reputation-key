@@ -60,34 +60,17 @@ describe('guest locale catalogue', () => {
     }
   })
 
-  it('keeps each current pack inside its own supported list', () => {
-    for (const locale of GUEST_LOCALES) {
-      const { current, supported } = GUEST_LANGUAGE_PACKS[locale]
-      if (current !== null) expect(supported.map((pack) => pack.id)).toContain(current)
-    }
-  })
-
   it('offers every catalogue locale, each with the generation 2 pack a publication writes', () => {
     expect(OFFERED_GUEST_LOCALES).toEqual(GUEST_LOCALES)
     for (const locale of OFFERED_GUEST_LOCALES) {
-      expect(currentGuestLanguagePack(locale, 2)).toBe(`guest-ui-${locale}-v2`)
+      expect(currentGuestLanguagePack(locale)).toBe(`guest-ui-${locale}-v2`)
     }
   })
 
-  it('keeps the generation 1 pack to the two locales the legacy page ever served', () => {
-    expect(currentGuestLanguagePack('en')).toBe('guest-ui-en-v1')
-    expect(currentGuestLanguagePack('bg')).toBe('guest-ui-bg-v1')
-    for (const locale of ['es', 'it', 'fr', 'de'] as const) {
-      expect(currentGuestLanguagePack(locale)).toBeNull()
-    }
-  })
-
-  it('names the generation 1 and generation 2 pack of a locale separately', () => {
-    expect(currentGuestLanguagePack('en', 1)).toBe('guest-ui-en-v1')
-    expect(currentGuestLanguagePack('bg', 1)).toBe('guest-ui-bg-v1')
-    expect(currentGuestLanguagePack('en', 2)).toBe('guest-ui-en-v2')
-    expect(currentGuestLanguagePack('bg', 2)).toBe('guest-ui-bg-v2')
-    expect(currentGuestLanguagePack('de', 2)).toBe('guest-ui-de-v2')
+  it('names the generation 2 pack of every locale', () => {
+    expect(currentGuestLanguagePack('en')).toBe('guest-ui-en-v2')
+    expect(currentGuestLanguagePack('bg')).toBe('guest-ui-bg-v2')
+    expect(currentGuestLanguagePack('de')).toBe('guest-ui-de-v2')
   })
 
   it('lists the v1 packs before the v2 packs and never renumbers an id', () => {
