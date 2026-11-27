@@ -162,7 +162,7 @@ export type GetPortalReviewDeps = Readonly<{
     PortalPublicationRepository,
     | 'loadWorkingCopyWithLook'
     | 'getCursor'
-    | 'findCurrentAndLatestActivation'
+    | 'findLiveRecord'
     | 'listOpenPendingContentChanges'
   >
   historyRepo: Pick<PortalHistoryRepository, 'listPageEdits'>
@@ -308,7 +308,7 @@ export const getPortalReview =
       workingCopyWithLook,
       cursor,
       openChanges,
-      activations,
+      liveRecord,
       destination,
       propertyActive,
       hasPublicAddress,
@@ -318,11 +318,7 @@ export const getPortalReview =
       deps.publicationRepo.loadWorkingCopyWithLook(organizationId, pid),
       deps.publicationRepo.getCursor(organizationId, pid),
       deps.publicationRepo.listOpenPendingContentChanges(organizationId, propertyId, pid),
-      deps.publicationRepo.findCurrentAndLatestActivation(
-        organizationId,
-        propertyId,
-        pid,
-      ),
+      deps.publicationRepo.findLiveRecord(organizationId, pid),
       findVerifiedGoogleReviewDestination(deps, organizationId, portal),
       propertyAllowsPublication(deps, organizationId, portal),
       portalHasPublicAddress(deps, ctx, portal, at),
@@ -344,7 +340,6 @@ export const getPortalReview =
       )
     }
     const { source: workingCopy, lookSources } = workingCopyWithLook
-    const liveRecord = activations.current
     if (isLive && !liveRecord) {
       throw portalError(
         'publication_snapshot_unavailable',

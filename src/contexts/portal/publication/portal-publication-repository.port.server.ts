@@ -73,6 +73,11 @@ export type PortalPublicationRepository = Readonly<{
     portalId: PortalId,
     version: number,
   ) => Promise<PortalPublicationSnapshot | null>
+  /** The open activation of the Portal with its snapshot, newest sequence. */
+  findLiveRecord: (
+    organizationId: OrganizationId,
+    portalId: PortalId,
+  ) => Promise<PortalPublicationActivationRecord | null>
   findActiveForPortal: (
     organizationId: OrganizationId,
     portalId: PortalId,
