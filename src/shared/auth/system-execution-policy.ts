@@ -30,11 +30,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 
 // ── Catalogue-derived contract data (single source of truth) ────────
 
-const DELAYED_KINDS = new Set(['job', 'consumer', 'schedule'])
-const DELAYED_ROWS = ENTRY_POINT_CATALOGUE.filter((r) => DELAYED_KINDS.has(r.kind))
-
 const CAPABILITY_BY_ACTION = new Map<string, Capability | 'none'>()
-for (const r of DELAYED_ROWS) {
+for (const r of ENTRY_POINT_CATALOGUE) {
   const existing = CAPABILITY_BY_ACTION.get(r.action)
   // Multiple rows may share an action (job + consumer + schedule); the
   // strictest declared gate wins — 'none' never overrides a real gate.
@@ -46,7 +43,7 @@ for (const r of DELAYED_ROWS) {
 // guard in system-execution-policy.test), so an authorization that names only
 // an action still reads the scope its entry points declare.
 const SCOPE_BY_ACTION = new Map<string, ResourceScope>()
-for (const r of DELAYED_ROWS) {
+for (const r of ENTRY_POINT_CATALOGUE) {
   if (!SCOPE_BY_ACTION.has(r.action)) SCOPE_BY_ACTION.set(r.action, r.resourceScope)
 }
 
