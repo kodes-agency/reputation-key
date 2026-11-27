@@ -1,9 +1,5 @@
-import { spawnSync } from 'node:child_process'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { assertLocalOnlyDatabase, assertLocalOnlyRedis } from './local-database'
-
-const ROOT = resolve(import.meta.dirname, '../../..')
 
 /** The local stack's database, as `e2e/stack.env` addresses it from the host. */
 const LOCAL_STACK_URL =
@@ -193,41 +189,4 @@ describe('assertLocalOnlyRedis', () => {
       'not-a-real-password',
     )
   })
-})
-
-/** The two development scripts that delete rows from whatever `DATABASE_URL` names. */
-const CLEANUP_SCRIPTS = ['scripts/cleanup-all.ts', 'scripts/cleanup-kodes.ts'] as const
-
-/** This process's environment without any Railway variable, so the host is what refuses. */
-function plainShell(): NodeJS.ProcessEnv {
-  return Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => !name.startsWith('RAILWAY_')),
-  )
-}
-
-function run(script: string, env: NodeJS.ProcessEnv) {
-  const result = spawnSync(process.execPath, ['--import', 'tsx', script], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    env: { ...plainShell(), ...env },
-  })
-  return { status: result.status, output: `${result.stdout}${result.stderr}` }
-}
-
-describe('the cleanup scripts, started against a deployed database', () => {
-  it.each(CLEANUP_SCRIPTS)(
-    '%s refuses before it opens a connection',
-    (script) => {
-      const { status, output } = run(script, { DATABASE_URL: DEPLOYED_DATABASE_URL })
-
-      expect(output).toContain('Local-only script refused')
-      expect(output).toContain('db.example.invalid')
-      // Refused, not failed on the way to the host.
-      expect(output).not.toContain('ENOTFOUND')
-      expect(output).not.toContain('Deleting')
-      expect(output).not.toContain('not-a-real-password')
-      expect(status).toBe(1)
-    },
-    60_000,
-  )
 })

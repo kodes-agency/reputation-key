@@ -1,10 +1,8 @@
-// The guard of a development script that deletes rows from whatever
-// DATABASE_URL names (scripts/cleanup-all.ts, scripts/cleanup-kodes.ts), and of
-// the acceptance seeder, which writes its fixtures there and clears rate-limit
-// keys in whatever REDIS_URL names.
+// The guard of the acceptance seeder, which writes its fixtures into whatever
+// DATABASE_URL names and clears rate-limit keys in whatever REDIS_URL names.
 //
-// An operator's shell holds a deployed DATABASE_URL for `pnpm ops`, and those
-// scripts used to dial it without asking. No single reading settles whether a
+// An operator's shell holds a deployed DATABASE_URL for `pnpm ops`, and local
+// scripts once dialled it without asking. No single reading settles whether a
 // database is this developer's own, so three independent ones must all agree,
 // and none of them has an override:
 //
