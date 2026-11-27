@@ -10,7 +10,6 @@
 //   action         — SystemAction evaluated immediately before execution
 //   capability     — beta capability gate; 'none' when ungated
 //   resourceScope  — organization | property | tenant_cross | none
-//   externalEffect — whether the action requires a fresh policy read
 //   name           — job, consumer module, or recurring schedule name
 //
 // Every row of one action declares the same resourceScope: a tenant-cross

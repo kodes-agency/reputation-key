@@ -111,6 +111,4 @@ export type EntryPointRow = Readonly<{
   action: SystemAction
   capability: Capability | 'none'
   resourceScope: ResourceScope
-  /** True when execution causes an external side effect (GBP, email, OAuth, S3). */
-  externalEffect: boolean
 }>

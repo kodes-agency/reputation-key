@@ -1,9 +1,7 @@
 // BQC-2.5 — delayed/system policy contract tests.
 //
 // Runs the exported contract fixtures through decideDelayed and pins the
-// contract rules: strong read only for external-effect actions (from the
-// catalogue), stale_context never overrides the fresh decision, missing
-// scope denies, unavailable policy denies closed.
+// contract rules: missing scope denies, unavailable policy denies closed.
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
@@ -12,7 +10,6 @@ import {
   initDelayedExecutionPolicy,
   registerDelayedExecutionPolicyInit,
   resetDelayedExecutionPolicy,
-  requiresFreshRead,
   capabilityForSystemAction,
 } from './system-execution-policy'
 import { EXECUTION_POLICY_VERSION } from './execution-policy'
@@ -40,15 +37,8 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
         now: new Date('2026-07-17T12:00:00Z'),
       })
 
-      expect(decision.outcome).toBe(fixture.expect.outcome)
+      expect(decision.allowed).toBe(fixture.expect.allowed)
       if (fixture.expect.reason) expect(decision.reason).toBe(fixture.expect.reason)
-      expect(decision.freshRead).toBe(fixture.expect.freshRead)
-      // stale_context annotates — the fresh decision itself is never overridden.
-      if (fixture.expect.outcome === 'stale_context') {
-        expect(decision.allowed).toBe(true)
-      } else {
-        expect(decision.allowed).toBe(fixture.expect.outcome === 'allow')
-      }
     })
   }
 
@@ -67,7 +57,6 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
 
     expect(decision).toMatchObject({
       allowed: false,
-      outcome: 'deny',
       reason: 'capability_mismatch',
     })
   })
@@ -86,7 +75,6 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
 
     expect(decision).toMatchObject({
       allowed: true,
-      outcome: 'allow',
       reason: 'allowed',
     })
   })
@@ -149,7 +137,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     ).resolves.toMatchObject({ allowed: false, reason: 'missing_scope' })
   })
 
-  it('catalogue-derived contract data: capability, fresh read, scope per action', () => {
+  it('catalogue-derived contract data: capability per action', () => {
     expect(capabilityForSystemAction('system:review.sync')).toBe('property.connect_gbp')
     expect(capabilityForSystemAction('system:reply.publish')).toBe(
       'property.publish_reply',
@@ -161,11 +149,6 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     expect(capabilityForSystemAction('system:inbox.project_guest_feedback')).toBe(
       'portal.read',
     )
-    expect(requiresFreshRead('system:review.sync')).toBe(true)
-    expect(requiresFreshRead('system:reply.publish')).toBe(true)
-    expect(requiresFreshRead('system:review.reconcile')).toBe(false)
-    // The reminder sweep reads a review from Google before it releases a reminder.
-    expect(requiresFreshRead('system:inbox.update')).toBe(true)
   })
 
   it('returns the complete content-free decision consumed by JobRuntime', async () => {
@@ -176,18 +159,14 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       action: 'system:review.reconcile',
       organizationId: 'org-fixture',
       executionKind: 'schedule',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
       correlationId: 'corr-delayed-1',
       now: new Date(),
     })
     expect(decision).toEqual({
-      outcome: 'allow',
       allowed: true,
       reason: 'allowed',
       action: 'system:review.reconcile',
       policyVersion: EXECUTION_POLICY_VERSION,
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
-      freshRead: false,
     })
   })
 })

@@ -208,10 +208,6 @@ export async function gateJob(
     capabilityAtEnqueue: envelopeCapability(payload),
     executionKind,
     initiator: envelopeInitiator(payload),
-    policyVersionAtEnqueue:
-      typeof payload.policyVersionAtEnqueue === 'string'
-        ? payload.policyVersionAtEnqueue
-        : undefined,
     correlationId:
       typeof payload.correlationId === 'string' ? payload.correlationId : undefined,
     now: new Date(),

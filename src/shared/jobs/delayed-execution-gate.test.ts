@@ -45,17 +45,15 @@ function installStub(): void {
 
 function decision(over: Partial<DelayedDecision> = {}): DelayedDecision {
   return {
-    outcome: 'deny',
     allowed: false,
     reason: 'capability_blocked',
     action: 'system:review.sync',
     policyVersion: 'bqc-2.4',
-    freshRead: false,
     ...over,
   }
 }
 
-const ALLOW = decision({ outcome: 'allow', allowed: true, reason: 'allowed' })
+const ALLOW = decision({ allowed: true, reason: 'allowed' })
 
 function lastRequest(): DelayedDecisionRequest {
   expect(decideMock).toHaveBeenCalledTimes(1)
@@ -241,7 +239,6 @@ describe('gateJob — request building (stubbed policy)', () => {
         capability: 'gbp.reply.publish',
         initiator: { kind: 'user', id: 'user-9' },
         correlationId: 'corr-1',
-        policyVersionAtEnqueue: 'bqc-0.3',
       },
       'worker:default',
       'worker',
@@ -251,7 +248,6 @@ describe('gateJob — request building (stubbed policy)', () => {
       capabilityAtEnqueue: 'gbp.reply.publish',
       initiator: { kind: 'user', id: 'user-9' },
       correlationId: 'corr-1',
-      policyVersionAtEnqueue: 'bqc-0.3',
     })
   })
 })
@@ -342,7 +338,7 @@ describe('gateDispatcherConsumer (stubbed policy)', () => {
 })
 
 describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', () => {
-  it('current allow — GBP sync with capability and fresh read', async () => {
+  it('current allow — GBP sync with capability', async () => {
     installRealPolicy(fixtureEnv('current allow'))
 
     const outcome = await gateJob(
@@ -352,15 +348,12 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
         organizationId: 'org-fixture',
         connectionId: 'c-1',
         locationName: 'l',
-        policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
       },
       'worker:default',
       'worker',
     )
 
     expect(outcome.allowed).toBe(true)
-    expect(outcome.outcome).toBe('allow')
-    expect(outcome.freshRead).toBe(true)
   })
 
   it('org-suspended deny — suspension after enqueue denies at dispatch (terminal)', async () => {
@@ -392,7 +385,6 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
         organizationId: 'org-fixture',
         connectionId: 'c-1',
         locationName: 'l',
-        policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
       },
       'worker:default',
       'worker',
@@ -400,26 +392,6 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
 
     expect(outcome.allowed).toBe(false)
     expect(outcome.reason).toBe('capability_disabled')
-  })
-
-  it('stale_context annotation — envelope version differs; fresh allow stands', async () => {
-    installRealPolicy(fixtureEnv('stale_context'))
-
-    const outcome = await gateJob(
-      'publish-reply',
-      {
-        replyId: 'reply-1',
-        organizationId: 'org-fixture',
-        propertyId: PROP,
-        policyVersionAtEnqueue: 'bqc-0.3',
-      },
-      'worker:default',
-      'worker',
-    )
-
-    expect(outcome.allowed).toBe(true)
-    expect(outcome.outcome).toBe('stale_context')
-    expect(outcome.allowed).toBe(true)
   })
 
   it('reconcile-ambiguous-publications sweep allows under its own tenant-cross action (regression: shared system:review.sync scope merge denied it missing_scope)', async () => {
@@ -436,7 +408,6 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
     // action → allow under the sentinel org (no property required).
     expect(outcome.allowed).toBe(true)
     expect(outcome.action).toBe('system:review.reconcile')
-    expect(outcome.freshRead).toBe(false)
   })
 
   it('goal-program.maintain firing allows under its tenant-cross row (regression: a property-scoped consumer sharing system:goal.maintain denied it missing_scope)', async () => {

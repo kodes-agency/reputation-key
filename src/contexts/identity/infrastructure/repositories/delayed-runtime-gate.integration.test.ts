@@ -71,7 +71,7 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
       allowed: true,
       reason: 'allowed',
       action: 'system:notification.email_digest',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
+      policyVersion: EXECUTION_POLICY_VERSION,
     })
   })
 })

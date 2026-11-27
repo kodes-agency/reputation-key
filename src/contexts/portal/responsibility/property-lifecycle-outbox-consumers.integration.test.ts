@@ -231,7 +231,6 @@ describe.sequential(
       expect(row).toMatchObject({
         name: 'portal.property-lifecycle',
         resourceScope: 'property',
-        externalEffect: false,
       })
     })
   },

@@ -9,7 +9,6 @@
 // normalized delayed decision request, and the expected outcome.
 
 import type { CapabilityPolicyEnv } from './beta-capabilities'
-import { EXECUTION_POLICY_VERSION } from './execution-policy'
 import type { DelayedDecisionRequest } from './system-execution-policy'
 
 export type DelayedContractFixture = Readonly<{
@@ -18,10 +17,8 @@ export type DelayedContractFixture = Readonly<{
   env: CapabilityPolicyEnv
   request: Omit<DelayedDecisionRequest, 'now'>
   expect: Readonly<{
-    outcome: 'allow' | 'deny' | 'stale_context'
+    allowed: boolean
     reason?: string
-    /** Whether the action's external effect requires the strong policy read. */
-    freshRead: boolean
   }>
 }>
 
@@ -32,16 +29,15 @@ const BASE = {
 
 export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = [
   {
-    name: 'current allow — review sync with GBP capability and fresh read',
+    name: 'current allow — review sync with GBP capability',
     env: {},
     request: {
       ...BASE,
       principal: { kind: 'system', id: 'worker:default' },
       action: 'system:review.sync',
       propertyId: 'd4000000-0000-4000-8000-000000000051',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'allow', reason: 'allowed', freshRead: true },
+    expect: { allowed: true, reason: 'allowed' },
   },
   {
     name: 'deny — org suspended stops pending work with a typed state',
@@ -51,9 +47,8 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       principal: { kind: 'system', id: 'worker:default' },
       action: 'system:review.sync',
       propertyId: 'd4000000-0000-4000-8000-000000000051',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'deny', reason: 'org_suspended', freshRead: true },
+    expect: { allowed: false, reason: 'org_suspended' },
   },
   {
     name: 'deny — Google switched off after enqueue (stale allow never overrides)',
@@ -63,9 +58,8 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       principal: { kind: 'system', id: 'worker:default' },
       action: 'system:review.sync',
       propertyId: 'd4000000-0000-4000-8000-000000000051',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'deny', reason: 'capability_disabled', freshRead: true },
+    expect: { allowed: false, reason: 'capability_disabled' },
   },
   {
     name: 'deny — optional email is switched off',
@@ -76,9 +70,8 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       action: 'system:notification.email_digest',
       organizationId: 'org-fixture',
       executionKind: 'schedule',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'deny', reason: 'capability_disabled', freshRead: true },
+    expect: { allowed: false, reason: 'capability_disabled' },
   },
   {
     name: 'deny — missing scope (property-scoped action without propertyId)',
@@ -87,33 +80,19 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       ...BASE,
       principal: { kind: 'system', id: 'worker:default' },
       action: 'system:review.sync',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'deny', reason: 'missing_scope', freshRead: true },
+    expect: { allowed: false, reason: 'missing_scope' },
   },
   {
-    name: 'allow — tenant-cross reconciliation needs no property scope or fresh read',
+    name: 'allow — tenant-cross reconciliation needs no property scope',
     env: {},
     request: {
       ...BASE,
       principal: { kind: 'system', id: 'schedule:review-reconciliation' },
       action: 'system:review.reconcile',
       executionKind: 'schedule',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'allow', reason: 'allowed', freshRead: false },
-  },
-  {
-    name: 'stale_context — envelope policy version differs; fresh decision stands',
-    env: {},
-    request: {
-      ...BASE,
-      principal: { kind: 'system', id: 'worker:default' },
-      action: 'system:reply.publish',
-      propertyId: 'd4000000-0000-4000-8000-000000000051',
-      policyVersionAtEnqueue: 'bqc-0.3',
-    },
-    expect: { outcome: 'stale_context', reason: 'allowed', freshRead: true },
+    expect: { allowed: true, reason: 'allowed' },
   },
   {
     name: 'deny — consumer with missing scope (inbox update without org)',
@@ -123,8 +102,7 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       action: 'system:inbox.update',
       organizationId: '',
       executionKind: 'consumer',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'deny', reason: 'missing_scope', freshRead: true },
+    expect: { allowed: false, reason: 'missing_scope' },
   },
 ]

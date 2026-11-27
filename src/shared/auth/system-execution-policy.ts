@@ -7,17 +7,11 @@
 // Contract rules:
 //   1. Decisions are computed from CURRENT policy at execution time. A stale
 //      allow decision in a queued job never overrides a current deny.
-//   2. Actions with external effects (from the entry-point catalogue:
-//      GBP sync/publish/import, S3 image processing, email) require a
-//      fresh/strong policy read immediately before the decision.
-//   3. Scope is validated from the catalogue: a property-scoped entry point
+//   2. Scope is validated from the catalogue: a property-scoped entry point
 //      without a propertyId, or any action without an organizationId,
 //      denies as missing_scope. The scope is the resolved entry-point row's,
 //      never borrowed from another row that shares the action.
-//   4. policyVersionAtEnqueue that differs from the running policy version
-//      annotates the outcome as stale_context — an annotation only, never
-//      a decision override.
-//   5. Role permissions and grants do NOT apply to system principals (they
+//   3. Role permissions and grants do NOT apply to system principals (they
 //      were checked at the interactive enqueue boundary); capability
 //      and suspension are re-checked here.
 
@@ -55,18 +49,10 @@ const SCOPE_BY_ACTION = new Map<string, ResourceScope>()
 for (const r of DELAYED_ROWS) {
   if (!SCOPE_BY_ACTION.has(r.action)) SCOPE_BY_ACTION.set(r.action, r.resourceScope)
 }
-const FRESH_READ_ACTIONS: Set<string> = new Set(
-  DELAYED_ROWS.filter((r) => r.externalEffect).map((r) => r.action),
-)
 
 /** The capability gate for a delayed/system action ('none' when ungated). */
 export function capabilityForSystemAction(action: string): Capability | 'none' {
   return CAPABILITY_BY_ACTION.get(action) ?? 'none'
-}
-
-/** True when the action has an external effect and needs a strong policy read. */
-export function requiresFreshRead(action: string): boolean {
-  return FRESH_READ_ACTIONS.has(action)
 }
 
 // ── Request / decision types ─────────────────────────────────────────
@@ -88,8 +74,6 @@ export type DelayedDecisionRequest = Readonly<{
   executionKind: 'worker' | 'consumer' | 'schedule'
   /** Who enqueued the work, when relevant (user or system). */
   initiator?: Readonly<{ kind: 'user' | 'system'; id: string }>
-  /** Policy version recorded at enqueue — stale-context detection only. */
-  policyVersionAtEnqueue?: string
   correlationId?: string
   now: Date
 }>
@@ -98,19 +82,10 @@ export type DelayedDenyReason =
   CapabilityDenyReason | 'missing_scope' | 'capability_mismatch' | 'unknown_action'
 
 export type DelayedDecision = Readonly<{
-  /**
-   * 'stale_context' annotates that policyVersionAtEnqueue differs from the
-   * running policy version. It is an annotation, never a decision override —
-   * `allowed`/`reason` are always computed from current policy.
-   */
-  outcome: 'allow' | 'deny' | 'stale_context'
   allowed: boolean
   reason: DelayedDenyReason | 'allowed'
   action: string
   policyVersion: string
-  policyVersionAtEnqueue?: string
-  /** Whether the action is an external-effect action. */
-  freshRead: boolean
 }>
 
 export type DelayedExecutionPolicy = Readonly<{
@@ -122,39 +97,29 @@ export function createDelayedExecutionPolicy(): DelayedExecutionPolicy {
     request: DelayedDecisionRequest,
     allowed: boolean,
     reason: DelayedDecision['reason'],
-    freshRead: boolean,
   ): DelayedDecision {
-    const stale =
-      request.policyVersionAtEnqueue !== undefined &&
-      request.policyVersionAtEnqueue !== EXECUTION_POLICY_VERSION
-    const decision: DelayedDecision = {
-      outcome: allowed ? (stale ? 'stale_context' : 'allow') : 'deny',
+    return {
       allowed,
       reason,
       action: request.action,
       policyVersion: EXECUTION_POLICY_VERSION,
-      policyVersionAtEnqueue: request.policyVersionAtEnqueue,
-      freshRead,
     }
-    return decision
   }
 
   return {
     async decide(request) {
-      const freshRead = requiresFreshRead(request.action)
-
       // Unknown actions fail closed — the catalogue is the contract surface.
       if (!CAPABILITY_BY_ACTION.has(request.action)) {
-        return finish(request, false, 'unknown_action', freshRead)
+        return finish(request, false, 'unknown_action')
       }
 
-      // Rule 3: catalogue-driven scope validation.
+      // Rule 2: catalogue-driven scope validation.
       const scope = request.resourceScope ?? SCOPE_BY_ACTION.get(request.action)
       if (!request.organizationId) {
-        return finish(request, false, 'missing_scope', freshRead)
+        return finish(request, false, 'missing_scope')
       }
       if (scope === 'property' && !request.propertyId) {
-        return finish(request, false, 'missing_scope', freshRead)
+        return finish(request, false, 'missing_scope')
       }
 
       const capability = capabilityForSystemAction(request.action)
@@ -162,7 +127,7 @@ export function createDelayedExecutionPolicy(): DelayedExecutionPolicy {
         request.capabilityAtEnqueue !== undefined &&
         request.capabilityAtEnqueue !== capability
       ) {
-        return finish(request, false, 'capability_mismatch', freshRead)
+        return finish(request, false, 'capability_mismatch')
       }
 
       // A tenant-cross schedule is only the enumeration boundary. It may
@@ -179,10 +144,10 @@ export function createDelayedExecutionPolicy(): DelayedExecutionPolicy {
         request.organizationId === 'tenant-cross' &&
         scope === 'tenant_cross'
       ) {
-        return finish(request, true, 'allowed', freshRead)
+        return finish(request, true, 'allowed')
       }
 
-      // Rule 5: capability + suspension re-check against CURRENT policy.
+      // Rule 3: capability + suspension re-check against CURRENT policy.
       if (capability !== 'none') {
         const systemCtx: AuthContext = {
           userId: userId(request.principal.id),
@@ -191,11 +156,11 @@ export function createDelayedExecutionPolicy(): DelayedExecutionPolicy {
         }
         const capDecision = checkBetaCapability(systemCtx, capability)
         if (!capDecision.allowed) {
-          return finish(request, false, capDecision.reason, freshRead)
+          return finish(request, false, capDecision.reason)
         }
       }
 
-      return finish(request, true, 'allowed', freshRead)
+      return finish(request, true, 'allowed')
     },
   }
 }

@@ -183,7 +183,6 @@ function nextEntryPoint(
     action: GATED_ACTION,
     capability: 'ai.analyze',
     resourceScope: 'tenant_cross',
-    externalEffect: false,
     ...overrides,
   }
 }
