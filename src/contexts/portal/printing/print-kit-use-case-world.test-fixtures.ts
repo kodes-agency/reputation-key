@@ -8,7 +8,10 @@ import type { Pool } from 'pg'
 import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import { getDb } from '#/shared/db'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
+import {
+  createInMemoryObjectStore,
+  type InMemoryObjectStore,
+} from '#/shared/testing/in-memory-object-store'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type {
   PrintRenderRefusal,
@@ -16,6 +19,8 @@ import type {
   PrintRenderInput,
 } from './pdfkit-print-renderer.port.server'
 import { createPortalPrint } from './create-portal-print.server'
+import { getPortalPrintKit } from './get-portal-print-kit.server'
+import { createPdfKitPrintRenderer } from './pdfkit-print-renderer.server'
 import { revealPortalAddress } from '../addresses/reveal-portal-address.server'
 import { createPortalAddressRepository } from '../addresses/portal-address-repository.server'
 import { createPortalLastPrintRepository } from './portal-last-print-repository.server'
@@ -66,6 +71,10 @@ export type PrintKitWorldOptions = Readonly<{
   localeSet?: readonly ('bg' | 'en' | 'de')[]
   failLastPrint?: boolean
   failWording?: boolean
+  /** `pdfkit` draws the real file (uncompressed, dated at the world's instant); the default returns a fixed PDF. */
+  renderer?: 'stub' | 'pdfkit'
+  /** More of the world to seed once its own pictures are stored. */
+  extraSeed?: (pool: Pool, objectStore: InMemoryObjectStore) => Promise<void>
 }>
 
 export function printKitWorldConfiguration(options: PrintKitWorldOptions) {
@@ -142,6 +151,7 @@ export async function createPrintKitWorld(
     height: 1000,
   })
   await storePrintKitPicture(pool, objectStore, LOGO_ASSET, { width: 480, height: 120 })
+  await options.extraSeed?.(pool, objectStore)
 
   const db = getDb()
   const portalRepo = createPortalRepository(db)
@@ -159,21 +169,27 @@ export async function createPrintKitWorld(
     },
   }
   const rendered: PrintRenderInput[] = []
+  const real =
+    options.renderer === 'pdfkit'
+      ? createPdfKitPrintRenderer({ now: () => PRINTED_AT, compress: false })
+      : null
   const renderer: PortalPrintRenderer = {
     render: async (input) => {
       rendered.push(input)
       if (options.refuse) throw options.refuse
-      return PDF
+      return real ? real.render(input) : PDF
     },
   }
   const failing = (): never => {
     throw new Error('connection reset')
   }
+  const publicationRepo = createPortalPublicationRepository(db)
+  const mediaRepo = createPortalMediaAssetRepository(db)
   const make = createPortalPrint({
     portalRepo,
     staffPublicApi,
-    publicationRepo: createPortalPublicationRepository(db),
-    mediaRepo: createPortalMediaAssetRepository(db),
+    publicationRepo,
+    mediaRepo,
     objectStore,
     sha256Hex,
     revealAddress: revealPortalAddress({
@@ -197,8 +213,17 @@ export async function createPrintKitWorld(
     clock: () => PRINTED_AT,
     logger,
   })
+  const read = getPortalPrintKit({
+    portalRepo,
+    staffPublicApi,
+    publicationRepo,
+    mediaRepo,
+    lastPrintRepo,
+    wordingRepo,
+  })
   return {
     make,
+    read,
     rendered,
     warnings,
     lastPrintRepo,

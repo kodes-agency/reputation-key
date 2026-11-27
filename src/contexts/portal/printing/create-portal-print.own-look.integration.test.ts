@@ -13,26 +13,10 @@
 
 import { describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { createMockLogger } from '#/shared/testing/mock-logger'
-import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
-import { getDb } from '#/shared/db'
 import { portalId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/public-api'
 import type { DownloadPortalPrintInput } from './portal-print.contracts'
 import type { PortalPrintRenderer } from './pdfkit-print-renderer.port.server'
-import { createPortalPrint } from './create-portal-print.server'
-import { getPortalPrintKit } from './get-portal-print-kit.server'
-import { revealPortalAddress } from '../addresses/reveal-portal-address.server'
-import { testPortalTokenCodec } from '../addresses/portal-token-codec.test-fixtures'
-import { createPortalAddressRepository } from '../addresses/portal-address-repository.server'
-import { createPortalLastPrintRepository } from './portal-last-print-repository.server'
-import { createPortalPrintWordingRepository } from './portal-print-wording-repository.server'
-import { createPortalMediaAssetRepository } from '../media/portal-media-asset-repository.server'
-import { createPortalPublicationRepository } from '../publication/portal-publication-repository.server'
-import { createPortalRepository } from '../publication/portal-repository.server'
 import { seedLiveImmersiveSnapshot } from '../publication/portal-live-immersive-seed.test-fixtures'
-import { seedPortalWorkingCopy } from '../publication/portal-working-copy-seed.test-fixtures'
 import {
   COMPLETE_SCENARIO,
   SCENARIO_HERO_ASSET,
@@ -40,30 +24,21 @@ import {
   WORKING_COPY_OTHER_ORG,
 } from '../publication/portal-working-copy-scenarios.test-fixtures'
 import {
-  BASE_URL,
   LOGO_ASSET,
   PRINT_KIT_INTEGRATION_TABLES,
-  PRINT_ORIGIN,
-  printKitCipher,
   printKitLiveConfiguration,
   seedPrintKitCode,
   sha256Hex,
   storePrintKitPicture,
   type PrintKitCodeSeed,
 } from './print-kit-live-seed.test-fixtures'
-import { createPdfKitPrintRenderer } from './pdfkit-print-renderer.server'
-import { createPropertyCountryReader } from './print-kit-property-country.server'
+import { createPrintKitWorld } from './print-kit-use-case-world.test-fixtures'
 
 const { getPool } = setupIntegrationDb({
   orgA: WORKING_COPY_ORG,
   orgB: WORKING_COPY_OTHER_ORG,
   tables: PRINT_KIT_INTEGRATION_TABLES,
 })
-
-const staffPublicApi: StaffPublicApi = {
-  getAccessiblePropertyIds: async () => null,
-  getAssignedPortals: async () => [],
-}
 
 /** The second Portal of the scenario's Property: the Spa, with a look of its own. */
 const SPA_PORTAL = portalId('c2000000-0000-4000-8000-0000000000a1')
@@ -161,93 +136,27 @@ async function seedSpa(): Promise<void> {
   await seedPrintKitCode(pool, true, SPA_CODE)
 }
 
-async function harness() {
-  const pool = getPool()
-  await seedPortalWorkingCopy(pool, COMPLETE_SCENARIO)
-  await seedLiveImmersiveSnapshot({
-    organizationId: COMPLETE_SCENARIO.organizationId,
-    propertyId: COMPLETE_SCENARIO.propertyId,
-    portalId: COMPLETE_SCENARIO.portalId,
-    configuration: printKitLiveConfiguration(),
-  })
-  await seedPrintKitCode(pool, true)
-  await seedSpa()
-  const objectStore = createInMemoryObjectStore()
-  await storePrintKitPicture(pool, objectStore, SCENARIO_HERO_ASSET, {
-    width: 1600,
-    height: 1000,
-  })
-  await storePrintKitPicture(pool, objectStore, LOGO_ASSET, { width: 480, height: 120 })
-  await storePrintKitPicture(
-    pool,
-    objectStore,
-    SPA_HERO_ASSET,
-    { width: 1500, height: 1000 },
-    '#aa5533',
-  )
-  await storePrintKitPicture(
-    pool,
-    objectStore,
-    SPA_LOGO_ASSET,
-    { width: 400, height: 100 },
-    '#3355aa',
-  )
-  const db = getDb()
-  const portalRepo = createPortalRepository(db)
-  const publicationRepo = createPortalPublicationRepository(db)
-  const mediaRepo = createPortalMediaAssetRepository(db)
-  const real = createPdfKitPrintRenderer({
-    now: () => new Date('2026-10-26T10:00:00Z'),
-    compress: false,
-  })
-  const rendered: Parameters<PortalPrintRenderer['render']>[0][] = []
-  const renderer: PortalPrintRenderer = {
-    render: async (input) => {
-      rendered.push(input)
-      return real.render(input)
+const harness = () =>
+  createPrintKitWorld(getPool(), {
+    renderer: 'pdfkit',
+    extraSeed: async (pool, objectStore) => {
+      await seedSpa()
+      await storePrintKitPicture(
+        pool,
+        objectStore,
+        SPA_HERO_ASSET,
+        { width: 1500, height: 1000 },
+        '#aa5533',
+      )
+      await storePrintKitPicture(
+        pool,
+        objectStore,
+        SPA_LOGO_ASSET,
+        { width: 400, height: 100 },
+        '#3355aa',
+      )
     },
-  }
-  return {
-    read: getPortalPrintKit({
-      portalRepo,
-      staffPublicApi,
-      publicationRepo,
-      mediaRepo,
-      lastPrintRepo: createPortalLastPrintRepository(db),
-      wordingRepo: createPortalPrintWordingRepository(db),
-    }),
-    make: createPortalPrint({
-      portalRepo,
-      staffPublicApi,
-      publicationRepo,
-      mediaRepo,
-      objectStore,
-      sha256Hex,
-      revealAddress: revealPortalAddress({
-        portalRepo,
-        staffPublicApi,
-        portalAddressRepo: createPortalAddressRepository(db),
-        addressCipher: printKitCipher,
-        tokenCodec: testPortalTokenCodec(),
-        reportPrintCodeProblem: () => undefined,
-        clock: () => new Date('2026-10-26T10:00:00Z'),
-        address: {
-          appOrigin: BASE_URL,
-          printOrigin: PRINT_ORIGIN,
-        },
-      }),
-      renderer,
-      propertyCountry: createPropertyCountryReader(db),
-
-      lastPrintRepo: createPortalLastPrintRepository(db),
-      wordingRepo: createPortalPrintWordingRepository(db),
-      clock: () => new Date('2026-10-26T10:00:00Z'),
-      logger: createMockLogger(),
-    }),
-    rendered,
-    ctx: buildTestAuthContext({ organizationId: WORKING_COPY_ORG }),
-  }
-}
+  })
 
 const request = (portal: string): DownloadPortalPrintInput => ({
   portalId: portal,
