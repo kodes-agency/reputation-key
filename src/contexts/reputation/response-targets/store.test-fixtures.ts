@@ -2,6 +2,7 @@
 // seeded Organization and Property, Review sources, the Review and feedback
 // cycle openers, and the repeated policy, outbox and analytics statements.
 
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import type { ReviewCycleTargetAnchor } from '#/contexts/reputation/inbox/review-cycle-target-anchor.server'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
@@ -18,10 +19,7 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus } from '#/contexts/reputation/domain/inbox-types'
 import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
-import {
-  createAtomicInboxCommandStore as createProductionInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore as createProductionInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createResponseTargetStore } from './store.server'
 
 export const ORG = organizationId('org-response-target-pg-00000000001')
@@ -44,10 +42,6 @@ export const PUBLISHED_IN_2015 = new Date('2015-06-01T10:00:00.000Z')
 
 export const db = getDb()
 export const pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 4 })
-
-export const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
-  allowed: true,
-})
 
 export const commandStore = (database: Database) =>
   createProductionInboxCommandStore(database, allowAllCommandAuthority)

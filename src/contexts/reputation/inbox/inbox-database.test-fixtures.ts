@@ -4,6 +4,8 @@
 // repository and command stores over stubbed cross-context lookups, readers
 // for the facts a command committed, and tenant cleanup.
 
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
 import { createHash, randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
@@ -21,16 +23,10 @@ import type { InboxCommandStore } from './command-store.port.server'
 import type { InboxNoteRepository } from './inbox-note-repository.port.server'
 import type { InboxRepository } from './inbox-repository.port.server'
 import type { InboxItem, InboxStatus, SourceType } from '../domain/inbox-types'
-import {
-  createAtomicInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createInboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.server'
 import { createReviewHandlingCycleStore } from './review-handling-cycle-store.server'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
-
-const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
 export async function seedInboxOrganization(
   pool: Pool,
@@ -213,17 +209,7 @@ const createStubbedInboxRepository = (
   aiInsights?: AiReviewInsightsPort,
 ): InboxRepository =>
   createInboxRepository(db, {
-    reviewLookup: {
-      getReviewSnippetById: async () => ({ status: 'not_found' }),
-      getReviewSnippetsByIds: async () => new Map(),
-      findEligibleReviewIds: async () => [],
-    },
-    feedbackLookup: {
-      getFeedbackSnippetById: async () => null,
-      getFeedbackSnippetsByIds: async () => new Map(),
-      findEligibleFeedbackIds: async () => [],
-    },
-    propertyLookup: inertPropertyLookup,
+    ...emptyLookupPorts,
     ...(aiInsights ? { aiInsights } : {}),
   })
 

@@ -1,4 +1,5 @@
 import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { describe, it, expect, vi } from 'vitest'
 import { inboxItemId, feedbackId, propertyId } from '#/shared/domain/ids'
 import type {} from '#/contexts/reputation/domain/review-types'
@@ -23,7 +24,6 @@ import {
   NOW,
   createAtomicInboxCommandStore,
   db,
-  stubPorts,
   makeItem,
   makeReview,
   seedReviewRevisionOne,
@@ -35,7 +35,7 @@ useInboxCommandStoreDb()
 
 describe.sequential('inboxCommandStore applyOnce (integration)', () => {
   it('eligibility reconciliation releases only denied Property assignments and is retry-safe', async () => {
-    const repo = createInboxRepository(db, stubPorts)
+    const repo = createInboxRepository(db, emptyLookupPorts)
     const denied = makeItem({
       id: inboxItemId('4d000000-0000-0000-0000-000000000021'),
       propertyId: PROP_A,
@@ -427,7 +427,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
               occurredAt: at,
             }),
           ).resolves.toMatchObject({ updated: 1 })
-          const repo = createInboxRepository(db, stubPorts)
+          const repo = createInboxRepository(db, emptyLookupPorts)
           item = (await repo.findById(item.id, ORG_A))!
         }
       }

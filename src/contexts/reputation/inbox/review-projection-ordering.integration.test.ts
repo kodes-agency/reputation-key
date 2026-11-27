@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import type { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
@@ -9,10 +11,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
-import {
-  createAtomicInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createReviewHandlingCycleStore } from './review-handling-cycle-store.server'
 import {
@@ -20,9 +19,6 @@ import {
   handleInboxReviewUpdated,
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
-import type { ReviewLookupPort } from './review-lookup.port.server'
-import type { FeedbackLookupPort } from './feedback-lookup.port.server'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const ORG = organizationId('org-inbox-projection-ordering-1')
 const PROPERTY = propertyId('7c000000-0000-4000-8000-000000000001')
@@ -43,24 +39,6 @@ const ERASED_AT = new Date('2026-08-10T12:00:00.000Z')
 
 let lease: TestLease
 let pool: Pool
-
-const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
-  allowed: true,
-})
-
-const reviewLookup = {
-  getReviewSnippetById: async () => ({ status: 'not_found' as const }),
-  getReviewSnippetsByIds: async () => new Map(),
-  findEligibleReviewIds: async () => [],
-} satisfies ReviewLookupPort
-
-const feedbackLookup = {
-  getFeedbackSnippetById: async () => null,
-  getFeedbackSnippetsByIds: async () => new Map(),
-  findEligibleFeedbackIds: async () => [],
-} satisfies FeedbackLookupPort
-
-const propertyLookup = inertPropertyLookup
 
 const event = (
   kind: 'review.created' | 'review.updated',
@@ -227,9 +205,7 @@ async function seedActiveReview(revisions: 1 | 2 | 3 = 3): Promise<void> {
 function deps(): InboxConsumerDeps {
   const database = getDb()
   const inboxRepo = createInboxRepository(database, {
-    reviewLookup,
-    feedbackLookup,
-    propertyLookup,
+    ...emptyLookupPorts,
   })
   return {
     commandStore: createAtomicInboxCommandStore(database, allowAllCommandAuthority),

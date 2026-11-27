@@ -10,6 +10,7 @@
 // closed, the outcome authority stays one-way, and the live-source reopen
 // keeps working.
 
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { Pool } from 'pg'
@@ -28,10 +29,7 @@ import {
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
 import type { InboxItem } from '../domain/inbox-types'
 import { inboxItemStatusChanged } from '../domain/inbox-events'
-import {
-  createAtomicInboxCommandStore as createProductionInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore as createProductionInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 
 const ORG = organizationId('org-manager-handling-authority-0001')
@@ -50,8 +48,6 @@ const ATTEMPTED_AT = new Date('2026-08-27T11:00:00.000Z')
 
 const db = getDb()
 let pool: Pool
-
-const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
 const commandStore = (database: Database) =>
   createProductionInboxCommandStore(database, allowAllCommandAuthority)

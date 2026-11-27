@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
@@ -15,10 +16,7 @@ import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { GoogleReplyHead } from '#/contexts/reputation/inbox/reply-lookup.port.server'
 import type { ReminderSlotKey } from '#/contexts/reputation/response-targets/store.port.server'
 import { releaseDueResponseTargetReminders } from './release-reminders.server'
-import {
-  createAtomicInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { completeGoogleReviewTarget } from '#/contexts/reputation/response-targets/google-review-target-completion.server'
 import { createResponseTargetStore } from './store.server'
 import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
@@ -46,8 +44,7 @@ const db = getDb()
 let pool: Pool
 const targets = createResponseTargetStore(db)
 
-const allowAll: InboxCommandAuthority = async () => ({ allowed: true })
-const commandStore = () => createAtomicInboxCommandStore(db, allowAll)
+const commandStore = () => createAtomicInboxCommandStore(db, allowAllCommandAuthority)
 
 type Tenant = Readonly<{
   org: typeof ORG

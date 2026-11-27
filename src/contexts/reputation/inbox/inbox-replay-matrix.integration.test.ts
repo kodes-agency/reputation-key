@@ -13,6 +13,7 @@
 // `obsolete` is finished. That is why an order can start with a fact whose
 // subject does not exist yet and still converge.
 
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
@@ -38,7 +39,6 @@ import {
   EVENT_IDS,
   ORG,
   SCOPE,
-  allowAllCommandAuthority,
   bindReplayPool,
   captureState,
   cleanAll,

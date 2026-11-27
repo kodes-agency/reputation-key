@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { Pool } from 'pg'
 import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { getDb, type Database } from '#/shared/db'
@@ -17,10 +18,7 @@ import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
 import { isInboxError } from '#/contexts/reputation/domain/inbox-errors'
-import {
-  createAtomicInboxCommandStore as createProductionInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore as createProductionInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createFeedbackHandlingStore } from './feedback-handling-store.server'
 
 const ORG = organizationId('org-feedback-handling-000000000001')
@@ -36,10 +34,6 @@ const CORRECTED_AT = new Date('2026-08-27T10:00:00.000Z')
 
 const db = getDb()
 let pool: Pool
-
-const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
-  allowed: true,
-})
 
 const createAtomicInboxCommandStore = (database: Database) =>
   createProductionInboxCommandStore(database, allowAllCommandAuthority)

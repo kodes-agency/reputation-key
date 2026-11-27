@@ -1,4 +1,5 @@
 import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { seedReply } from '../replies/reply-seed.test-fixtures'
 import { getDb } from '#/shared/db'
 import { describe, it, expect } from 'vitest'
@@ -24,7 +25,6 @@ import {
   createAtomicInboxCommandStore,
   db,
   noopLogger,
-  stubPorts,
   makeItem,
   makeReview,
   makeReply,
@@ -41,7 +41,7 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
   function makeRebuild() {
     const reviewRepo = testReviewRepository(db)
     const replyRepo = createReplyRepository(db, () => new Date())
-    const repo = createInboxRepository(db, stubPorts)
+    const repo = createInboxRepository(db, emptyLookupPorts)
     const commandStore = createAtomicInboxCommandStore(db)
     const useCase = rebuildInboxProjection({
       repo,
@@ -339,7 +339,7 @@ describe.sequential('inboxCommandStore lent transaction (integration)', () => {
   it('reads through the lent transaction see the outer writes that other connections do not', async () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
-    const repo = createInboxRepository(db, stubPorts)
+    const repo = createInboxRepository(db, emptyLookupPorts)
     const cycles = createReviewHandlingCycleStore(db)
     const item = makeItem()
 

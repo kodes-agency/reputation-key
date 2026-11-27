@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { sha256Hex } from '#/shared/domain/sha256'
@@ -34,7 +36,6 @@ import { createNotificationWorkState } from '#/contexts/feed/notify/settle.serve
 import { buildInsertNotificationDeps } from '#/contexts/feed/notify/insert-notification.test-fixtures'
 import { notificationPreferences, notifications } from '#/shared/db/schema'
 import { eq } from 'drizzle-orm'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 // End to end, the guest edits a Google review the team had already answered,
 // and the owner reply stays live on Google. A reply written for revision 1
@@ -51,32 +52,18 @@ const NEW_REPLY = 'We are sorry the second stay let you down.'
 let lease: TestLease
 let fixtures: ReturnType<typeof answeredEditFixtures>
 
-const lookups = {
-  reviewLookup: {
-    getReviewSnippetById: async () => ({ status: 'not_found' as const }),
-    getReviewSnippetsByIds: async () => new Map(),
-    findEligibleReviewIds: async () => [],
-  },
-  feedbackLookup: {
-    getFeedbackSnippetById: async () => null,
-    getFeedbackSnippetsByIds: async () => new Map(),
-    findEligibleFeedbackIds: async () => [],
-  },
-  propertyLookup: inertPropertyLookup,
-}
-
 /** Inbox's durable consumers as production composes them, on the real DB. */
 function inboxDeps(): InboxConsumerDeps {
   const db = getDb()
   const logger = createMockLogger()
   const clock = () => CLOCK.deliveredAt
   return {
-    commandStore: createAtomicInboxCommandStore(db, async () => ({ allowed: true })),
+    commandStore: createAtomicInboxCommandStore(db, allowAllCommandAuthority),
     handlingCycleStore: createReviewHandlingCycleStore(db),
     replyObservationAuthority: createReviewReplyObservationAuthority(db),
     responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
-    inboxRepo: createInboxRepository(db, lookups),
+    inboxRepo: createInboxRepository(db, emptyLookupPorts),
     idGen: () => SCOPE.itemId,
     clock,
     logger,

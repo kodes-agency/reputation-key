@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 import { releaseDueSlots } from '#/contexts/reputation/response-targets/release-due-slots.test-fixtures'
 import { createResponseTargetStore } from './store.server'
 import {
-  allowAllCommandAuthority,
   commandStore,
   db,
   ITEM,

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import type { ReviewSnippetResult } from '#/contexts/reputation/inbox/review-lookup.port.server'
 import { inboxItemId, reviewId, feedbackId } from '#/shared/domain/ids'
 import {
   ORG_A,
   db,
-  stubPorts,
   createInboxRepository,
   makeInboxItem,
   useInboxRepositoryDb,
@@ -13,7 +13,7 @@ import {
 useInboxRepositoryDb()
 
 describe('inbox repository — detail view', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('findDetailById returns review source data for review items', async () => {
     const item = makeInboxItem({
@@ -39,9 +39,9 @@ describe('inbox repository — detail view', () => {
     await repo.seedItem(item)
 
     const translatedRepo = createInboxRepository(db, {
-      ...stubPorts,
+      ...emptyLookupPorts,
       reviewLookup: {
-        ...stubPorts.reviewLookup,
+        ...emptyLookupPorts.reviewLookup,
         getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
           status: 'available',
           snippet: {
@@ -76,9 +76,9 @@ describe('inbox repository — detail view', () => {
     await repo.seedItem(item)
 
     const englishRepo = createInboxRepository(db, {
-      ...stubPorts,
+      ...emptyLookupPorts,
       reviewLookup: {
-        ...stubPorts.reviewLookup,
+        ...emptyLookupPorts.reviewLookup,
         getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
           status: 'available',
           snippet: {
@@ -107,9 +107,9 @@ describe('inbox repository — detail view', () => {
     await repo.seedItem(item)
 
     const expiredRepo = createInboxRepository(db, {
-      ...stubPorts,
+      ...emptyLookupPorts,
       reviewLookup: {
-        ...stubPorts.reviewLookup,
+        ...emptyLookupPorts.reviewLookup,
         getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
           status: 'expired',
         }),
@@ -140,9 +140,9 @@ describe('inbox repository — detail view', () => {
    *  decides both the content status and the rating. */
   const repoAnswering = (result: ReviewSnippetResult) =>
     createInboxRepository(db, {
-      ...stubPorts,
+      ...emptyLookupPorts,
       reviewLookup: {
-        ...stubPorts.reviewLookup,
+        ...emptyLookupPorts.reviewLookup,
         getReviewSnippetById: async (): Promise<ReviewSnippetResult> => result,
       },
     })
@@ -242,7 +242,7 @@ describe('inbox repository — detail view', () => {
   it('findDetailById withholds the rating of a not_found review', async () => {
     const item = await createdReviewItem()
 
-    // `repo` itself is wired to the not_found stub (see `stubPorts`).
+    // `repo` itself is wired to the not_found stub (see `emptyLookupPorts`).
     const detail = await repo.findDetailById(item.id, ORG_A)
     expect(detail!.reviewContentStatus).toBe('not_found')
     expect(detail!.reviewRating).toBeNull()
@@ -256,9 +256,9 @@ describe('inbox repository — detail view', () => {
     await repo.seedItem(item)
 
     const feedbackRepo = createInboxRepository(db, {
-      ...stubPorts,
+      ...emptyLookupPorts,
       feedbackLookup: {
-        ...stubPorts.feedbackLookup,
+        ...emptyLookupPorts.feedbackLookup,
         getFeedbackSnippetById: async () => ({
           comment: 'The room was too warm.',
           ratingValue: 2,
@@ -277,16 +277,16 @@ describe('inbox repository — detail view', () => {
 })
 
 describe('inbox repository — live content lookup (BQC-1.2)', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('list items read rating/snippet/reviewerName from the eligible lookup map', async () => {
     const srcId = crypto.randomUUID()
     await repo.seedItem(makeInboxItem({ sourceId: reviewId(srcId) }))
 
     const liveRepo = createInboxRepository(db, {
-      ...stubPorts,
+      ...emptyLookupPorts,
       reviewLookup: {
-        ...stubPorts.reviewLookup,
+        ...emptyLookupPorts.reviewLookup,
         getReviewSnippetsByIds: async () =>
           new Map([
             [
@@ -318,9 +318,9 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const sourceId = reviewId(crypto.randomUUID())
     await repo.seedItem(makeInboxItem({ sourceId }))
     const ratingOnlyRepo = createInboxRepository(db, {
-      ...stubPorts,
+      ...emptyLookupPorts,
       reviewLookup: {
-        ...stubPorts.reviewLookup,
+        ...emptyLookupPorts.reviewLookup,
         getReviewSnippetsByIds: async () =>
           new Map([
             [
@@ -354,8 +354,8 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
         new Map([[sourceId, { comment: 'Excellent breakfast', ratingValue: 5 }]]),
     )
     const feedbackRepo = createInboxRepository(db, {
-      ...stubPorts,
-      feedbackLookup: { ...stubPorts.feedbackLookup, getFeedbackSnippetsByIds },
+      ...emptyLookupPorts,
+      feedbackLookup: { ...emptyLookupPorts.feedbackLookup, getFeedbackSnippetsByIds },
     })
 
     const [item] = (await feedbackRepo.findFilteredPaginated({}, ORG_A)).items
@@ -388,9 +388,9 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     await repo.seedItem(makeInboxItem({ sourceId: reviewId(srcOther) }))
 
     const filteredRepo = createInboxRepository(db, {
-      ...stubPorts,
+      ...emptyLookupPorts,
       reviewLookup: {
-        ...stubPorts.reviewLookup,
+        ...emptyLookupPorts.reviewLookup,
         findEligibleReviewIds: async () => [srcMatch],
       },
     })
@@ -415,8 +415,8 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     )
     const findEligibleFeedbackIds = vi.fn(async () => [feedbackId(sharedId)])
     const filteredRepo = createInboxRepository(db, {
-      ...stubPorts,
-      feedbackLookup: { ...stubPorts.feedbackLookup, findEligibleFeedbackIds },
+      ...emptyLookupPorts,
+      feedbackLookup: { ...emptyLookupPorts.feedbackLookup, findEligibleFeedbackIds },
     })
 
     const result = await filteredRepo.findFilteredPaginated(
@@ -438,7 +438,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   it('rating/search filters match nothing when no reviews are eligible', async () => {
     await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
 
-    // stubPorts.findEligibleReviewIds returns [] — provably empty result.
+    // emptyLookupPorts.findEligibleReviewIds returns [] — provably empty result.
     const result = await repo.findFilteredPaginated(
       { ratingMin: 4 },
       ORG_A,

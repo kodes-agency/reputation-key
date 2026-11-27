@@ -2,6 +2,10 @@
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 
+import {
+  allowAllCommandAuthority,
+  emptyLookupPorts,
+} from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { describe, it, expect } from 'vitest'
 import { inboxItemId, reviewId, feedbackId } from '#/shared/domain/ids'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
@@ -14,8 +18,6 @@ import {
   PROP_B,
   USER_A,
   db,
-  allowAllCommandAuthority,
-  stubPorts,
   createInboxRepository,
   makeInboxItem,
   useInboxRepositoryDb,
@@ -24,7 +26,7 @@ import {
 useInboxRepositoryDb()
 
 describe('inbox repository — CRUD', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('creates and finds an inbox item by id', async () => {
     const item = makeInboxItem()
@@ -78,7 +80,7 @@ describe('inbox repository — CRUD', () => {
 })
 
 describe('inbox repository — active Handling Cycle authority', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it.each([
     ['Review', 'review', reviewId(crypto.randomUUID())],
@@ -145,7 +147,7 @@ describe('inbox repository — active Handling Cycle authority', () => {
 })
 
 describe('inbox repository — active Review item ids', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('maps each requested Review at the Property to its active item', async () => {
     const first = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
@@ -206,7 +208,7 @@ describe('inbox repository — active Review item ids', () => {
 })
 
 describe('inbox repository — queue predicates', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('uses one predicate path for list totals and standalone counts', async () => {
     const included = makeInboxItem({ assignedTo: USER_A })
@@ -249,7 +251,7 @@ describe('inbox repository — queue predicates', () => {
 })
 
 describe('inbox repository — closed folders by kind', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
   const context = {
     viewerId: USER_A,
     canManageReplies: true,
@@ -315,7 +317,7 @@ describe('inbox repository — closed folders by kind', () => {
 })
 
 describe('inbox repository — per-property counts', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('groups the standalone count by property, with the same predicates', async () => {
     await repo.seedItem(makeInboxItem({ propertyId: PROP_A }))
@@ -355,7 +357,7 @@ describe('inbox repository — per-property counts', () => {
 })
 
 describe('inbox repository — count by status', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('counts items by status', async () => {
     await repo.seedItem(
@@ -462,7 +464,7 @@ describe('inbox repository — count by status', () => {
 })
 
 describe('inbox repository — pagination', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('returns paginated results with cursor', async () => {
     // Create 5 items with different source dates
@@ -598,7 +600,7 @@ describe('inbox repository — pagination', () => {
 })
 
 describe('inbox repository — tenant isolation', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('findById returns null for different org', async () => {
     const item = makeInboxItem()

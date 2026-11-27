@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import type { AiReviewInsightsPort } from '#/contexts/reputation/inbox/ai-review-insights.port.server'
 import { reviewId, feedbackId } from '#/shared/domain/ids'
 import {
@@ -6,7 +7,6 @@ import {
   PROP_A,
   USER_A,
   db,
-  stubPorts,
   createInboxRepository,
   type AttentionLookup,
   setManagerPriority,
@@ -17,7 +17,7 @@ import {
 useInboxRepositoryDb()
 
 describe('inbox repository — live content lookup (BQC-1.2)', () => {
-  const repo = createInboxRepository(db, stubPorts)
+  const repo = createInboxRepository(db, emptyLookupPorts)
 
   it('enriches the urgent and high suggestions from a page-bounded current analysis', async () => {
     const urgentSourceId = reviewId(crypto.randomUUID())
@@ -34,7 +34,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention,
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
-    const enrichedRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const enrichedRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     const result = await enrichedRepo.findFilteredPaginated({}, ORG_A, undefined, 50)
 
@@ -65,7 +65,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention,
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
-    const enrichedRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const enrichedRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     const result = await enrichedRepo.findFilteredPaginated({}, ORG_A, undefined, 50)
 
@@ -94,7 +94,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention,
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     const result = await filteredRepo.findFilteredPaginated(
       { propertyId: PROP_A, attention: ['urgent', 'high'] },
@@ -151,7 +151,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention,
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     const result = await filteredRepo.findFilteredPaginated(
       { sourceType: 'feedback', attention: ['urgent', 'high'] },
@@ -175,7 +175,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       ),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     const urgent = await filteredRepo.findFilteredPaginated(
       { attention: ['urgent'] },
@@ -216,7 +216,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention: vi.fn(async () => [srcBoth, srcAttentionOnly]),
       findCurrentReviewIdsByIssue,
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
     const issueId = 'a0000000-0000-4000-8000-000000000001'
 
     const result = await filteredRepo.findFilteredPaginated(
@@ -253,7 +253,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
       findCurrentReviewIdsByIssue,
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
     const issueId = 'a0000000-0000-4000-8000-000000000001'
 
     const result = await filteredRepo.findFilteredPaginated(
@@ -281,7 +281,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
       findCurrentReviewIdsByIssue,
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     for (const filters of [
       { propertyId: PROP_A, aspect: ['service' as const] },
@@ -305,7 +305,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     const result = await filteredRepo.findFilteredPaginated(
       { propertyId: PROP_A, issueId: 'a0000000-0000-4000-8000-000000000001' },
@@ -333,7 +333,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     for (const filters of [
       {
@@ -371,7 +371,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => [review.sourceId as never]),
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     const result = await filteredRepo.findFilteredPaginated(
       { attention: ['urgent'], issueId: 'a0000000-0000-4000-8000-000000000001' },
@@ -417,7 +417,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       ),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
-    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const filteredRepo = createInboxRepository(db, { ...emptyLookupPorts, aiInsights })
 
     const ids = async (attention: readonly ('urgent' | 'high' | 'medium' | 'low')[]) => {
       const page = await filteredRepo.findFilteredPaginated({ attention }, ORG_A)

@@ -1,4 +1,5 @@
 import { randomUUID as freshUuid } from 'node:crypto'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/shared/testing/google-provider-identifiers-v1'
 import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { beforeAll, afterAll, beforeEach } from 'vitest'
@@ -20,18 +21,9 @@ import {
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { Reply, Review } from '#/contexts/reputation/domain/review-types'
 import { inboxItemCreated } from '#/contexts/reputation/domain/inbox-events'
-import {
-  createAtomicInboxCommandStore as createProductionInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
-import type {
-  ReviewLookupPort,
-  ReviewSnippetResult,
-} from '#/contexts/reputation/inbox/review-lookup.port.server'
-import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
+import { createAtomicInboxCommandStore as createProductionInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { testReviewRepository } from '#/contexts/reputation/reviews/review-stores.test-fixtures'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 export const ORG_A = organizationId('org-inbox-cmd-aaaa-1111111111111111')
 export const ORG_B = organizationId('org-inbox-cmd-bbbb-2222222222222222')
@@ -49,10 +41,6 @@ export const PORTAL_A = portalId('4d000000-0000-0000-0000-000000000040')
 export const NOW = new Date('2026-06-01T12:00:00.000Z')
 export const CONSUMER = 'inbox.on-review-created'
 
-export const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
-  allowed: true,
-})
-
 export const createAtomicInboxCommandStore = (db: Database) =>
   createProductionInboxCommandStore(db, allowAllCommandAuthority)
 
@@ -65,23 +53,6 @@ export const noopLogger: LoggerPort = {
   error: () => {},
   debug: () => {},
   child: () => noopLogger,
-}
-
-// Stub enrichment ports — inbox repo owns the SQL, these just answer lookups.
-export const stubPorts = {
-  reviewLookup: {
-    getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
-      status: 'not_found',
-    }),
-    getReviewSnippetsByIds: async () => new Map(),
-    findEligibleReviewIds: async () => [] as string[],
-  } satisfies ReviewLookupPort,
-  feedbackLookup: {
-    getFeedbackSnippetById: async () => null,
-    getFeedbackSnippetsByIds: async () => new Map(),
-    findEligibleFeedbackIds: async () => [],
-  } satisfies FeedbackLookupPort,
-  propertyLookup: inertPropertyLookup,
 }
 
 export function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
