@@ -1,15 +1,41 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db/index'
 import { member } from '#/shared/db/schema/auth'
+import { prepareMemberAuthContextsWithDatabase } from '#/shared/auth/tenant-resolver'
+import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import type { ManagerMembership } from './auth-identity.port.server'
 
-export type ManagerPropertyAuthorityResolver = (
+/** One manager's current Property scope, or null when their role grants none. */
+export type ManagerPropertyAuthority = (
   input: Readonly<{
-    organizationId: string
     userId: string
     memberRole: string
   }>,
-) => Promise<ManagerMembership['propertyAccessScope'] | null>
+) => ManagerMembership['propertyAccessScope'] | null
+
+/**
+ * Reads whatever one Organization's managers share (its permission version) once,
+ * then answers per manager. A failed read rejects here, before any manager is judged.
+ */
+export type PrepareManagerPropertyAuthority = (
+  organizationId: string,
+) => Promise<ManagerPropertyAuthority>
+
+/**
+ * Tenant resolution decides each manager's authority; this reads the Organization's
+ * permission version once and asks the same decision per manager.
+ */
+export const prepareManagerPropertyAuthority =
+  (db: Database): PrepareManagerPropertyAuthority =>
+  async (organizationId) => {
+    const authorize = await prepareMemberAuthContextsWithDatabase(db, { organizationId })
+    return ({ userId, memberRole }) => {
+      const { context } = authorize({ userId, memberRole })
+      if (!canForContext(context, 'property.read')) return null
+      const scope = scopeForPermission(context, 'property.read')
+      return scope === 'none' ? null : scope
+    }
+  }
 
 const roleFromRaw = (role: string): ManagerMembership['role'] | null => {
   if (role === 'owner') return 'AccountAdmin'
@@ -33,7 +59,7 @@ export async function getMemberRole(
 
 export const createManagerMembershipRepository = (
   db: Database,
-  resolvePropertyAuthority: ManagerPropertyAuthorityResolver,
+  prepareAuthority: PrepareManagerPropertyAuthority,
 ) => ({
   isCurrentAccountAdmin: async (
     input: Readonly<{
@@ -66,22 +92,16 @@ export const createManagerMembershipRepository = (
           inArray(member.role, ['owner', 'admin']),
         ),
       )
-    const resolved = await Promise.all(
-      rows.map(async (row) => {
-        const role = roleFromRaw(row.role)
-        if (!role) return null
-        const propertyAccessScope = await resolvePropertyAuthority({
-          organizationId,
-          userId: row.userId,
-          memberRole: row.role,
-        })
-        return propertyAccessScope
-          ? ({ userId: row.userId, role, propertyAccessScope } as const)
-          : null
-      }),
-    )
-    return resolved.filter(
-      (membership): membership is ManagerMembership => membership !== null,
-    )
+    const managers = rows.flatMap((row) => {
+      const role = roleFromRaw(row.role)
+      return role ? [{ userId: row.userId, role, memberRole: row.role }] : []
+    })
+    // No manager to judge, no read: an empty Organization never touches its permission row.
+    if (managers.length === 0) return []
+    const authorityOf = await prepareAuthority(organizationId)
+    return managers.flatMap(({ userId, role, memberRole }) => {
+      const propertyAccessScope = authorityOf({ userId, memberRole })
+      return propertyAccessScope ? [{ userId, role, propertyAccessScope } as const] : []
+    })
   },
 })
