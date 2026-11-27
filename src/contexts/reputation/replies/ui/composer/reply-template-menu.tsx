@@ -181,13 +181,7 @@ export function ReplyTemplateMenu(props: ReplyTemplateMenuProps) {
   const describedBy = props.templateUnavailableReason ? reasonId : undefined
   const switchLanguage = (languageTag: string) =>
     props.onPrepareTemplateMenu(languageChoices.updateLanguage(languageTag))
-  const templates = [...props.templates].sort((left, right) =>
-    left.id === props.recommendedTemplateId
-      ? -1
-      : right.id === props.recommendedTemplateId
-        ? 1
-        : 0,
-  )
+  const { templates } = props
 
   return (
     <>
