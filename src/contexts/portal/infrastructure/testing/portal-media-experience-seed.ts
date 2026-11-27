@@ -16,6 +16,7 @@ import {
   type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
+import { GUEST_LANGUAGE_PACKS } from '#/shared/domain/guest-locale'
 import { portalMediaObjectKey } from '#/shared/domain/portal-media'
 import type { PortalMediaAsset } from '../../domain/portal-media-asset'
 import { createPortalMediaAssetRepository } from '../../media/portal-media-asset-repository.server'
@@ -124,7 +125,7 @@ export async function seedFirstSnapshot(
       'a'.repeat(64),
       SEED_AT,
       SEED_ACTOR,
-      'guest-ui-en-v1',
+      GUEST_LANGUAGE_PACKS.en.supported[0].id,
     ],
   )
 }
