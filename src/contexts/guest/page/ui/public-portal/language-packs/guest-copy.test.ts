@@ -5,7 +5,8 @@ import {
   type GuestLanguagePackV2,
   type GuestLocale,
 } from '#/shared/domain/guest-locale'
-import { formatGuestPlural, templatePlaceholders } from '../guest-copy-format'
+import { formatGuestPlural } from '../guest-copy-format'
+import { templatePlaceholders } from '../__fixtures__/template-placeholders'
 import { bgCopy } from './bg'
 import { deCopy } from './de'
 import { enCopy } from './en'

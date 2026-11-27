@@ -131,23 +131,3 @@ export function verifySvixSignature(
   }
   return { ok: false, reason: 'signature_mismatch' }
 }
-
-/**
- * Produce a valid `svix-signature` header value. Exported for tests, and for a
- * local signing stub behind RESEND_BASE_URL — not used in request handling.
- */
-export function signSvixPayload(
-  input: Readonly<{
-    id: string
-    timestamp: string
-    rawBody: string
-    signingSecret: string
-  }>,
-): string {
-  const key = secretKey(input.signingSecret)
-  if (!key) throw new Error('Malformed Svix signing secret')
-  const digest = createHmac('sha256', key)
-    .update(`${input.id}.${input.timestamp}.${input.rawBody}`)
-    .digest('base64')
-  return `v1,${digest}`
-}

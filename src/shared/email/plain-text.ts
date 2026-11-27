@@ -28,9 +28,3 @@ export const composeText = (...blocks: ReadonlyArray<TextBlock>): string => {
     .replace(/\n{3,}/g, '\n\n')
   return body === '' ? '' : `${body}\n`
 }
-
-/** Join facts onto one line with the middot separator the HTML part uses. */
-export const textFacts = (...parts: ReadonlyArray<TextBlock>): string =>
-  parts
-    .filter((part): part is string => typeof part === 'string' && part !== '')
-    .join(' · ')

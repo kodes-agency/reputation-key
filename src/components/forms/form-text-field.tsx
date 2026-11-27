@@ -78,22 +78,3 @@ export function FormTextField({
     </FormFieldFrame>
   )
 }
-
-/**
- * A field that holds `string | null` (blank is null) as the string a text field
- * edits, for a value the schema allows to be absent. The empty control is null
- * again as soon as it is cleared.
- */
-export function blankAsNull(field: {
-  name: string
-  state: { value: string | null; meta: BaseFieldApi['state']['meta'] }
-  handleBlur: () => void
-  handleChange: (value: string | null) => void
-}): BaseFieldApi {
-  return {
-    name: field.name,
-    state: { value: field.state.value ?? '', meta: field.state.meta },
-    handleBlur: field.handleBlur,
-    handleChange: (value) => field.handleChange(value === '' ? null : value),
-  }
-}

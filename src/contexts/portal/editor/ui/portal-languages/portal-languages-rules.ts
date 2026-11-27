@@ -186,11 +186,6 @@ export function describeMissingText(text: MissingPortalText): string {
   }
 }
 
-/** The editor section where a missing text is written. */
-export function missingTextSection(text: MissingPortalText): 'welcome' | 'linktree' {
-  return text.kind === 'link_label' ? 'linktree' : 'welcome'
-}
-
 /**
  * What a person does about a missing text. A link label is written in the
  * Linktree section. A title or description is missing because the property has

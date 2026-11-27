@@ -3,12 +3,8 @@
 // the tagged DomainError shape, discriminated via isDomainError.
 
 import { describe, it, expect } from 'vitest'
-import {
-  createErrorFactory,
-  createTaggedError,
-  domainError,
-  isDomainError,
-} from './errors'
+import { createErrorFactory, createTaggedError, domainError } from './errors'
+import { isDomainError } from './errors.test-fixtures'
 
 describe('domainError', () => {
   it('returns a real Error so `instanceof Error` holds', () => {

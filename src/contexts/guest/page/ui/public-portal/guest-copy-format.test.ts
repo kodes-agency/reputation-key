@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  fillGuestTemplate,
-  formatGuestPlural,
-  templatePlaceholders,
-} from './guest-copy-format'
+import { fillGuestTemplate, formatGuestPlural } from './guest-copy-format'
+import { templatePlaceholders } from './__fixtures__/template-placeholders'
 
 describe('templatePlaceholders', () => {
   it('lists each placeholder once, in order of first use', () => {

@@ -3,7 +3,6 @@ import { organizationId, propertyId, userId } from './ids'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import {
   getAccessiblePropertyIdsForPermission,
-  isPropertyAccessible,
   isPropertyAccessibleForPermission,
   mayUsePermissionOnProperties,
   mayUsePermissionsOnProperties,
@@ -96,29 +95,6 @@ describe('property access by permission scope', () => {
     ).resolves.toEqual([ASSIGNED_PROPERTY_ID])
     expect(lookup).toHaveBeenCalledTimes(4)
     expect(lookup).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID, false)
-  })
-})
-
-describe('low-level property accessibility', () => {
-  it('passes the requested scope to the lookup and handles all-properties or assigned sets', async () => {
-    const lookup = vi
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce([ASSIGNED_PROPERTY_ID])
-      .mockResolvedValueOnce([ASSIGNED_PROPERTY_ID])
-
-    await expect(
-      isPropertyAccessible(lookup, ORGANIZATION_ID, USER_ID, true, OTHER_PROPERTY_ID),
-    ).resolves.toBe(true)
-    await expect(
-      isPropertyAccessible(lookup, ORGANIZATION_ID, USER_ID, false, ASSIGNED_PROPERTY_ID),
-    ).resolves.toBe(true)
-    await expect(
-      isPropertyAccessible(lookup, ORGANIZATION_ID, USER_ID, false, OTHER_PROPERTY_ID),
-    ).resolves.toBe(false)
-    expect(lookup).toHaveBeenNthCalledWith(1, ORGANIZATION_ID, USER_ID, true)
-    expect(lookup).toHaveBeenNthCalledWith(2, ORGANIZATION_ID, USER_ID, false)
-    expect(lookup).toHaveBeenNthCalledWith(3, ORGANIZATION_ID, USER_ID, false)
   })
 })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readyProbe } from '../../src/shared/health/probes'
+import { probeBody } from '../../src/shared/health/probes'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../../src/contexts/reputation/sync/provider-subject-key-initializer.server'
 import { configureReviewProviderSubjectWriterKeys } from '../../src/contexts/reputation/sync/provider-subject-keyring.server'
 import type { Database } from '../../src/shared/db'
@@ -20,7 +20,7 @@ const checks = {
   policy: true,
 }
 const response = (status: number, values = checks) =>
-  JSON.stringify({ status, body: readyProbe(values) })
+  JSON.stringify({ status, body: probeBody(values) })
 
 describe('upgrade image activation', () => {
   it('keeps fixture key placement valid for the migrator and each runtime role', async () => {

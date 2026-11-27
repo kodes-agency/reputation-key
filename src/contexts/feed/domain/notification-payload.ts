@@ -539,10 +539,6 @@ function setRatingGoalFigures(
   set('ratingPaceWindow', takeMember(raw.ratingPaceWindow, RATING_PACE_WINDOWS))
 }
 
-/** True when the payload carries nothing worth persisting. */
-export const isEmptyNotificationPayload = (payload: NotificationPayload): boolean =>
-  Object.keys(payload).length === 0
-
 // ── Guest voice summary ─────────────────────────────────────────────
 // The Monday email and the monthly roundup state the page's three lines as fixed topics,
 // counts and a window: nothing the guests wrote and nothing boiled down from it (not the

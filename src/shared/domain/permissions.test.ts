@@ -12,7 +12,7 @@ import {
   type Permission,
 } from './permissions'
 import type { Role } from './roles'
-import { isDomainError } from './errors'
+import { isDomainError } from './errors.test-fixtures'
 
 afterEach(() => {
   // Restore the module to its uninitialized state so no lookup leaks between suites.

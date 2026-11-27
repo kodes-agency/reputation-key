@@ -10,7 +10,7 @@ import {
   identityMerchantAiChanged,
 } from './events'
 import { organizationId, userId, invitationId } from '#/shared/domain/ids'
-import { isDomainError } from '#/shared/domain/errors'
+import { isDomainError } from '#/shared/domain/errors.test-fixtures'
 import type { Role } from '#/shared/domain/roles'
 
 const ORG_ID = organizationId('org-1')

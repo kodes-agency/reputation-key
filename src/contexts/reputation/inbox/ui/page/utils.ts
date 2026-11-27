@@ -14,8 +14,6 @@
 // is due on the Property's clock, and its chip names that zone.
 import { formatDate, formatMonthDay, formatZonedTimestamp } from '#/shared/format/format'
 
-const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
-
 /** The reader's own clock: the zone of every stamp the Inbox prints itself. */
 const READER_ZONE = 'viewer'
 
@@ -79,17 +77,4 @@ export function formatCompactAge(date: Date | string, now = new Date()): string 
   // The reader's day and year, as the thread and the row's own title read it.
   const sameYear = value.getFullYear() === now.getFullYear()
   return sameYear ? (formatMonthDay(value, READER_ZONE) ?? '') : formatInboxDay(value)
-}
-
-export function formatReviewLanguage(languageCode: string | null | undefined) {
-  if (!languageCode) return null
-  try {
-    const language = new Intl.Locale(languageCode.replaceAll('_', '-')).language
-    const label = LANGUAGE_NAMES.of(language)
-    return label && label.toLocaleLowerCase() !== language.toLocaleLowerCase()
-      ? label
-      : null
-  } catch {
-    return null
-  }
 }
