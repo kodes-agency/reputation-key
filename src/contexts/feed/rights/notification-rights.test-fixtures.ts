@@ -180,13 +180,6 @@ export async function seedTenant(): Promise<Tenant> {
     )
   }
   await lease.pool.query(
-    `INSERT INTO notification_category_defaults (
-       id, user_id, organization_id, category, channel, enabled, cadence,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, 'workflow_collaboration', 'email', false, 'daily', $4, $4)`,
-    [randomUUID(), tenant.userId, tenant.organizationId, at],
-  )
-  await lease.pool.query(
     `INSERT INTO notifications (
        id, user_id, organization_id, property_id, type, category, priority, status,
        resource_type, resource_id, event_id, title, created_at, updated_at
@@ -221,7 +214,6 @@ export const RIGHTS_TABLES = [
   'notification_email_queue',
   'notification_digest_batch_members',
   'notification_preferences',
-  'notification_category_defaults',
   'notification_property_delivery_windows',
   'notification_user_settings',
   'notification_unsubscribe_scopes',

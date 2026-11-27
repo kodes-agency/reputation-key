@@ -1129,6 +1129,13 @@
       "when": 1802192408000,
       "tag": "0160_drop_inbox_handling_cycle_heads",
       "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1802193408000,
+      "tag": "0161_drop_notification_category_defaults",
+      "breakpoints": true
     }
   ]
 }

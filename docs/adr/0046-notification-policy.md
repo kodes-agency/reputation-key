@@ -340,8 +340,9 @@ Property: that is what a Property is for. What was missing is inheritance. A
 Property added or reassigned after the person configured everything else had
 no row and fell through to r.1's versioned defaults — urgent email,
 immediately, at 03:00, whatever they had chosen for every other Property.
-`notification_category_defaults` holds the person's answer per (category,
-channel), and resolution is now: the Property's own row, else that default,
+`notification_category_defaults` held the person's answer per (category,
+channel) (it was later replaced by Property-less preference rows and dropped by
+migration 0161), and resolution is now: the Property's own row, else that default,
 else r.1's versioned defaults. "Apply to all my properties" writes the default
 and clears the per-Property rows that would have overridden it.
 

@@ -4,7 +4,6 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import {
-  notificationCategoryDefaults,
   notificationPreferences,
   notificationPropertyDeliveryWindows,
   notificationUserSettings,
@@ -223,9 +222,6 @@ describe.sequential('personal notification delivery (real PostgreSQL)', () => {
     await db
       .delete(notificationPropertyDeliveryWindows)
       .where(eq(notificationPropertyDeliveryWindows.userId, USER))
-    await db
-      .delete(notificationCategoryDefaults)
-      .where(eq(notificationCategoryDefaults.userId, USER))
     await db
       .delete(notificationPreferences)
       .where(eq(notificationPreferences.userId, USER))
@@ -560,34 +556,6 @@ describe.sequential('personal notification delivery (real PostgreSQL)', () => {
     await store.resetPropertyCategory(db, USER, ORG, PROPERTY, 'recognition')
   })
 
-  it('refuses a default for a channel its category requires', async () => {
-    await expect(
-      db.insert(notificationCategoryDefaults).values({
-        userId: USER,
-        organizationId: ORG,
-        category: 'urgent_operational',
-        channel: 'in_app',
-        enabled: false,
-      }),
-    ).rejects.toMatchObject({
-      cause: { constraint: 'notification_category_defaults_required_enabled' },
-    })
-
-    await expect(
-      db.insert(notificationCategoryDefaults).values({
-        userId: USER,
-        organizationId: ORG,
-        category: 'mandatory',
-        channel: 'email',
-        enabled: true,
-      }),
-    ).rejects.toMatchObject({
-      cause: {
-        constraint: 'notification_category_defaults_configurable_category_check',
-      },
-    })
-  })
-
   it('isolates defaults, preference mutations and quiet windows by user and Organization', async () => {
     const otherOrg = organizationId('notification-preference-isolation-org')
     const otherUser = userId('notification-preference-isolation-user')
@@ -738,14 +706,6 @@ describe.sequential('personal notification delivery (real PostgreSQL)', () => {
           'workflow_collaboration',
         )
         await store.clearPropertyDeliveryWindow(db, scope.user, scope.org, scope.property)
-        await db
-          .delete(notificationCategoryDefaults)
-          .where(
-            and(
-              eq(notificationCategoryDefaults.userId, scope.user),
-              eq(notificationCategoryDefaults.organizationId, scope.org),
-            ),
-          )
       }
       await db.delete(properties).where(eq(properties.id, otherProperty))
     }
