@@ -1,4 +1,6 @@
 import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // The Inbox projection rebuild reads Google's reply truth, not only RepKey's
 // replies. A reply written directly on Google exists only as a Google reply
@@ -48,7 +50,6 @@ import { createInboxRepository } from './inbox-repository.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewSourceLookupAdapter } from '#/contexts/reputation/inbox/review-source-lookup.adapter.server'
 import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const ORG = organizationId('org-inbox-rebuild-google-reply-0001')
 const PROP = propertyId('5e100000-0000-4000-8000-000000000001')
@@ -76,20 +77,6 @@ const noopLogger: LoggerPort = {
   child: () => noopLogger,
 }
 
-const noLookups = {
-  reviewLookup: {
-    getReviewSnippetById: async () => ({ status: 'not_found' as const }),
-    getReviewSnippetsByIds: async () => new Map(),
-    findEligibleReviewIds: async () => [] as string[],
-  },
-  feedbackLookup: {
-    getFeedbackSnippetById: async () => null,
-    getFeedbackSnippetsByIds: async () => new Map(),
-    findEligibleFeedbackIds: async () => [],
-  },
-  propertyLookup: inertPropertyLookup,
-}
-
 function makeRebuild(database: Database = db) {
   const reviewRepo = createReviewRepository(
     database,
@@ -98,10 +85,8 @@ function makeRebuild(database: Database = db) {
     replyScopeEffects,
   )
   const replyRepo = createReplyRepository(database, () => NOW)
-  const repo = createInboxRepository(database, noLookups)
-  const commandStore = createAtomicInboxCommandStore(database, async () => ({
-    allowed: true,
-  }))
+  const repo = createInboxRepository(database, emptyLookupPorts)
+  const commandStore = createAtomicInboxCommandStore(database, allowAllCommandAuthority)
   const rebuild = rebuildInboxProjection({
     repo,
     commandStore,

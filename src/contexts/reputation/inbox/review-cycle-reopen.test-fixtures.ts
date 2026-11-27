@@ -4,6 +4,7 @@
 // catch-up, so the Inbox row's compare-and-set and lock are the ones production
 // uses.
 
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
@@ -75,7 +76,7 @@ const reopenManually = async (
     .limit(1)
   if (!itemRow) throw inboxError('not_found', 'Inbox item not found')
   const item = inboxItemFromRow(itemRow)
-  const store = createAtomicInboxCommandStore(db, async () => ({ allowed: true }))
+  const store = createAtomicInboxCommandStore(db, allowAllCommandAuthority)
   await store.reopenReviewCycle({
     item,
     expected: {

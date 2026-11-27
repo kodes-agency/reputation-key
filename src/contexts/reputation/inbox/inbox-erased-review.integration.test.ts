@@ -1,4 +1,6 @@
 import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Inbox context — an Inbox item whose Review Google deleted.
 // Real PostgreSQL behind the real Review repository.
@@ -39,15 +41,12 @@ import { updateInboxStatus } from '#/contexts/reputation/inbox/update-inbox-stat
 import { bulkUpdateInboxStatus } from '#/contexts/reputation/inbox/bulk-update-inbox-status.server'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import type { ReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.port.server'
-import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
-import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import { createReviewSourceLookupAdapter } from '#/contexts/reputation/inbox/review-source-lookup.adapter.server'
 import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-lookup.adapter.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createInboxRepository } from './inbox-repository.server'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const ORG = organizationId('org-inbox-erased-review-1111111111')
 const PROPERTY = propertyId('7e300000-0000-4000-8000-000000000001')
@@ -70,18 +69,11 @@ const db = getDb()
 const logger = createMockLogger()
 const reviewRepo = createReviewRepository(db, () => NOW, undefined, replyScopeEffects)
 const replyRepo = createReplyRepository(db, () => NOW)
-const commandStore = createAtomicInboxCommandStore(db, async () => ({ allowed: true }))
+const commandStore = createAtomicInboxCommandStore(db, allowAllCommandAuthority)
 
-const feedbackLookup: FeedbackLookupPort = {
-  getFeedbackSnippetById: async () => null,
-  getFeedbackSnippetsByIds: async () => new Map(),
-  findEligibleFeedbackIds: async () => [],
-}
-const propertyLookup: PropertyLookupPort = inertPropertyLookup
 const inboxRepo = createInboxRepository(db, {
+  ...emptyLookupPorts,
   reviewLookup: createEligibleReads({ reviewRepo, clock: () => NOW }),
-  feedbackLookup,
-  propertyLookup,
 })
 const reviewSourceLookup = createReviewSourceLookupAdapter({
   findById: (id, orgId) => reviewRepo.findById(id, orgId),

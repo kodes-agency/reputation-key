@@ -1,4 +1,5 @@
 import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
@@ -13,10 +14,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/inbox-types'
-import {
-  createAtomicInboxCommandStore as createProductionInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore as createProductionInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewHandlingCycleStore } from './review-handling-cycle-store.server'
 
 const ORG_ID = organizationId('org-inbox-cycles-0000000000000001')
@@ -27,10 +25,6 @@ const USER_ID = userId('user-inbox-cycles-000000000000001')
 const OPENED_AT = new Date('2026-08-26T10:00:00.000Z')
 const db = getDb()
 let pool: Pool
-
-const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
-  allowed: true,
-})
 
 const createAtomicInboxCommandStore = (database: Database) =>
   createProductionInboxCommandStore(database, allowAllCommandAuthority)

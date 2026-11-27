@@ -12,6 +12,7 @@
 // delivered slot bills the tenant an alert every five minutes forever, and the
 // symptom in production is indistinguishable from a busy Inbox.
 
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { recordOutboxFact } from '#/shared/testing/outbox-fact-fixture'
 import { Pool } from 'pg'
@@ -41,10 +42,7 @@ import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup
 import { releaseDueResponseTargetReminders } from './release-reminders.server'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
-import {
-  createAtomicInboxCommandStore as createProductionInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore as createProductionInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 import { createResponseTargetStore } from './store.server'
 
@@ -67,8 +65,6 @@ const WELL_PAST_TARGET = new Date('2026-09-27T12:00:00.000Z')
 
 const db = getDb()
 let pool: Pool
-
-const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
 const commandStore = (database: Database) =>
   createProductionInboxCommandStore(database, allowAllCommandAuthority)

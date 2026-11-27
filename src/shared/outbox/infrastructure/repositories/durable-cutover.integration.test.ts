@@ -1,4 +1,5 @@
 import { reviewOpeningAnchor } from '#/contexts/reputation/inbox/review-opening-anchor.test-fixtures'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { replyScopeEffects } from '#/contexts/reputation/public-api'
 // Outbox delivery end-to-end proof (real PostgreSQL + real BullMQ/Redis).
 //
@@ -82,10 +83,8 @@ import { createReplyLookupAdapter } from '#/contexts/reputation/inbox/reply-look
 import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import { createInboxItem as buildInboxItem } from '#/contexts/reputation/domain/inbox-constructors'
-import type { ReviewSnippetResult } from '#/contexts/reputation/inbox/review-lookup.port.server'
 import type { ReviewSourceLookupPort } from '#/contexts/reputation/inbox/review-source-lookup.port.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
@@ -170,22 +169,6 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
     createdAt: reviewedAt,
     updatedAt: reviewedAt,
   }
-}
-
-const stubEnrichmentPorts = {
-  reviewLookup: {
-    getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
-      status: 'not_found',
-    }),
-    getReviewSnippetsByIds: async () => new Map(),
-    findEligibleReviewIds: async () => [] as string[],
-  },
-  feedbackLookup: {
-    getFeedbackSnippetById: async () => null,
-    getFeedbackSnippetsByIds: async () => new Map(),
-    findEligibleFeedbackIds: async () => [],
-  },
-  propertyLookup: inertPropertyLookup,
 }
 
 function makeReviewSourceLookup(): ReviewSourceLookupPort {
@@ -395,7 +378,7 @@ beforeAll(async () => {
     replyObservationAuthority: createReviewReplyObservationAuthority(db),
     responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: createReviewSourceTransitionAuthority(db),
-    inboxRepo: createInboxRepository(db, stubEnrichmentPorts),
+    inboxRepo: createInboxRepository(db, emptyLookupPorts),
     idGen,
     clock: () => consumerNow,
     logger: noopLogger,
@@ -644,7 +627,7 @@ describe.sequential('outbox delivery end-to-end proof', () => {
     expect(observedProjection).toMatchObject({ status: 'closed' })
 
     const rebuild = rebuildInboxProjection({
-      repo: createInboxRepository(db, stubEnrichmentPorts),
+      repo: createInboxRepository(db, emptyLookupPorts),
       commandStore: createAtomicInboxCommandStore(db, allowAllInboxCommandAuthority),
       reviewSourceLookup: makeReviewSourceLookup(),
       replyLookup: makeReplyLookup(),

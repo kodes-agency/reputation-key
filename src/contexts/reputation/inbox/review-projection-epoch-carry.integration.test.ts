@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { getDb } from '#/shared/db'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -13,7 +15,6 @@ import {
   handleInboxReviewUpdated,
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 /**
  * Archive/Restore, a Google relink and disconnect/reconnect advance the source
@@ -139,32 +140,16 @@ async function seedReview(): Promise<void> {
 }
 
 const obsolete = { withExactCurrent: async () => ({ status: 'obsolete' as const }) }
-const lookups = {
-  reviewLookup: {
-    getReviewSnippetById: async () => ({ status: 'not_found' as const }),
-    getReviewSnippetsByIds: async () => new Map(),
-    findEligibleReviewIds: async () => [],
-  },
-  feedbackLookup: {
-    getFeedbackSnippetById: async () => null,
-    getFeedbackSnippetsByIds: async () => new Map(),
-    findEligibleFeedbackIds: async () => [],
-  },
-  propertyLookup: inertPropertyLookup,
-}
-
 function deps(): InboxConsumerDeps {
   const database = getDb()
   const clock = () => DELIVERED_AT
   return {
-    commandStore: createAtomicInboxCommandStore(database, async () => ({
-      allowed: true,
-    })),
+    commandStore: createAtomicInboxCommandStore(database, allowAllCommandAuthority),
     handlingCycleStore: createReviewHandlingCycleStore(database),
     replyObservationAuthority: obsolete,
     responseTargetAuthority: createReviewResponseTargetAuthority(database),
     sourceTransitionAuthority: obsolete,
-    inboxRepo: createInboxRepository(database, lookups),
+    inboxRepo: createInboxRepository(database, emptyLookupPorts),
     idGen: () => ITEM,
     clock,
     logger: createMockLogger(),

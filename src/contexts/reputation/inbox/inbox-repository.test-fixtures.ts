@@ -1,11 +1,9 @@
 import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { randomUUID as freshUuid } from 'node:crypto'
 import { beforeAll, beforeEach, afterAll } from 'vitest'
 import { createInboxRepository as createProductionInboxRepository } from './inbox-repository.server'
-import type {
-  ReviewLookupPort,
-  ReviewSnippetResult,
-} from '#/contexts/reputation/inbox/review-lookup.port.server'
+import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
 import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
 import type { PropertyLookupPort } from '#/contexts/reputation/inbox/property-lookup.port.server'
 import type { AiReviewInsightsPort } from '#/contexts/reputation/inbox/ai-review-insights.port.server'
@@ -19,13 +17,9 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import type { Database } from '#/shared/db'
-import {
-  createAtomicInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 export const ORG_A = organizationId('org-inbox-test-aaaa-1111111111111111')
 export const ORG_B = organizationId('org-inbox-test-bbbb-2222222222222222')
@@ -38,27 +32,6 @@ export const TEST_NOW = new Date('2026-06-01T12:00:00.000Z')
 
 export let pool: Pool
 export const db = getDb()
-
-export const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
-  allowed: true,
-})
-
-// Stub lookup ports — inbox repo owns the SQL, these just provide enrichment data
-export const stubPorts = {
-  reviewLookup: {
-    getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
-      status: 'not_found',
-    }),
-    getReviewSnippetsByIds: async () => new Map(),
-    findEligibleReviewIds: async () => [] as string[],
-  } satisfies ReviewLookupPort,
-  feedbackLookup: {
-    getFeedbackSnippetById: async () => null,
-    getFeedbackSnippetsByIds: async () => new Map(),
-    findEligibleFeedbackIds: async () => [],
-  } satisfies FeedbackLookupPort,
-  propertyLookup: inertPropertyLookup,
-}
 
 export type RepositoryPorts = Readonly<{
   reviewLookup: ReviewLookupPort

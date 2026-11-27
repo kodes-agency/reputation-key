@@ -1,4 +1,6 @@
 import { reviewOpeningAnchor } from './review-opening-anchor.test-fixtures'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { openNextReviewCycleForTest } from '#/contexts/reputation/inbox/review-cycle-reopen.test-fixtures'
 import { afterAll, beforeAll, beforeEach, expect, vi } from 'vitest'
 import type { Pool } from 'pg'
@@ -14,10 +16,7 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/reputation/domain/inbox-types'
 import { inboxItemStatusChanged } from '#/contexts/reputation/domain/inbox-events'
-import {
-  createAtomicInboxCommandStore as createProductionInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore as createProductionInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
@@ -27,10 +26,7 @@ import type { ReviewCurrentReplyObservationPermit } from '#/contexts/reputation/
 import type { InboxConsumerDeps } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { createReviewHandlingCycleStore } from '#/contexts/reputation/inbox/review-handling-cycle-store.server'
 import type { ConsumerEvent } from '#/shared/outbox'
-import type { ReviewLookupPort } from '#/contexts/reputation/inbox/review-lookup.port.server'
-import type { FeedbackLookupPort } from '#/contexts/reputation/inbox/feedback-lookup.port.server'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 export const ORG = organizationId('org-inbox-reply-observation')
 export const PROPERTY = propertyId('b2000000-0000-0000-0000-000000000001')
@@ -74,9 +70,6 @@ export const measuredResponseTargetPermit = (startAt: Date = OPENED_AT) => ({
   targetStart: { basis: 'review_provenance' as const },
 })
 
-const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
-  allowed: true,
-})
 export const logger = createMockLogger()
 
 export const createAtomicInboxCommandStore = (database: Database) =>
@@ -426,20 +419,7 @@ export function observedEvent(eventId: string, observation: Observation): Consum
 
 export function consumerDeps(): InboxConsumerDeps {
   const commandStore = createAtomicInboxCommandStore(getDb())
-  const reviewLookup = {
-    getReviewSnippetById: async () => ({ status: 'not_found' as const }),
-    getReviewSnippetsByIds: async () => new Map(),
-    findEligibleReviewIds: async () => [],
-  } satisfies ReviewLookupPort
-  const inboxRepo = createInboxRepository(getDb(), {
-    reviewLookup,
-    feedbackLookup: {
-      getFeedbackSnippetById: async () => null,
-      getFeedbackSnippetsByIds: async () => new Map(),
-      findEligibleFeedbackIds: async () => [],
-    } satisfies FeedbackLookupPort,
-    propertyLookup: inertPropertyLookup,
-  })
+  const inboxRepo = createInboxRepository(getDb(), emptyLookupPorts)
   return {
     commandStore,
     handlingCycleStore: createReviewHandlingCycleStore(getDb()),
