@@ -120,7 +120,7 @@ async function seeded() {
     // Feedback is never analysed: a seeded value there is not a suggestion.
     item('feedback-stray', 'feedback', { attention: 'urgent', managerPriority: null }),
   ]
-  const { repo, seed } = createInboxUseCaseDatabase(pool, () => AT, insightsFor(items))
+  const { repo, seed } = createInboxUseCaseDatabase(pool, insightsFor(items))
   await seed(...items)
   for (const entry of items) {
     if (!entry.managerPriority) continue
@@ -161,7 +161,7 @@ describe.sequential('Inbox repository on PostgreSQL: the Priority filter', () =>
 
   it('starts every created item with no level, as an insert does', async () => {
     const created = item('new', 'review', { attention: null, managerPriority: 'urgent' })
-    const { repo, seed } = createInboxUseCaseDatabase(pool, () => AT)
+    const { repo, seed } = createInboxUseCaseDatabase(pool)
     await seed(created)
 
     expect(await repo.findById(created.id, ORG)).toMatchObject({

@@ -40,7 +40,7 @@ let seed: ReturnType<typeof createInboxUseCaseDatabase>['seed']
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
-  ;({ repo, seed } = createInboxUseCaseDatabase(pool, () => AT))
+  ;({ repo, seed } = createInboxUseCaseDatabase(pool))
   await seedInboxOrganization(pool, ORG_ID, [PROP_ID, OTHER_PROP_ID])
 })
 

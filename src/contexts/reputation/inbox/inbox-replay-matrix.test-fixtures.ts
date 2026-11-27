@@ -465,11 +465,11 @@ const inboxStores = (feedbackLookup: FeedbackLookupPort) => {
   const database: Database = getDb()
   return {
     commandStore: createAtomicInboxCommandStore(database, allowAllCommandAuthority),
-    inboxRepo: createInboxRepository(
-      database,
-      { reviewLookup, feedbackLookup, propertyLookup },
-      { clock: () => AT.consumerClock, logger: createMockLogger() },
-    ),
+    inboxRepo: createInboxRepository(database, {
+      reviewLookup,
+      feedbackLookup,
+      propertyLookup,
+    }),
   }
 }
 

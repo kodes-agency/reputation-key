@@ -1,13 +1,9 @@
-// InboxCachePolicy tests — the invalidation topology, BullMQ-lag constant, and
+// InboxCachePolicy tests — the invalidation topology and
 // reply-poll predicate that useInboxDetail (and future inbox UI) no longer know.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
-import {
-  BULLMQ_ACTIVITY_LAG_MS,
-  inboxCachePolicy,
-  mergeInboxCommandItem,
-} from './inbox-cache-policy'
+import { inboxCachePolicy, mergeInboxCommandItem } from './inbox-cache-policy'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import type { InboxItem, InboxItemDetailResult } from '#/contexts/reputation/public-api'
 
@@ -61,11 +57,7 @@ describe('inbox key topology (pinned)', () => {
       inboxKeys.details().every((part, index) => Object.is(part, key[index]))
 
     expect(reaches(inboxKeys.detail(ID))).toBe(true)
-    for (const sibling of [
-      inboxKeys.notes(ID),
-      inboxKeys.activity(ID),
-      inboxKeys.history(ID),
-    ]) {
+    for (const sibling of [inboxKeys.notes(ID), inboxKeys.history(ID)]) {
       expect(reaches(sibling)).toBe(false)
     }
   })
@@ -152,29 +144,15 @@ describe('inboxCachePolicy.onItemStatusChanged', () => {
     expect(invalidated).toContainEqual(inboxKeys.lastVisitCount())
   })
 
-  it('re-invalidates activity only after the BullMQ lag', () => {
-    const { qc, invalidated } = makeFakeQc()
-
-    inboxCachePolicy.onItemStatusChanged(qc, updated)
-    // Not yet — the activity row is inserted ~2s after the status change.
-    expect(invalidated).not.toContainEqual(inboxKeys.activity(ID))
-
-    vi.advanceTimersByTime(BULLMQ_ACTIVITY_LAG_MS)
-    expect(invalidated).toContainEqual(inboxKeys.activity(ID))
-  })
-
   // Close, reopen, assign, escalate and resolve-escalation all resolve through
   // this handler and all append a Handling History row in the command's own
-  // transaction, so the detail thread must refetch without waiting for a lag.
-  it('invalidates handling history immediately, not after the BullMQ lag', () => {
+  // transaction, so the detail thread must refetch immediately.
+  it('invalidates handling history immediately', () => {
     const { qc, invalidated } = makeFakeQc()
 
     inboxCachePolicy.onItemStatusChanged(qc, updated)
 
     expect(invalidated).toContainEqual(inboxKeys.history(ID))
-    // Pin the contrast with activity: history is already readable, so waiting
-    // would leave the thread a row behind the strip for 2.5s.
-    expect(invalidated).not.toContainEqual(inboxKeys.activity(ID))
   })
 })
 
@@ -322,8 +300,6 @@ describe('inboxCachePolicy.onNoteAdded', () => {
     const retained = setDataCalls[0]!.updater(newer) as InboxItemDetailResult
     expect(retained.item.commandRevision).toBe(7)
 
-    vi.advanceTimersByTime(BULLMQ_ACTIVITY_LAG_MS)
-    expect(invalidated).toContainEqual(inboxKeys.activity(ID))
     expect(invalidated).not.toContainEqual(inboxKeys.detail(ID))
   })
 })

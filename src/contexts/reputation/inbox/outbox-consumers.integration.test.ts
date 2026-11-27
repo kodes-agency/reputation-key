@@ -95,6 +95,7 @@ describe('handleInboxReplySubmitted (first-reply milestone)', () => {
       before.id,
       before.organizationId,
       { firstReplySubmittedAt: new Date('2026-06-17T00:00:00.000Z') },
+      new Date('2026-06-18T00:00:00.000Z'),
     )
 
     expect(result).toBeNull()

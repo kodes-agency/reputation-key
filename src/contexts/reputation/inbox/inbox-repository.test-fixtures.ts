@@ -25,7 +25,6 @@ import {
 } from '#/contexts/reputation/inbox/command-store.server'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 export const ORG_A = organizationId('org-inbox-test-aaaa-1111111111111111')
@@ -36,7 +35,6 @@ export const PROP_B = propertyId('1b000000-0000-0000-0000-000000000002')
 export const USER_A = userId('user-inbox-test-aaaa-1111111111111111')
 export const REVIEW_ID_A = '11111111-1111-1111-1111-111111111111'
 export const TEST_NOW = new Date('2026-06-01T12:00:00.000Z')
-export const repositoryRuntime = { clock: () => TEST_NOW, logger: createMockLogger() }
 
 export let pool: Pool
 export const db = getDb()
@@ -74,7 +72,7 @@ export type RepositoryPorts = Readonly<{
  * Cycle path as production. Orphan/repair fixtures omit the initial anchor.
  */
 export function createInboxRepository(database: Database, ports: RepositoryPorts) {
-  const repository = createProductionInboxRepository(database, ports, repositoryRuntime)
+  const repository = createProductionInboxRepository(database, ports)
   return {
     ...repository,
     seedItem: async (item: InboxItem) => {

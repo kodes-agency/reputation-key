@@ -24,7 +24,6 @@ import {
   createAtomicInboxCommandStore,
   db,
   noopLogger,
-  repositoryRuntime,
   stubPorts,
   makeItem,
   makeReview,
@@ -42,7 +41,7 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
   function makeRebuild() {
     const reviewRepo = testReviewRepository(db)
     const replyRepo = createReplyRepository(db, () => new Date())
-    const repo = createInboxRepository(db, stubPorts, repositoryRuntime)
+    const repo = createInboxRepository(db, stubPorts)
     const commandStore = createAtomicInboxCommandStore(db)
     const useCase = rebuildInboxProjection({
       repo,
@@ -340,7 +339,7 @@ describe.sequential('inboxCommandStore lent transaction (integration)', () => {
   it('reads through the lent transaction see the outer writes that other connections do not', async () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
-    const repo = createInboxRepository(db, stubPorts, repositoryRuntime)
+    const repo = createInboxRepository(db, stubPorts)
     const cycles = createReviewHandlingCycleStore(db)
     const item = makeItem()
 

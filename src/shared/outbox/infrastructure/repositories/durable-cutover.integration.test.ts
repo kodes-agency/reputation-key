@@ -395,10 +395,7 @@ beforeAll(async () => {
     replyObservationAuthority: createReviewReplyObservationAuthority(db),
     responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: createReviewSourceTransitionAuthority(db),
-    inboxRepo: createInboxRepository(db, stubEnrichmentPorts, {
-      clock: () => consumerNow,
-      logger: noopLogger,
-    }),
+    inboxRepo: createInboxRepository(db, stubEnrichmentPorts),
     idGen,
     clock: () => consumerNow,
     logger: noopLogger,
@@ -647,10 +644,7 @@ describe.sequential('outbox delivery end-to-end proof', () => {
     expect(observedProjection).toMatchObject({ status: 'closed' })
 
     const rebuild = rebuildInboxProjection({
-      repo: createInboxRepository(db, stubEnrichmentPorts, {
-        clock: () => REBUILD_AT,
-        logger: noopLogger,
-      }),
+      repo: createInboxRepository(db, stubEnrichmentPorts),
       commandStore: createAtomicInboxCommandStore(db, allowAllInboxCommandAuthority),
       reviewSourceLookup: makeReviewSourceLookup(),
       replyLookup: makeReplyLookup(),

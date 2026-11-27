@@ -87,7 +87,7 @@ describe.sequential('bulkAssignInboxItems', () => {
   let pool: Pool
 
   const setup = (accessible: readonly ReturnType<typeof propertyId>[] | null = null) => {
-    const repo = createUseCaseInboxRepository(db, () => NOW)
+    const repo = createUseCaseInboxRepository(db)
     const commandStore = createUseCaseCommandStore(db)
     const execute = bulkAssignInboxItems({
       repo,

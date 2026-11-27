@@ -23,7 +23,6 @@ import {
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type {
   InboxRepository,
@@ -56,11 +55,6 @@ import {
   reviewItemDetail,
 } from '#/contexts/reputation/inbox/inbox-detail-mapper.server'
 import { trace } from '#/shared/observability/trace'
-
-export type InboxRepositoryRuntime = Readonly<{
-  clock: () => Date
-  logger: LoggerPort
-}>
 
 /**
  * Source rows are actionable only while they carry a current Handling Cycle.
@@ -120,10 +114,7 @@ async function resolveFilterConditions(
 export const createInboxRepository = (
   db: Database,
   ports: LookupPorts,
-  runtime: InboxRepositoryRuntime,
 ): InboxRepository => {
-  const log = runtime.logger.child({ component: 'inbox-repo' })
-
   const readItemRow = async (
     id: InboxItemId,
     orgId: OrganizationId,
@@ -145,14 +136,7 @@ export const createInboxRepository = (
   return {
     findById: async (id: InboxItemId, orgId: OrganizationId) => {
       return trace('inbox.findById', async () => {
-        const start = runtime.clock().getTime()
-        log.debug('querying inbox findById')
-        const item = await readItemRow(id, orgId)
-        log.debug(
-          { duration: runtime.clock().getTime() - start },
-          'inbox findById complete',
-        )
-        return item
+        return readItemRow(id, orgId)
       })
     },
 
@@ -225,8 +209,6 @@ export const createInboxRepository = (
       limit: number = 50,
     ) => {
       return trace('inbox.findFilteredPaginated', async () => {
-        const start = runtime.clock().getTime()
-        log.debug({ limit }, 'querying inbox findFilteredPaginated')
         const conditions = await resolveFilterConditions(ports, orgId, filters)
         if (conditions === null)
           return {
@@ -331,15 +313,6 @@ export const createInboxRepository = (
             ? { sourceDate: lastItem.sourceDate, id: lastItem.id }
             : null
 
-        log.debug(
-          {
-            itemCount: items.length,
-            hasNext,
-            duration: runtime.clock().getTime() - start,
-          },
-          'inbox findFilteredPaginated complete',
-        )
-
         return { items, nextCursor, totalCount } as PaginatedResult
       })
     },
@@ -379,7 +352,7 @@ export const createInboxRepository = (
         firstReplySubmittedAt?: Date
         firstReplyPublishedAt?: Date
       }>,
-      now?: Date,
+      now: Date,
     ) => {
       return trace('inbox.stampReplyMilestones', async () => {
         // No `status` key is constructible here — that is the whole point.
@@ -405,7 +378,7 @@ export const createInboxRepository = (
                 }
               : {}),
             commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
-            updatedAt: now ?? runtime.clock(),
+            updatedAt: now,
           })
           .where(and(...conditions))
           .returning()
@@ -453,8 +426,6 @@ export const createInboxRepository = (
       loaded?: InboxItem,
     ) => {
       return trace('inbox.findDetailById', async () => {
-        const start = runtime.clock().getTime()
-        log.debug('querying inbox findDetailById')
         const item = loaded ?? (await readItemRow(id, orgId))
         if (!item) return null
 
@@ -471,13 +442,6 @@ export const createInboxRepository = (
             reviewId(item.sourceId),
             orgId,
           )
-          log.debug(
-            {
-              contentStatus: result.status,
-              duration: runtime.clock().getTime() - start,
-            },
-            'inbox findDetailById review enrichment',
-          )
           return reviewItemDetail({ ...item, propertyName }, result)
         }
 
@@ -485,10 +449,6 @@ export const createInboxRepository = (
         const snippet = await ports.feedbackLookup.getFeedbackSnippetById(
           feedbackId(item.sourceId),
           orgId,
-        )
-        log.debug(
-          { duration: runtime.clock().getTime() - start },
-          'inbox findDetailById complete',
         )
         return feedbackItemDetail({ ...item, propertyName }, snippet)
       })

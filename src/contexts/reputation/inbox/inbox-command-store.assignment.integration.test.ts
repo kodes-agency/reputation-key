@@ -23,7 +23,6 @@ import {
   NOW,
   createAtomicInboxCommandStore,
   db,
-  repositoryRuntime,
   stubPorts,
   makeItem,
   makeReview,
@@ -36,7 +35,7 @@ useInboxCommandStoreDb()
 
 describe.sequential('inboxCommandStore applyOnce (integration)', () => {
   it('eligibility reconciliation releases only denied Property assignments and is retry-safe', async () => {
-    const repo = createInboxRepository(db, stubPorts, repositoryRuntime)
+    const repo = createInboxRepository(db, stubPorts)
     const denied = makeItem({
       id: inboxItemId('4d000000-0000-0000-0000-000000000021'),
       propertyId: PROP_A,
@@ -428,7 +427,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
               occurredAt: at,
             }),
           ).resolves.toMatchObject({ updated: 1 })
-          const repo = createInboxRepository(db, stubPorts, repositoryRuntime)
+          const repo = createInboxRepository(db, stubPorts)
           item = (await repo.findById(item.id, ORG_A))!
         }
       }

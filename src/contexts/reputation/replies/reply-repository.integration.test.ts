@@ -519,7 +519,7 @@ describe.sequential('replyRepository (integration)', () => {
             snippet: null,
           },
         })
-      const inbox = createInboxUseCaseDatabase(getPool(), () => now)
+      const inbox = createInboxUseCaseDatabase(getPool())
       const inboxRepo = inbox.repo
       await inbox.seed(itemFor(checked), itemFor(stopped))
       const staffPublicApi = {
