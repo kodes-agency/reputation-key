@@ -19,7 +19,7 @@ import type {
   ReplyLibraryRepository,
   ReplyLibrarySnapshot,
 } from './reply-library-repository.port.server'
-import { resolveReplyLibraryTemplates } from './reply-library-resolver.contracts'
+import { resolveSnapshotTemplates } from './reply-library-resolver.contracts'
 import { reviewError } from '../domain/review-errors'
 
 type ReplyLibraryDeps = Readonly<{
@@ -70,12 +70,7 @@ function publicLibrary(snapshot: ReplyLibrarySnapshot): ReplyLibraryDto {
       account: snapshot.accountVoice?.version ?? 0,
       property: snapshot.propertyVoice?.version ?? 0,
     },
-    templates: resolveReplyLibraryTemplates({
-      builtin: BUILTIN_REPLY_LIBRARY,
-      accountTemplates: snapshot.accountTemplates,
-      propertyTemplates: snapshot.propertyTemplates,
-      visibility: snapshot.visibility,
-    }),
+    templates: resolveSnapshotTemplates(snapshot),
     supportedLanguages: REPLY_TEMPLATE_LANGUAGE_GROUPS,
   }
 }
@@ -157,12 +152,7 @@ export const saveReplyTemplate =
     assertSafeTemplate(input)
     if (
       input.base !== undefined &&
-      !resolveReplyLibraryTemplates({
-        builtin: BUILTIN_REPLY_LIBRARY,
-        accountTemplates: snapshot.accountTemplates,
-        propertyTemplates: snapshot.propertyTemplates,
-        visibility: snapshot.visibility,
-      }).some(({ ref }) => ref === input.base)
+      !resolveSnapshotTemplates(snapshot).some(({ ref }) => ref === input.base)
     ) {
       throw reviewError('invalid_input', 'Reply template base is unavailable')
     }
@@ -216,12 +206,7 @@ export const setReplyTemplateHidden =
           snapshot.accountTemplates.some(
             ({ id: templateId }) => input.ref === `template:${templateId}`,
           )
-        : resolveReplyLibraryTemplates({
-            builtin: BUILTIN_REPLY_LIBRARY,
-            accountTemplates: snapshot.accountTemplates,
-            propertyTemplates: snapshot.propertyTemplates,
-            visibility: snapshot.visibility,
-          }).some(({ ref }) => ref === input.ref)
+        : resolveSnapshotTemplates(snapshot).some(({ ref }) => ref === input.ref)
     if (!exists) throw reviewError('invalid_input', 'Reply template is unavailable')
     await deps.repository.setHidden({
       organizationId: ctx.organizationId,
