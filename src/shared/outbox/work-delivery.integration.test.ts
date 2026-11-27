@@ -95,12 +95,10 @@ describe('durable outbox delivery through PostgreSQL', () => {
     })
     initDelayedExecutionPolicy({
       decide: async (request) => ({
-        outcome: 'allow',
         allowed: true,
         reason: 'allowed',
         action: request.action,
         policyVersion: 'test',
-        freshRead: false,
       }),
     })
   })

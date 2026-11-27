@@ -362,7 +362,6 @@ describe.sequential(
         action: 'system:property.release_member_responsibility',
         capability: 'none',
         resourceScope: 'organization',
-        externalEffect: false,
       })
       expect(capabilityForSystemAction(row!.action)).toBe('none')
     })

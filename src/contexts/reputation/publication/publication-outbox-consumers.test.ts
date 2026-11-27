@@ -373,7 +373,6 @@ describe('google account disconnected consumer authorization', () => {
       action: 'system:review.cancel_connection_publications',
       capability: 'none',
       resourceScope: 'organization',
-      externalEffect: false,
     })
     expect(capabilityForSystemAction(row!.action)).toBe('none')
   })
@@ -540,7 +539,6 @@ describe('property archived consumer authorization', () => {
       action: 'system:review.cancel_property_publications',
       capability: 'none',
       resourceScope: 'property',
-      externalEffect: false,
     })
     expect(capabilityForSystemAction(row!.action)).toBe('none')
   })

@@ -51,7 +51,6 @@ const PUBLISH_ENVELOPE = {
   propertyId: PROP,
   capability: 'property.publish_reply',
   initiator: { kind: 'user', id: 'user-9' },
-  policyVersionAtEnqueue: 'bqc-0.3',
 }
 
 describe('publish-reply through the delayed execution gate (§6: revocation/suspension between enqueue and send)', () => {
@@ -85,7 +84,7 @@ describe('publish-reply through the delayed execution gate (§6: revocation/susp
     expect(outcome.reason).toBe('capability_disabled')
   })
 
-  it('current policy still allows → allow (external effect requires the fresh read)', async () => {
+  it('current policy still allows → allow', async () => {
     installRealPolicy(fixtureEnv('current allow'))
 
     const outcome = await gateJob(
@@ -96,6 +95,5 @@ describe('publish-reply through the delayed execution gate (§6: revocation/susp
     )
 
     expect(outcome.allowed).toBe(true)
-    expect(outcome.freshRead).toBe(true)
   })
 })

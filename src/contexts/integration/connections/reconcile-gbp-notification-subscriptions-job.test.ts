@@ -197,7 +197,6 @@ describe('reconcile-gbp-notification-subscriptions job', () => {
         action: ACTION,
         capability: 'property.connect_gbp',
         resourceScope: 'tenant_cross',
-        externalEffect: true,
       },
       {
         kind: 'schedule',
@@ -205,7 +204,6 @@ describe('reconcile-gbp-notification-subscriptions job', () => {
         action: ACTION,
         capability: 'property.connect_gbp',
         resourceScope: 'tenant_cross',
-        externalEffect: true,
       },
     ])
   })

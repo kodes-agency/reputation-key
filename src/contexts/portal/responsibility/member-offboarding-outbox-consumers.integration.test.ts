@@ -372,7 +372,6 @@ describe.sequential('Portal responsibility across a member removal (PostgreSQL)'
       action: 'system:portal.release_member_responsibility',
       capability: 'none',
       resourceScope: 'organization',
-      externalEffect: false,
     })
     expect(capabilityForSystemAction(row!.action)).toBe('none')
   })

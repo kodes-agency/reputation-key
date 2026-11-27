@@ -30,7 +30,6 @@ describe('Inbox Property lifecycle consumer authorization', () => {
       action: 'system:inbox.cancel_property_reminders',
       capability: 'none',
       resourceScope: 'property',
-      externalEffect: false,
     })
     expect(capabilityForSystemAction(row!.action)).toBe('none')
   })

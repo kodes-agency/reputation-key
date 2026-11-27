@@ -44,10 +44,6 @@ export type JobDefinition = Readonly<{
   action: SystemAction
   /** What the authorization decision must scope to. */
   scope: ResourceScope
-  /** True when execution causes an external side effect (GBP, email, OAuth, S3). */
-  externalEffect: boolean
-  /** The recurring schedule's own externalEffect, when it differs from the job's. */
-  scheduleExternalEffect?: boolean
   registration: JobRegistration
   /**
    * 'domain': a quarantined run converges through its owning domain state
@@ -61,8 +57,6 @@ type JobBase = Readonly<{
   capability: Capability | 'none'
   action: SystemAction
   scope: ResourceScope
-  externalEffect?: boolean
-  scheduleExternalEffect?: boolean
   schedule: string
   registration: JobRegistration
   redrive?: 'queue' | 'domain'
@@ -88,10 +82,6 @@ function defineJob(
     capability: base.capability,
     action: base.action,
     scope: base.scope,
-    externalEffect: base.externalEffect ?? false,
-    ...(base.scheduleExternalEffect === undefined
-      ? {}
-      : { scheduleExternalEffect: base.scheduleExternalEffect }),
     registration: base.registration,
     redrive: base.redrive ?? 'queue',
     ...opts,
@@ -107,7 +97,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
       capability: 'property.import_gbp_v2',
       action: 'system:property.import_v2',
       scope: 'organization',
-      externalEffect: true,
       schedule: 'none',
       registration: 'enabled',
       redrive: 'domain',
@@ -122,7 +111,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
       capability: 'property.connect_gbp',
       action: 'system:review.sync',
       scope: 'property',
-      externalEffect: true,
       schedule: 'none',
       registration: 'enabled',
     },
@@ -206,7 +194,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
       capability: 'property.publish_reply',
       action: 'system:reply.publish',
       scope: 'property',
-      externalEffect: true,
       schedule: 'none',
       registration: 'enabled',
     },
@@ -221,7 +208,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
     capability: 'notification.send_email',
     action: 'system:notification.email_urgent',
     scope: 'organization',
-    externalEffect: true,
     schedule: 'none',
     registration: 'enabled',
   }),
@@ -236,7 +222,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
     capability: 'notification.send_mandatory_email',
     action: 'system:notification.email_mandatory',
     scope: 'organization',
-    externalEffect: true,
     schedule: 'none',
     registration: 'enabled',
   }),
@@ -248,8 +233,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
       capability: 'portal.write',
       action: 'system:portal.destination_revalidate',
       scope: 'tenant_cross',
-      externalEffect: true,
-      scheduleExternalEffect: false,
       schedule: 'every:900000',
       registration: 'enabled',
     },
@@ -265,8 +248,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
       capability: 'none',
       action: 'system:portal.media_sweep',
       scope: 'tenant_cross',
-      externalEffect: true,
-      scheduleExternalEffect: false,
       schedule: 'every:3600000,offset:1800000',
       registration: 'enabled',
     },
@@ -308,7 +289,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
       capability: 'inbox.use',
       action: 'system:inbox.update',
       scope: 'tenant_cross',
-      externalEffect: true,
       schedule: 'every:300000',
       registration: 'enabled',
     },
@@ -507,7 +487,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
       capability: 'property.connect_gbp',
       action: 'system:integration.gbp_subscription_reconcile',
       scope: 'tenant_cross',
-      externalEffect: true,
       schedule: 'every:86400000',
       registration: 'enabled',
     },
@@ -521,8 +500,6 @@ export const JOB_DEFINITIONS: ReadonlyArray<JobDefinition> = [
       capability: 'notification.send_email',
       action: 'system:notification.email_digest',
       scope: 'tenant_cross',
-      externalEffect: true,
-      scheduleExternalEffect: false,
       schedule: 'cron:0 * * * *',
       registration: 'enabled',
     },
@@ -575,7 +552,6 @@ const jobEntryPoint = (def: JobDefinition): EntryPointRow => ({
   action: def.action,
   capability: def.capability,
   resourceScope: def.scope,
-  externalEffect: def.externalEffect,
 })
 
 /** The recurring schedule a scheduled job registers in the worker. */
@@ -585,7 +561,6 @@ const scheduleEntryPoint = (def: JobDefinition): EntryPointRow => ({
   action: def.action,
   capability: def.capability,
   resourceScope: def.scope,
-  externalEffect: def.scheduleExternalEffect ?? def.externalEffect,
 })
 
 export const JOB_ENTRY_POINTS: ReadonlyArray<EntryPointRow> =

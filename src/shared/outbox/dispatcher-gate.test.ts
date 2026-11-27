@@ -74,17 +74,15 @@ const decideMock = vi.fn<(r: DelayedDecisionRequest) => Promise<DelayedDecision>
 
 function decision(over: Partial<DelayedDecision> = {}): DelayedDecision {
   return {
-    outcome: 'deny',
     allowed: false,
     reason: 'capability_blocked',
     action: 'system:inbox.update',
     policyVersion: 'bqc-2.4',
-    freshRead: false,
     ...over,
   }
 }
 
-const ALLOW = decision({ outcome: 'allow', allowed: true, reason: 'allowed' })
+const ALLOW = decision({ allowed: true, reason: 'allowed' })
 
 function makeEnvelope(overrides: Partial<ConsumerEvent> = {}): ConsumerEvent {
   return {
