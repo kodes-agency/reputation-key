@@ -12,13 +12,12 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
   staticData: {
     page: { title: 'Staff', tier: 'dashboard', under: 'property', loading: 'list' },
   },
-  beforeLoad: async ({ context, params }) => {
+  beforeLoad: async ({ context }) => {
     await gateControlledRoute({
       context,
       data: {
         capability: 'staff.accounts',
         featureLabel: 'Staff',
-        propertyId: params.propertyId,
       },
     })
     const { role } = context

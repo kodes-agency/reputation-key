@@ -25,17 +25,7 @@ import {
   type CapabilityRefusalCategory,
 } from './capability-refusal-category'
 
-export type CapabilitySetInput = Readonly<{
-  /**
-   * Property the decisions are scoped to. Omitted only when no property is in
-   * scope, in which case the org-level posture is returned.
-   */
-  propertyId?: string
-}>
-
 export type CapabilitySet = Readonly<{
-  /** Property the decisions were resolved for; null when none was in scope. */
-  propertyId: string | null
   /**
    * Allowed capabilities only. A plain array, not a Set, because the value is
    * carried on the router context and has to survive SSR dehydration.
@@ -52,15 +42,13 @@ export type CapabilitySet = Readonly<{
 
 /** Empty posture — used when the caller has no tenant context yet. */
 export const EMPTY_CAPABILITY_SET: CapabilitySet = {
-  propertyId: null,
   allowed: [],
   refused: [],
 }
 
 /** Plain-data server boundary read by the `_authenticated` route context. */
-export const getCapabilitySet = createServerFn({ method: 'GET' })
-  .validator((data: CapabilitySetInput) => data)
-  .handler(async ({ data }): Promise<CapabilitySet> => {
+export const getCapabilitySet = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<CapabilitySet> => {
     const headers = await headersFromContext()
     const ctx = await resolveTenantContext(headers)
     const allowed: Capability[] = []
@@ -78,9 +66,6 @@ export const getCapabilitySet = createServerFn({ method: 'GET' })
       if (category !== null) refused.push({ capability, category })
     }
 
-    return {
-      propertyId: data.propertyId ?? null,
-      allowed,
-      refused,
-    }
-  })
+    return { allowed, refused }
+  },
+)

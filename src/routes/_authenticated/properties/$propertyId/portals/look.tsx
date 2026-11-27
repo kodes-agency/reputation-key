@@ -39,13 +39,12 @@ export const Route = createFileRoute(
       loading: 'split',
     },
   },
-  beforeLoad: async ({ context, params }) => {
+  beforeLoad: async ({ context }) => {
     await gateControlledRoute({
       context,
       data: {
         capability: 'portal.read',
         featureLabel: 'Portals',
-        propertyId: params.propertyId,
       },
     })
     const { role } = context

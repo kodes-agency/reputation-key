@@ -16,7 +16,6 @@ import type { CapabilitySet } from '#/shared/auth/capability-set'
 import type { Role } from '#/shared/domain/roles'
 
 const PORTAL_WRITES_OFF: CapabilitySet = {
-  propertyId: null,
   allowed: ['portal.read'],
   refused: [{ capability: 'portal.write', category: 'not_in_beta' }],
 }

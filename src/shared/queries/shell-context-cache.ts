@@ -1,7 +1,7 @@
 // The browser's memory of the shell's own checks.
 //
 // `_authenticated`'s `beforeLoad` asks who is signed in, which Organization and role
-// they have, and which features are on for the Property in scope, and the controlled
+// they have, and which features are on, and the controlled
 // routes ask whether their feature is on. Those answers are kept in the browser's
 // Query cache for `SHELL_CONTEXT_STALE_MS`, so a navigation soon after the last check
 // asks the server nothing. This module holds the keys and the ways an entry is
@@ -27,15 +27,10 @@ export const shellContextKeys = {
   person: (userId: string) => [...shellContextKeys.all, 'person', userId] as const,
   organization: (userId: string) =>
     [...shellContextKeys.person(userId), 'organization'] as const,
-  capabilities: (userId: string, propertyId: string | null) =>
-    [...shellContextKeys.person(userId), 'capabilities', propertyId ?? 'none'] as const,
-  routeGate: (userId: string, capability: string, propertyId: string | null) =>
-    [
-      ...shellContextKeys.person(userId),
-      'route-gate',
-      capability,
-      propertyId ?? 'none',
-    ] as const,
+  capabilities: (userId: string) =>
+    [...shellContextKeys.person(userId), 'capabilities'] as const,
+  routeGate: (userId: string, capability: string) =>
+    [...shellContextKeys.person(userId), 'route-gate', capability] as const,
 }
 
 type ForgettingClient = Pick<QueryClient, 'removeQueries'>

@@ -13,8 +13,6 @@ import {
   shellContextKeys,
 } from '#/shared/queries/shell-context-cache'
 
-const PROPERTY_A = '10000000-0000-4000-8000-00000000000a'
-const PROPERTY_B = '10000000-0000-4000-8000-00000000000b'
 const START = new Date('2026-10-28T10:00:00Z').getTime()
 
 const allowed: CapabilityDecision = {
@@ -30,18 +28,10 @@ const denied: CapabilityDecision = {
 
 describe('gateControlledRoute', () => {
   let queryClient: QueryClient
-  const gate = (
-    propertyId: string | null = PROPERTY_A,
-    userId = 'user-1',
-    capability: 'goal.use' | 'staff.use' = 'goal.use',
-  ) =>
+  const gate = (userId = 'user-1', capability: 'goal.use' | 'staff.use' = 'goal.use') =>
     gateControlledRoute({
       context: { queryClient, user: { id: userId } },
-      data: {
-        capability,
-        featureLabel: 'Goals',
-        ...(propertyId ? { propertyId } : {}),
-      },
+      data: { capability, featureLabel: 'Goals' },
     })
 
   beforeEach(() => {
@@ -78,7 +68,7 @@ describe('gateControlledRoute', () => {
 
       expect(checkControlledRoute).toHaveBeenCalledOnce()
       expect(checkControlledRoute).toHaveBeenCalledWith({
-        data: { capability: 'goal.use', featureLabel: 'Goals', propertyId: PROPERTY_A },
+        data: { capability: 'goal.use', featureLabel: 'Goals' },
       })
     })
 
@@ -90,15 +80,12 @@ describe('gateControlledRoute', () => {
       expect(checkControlledRoute).toHaveBeenCalledTimes(2)
     })
 
-    it('asks for each Property, capability and person on its own', async () => {
-      await gate(PROPERTY_A)
-      await gate(PROPERTY_B)
-      // Organization-wide, as Portals asks.
-      await gate(null)
-      await gate(PROPERTY_A, 'user-2')
-      await gate(PROPERTY_A, 'user-1', 'staff.use')
+    it('asks for each capability and person on its own', async () => {
+      await gate()
+      await gate('user-2')
+      await gate('user-1', 'staff.use')
 
-      expect(checkControlledRoute).toHaveBeenCalledTimes(5)
+      expect(checkControlledRoute).toHaveBeenCalledTimes(3)
     })
 
     it('answers a remembered refusal with the same notice', async () => {

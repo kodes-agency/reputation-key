@@ -3,8 +3,7 @@
 // The server always asks: its QueryClient is made per request and nothing here is
 // written to it, so one request's answer can never reach another request, or ride the
 // dehydrated cache into a browser. The browser remembers a POSITIVE session, an
-// Organization answer that lets the person in, and the capability set per Property
-// scope for `SHELL_CONTEXT_STALE_MS` (`shell-context-cache.ts`), so a navigation soon
+// Organization answer that lets the person in, and the capability set for `SHELL_CONTEXT_STALE_MS` (`shell-context-cache.ts`), so a navigation soon
 // after the last check costs no request and a later one asks as before, blocking.
 //
 // This module only fetches and remembers. The decisions (no session, then an
@@ -46,7 +45,7 @@ type SignedInSession = Readonly<{ user: Readonly<{ id: string }> }>
 export type ShellCheckFns<S extends SignedInSession, O> = Readonly<{
   session: () => Promise<S | null | undefined>
   organization: () => Promise<O>
-  capabilities: (propertyId: string | null) => Promise<CapabilitySet>
+  capabilities: () => Promise<CapabilitySet>
   /**
    * Whether an Organization answer lets the person into the shell. Only those are
    * remembered: a disabled workspace or a missing Organization is asked again on the
@@ -63,7 +62,6 @@ export type ShellChecks<S, O> = Readonly<{
 
 export type ShellCheckRequest<S extends SignedInSession, O> = Readonly<{
   queryClient: QueryClient
-  propertyId: string | null
   /** `server` always fetches and writes nothing. */
   side: 'server' | 'browser'
   fns: ShellCheckFns<S, O>
@@ -74,19 +72,18 @@ const UNAUTHENTICATED = 401
 /** The three questions at once, as the shell asked them before it remembered any. */
 async function askServer<S extends SignedInSession, O>(
   fns: ShellCheckFns<S, O>,
-  propertyId: string | null,
 ): Promise<ShellChecks<S, O>> {
   const [session, organization, capabilities] = await Promise.all([
     settle(fns.session()),
     settle(fns.organization()),
-    settle(fns.capabilities(propertyId)),
+    settle(fns.capabilities()),
   ])
   return { session, organization, capabilities }
 }
 
 /**
  * Forget every shell entry and stop any older check still in flight from being kept
- * (one that is out for another Property scope may answer after this one said 401).
+ * (one still in flight may answer after this one said 401).
  */
 function forgetAll(queryClient: QueryClient): void {
   invalidateShellContext(queryClient)
@@ -124,7 +121,6 @@ function freshSession<S extends SignedInSession>(queryClient: QueryClient): S | 
  */
 function remember<S extends SignedInSession, O>(
   queryClient: QueryClient,
-  propertyId: string | null,
   checks: ShellChecks<S, O>,
   admitsShell: (organization: O) => boolean,
 ): void {
@@ -148,7 +144,7 @@ function remember<S extends SignedInSession, O>(
   }
   if (checks.capabilities.ok) {
     queryClient.setQueryData(
-      shellContextKeys.capabilities(userId, propertyId),
+      shellContextKeys.capabilities(userId),
       checks.capabilities.value,
     )
   }
@@ -159,7 +155,7 @@ async function askForPerson<S extends SignedInSession, O>(
   request: ShellCheckRequest<S, O>,
   session: S,
 ): Promise<ShellChecks<S, O>> {
-  const { queryClient, propertyId, fns } = request
+  const { queryClient, fns } = request
   const userId = session.user.id
   const organizationKey = shellContextKeys.organization(userId)
   // `retry: false`, as the server calls were: a failure is decided at once, never
@@ -168,10 +164,8 @@ async function askForPerson<S extends SignedInSession, O>(
   const [organization, capabilities] = await Promise.all([
     settle(fetchRemembered(queryClient, organizationKey, fns.organization)),
     settle(
-      fetchRemembered(
-        queryClient,
-        shellContextKeys.capabilities(userId, propertyId),
-        () => fns.capabilities(propertyId),
+      fetchRemembered(queryClient, shellContextKeys.capabilities(userId), () =>
+        fns.capabilities(),
       ),
     ),
   ])
@@ -188,42 +182,36 @@ async function askForPerson<S extends SignedInSession, O>(
 }
 
 /**
- * The browser's checks still in flight, per QueryClient and Property scope. A hover
- * preload and the click that follows it run `beforeLoad` a moment apart; with no fresh
- * session both would ask all three, so the second waits for the first's answers. Only
- * a question asked at the same moment is shared, never a settled answer.
+ * The browser's check still in flight, per QueryClient. A hover preload and the click
+ * that follows it run `beforeLoad` a moment apart; with no fresh session both would
+ * ask all three, so the second waits for the first's answers. Only a question asked
+ * at the same moment is shared, never a settled answer.
  */
 const inFlight = new WeakMap<
   QueryClient,
-  Map<
-    string,
-    Readonly<{ generation: number; asking: Promise<ShellChecks<unknown, unknown>> }>
-  >
+  Readonly<{ generation: number; asking: Promise<ShellChecks<unknown, unknown>> }>
 >()
 
 function askAndRemember<S extends SignedInSession, O>(
   request: ShellCheckRequest<S, O>,
 ): Promise<ShellChecks<S, O>> {
-  const { queryClient, propertyId, fns } = request
-  const pending = inFlight.get(queryClient) ?? new Map()
-  inFlight.set(queryClient, pending)
-  const scope = propertyId ?? ''
+  const { queryClient, fns } = request
   const generation = shellContextGeneration(queryClient)
-  const shared = pending.get(scope)
+  const shared = inFlight.get(queryClient)
   // Asked before the shell was last forgotten: not shared, it may be the old answer.
   if (shared?.generation === generation)
     return shared.asking as Promise<ShellChecks<S, O>>
-  const asking = askServer(fns, propertyId).then((checks) => {
+  const asking = askServer(fns).then((checks) => {
     // Forgotten while asking (a sign-out, a profile save): this answer is from before.
     if (shellContextGeneration(queryClient) === generation) {
-      remember(queryClient, propertyId, checks, fns.admitsShell)
+      remember(queryClient, checks, fns.admitsShell)
     }
     return checks
   })
-  pending.set(scope, { generation, asking })
+  inFlight.set(queryClient, { generation, asking })
   // Settled either way, so the copy that clears the entry never rejects on its own.
   const done = () => {
-    if (pending.get(scope)?.asking === asking) pending.delete(scope)
+    if (inFlight.get(queryClient)?.asking === asking) inFlight.delete(queryClient)
   }
   asking.then(done, done)
   return asking
@@ -239,8 +227,8 @@ function askAndRemember<S extends SignedInSession, O>(
 export async function readShellChecks<S extends SignedInSession, O>(
   request: ShellCheckRequest<S, O>,
 ): Promise<ShellChecks<S, O>> {
-  const { queryClient, propertyId, side, fns } = request
-  if (side === 'server') return askServer(fns, propertyId)
+  const { queryClient, side, fns } = request
+  if (side === 'server') return askServer(fns)
   const session = freshSession<S>(queryClient)
   if (session) return askForPerson(request, session)
   return askAndRemember(request)
