@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { Pool } from 'pg'
 import { getInboxItems } from './get-inbox-items.server'
 import { getDb } from '#/shared/db'
@@ -33,7 +34,6 @@ import {
   fixtureUuid,
   seedInboxScope,
 } from './inbox-database.test-fixtures'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const SCOPE = 'get-inbox-items'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -88,20 +88,7 @@ const setup = (
     findCurrentReviewIdsByAttention: vi.fn(async () => []),
     findCurrentReviewIdsByIssue: vi.fn(async () => issueReviewIds.map(reviewId)),
   } as unknown as AiReviewInsightsPort
-  const repo = createInboxRepository(getDb(), {
-    reviewLookup: {
-      getReviewSnippetById: async () => ({ status: 'not_found' as const }),
-      getReviewSnippetsByIds: async () => new Map(),
-      findEligibleReviewIds: async () => [],
-    },
-    feedbackLookup: {
-      getFeedbackSnippetById: async () => null,
-      getFeedbackSnippetsByIds: async () => new Map(),
-      findEligibleFeedbackIds: async () => [],
-    },
-    propertyLookup: inertPropertyLookup,
-    aiInsights,
-  })
+  const repo = createInboxRepository(getDb(), { ...emptyLookupPorts, aiInsights })
   const getReplyStatesByReviewIds = vi.fn(async () => replyStates)
   const replyLookup: ReplyLookupPort = {
     getEffectiveReplyByReviewId: vi.fn(async () => null),

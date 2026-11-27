@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { Pool } from 'pg'
 import { getLastVisitCount } from './get-last-visit-count.server'
 import { getDb } from '#/shared/db'
@@ -23,7 +24,6 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 const ORG_ID = organizationId('org-last-visit-count-test')
 const PROP_1 = propertyId('1c000000-0000-0000-0000-000000000001')
@@ -90,19 +90,7 @@ describe.sequential('getLastVisitCount', () => {
 
   const seed = async (...items: InboxItem[]) => {
     for (const item of items) await seedInboxItem(pool, db, item)
-    return createInboxRepository(db, {
-      reviewLookup: {
-        getReviewSnippetById: async () => ({ status: 'not_found' }),
-        getReviewSnippetsByIds: async () => new Map(),
-        findEligibleReviewIds: async () => [],
-      },
-      feedbackLookup: {
-        getFeedbackSnippetById: async () => null,
-        getFeedbackSnippetsByIds: async () => new Map(),
-        findEligibleFeedbackIds: async () => [],
-      },
-      propertyLookup: inertPropertyLookup,
-    })
+    return createInboxRepository(db, emptyLookupPorts)
   }
 
   const clearItems = () =>

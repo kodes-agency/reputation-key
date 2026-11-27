@@ -2,6 +2,8 @@
 // seeds for real Review and Guest source truth, consumer dependencies, the
 // durable-dispatcher drain, and state capture.
 
+import { emptyLookupPorts } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
+import { allowAllCommandAuthority } from '#/contexts/reputation/inbox/inbox-test-doubles.test-fixtures'
 import { expect } from 'vitest'
 import type { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
@@ -20,10 +22,7 @@ import {
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
-import {
-  createAtomicInboxCommandStore,
-  type InboxCommandAuthority,
-} from '#/contexts/reputation/inbox/command-store.server'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createReviewHandlingCycleStore } from './review-handling-cycle-store.server'
 import { createResponseTargetStore } from '../response-targets/store.server'
@@ -35,9 +34,7 @@ import {
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { type GuestFeedbackConsumerDeps } from './guest-feedback-outbox-consumers.server'
-import type { ReviewLookupPort } from './review-lookup.port.server'
 import type { FeedbackLookupPort } from './feedback-lookup.port.server'
-import { inertPropertyLookup } from '#/contexts/reputation/inbox/inert-property-lookup.test-fixtures'
 
 export const SCOPE = INBOX_REPLAY_SCOPE
 export const AT = INBOX_REPLAY_CLOCK
@@ -48,18 +45,6 @@ export let pool: Pool
 export const bindReplayPool = (replayPool: Pool): void => {
   pool = replayPool
 }
-
-export const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
-  allowed: true,
-})
-
-const reviewLookup = {
-  getReviewSnippetById: async () => ({ status: 'not_found' as const }),
-  getReviewSnippetsByIds: async () => new Map(),
-  findEligibleReviewIds: async () => [],
-} satisfies ReviewLookupPort
-
-const propertyLookup = inertPropertyLookup
 
 /** Guest bodies are live-read. `available` flips to false once the source is purged. */
 function createFeedbackLookup(available: () => boolean): FeedbackLookupPort {
@@ -466,9 +451,8 @@ const inboxStores = (feedbackLookup: FeedbackLookupPort) => {
   return {
     commandStore: createAtomicInboxCommandStore(database, allowAllCommandAuthority),
     inboxRepo: createInboxRepository(database, {
-      reviewLookup,
+      ...emptyLookupPorts,
       feedbackLookup,
-      propertyLookup,
     }),
   }
 }
