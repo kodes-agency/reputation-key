@@ -15,7 +15,6 @@ export const COMMANDS: Readonly<
   'check-google-oauth': ['scripts/ops/check-google-oauth.ts'],
   'db-roles': ['scripts/ops/db-roles.ts'],
   'deploy-ci-images': ['scripts/ops/deploy-ci-images.ts'],
-  'copy-notification-defaults': ['scripts/ops/copy-notification-defaults.ts'],
   'disconnect-connection': ['scripts/ops/disconnect-connection.ts'],
   'erase-retired-readings': ['scripts/ops/erase-retired-readings.ts'],
   'erasure-journal-export': ['scripts/ops/erasure-journal-export.ts'],

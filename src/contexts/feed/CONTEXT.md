@@ -288,8 +288,7 @@ Organization notices are never hidden.
 
 The person's category default is a preference row with no Property. Settings
 saves still also write the earlier `notification_category_defaults` table, but
-nothing reads it any more (`pnpm ops copy-notification-defaults` remains until it
-is dropped).
+nothing reads it any more.
 
 Settings controls and their serialized save hook live in
 `preferences/ui/` (the `notification-*` files and
